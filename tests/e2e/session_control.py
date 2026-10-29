@@ -87,7 +87,7 @@ def installed_package_version(name):
     require(name in ('oh-no-parent-control', 'gdm3', 'gnome-shell', 'mate-polkit',
                      'nautilus', 'libgtk-4-1', 'gnome-text-editor', 'gcr'), 'package-name')
     if package_format() == 'rpm':
-        name = {'gdm3': 'gdm', 'libgtk-4-1': 'gtk4', 'gcr': 'gcr4'}.get(name, name)
+        name = {'gdm3': 'gdm', 'libgtk-4-1': 'gtk4', 'gcr': 'gcr3'}.get(name, name)
         argv = ['/usr/bin/rpm', '-q', '--queryformat', '%{EPOCHNUM}:%{VERSION}-%{RELEASE}', name]
     else:
         argv = ['/usr/bin/dpkg-query', '--show', '--showformat=${Version}', name]

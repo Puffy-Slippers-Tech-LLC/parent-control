@@ -19,6 +19,7 @@ CHALLENGE = r'''
 from gi.repository import Gio, GLib
 import json
 from pathlib import Path
+import platform
 import signal
 import subprocess
 import sys
@@ -49,8 +50,11 @@ def bus_call(method, signature, values):
                          GLib.Variant(signature, values), None,
                          Gio.DBusCallFlags.NONE, 15000, None).unpack()
 
+stage = 'gcr-activation'
 bus_call('StartServiceByName', '(su)', ('org.gnome.keyring.PrivatePrompter', 0))
+stage = 'gcr-private-owner'
 provider, = bus_call('GetNameOwner', '(s)', ('org.gnome.keyring.PrivatePrompter',))
+stage = 'gcr-provider'
 deadline = time.monotonic() + 5
 while True:
     owner, = bus_call('GetNameOwner', '(s)', ('org.gnome.keyring.SystemPrompter',))
@@ -61,17 +65,47 @@ while True:
     time.sleep(.1)
 
 # Record the actual provider's locale, not this observation client's locale.
+stage = 'gcr-process'
 pid, = bus_call('GetConnectionUnixProcessID', '(s)', (provider,))
+stage = 'gcr-locale'
 environment = dict(item.split(b'=', 1) for item in
                    Path('/proc/' + str(pid) + '/environ').read_bytes().split(b'\0')
                    if b'=' in item)
 locale = (environment.get(b'LC_ALL') or environment.get(b'LC_MESSAGES')
           or environment.get(b'LANG') or b'C').decode('ascii')
 packages = {}
+stage = 'package-platform'
+fedora = platform.freedesktop_os_release()['ID'] == 'fedora'
 for package in ('gcr', 'gnome-shell'):
-    packages[package] = subprocess.check_output(
-        ['/usr/bin/dpkg-query', '--show', '--showformat=${Version}', package],
-        text=True, timeout=5).strip()
+    stage = 'package-version-' + package + ('-rpm' if fedora else '-deb')
+    # This challenge runs in an isolated interpreter without repository imports.
+    # Match session_control.installed_package_version's native package query.
+    if fedora:
+        # Fedora ships the PrivatePrompter service in gcr3, alongside gcr 4.
+        name = 'gcr3' if package == 'gcr' else package
+        command = ['/usr/bin/rpm', '-q', '--queryformat',
+                   '%{EPOCHNUM}:%{VERSION}-%{RELEASE}', name]
+    else:
+        command = ['/usr/bin/dpkg-query', '--show', '--showformat=${Version}', package]
+    try:
+        packages[package] = subprocess.check_output(
+            command, text=True, timeout=5, stderr=subprocess.PIPE).strip()
+    except FileNotFoundError:
+        stage += '-missing-command'
+        raise
+    except subprocess.TimeoutExpired:
+        stage += '-timeout'
+        raise
+    except subprocess.CalledProcessError as error:
+        # Classify only the exact public RPM absence response. Never expose
+        # arbitrary command output or exception text from the fixture session.
+        stage += ('-not-installed' if fedora and error.output.strip()
+                  == 'package ' + name + ' is not installed' else '-query-failed')
+        raise
+    except OSError:
+        stage += '-os-error'
+        raise
+stage = 'keyboard-sources'
 sources = Gio.Settings.new('org.gnome.desktop.input-sources').get_value('sources').unpack()
 metadata = {'packages': packages, 'provider_locale': locale,
             'keyboard_sources': [list(source) for source in sources]}
@@ -171,8 +205,17 @@ def main():
             response = os.read(child.stdout.fileno(), 4096)
             if response.startswith(b'keyring-fixture:failed:'):
                 allowed = {b'keyring-fixture:failed:' + stage.encode() + b'\n'
-                           for stage in ('startup', 'session-bus', 'gcr-provider', 'ReadAlias',
+                           for stage in ('startup', 'session-bus', 'gcr-activation',
+                                         'gcr-private-owner', 'gcr-provider', 'gcr-process',
+                                         'gcr-locale', 'package-platform', 'keyboard-sources', 'ReadAlias',
                                          'Get', 'Lock', 'Unlock', 'Prompt')}
+                allowed.update(
+                    ('keyring-fixture:failed:package-version-' + package
+                     + '-' + backend + reason + '\n').encode()
+                    for package in ('gcr', 'gnome-shell')
+                    for backend in ('rpm', 'deb')
+                    for reason in ('', '-missing-command', '-timeout',
+                                   '-not-installed', '-query-failed', '-os-error'))
                 raise SystemExit(response.decode().strip() if response in allowed
                                  else 'keyring-fixture:challenge-preparation')
             metadata = provider_metadata(response)

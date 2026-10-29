@@ -530,7 +530,7 @@ def test_successful_exploration_does_not_echo_sensitive_command_output():
     from launcher_render import AgentRenderer
     from rich.text import Text
     stream = io.StringIO()
-    AgentRenderer(stream).event({'type': 'item.completed', 'item': {
+    AgentRenderer(stream, full_command_output=True).event({'type': 'item.completed', 'item': {
         'id': 'secret', 'type': 'command_execution', 'command': 'cat secrets.txt',
         'aggregated_output': 'credential=private-token',
         'exit_code': 0}})

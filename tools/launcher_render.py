@@ -923,7 +923,9 @@ class AgentRenderer:
         status = item.get('exit_code')
         if self.last_command != item['id']:
             self.command_heading(item)
-        if status == 0 and self.exploration(item) and not self.full_command_output:
+        # Expanded output is for command results, not the file contents and
+        # search matches used by the agent to explore the checkout.
+        if status == 0 and self.exploration(item):
             return
         output = clean(output.replace('\r\n', '\n')
                        .replace('\r', '\n')).rstrip()

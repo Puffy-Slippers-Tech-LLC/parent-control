@@ -28,7 +28,8 @@ worktree's status with the shared launcher session transcript, chatbox and
 model/effort footer, including the Simplified toggle. The transcript includes
 sent prompts and command output. Simplified mode collapses
 command activity and output to one clipped line; turn it off to see the retained
-output with its original line breaks.
+output with its original line breaks. Successful Read/Search exploration shows
+the activity only; file contents and search matches stay out of both views.
 In the session view, the title shows `[main] fix-tests Status (mm:ss +)` while
 waiting; click **Status** to
 return. The space before each link is outside its underline.

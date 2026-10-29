@@ -20,7 +20,8 @@ from e2e_watch_viewer import AsyncFeed, Feed, activity_text, progress_text, WAIT
 from ui_watch_transport import Feeds, label
 from watch_checkouts import Discovery, checkout, identity
 from watch_model import ResourceUsage, viewer_entries
-from watch_output import Output, SessionOutput
+from watch_output import Output, SessionOutput, TAIL_BYTES
+from tests.integration.watch_activity import TerminalControls
 
 
 def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
@@ -105,6 +106,8 @@ class Viewer:
         self.outputs = {}
         self.last_output = root
         self.status_cache = {}
+        self.launcher_logs = {}
+        self.launcher_controls = {}
         self.sessions = {}
         self.resources = ResourceUsage()
 
@@ -114,7 +117,13 @@ class Viewer:
             if root not in self.outputs:
                 self.outputs[root] = Output(root, show_log=False)
             output = self.outputs[root]
-            label, active, _reset, _data = output.poll(progress=False)
+            label, active, reset, data = output.poll(progress=False)
+            if reset or root not in self.launcher_logs:
+                self.launcher_logs[root] = ''
+                self.launcher_controls[root] = TerminalControls()
+            if data:
+                text = output.decoder.decode(self.launcher_controls[root].feed(data))
+                self.launcher_logs[root] = (self.launcher_logs[root] + text)[-TAIL_BYTES:]
             if root not in self.sessions:
                 self.sessions[root] = SessionOutput(output, None, embedded=True)
             session = self.sessions[root]
@@ -166,6 +175,7 @@ class Viewer:
             sections.append(dict(id=str(root), label=f'[{branch}]' +
                 (f' {label}' + (f' ({status})' if status else '') if label else ''),
                 active=active or session.active, status=status, rows=self.status_cache[root][1],
+                launcher_output=self.launcher_logs[root],
                 session=session.identity if session.active else None,
                 session_waiting=waiting, session_deadline=deadline, session_question=prompt_id,
                 session_view=session_view))
@@ -281,6 +291,9 @@ class Viewer:
             locked = bool(progress or (activity and activity.get('operation_active')) or
                           (meta and meta.get('lease_locked', True)))
             title, step, operation = progress_text(dict(meta, **({'progress': progress} if progress else {})))
+            case = progress or meta.get('progress')
+            if case:
+                title = f"[{case['case_id']}] {case['title']}"
             view = dict(kind='vm', heading=title, step=step,
                 status=activity_text(activity, progress or meta.get('progress')) or operation or
                     ('VM running · Waiting for the next operation' if meta.get('state') == 'live' else

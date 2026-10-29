@@ -238,6 +238,41 @@ def watch_case_progress(root, vm, progress, *, reader):
         return progress
 
 
+def watch_integration_progress(root, vm, progress, *, reader):
+    """Resolve focused integration runs, which have no system/E2E heartbeat."""
+    import ast
+    from test_storage import directory
+    from watch_output import active_run
+    try:
+        base = directory('sessions', root=root, create=False) / ('vm-' + vm)
+        run = active_run(base, reader=reader)
+        if run is None:
+            return progress
+        current = reader.read(base / 'current.json', 4096)
+        if current['run'] != run.name:
+            return progress
+        args = current['argv']
+        if 'integration' not in args:
+            return progress
+        case = next((arg.partition('=')[2] for arg in args
+                     if arg.startswith('--resume-case=')), None)
+        if case is None:
+            index = args.index('integration') + 1
+            case = args[index] if index < len(args) else ''
+        case = case.removesuffix('.py')
+        if not re.fullmatch(r'check_[a-z][a-z0-9_]*', case):
+            return progress
+        source = root / 'tests/integration' / (case + '.py')
+        if source.is_symlink():
+            return progress
+        description = ast.get_docstring(ast.parse(source.read_text())) or ''
+        title = case.removeprefix('check_').replace('_', ' ').capitalize()
+        return dict(current=1, total=1, case_id=case, title=title,
+                    step=' '.join(description.split()), operation='')
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, SyntaxError):
+        return progress
+
+
 def read_progress(run):
     try:
         return json.loads((run / 'controller.json').read_text())

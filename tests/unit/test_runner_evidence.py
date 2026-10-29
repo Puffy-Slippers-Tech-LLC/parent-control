@@ -717,6 +717,9 @@ def test_lost_preseal_object_recovers_original_run_without_rewriting_failed_atte
 
 
 def test_lost_publication_reply_recovers_same_capture_attempts_and_stage(environment, monkeypatch):
+    class PublicationInterrupted(KeyboardInterrupt):
+        """Distinguish the injected fault from an outside cancellation."""
+
     root, store = environment
     with store.session():
         directory = allocate()
@@ -725,10 +728,10 @@ def test_lost_publication_reply_recovers_same_capture_attempts_and_stage(environ
         evidence.command(command(status='failed', exit_status=1))
         def interrupt(stage):
             if stage == 'publication.copied':
-                raise KeyboardInterrupt('lost publication process')
+                raise PublicationInterrupted('lost publication process')
         with monkeypatch.context() as local:
             local.setattr(runner.publication, 'checkpoint', interrupt)
-            with pytest.raises(KeyboardInterrupt, match='lost publication'):
+            with pytest.raises(PublicationInterrupted, match='lost publication'):
                 finish(evidence, status='failed', members=[dict(path=report, role='result')])
         original = json.loads((store.path / 'current.json').read_bytes())['captures']
         parent = bundle.plan_parent(root, runner.publication._namespace(original[0]['intent']))

@@ -481,7 +481,8 @@ history does not supply this family's expiry or complete-case acceptance.
 
 ### E2E-011
 
-Implementation status: All cases pending.
+Implementation status: Daily-only case 27 passed on the selected Ubuntu 26.04
+VM. Grant-only and combined cases remain pending.
 
 **Plan child activity with the remaining-time countdown.** Cases 27, 28, 29.
 
@@ -490,6 +491,20 @@ Bindings: time = daily-only / grant-only / combined.
 1. FLOW13(profile) → P → PARENT09 → C(fresh) → TIME01 → FLOW08(allowed activity) → APP04.
 2. DESK05 → DESK08(success) → TIME01 → APP04(compare retained activity). Compare the updated countdown against the earlier balance and actual elapsed time; return cannot reset the usable interval.
 3. Use the activity through TIME02(minute and final seconds) → TIME04(natural lock). Remaining-time information must predict the end of usable desktop access. Countdown visibility across unrelated surfaces and tooltip wording remain child UI coverage.
+
+Case 27 uses `countdown_daily.PLAN` / `CountdownDailyJourney`: four daily minutes,
+zero grant, fresh Riley entry and the original native activity window/draft.
+Capture the countdown before activity and compare it after legitimate same-child
+unlock within 180 seconds, rejecting an increased display. Compare the original
+window/draft before resuming Submit and independently reread its usable result.
+Require at least two displayed minutes before progression; observe each minute
+edge within 90 seconds and resume normal Submit between edges until `00:01`.
+Allow 90 seconds for the transition into positive final seconds, then require two
+successive decreases within 15 seconds each. All progression comparisons use
+controller read brackets, declared display precision and two-second tolerance.
+TIME04 uses the last immutable seconds sample's upper bound plus 15 seconds,
+continues ordinary work until near zero, and requires the natural lock to retain
+input ownership after harmless Shift. No clock or usage manipulation is allowed.
 
 ### E2E-012
 

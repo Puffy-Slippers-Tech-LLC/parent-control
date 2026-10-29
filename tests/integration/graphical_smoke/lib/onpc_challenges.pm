@@ -184,6 +184,35 @@ sub natural_expiry {
     $journey->finish();
 }
 
+sub countdown_daily {
+    onpc_progress::operation('Following daily time and original child work through unlock and natural lock');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'countdown-daily:plan' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'countdown-daily', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::daily_time_profile($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0, 4);
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    $journey->invoke('initial-countdown');
+    onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
+    onpc_desktop_session::lock($journey, $journey->seen('lock-ready'), 'lock-ready');
+    onpc_desktop_session::unlock_success($journey);
+    $journey->invoke('returned-countdown');
+    onpc_app_rows::native_read_activity($journey, 'returned-activity');
+    onpc_app_rows::native_activity_resume($journey, 'resume');
+    onpc_app_rows::native_read_activity($journey, 'usable-activity');
+    $journey->invoke($_) for qw(minute-progression final-second-transition second-progression
+        independent-second-progression natural-expiry);
+    $journey->consume_observation('lock-input-ready', $journey->invoke('lock-input-ready'));
+    testapi::send_key('shift');
+    $journey->invoke('lock-result');
+    $journey->finish();
+}
+
 sub fresh_child_allowed {
     onpc_progress::operation('Qualifying fresh child login with saved daily time');
     my $ok = eval { _fresh_child_allowed(@_); 1 };

@@ -2097,6 +2097,17 @@ both `en_US.UTF-8`, `xkb/us`.
 Authenticated denial, other apps/games, fullscreen, reminder delivery and
 complete customer histories remain separate.
 
+Complete daily-only case 27 now composes TIME01/02/04 with the qualified direct
+child lock/unlock and original native activity operations through
+[`countdown_daily.PLAN` / `CountdownDailyJourney`](../../tests/e2e/countdown_daily.py)
+and `onpc_challenges::countdown_daily`. The selected Ubuntu 26.04 run passed
+public four-minute/no-grant preparation, retained original work and resumed time,
+minute/final-second progression, natural lock and same-lock input ownership,
+collection, worker shutdown, recording, owned cleanup and baseline restoration.
+This qualifies that complete daily-only binding on Ubuntu; Fedora acceptance and
+the grant-only/combined customer bindings are not supplied by this result.
+The [recipe](E2E-Scenario-Recipes.md#e2e-011) owns its finite margins and endpoints.
+
 #### Installed restart notice qualification
 
 `check_e2e_restart_notice` qualifies the English three-surface binding on

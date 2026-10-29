@@ -295,7 +295,7 @@ def test_station_observer_does_not_wait_for_session_services(monkeypatch):
 def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path, online, monkeypatch):
     from contextlib import nullcontext
     from types import SimpleNamespace
-    from unittest.mock import Mock
+    from unittest.mock import Mock, call
 
     import check_e2e_kiosk_entry as check
     import app_snapshot
@@ -349,8 +349,9 @@ def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path, online, 
     staged.assert_called_once_with(ROOT, tmp_path / 'input')
     expected_identity.assert_called_once_with(lease, tmp_path, bundle, qualification.commands)
     assert qualification.result['installed_snapshot']['inputs'] == json.loads(identity)
-    assert lease.guard.call_count == (1 if online else 2)
-    lease.guard.assert_any_call(off=True)
+    # Offline reuse checks before metadata acceptance, again after restore
+    # admission, and after restoring the isolated domain configuration.
+    assert lease.guard.call_args_list == [call(off=True)] * (1 if online else 3)
     lease.source.domain.snapshotLookupByName.assert_called_once_with('onpc-v9.8.7', 0)
     if online:
         assert lease.online_pending is True and lease.installed_name == 'onpc-v9.8.7'

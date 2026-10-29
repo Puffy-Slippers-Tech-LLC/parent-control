@@ -474,7 +474,8 @@ def test_assume_yes_with_vm_never_prompts(launch, monkeypatch, capsys):
 def test_assume_yes_resolves_vm_id_before_dispatch(launch, monkeypatch):
     control, cleanup, allocation = launch
     control.run.return_value = 0
-    configured = list(vm_selection.registry().values())[1]
+    # Resolve an eligible VM's ID; registry order can select another branch's VM.
+    configured = vm_selection.vm_config.execution()[1][0]
     monkeypatch.setattr(launcher, 'input', Mock(side_effect=AssertionError('confirmation attempted')),
                         raising=False)
     assert launcher.main(['--vm', configured.id, '--y']) == 0

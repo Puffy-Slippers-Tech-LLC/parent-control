@@ -692,7 +692,8 @@ def test_fixture_qualification_freezes_after_package_before_privilege(
     import regression_process
     import vm_selection
     events = []
-    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name=vm_name(0)))
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(
+        name=vm_name(0), fixture_path='selected-fixtures'))
     monkeypatch.setattr(commands, 'plan', lambda *args: (
         [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner',
           'integration', 'check_fixture_provisioning']], False))

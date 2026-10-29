@@ -67,6 +67,22 @@ nav button[aria-pressed="true"] {
 }
 .session-prompt:focus-within { box-shadow: inset 2px 0 var(--vscode-focusBorder); }
 .session-footer { display: flex; justify-content: space-between; padding: 4px 8px; gap: 8px; }
+.session-simplified { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.session-toggle {
+    flex-shrink: 0; width: 30px; height: 16px; padding: 2px; border-radius: 8px;
+    border: 1px solid var(--vscode-checkbox-border, var(--vscode-foreground));
+    background: var(--vscode-checkbox-background); color: var(--vscode-foreground);
+}
+.session-toggle::before {
+    content: ''; display: block; width: 10px; height: 10px; border-radius: 50%;
+    background: currentColor;
+}
+.session-toggle[aria-checked="true"] {
+    background: var(--vscode-button-background); color: var(--vscode-button-foreground);
+}
+.session-toggle[aria-checked="true"]::before { transform: translateX(14px); }
+.session-toggle:focus-visible { outline-offset: 2px; }
+.session-toggle:disabled { opacity: .5; cursor: default; }
 .session-model {
     color: #af6a00;
     font: var(--vscode-editor-font-size) var(--vscode-editor-font-family);

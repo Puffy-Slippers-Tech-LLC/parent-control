@@ -110,10 +110,16 @@
         error.setAttribute('role', 'status');
         const footer = element('div', 'session-footer', session);
         const model = element('span', 'session-model', footer);
-        const simplified = element('span', '', footer);
+        const simplified = element('label', 'session-simplified', footer);
         simplified.append('Simplified ');
         const section = { session, output, composer, working, input, error, model, fitInput, inputObserver };
-        section.toggle = link(simplified, '[on]', () => sessionAction(section, 'simplified'));
+        section.toggle = element('button', 'session-toggle', simplified);
+        section.toggle.type = 'button';
+        section.toggle.setAttribute('role', 'switch');
+        section.toggle.setAttribute('aria-label', 'Simplified');
+        section.toggle.setAttribute('aria-checked', 'true');
+        section.toggle.disabled = true;
+        section.toggle.addEventListener('click', () => sessionAction(section, 'simplified'));
         input.addEventListener('keydown', event => {
             if (event.key === 'Enter' && !event.isComposing && !event.shiftKey && !event.altKey) {
                 event.preventDefault();
@@ -145,7 +151,8 @@
         section.working.textContent = view.working || '';
         section.working.hidden = !view.working;
         section.model.textContent = view.model;
-        section.toggle.textContent = view.simplified ? '[on]' : '[off]';
+        section.toggle.setAttribute('aria-checked', String(view.simplified));
+        section.toggle.disabled = !section.entry.session;
         section.input.disabled = !view.input_enabled;
     }
 
@@ -310,6 +317,7 @@
                 section.output.textContent = 'No active session';
                 section.outputSignature = undefined;
                 section.input.disabled = true;
+                section.toggle.disabled = true;
                 section.working.textContent = section.model.textContent = '';
             }
             if (section.launcherText !== entry.launcher_output) {

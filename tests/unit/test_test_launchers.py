@@ -144,12 +144,16 @@ def test_transfer_refuses_unqualified_target_before_input_preparation(monkeypatc
 @pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 def test_serial_freezes_exact_input_and_refuses_unknown_target_before_preparation(
         monkeypatch, frozen_fixture_selection, category, arguments, vm, target):
+    families = json.loads((ROOT / 'config/test-vm.json').read_text())['families']
+    fixture_path = next(family['fixture_path'] for family in families
+                        if any(entry['name'] == vm for entry in family['vms']))
     frozen_fixture_selection = replace(frozen_fixture_selection, target=target,
         allocation=frozen_fixture_selection.allocation.replace('ubuntu', target))
     record = frozen_fixture_selection.record()
     monkeypatch.setenv('ONPC_TEST_VM', vm)
     def execute(command, **options):
-        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py', '--target', target)
+        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py',
+                                               '--target', target, '--fixture-path', fixture_path)
         options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n').encode())
         return 0
     assert commands.qualification_fixture_options(ROOT, category, arguments,

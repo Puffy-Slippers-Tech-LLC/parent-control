@@ -1583,7 +1583,9 @@ def test_diagnostic_experiment_retains_evidence_and_selectors_without_repair_cla
     assert 'verification_failed:' not in agents[-1]['prompt']
     assert all('model_reasoning_effort="low"' in call['args'] for call in agents)
     tests = [call for call in calls if call['kind'] == 'test']
-    retries = ['A', 'verification::case', 'A', 'verification::case'] if len(observations) == 4 else ['A', 'A']
+    # An unidentified diagnostic failure retains the attempted case A. Its
+    # bounded repair must use that case, ahead of the agent's fallback choice.
+    retries = ['A', 'A', 'A'] if len(observations) == 4 else ['A', 'A']
     assert [call['args'] for call in tests] == [
         ['--stop-on-error', 'unit', '-k', 'selected', '-q', '--vm', vm_name()],
         *[[*(['--resume'] if case else []), '--stop-on-error', 'unit', '-k', 'selected', '-q',

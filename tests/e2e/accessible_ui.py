@@ -3938,10 +3938,18 @@ class AccessibleUI:
             if step == 'restored':
                 self.save_chooser_restore_name()
             else:
-                self.save_chooser_location_closed(self.chooser_snapshot(mode='save'))
-                self.save_chooser_text('name', SAVE_NAMES[0])
+                def ready():
+                    # Provider children can retire after the complete tree
+                    # read but before the live state checks. Reacquire the
+                    # entire guarded preflight; never retry the Save action.
+                    snapshot = self.chooser_snapshot(mode='save')
+                    self.save_chooser_location_closed(snapshot)
+                    self.save_chooser_text('name', SAVE_NAMES[0])
+                    return snapshot[4]
+                accept = self.wait(ready, 'save-chooser-accept-ready',
+                                   prompt_in_predicate=True)
             if step == 'accept':
-                self._invoke_target(self.chooser_snapshot(mode='save')[4])
+                self._invoke_target(accept)
                 try:
                     self.wait(lambda: self.chooser_snapshot(mode='save', absent=True),
                               'save-chooser-closed', prompt_in_predicate=True)

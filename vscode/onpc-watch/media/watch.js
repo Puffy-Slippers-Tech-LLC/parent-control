@@ -86,10 +86,13 @@
         const output = element('pre', 'run-status session-output', session);
         const composer = element('div', 'session-composer', session);
         const working = element('div', '', composer);
-        const input = element('textarea', '', composer);
+        const prompt = element('div', 'session-prompt', composer);
+        const marker = element('span', 'session-prompt-marker', prompt);
+        marker.textContent = '›';
+        marker.setAttribute('aria-hidden', 'true');
+        const input = element('textarea', '', prompt);
         input.rows = 1;
         input.setAttribute('aria-label', 'Session chat');
-        input.placeholder = 'Message the session…';
         const fitInput = () => {
             if (!input.clientWidth) return;
             input.style.height = 'auto';
@@ -106,7 +109,7 @@
         const error = element('div', 'session-error', body);
         error.setAttribute('role', 'status');
         const footer = element('div', 'session-footer', session);
-        const model = element('span', '', footer);
+        const model = element('span', 'session-model', footer);
         const simplified = element('span', '', footer);
         simplified.append('Simplified ');
         const section = { session, output, composer, working, input, error, model, fitInput, inputObserver };

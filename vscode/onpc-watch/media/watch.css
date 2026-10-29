@@ -52,12 +52,25 @@ nav button[aria-pressed="true"] {
 .session-output { flex: 1; }
 .session-output .session-activity { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .session-composer { margin: 0 8px; }
+.session-prompt {
+    display: flex; align-items: flex-start; gap: 10px; padding: 16px 0;
+    font: var(--vscode-editor-font-size) var(--vscode-editor-font-family);
+    line-height: 1.5;
+    background: var(--vscode-textCodeBlock-background, var(--vscode-input-background));
+}
+.session-prompt-marker { flex: 0 0 auto; padding-left: 2px; }
 .session-composer textarea {
-    display: block; width: 100%; box-sizing: border-box; resize: none; overflow-y: hidden;
-    color: var(--vscode-input-foreground); background: var(--vscode-input-background);
+    display: block; flex: 1; min-width: 0; width: 100%; margin: 0; padding: 0 12px 0 0;
+    border: 0; border-radius: 0; outline: none; resize: none; overflow-y: hidden;
+    color: var(--vscode-input-foreground); background: transparent;
+    font: inherit; line-height: inherit;
+}
+.session-prompt:focus-within { box-shadow: inset 2px 0 var(--vscode-focusBorder); }
+.session-footer { display: flex; justify-content: space-between; padding: 4px 8px; gap: 8px; }
+.session-model {
+    color: #af6a00;
     font: var(--vscode-editor-font-size) var(--vscode-editor-font-family);
 }
-.session-footer { display: flex; justify-content: space-between; padding: 4px 8px; gap: 8px; }
 .session-error { color: var(--vscode-errorForeground); padding: 0 8px; }
 .run-status {
     flex: 1; margin: 0; padding: 8px; overflow: auto; min-height: 0;

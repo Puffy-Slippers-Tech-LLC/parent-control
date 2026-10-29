@@ -14,6 +14,7 @@ import time
 import uuid
 
 from regression_events import PREFIX, completed_cases
+from launcher_progress import format_duration
 from regression_process import Control
 import test_launcher as host
 from regression_schedule import Job, run_jobs
@@ -37,6 +38,13 @@ CATEGORY_NAMES = {
     'fixtures': 'Test fixtures', 'artifacts': 'Package build A',
     'integration': 'Integration checks', 'fast': 'Fast tests',
 }
+
+
+def duration_text(seconds):
+    if seconds >= 3600:
+        return format_duration(seconds, short=True)
+    minutes, seconds = divmod(max(0, int(seconds + 0.5)), 60)
+    return f'{minutes:02d}:{seconds:02d}'
 
 
 def authorization():
@@ -80,7 +88,7 @@ class Category:
 
     def duration(self, now):
         seconds = self.elapsed + (now - self.started if self.started is not None else 0)
-        return f'{seconds:.0f}s' if seconds < 60 else f'{seconds / 60:.1f}m'
+        return duration_text(seconds)
 
     def stop_timer(self):
         if self.started is not None:
@@ -178,7 +186,7 @@ class Dashboard:
                                   else '\033[1;31m')}[state]
             elapsed = sum(item.elapsed + (now - item.started if item.started is not None else 0)
                           for item in assigned)
-            lines.append(f'{style}├─ Host branch {branch} — {state} - {elapsed / 60:.1f}m\033[0m')
+            lines.append(f'{style}├─ Host branch {branch} — {state} - {duration_text(elapsed)}\033[0m')
             for index, item in enumerate(assigned):
                 connector = '└─ ' if index == len(assigned) - 1 else '├─ '
                 lines.append('│  ' + connector + self.category(item, now))
@@ -195,7 +203,7 @@ class Dashboard:
         if phase_started is not None:
             elapsed = (now - self.started if elapsed is None else
                        phase_started - self.started + elapsed)
-        timing = '' if elapsed is None else f' — {(elapsed / 60):.1f}m wall time'
+        timing = '' if elapsed is None else f' — {duration_text(elapsed)} wall time'
         lines.append('│')
         join = 'Join cleanup prerequisites' if phase == 'cleanup' else 'Join host branches'
         summary = f'└─ {join} — {state}{timing}'
@@ -242,7 +250,7 @@ class Dashboard:
         lines.append('')
         lines.append(f'\033[{color}mOverall - {percent}% '
                      + self.counts(done, failures, total if known else '?')
-                     + f' - {(now - self.started) / 60:.1f}m\033[0m')
+                     + f' - {duration_text(now - self.started)}\033[0m')
         if self.control is not None and (self.control.interrupted or
                                         self.control.stopped.is_set()):
             notice = ('Tests interrupted. Shutdown finished; see cleanup results above.'

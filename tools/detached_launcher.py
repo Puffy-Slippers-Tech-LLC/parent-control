@@ -717,7 +717,7 @@ def _audit_start(store, directory, pending):
 
 def select(root, name, command, *, stop=False, stop_marker='cancel',
            on_attach=None, on_start=None, on_prepare=None, namespace=None, resumable_start=False,
-           reload=False, existing_only=False):
+           reload=False, existing_only=False, launcher_name=None):
     """Attach before evaluating new options; only the lock grants ownership."""
     from test_storage import directory as storage_directory
     directory = storage_directory(name, root=root)
@@ -792,7 +792,7 @@ def select(root, name, command, *, stop=False, stop_marker='cancel',
             with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
                 _audit_start(store, directory, pending)
         fcntl.flock(owner, fcntl.LOCK_EX)
-        published_record = owner_record(run)
+        published_record = owner_record(run, launcher=launcher_name or name)
         if resumable_start:
             # Output exists before current publication so a ready interruption
             # remains inspectable, but can contain no worker bytes yet.

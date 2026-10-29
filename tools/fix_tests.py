@@ -1854,7 +1854,7 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
                 warn_remaining(limit, budget.read()['remaining'], label='fix-tests')
             print(f"fix-tests: limits now tasks={limit if limit is not None else 'all'}", flush=True)
     return detached_launcher.select(root, kind, command, stop=stop,
-        on_attach=attached,
+        on_attach=attached, launcher_name='fix-tests',
         on_start=started, **({'reload': True} if reload else {}))
 
 

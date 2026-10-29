@@ -169,7 +169,7 @@ def _select(root, argv, *, reload=False):
                 temporary = directory / 'current.tmp'
                 from vm_selection import BATCH
                 from detached_launcher import owner_record
-                temporary.write_text(json.dumps(owner_record(run, argv=requested,
+                temporary.write_text(json.dumps(owner_record(run, launcher='run-tests', argv=requested,
                     vm_batch=json.loads(os.environ[BATCH]) if BATCH in os.environ and not host_only else None)))
                 temporary.replace(current)
                 from test_storage import scratch_descriptors

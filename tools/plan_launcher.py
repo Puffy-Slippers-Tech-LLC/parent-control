@@ -1153,6 +1153,7 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             run, started = launcher.select(root, 'plans', command, stop=args.stop, stop_marker='stop',
                                            on_attach=attach, on_start=start, on_prepare=prepare,
                                            namespace=plan_namespace(path), resumable_start=True,
+                                           launcher_name=spec.name,
                                            **({'reload': True} if args.reload else {}))
             if run is None:
                 print(f'{spec.name}: no active launcher.')

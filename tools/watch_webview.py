@@ -150,9 +150,9 @@ class Viewer:
                     steps, details = output.status(active)
                     error_lines = output.error_status(steps)
                     lines = [line for step in steps
-                             if not (label == 'fix-tests' and step['key'] == 'pipelines')
+                             if not (output.repair and step['key'] == 'pipelines')
                              for line in step['lines']]
-                    if label == 'fix-tests':
+                    if output.repair:
                         details = [line for line in details
                                    if not clean(line).startswith(('VM pipelines | concurrency ',
                                                                   'Repair queue: '))]
@@ -165,7 +165,7 @@ class Viewer:
                 except (OSError, ValueError, KeyError, TypeError):
                     lines = ['Run status unavailable']
                     error_lines = ['Error status unavailable']
-                if label == 'fix-tests':
+                if output.repair:
                     try:
                         state = output.reader.read(output.run / 'checkpoint.json')
                         targets = {tuple(item['failure']) for item in state.get('failed_cases', [])}

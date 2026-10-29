@@ -96,6 +96,31 @@ def active_run(base, *, workflow=False, reader=None):
     return None
 
 
+def active_launchers(root, reader):
+    """Discover owner-locked publications; names belong to their launchers."""
+    for kind in ('fix-tests', 'fix-tests-host', 'write-e2e', 'sync-whatsnew',
+                 'plans', 'sessions-host', 'sessions'):
+        try:
+            base = directory(kind, root=root, create=False)
+            bases = sorted(base.iterdir()) if kind == 'plans' else [base]
+            for item in bases:
+                try:
+                    run = active_run(item, workflow=kind not in ('sessions-host', 'sessions'),
+                                     reader=reader)
+                    if run is not None:
+                        record = reader.read(item / 'current.json', 4096)
+                        if record.get('run') != run.name:
+                            continue
+                        name = record.get('launcher', 'launcher')
+                        if not isinstance(name, str) or not re.fullmatch(r'[\w.-]{1,100}', name):
+                            raise ValueError('watch-output: invalid launcher name')
+                        yield run, name
+                except (OSError, ValueError, KeyError, TypeError):
+                    continue
+        except (OSError, ValueError):
+            continue
+
+
 class Output:
     def __init__(self, root=None, *, terminal_size=None, show_log=True):
         self.root = root or Path(__file__).resolve().parents[1]
@@ -110,6 +135,10 @@ class Output:
         self.line_start = True
         self.reader = JsonReader()
         self.error_clock = None
+
+    @property
+    def repair(self):
+        return self.run is not None and self.run.parent.name in ('fix-tests', 'fix-tests-host')
 
     def error_status(self, steps):
         """Read the same task-local fields as the shared launcher right pane."""
@@ -137,7 +166,7 @@ class Output:
         from launcher_progress import repair_progress
         from launcher_render import clean
         steps = snapshot(self.run / 'controller.json', steps=True, reader=self.reader)
-        if self.label == 'fix-tests':
+        if self.repair:
             steps = repair_progress(self.run, steps,
                 child_steps=snapshot(self.run / 'test-controller.json', steps=True, reader=self.reader))
         details = snapshot(self.run / 'frame.json', reader=self.reader) if active else []
@@ -208,8 +237,12 @@ class Output:
         if self.run is None:
             return 'incomplete'
         try:
-            workflow = self.label == 'fix-tests'
-            result = self.reader.read(self.run / ('result.json' if workflow else 'result'), 4096)
+            try:
+                result = self.reader.read(self.run / 'result.json', 4096)
+                workflow = True
+            except FileNotFoundError:
+                result = self.reader.read(self.run / 'result', 4096)
+                workflow = False
             if workflow and not isinstance(result, dict):
                 return 'incomplete'
             status = result.get('status') if workflow else result
@@ -222,16 +255,7 @@ class Output:
             return 'incomplete'
 
     def discover(self):
-        for kind, label in (('fix-tests', 'fix-tests'), ('fix-tests-host', 'fix-tests'), ('sessions-host', 'run-tests'),
-                            ('sessions', 'run-tests')):
-            try:
-                base = directory(kind, root=self.root, create=False)
-                run = active_run(base, workflow=kind in ('fix-tests', 'fix-tests-host'), reader=self.reader)
-                if run is not None:
-                    return run, label
-            except (OSError, ValueError, KeyError, TypeError):
-                continue
-        return None, ''
+        return next(active_launchers(self.root, self.reader), (None, ''))
 
     def poll(self, *, progress=True):
         run, label = self.discover()
@@ -300,22 +324,7 @@ class SessionOutput:
                 owner = None
             owners = [owner] if owner == self.owner_run else []
             return self.discover_sessions(owners)
-        owner, _ = self.output.discover()
-        owners = [owner] if owner is not None else []
-        # Plan-based tools have independent namespaces and need no test runner.
-        for kind in ('fix-tests', 'fix-tests-host', 'write-e2e', 'sync-whatsnew', 'plans'):
-            try:
-                base = directory(kind, root=self.output.root, create=False)
-                bases = sorted(base.iterdir()) if kind == 'plans' else [base]
-                for item in bases:
-                    try:
-                        run = active_run(item, workflow=True, reader=self.reader)
-                        if run is not None:
-                            owners.append(run)
-                    except (OSError, ValueError, KeyError, TypeError):
-                        continue
-            except (OSError, ValueError):
-                continue
+        owners = [run for run, _name in active_launchers(self.output.root, self.reader)]
         return self.discover_sessions(owners)
 
     def discover_sessions(self, owners):

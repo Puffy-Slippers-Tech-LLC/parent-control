@@ -15,7 +15,9 @@ The left panel shows **Run Status** across related Git worktrees, using shared
 runner discovery and the pipeline dashboard. Active worktrees
 share the panel in equal sections; when idle, it retains the last displayed run.
 Each title, e.g. `[main] fix-tests`, keeps **Status**, **Launcher**, **Error** and **Session**
-links at its right end. **Status** shows the current run status, **Launcher** shows
+links at its right end. The name comes from the launcher's `current.json`
+publication, including custom plan launcher names. Older runs without a published
+name show `launcher` until their next start. **Status** shows the current run status, **Launcher** shows
 the launcher terminal output, **Error** shows the shared launcher's **Last Error**
 and **Status** fields with the same colors and elapsed ages, and **Session** opens
 the session transcript and chat.

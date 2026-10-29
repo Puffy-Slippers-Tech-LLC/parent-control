@@ -28,6 +28,10 @@ the launcher terminal output, **Error** shows the shared launcher's **Last Error
 and **Status** fields with the same colors and elapsed ages, and **Session** opens
 the session transcript and chat.
 The links remain available in every view, including while idle.
+For `write-e2e`, **Status** starts with **Total Tasks: completed/unfinished/total**
+and **Total Duration**, using the shared launcher counters and colors. A divider
+spans the panel above the completed task recaps and current task/session rows.
+The session summary ends with ` | <duration>` from its owner session clock.
 While waiting for input, the Status body shows
 `Paused - waiting for your answer (mm:ss +10m)` for timed questions.
 The waiting text flashes in the same red as stopped/blocked statuses; the deadline

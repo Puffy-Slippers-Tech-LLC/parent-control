@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import time
 
 from test_storage import directory
 
@@ -135,6 +136,45 @@ class Output:
         self.line_start = True
         self.reader = JsonReader()
         self.error_clock = None
+        self.summary_run = None
+        self.task_totals = None
+        self.completed_before = None
+        self.summary_ended = None
+        self.summary_clock = {}
+
+    def task_summary(self, active):
+        """Use the write-e2e observer's accepted counters and shared rendering."""
+        from launcher_display import task_summary_lines
+        from launcher_runtime import task_counters
+        from launcher_session import clock_duration
+        from launcher_view import plan_totals
+        if self.run is None or self.run.parent.name != 'write-e2e':
+            return []
+        if self.summary_run != self.run:
+            self.summary_run = self.run
+            self.task_totals = self.completed_before = self.summary_ended = None
+            self.summary_clock = {}
+        try:
+            _, totals, baseline = task_counters(self.run,
+                plan_totals(self.root, 'docs/TestAutomation/E2E-Execution-Plan.md',
+                            queue='docs/TestAutomation/E2E-Task-Queue.md'),
+                completed_before=self.completed_before)
+            self.task_totals, self.completed_before = totals, baseline
+        except (OSError, ValueError, KeyError, TypeError):
+            pass  # Retain valid totals while editable plan metadata is incomplete.
+        if not active and self.summary_ended is None:
+            self.summary_ended = time.monotonic()
+        try:
+            record = self.reader.read(self.run.parent / 'current.json', 4096)
+            if record.get('run') == self.run.name:
+                self.summary_clock = record
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+        origin = self.summary_clock.get('started_monotonic')
+        duration = (clock_duration((self.summary_ended if self.summary_ended is not None
+                                   else time.monotonic()) - origin)
+                    if origin is not None else '—')
+        return task_summary_lines(self.task_totals, duration)
 
     @property
     def repair(self):
@@ -166,6 +206,22 @@ class Output:
         from launcher_progress import repair_progress
         from launcher_render import clean
         steps = snapshot(self.run / 'controller.json', steps=True, reader=self.reader)
+        if self.run.parent.name == 'write-e2e':
+            from launcher_session import clock_duration
+            try:
+                state = self.reader.read(self.run / 'chat-state.json')
+            except FileNotFoundError:
+                state = {}
+            current = next((step for step in reversed(steps)
+                            if not step.get('pinned') and not step.get('replaces')), None)
+            session = state.get('task_session', state.get('session'))
+            started = state.get('started_at')
+            if (current and current['key'] == state.get('progress_key')
+                    and started is not None and len(current['lines']) > 1
+                    and clean(current['lines'][-1]).startswith(
+                        (f'Session [{session}]:', f'Session {session}:'))):
+                elapsed = clock_duration(state.get('finished_at', time.time()) - started)
+                current['lines'][-1] += ' | ' + elapsed
         if self.repair:
             steps = repair_progress(self.run, steps,
                 child_steps=snapshot(self.run / 'test-controller.json', steps=True, reader=self.reader))

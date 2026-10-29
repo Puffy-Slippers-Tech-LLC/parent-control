@@ -72,6 +72,14 @@ def owner_clock(run):
         return {}
 
 
+def task_summary_lines(totals, duration):
+    """Share task totals and their palette across terminal and editor views."""
+    completed, unfinished, total = totals or ('—', '—', '—')
+    counts = Text(f'Total Tasks: {completed}/{unfinished}/{total}')
+    style_task_counts(counts)
+    return [counts, Text('Total Duration: ' + duration)]
+
+
 class PanelSelection:
     """A stable screen snapshot, clipped to the panel where a drag began."""
 
@@ -864,10 +872,7 @@ class TaskDisplay(LauncherDisplay):
         left_width = self.divider.width(width)
         right_width = max(1, width - left_width - 1)
         self.top_divider_column = self.divider_column = left_width + 1
-        completed, unfinished, total = self.task_totals or ('—', '—', '—')
-        totals = Text(f'Total Tasks: {completed}/{unfinished}/{total}')
-        style_task_counts(totals)
-        totals.append('\nTotal Duration: ' + total_duration)
+        totals = Text('\n').join(task_summary_lines(self.task_totals, total_duration))
         top_capacity = min(5, max(0, height - 4))
         total_rows = totals.wrap(self.console, right_width, overflow='fold')[:top_capacity]
         pinned, history = self.overview()

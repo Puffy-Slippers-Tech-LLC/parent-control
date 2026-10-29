@@ -1576,7 +1576,7 @@ def main(argv=None):
               '--stop waits for a session boundary.',
               flush=True)
         from launcher_view import plan_view
-        return launcher.follow(run, label='write-e2e', view=plan_view(root, PLAN))
+        return launcher.follow(run, label='write-e2e', view=plan_view(root, PLAN, queue=QUEUE))
     except BrokenPipeError:
         return 0
     except (OSError, ValueError, ImportError) as error:

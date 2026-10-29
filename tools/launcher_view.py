@@ -16,10 +16,10 @@ def repair_progress(run, steps, child_steps):
     return task_progress(run, overlay(run, steps, child_steps=child_steps))
 
 
-def plan_totals(root, path):
+def plan_totals(root, path, *, queue=None):
     """Read the whole active queue, independent of run limits and pointer edits."""
     from execution_plan import Plan, queue_state
-    plan = Plan.load(root, path)
+    plan = Plan(root, path, queue) if queue is not None else Plan.load(root, path)
     _, tasks = queue_state(plan.root, plan.path, plan.queue, validate_pointer=False)
     completed = sum(tasks.values())
     return completed, len(tasks) - completed, len(tasks)
@@ -63,16 +63,16 @@ class WorkflowView:
 class ExecutionPlanView(WorkflowView):
     """All plan launchers inherit the same panes, progress and reload wiring."""
 
-    def __init__(self, root, path):
+    def __init__(self, root, path, *, queue=None):
         root = Path(root)
         super().__init__('chat', True,
             lambda run, steps, child_steps: plan_progress(run, steps, child_steps,
-                remaining=lambda: plan_totals(root, path)[1]),
-            lambda: plan_totals(root, path), plan=(str(root), path))
+                remaining=lambda: plan_totals(root, path, queue=queue)[1]),
+            lambda: plan_totals(root, path, queue=queue), plan=(str(root), path))
 
 
-def plan_view(root, path):
-    return ExecutionPlanView(root, path)
+def plan_view(root, path, *, queue=None):
+    return ExecutionPlanView(root, path, queue=queue)
 
 
 VIEWS = {

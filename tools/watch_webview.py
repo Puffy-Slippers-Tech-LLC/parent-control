@@ -149,9 +149,11 @@ class Viewer:
                 try:
                     steps, details = output.status(active)
                     error_lines = output.error_status(steps)
-                    lines = [line for step in steps
+                    summary = output.task_summary(active)
+                    lines = [*summary, *(['─'] if summary else [])]
+                    lines.extend(line for step in steps
                              if not (output.repair and step['key'] == 'pipelines')
-                             for line in step['lines']]
+                             for line in step['lines'])
                     if output.repair:
                         details = [line for line in details
                                    if not clean(line).startswith(('VM pipelines | concurrency ',
@@ -180,7 +182,7 @@ class Viewer:
             waiting = bool(session.active and (question or session.panel.chat_state.get('status') in ('waiting', 'blocked')))
             deadline = question.get('deadline') if question else None
             if waiting and not any(re.fullmatch(r'Paused\s*[—-]\s*waiting for your answer',
-                                               re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', line).strip())
+                                               clean(line).strip())
                                    for line in lines):
                 lines.append('Paused - waiting for your answer')
             # A new question replaces the old clock, even within the same session.

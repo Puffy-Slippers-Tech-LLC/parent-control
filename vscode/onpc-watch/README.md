@@ -31,7 +31,9 @@ The links remain available in every view, including while idle.
 For `write-e2e`, **Status** starts with **Total Tasks: completed/unfinished/total**
 and **Total Duration**, using the shared launcher counters and colors. A divider
 spans the panel above the completed task recaps and current task/session rows.
-The session summary ends with ` | <duration>` from its owner session clock.
+For every execution-plan launcher, completed and current task headings end with
+` | <duration>` from the retained task clock across sessions. The session summary
+ends with ` | <duration>` from its owner session clock.
 While waiting for input, the Status body shows
 `Paused - waiting for your answer (mm:ss +10m)` for timed questions.
 The waiting text flashes in the same red as stopped/blocked statuses; the deadline

@@ -371,24 +371,8 @@ class TaskDisplay(LauncherDisplay):
         """Normalize retained completions from older, still-running backends."""
         if not step.get('replaces') or not step['lines']:
             return step['lines']
-        text = Text.from_ansi(step['lines'][0])
-        if not re.match(r'^(?:✓ )?Task [\w.-]+:', text.plain):
-            return step['lines']
-        suffix = re.search(r'\s+[—–-]\s+complete\.?$', text.plain, re.IGNORECASE)
-        if suffix:
-            text = text[:suffix.start()]
-        duration = re.search(r'\s+\((?:sessions=\d+,\s*duration=)?(\d+(?:h \d+m|m)|duration unavailable)\)$',
-                             text.plain)
-        elapsed = duration[1] if duration else 'duration unavailable'
-        if duration:
-            text = text[:duration.start()]
-        if not text.plain.startswith('✓ '):
-            text = Text('✓ ') + text
-        text.append(f' ({elapsed})')
-        text.stylize('green')
-        with self.console.capture() as capture:
-            self.console.print(text, end='', soft_wrap=True)
-        return [capture.get()]
+        from launcher_progress import completion_line
+        return [completion_line(step['lines'][0]), *step['lines'][1:]]
 
     def overview(self):
         """Full top-left content, independent of viewport size and scrolling."""

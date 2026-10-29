@@ -206,29 +206,9 @@ class Output:
         from launcher_progress import repair_progress
         from launcher_render import clean
         steps = snapshot(self.run / 'controller.json', steps=True, reader=self.reader)
-        if self.run.parent.name == 'write-e2e':
-            from launcher_session import clock_duration
-            # Match the terminal dashboard: keep only the latest session for
-            # each task, without removing completed task recaps.
-            latest = {step['lines'][0]: step for step in steps
-                      if not step.get('pinned') and not step.get('replaces')}
-            steps = [step for step in steps
-                     if step.get('pinned') or step.get('replaces')
-                     or latest[step['lines'][0]] is step]
-            try:
-                state = self.reader.read(self.run / 'chat-state.json')
-            except FileNotFoundError:
-                state = {}
-            current = next((step for step in reversed(steps)
-                            if not step.get('pinned') and not step.get('replaces')), None)
-            session = state.get('task_session', state.get('session'))
-            started = state.get('started_at')
-            if (current and current['key'] == state.get('progress_key')
-                    and started is not None and len(current['lines']) > 1
-                    and clean(current['lines'][-1]).startswith(
-                        (f'Session [{session}]:', f'Session {session}:'))):
-                elapsed = clock_duration(state.get('finished_at', time.time()) - started)
-                current['lines'][-1] += ' | ' + elapsed
+        if self.run.parent.name == 'write-e2e' or self.run.parent.parent.name == 'plans':
+            from launcher_progress import plan_status
+            steps = plan_status(self.run, steps, reader=self.reader, active=active)
         if self.repair:
             steps = repair_progress(self.run, steps,
                 child_steps=snapshot(self.run / 'test-controller.json', steps=True, reader=self.reader))

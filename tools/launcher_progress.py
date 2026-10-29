@@ -50,12 +50,15 @@ def progress_keys(state):
     return state.get('progress_keys', [state.get('task_id')])
 
 
-def task_recap(run, steps):
+def task_recap(run, steps, *, reader=None, now=None):
     """Project plan task timing and suspension without changing durable rows."""
     checkpoint = run / 'checkpoint.json'
-    if not steps or not checkpoint.exists():
+    if not steps:
         return steps
-    state = json.loads(checkpoint.read_text())
+    try:
+        state = reader.read(checkpoint) if reader is not None else json.loads(checkpoint.read_text())
+    except FileNotFoundError:
+        return steps
     for suspended in state.get('suspended_tasks', {}).values():
         keys = progress_keys(suspended)
         previous = [step for step in steps if not step.get('replaces') and step['key'] in keys]
@@ -68,15 +71,69 @@ def task_recap(run, steps):
     if (steps[-1].get('replaces') or 'started_at' not in state
             or steps[-1]['key'] not in keys):
         return steps
-    duration = state.get('completed_at', time.time()) - state['started_at']
-    summary = (f" (sessions={state['task_sessions']}, "
-               f"duration={format_duration(duration, short=True)})")
+    from launcher_session import clock_duration
+    duration = state.get('completed_at', time.time() if now is None else now) - state['started_at']
+    summary = ' | ' + clock_duration(duration)
     color = '\033[38;2;0;102;255m' if state['phase'] != 'complete' else ''
     reset = '\033[39m' if color else ''
     return [dict(step, lines=[color + line + reset
                              for line in [step['lines'][0] + summary, *step['lines'][1:]]])
             if not step.get('replaces') and step['key'] in keys
             else step for step in steps]
+
+
+def plan_status(run, steps, *, reader, active):
+    """Shared editor projection for every execution-plan launcher."""
+    from launcher_render import clean
+    from launcher_session import clock_duration
+    # Retain compact completions and only the latest session for each task.
+    latest = {step['lines'][0]: step for step in steps
+              if not step.get('pinned') and not step.get('replaces')}
+    steps = [step for step in steps if step.get('pinned') or step.get('replaces')
+             or latest[step['lines'][0]] is step]
+    steps = [dict(step, lines=[completion_line(step['lines'][0])])
+             if step.get('replaces') else step for step in steps]
+    try:
+        state = reader.read(run / 'chat-state.json')
+    except FileNotFoundError:
+        state = {}
+    steps = task_recap(run, steps, reader=reader,
+                      now=state.get('finished_at') if not active else None)
+    current = next((step for step in reversed(steps)
+                    if not step.get('pinned') and not step.get('replaces')), None)
+    session = state.get('task_session', state.get('session'))
+    started = state.get('started_at')
+    if (current and current['key'] == state.get('progress_key')
+            and started is not None and len(current['lines']) > 1
+            and clean(current['lines'][-1]).startswith(
+                (f'Session [{session}]:', f'Session {session}:'))):
+        elapsed = clock_duration(state.get('finished_at', time.time()) - started)
+        current['lines'][-1] += ' | ' + elapsed
+    return steps
+
+
+def completion_line(line):
+    """Normalize old and current plan recaps without rewriting publications."""
+    from rich.text import Text
+    from launcher_render import AgentRenderer
+    text = Text.from_ansi(line)
+    if not re.match(r'^(?:✓ )?Task [\w.-]+:', text.plain):
+        return line
+    suffix = re.search(r'\s+[—–-]\s+complete\.?$', text.plain, re.IGNORECASE)
+    if suffix:
+        text = text[:suffix.start()]
+    duration = re.search(r'\s+(?:\((?:sessions=\d+,\s*duration=)?(\d+(?:h \d+m|m)|duration unavailable)\)|\| (\d+(?:h \d+m|m)|duration unavailable))$', text.plain)
+    elapsed = (duration[1] or duration[2]) if duration else 'duration unavailable'
+    if duration:
+        text = text[:duration.start()]
+    if not text.plain.startswith('✓ '):
+        text = Text('✓ ') + text
+    text.append(' | ' + elapsed)
+    text.stylize('green')
+    console = AgentRenderer(sys.stdout).console
+    with console.capture() as capture:
+        console.print(text, end='', soft_wrap=True)
+    return capture.get()
 
 
 def plan_progress(run, steps, child_steps=None, *, remaining=None):

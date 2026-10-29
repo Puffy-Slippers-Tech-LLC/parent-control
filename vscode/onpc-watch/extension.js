@@ -74,6 +74,9 @@ function activate(context) {
         let child, lines, timer, ready = false, busy = false, rendering = false;
         let errorLogs = new Set();
         let selection = { scope: 'all', selected: 'all' }, reset = true, disposed = false;
+        let sessionRoot = '';
+        const sessionActions = [];
+        let sessions = new Map();
         function stop() {
             clearInterval(timer);
             lines?.close();
@@ -93,7 +96,9 @@ function activate(context) {
         function poll() {
             if (!child || !ready || busy || rendering || !panel.visible) return;
             busy = true;
-            child.stdin.write(JSON.stringify({ ...selection, reset }) + '\n');
+            const sessionAction = sessionActions.shift();
+            child.stdin.write(JSON.stringify({ ...selection, reset, session_root: sessionRoot,
+                ...(sessionAction ? { session_action: sessionAction } : {}) }) + '\n');
             reset = false;
         }
         function start() {
@@ -117,6 +122,8 @@ function activate(context) {
                 if (child !== owned || disposed) return;
                 try {
                     const snapshot = JSON.parse(line);
+                    sessions = new Map((snapshot.runs || []).filter(entry => entry.session)
+                        .map(entry => [entry.id, entry.session]));
                     errorLogs = new Set((snapshot.runs || []).flatMap(entry =>
                         (entry.rows || []).flatMap(row => row.map(part => part.link).filter(Boolean))));
                     busy = false;
@@ -146,6 +153,20 @@ function activate(context) {
                 poll();
             } else if (message?.type === 'restart') {
                 start();
+            } else if (message?.type === 'sessionView' &&
+                       (message.root === '' || sessions.has(message.root))) {
+                sessionRoot = message.root;
+                poll();
+            } else if (message?.type === 'sessionAction' &&
+                       typeof message.session === 'string' &&
+                       sessions.get(message.root) === message.session &&
+                       (message.root === sessionRoot || message.kind === 'extend') &&
+                       ['send', 'simplified', 'extend'].includes(message.kind) &&
+                       typeof message.text === 'string' && Buffer.byteLength(message.text) <= 65536 &&
+                       typeof message.id === 'string') {
+                sessionActions.push({ root: message.root, session: message.session,
+                    kind: message.kind, text: message.text, id: message.id });
+                poll();
             } else if (message?.type === 'openErrorLog' && typeof message.uri === 'string') {
                 if (!errorLogs.has(message.uri)) return;
                 const uri = vscode.Uri.parse(message.uri);

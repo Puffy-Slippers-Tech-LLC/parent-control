@@ -1,6 +1,7 @@
-"""Request/response adapter for the existing output-only watch transports.
+"""Request/response adapter for watch feeds and shared launcher sessions.
 
-No listening port, VM lease, input channel, runner state or saved screenshots.
+Feeds remain view only, without a listening port, VM lease or saved screenshots.
+Session chat uses the launcher's existing owner-checked mailbox.
 The extension requests at most one snapshot at a time over its private stdio.
 """
 
@@ -19,18 +20,27 @@ from e2e_watch_viewer import AsyncFeed, Feed, activity_text, progress_text, WAIT
 from ui_watch_transport import Feeds, label
 from watch_checkouts import Discovery, checkout, identity
 from watch_model import ResourceUsage, viewer_entries
-from watch_output import Output
+from watch_output import Output, SessionOutput
 
 
-def status_spans(lines, *, failures=0, category_failures=None, error_log=None):
+def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
+                 session_waiting=False):
     """Keep status colors and emphasis without sending HTML or terminal controls."""
     from rich.text import Text
     from rich.console import Console
+    from rich.style import Style
     from launcher_render import SESSION_LINE, clean
     console = Console()
     rows = []
     for line in lines:
         text = Text.from_ansi(line.replace(SESSION_LINE, ''))
+        match = re.search(r'Waiting for input', text.plain)
+        if match:
+            text.stylize('red', match.start(), match.end())
+        if session_waiting and re.fullmatch(r'Paused\s*[—-]\s*waiting for your answer', text.plain.strip()):
+            text = Text()
+            text.append('Paused - waiting for your answer',
+                        style=Style(color='red', meta={'waiting': True}))
         if error_log and 'Overall - ' in text.plain:
             match = re.search(r'\((\d+)/(\d+)\)', text.plain)
             if match:
@@ -50,6 +60,7 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None):
             themed = color and (color.type.name == 'DEFAULT' or
                                (color.type.name == 'STANDARD' and color.number in (0, 7, 15)))
             spans.append(dict(text=clean(segment.text), bold=bool(style and style.bold),
+                              waiting=bool(style and style.meta.get('waiting')),
                               link=style.link if style else None,
                               color=color.get_truecolor().hex if color and not themed else None))
         rows.append(spans)
@@ -92,15 +103,20 @@ class Viewer:
         self.outputs = {}
         self.last_output = root
         self.status_cache = {}
+        self.sessions = {}
         self.resources = ResourceUsage()
 
-    def run_status(self):
+    def run_status(self, session_root=None):
         sections = []
         for root, branch in self.roots.items():
             if root not in self.outputs:
                 self.outputs[root] = Output(root, show_log=False)
             output = self.outputs[root]
             label, active, _reset, _data = output.poll(progress=False)
+            if root not in self.sessions:
+                self.sessions[root] = SessionOutput(output, None, embedded=True)
+            session = self.sessions[root]
+            session.poll()
             if active:
                 self.last_output = root
             status = '' if active else output.completion_status()
@@ -125,13 +141,32 @@ class Viewer:
                         error_log = (output.run.parent / 'errors.md').as_uri()
                     except (OSError, ValueError, KeyError, TypeError):
                         pass
-            signature = lines, failures, category_failures, error_log
+            session_run = session.run if session.active else None
+            question = session.panel.question.question if session.panel and session.panel.question else None
+            waiting = bool(session.active and (question or session.panel.chat_state.get('status') in ('waiting', 'blocked')))
+            deadline = question.get('deadline') if question else None
+            if waiting and not any(re.fullmatch(r'Paused\s*[—-]\s*waiting for your answer',
+                                               re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', line).strip())
+                                   for line in lines):
+                lines.append('Paused - waiting for your answer')
+            # A new question replaces the old clock, even within the same session.
+            prompt_id = question.get('id') if question else None
+            signature = lines, failures, category_failures, error_log, session_run, waiting, deadline, prompt_id
             if self.status_cache.get(root, (None,))[0] != signature:
                 self.status_cache[root] = signature, status_spans(lines, failures=failures,
-                    category_failures=category_failures, error_log=error_log)
+                    category_failures=category_failures, error_log=error_log,
+                    session_waiting=waiting)
+            session_view = None
+            if str(root) == session_root and session.panel:
+                session_view = session.panel.webview()
+                session_view['rows'] = status_spans(session_view.pop('lines'))
+                session_view['input_enabled'] = session.input_enabled
             sections.append(dict(id=str(root), label=f'[{branch}]' +
                 (f' {label}' + (f' ({status})' if status else '') if label else ''),
-                active=active, status=status, rows=self.status_cache[root][1]))
+                active=active or session.active, status=status, rows=self.status_cache[root][1],
+                session=session.identity if session.active else None,
+                session_waiting=waiting, session_deadline=deadline, session_question=prompt_id,
+                session_view=session_view))
         active = [section for section in sections if section['active']]
         return active or [section for section in sections if section['id'] == str(self.last_output)]
 
@@ -166,6 +201,25 @@ class Viewer:
         return {'screen': image}
 
     def snapshot(self, request):
+        result = None
+        action = request.get('session_action')
+        if action:
+            try:
+                session = self.sessions.get(Path(action['root']))
+                if (session is None
+                        or session.identity != action['session'] or not session.current()):
+                    raise ValueError('Session changed; review the current session before sending.')
+                if action['kind'] == 'send':
+                    if not session.input_enabled:
+                        raise ValueError('This session is not accepting input.')
+                    session.send(action['text'])
+                elif action['kind'] == 'simplified':
+                    session.panel.simplified = not session.panel.simplified
+                elif action['kind'] == 'extend':
+                    session.extend_deadline(action['text'])
+                result = dict(id=action['id'], ok=True)
+            except (OSError, ValueError) as error:
+                result = dict(id=action['id'], ok=False, error=str(error))
         if request.get('reset'):
             self.images.clear()
         self.roots.update(self.discovery.poll() or {})
@@ -252,7 +306,7 @@ class Viewer:
                 label=f'[{self.roots[Path(root)]}] {name}', active=active, locked=locked))
         self.images = {entry: value for entry, value in self.images.items() if entry in shown}
         return dict(scope=scope, selected=selected, entries=values,
-                    runs=self.run_status(),
+                    runs=self.run_status(request.get('session_root')), session_result=result,
                     checkouts=[dict(id=str(root), label=branch) for root, branch in self.roots.items()],
                     resources=self.resources.text(), resource_sample=self.resources.last,
                     resource_charts=self.resources.charts)
@@ -269,14 +323,22 @@ def main():
             viewer.discovery.thread.join(timeout=1.1)
             print(json.dumps(viewer.snapshot({})), flush=True)
             return
-        while line := sys.stdin.buffer.readline(8193):
-            if len(line) > 8192:
+        while line := sys.stdin.buffer.readline(512 * 1024 + 1):
+            if len(line) > 512 * 1024:
                 raise ValueError('watch: request too large')
             request = json.loads(line)
-            if (type(request) is not dict or set(request) - {'scope', 'selected', 'reset'} or
+            if (type(request) is not dict or set(request) - {'scope', 'selected', 'reset', 'session_root', 'session_action'} or
                     any(type(request.get(key, 'all')) is not str for key in ('scope', 'selected')) or
+                    type(request.get('session_root', '')) is not str or
                     type(request.get('reset', False)) is not bool):
                 raise ValueError('watch: invalid request')
+            action = request.get('session_action')
+            if action is not None and (type(action) is not dict
+                    or set(action) != {'root', 'session', 'kind', 'text', 'id'}
+                    or any(type(value) is not str for value in action.values())
+                    or action['kind'] not in ('send', 'simplified', 'extend')
+                    or len(action['text'].encode('utf-8')) > 65536):
+                raise ValueError('watch: invalid session action')
             print(json.dumps(viewer.snapshot(request), separators=(',', ':')), flush=True)
     except BrokenPipeError:
         pass

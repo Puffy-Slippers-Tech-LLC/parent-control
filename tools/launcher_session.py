@@ -242,6 +242,16 @@ class SessionPanel(LauncherDisplay):
             rows += editor_rows
         return rows[:height]
 
+    def webview(self):
+        """Expose the shared transcript/composer to a native webview host."""
+        logs = [*self.transcript, *([self.pending] if self.pending else [])]
+        if self.simplified:
+            logs = self.simplified_lines(logs) if logs else self.text_output or []
+        return dict(lines=[*logs, *self.details], working=self.working(),
+                    model=' '.join(filter(None, (self.chat_state.get('model'),
+                                                self.chat_state.get('effort')))),
+                    simplified=self.simplified)
+
     def working(self):
         started = self.chat_state.get('turn_started_at', self.chat_state.get('started_at'))
         if self.chat_state.get('status') == 'running' and started is not None:

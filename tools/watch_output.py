@@ -352,6 +352,12 @@ class SessionOutput:
         else:
             raise ValueError('This session accepts input when a developer decision is pending.')
 
+    def extend_deadline(self, identity):
+        from launcher_question import extend_deadline
+        if not self.current():
+            raise ValueError('Session changed; review the current session before adding time.')
+        extend_deadline(self.run, identity)
+
     def feed(self, data):
         from launcher_chat import send_input
         if self.panel is None:
@@ -428,6 +434,8 @@ class SessionOutput:
         if (question['id'] if question else None) != previous:
             panel.question = QuestionInput(question, lambda identity, choice, text:
                 submit(run, identity, choice, text) if self.current() else False) if question else None
+        elif question is not None:
+            panel.question.question = question
         panel.details = ([question['question'],
             *[f'{index + 1}. {option}' for index, option in enumerate(question['options'])],
             'Type a number or your own instructions below.'] if question else [])

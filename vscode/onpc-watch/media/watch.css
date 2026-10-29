@@ -29,6 +29,20 @@ nav button[aria-pressed="true"] {
     overflow-wrap: anywhere; border-bottom: 1px solid var(--vscode-panel-border);
 }
 .run-heading.failed { color: var(--vscode-errorForeground); }
+.session-link { color: #0066ff; text-decoration: underline; cursor: pointer; }
+.waiting-input { animation: waiting-input 1.2s ease-in-out infinite; }
+@keyframes waiting-input { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .waiting-input { animation: none; } }
+.session-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.session-output { flex: 1; }
+.session-composer { margin: 0 8px; }
+.session-composer textarea {
+    width: 100%; box-sizing: border-box; resize: vertical; min-height: 4em;
+    color: var(--vscode-input-foreground); background: var(--vscode-input-background);
+    font: var(--vscode-editor-font-size) var(--vscode-editor-font-family);
+}
+.session-footer { display: flex; justify-content: space-between; padding: 4px 8px; gap: 8px; }
+.session-error { color: var(--vscode-errorForeground); padding: 0 8px; }
 .run-status {
     flex: 1; margin: 0; padding: 8px; overflow: auto; min-height: 0;
     white-space: pre-wrap; overflow-wrap: anywhere;

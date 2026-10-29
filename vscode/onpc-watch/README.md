@@ -14,7 +14,24 @@ with the keyboard, or double-click it to restore 30:70.
 The left panel shows **Run Status** across related Git worktrees, using shared
 runner discovery and the pipeline dashboard. Active worktrees
 share the panel in equal sections; when idle, it retains the last displayed run.
-It contains status only, without Run Status/Outputs/Session tabs.
+An active running session adds **Session** to the title, e.g. `[main] fix-tests Session`.
+While waiting for input, the title shows `[main] fix-tests Session (mm:ss +)` and
+the body shows `Paused - waiting for your answer`.
+The waiting text flashes in the same red as stopped/blocked statuses; the deadline
+counts down every second from the current prompt's deadline. Answering removes
+that timer; a new prompt starts a fresh countdown. Questions without a deadline
+show `(no timeout)`.
+Timed questions show `(mm:ss +)` in both views. Each click on **+** adds ten
+minutes to the current question's deadline, including the launcher's actual wait.
+**Session** is a blue, underlined link with a hand cursor. It replaces that
+worktree's status with the shared launcher session transcript, chatbox and
+model/effort footer, including the Simplified toggle. In the session view, the
+title shows `[main] fix-tests Status (mm:ss +)` while waiting; click **Status** to
+return. The space before each link is outside its underline.
+Waiting for input flashes unless reduced motion is
+enabled. Enter sends chat directly; there is no Send button. Shift+Enter or
+Alt+Enter inserts a new line. Input is
+routed only to the displayed, still-current launcher session.
 Repair case totals show green completed, red failed and total counts. The failed
 count is underlined; click it to open the cumulative `errors.md` in the editor.
 

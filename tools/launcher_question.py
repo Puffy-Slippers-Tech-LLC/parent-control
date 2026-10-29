@@ -126,7 +126,7 @@ def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
                 with launcher.lock(run / 'question-gate') as gate:
                     fcntl.flock(gate, fcntl.LOCK_EX)
                     question = json.loads(path.read_text())
-                    if question['answer'] is not None:
+                    if question['answer'] is not None or time.time() < question['deadline']:
                         continue
                     launcher.atomic(path, dict(question, expired=True))
                 raise TimeoutError('waiting for input: developer prompt timed out')
@@ -157,6 +157,17 @@ def submit(run, identity, choice, instructions=''):
             answer = options[choice]
         launcher.atomic(run / 'question.json', dict(question, answer=answer, choice=choice))
         return True
+
+
+def extend_deadline(run, identity):
+    """Add ten minutes to the still-pending question under its shared gate."""
+    with launcher.lock(run / 'question-gate') as gate:
+        fcntl.flock(gate, fcntl.LOCK_EX)
+        question = pending(run)
+        if (question is None or question['id'] != identity
+                or question.get('deadline') is None or time.time() >= question['deadline']):
+            raise ValueError('This question is no longer accepting extra time.')
+        launcher.atomic(run / 'question.json', dict(question, deadline=question['deadline'] + 600))
 
 
 class QuestionInput:

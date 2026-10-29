@@ -1,4 +1,4 @@
-/* The webview renders read-only status and feeds, and keeps its split locally. */
+/* Watch feeds stay view only; shared launcher sessions accept guarded chat. */
 'use strict';
 
 (() => {
@@ -16,6 +16,128 @@
     let split = Number.isFinite(saved?.split) ? saved.split : 30;
     let pending = Promise.resolve();
     let resourceSample;
+    let sessionRoot = '';
+    let actionNumber = 0;
+    const actions = new Map();
+
+    function countdown(node) {
+        const remaining = Math.max(0, Math.ceil(Number(node.dataset.deadline) - Date.now() / 1000));
+        node.textContent = `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`;
+    }
+    setInterval(() => runs.querySelectorAll('[data-deadline]').forEach(countdown), 1000);
+
+    function sessionView(root) {
+        sessionRoot = root;
+        vscode.postMessage({ type: 'sessionView', root });
+        for (const [id, section] of sections) {
+            section.content.hidden = id === root;
+            section.session.hidden = id !== root;
+            sessionHeading(section);
+        }
+    }
+
+    function sessionHeading(section) {
+        const entry = section.entry;
+        const opened = sessionRoot === entry.id;
+        const signature = JSON.stringify([entry.label, entry.session, entry.session_waiting,
+            entry.session_deadline, entry.session_question, opened]);
+        if (section.headingSignature === signature) return;
+        section.headingSignature = signature;
+        section.heading.replaceChildren(document.createTextNode(entry.label));
+        if (opened) {
+            section.heading.append(' ');
+            link(section.heading, 'Status', () => sessionView(''));
+        } else if (entry.session) {
+            section.heading.append(' ');
+            link(section.heading, 'Session', () => sessionView(entry.id));
+        }
+        if (entry.session_waiting) {
+            if (Number.isFinite(entry.session_deadline)) {
+                section.heading.append(' (');
+                const timer = element('span', '', section.heading);
+                timer.dataset.deadline = String(entry.session_deadline);
+                countdown(timer);
+                section.heading.append(' ');
+                const extend = link(section.heading, '+', () => sessionAction(section, 'extend'));
+                extend.title = 'Add 10 minutes';
+                extend.setAttribute('aria-label', 'Add 10 minutes to answer');
+                section.heading.append(')');
+            } else {
+                section.heading.append(' (no timeout)');
+            }
+        }
+    }
+
+    function link(parent, text, click) {
+        const node = element('a', 'session-link', parent);
+        node.href = '#';
+        node.textContent = text;
+        node.addEventListener('click', event => { event.preventDefault(); click(); });
+        return node;
+    }
+
+    function sessionAction(section, kind) {
+        if ((section.pending && kind !== 'extend') || !section.entry.session) return;
+        if (kind === 'send' && (section.input.disabled || !section.input.value.trim())) return;
+        const id = String(++actionNumber);
+        const text = kind === 'send' ? section.input.value :
+            kind === 'extend' ? section.entry.session_question : '';
+        if (kind !== 'extend') section.pending = id;
+        actions.set(id, { section, kind, text });
+        section.error.textContent = '';
+        vscode.postMessage({ type: 'sessionAction', id, kind, root: section.entry.id,
+            session: section.entry.session, text });
+    }
+
+    function sessionPanel(body) {
+        const session = element('div', 'session-view', body);
+        session.hidden = true;
+        const output = element('pre', 'run-status session-output', session);
+        const composer = element('div', 'session-composer', session);
+        const working = element('div', '', composer);
+        const input = element('textarea', '', composer);
+        input.setAttribute('aria-label', 'Session chat');
+        input.placeholder = 'Message the session…';
+        const error = element('div', 'session-error', body);
+        error.setAttribute('role', 'status');
+        const footer = element('div', 'session-footer', session);
+        const model = element('span', '', footer);
+        const simplified = element('span', '', footer);
+        simplified.append('Simplified ');
+        const section = { session, output, composer, working, input, error, model };
+        section.toggle = link(simplified, '[on]', () => sessionAction(section, 'simplified'));
+        input.addEventListener('keydown', event => {
+            if (event.key === 'Enter' && !event.isComposing && !event.shiftKey && !event.altKey) {
+                event.preventDefault();
+                sessionAction(section, 'send');
+            }
+        });
+        return section;
+    }
+
+    function sessionRows(section, view) {
+        const signature = JSON.stringify(view.rows);
+        if (signature !== section.outputSignature) {
+            const follow = section.output.scrollHeight - section.output.clientHeight - section.output.scrollTop < 24;
+            section.output.replaceChildren(...view.rows.map(row => {
+                const line = document.createElement('div');
+                if (!row.length) line.textContent = '\u00a0';
+                for (const part of row) {
+                    const span = element('span', '', line);
+                    span.textContent = part.text;
+                    if (part.color) span.style.color = part.color;
+                    if (part.bold) span.style.fontWeight = 'bold';
+                }
+                return line;
+            }));
+            section.outputSignature = signature;
+            if (follow) section.output.scrollTop = section.output.scrollHeight;
+        }
+        section.working.textContent = `Chat${view.working ? ' · ' + view.working : ''}`;
+        section.model.textContent = view.model;
+        section.toggle.textContent = view.simplified ? '[on]' : '[off]';
+        section.input.disabled = !view.input_enabled;
+    }
 
     function persist() {
         vscode.setState({ ...state, split });
@@ -154,13 +276,17 @@
                 const body = element('section', 'run', runs);
                 const heading = element('h2', 'run-heading', body);
                 const content = element('pre', 'run-status', body);
-                section = { body, heading, content };
+                section = Object.assign(sessionPanel(body), { body, heading, content });
                 sections.set(entry.id, section);
             }
             if (runs.children[index] !== section.body) runs.insertBefore(section.body, runs.children[index] || null);
-            section.heading.textContent = entry.label;
+            section.entry = entry;
+            sessionHeading(section);
             section.heading.classList.toggle('failed', entry.status === 'failed');
-            const signature = JSON.stringify([entry.rows, entry.active]);
+            section.content.hidden = sessionRoot === entry.id;
+            section.session.hidden = sessionRoot !== entry.id;
+            if (entry.session_view) sessionRows(section, entry.session_view);
+            const signature = JSON.stringify([entry.rows, entry.active, entry.session]);
             if (section.signature === signature) return;
             section.signature = signature;
             const follow = section.content.scrollHeight - section.content.clientHeight - section.content.scrollTop < 24;
@@ -175,6 +301,7 @@
                 row.forEach(part => {
                     const span = element(part.link ? 'a' : 'span', '', line);
                     span.textContent = part.text;
+                    span.classList.toggle('waiting-input', Boolean(part.waiting));
                     if (part.link) {
                         span.href = '#';
                         span.style.textDecoration = 'underline';
@@ -245,6 +372,16 @@
     }
 
     async function render(snapshot) {
+        const result = snapshot.session_result;
+        if (result && actions.has(result.id)) {
+            const { section, kind, text } = actions.get(result.id);
+            actions.delete(result.id);
+            if (kind !== 'extend') section.pending = undefined;
+            if (result.ok && kind === 'send' && section.input.value === text) {
+                section.input.value = '';
+            }
+            if (!result.ok) section.error.textContent = result.error;
+        }
         state = { scope: snapshot.scope, selected: snapshot.selected };
         persist();
         runStatus(snapshot.runs);
@@ -292,6 +429,11 @@
             pending = pending.then(() => render(event.data)).catch(error => message(error.message))
                 .finally(() => vscode.postMessage({ type: 'rendered' }));
         } else if (event.data.type === 'error') {
+            for (const { section } of actions.values()) {
+                section.pending = undefined;
+                section.error.textContent = event.data.message;
+            }
+            actions.clear();
             message(event.data.message);
         }
     });

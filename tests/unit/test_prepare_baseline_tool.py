@@ -85,7 +85,12 @@ def test_declined_preparation_does_not_refresh_helpers(authorized, monkeypatch, 
     import vm_pool
 
     # The declined result belongs to preparation, not reservation authorization.
-    # Keep real VM acquisition and launcher locks outside this dispatch check.
+    # Keep registry/branch discovery, real VM acquisition and launcher locks
+    # outside this dispatch check; the subprocess double models preparation only.
+    monkeypatch.setattr(authorized['vm_config'], 'execution',
+                        lambda selector: (1, (SimpleNamespace(name=VM_ARGS[1]),)))
+    monkeypatch.setattr(vm_pool, 'check_queue', lambda vms: None)
+    monkeypatch.setitem(authorized, 'select', lambda name: None)
     monkeypatch.setattr(vm_pool, 'reservation', lambda name: nullcontext())
     monkeypatch.setattr(vm_pool, 'arguments', lambda: [])
     monkeypatch.setattr(test_activity, 'activity', lambda *args, **kwargs: nullcontext())

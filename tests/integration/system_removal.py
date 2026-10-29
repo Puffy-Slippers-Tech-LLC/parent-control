@@ -22,6 +22,7 @@ import time
 
 import system_guest as guest
 from system_assertions import accepted, account_property, account_state, call, session_limits
+from system_caller import PersistentCaller
 from system_enforcement import native_paths, observe_launch, provision_native
 
 PRODUCT = 'oh-no-parent-control'
@@ -326,15 +327,18 @@ def removed_launch_failure_diagnostics(uid, *, variant='command'):
 def configure_restrictions(accounts, *, variant='command'):
     """Make policy, one-time access and shared choices observably nondefault."""
     parent, child = accounts['parent'], accounts['child']
-    accepted(call(parent, 'SetParentControl', '(ubu)', (child, True, 60)))
-    preferences = json.loads(accepted(call(parent, 'GetPreferences', '(u)', (child,)))[0])
-    target, _, desktop_id = native_paths(variant)
-    preferences['apps'] = {desktop_id: {'state': 'permanent', 'targets': [str(target)],
-                                       'patterns': [], 'user_saved_match_rule': False}}
-    preferences['request'].update(last_selected_duration='custom', last_custom_minutes=23,
-                                  allow_soft_blocked_apps=True, kiosk_muted=False,
-                                  child_muted=False)
-    accepted(call(parent, 'SetPreferences', '(us)', (child, json.dumps(preferences))))
+    # These dependent setup calls share one guarded administrator connection;
+    # the readback and all later removal observations remain fresh.
+    with PersistentCaller(parent) as caller:
+        accepted(caller.call('SetParentControl', '(ubu)', (child, True, 60)))
+        preferences = json.loads(accepted(caller.call('GetPreferences', '(u)', (child,)))[0])
+        target, _, desktop_id = native_paths(variant)
+        preferences['apps'] = {desktop_id: {'state': 'permanent', 'targets': [str(target)],
+                                           'patterns': [], 'user_saved_match_rule': False}}
+        preferences['request'].update(last_selected_duration='custom', last_custom_minutes=23,
+                                      allow_soft_blocked_apps=True, kiosk_muted=False,
+                                      child_muted=False)
+        accepted(caller.call('SetPreferences', '(us)', (child, json.dumps(preferences))))
     from system_session_expiry import grant
     grant(child, 600)
     guest.require(EXTENSION in extension_lists(child)[0], 'removal:extension-not-configured')

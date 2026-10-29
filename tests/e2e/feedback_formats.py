@@ -11,7 +11,7 @@ END = START + 5
 KINDS = (*INLINE, 'link', 'clear')
 OPERATIONS = frozenset({
     *(f'formats-{kind}-{action}' for kind in KINDS
-      for action in ('focus', 'home', 'selected', 'read')),
+      for action in ('focus', 'selected', 'read')),
     'formats-before', 'formats-link-target', 'formats-link-save',
     *(f'formats-{state}-{action}' for state in ('kept', 'cleared')
       for action in ('close', 'wrong-entry', 'reopen')),
@@ -120,7 +120,7 @@ def operate(ui, operation, require, error_type):
     elif operation == 'formats-link-save':
         ui.read_synthetic_text('link-target')
         ui.activate_id('feedback-link-save')
-    elif operation.endswith(('-focus', '-home')):
+    elif operation.endswith('-focus'):
         ui.focus_text('feedback-editor-input')
     elif operation.endswith('-selected'):
         kind = operation.removeprefix('formats-').removesuffix('-selected')
@@ -134,7 +134,7 @@ def operate(ui, operation, require, error_type):
 
 
 def format_stages(kind):
-    return (f'formats-{kind}-focus', f'formats-{kind}-home', f'formats-{kind}-selected',
+    return (f'formats-{kind}-focus', f'formats-{kind}-selected',
             *(('formats-link-target', 'formats-link-save') if kind == 'link' else ()),
             f'formats-{kind}-read')
 

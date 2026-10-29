@@ -1,15 +1,17 @@
 """Ordinary custom allowance commits, with independent reloads through Parent."""
 
 from installed_journey import InstalledJourney, JourneyPlan
-from allowance_presets import SCREENS as PRESET_SCREENS
+from journey_blocks import fresh_desktop, parent_management
 
-SCREENS = dict(PRESET_SCREENS)
-# Refuse custom input before enabling, then reuse the qualified preset sequence.
-items = list(SCREENS.items())
-position = next(i for i, (stage, _) in enumerate(items) if stage == 'allowance-disabled')
-items[position:position] = [('custom-disabled', 'ui:custom-disabled')]
-SCREENS = dict(items)
-SCREENS['custom-wrong-child'] = 'ui:custom-wrong-child'
+# Preset saves and their input guards belong to check_e2e_allowance_presets.
+# Custom commits need only the selected child and enabled allowance editor.
+SCREENS = {
+    **fresh_desktop('parent'), **parent_management(),
+    'custom-disabled': 'ui:custom-disabled',
+    'parent-toggle-enabled': 'ui:parent-toggle-enabled',
+    'parent-save-enabled': 'ui:parent-save-enabled',
+    'custom-wrong-child': 'ui:custom-wrong-child',
+}
 for value in (1, 2, 3):
     SCREENS['custom-' + str(value) + '-open'] = 'ui:custom-' + str(value) + '-open'
     for action in ('focus', 'selected', 'read'):
@@ -40,7 +42,7 @@ PLAN = JourneyPlan(
             **{stage: 'step-2' for stage in SCREENS
                if stage.startswith(('custom-', 'text-daily-'))
                and stage != 'custom-disabled'}},
-    advance_after={'allowance-15-read': 'step-2'},
+    advance_after={'parent-save-enabled': 'step-2'},
 )
 
 

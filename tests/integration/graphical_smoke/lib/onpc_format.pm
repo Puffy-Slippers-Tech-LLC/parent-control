@@ -46,7 +46,6 @@ sub apply_inline {
     $namespace = $invocation . $namespace;
     my $prefix = "$namespace-$kind";
     $journey->consume_observation("$prefix-focus", $journey->seen("$prefix-focus"));
-    $journey->consume_observation("$prefix-home", $journey->seen("$prefix-home"));
     $journey->consume_observation("$prefix-selected", $journey->seen("$prefix-selected"));
     if ($kind eq 'link') {
         $journey->consume_observation("$namespace-link-target", $journey->seen("$namespace-link-target"));

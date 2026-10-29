@@ -24,11 +24,8 @@ sub qualify {
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
     $journey->consume_observation('parent-selected', $selected);
-    for my $stage ('custom-disabled', 'allowance-disabled', 'parent-toggle-enabled',
-                   'parent-save-enabled', 'allowance-wrong-child',
-                   'allowance-0-select', 'allowance-0-read',
-                   'allowance-15-select', 'allowance-15-read',
-                   'custom-wrong-child') {
+    for my $stage ('custom-disabled', 'parent-toggle-enabled',
+                   'parent-save-enabled', 'custom-wrong-child') {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
     for my $value (1, 2, 3) {

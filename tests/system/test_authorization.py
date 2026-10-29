@@ -247,7 +247,7 @@ def test_account_discovery_after_installation(accounts, callers):
 
 
 @pytest.fixture
-def disposable_identities(accounts, record_testsuite_property):
+def disposable_identities(accounts, callers, record_testsuite_property):
     # Create both before deleting either, so this slice cannot reuse a deleted UID.
     values = {role: create_disposable_identity(role, record_testsuite_property)
               for role in ('target', 'approver')}
@@ -258,35 +258,36 @@ def disposable_identities(accounts, record_testsuite_property):
     guest.require(account_property(values['approver'], 'org.freedesktop.Accounts.User',
                                    'Locked') is False,
                   'authorization:deletion-fixture-approver-locked')
-    accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)',
-                  (values['target'], False, 60)))
+    accepted(callers('parent1').call('SetParentControl', '(ubu)',
+                                   (values['target'], False, 60)))
     return values
 
 
-def test_deleted_target_and_approver_fail_closed(accounts, disposable_identities,
+def test_deleted_target_and_approver_fail_closed(accounts, callers, disposable_identities,
                                                record_testsuite_property):
     """Stale selections fail on existing bus connections and preserve survivors."""
     target, approver = (disposable_identities[key] for key in ('target', 'approver'))
     parent = accounts['parent1']
-    original = accepted(call(parent, 'GetPreferences', '(u)', (accounts['child1'],)))[0]
-    accepted(call(parent, 'SetParentControl', '(ubu)', (accounts['child1'], True, 0)))
+    administrator = callers('parent1')
+    original = accepted(administrator.call('GetPreferences', '(u)', (accounts['child1'],)))[0]
+    accepted(administrator.call('SetParentControl', '(ubu)', (accounts['child1'], True, 0)))
     try:
         with PersistentCaller(parent) as manager, PersistentCaller(accounts['kiosk']) as kiosk:
-            callers = (manager, kiosk)
+            discovery_callers = (manager, kiosk)
 
             def discovery():
                 return tuple((
                     {row[0] for row in accepted(caller.call('ListManagedUsers'))[0]},
                     {row[0] for row in accepted(caller.call('ListApprovers'))[0]},
-                ) for caller in callers)
+                ) for caller in discovery_callers)
 
             initial = discovery()
             guest.require(all(target in children and approver in parents
                               for children, parents in initial),
                           'authorization:deletion-fixtures-not-discovered')
             # Seed a real remembered selection before its administrator disappears.
-            accepted(call(parent, 'UpdateRequestPreferences', '(usdbu)',
-                          (accounts['child1'], '300', 5.0, False, approver)))
+            accepted(administrator.call('UpdateRequestPreferences', '(usdbu)',
+                                        (accounts['child1'], '300', 5.0, False, approver)))
             saved_target = accepted(manager.call('GetPreferences', '(u)', (target,)))[0]
             before = snapshot_accounts(accounts)
             approver_before = account_state(approver)
@@ -325,8 +326,8 @@ def test_deleted_target_and_approver_fail_closed(accounts, disposable_identities
                                               for children, parents in initial),
                           'authorization:deleted-approver-discovery')
             for surface in ('child1', 'kiosk'):
-                reply = (call(accounts['child1'], 'RequestOwnAccess', '(uub)',
-                              (approver, 300, False)) if surface == 'child1' else
+                reply = (callers('child1').call('RequestOwnAccess', '(uub)',
+                                               (approver, 300, False)) if surface == 'child1' else
                          kiosk.call('RequestAccess', '(uuub)',
                                     (accounts['child1'], approver, 300, False)))
                 guest.require(reply.get('error') == guest.BUS + '.Error.InvalidRequest',
@@ -339,14 +340,15 @@ def test_deleted_target_and_approver_fail_closed(accounts, disposable_identities
             print('onpc-system: stage=deleted-identity-requests outcome=denied-state-preserved',
                   flush=True)
     finally:
-        accepted(call(parent, 'SetPreferences', '(us)', (accounts['child1'], original)))
-        accepted(call(parent, 'SetParentControl', '(ubu)', (accounts['child1'], False, 60)))
+        accepted(administrator.call('SetPreferences', '(us)', (accounts['child1'], original)))
+        accepted(administrator.call('SetParentControl', '(ubu)', (accounts['child1'], False, 60)))
 
 
-def test_root_method_permissions_and_approver_exclusion(accounts):
+def test_root_method_permissions_and_approver_exclusion(accounts, callers):
     """All root cells share one guarded case; every call verifies bus UID 0."""
     target = accounts['child1']
-    original = accepted(call(accounts['parent1'], 'GetPreferences', '(u)', (target,)))[0]
+    manager = callers('parent1')
+    original = accepted(manager.call('GetPreferences', '(u)', (target,)))[0]
     others = snapshot_accounts(accounts, (key for key in ROLES if key != 'child1'))
     try:
         for method in METHODS:
@@ -368,12 +370,10 @@ def test_root_method_permissions_and_approver_exclusion(accounts):
                     guest.require(0 not in uids and {accounts[key] for key in expected} <= uids,
                                   'authorization:root-discovery')
                 elif method == 'SetPreferences':
-                    saved = json.loads(accepted(call(accounts['parent1'], 'GetPreferences',
-                                                    '(u)', (target,)))[0])
+                    saved = json.loads(accepted(manager.call('GetPreferences', '(u)', (target,)))[0])
                     guest.require(saved == desired, 'authorization:root-preferences-not-applied')
                 elif method == 'SetParentControl':
-                    saved = json.loads(accepted(call(accounts['parent1'], 'GetPreferences',
-                                                    '(u)', (target,)))[0])
+                    saved = json.loads(accepted(manager.call('GetPreferences', '(u)', (target,)))[0])
                     guest.require(saved['parent_control_enabled'] and account_state(target) != before,
                                   'authorization:root-control-not-applied')
             else:
@@ -388,7 +388,7 @@ def test_root_method_permissions_and_approver_exclusion(accounts):
             method = 'RequestOwnAccess' if surface == 'child1' else 'RequestAccess'
             signature = '(uub)' if surface == 'child1' else '(uuub)'
             args = (0, 300, False) if surface == 'child1' else (target, 0, 300, False)
-            reply = call(accounts[surface], method, signature, args)
+            reply = callers(surface).call(method, signature, args)
             guest.require(reply.get('error') == DENIED, 'authorization:root-selected-approver')
             guest.require(account_state(target) == before,
                           'authorization:root-approver-denial-write')
@@ -401,8 +401,8 @@ def test_root_method_permissions_and_approver_exclusion(accounts):
         guest.require(accounts_unchanged(accounts, others),
                       'authorization:root-cross-account-write')
     finally:
-        accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
-        accepted(call(accounts['parent1'], 'SetPreferences', '(us)', (target, original)))
+        accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
+        accepted(manager.call('SetPreferences', '(us)', (target, original)))
 
 
 @pytest.mark.parametrize('role', ('noninteractive', 'system'))

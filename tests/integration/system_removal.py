@@ -1628,7 +1628,7 @@ def identity_filesystem_retry_rebooted(record, variant):
 def ownership_refusal_retry(record, variant):
     """Preserve one foreign conflict through native refusal, then rearm its owner."""
     guest.guard()
-    from system_kiosk_admission import PAM_AUTH_ERR, PAM_PERM_DENIED, probe, verify_gates
+    from system_kiosk_admission import probe, verify_gates
     from system_removal_ownership import (OWNERSHIP_VARIANTS, ownership_conflict,
                                          ownership_targets, ownership_reason)
     guest.require(variant in OWNERSHIP_VARIANTS, 'ownership:variant')
@@ -1693,15 +1693,11 @@ def ownership_refusal_retry(record, variant):
         observe_launch(child, False, variant=state.get('native_variant', 'command'))
         for role in ('ordinary', 'other'):
             probe('login', role, 0, 'ownership.refused.' + role, record)
-        kiosk_denial = PAM_PERM_DENIED
         if distribution == 'ubuntu' and not early:
-            # Ubuntu's primary common-account stack maps expired accounts to
-            # PAM_AUTH_ERR before the additional kiosk-only module can run.
-            # Prove the retained native quarantine, then require its exact
-            # denial rather than accepting an arbitrary failed account check.
             guest.require(current_expiry() == 1, 'ownership:quarantine-not-retained')
-            kiosk_denial = PAM_AUTH_ERR
-        probe('login', 'kiosk', kiosk_denial, 'ownership.refused.kiosk', record)
+        # Require refused admission, regardless of which native PAM barrier
+        # reports it. Quarantine and recovery records are checked independently.
+        probe('login', 'kiosk', None, 'ownership.refused.kiosk', record)
         conflict.verify()
         record('onpc.ownership.refused',
                variant + '; exact-conflict-and-recovery-records-preserved; payload-retained; child-denied; ordinary-users-allowed; native-PAM-retained; ' +

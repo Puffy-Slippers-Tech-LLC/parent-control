@@ -112,6 +112,7 @@ class Viewer:
         self.resources = ResourceUsage()
 
     def run_status(self, session_root=None):
+        from launcher_render import clean
         sections = []
         for root, branch in self.roots.items():
             if root not in self.outputs:
@@ -137,9 +138,19 @@ class Viewer:
             if output.run is not None:
                 try:
                     steps, details = output.status(active)
-                    lines = [line for step in steps for line in step['lines']]
+                    lines = [line for step in steps
+                             if not (label == 'fix-tests' and step['key'] == 'pipelines')
+                             for line in step['lines']]
+                    if label == 'fix-tests':
+                        details = [line for line in details
+                                   if not clean(line).startswith(('VM pipelines | concurrency ',
+                                                                  'Repair queue: '))]
+                        while details and not clean(details[0]).strip():
+                            details.pop(0)
                     if details:
-                        lines += ['─', *details]
+                        if lines:
+                            lines.append('─')
+                        lines.extend(details)
                 except (OSError, ValueError, KeyError, TypeError):
                     lines = ['Run status unavailable']
                 if label == 'fix-tests':

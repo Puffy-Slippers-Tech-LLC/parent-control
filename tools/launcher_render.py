@@ -988,15 +988,15 @@ class AgentRenderer:
                     if not text:
                         return
                 # The result file still owns orchestration. This only presents
-                # the same structured final message in a readable form.
+                # the same structured final message in a readable form, without
+                # duplicating each launcher's accepted status vocabulary.
                 try:
                     result = json.loads(text)
                 except ValueError:
                     result = None
                 descriptive = result is None
                 if (isinstance(result, dict)
-                        and result.get('status') in ('fixed', 'blocked', 'ready_for_vm', 'task_complete',
-                                                    'stalled', 'continue', 'prerequisite_required')
+                        and isinstance(result.get('status'), str)
                         and isinstance(result.get('summary'), str)):
                     if self.hide_task_completion and result['status'] in ('task_complete', 'blocked'):
                         # The workflow validates success and owns blocked questions.

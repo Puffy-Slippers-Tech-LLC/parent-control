@@ -44,6 +44,13 @@ def test_root_invocation_never_requests_authorization(authorized, monkeypatch, c
 
 
 def test_missing_password_fails_before_privilege_dispatch(launcher, tmp_path, monkeypatch, capsys):
+    import vm_pool
+
+    # Supply a valid selection without reading this checkout's VM registry or
+    # branch: the subprocess trap below protects privilege dispatch, not Git.
+    monkeypatch.setattr(launcher['vm_config'], 'execution',
+                        lambda selector: (1, (SimpleNamespace(name=VM_ARGS[1]),)))
+    monkeypatch.setattr(vm_pool, 'check_queue', lambda vms: None)
     monkeypatch.setitem(launcher, 'ROOT', tmp_path)
     monkeypatch.setattr(launcher['os'], 'geteuid', lambda: 1000)
     check = Mock(side_effect=AssertionError('authorization attempted'))

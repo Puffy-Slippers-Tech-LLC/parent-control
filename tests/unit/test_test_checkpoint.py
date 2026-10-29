@@ -283,7 +283,9 @@ def test_host_and_vm_checkpoints_are_independent_and_combined_retry_can_narrow(t
     assert Checkpoint(tmp_path, [('e2e', [])], resume=True).passed('e2e') == set()
 
 
-def test_large_case_inventory_uses_private_snapshot_instead_of_large_environment(tmp_path):
+def test_large_case_inventory_uses_private_snapshot_instead_of_large_environment(tmp_path, monkeypatch):
+    # This private checkpoint must not inherit the outer repair run's exclusions.
+    monkeypatch.delenv('ONPC_REPAIR_FAILED_CASES', raising=False)
     checkpoint = Checkpoint(tmp_path, [('unit', [])])
     cases = ['tests/unit/test_core.py::test_case[' + str(index) + 'x' * 200 + ']'
              for index in range(2000)]

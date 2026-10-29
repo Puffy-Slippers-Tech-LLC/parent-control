@@ -10,6 +10,7 @@
     const layout = document.getElementById('watch');
     const divider = document.getElementById('divider');
     const cards = new Map();
+    const sshVisible = new Set();
     const sections = new Map();
     const saved = vscode.getState();
     let state = { scope: 'all', selected: saved?.selected || 'all' };
@@ -248,7 +249,27 @@
         waiting.textContent = 'Waiting for display';
         const activity = element('pre', 'activity', body);
         activity.setAttribute('aria-label', 'Filtered VM command output');
-        const status = element('div', 'status', body);
+        const footer = element('div', 'card-footer', body);
+        const status = element('div', 'status', footer);
+        if (entry.kind === 'vm') {
+            activity.hidden = !sshVisible.has(entry.id);
+            const ssh = element('label', 'ssh-control', footer);
+            ssh.append('SSH ');
+            const toggle = element('button', 'session-toggle', ssh);
+            toggle.type = 'button';
+            toggle.setAttribute('role', 'switch');
+            toggle.setAttribute('aria-label', 'SSH');
+            toggle.setAttribute('aria-checked', String(!activity.hidden));
+            toggle.addEventListener('click', () => {
+                activity.hidden = !activity.hidden;
+                toggle.setAttribute('aria-checked', String(!activity.hidden));
+                if (activity.hidden) sshVisible.delete(entry.id);
+                else {
+                    sshVisible.add(entry.id);
+                    activity.scrollTop = activity.scrollHeight;
+                }
+            });
+        }
         return { body, title, heading, step, canvas, waiting, activity, status };
     }
 

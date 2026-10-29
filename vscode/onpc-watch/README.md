@@ -64,6 +64,11 @@ VM progress, filtered command output and host resource usage. Screens are view
 only. Start tests through the usual launchers. Select an idle VM tab to wait for
 its next run. The Reconnect button restarts only this tab's reader.
 
+Each VM footer has an **SSH** toggle at the right, off by default. Turn it on
+to show the filtered command output above the footer. The choice is retained
+when switching viewer tabs until Watch is reopened. Long blue operation messages
+truncate before the toggle, whose space stays reserved.
+
 Three icon buttons at the right end of the viewer tab row select the tile layout:
 **Auto** (the default grid), **Vertical** (one column), or **Horizontal** (one row).
 The tab remembers the selection. Overflowing tiles scroll in the chosen direction;

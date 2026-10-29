@@ -354,7 +354,9 @@ def test_pytest_resume_snapshot_still_refuses_oversized_ids(tmp_path):
         regression_events.completed_cases('@' + str(snapshot))
 
 
-def test_repair_replay_removes_only_its_case_from_the_resume_snapshot(tmp_path):
+def test_repair_replay_removes_only_its_case_from_the_resume_snapshot(tmp_path, monkeypatch):
+    # Keep this private checkpoint independent of the outer repair run's exclusions.
+    monkeypatch.delenv('ONPC_REPAIR_FAILED_CASES', raising=False)
     checkpoint = Checkpoint(tmp_path, [('unit', [])])
     checkpoint.entry('unit').update(passed=['previous', 'diagnostic'], complete=True)
     checkpoint.save()

@@ -499,7 +499,9 @@
             view.title.textContent = entry.label;
             view.heading.textContent = entry.heading;
             view.step.textContent = entry.step;
-            view.status.textContent = entry.status;
+            view.status.textContent = entry.kind === 'vm'
+                ? entry.status.replace(/\bsnapshot "([^"]+)"/g, 'snapshot $1').replace(/ - (\([^()]+\))$/, ' $1')
+                : entry.status;
             const text = terminal(entry.activity);
             if (view.activity.textContent !== text) {
                 const follow = view.activity.scrollHeight - view.activity.clientHeight - view.activity.scrollTop < 24;

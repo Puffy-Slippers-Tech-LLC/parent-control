@@ -224,7 +224,9 @@ class SSHBoundary:
                      '_read_readiness', 'terminate'):
             process += inspect.getsource(getattr(build_test_applications, name)) + '\n'
         modules.extend((('fixture_process', process), ('fixture_guest', inspect.getsource(fixture_guest))))
-        program = ('import json,sys,types,base64\n'
+        program = ('import sys\n'
+                   'print("fixture-provision:interpreter-started",file=sys.stderr,flush=True)\n'
+                   'import json,types,base64\n'
                    'print("fixture-provision:guest-program",file=sys.stderr,flush=True)\n'
                    'r=json.load(sys.stdin)\n'
                    'print("fixture-provision:input-read",file=sys.stderr,flush=True)\n'
@@ -241,7 +243,13 @@ class SSHBoundary:
         wire = {'modules': modules, 'action': action, 'request': request,
                 'payloads': None if payloads is None else
                 {key: base64.b64encode(data).decode('ascii') for key, data in payloads.items()}}
-        raw = self.transport.call(['/usr/bin/python3', '-I', '-c', program],
+        # The retained failure never reached guest-program. Separate entry
+        # after the transport's ownership guard, interpreter startup and module
+        # imports using fixed private stderr markers. Pass code positionally;
+        # stdin remains the original one-shot fixture request.
+        command = ('printf "%s\\n" "fixture-provision:guarded-shell" >&2 && '
+                   'exec /usr/bin/python3 -I -c "$1"')
+        raw = self.transport.call(['/bin/sh', '-c', command, 'fixture-provision', program],
                                   input=json.dumps(wire).encode(), timeout=300, attempts=1)
         require(type(raw) is bytes and len(raw) <= fixture_manifest.MAX_MANIFEST, 'reply')
         def pairs(items):

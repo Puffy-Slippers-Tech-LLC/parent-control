@@ -228,6 +228,7 @@ class Transport:
                                               remote(self.config, argv)]):
                         status = self.commands.last_returncode
                         try:
+                            self._storage_timeout_sample(error, 'before-guest-diagnostic')
                             # One guarded, read-only exchange. Inline output stays
                             # in the existing private command artifact, off watch.
                             self.call(['/usr/bin/python3', '-c', BOOT_STORAGE_DIAGNOSTIC],
@@ -237,8 +238,55 @@ class Transport:
                         except Exception:
                             error.add_note('transport:boot-storage-diagnostic-unavailable')
                         finally:
+                            self._storage_timeout_sample(error, 'after-guest-diagnostic')
                             self.commands.last_returncode = status
                     raise
+
+    def _storage_timeout_sample(self, error, phase):
+        """Distinguish guest writeback stalls from slow host disk completion.
+
+        Sample only after the exact boot probe times out. Reuse the VM owner
+        and existing report stream; emit numeric counters without disk paths,
+        account names or raw domain XML. A diagnostic failure cannot replace
+        the original timeout or authorize another attempt.
+        """
+        import json
+        import xml.etree.ElementTree as ET
+        from watch_activity import operation
+        try:
+            import libvirt
+            with operation('Reading disk progress after the test connection stalled'):
+                self.guard(self.config)
+                connection = libvirt.open(vm_config.URI)
+                try:
+                    domain = connection.lookupByUUIDString(self.config['domain_uuid'])
+                    require(connection.getURI() == vm_config.URI and
+                            domain.ID() == self.config['domain_id'],
+                            'transport:domain-replaced-or-shared')
+                    disks = ET.fromstring(domain.XMLDesc(0)).findall('devices/disk[@device="disk"]')
+                    require(len(disks) <= 4, 'transport:storage-diagnostic-disk-count')
+                    samples = []
+                    for disk in disks:
+                        target = disk.find('target').get('dev')
+                        stats = domain.blockStatsFlags(target, 0)
+                        limits = domain.blockIoTune(target, 0)
+                        samples.append({
+                            'stats': {key: stats[key] for key in (
+                                'rd_operations', 'rd_bytes', 'rd_total_times',
+                                'wr_operations', 'wr_bytes', 'wr_total_times',
+                                'flush_operations', 'flush_total_times', 'errs')
+                                if type(stats.get(key)) is int},
+                            'limits': {key: value for key, value in limits.items()
+                                       if re.fullmatch(r'[a-z_]{1,64}', key)
+                                       and type(value) is int}})
+                    self.guard(self.config)
+                    print('vm-storage-timeout: ' + json.dumps({
+                        'phase': phase, 'monotonic_ns': time.monotonic_ns(),
+                        'disks': samples}, sort_keys=True), file=sys.stderr, flush=True)
+                finally:
+                    connection.close()
+        except Exception:
+            error.add_note('transport:host-storage-diagnostic-unavailable')
 
     def _call(self, argv, *, input, timeout, check, attempts, on_output, on_stream, selection,
               diagnostic_stdout):

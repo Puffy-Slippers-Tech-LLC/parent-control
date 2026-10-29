@@ -25,6 +25,14 @@ PRODUCT_FREE_FIXTURE_SELECTORS = ('check_fixture_system_product_free',
                                  *SYSTEM_BOOTSTRAP_ALIASES)
 
 
+@pytest.fixture
+def vm_execution_branch(monkeypatch):
+    """Dispatch doubles use the selected VM's branch without accessing a VM."""
+    import vm_config
+    branch = vm_config.load(vm_name()).owning_branch
+    monkeypatch.setattr(vm_config, 'current_branch', lambda: branch)
+
+
 @pytest.mark.parametrize('name,options,target,suffix,build_status', [
     ('check_e2e_gdm_recipient', {}, vm_name(0), '', 0),
     ('check_e2e_feedback_read', {'package_source': True}, vm_name(1), '.py', 7),
@@ -1199,7 +1207,7 @@ def test_toggle_qualification_reuses_existing_inputs_without_overwriting(
 
 
 def test_retention_permission_failure_identifies_allocation_without_starting_tests(
-        tmp_path, monkeypatch, capsys):
+        tmp_path, monkeypatch, capsys, vm_execution_branch):
     import regression
     import test_retention
     import vm_selection
@@ -1541,7 +1549,7 @@ def test_integration_listing_is_host_safe_and_lists_the_snapshot_binding():
 
 
 @pytest.mark.parametrize('category', ['all', 'all-verify'])
-def test_aggregate_dispatch_selects_policy_and_rejects_narrowing(monkeypatch, category):
+def test_aggregate_dispatch_selects_policy_and_rejects_narrowing(monkeypatch, category, vm_execution_branch):
     import regression
     import vm_selection
     execute = Mock(return_value=7)
@@ -1557,7 +1565,7 @@ def test_aggregate_dispatch_selects_policy_and_rejects_narrowing(monkeypatch, ca
 
 
 @pytest.mark.parametrize('category', ['all', 'all-verify', 'host', 'host-builds', 'vm'])
-def test_continue_on_errors_is_a_valueless_aggregate_flag(monkeypatch, category):
+def test_continue_on_errors_is_a_valueless_aggregate_flag(monkeypatch, category, vm_execution_branch):
     import regression
     import vm_selection
     execute = Mock(return_value=7)
@@ -1616,7 +1624,7 @@ def test_host_build_qualification_is_fixed_and_never_dispatches_vm(monkeypatch, 
     ['vm'], ['host', 'vm'], ['vm', 'host'], ['vm', 'system'], ['e2e', 'vm'],
 ])
 @pytest.mark.parametrize('detached', [False, True])
-def test_complete_categories_share_one_ordered_aggregate(monkeypatch, argv, detached):
+def test_complete_categories_share_one_ordered_aggregate(monkeypatch, argv, detached, vm_execution_branch):
     import regression
     import vm_selection
     execute = Mock(return_value=7)

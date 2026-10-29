@@ -731,11 +731,14 @@ def select(root, name, command, *, stop=False, stop_marker='cancel',
             run = current_run(directory)
             if run is None:
                 raise ValueError(f'active {name} owner has no readable run record')
+            record = json.loads((directory / 'current.json').read_text())
             if not stop and name in ('fix-tests', 'write-e2e', 'plans'):
                 from vm_pool import check_attachment
-                check_attachment(json.loads((directory / 'current.json').read_text()))
+                check_attachment(record)
             if on_attach is not None:
                 on_attach(run)
+            if not stop:
+                atomic(directory / 'current.json', dict(record, launcher=launcher_name or name))
             if stop:
                 (run / stop_marker).touch(mode=0o600)
             elif reload:

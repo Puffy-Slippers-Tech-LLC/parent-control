@@ -28,6 +28,9 @@ name show `launcher` until their next start, attachment or reload request.
 the launcher terminal output, **Error** shows the shared launcher's **Last Error**
 and **Status** fields with the same colors and elapsed ages, and **Session** opens
 the session transcript and chat.
+For `fix-tests`, Last Error includes the failing check, the runner's error text
+(or a bounded command-output tail), and its output-log path. Reload launcher
+changes with `tools/fix-tests --reload`; `./setup.sh --watch` updates the extension.
 The links remain available in every view, including while idle.
 For `write-e2e`, **Status** starts with **Total Tasks: completed/unfinished/total**
 and **Total Duration**, using the shared launcher counters and colors. A divider

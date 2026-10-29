@@ -317,6 +317,7 @@ def run(root, argv, *, reloading=False):
                 launcher_reload.check()
             categories = []
             failures = []
+            error_details = []
             for vm in vms:
                 result = results[vm.name]
                 vm_categories = []
@@ -339,6 +340,12 @@ def run(root, argv, *, reloading=False):
                                   f'see {directory / (vm.name + ".log")}.', flush=True)
                             continue
                         vm_categories.extend(handoff['categories'])
+                        details = handoff.get('error_details', [])
+                        details = details if isinstance(details, list) else []
+                        error_details.extend(dict(detail, detail=vm.name + ': ' + detail['detail'])
+                            for detail in details
+                            if isinstance(detail, dict) and isinstance(detail.get('category'), str)
+                            and isinstance(detail.get('detail'), str))
                         vm_failures.extend(dict(item, vm=vm.name)
                                            for item in handoff.get('failures', []))
                 if (result['status'] if isinstance(result, dict) else result) != 0:
@@ -358,7 +365,7 @@ def run(root, argv, *, reloading=False):
                 prompt = f'Investigate the VM failures in {directory / "results.json"} and adjacent VM logs. Preserve expected behavior and all unrelated work.'
                 handoff = directory / 'failure.json'
                 handoff.write_text(json.dumps({'prompt': prompt, 'categories': list(dict.fromkeys(categories)),
-                                              'failures': failures}))
+                                              'failures': failures, 'error_details': error_details}))
                 handoff.chmod(0o600)
                 print(f'Failure handoff: {handoff}', flush=True)
             # Each directly spawned worker returns only after its guarded

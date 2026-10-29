@@ -791,8 +791,18 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         if active_task is not None:
             update_task_info(run, active_task, value)
 
-    def failed(category):
-        panel({'last_error': f'The {category} checks did not pass.'})
+    def failed(category, failure):
+        from launcher_render import clean
+        entries = failure.get('error_details', [])
+        entries = entries if isinstance(entries, list) else []
+        details = [entry['detail'] for entry in entries
+                   if isinstance(entry, dict) and (category == 'all' or entry.get('category') == category)
+                   and isinstance(entry.get('detail'), str) and entry['detail'].strip()]
+        target = failure_target(failure, category)
+        label = ' / '.join(part for part in target if part)
+        detail = '\n'.join(details) if details else (
+            'Failure details were not supplied by the runner. ' + failure['prompt'])
+        panel({'last_error': clean(label + ':\n' + detail).strip()[:4000]})
 
     def verification_started(completed):
         # A repair requires another whole clean pass. Persist the new pass's
@@ -1012,7 +1022,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             recovery_status = recover()
             if recovery_status:
                 failure = handoff(run, root=root)
-                failed(category)
+                failed(category, failure)
                 return failure
             recovered = True
         while True:
@@ -1121,7 +1131,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                     if status_line is not None:
                         print(status_line, flush=True)
                     failure = handoff(run, root=root)
-                    failed(category)
+                    failed(category, failure)
                     return failure
                 recovered = True
                 continue
@@ -1132,7 +1142,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 failure = attempted_failure(failure, category, latest_attempt)
             failure['_repair_generation'] = generation
             close_verified(category=category)
-            failed(category)
+            failed(category, failure)
             return failure
 
     def refresh_failure(category, failure):
@@ -1326,7 +1336,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 # Aggregate failures can enter a leaf repair before its own test.
                 task = active_task
                 if not task_info(run, task).get('last_error'):
-                    failed(category)
+                    failed(category, queued or dict(prompt=failure_prompt, categories=[category]))
                 phase = 'repair review' if classification else 'classify and repair'
                 print(f'\nfix-tests: {phase} ({agent_model}, {agent_effort}); '
                       f'case session {sessions}/{MAX_REPAIR_SESSIONS}', flush=True)

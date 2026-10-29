@@ -77,6 +77,7 @@ class Category:
     count_overall: bool = True
     resumed_nodeids: tuple[str, ...] = ()
     selection_args: tuple[str, ...] | None = None
+    error_detail: str = ''  # Presentation only; never used for verdicts or retries.
 
     @property
     def progress_done(self):
@@ -621,6 +622,7 @@ class Execution:
         self.exit_status = None
         self.result_closed = False
         self.command_recorded = False
+        self.output_tail = ''
         run.sequence += 1
         self.sequence = run.sequence
         filename = f'category-{run.sequence:03d}.log'
@@ -693,6 +695,8 @@ class Execution:
                     item.failed_nodeids += (event['nodeid'],)
                 self.failed.add(event['nodeid'])
                 item.failures = len(self.failed)
+                if not item.error_detail and isinstance(event.get('detail'), str):
+                    item.error_detail = event['detail'][-2000:]
                 if event.get('when') in ('setup', 'teardown'):
                     self.fixture_failed = True
                     from test_retention import preserve_for_recovery
@@ -715,6 +719,7 @@ class Execution:
         # Each fragment has a category label. UTF-8 and partial lines remain
         # independent even when several children stream their failures together.
         self.raw.write(data)
+        self.output_tail = (self.output_tail + data.decode('utf-8', errors='replace'))[-8000:]
         self.raw.flush()
         self.run.report.dirty.add(Path(self.raw.name))
         self.run.report.write('\n<p><b>' + html.escape(self.item.name) + '</b></p>\n<pre>'
@@ -763,6 +768,14 @@ class Execution:
                     run.checkpoint.event(item.retry_category,
                         dict(kind='failure', nodeid=sorted(self.finished)[-1]), set())
             item.stop_timer()
+            if item.state == 'Failed' and not item.error_detail:
+                from launcher_render import clean
+                lines = [clean(line).strip() for line in self.output_tail.splitlines()
+                         if not line.startswith(PREFIX)]
+                detail = '\n'.join(line for line in lines if line)[-2000:]
+                item.error_detail = (detail or f'Command exited with status {status}.')
+            if item.state == 'Failed':
+                item.error_detail += '\nOutput: ' + str(self.raw.name)
             self.result_closed = True
             run.report.snapshot(run.categories)
             run.dashboard.draw(force=True)
@@ -1668,7 +1681,12 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
         failures = failure_targets(run.categories, vm=os.environ.get(VARIABLE, '')) if run else []
         try:
             handoff.write_text(json.dumps({'prompt': prompt, 'categories': retries,
-                                          'failures': failures}, indent=2))
+                                          'failures': failures,
+                                          'error_details': [dict(category=item.retry_category,
+                                              detail=item.name + ': ' + item.error_detail)
+                                              for item in run.categories
+                                              if item.error_detail and item.retry_category]
+                                              if run else []}, indent=2))
             handoff.chmod(0o600)
             with handoff.open('rb') as stream:
                 os.fsync(stream.fileno())

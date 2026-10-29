@@ -32,7 +32,7 @@ print(hashlib.sha256(value.encode()).hexdigest())
 
 # Read only blocked root SSH sessions. Never retain command lines, environments,
 # arbitrary descriptor paths or kernel addresses in this private diagnostic.
-BOOT_TIMEOUT_DIAGNOSTIC = r'''import itertools,json,pathlib,re
+SSH_FAILURE_DIAGNOSTIC = r'''import itertools,json,pathlib,re
 known_logs={'/var/log/wtmp','/var/log/btmp','/var/log/lastlog',
  '/var/log/wtmp.db','/var/log/wtmp.db-wal','/var/log/wtmp.db-shm',
  '/var/lib/lastlog/lastlog2.db','/var/lib/lastlog/lastlog2.db-journal',
@@ -61,7 +61,7 @@ for proc in pathlib.Path('/proc').iterdir():
    'kernel_frames':frames,'open_system_logs':sorted(logs)})
   if len(rows)==16:break
  except (OSError,ValueError,IndexError):unavailable+=1
-print(json.dumps({'event':'fixture-boot-timeout','blocked_root_ssh':rows,'unavailable':unavailable},sort_keys=True))
+print(json.dumps({'event':'fixture-ssh-failure','blocked_root_ssh':rows,'unavailable':unavailable},sort_keys=True))
 '''
 
 
@@ -225,13 +225,19 @@ class SSHBoundary:
             process += inspect.getsource(getattr(build_test_applications, name)) + '\n'
         modules.extend((('fixture_process', process), ('fixture_guest', inspect.getsource(fixture_guest))))
         program = ('import json,sys,types,base64\n'
+                   'print("fixture-provision:guest-program",file=sys.stderr,flush=True)\n'
                    'r=json.load(sys.stdin)\n'
+                   'print("fixture-provision:input-read",file=sys.stderr,flush=True)\n'
                    'for name,source in r.pop("modules"):\n'
                    ' m=types.ModuleType(name);sys.modules[name]=m;exec(source,m.__dict__)\n'
+                   'print("fixture-provision:modules-loaded",file=sys.stderr,flush=True)\n'
                    'p=r.pop("payloads")\n'
                    'p=None if p is None else {k:base64.b64decode(v,validate=True) for k,v in p.items()}\n'
-                   'print(json.dumps(sys.modules["fixture_guest"].default_guest().call('
-                   'r["action"],r["request"],p),sort_keys=True))\n')
+                   'guest=sys.modules["fixture_guest"].default_guest()\n'
+                   'print("fixture-provision:guest-created",file=sys.stderr,flush=True)\n'
+                   'reply=guest.call(r["action"],r["request"],p)\n'
+                   'print("fixture-provision:guest-complete",file=sys.stderr,flush=True)\n'
+                   'print(json.dumps(reply,sort_keys=True))\n')
         wire = {'modules': modules, 'action': action, 'request': request,
                 'payloads': None if payloads is None else
                 {key: base64.b64encode(data).decode('ascii') for key, data in payloads.items()}}
@@ -306,33 +312,34 @@ class Provisioner:
             raw = self.transport.call(['/usr/bin/python3', '-c', BOOT_SHA256_PROBE],
                                       timeout=30, attempts=1)
         except subprocess.TimeoutExpired as error:
-            # The retained shell markers place the stall after PAM output but
-            # before the guest shell. Retained waits reached btrfs_sync_log;
-            # capture kernel frames and known login-history descriptors as well
-            # as login-service events, without replaying any fixture action.
-            # Inline programs keep these replies out of the public watch feed;
-            # Transport retains them in the existing private command artifacts.
-            status = self.transport.commands.last_returncode
-            for command in (
-                ['/usr/bin/ps', '-eo', 'pid,ppid,comm,wchan:40'],
-                ['/usr/bin/python3', '-c', BOOT_TIMEOUT_DIAGNOSTIC],
-                ['/usr/bin/journalctl', '--boot', '--since=-2min', '--no-pager',
-                 '--lines=80', '--unit=sshd.service', '--unit=systemd-logind.service',
-                 '--unit=user@0.service', '--unit=fapolicyd.service'],
-            ):
-                try:
-                    self._guard()
-                    program = 'import os; os.execv(' + repr(command[0]) + ', ' + repr(command) + ')'
-                    self.transport.call(['/usr/bin/python3', '-c', program],
-                                        timeout=10, attempts=1, check=False)
-                except Exception:
-                    error.add_note('fixture-provision:boot-timeout-diagnostic-unavailable')
-                finally:
-                    self.transport.commands.last_returncode = status
+            self._diagnose_ssh_failure(error)
             raise
         require(type(raw) is bytes and re.fullmatch(rb'[0-9a-f]{64}\n', raw), 'boot')
         self._guard()
         return raw.decode().strip()
+
+    def _diagnose_ssh_failure(self, error):
+        # A fixture exchange can lose SSH before its guest program starts, just
+        # like the boot probe. Capture the same bounded, read-only diagnostics
+        # before recovery, without replaying the failed action. Inline programs
+        # keep their replies in existing private command artifacts, off watch.
+        status = self.transport.commands.last_returncode
+        for command in (
+            ['/usr/bin/ps', '-eo', 'pid,ppid,comm,wchan:40'],
+            ['/usr/bin/python3', '-c', SSH_FAILURE_DIAGNOSTIC],
+            ['/usr/bin/journalctl', '--boot', '--since=-2min', '--no-pager',
+             '--lines=80', '--unit=sshd.service', '--unit=systemd-logind.service',
+             '--unit=user@0.service', '--unit=fapolicyd.service'],
+        ):
+            try:
+                self._guard()
+                program = 'import os; os.execv(' + repr(command[0]) + ', ' + repr(command) + ')'
+                self.transport.call(['/usr/bin/python3', '-c', program],
+                                    timeout=10, attempts=1, check=False)
+            except Exception:
+                error.add_note('fixture-provision:ssh-failure-diagnostic-unavailable')
+            finally:
+                self.transport.commands.last_returncode = status
 
     def _step(self, action, request, payloads=None):
         state = self._guard()
@@ -342,7 +349,14 @@ class Provisioner:
             require(owner(deepcopy(binding)) is True, 'maintenance-owner')
         require(state['domain_uuid'] == binding['vm_uuid'] and state['run'] == binding['run']
                 and self._boot() == binding['boot_sha256'], 'stale-attempt')
-        result = self.boundary.call(action, deepcopy(request), payloads)
+        try:
+            result = self.boundary.call(action, deepcopy(request), payloads)
+        except Exception as error:
+            if (isinstance(error, subprocess.TimeoutExpired)
+                    or getattr(getattr(self.transport, 'commands', None),
+                               'last_returncode', None) == 255):
+                self._diagnose_ssh_failure(error)
+            raise
         self._guard()
         require(self._boot() == binding['boot_sha256'], 'stale-boot')
         if owner is not None:

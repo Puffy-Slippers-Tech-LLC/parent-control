@@ -1,5 +1,7 @@
 """LIFE04 install: compose verified administrator submission and public readback."""
 
+from copy import deepcopy
+
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import package_installation
 from package_command import BINDING, PackageCommand
@@ -54,12 +56,21 @@ def observe_release(command, label, before, *, changed_boot=False):
     require(first['version'] == command.verified.upgrade_inputs['packages'][label]['version'],
             'package-install:installed-version')
     preserved = dict(first['preserved'])
+    expected = deepcopy(before['preserved'])
     if label == 'previous':
         # A genuine first installation creates package/dependency accounts.
         # Every pre-existing identity/language remains independently unchanged.
         preserved['accounts'] = {uid: preserved['accounts'].get(uid)
                                  for uid in before['preserved']['accounts']}
-    require(preserved == before['preserved'], 'package-install:preservation')
+    else:
+        # Upgrading permanently disables shell login for the reserved station.
+        # Require that exact migration, preserving its UID, other fields and
+        # every ordinary account. The journey still checks graphical entry.
+        station = [account for account in expected['accounts'].values()
+                   if account['identity'][0] == 'oh-no-parent-control']
+        require(len(station) == 1, 'package-install:kiosk-account')
+        station[0]['identity'][6] = '/usr/sbin/nologin'
+    require(preserved == expected, 'package-install:preservation')
     require((first['boot'] != before['boot'] if changed_boot else first['boot'] == before['boot']),
             'package-install:boot-continuity')
     if not changed_boot:

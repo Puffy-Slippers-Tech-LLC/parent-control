@@ -25,6 +25,47 @@ assert re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 print(hashlib.sha256(value.encode()).hexdigest())
 '''
 
+# The retained fixture timeout shows wait_log_commit in sshd, with a Btrfs
+# transaction waiting for extent-buffer I/O and a worker in rq_qos_wait.
+# Capture their dependencies and disk progress, rather than just the login
+# waiter. Keep only kernel symbols, numeric counters and fixed role labels.
+BOOT_STORAGE_DIAGNOSTIC = r'''import itertools,json,pathlib,re,time
+rows=[];unavailable=0
+for proc in pathlib.Path('/proc').iterdir():
+ if not proc.name.isdecimal():continue
+ try:
+  status=dict(line.split(':',1) for line in (proc/'status').read_text().splitlines() if ':' in line)
+  if status.get('Uid','').split()!=['0']*4 or status.get('State','').split()[:1]!=['D']:continue
+  identity=(proc/'stat').read_text().rsplit(')',1)[1].split()
+  if status.get('Name','').strip()=='sshd-session':role='root-ssh'
+  elif identity[1]=='2':role='kernel-worker'
+  else:continue
+  with (proc/'stack').open() as stream:stack=stream.read(8192)
+  frames=re.findall(r'\] ([A-Za-z0-9_.]+)\+',stack)[:24]
+  if (proc/'stat').read_text().rsplit(')',1)[1].split()[19]!=identity[19]:
+   unavailable+=1;continue
+  rows.append({'pid':int(proc.name),'role':role,'kernel_frames':frames})
+  if len(rows)==32:break
+ except (OSError,ValueError,IndexError):unavailable+=1
+disks=list(itertools.islice((p for p in pathlib.Path('/sys/block').iterdir()
+ if re.fullmatch(r'vd[a-z]+',p.name)),4))
+def sample():
+ result=[]
+ for disk in disks:
+  values={}
+  for field in ('stat','inflight','queue/wbt_lat_usec'):
+   try:
+    raw=(disk/field).read_text()
+    if len(raw)<=4096 and re.fullmatch(r'\s*\d+(?:\s+\d+)*\s*',raw):
+     values[field]=[int(value) for value in raw.split()]
+   except OSError:pass
+  result.append({'device':disk.name,'counters':values})
+ return {'monotonic_ns':time.monotonic_ns(),'disks':result}
+first=sample();time.sleep(1);second=sample()
+print(json.dumps({'event':'boot-storage-timeout','blocked_tasks':rows,
+ 'unavailable':unavailable,'samples':[first,second]},sort_keys=True))
+'''
+
 
 @contextmanager
 def package_operation(transport, label, *, lease=None):
@@ -176,9 +217,28 @@ class Transport:
                       for index, value in enumerate(argv))
         with operation(selection[0], priority=1):
             with package_operation(self, 'Installing the guest product package') if package else nullcontext():
-                return self._call(argv, input=input, timeout=timeout, check=check,
-                                  attempts=attempts, on_output=on_output, on_stream=on_stream,
-                                  selection=selection, diagnostic_stdout=diagnostic_stdout)
+                try:
+                    return self._call(argv, input=input, timeout=timeout, check=check,
+                                      attempts=attempts, on_output=on_output, on_stream=on_stream,
+                                      selection=selection, diagnostic_stdout=diagnostic_stdout)
+                except subprocess.TimeoutExpired as error:
+                    if (check and timeout == 30 and input is None
+                            and tuple(argv) == ('/usr/bin/python3', '-c', BOOT_SHA256_PROBE)
+                            and error.cmd == [*ssh(self.config, attempts=attempts),
+                                              remote(self.config, argv)]):
+                        status = self.commands.last_returncode
+                        try:
+                            # One guarded, read-only exchange. Inline output stays
+                            # in the existing private command artifact, off watch.
+                            self.call(['/usr/bin/python3', '-c', BOOT_STORAGE_DIAGNOSTIC],
+                                      timeout=10, attempts=1, check=False)
+                            require(self.commands.last_returncode == 0,
+                                    'transport:boot-storage-diagnostic-failed')
+                        except Exception:
+                            error.add_note('transport:boot-storage-diagnostic-unavailable')
+                        finally:
+                            self.commands.last_returncode = status
+                    raise
 
     def _call(self, argv, *, input, timeout, check, attempts, on_output, on_stream, selection,
               diagnostic_stdout):

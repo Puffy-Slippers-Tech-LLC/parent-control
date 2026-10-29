@@ -1,0 +1,35 @@
+<div id="onpc-wait-sample">
+  <div class="heading"><span>[main] fix-tests</span><div class="links"><button data-view="status" aria-pressed="true">Status</button> | <button data-view="launcher">Launcher</button> | <button data-view="error">Error</button> | <button data-view="session">Session</button> (<span class="clock">04:59</span> <button class="extend" aria-label="Add ten minutes">+</button>)</div></div>
+  <div class="status content"><div>Run: fix-tests</div><div>Cases: <span class="good">12 completed</span> / 13 total</div><br><div class="paused">Paused - waiting for your answer</div></div>
+  <div class="session content" hidden><div>Agent</div><p>The test expects the previous behavior. Should I preserve that expectation or implement the requested behavior change?</p><div class="composer"><textarea aria-label="Sample session reply" placeholder="Message the session…"></textarea><div class="footer"><span>GPT-6.1 Sol · high</span><span>Simplified [on]</span></div></div></div>
+  <div class="other content" hidden></div>
+</div>
+<style>
+#onpc-wait-sample {color-scheme:light dark; background:light-dark(#fff,#1f1f1f);color:light-dark(#333,#ccc);font:13px system-ui,sans-serif;max-width:620px;min-height:310px;border:1px solid light-dark(#ddd,#444)}
+#onpc-wait-sample * {box-sizing:border-box}
+#onpc-wait-sample .heading {display:flex;align-items:baseline;flex-wrap:wrap;gap:8px;padding:8px;border-bottom:1px solid light-dark(#ddd,#444)}
+#onpc-wait-sample .links {margin-left:auto;white-space:nowrap}
+@media(max-width:420px){#onpc-wait-sample .links {white-space:normal}}
+#onpc-wait-sample button {font:inherit;color:inherit;background:light-dark(#eee,#2d2d2d);border:0;padding:4px 5px}
+#onpc-wait-sample button[aria-pressed="true"] {border-bottom:2px solid light-dark(#007acc,#007acc);background:light-dark(#fff,#1f1f1f);font-weight:bold}
+#onpc-wait-sample .extend {color:#0066ff;text-decoration:underline;background:transparent;padding:0 2px}
+#onpc-wait-sample .content {padding:8px;font-family:monospace;overflow-wrap:anywhere}
+#onpc-wait-sample .paused {color:light-dark(#b52020,#f14c4c);animation:onpc-wait-pulse 1.2s ease-in-out infinite}
+#onpc-wait-sample .good {color:light-dark(#19792d,#73c991)}
+#onpc-wait-sample .clock {font-variant-numeric:tabular-nums}
+#onpc-wait-sample .composer {margin-top:50px}
+#onpc-wait-sample textarea {width:100%;padding:7px;background:light-dark(#fff,#313131);color:inherit;border:1px solid light-dark(#aaa,#555);font:inherit;resize:vertical}
+#onpc-wait-sample .footer {display:flex;justify-content:space-between;gap:8px;font-family:system-ui,sans-serif;padding:4px 0}
+@keyframes onpc-wait-pulse {50% {opacity:.25}}
+@media(prefers-reduced-motion:reduce){#onpc-wait-sample .paused{animation:none}}
+</style>
+<script>
+(() => {
+const root=document.getElementById('onpc-wait-sample');
+let deadline=Date.now()+299000;
+const update=()=>{const seconds=Math.max(0,Math.ceil((deadline-Date.now())/1000));root.querySelectorAll('.clock').forEach(n=>n.textContent=String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0'));};
+root.querySelectorAll('.extend').forEach(b=>b.onclick=()=>{deadline+=600000;update();});
+root.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{const view=b.dataset.view;root.querySelectorAll('[data-view]').forEach(t=>t.setAttribute('aria-pressed',String(t===b)));root.querySelector('.status').hidden=view!=='status';root.querySelector('.session').hidden=view!=='session';root.querySelector('.other').hidden=view==='status'||view==='session';root.querySelector('.other').textContent=view==='error'?'Last Error: Awaiting developer decision':'Launcher paused for developer input.';});
+update();setInterval(update,1000);
+})();
+</script>

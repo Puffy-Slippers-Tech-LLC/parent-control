@@ -4049,15 +4049,21 @@ class AccessibleUI:
             else:
                 raise UiError('ui:chooser-refusal-missing')
         elif operation in ('chooser-open', 'chooser-reopen'):
-            if boundary is not None:
-                self.feedback_snapshot(attachment_state=BOUNDARY_STATES[BOUNDARY_BATCHES[boundary][0]])
-            elif profile == 'single':
-                self.feedback_snapshot('formatted')
-            elif profile == 'standard':
-                self.feedback_snapshot(attachments=operation == 'chooser-reopen')
-            else:
-                self.feedback_snapshot(attachment_state=BOUNDARY_STATES[BOUNDARY_BATCHES[profile][0]])
-            require(self.chooser_snapshot(absent=True), 'ui:chooser-already-open')
+            def opening_snapshot():
+                if boundary is not None:
+                    self.feedback_snapshot(attachment_state=BOUNDARY_STATES[BOUNDARY_BATCHES[boundary][0]])
+                elif profile == 'single':
+                    self.feedback_snapshot('formatted')
+                elif profile == 'standard':
+                    self.feedback_snapshot(attachments=operation == 'chooser-reopen')
+                else:
+                    self.feedback_snapshot(attachment_state=BOUNDARY_STATES[BOUNDARY_BATCHES[profile][0]])
+                require(self.chooser_snapshot(absent=True), 'ui:chooser-already-open')
+                return True
+            # A retired external provider can remain in registry discovery
+            # until GetItems. Reacquire the complete read before opening;
+            # attachment mismatches and an existing chooser still refuse.
+            ready(opening_snapshot, ())
             self.activate_id('feedback-add-files')
             ready(self.chooser_snapshot, ('ui:chooser-entry', 'ui:chooser-active'))
             try:

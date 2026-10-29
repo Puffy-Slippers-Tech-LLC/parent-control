@@ -17,6 +17,36 @@ from launcher_render import LauncherDisplay, clean, retained_tail, style_task_co
 from launcher_session import SessionPanel, clock_duration, working_duration
 
 
+def error_status_lines(task_info, key, clock):
+    """Shared Last Error/Status fields and observer fallback clock."""
+    error = clean(task_info.get('last_error', '')).strip()
+    has_error = bool(error and error != '-')
+    status = task_info.get('status')
+    if not has_error:
+        status = 'Running'
+    elif status not in TASK_STATUSES or status == 'Running':
+        status = TASK_STATUSES[0]
+    key = (*key, status)
+    if clock is None or clock[0] != key:
+        clock = (key, time.time())
+    status_age = clock_duration(time.time() - task_info.get('status_at', clock[1]))
+    last_error = Text('Last Error: ')
+    last_error.stylize('bold', 0, len('Last Error:'))
+    if has_error:
+        last_error.append(error, style='red')
+        error_at = task_info.get('last_error_at')
+        if error_at is not None:
+            last_error.append(f' ({clock_duration(time.time() - error_at)} ago)')
+    else:
+        last_error.append('-')
+    status_line = Text('Status: ')
+    status_line.stylize('bold', 0, len('Status:'))
+    colors = dict(zip(TASK_STATUSES, ('#0098ff', '#0098ff', 'yellow', 'green', '#0098ff')))
+    status_line.append(status, style=colors[status])
+    status_line.append(f' ({status_age} ago)', style='#0098ff')
+    return [last_error, Text(''), status_line], clock
+
+
 class Divider:
     """A proportional split shared by the outer frames."""
 
@@ -807,22 +837,8 @@ class TaskDisplay(LauncherDisplay):
         total_duration = clock_duration(time.monotonic() - origin) if origin is not None else '—'
         task_info = (self.task_info if self.task_info.get('task_id') == self.chat_state.get('task_id')
                      and (not current or self.chat_state.get('progress_key') in (None, current['key'])) else {})
-        error_summary = clean(task_info.get('last_error', '')).strip()
-        has_error = bool(error_summary and error_summary != '-')
-        error_at = task_info.get('last_error_at') if has_error else None
-        error_age = clock_duration(time.time() - error_at) if error_at is not None else None
-        status = task_info.get('status')
-        if not has_error:
-            status = 'Running'
-        elif status not in TASK_STATUSES or status == 'Running':
-            status = TASK_STATUSES[0]
-        status_key = (current['key'] if current else None, self.chat_state.get('task_id'), status)
-        if self.status_clock is None or self.status_clock[0] != status_key:
-            # Older backends and non-agent workflows have no retained status
-            # timestamp. Measure from observation rather than inventing an age.
-            self.status_clock = (status_key, time.time())
-        status_at = task_info.get('status_at', self.status_clock[1])
-        status_age = clock_duration(time.time() - status_at)
+        info_lines, self.status_clock = error_status_lines(task_info,
+            (current['key'] if current else None, self.chat_state.get('task_id')), self.status_clock)
         session_panel = self.execution_session.panel if self.execution_session else None
         session_state = (self.execution_session.active, self.execution_session.identity,
                          tuple(session_panel.transcript), session_panel.pending,
@@ -831,7 +847,7 @@ class TaskDisplay(LauncherDisplay):
                          tuple(session_panel.text_output or [])) if session_panel else None
         state = (size, self.divider.ratio, self.execution_tab,
                  session_state, self.session_panel.simplified, self.dragging, self.task_totals,
-                 tuple(summary_lines), total_duration, working, error_age, status_age,
+                 tuple(summary_lines), total_duration, working, tuple(line.plain for line in info_lines),
                  tuple((s['key'], tuple(s['lines']), bool(s.get('replaces')),
                  bool(s.get('pinned'))) for s in self.steps), tuple(self.details),
                  tuple(self.transcript), self.pending, tuple(self.offsets.items()),
@@ -878,21 +894,6 @@ class TaskDisplay(LauncherDisplay):
                              max(0, available - len(separator) - 1))
         summary = self.from_top('summary', summary_lines, right_width, summary_height)
         self.summary_bottom = len(top) + 1 + summary_height
-        last_error = Text('Last Error: ')
-        last_error.stylize('bold', 0, len('Last Error:'))
-        if has_error:
-            last_error.append(error_summary, style='red')
-            if error_age is not None:
-                last_error.append(f' ({error_age} ago)')
-        else:
-            last_error.append('-')
-        # Only labels are bold; values keep their own normal/red styling.
-        status_line = Text('Status: ')
-        status_line.stylize('bold', 0, len('Status:'))
-        colors = dict(zip(TASK_STATUSES, ('#0098ff', '#0098ff', 'yellow', 'green', '#0098ff')))
-        status_line.append(status, style=colors[status])
-        status_line.append(f' ({status_age} ago)', style='#0098ff')
-        info_lines = [last_error, Text(''), status_line]
         lifecycle = {
             'waiting': 'Interrupted. Waiting for your instructions. Ctrl+C again exits.',
             'interrupting': 'Interrupting the current work…',

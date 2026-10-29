@@ -109,6 +109,28 @@ class Output:
         self.display = None
         self.line_start = True
         self.reader = JsonReader()
+        self.error_clock = None
+
+    def error_status(self, steps):
+        """Read the same task-local fields as the shared launcher right pane."""
+        from launcher_display import error_status_lines
+        current = next((step for step in reversed(steps)
+                        if not step.get('pinned') and not step.get('replaces')), None)
+        def metadata(name):
+            try:
+                return self.reader.read(self.run / name)
+            except FileNotFoundError:
+                return {}
+        state = metadata('chat-state.json') if self.run else {}
+        info = metadata('task-info.json') if self.run else {}
+        task = state.get('task_id')
+        if info.get('task_id') != task:
+            info = info.get('previous_tasks', {}).get(task, {})
+        if current and state.get('progress_key') not in (None, current['key']):
+            info = {}
+        lines, self.error_clock = error_status_lines(info,
+            (self.run, current['key'] if current else None, task), self.error_clock)
+        return lines
 
     def status(self, active):
         """Read shared launcher status publications for the editor viewer."""

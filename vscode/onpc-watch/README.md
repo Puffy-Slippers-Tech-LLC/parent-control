@@ -14,9 +14,11 @@ with the keyboard, or double-click it to restore 30:70.
 The left panel shows **Run Status** across related Git worktrees, using shared
 runner discovery and the pipeline dashboard. Active worktrees
 share the panel in equal sections; when idle, it retains the last displayed run.
-Each title, e.g. `[main] fix-tests`, keeps **Status**, **Launcher** and **Session**
+Each title, e.g. `[main] fix-tests`, keeps **Status**, **Launcher**, **Error** and **Session**
 links at its right end. **Status** shows the current run status, **Launcher** shows
-the launcher terminal output, and **Session** opens the session transcript and chat.
+the launcher terminal output, **Error** shows the shared launcher's **Last Error**
+and **Status** fields with the same colors and elapsed ages, and **Session** opens
+the session transcript and chat.
 The links remain available in every view, including while idle.
 While waiting for input, **Session** shows `Session (mm:ss +)` and
 the body shows `Paused - waiting for your answer`.

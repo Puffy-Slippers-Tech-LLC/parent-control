@@ -34,8 +34,9 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
     console = Console()
     rows = []
     for line in lines:
-        compact = line.startswith(COMPACT_LINE)
-        text = compact_text(line) if compact else Text.from_ansi(line.replace(SESSION_LINE, ''))
+        compact = isinstance(line, str) and line.startswith(COMPACT_LINE)
+        text = line.copy() if isinstance(line, Text) else (
+            compact_text(line) if compact else Text.from_ansi(line.replace(SESSION_LINE, '')))
         heading = re.fullmatch(r'VM: (.+) \([^()]*\)', text.plain)
         if heading:
             text = text[4:]
@@ -137,11 +138,13 @@ class Viewer:
                 self.last_output = root
             status = '' if active else output.completion_status()
             lines = []
+            error_lines = []
             failures, error_log = 0, None
             category_failures = {}
             if output.run is not None:
                 try:
                     steps, details = output.status(active)
+                    error_lines = output.error_status(steps)
                     lines = [line for step in steps
                              if not (label == 'fix-tests' and step['key'] == 'pipelines')
                              for line in step['lines']]
@@ -157,6 +160,7 @@ class Viewer:
                         lines.extend(details)
                 except (OSError, ValueError, KeyError, TypeError):
                     lines = ['Run status unavailable']
+                    error_lines = ['Error status unavailable']
                 if label == 'fix-tests':
                     try:
                         state = output.reader.read(output.run / 'checkpoint.json')
@@ -191,6 +195,7 @@ class Viewer:
                 (f' {label}' + (f' ({status})' if status else '') if label else ''),
                 active=active or session.active, status=status, rows=self.status_cache[root][1],
                 launcher_output=self.launcher_logs[root],
+                error_rows=status_spans(error_lines),
                 session=session.identity,
                 session_active=session.active,
                 session_waiting=waiting, session_deadline=deadline, session_question=prompt_id,

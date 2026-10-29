@@ -36,6 +36,7 @@
             else if (view === 'session' && section.view === 'session') section.view = 'status';
             section.content.hidden = section.view !== 'status';
             section.launcher.hidden = section.view !== 'launcher';
+            section.errorStatus.hidden = section.view !== 'error';
             section.session.hidden = section.view !== 'session';
             sessionHeading(section);
         }
@@ -50,7 +51,7 @@
         section.heading.replaceChildren();
         element('span', 'run-label', section.heading).textContent = entry.label;
         const links = element('span', 'run-links', section.heading);
-        for (const [view, label] of [['status', 'Status'], ['launcher', 'Launcher'], ['session', 'Session']]) {
+        for (const [view, label] of [['status', 'Status'], ['launcher', 'Launcher'], ['error', 'Error'], ['session', 'Session']]) {
             if (links.childNodes.length) links.append(' | ');
             const item = link(links, label, () => runView(entry.id, view));
             item.classList.add('run-tab');
@@ -304,7 +305,9 @@
                 const content = element('pre', 'run-status', body);
                 const launcher = element('pre', 'run-status', body);
                 launcher.setAttribute('aria-label', 'Launcher terminal output');
-                section = Object.assign(sessionPanel(body), { body, heading, content, launcher, view: 'status' });
+                const errorStatus = element('pre', 'run-status', body);
+                errorStatus.setAttribute('aria-label', 'Last Error and Status');
+                section = Object.assign(sessionPanel(body), { body, heading, content, launcher, errorStatus, view: 'status' });
                 sections.set(entry.id, section);
             }
             if (runs.children[index] !== section.body) runs.insertBefore(section.body, runs.children[index] || null);
@@ -313,6 +316,7 @@
             section.heading.classList.toggle('failed', entry.status === 'failed');
             section.content.hidden = section.view !== 'status';
             section.launcher.hidden = section.view !== 'launcher';
+            section.errorStatus.hidden = section.view !== 'error';
             section.session.hidden = section.view !== 'session';
             if (entry.session_view) sessionRows(section, entry.session_view);
             else if (!entry.session) {
@@ -326,6 +330,22 @@
                 section.launcherText = entry.launcher_output;
                 section.launcher.textContent = terminal(entry.launcher_output || 'Waiting for launcher output…');
                 if (follow) section.launcher.scrollTop = section.launcher.scrollHeight;
+            }
+            const errorSignature = JSON.stringify(entry.error_rows);
+            if (section.errorSignature !== errorSignature) {
+                section.errorSignature = errorSignature;
+                section.errorStatus.replaceChildren(...(entry.error_rows || []).map(row => {
+                    const line = document.createElement('div');
+                    if (!row.length) line.textContent = '\u00a0';
+                    for (const part of row) {
+                        const span = element('span', '', line);
+                        span.textContent = part.text;
+                        if (part.color) span.style.color = part.color;
+                        if (part.bold) span.style.fontWeight = 'bold';
+                    }
+                    return line;
+                }));
+                if (!section.errorStatus.childNodes.length) section.errorStatus.textContent = 'Waiting for run status…';
             }
             const signature = JSON.stringify([entry.rows, entry.active, entry.session]);
             if (section.signature === signature) return;

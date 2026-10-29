@@ -390,6 +390,7 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         session_transcript = SessionTranscript(sys.stdout, run,
             append=previous_view.get('continue_transcript') is True)
         renderer = AgentRenderer(session_transcript, command_log=run / 'agent-commands.log',
+                                 full_command_output=True,
                                  hide_task_completion=hide_task_completion, on_usage=on_usage,
                                  on_description=descriptive_output(run),
                                  on_message=(lambda text: task_message(run, task, text))

@@ -25,8 +25,12 @@ Timed questions show `(mm:ss +)` in both views. Each click on **+** adds ten
 minutes to the current question's deadline, including the launcher's actual wait.
 **Session** is a blue, underlined link with a hand cursor. It replaces that
 worktree's status with the shared launcher session transcript, chatbox and
-model/effort footer, including the Simplified toggle. In the session view, the
-title shows `[main] fix-tests Status (mm:ss +)` while waiting; click **Status** to
+model/effort footer, including the Simplified toggle. The transcript includes
+sent prompts and command output. Simplified mode collapses
+command activity and output to one clipped line; turn it off to see the retained
+output with its original line breaks.
+In the session view, the title shows `[main] fix-tests Status (mm:ss +)` while
+waiting; click **Status** to
 return. The space before each link is outside its underline.
 Waiting for input flashes unless reduced motion is
 enabled. Enter sends chat directly; there is no Send button. Shift+Enter or

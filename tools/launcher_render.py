@@ -721,7 +721,8 @@ class SessionTranscript:
 
 class AgentRenderer:
     def __init__(self, stream, *, width=100, command_log=None, hide_task_completion=False,
-                 on_usage=None, on_description=None, on_message=None):
+                 on_usage=None, on_description=None, on_message=None,
+                 full_command_output=False):
         self.width = width
         # Retained presentation must keep its palette even when the supervisor
         # inherits NO_COLOR from a noninteractive caller.
@@ -736,6 +737,7 @@ class AgentRenderer:
         self.pending = b''
         self.started = set()
         self.command_log = command_log
+        self.full_command_output = full_command_output
         self.last_command = None
         self.exploring = False
         self.hide_task_completion = hide_task_completion
@@ -921,11 +923,21 @@ class AgentRenderer:
         status = item.get('exit_code')
         if self.last_command != item['id']:
             self.command_heading(item)
-        if status == 0 and self.exploration(item):
+        if status == 0 and self.exploration(item) and not self.full_command_output:
             return
         output = clean(output.replace('\r\n', '\n')
                        .replace('\r', '\n')).rstrip()
         self.exploring = False
+        if self.full_command_output:
+            # Observers choose compact or complete presentation locally. Retain
+            # every line without wrapping it to the supervisor's fixed width.
+            for index, line in enumerate(output.splitlines()):
+                self.console.print(Text('  └ ' if index == 0 else '    ', style='bright_black') +
+                                   Text(line, style='bright_black'), soft_wrap=True)
+            if status != 0:
+                outcome = f'Exit {status}' if status is not None else item.get('status', 'completed')
+                self.tree(outcome, style='red')
+            return
         lines = [row for line in output.splitlines()
                  for row in Text(line).wrap(self.console, max(1, self.width - 4))]
         for index, line in enumerate(lines[:3]):

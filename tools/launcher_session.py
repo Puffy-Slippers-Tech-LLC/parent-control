@@ -32,6 +32,9 @@ class SessionPanel(LauncherDisplay):
     def __init__(self, stream, *, send, embedded=False, **kwargs):
         super().__init__(stream, **kwargs)
         self.embedded = embedded
+        # Embedded hosts consume the retained transcript instead of terminal
+        # bytes. Keep collecting it even when their backing stream is not a TTY.
+        self.tty = self.tty or embedded
         self.editor = ChatEditor(send)
         self.chat_state = {}
         self.input_mode = 'chat'
@@ -55,6 +58,7 @@ class SessionPanel(LauncherDisplay):
         prose = False
         detail_pending = False
         unknown = False
+        command_output = None
 
         def new_block(line):
             while rows and not clean(rows[-1]).strip():
@@ -91,6 +95,7 @@ class SessionPanel(LauncherDisplay):
                 preview(Text('• ', style='bright_black') + text)
                 continue
             if plain.startswith('• '):
+                command_output = None
                 if plain == '• Turn complete':
                     continue
                 nontext = re.match(r'^• (?:Ran |Explored$|(?:Tool|Search) (?:working|complete)$|'
@@ -108,7 +113,17 @@ class SessionPanel(LauncherDisplay):
                 rows.append(line)
             elif heading is not None and heading.plain == '• Explored' and re.match(
                     r'^  (?:└ |  )(?:Read|Search) ', plain):
-                preview(heading + Text(' ') + text[4:])
+                command_output = heading + Text(' ') + text[4:]
+                preview(command_output)
+            elif heading is not None and (heading.plain.startswith('• Ran ')
+                    or heading.plain == '• Explored') and plain.strip():
+                if command_output is None:
+                    command_output = heading.copy()
+                start = 4 if plain.startswith(('  └ ', '    ')) else 0
+                command_output += Text(' ') + text[start:]
+                # A preview is one clipped row, not another full transcript.
+                command_output.truncate(4096, overflow='ellipsis')
+                preview(command_output)
             elif detail_pending and plain.strip():
                 start = 4 if plain.startswith('  └ ') else len(plain) - len(plain.lstrip())
                 preview(heading + Text(' ') + text[start:])

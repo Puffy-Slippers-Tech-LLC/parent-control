@@ -25,9 +25,12 @@ nav button[aria-pressed="true"] {
 .run { display: flex; flex: 1 1 0; flex-direction: column; min-height: 100px; overflow: hidden; }
 .run + .run { border-top: 1px solid var(--vscode-panel-border); }
 .run-heading {
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
     margin: 0; padding: 8px; flex-shrink: 0; font-size: 1em;
     overflow-wrap: anywhere; border-bottom: 1px solid var(--vscode-panel-border);
 }
+.run-label { min-width: 0; }
+.run-links { margin-left: auto; white-space: nowrap; }
 .run-heading.failed { color: var(--vscode-errorForeground); }
 .session-link { color: #0066ff; text-decoration: underline; cursor: pointer; }
 .waiting-input { animation: waiting-input 1.2s ease-in-out infinite; }

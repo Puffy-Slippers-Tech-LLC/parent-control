@@ -26,44 +26,48 @@
     }
     setInterval(() => runs.querySelectorAll('[data-deadline]').forEach(countdown), 1000);
 
-    function sessionView(root) {
-        sessionRoot = root;
-        vscode.postMessage({ type: 'sessionView', root });
+    function runView(root, view) {
+        if (sessionRoot === root || view === 'session') {
+            sessionRoot = view === 'session' ? root : '';
+            vscode.postMessage({ type: 'sessionView', root: sessionRoot });
+        }
         for (const [id, section] of sections) {
-            section.content.hidden = id === root;
-            section.session.hidden = id !== root;
+            if (id === root) section.view = view;
+            else if (view === 'session' && section.view === 'session') section.view = 'status';
+            section.content.hidden = section.view !== 'status';
+            section.launcher.hidden = section.view !== 'launcher';
+            section.session.hidden = section.view !== 'session';
             sessionHeading(section);
         }
     }
 
     function sessionHeading(section) {
         const entry = section.entry;
-        const opened = sessionRoot === entry.id;
         const signature = JSON.stringify([entry.label, entry.session, entry.session_waiting,
-            entry.session_deadline, entry.session_question, opened]);
+            entry.session_deadline, entry.session_question, section.view]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
-        section.heading.replaceChildren(document.createTextNode(entry.label));
-        if (opened) {
-            section.heading.append(' ');
-            link(section.heading, 'Status', () => sessionView(''));
-        } else if (entry.session) {
-            section.heading.append(' ');
-            link(section.heading, 'Session', () => sessionView(entry.id));
+        section.heading.replaceChildren();
+        element('span', 'run-label', section.heading).textContent = entry.label;
+        const links = element('span', 'run-links', section.heading);
+        for (const [view, label] of [['status', 'Status'], ['launcher', 'Launcher'], ['session', 'Session']]) {
+            if (links.childNodes.length) links.append(' ');
+            const item = link(links, label, () => runView(entry.id, view));
+            if (section.view === view) item.setAttribute('aria-current', 'page');
         }
         if (entry.session_waiting) {
             if (Number.isFinite(entry.session_deadline)) {
-                section.heading.append(' (');
-                const timer = element('span', '', section.heading);
+                links.append(' (');
+                const timer = element('span', '', links);
                 timer.dataset.deadline = String(entry.session_deadline);
                 countdown(timer);
-                section.heading.append(' ');
-                const extend = link(section.heading, '+', () => sessionAction(section, 'extend'));
+                links.append(' ');
+                const extend = link(links, '+', () => sessionAction(section, 'extend'));
                 extend.title = 'Add 10 minutes';
                 extend.setAttribute('aria-label', 'Add 10 minutes to answer');
-                section.heading.append(')');
+                links.append(')');
             } else {
-                section.heading.append(' (no timeout)');
+                links.append(' (no timeout)');
             }
         }
     }
@@ -296,16 +300,31 @@
                 const body = element('section', 'run', runs);
                 const heading = element('h2', 'run-heading', body);
                 const content = element('pre', 'run-status', body);
-                section = Object.assign(sessionPanel(body), { body, heading, content });
+                const launcher = element('pre', 'run-status', body);
+                launcher.setAttribute('aria-label', 'Launcher terminal output');
+                section = Object.assign(sessionPanel(body), { body, heading, content, launcher, view: 'status' });
                 sections.set(entry.id, section);
             }
             if (runs.children[index] !== section.body) runs.insertBefore(section.body, runs.children[index] || null);
             section.entry = entry;
             sessionHeading(section);
             section.heading.classList.toggle('failed', entry.status === 'failed');
-            section.content.hidden = sessionRoot === entry.id;
-            section.session.hidden = sessionRoot !== entry.id;
+            section.content.hidden = section.view !== 'status';
+            section.launcher.hidden = section.view !== 'launcher';
+            section.session.hidden = section.view !== 'session';
             if (entry.session_view) sessionRows(section, entry.session_view);
+            else if (!entry.session) {
+                section.output.textContent = 'No active session';
+                section.outputSignature = undefined;
+                section.input.disabled = true;
+                section.working.textContent = section.model.textContent = '';
+            }
+            if (section.launcherText !== entry.launcher_output) {
+                const follow = section.launcher.scrollHeight - section.launcher.clientHeight - section.launcher.scrollTop < 24;
+                section.launcherText = entry.launcher_output;
+                section.launcher.textContent = terminal(entry.launcher_output || 'Waiting for launcher output…');
+                if (follow) section.launcher.scrollTop = section.launcher.scrollHeight;
+            }
             const signature = JSON.stringify([entry.rows, entry.active, entry.session]);
             if (section.signature === signature) return;
             section.signature = signature;

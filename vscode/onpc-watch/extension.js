@@ -77,6 +77,7 @@ function activate(context) {
         let sessionRoot = '';
         const sessionActions = [];
         let sessions = new Map();
+        let runRoots = new Set();
         function stop() {
             clearInterval(timer);
             lines?.close();
@@ -122,6 +123,7 @@ function activate(context) {
                 if (child !== owned || disposed) return;
                 try {
                     const snapshot = JSON.parse(line);
+                    runRoots = new Set((snapshot.runs || []).map(entry => entry.id));
                     sessions = new Map((snapshot.runs || []).filter(entry => entry.session)
                         .map(entry => [entry.id, entry.session]));
                     errorLogs = new Set((snapshot.runs || []).flatMap(entry =>
@@ -154,7 +156,7 @@ function activate(context) {
             } else if (message?.type === 'restart') {
                 start();
             } else if (message?.type === 'sessionView' &&
-                       (message.root === '' || sessions.has(message.root))) {
+                       (message.root === '' || runRoots.has(message.root))) {
                 sessionRoot = message.root;
                 poll();
             } else if (message?.type === 'sessionAction' &&

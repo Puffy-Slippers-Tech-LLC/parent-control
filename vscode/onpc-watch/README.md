@@ -14,8 +14,11 @@ with the keyboard, or double-click it to restore 30:70.
 The left panel shows **Run Status** across related Git worktrees, using shared
 runner discovery and the pipeline dashboard. Active worktrees
 share the panel in equal sections; when idle, it retains the last displayed run.
-An active running session adds **Session** to the title, e.g. `[main] fix-tests Session`.
-While waiting for input, the title shows `[main] fix-tests Session (mm:ss +)` and
+Each title, e.g. `[main] fix-tests`, keeps **Status**, **Launcher** and **Session**
+links at its right end. **Status** shows the current run status, **Launcher** shows
+the launcher terminal output, and **Session** opens the session transcript and chat.
+The links remain available in every view, including while idle.
+While waiting for input, **Session** shows `Session (mm:ss +)` and
 the body shows `Paused - waiting for your answer`.
 The waiting text flashes in the same red as stopped/blocked statuses; the deadline
 counts down every second from the current prompt's deadline. Answering removes
@@ -31,9 +34,8 @@ both modes; activity names remain visible and saved transcripts retain results.
 Simplified mode collapses command activity to one clipped line; turn it off to
 see each activity with its original line breaks. Successful Read/Search exploration shows
 the activity only; file contents and search matches stay out of both views.
-In the session view, the title shows `[main] fix-tests Status (mm:ss +)` while
-waiting; click **Status** to
-return. The space before each link is outside its underline.
+The session timer stays beside **Session** in every view; click **Status** to
+return to run status. The space before each link is outside its underline.
 Waiting for input flashes unless reduced motion is
 enabled. Enter sends chat directly; there is no Send button. Shift+Enter or
 Alt+Enter inserts a new line. Input is

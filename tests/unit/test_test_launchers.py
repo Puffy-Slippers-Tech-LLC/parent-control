@@ -571,10 +571,14 @@ def test_e2e_qualification_freezes_input_and_source_proof(monkeypatch, frozen_fi
 def test_installed_e2e_freezes_before_privileged_dispatch(
         monkeypatch, frozen_fixture_selection, category, arguments, vm, target):
     monkeypatch.setenv('ONPC_TEST_VM', vm)
+    families = json.loads((ROOT / 'config/test-vm.json').read_text())['families']
+    fixture_path = next(family['fixture_path'] for family in families
+                        if any(entry['name'] == vm for entry in family['vms']))
     record = replace(frozen_fixture_selection, target=target,
         allocation=frozen_fixture_selection.allocation.replace('runtime-ubuntu-', 'runtime-' + target + '-')).record()
     def execute(command, **options):
-        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py', '--target', target)
+        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py',
+            '--target', target, '--fixture-path', fixture_path)
         options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n').encode())
         return 0
     assert commands.qualification_fixture_options(ROOT, category, arguments,

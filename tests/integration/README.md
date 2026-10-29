@@ -1125,7 +1125,12 @@ child-only hard denial, strict soft denial and real authenticated soft approval,
 with unrelated-child execution at every stage. Source and compiled rules are
 retained. The fixture receipt, native package/tool identities, exact file-trust
 database rows and unchanged original untrusted bytes/trust state must match
-the prepared baseline. Placement and trust admission belong exclusively to
+the prepared inputs. On clean captures, both trusted executables and their
+launchers use the [attempt-owned provisioner](../support/README.md#attempt-owned-fixture-provisioning),
+with comparison bytes frozen from the same authenticated bundle. Read-only
+verification checks both exact trust rows and unchanged provenance before and
+after policy operations. Legacy captures retain their baseline receipt checks
+and preparation-owned placement and trust admission through
 [`tools/prepare-vm`](Environment.md#reusable-preparation-ownership).
 The selector is explicit and isolated; ordinary current-package or upgrade
 selections do not add it. Its passing result qualifies inputs, without granting

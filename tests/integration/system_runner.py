@@ -2158,7 +2158,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         fixture_selection = (installed_selection(fixture_selection) if already_installed else
                              selection_record(fixture_selection))
         subsets = SUBSETS
-        if any(item.case_id == PREVIOUS_POLICY_CASE for item in selection.executions):
+        if any(item.case_id in (PREVIOUS_POLICY_CASE, TRUSTED_FIXTURES_CASE)
+               for item in selection.executions):
             # This history sets and observes distinct hard/soft policies.
             # Clean captures supply neither the soft witness nor its launchers.
             subsets += ('trusted-soft', 'trusted-hard-launcher', 'trusted-soft-launcher')
@@ -2678,7 +2679,8 @@ def main(argv=None):
                 from system_fixture_preparation import stage_mechanical_comparison
                 stage_mechanical_comparison(fixture_input,
                     directory / 'input/fixtures/mechanical/onpc-test-application')
-                if any(item.case_id == PREVIOUS_POLICY_CASE for item in selection.executions):
+                if any(item.case_id in (PREVIOUS_POLICY_CASE, TRUSTED_FIXTURES_CASE)
+                       for item in selection.executions):
                     for identity in ('trusted-hard', 'trusted-soft'):
                         stage_mechanical_comparison(fixture_input,
                             directory / ('input/fixtures/mechanical/identity-' + identity),

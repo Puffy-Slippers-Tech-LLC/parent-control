@@ -415,7 +415,8 @@ def qualification(tmp_path, monkeypatch):
     monkeypatch.setattr(trusted, 'verify_trust', trust)
     monkeypatch.setattr(trusted, 'record_execution_backend', Mock())
     accounts = {'child': 1001, 'other': 1002, 'parent': 1003}
-    monkeypatch.setattr(trusted, 'provision_native', lambda variant: accounts.copy())
+    monkeypatch.setattr(trusted, 'provision_native',
+                        lambda variant, *, trusted_variants: accounts.copy())
     monkeypatch.setattr(trusted.pwd, 'getpwnam', lambda name: SimpleNamespace(pw_uid=1004))
     preferences = {'apps': {}, 'parent_control_enabled': False, 'daily_time_limit_minutes': 37}
     calls, launches, rules = [], [], []

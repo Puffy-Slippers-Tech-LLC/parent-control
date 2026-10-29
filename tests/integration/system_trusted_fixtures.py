@@ -275,11 +275,11 @@ def qualify(record):
                   'trusted-fixtures:requires-pinned-earlier-release')
     record('onpc.trusted-fixtures.previous.version', old)
     record('onpc.trusted-fixtures.previous.sha256', guest.sha(previous))
-    before = verify_trust()
+    before = verify_trust(variant='trusted-hard', variants=TRUSTED_VARIANTS)
     record('onpc.trusted-fixtures.provenance', json.dumps(before, sort_keys=True))
     record_execution_backend(record)
-    accounts = provision_native('trusted-hard')
-    guest.require(provision_native('trusted-soft') == accounts,
+    accounts = provision_native('trusted-hard', trusted_variants=TRUSTED_VARIANTS)
+    guest.require(provision_native('trusted-soft', trusted_variants=TRUSTED_VARIANTS) == accounts,
                   'trusted-fixtures:account-identities')
     parent, child, other = (accounts[role] for role in ('parent', 'child', 'other'))
     preferences = json.loads(call(parent, 'GetPreferences', '(u)', (child,))[0])
@@ -324,7 +324,8 @@ def qualify(record):
                ('child-allowed' if allowed else 'child-denied') + '; other-allowed')
     guest.require(call(parent, 'GetPreferences', '(u)', (other,))[0] == other_preferences,
                   'trusted-fixtures:other-policy-changed')
-    guest.require(verify_trust() == before, 'trusted-fixtures:provenance-changed')
+    guest.require(verify_trust(variant='trusted-hard', variants=TRUSTED_VARIANTS) == before,
+                  'trusted-fixtures:provenance-changed')
     guest.verify_package_files(previous, category='previous-package')
     record('onpc.trusted-fixtures.result',
            'old-package-booted; exact-native-trust; unrestricted-controls; '

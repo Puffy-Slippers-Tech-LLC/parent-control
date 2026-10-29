@@ -1065,7 +1065,10 @@ def test_real_script_uses_fresh_agent_prompt_and_granular_rounds(checkout, mode,
         assert (run / 'rejected-agent-result.json').read_text() == '[]'
         assert json.loads((run / 'repair-stop.json').read_text())['sessions'] == 5
     executed = [call['category'] for call in calls if call['kind'] == 'test']
-    assert executed == (['unit', 'unit', 'unit', 'ui', 'system', 'e2e', 'all'] if expected == 0 else ['unit'])
+    # Exhausting one failure's allowance still drains independent categories
+    # in both rounds, without retrying or accepting the exhausted failure.
+    assert executed == (['unit', 'unit', 'unit', 'ui', 'system', 'e2e', 'all'] if expected == 0
+                        else ['unit', 'ui', 'system', 'e2e', 'ui', 'system', 'e2e'])
     assert 'Traceback' not in output.getvalue()
     assert 'PRIVATE REASONING FIXTURE' not in output.getvalue()
     rendered = Text.from_ansi(output.getvalue()).plain

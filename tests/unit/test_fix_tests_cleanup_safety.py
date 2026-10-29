@@ -556,10 +556,31 @@ def test_diagnostic_overlap_verifies_once_and_resumes_failed_push(checkout):
     calls = (root / 'calls').read_bytes()
     agents = [json.loads(line) for line in calls.splitlines() if json.loads(line)['kind'] == 'agent']
     assert [call['pushed_subject'] for call in agents] == ['Initial fixture'] * 3
+
+    def recovery_details(path):
+        state = json.loads((path / 'checkpoint.json').read_text())
+        loop = state.get('controller_restart', {}).get('runtime', {}).get('loop', {})
+        return dict(
+            pending=state.get('pending'),
+            queued_failures=state.get('queued_failure', {}).get('failure', {}).get('failures', []),
+            repairs=[dict(failure=entry['failure'], status=entry.get('status'),
+                          pending_response=entry.get('pending_response') is not None)
+                     for entry in state['repairs'].values()],
+            loop_phase=loop.get('phase'),
+            handoffs=[dict(failure=key, status=value.get('status'),
+                           verification=value.get('verification'),
+                           has_evidence_path=bool(value.get('evidence_path')))
+                      for key, value in loop.get('handoffs', [])])
+
+    # Expose only this fixture's control metadata on failure, so a restart's
+    # selected repair can be compared with the pending push and diagnostic loop.
+    before_resume = recovery_details(run)
     hook.unlink()
     resumed, _ = fix_tests.select(root, categories=('unit',), resume=True)
     output = io.StringIO()
-    assert fix_tests.follow(resumed, output) == 0, output.getvalue()
+    status = fix_tests.follow(resumed, output)
+    assert status == 0, output.getvalue() + '\nRecovery diagnostics: ' + json.dumps(dict(
+        before_resume=before_resume, after_resume=recovery_details(resumed)), sort_keys=True)
     after = (root / 'calls').read_bytes()
     assert after.startswith(calls)
     remaining, = [json.loads(line) for line in after[len(calls):].splitlines()]

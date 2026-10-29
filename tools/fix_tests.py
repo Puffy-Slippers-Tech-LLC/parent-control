@@ -1433,6 +1433,12 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
 
     def release_repair(*, changed=True):
         nonlocal retained_failure
+        # Git close-out removes its queued failure before this callback. Clear
+        # the in-memory copy independently, even when older diagnostics remain
+        # in the repair records as ownership evidence.
+        if retained_failure is not None and commits.key(failure_target(
+                retained_failure['failure'], retained_failure['category'])) not in commits.state['repairs']:
+            retained_failure = None
         queued = commits.state.get('queued_failure')
         if queued is not None and commits.key(failure_target(
                 queued['failure'], queued['category'])) not in commits.state['repairs']:

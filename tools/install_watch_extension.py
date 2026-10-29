@@ -47,13 +47,15 @@ def package(destination):
   <Default Extension=".vsixmanifest" ContentType="text/xml"/>
   <Default Extension=".js" ContentType="application/javascript"/>
   <Default Extension=".css" ContentType="text/css"/>
+  <Default Extension=".png" ContentType="image/png"/>
   <Default Extension=".md" ContentType="text/markdown"/>
 </Types>'''
     with zipfile.ZipFile(destination, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
         archive.writestr('extension.vsixmanifest', metadata)
         archive.writestr('[Content_Types].xml', types)
         # A finite payload avoids bundling workspace files or generated artifacts.
-        for name in ('package.json', 'extension.js', 'media/watch.js', 'media/watch.css', 'README.md'):
+        for name in ('package.json', 'extension.js', 'media/watch.js', 'media/watch.css',
+                     'media/app-logo.png', 'README.md'):
             archive.write(source / name, 'extension/' + name)
         archive.write(ROOT / 'LICENSE', 'extension/LICENSE')
 

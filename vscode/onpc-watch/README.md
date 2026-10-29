@@ -3,9 +3,15 @@
 Open run status and live UI/VM viewers in a VS Code editor tab.
 
 Run `./setup.sh --watch` as your desktop user to install or update this extension.
-Reload VS Code after updating it. Open an ONPC checkout, press **Ctrl+Shift+P**,
-and select **ONPC: Watch** (`onpc.watch`). Repeating the command reveals the
-existing tab. Multiple workspace roots offer a checkout picker.
+Reload VS Code after updating it. Open a trusted ONPC checkout and click the
+full-color product logo at the right end of the editor tab headers. Its tooltip
+is **ONPC: Watch**. The button appears
+automatically for ONPC clones and Git worktrees, regardless of branch, and hides
+when no ONPC checkout is open. Adding or removing workspace folders updates it.
+The bundled icon is a copy of `data/app_logo_titlebar.png`.
+You can also press **Ctrl+Shift+P** and select **ONPC: Watch** (`onpc.watch`).
+Repeating the command reveals the existing tab. Multiple workspace roots offer
+a checkout picker.
 
 The tab starts with a 30:70 left/right split. Drag the divider to resize it;
 the tab remembers its ratio. Focus the divider and use the arrow keys to resize

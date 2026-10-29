@@ -52,6 +52,18 @@ function activate(context) {
     const panels = new Map();
     const output = vscode.window.createOutputChannel('ONPC Watch');
     context.subscriptions.push(output);
+    function updateButton() {
+        const available = vscode.workspace.isTrusted &&
+            (vscode.workspace.workspaceFolders || []).some(folder => {
+                try { return Boolean(checkout(folder)); }
+                catch { return false; } // A removed or inaccessible folder is not a checkout.
+            });
+        void vscode.commands.executeCommand('setContext', 'onpc.watchAvailable', available);
+    }
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeWorkspaceFolders(updateButton),
+        vscode.workspace.onDidGrantWorkspaceTrust(updateButton));
+    updateButton();
     context.subscriptions.push(vscode.commands.registerCommand('onpc.watch', async () => {
         if (!vscode.workspace.isTrusted) {
             vscode.window.showErrorMessage('Trust this workspace before opening ONPC Watch.');

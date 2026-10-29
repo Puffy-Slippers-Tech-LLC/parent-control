@@ -2,18 +2,29 @@
   "name": "onpc-watch",
   "displayName": "ONPC Watch",
   "description": "Run status and live UI/VM viewers in a VS Code editor tab.",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "publisher": "puffyslippers",
   "license": "SEE LICENSE IN LICENSE",
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Testing", "Visualization"],
   "extensionKind": ["workspace"],
   "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
   "capabilities": {
     "untrustedWorkspaces": { "supported": false },
     "virtualWorkspaces": { "supported": false }
   },
   "contributes": {
-    "commands": [{ "command": "onpc.watch", "category": "ONPC", "title": "Watch" }]
+    "commands": [{
+      "command": "onpc.watch", "category": "ONPC", "title": "Watch",
+      "icon": "media/app-logo.png"
+    }],
+    "menus": {
+      "editor/title": [{
+        "command": "onpc.watch",
+        "when": "onpc.watchAvailable && isWorkspaceTrusted",
+        "group": "navigation@100"
+      }]
+    }
   }
 }

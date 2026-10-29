@@ -61,6 +61,7 @@ without executable assertions establishes no coverage.
 
 | Existing owner | Work not to duplicate | Customer journey retained |
 | --- | --- | --- |
+| `test_baseline_fixtures_cleanup_safety` shared reconciliation, interrupted-placement, foreign/tampered-input and missing-baseline checks | Per-profile copies of unchanged idempotence, owned-update, retry and refusal matrices in tasks 109p/116p/126p; check only a genuinely new package, scope, confinement or ownership boundary | Real installation and restored-profile readback remain required; later Snap/Flatpak launches, enforcement and game use/expiry retain complete acceptance |
 | `test_authorization.test_requester_disconnect_during_approval` (system 255) | Engineering obligation 147: both requester disconnects, cancellation/no writes, released transaction, fresh authenticated recovery and other-account isolation | Cases 171–175 still observe leaving an actual pending graphical approval and its public result |
 | `test_core.test_parent_disable_cannot_interleave_with_admitted_approval`, `test_approval_cannot_snapshot_parent_disable_bridge_or_rollback`; `test_private_dbus_service.test_request_workers_dispatch_concurrently`; system 255 | Engineering obligation 148: real threaded broker conflict, Busy/no writes, final time/policy and successful retry; private-bus worker dispatch; installed bus/agent Busy/release and authenticated recovery. No separate task 177 or repeated concurrency qualifier. | Complete graphical approvals, pending-request interruptions and independent child/parent journeys retain their public results |
 | Native command, whitespace, future-pattern, missing-launcher and catalogue system tests (272, 277–280) | Backend policy/UID/path/catalogue matrices and separate qualifiers for unchanged fixture mechanics | Parent edits and saved rules, declared launch routes, use/refusal, copied-executable/shared-launcher interactions and required peer access |
@@ -82,6 +83,12 @@ FLOW19 uses the existing setup mode and a complete saved-set comparison, while
 feature cases retain each tested policy transition's independent effects.
 Removing a precursor history does not qualify a new provider or safety binding;
 keep genuinely missing qualification explicit in its consumer.
+
+Task 188r combines the missing Parent collection-failure projection and Retry
+binding in one qualification. Former task 188p's separate failure setup/close
+attempt is redundant; retain the failed result, usable controls, draft,
+restoration and successful Retry together. No public failure/recovery trigger
+is established, so the combined capability and complete case 208 remain pending.
 
 Task 102's duplicate expiry/replacement qualifier is absorbed into cases
 23/24/126/127. Their existing natural-lock, time-denial, retained-entry and

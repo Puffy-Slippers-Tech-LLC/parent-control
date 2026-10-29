@@ -27,9 +27,12 @@ installation and confinement; launching and activity remain in following tasks.
 
 ## Live VM acceptance
 
-Exercise idempotence, owned updates, interrupted retry and invalid scope/manifests
-in the existing baseline/ownership host regressions, limited to the added profile.
-Reuse unchanged reconciliation qualification. Qualify one real baseline
+Run affected baseline/ownership checks; reuse the shared reconciliation,
+interrupted-placement and foreign-input coverage in
+`tests/unit/test_baseline_fixtures_cleanup_safety.py`. Adding finite A/H/S
+identities does not require another copy of that matrix. Add a focused direct
+check only for a new package-command, installation-scope or ownership boundary
+that the shared checks cannot exercise. Qualify one real baseline
 installation of the declared runtime/app identities. After restore in a fresh
 guarded attempt, verify runtime/app digests, installation scope, confinement and launchers
 without installing or repairing anything. Independently observe the exact Parent
@@ -45,9 +48,9 @@ scope and confinement; the existing host-only `prepare_flatpak` user installatio
 is not a guest baseline implementation.
 
 Qualification selector (planned; implement and register before use). Qualify
-independent installed readback and this profile's wrong-scope/owner refusal;
-retain shared runtime and cleanup guards without replaying unrelated baseline
-preparation histories.
+independent installed readback and any new Flatpak scope/owner boundary; reuse
+unchanged recipient and cleanup refusal coverage. Runtime guards still apply
+to every attempt. Do not replay the baseline preparation/refusal matrix.
 
 ```sh
 tools/run-tests integration check_e2e_flatpak_fixtures

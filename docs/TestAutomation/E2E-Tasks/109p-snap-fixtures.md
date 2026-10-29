@@ -30,9 +30,12 @@ app-grid behavior belong to their following tasks.
 
 ## Live VM acceptance
 
-Exercise idempotence, owned updates, interrupted retry and invalid manifests in
-the existing baseline/ownership host regressions, limited to the added profile.
-Reuse unchanged reconciliation qualification. Qualify one real baseline
+Run affected baseline/ownership checks; reuse the shared reconciliation,
+interrupted-placement and foreign-input coverage in
+`tests/unit/test_baseline_fixtures_cleanup_safety.py`. Adding finite A/H/S
+identities does not require another copy of that matrix. Add a focused direct
+check only for a new package-command, confinement or ownership boundary that
+the shared checks cannot exercise. Qualify one real baseline
 installation of the declared Snap identities. After restore in a fresh guarded
 attempt, verify installed digests, confinement, scope and launcher identities
 without installing or repairing anything. Independently observe public Parent
@@ -49,9 +52,9 @@ readback remain required. No readiness is claimed by the existing single-payload
 host smoke, and workers must not install missing packages.
 
 Qualification selector (planned; implement and register before use). Qualify
-independent installed readback and this profile's wrong-scope/owner refusal;
-retain shared runtime and cleanup guards without replaying unrelated baseline
-preparation histories.
+independent installed readback and any new Snap scope/owner boundary; reuse
+unchanged recipient and cleanup refusal coverage. Runtime guards still apply
+to every attempt. Do not replay the baseline preparation/refusal matrix.
 
 ```sh
 tools/run-tests integration check_e2e_snap_fixtures

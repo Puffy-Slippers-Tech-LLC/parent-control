@@ -28,9 +28,12 @@ actual gameplay, windowed/fullscreen behavior and expiry to the following tasks.
 
 ## Live VM acceptance
 
-Exercise idempotence, owned updates, interrupted retry and unsafe-asset refusal
-in the existing baseline/ownership host regressions for this added profile.
-Reuse unchanged reconciliation qualification. After ordinary preparation and
+Run affected baseline/ownership checks, reusing
+`tests/unit/test_baseline_fixtures_cleanup_safety.py`'s shared idempotence,
+interrupted-placement and foreign-input checks. A finite game asset declaration
+does not require its own copy of those matrices. Add a focused direct check
+only if implementation changes a safety boundary they cannot exercise.
+After ordinary preparation and
 restore, independently verify the declared
 files, modes, owners and launcher without writes, then observe the exact public
 catalogue identity. Refuse stale/missing assets with baseline-refresh guidance;
@@ -44,9 +47,9 @@ game to those finite baseline/readback declarations. Actual level/mode and
 playability bindings remain with 126a/126/129; a built file is not that result.
 
 Qualification selector (planned; implement and register before use). Qualify
-independent installed asset readback and the added profile's wrong-owner/entry
-refusal, retaining shared runtime/cleanup guards without replaying unrelated
-baseline histories.
+independent installed asset readback; reuse unchanged wrong-owner/entry and
+cleanup refusal coverage. Qualify an affected new guard only if implementation
+changes that boundary. Runtime guards still apply to every attempt.
 
 ```sh
 tools/run-tests integration check_e2e_game_fixture

@@ -69,6 +69,15 @@ The [system/integration allocation](UI-and-E2E-Coverage.md#reuse-of-system-and-i
 removes duplicate engineering cases, prerequisite steps and acceptance matrices
 while preserving complete customer journeys.
 
+Task **188p** is absorbed into **188r**: one pending qualification observes
+genuine Parent diagnostic-collection failure, usable editing/Close, restoration,
+Retry and the retained draft. Do not reproduce the same failure in a separate
+failure-only qualification. The public trigger remains unresolved, and case
+**208** retains its complete independent customer acceptance. Fixture tasks
+**109p/116p/126p** reuse shared baseline safety coverage, adding direct checks
+only for a genuinely changed boundary; their installed profile qualification
+and later app/game journeys remain pending.
+
 ## Reallocated system coverage
 
 Task **102** is absorbed into cases **23/24/126/127** (tasks
@@ -691,8 +700,7 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 220 | [E2E-039: kiosk-cooldown-other](E2E-Tasks/220-case-178.md) | 187k, 180, 079b, 079d, 052c | Cases 178; includes report review/decline (former 207); same-child 177 removed; gate in brief | 20–30 |
 | [ ] | 150k | [Send an authorized kiosk error report](E2E-Tasks/150k-send-an-authorized-kiosk-error-report.md) | 150, 187k | FEED11, FEED09 success and FEED14 kiosk; gate in brief | 20–30 |
 | [ ] | 263 | [E2E-047: kiosk-success](E2E-Tasks/263-case-221.md) | 150k | Cases 221; gate in brief | 20–30 |
-| [ ] | 188p | [Observe failed Parent diagnostic collection](E2E-Tasks/188p-retry-failed-parent-diagnostic-collection.md) | 009 | FEED09 Parent collection failure and usable controls; gate in brief | 20–30 |
-| [ ] | 188r | [Retry failed Parent diagnostic collection](E2E-Tasks/188r-parent-collection-retry.md) | 188p, 031a | FEED16 Parent collection recovery; gate in brief | 20–30 |
+| [ ] | 188r | [Observe and retry failed Parent diagnostic collection](E2E-Tasks/188r-parent-collection-retry.md) | 009, 031a | FEED09 Parent collection failure and usable controls; FEED16 Parent collection recovery; gate in brief | 30–45 (exception) |
 | [ ] | 250 | [E2E-046: parent-retry](E2E-Tasks/250-case-208.md) | 188r | Cases 208; gate in brief | 20–30 |
 | [ ] | 188k | [Observe failed kiosk diagnostic collection](E2E-Tasks/188k-retry-failed-kiosk-diagnostic-collection.md) | 187k | FEED09 kiosk collection failure and usable controls; gate in brief | 20–30 |
 | [ ] | 189k | [Send a kiosk report without unavailable logs](E2E-Tasks/189k-send-a-kiosk-report-without-unavailable-logs.md) | 188k, 150 | FEED11 without-logs and FEED09/14 kiosk result; gate in brief | 20–30 |

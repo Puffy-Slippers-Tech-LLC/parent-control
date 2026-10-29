@@ -684,8 +684,15 @@ def test_category_success_without_the_repaired_case_pass_cannot_commit(checkout)
     resumed, _ = fix_tests.select(root, categories=('unit',), resume=True)
     output = io.StringIO()
     assert fix_tests.follow(resumed, output) == 0, output.getvalue()
-    calls = [json.loads(line)['kind'] for line in (root / 'calls').read_text().splitlines()]
-    assert calls == ['test', 'agent', 'test', 'test']
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    # The refused verification and its resumed retry both stop at A. Only
+    # after A earns a pass may the launcher resume the remaining category.
+    assert [call['kind'] for call in calls] == ['test', 'agent', 'test', 'test', 'test']
+    for call in calls[2:4]:
+        assert '--resume-case=A' in call['args']
+        assert '--resume-case-only' in call['args']
+    assert '--resume' in calls[4]['args']
+    assert '--resume-case-only' not in calls[4]['args']
     assert subprocess.run(['git', 'log', '-1', '--format=%s', '@{upstream}'], cwd=root,
                           capture_output=True, text=True, check=True, timeout=10).stdout.strip() == 'TA: Fixed unit A'
 

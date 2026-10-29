@@ -297,7 +297,9 @@ def test_large_case_inventory_uses_private_snapshot_instead_of_large_environment
     assert regression_events.completed_cases(value) == set(cases)
 
 
-def test_oversized_completion_cannot_poison_the_next_retry(tmp_path):
+def test_oversized_completion_cannot_poison_the_next_retry(tmp_path, monkeypatch):
+    # Keep the synthetic retry independent of the outer repair run's exclusions.
+    monkeypatch.delenv('ONPC_REPAIR_FAILED_CASES', raising=False)
     checkpoint = Checkpoint(tmp_path, [('unit', [])])
     boundary = 'p' * regression_events.MAX_CASE_ID_LENGTH
     oversized = boundary + 'x'

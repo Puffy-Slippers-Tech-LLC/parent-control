@@ -70,6 +70,10 @@ def test_edits_during_a_category_do_not_block_later_categories(tmp_path, monkeyp
                                      if kind not in test_commands.AGGREGATES])
 @pytest.mark.parametrize('unattended', [False, True])
 def test_detached_categories_use_the_shared_report(monkeypatch, category, unattended):
+    # Exercise detached worker routing, not the public VM queue that would
+    # launch a new process outside these in-process execution doubles.
+    from vm_selection import WORKER
+    monkeypatch.setenv(WORKER, '1')
     monkeypatch.setattr(test_commands, 'validate_one', lambda *_: None)
     run = Mock(return_value=7)
     monkeypatch.setattr(regression, 'main', run)

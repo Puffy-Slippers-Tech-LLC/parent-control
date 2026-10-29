@@ -32,7 +32,16 @@ function html(webview, context) {
         <aside id="runs" aria-label="Run status across worktrees"><p class="empty" role="status">Waiting for tests…</p></aside>
         <div id="divider" role="separator" aria-label="Resize run status and viewers"
             aria-orientation="vertical" aria-valuemin="10" aria-valuemax="90" aria-valuenow="30" tabindex="0"></div>
-        <section id="viewer" aria-label="UI and VM viewers"><nav id="viewers" aria-label="Viewers"></nav>
+        <section id="viewer" aria-label="UI and VM viewers"><div id="viewer-header">
+        <nav id="viewers" aria-label="Viewers"></nav>
+        <div id="tile-layout" role="group" aria-label="Tile layout">
+        <button type="button" data-layout="auto" title="Auto" aria-label="Auto tile layout" aria-pressed="true">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="5" height="5"/><rect x="12" y="3" width="5" height="5"/><rect x="3" y="12" width="5" height="5"/><rect x="12" y="12" width="5" height="5"/></svg></button>
+        <button type="button" data-layout="vertical" title="Vertical" aria-label="Vertical tile layout" aria-pressed="false">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="14" height="5"/><rect x="3" y="12" width="14" height="5"/></svg></button>
+        <button type="button" data-layout="horizontal" title="Horizontal" aria-label="Horizontal tile layout" aria-pressed="false">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="5" height="14"/><rect x="12" y="3" width="5" height="14"/></svg></button>
+        </div></div>
         <main id="grid"><p class="empty" role="status">Connecting to watch…</p></main></section></div>
         <footer><span id="resources"></span>
         <button id="restart" title="Reconnect to the watch backend">Reconnect</button></footer>

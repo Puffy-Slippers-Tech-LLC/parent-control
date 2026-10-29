@@ -13,6 +13,7 @@
     const sections = new Map();
     const saved = vscode.getState();
     let state = { scope: 'all', selected: saved?.selected || 'all' };
+    let tileLayout = ['auto', 'vertical', 'horizontal'].includes(saved?.tileLayout) ? saved.tileLayout : 'auto';
     let split = Number.isFinite(saved?.split) ? saved.split : 30;
     let pending = Promise.resolve();
     let resourceSample;
@@ -157,8 +158,21 @@
     }
 
     function persist() {
-        vscode.setState({ ...state, split });
+        vscode.setState({ ...state, split, tileLayout });
     }
+
+    function arrangeTiles(value) {
+        tileLayout = value;
+        grid.dataset.layout = value;
+        document.querySelectorAll('#tile-layout button').forEach(button => {
+            button.setAttribute('aria-pressed', String(button.dataset.layout === value));
+        });
+        persist();
+    }
+    document.querySelectorAll('#tile-layout button').forEach(button => {
+        button.addEventListener('click', () => arrangeTiles(button.dataset.layout));
+    });
+    arrangeTiles(tileLayout);
 
     function resize(value) {
         split = Math.min(90, Math.max(10, value));

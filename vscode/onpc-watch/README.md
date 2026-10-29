@@ -54,6 +54,11 @@ VM progress, filtered command output and host resource usage. Screens are view
 only. Start tests through the usual launchers. Select an idle VM tab to wait for
 its next run. The Reconnect button restarts only this tab's reader.
 
+Three icon buttons at the right end of the viewer tab row select the tile layout:
+**Auto** (the default grid), **Vertical** (one column), or **Horizontal** (one row).
+The tab remembers the selection. Overflowing tiles scroll in the chosen direction;
+overflowing tab headers scroll independently while the layout buttons stay pinned.
+
 The footer shows CPU, Memory and Disk percentages beside small filled history
 graphs. They reuse the once-per-second samples, show the last minute on a fixed
 0–100% scale, and retain history only in memory. Closing and reopening Watch or

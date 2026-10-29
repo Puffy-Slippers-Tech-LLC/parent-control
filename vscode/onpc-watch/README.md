@@ -15,6 +15,8 @@ The left panel shows **Run Status** across related Git worktrees, using the
 same runner discovery and pipeline dashboard as `make watch`. Active worktrees
 share the panel in equal sections; when idle, it retains the last displayed run.
 It contains status only, without Run Status/Outputs/Session tabs.
+Repair case totals show green completed, red failed and total counts. The failed
+count is underlined; click it to open the cumulative `errors.md` in the editor.
 
 The right panel contains the shared All grid across checkouts, UI worker and VM tabs,
 VM progress, filtered command output and host resource usage. Screens are view

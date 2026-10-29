@@ -136,6 +136,13 @@ def environment(root, *, scratch=True):
                'PYTEST_DISABLE_PLUGIN_AUTOLOAD')
     result = {key: os.environ[key] for key in allowed if key in os.environ}
     from test_checkpoint import EXCLUDE, ONLY, completed_cases
+    if 'ONPC_REPAIR_FAILED_CASES' in os.environ:
+        omitted = json.loads(os.environ['ONPC_REPAIR_FAILED_CASES'])
+        if not isinstance(omitted, dict) or any(not isinstance(key, str) for key in omitted):
+            raise ValueError('invalid repair failure selection')
+        for cases in omitted.values():
+            completed_cases(json.dumps(cases))
+        result['ONPC_REPAIR_FAILED_CASES'] = os.environ['ONPC_REPAIR_FAILED_CASES']
     if EXCLUDE in os.environ:
         completed_cases(os.environ[EXCLUDE])
         result[EXCLUDE] = os.environ[EXCLUDE]

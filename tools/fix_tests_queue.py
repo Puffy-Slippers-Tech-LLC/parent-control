@@ -448,6 +448,7 @@ class FamilyCases:
     VM cannot adopt it just because the original process stopped.
     """
     def __init__(self, parent, family, category, options, round_number):
+        self.family = family
         identity = json.dumps([family, category, options, round_number], sort_keys=True)
         self.path = launcher.private_directory(parent / 'family-cases') / (
             hashlib.sha256(identity.encode()).hexdigest() + '.json')
@@ -461,7 +462,9 @@ class FamilyCases:
             private(os.fstat(lock), regular=True)
             fcntl.flock(lock, fcntl.LOCK_EX)
             state = json.loads(self.path.read_text()) if self.path.exists() else dict(
-                version=1, completed=[], claims={}, items={})
+                version=1, completed=[], claims={}, items={}, family=self.family)
+            if hasattr(self, 'family'):
+                state.setdefault('family', self.family)
             if (state.get('version') != 1 or not isinstance(state.get('completed'), list)
                     or not isinstance(state.get('claims'), dict)
                     or not isinstance(state.get('items'), dict)):
@@ -471,6 +474,93 @@ class FamilyCases:
                 launcher.atomic(self.path, state)
         finally:
             os.close(lock)
+
+
+def error_log(run):
+    owner = parent_run(run) or run
+    return owner.parent / 'errors.md'
+
+
+def initialize_error_log(run, *, resume):
+    from test_retention import private
+    with launcher.lock(run.parent / 'errors-gate') as gate:
+        fcntl.flock(gate, fcntl.LOCK_EX)
+        fd = os.open(error_log(run), os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, 'w') as stream:
+            private(os.fstat(stream.fileno()), regular=True)
+            if not resume:
+                stream.truncate(0)
+                stream.write('# fix-tests errors\n')
+
+
+def failed_case_selection(run, records):
+    """Pass omitted identities to runners while preserving genuine case passes."""
+    result = {}
+    for record in records:
+        category, case, _vm = record['failure']
+        if case:
+            result.setdefault(category, set()).add(case)
+    owner = parent_run(run) or run
+    from vm_selection import selected
+    vm = selected(required=False)
+    for path in (owner / 'family-cases').glob('*.json'):
+        queue = FamilyCases.__new__(FamilyCases)
+        queue.path = path
+        with queue.state(write=False) as state:
+            if vm is None or state.get('family') != vm.family:
+                continue
+            for key, cases in state.get('failed', {}).items():
+                result.setdefault(state['items'][key]['category'], set()).update(cases)
+    return {kind: sorted(cases) for kind, cases in result.items()}
+
+
+def record_case_failure(run, record, *, root):
+    """Append across resumes; the category owner resets the log on a new run."""
+    owner = parent_run(run) or run
+    with launcher.lock(owner.parent / 'errors-gate') as fd:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        from test_retention import private
+        fd = os.open(error_log(run), os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, 'a', encoding='utf-8') as stream:
+            private(os.fstat(stream.fileno()), regular=True)
+            stream.write('\n## ' + time.strftime('%Y-%m-%d %H:%M:%S %Z') + '\n\n')
+            # Indented JSON is Markdown code, even when prompts contain fences.
+            stream.write('\n'.join('    ' + line for line in
+                json.dumps(record, ensure_ascii=False, indent=2).splitlines()) + '\n')
+    category, case, vm_name = record['failure']
+    if vm_name:
+        from vm_selection import selected
+        vm = selected()
+        for path in (owner / 'family-cases').glob('*.json'):
+            queue = FamilyCases.__new__(FamilyCases)
+            queue.path = path
+            with queue.state() as state:
+                if state.get('family') != vm.family:
+                    continue
+                for key, claimant in list(state['claims'].items()):
+                    item = state['items'][key]
+                    if claimant == vm.name and item['category'] == category and (not case or case in item['cases']):
+                        # A stateful history is indivisible; independent areas can
+                        # continue with their remaining cases and original prerequisites.
+                        from test_checkpoint import Checkpoint
+                        passed = Checkpoint(root, [(category, item['options'])], resume=True,
+                                            binding=vm.name).passed(category)
+                        failed = ({case} if case and item['area'] else set(item['cases'])) - passed
+                        state.setdefault('failed', {})[key] = list(set(
+                            state.get('failed', {}).get(key, [])) | set(failed))
+                        if not item['area'] or not case:
+                            state['completed'] = sorted(set(state['completed']) | {key})
+                            del state['claims'][key]
+    current = run / 'case-progress.json'
+    if current.exists():
+        value = json.loads(current.read_text())
+        counts = value['categories']
+        if category in counts:
+            failed = failed_case_selection(run, [record]).get(category, [])
+            counts[category]['failed'] = len(failed)
+            value['failed'] = counts[value['category']].get('failed', 0)
+            value['error_log'] = str(error_log(run))
+            launcher.atomic(current, value)
 
 
 def run_family_cases(root, category, options, execute, gate, *, inventory,
@@ -493,16 +583,26 @@ def run_family_cases(root, category, options, execute, gate, *, inventory,
                 totals = case_totals(root, inventory, category, cases) if cases is not None else None
                 generation = current
             checkpoint = Checkpoint(root, [(category, original)], resume=True, binding=vm.name)
+            saved_path = gate.run / 'checkpoint.json'
+            records = json.loads(saved_path.read_text()).get('failed_cases', []) if saved_path.exists() else []
+            omitted = set(failed_case_selection(gate.run, records).get(category, []))
             with queue.state() as state:
                 state['items'].update({work_key(item): item for item in items})
                 state['current'] = [work_key(item) for item in items]
+                for item in items:
+                    if unresolved := set(item['cases']) & omitted:
+                        state.setdefault('failed', {})[work_key(item)] = sorted(unresolved)
+                failed = {case for cases_failed in state.get('failed', {}).values() for case in cases_failed}
                 accepted = {case for key in state['completed']
-                            for case in state['items'][key]['cases']}
+                            for case in state['items'][key]['cases']} - failed
                 if cases is not None:
                     accepted.intersection_update(cases)
                 state['completed'] = list(set(state['completed']) | {
                     work_key(item) for item in items if item['cases']
-                    and set(item['cases']) <= accepted})
+                    and set(item['cases']) <= accepted | failed})
+                for key, owner in list(state['claims'].items()):
+                    if owner == vm.name and key in state['completed']:
+                        del state['claims'][key]
                 pending = list({work_key(item): item for item in (
                     *(state['items'][key] for key in state['claims']), *items)}.values())
                 owned = [item for item in pending if state['claims'].get(work_key(item)) == vm.name]
@@ -511,7 +611,7 @@ def run_family_cases(root, category, options, execute, gate, *, inventory,
             if cases is not None:
                 passed.intersection_update(cases)
             checkpoint.entry(category)['passed'] = sorted(passed)
-            checkpoint.excluded[category] = passed
+            checkpoint.excluded[category] = passed | failed
             checkpoint.snapshot(category)
             checkpoint.save()
             if item is None:
@@ -520,6 +620,10 @@ def run_family_cases(root, category, options, execute, gate, *, inventory,
                 # concurrency slot while a queued owner recovers its claim.
                 checkpoint.entry(category)['complete'] = True
                 checkpoint.save()
+                if cases and category in ('system', 'e2e'):
+                    publish_case_progress(root, gate.run, category, cases, cases[-1], passed,
+                        totals=totals, round_number=round_number,
+                        completed_categories=completed_categories)
                 return 0
             requested = set(item['cases'])
             target = item['case']
@@ -528,7 +632,7 @@ def run_family_cases(root, category, options, execute, gate, *, inventory,
             if item['case'] is None:
                 arguments = original
             else:
-                target = (next((case for case in item['cases'] if case not in passed), item['case'])
+                target = (next((case for case in item['cases'] if case not in passed | failed), item['case'])
                           if item['area'] else item['case'])
                 arguments = [*original, '--resume', '--resume-case=' + target,
                              '--resume-area-only' if item['area'] else '--resume-case-only']
@@ -542,7 +646,7 @@ def run_family_cases(root, category, options, execute, gate, *, inventory,
             if status:
                 return status
             checkpoint = Checkpoint(root, [(category, original)], resume=True, binding=vm.name)
-            if not requested <= checkpoint.passed(category):
+            if not requested <= checkpoint.passed(category) | failed:
                 raise ValueError('case runner returned success without teardown-complete case evidence')
             with queue.state() as state:
                 key = work_key(item)
@@ -551,7 +655,7 @@ def run_family_cases(root, category, options, execute, gate, *, inventory,
                 state['completed'] = list(set(state['completed']) | {key} | {
                     work_key(candidate) for candidate in items
                     if set(candidate['cases']) & requested
-                    and set(candidate['cases']) <= checkpoint.passed(category)})
+                    and set(candidate['cases']) <= checkpoint.passed(category) | failed})
                 del state['claims'][key]
 
 
@@ -590,19 +694,27 @@ def publish_case_progress(root, run, category, cases, case, passed, *, totals, r
     except (OSError, ValueError, KeyError, TypeError):
         previous = {}
     completed = len(set(cases) & passed)
+    saved_path = run / 'checkpoint.json'
+    records = json.loads(saved_path.read_text()).get('failed_cases', []) if saved_path.exists() else []
+    omitted = failed_case_selection(run, records)
     same_round = previous.get('round') == round_number
-    counts = {kind: dict(completed=total if kind in completed_categories else 0, total=total)
+    counts = {kind: dict(completed=total if kind in completed_categories else 0, failed=0, total=total)
               for kind, total in totals.items()}
     if same_round:
         for kind, value in previous['categories'].items():
             if kind in counts and value['total'] == counts[kind]['total']:
                 counts[kind]['completed'] = max(counts[kind]['completed'], value['completed'])
+                counts[kind]['failed'] = value.get('failed', 0)
+                if counts[kind]['failed']:
+                    counts[kind]['completed'] = value['completed']
     counts[category]['completed'] = completed
+    counts[category]['failed'] = len(set(cases) & set(omitted.get(category, [])))
     same_category = (same_round and previous.get('category') == category
                      and previous.get('total') == len(cases)
                      and not (previous.get('completed') == len(cases) and not completed))
     launcher.atomic(run / 'case-progress.json', dict(category=category, case=case, area=area,
-        completed=completed, total=len(cases), index=cases.index(nodeid) + 1,
+        completed=completed, failed=counts[category]['failed'], error_log=str(error_log(run)),
+        total=len(cases), index=cases.index(nodeid) + 1,
         round=round_number, categories=counts,
         vm_started_ns=previous['vm_started_ns'] if same_round else now,
         case_id=str(identifier), title=title,
@@ -614,7 +726,7 @@ def publish_case_progress(root, run, category, cases, case, passed, *, totals, r
 def pipeline_heading(name, state, steps, question, saved, *, blocker=None, stopping=False,
                      session=None):
     """Summarize scheduling and repair phases without granting execution credit."""
-    terminal = {'complete': 'Complete', 'limited': 'Task limit reached',
+    terminal = {'complete': 'Complete', 'failed': 'Complete with failures', 'limited': 'Task limit reached',
                 'stopped': 'Stopped', 'blocked': 'Blocked', 'reload': 'Waiting for controller reload'}
     phase = next((line for line in reversed(steps[-1]['lines'])
                   if line.startswith('Status: ')), '') if steps else ''
@@ -759,6 +871,12 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
                     launcher.atomic(child / 'question.json', displayed)
                 elif displayed is None or displayed['id'] != question['id']:
                     launcher.atomic(parent_question, dict(question, explanation=name + ': ' + question['explanation']))
+            elif displayed and question is None and displayed.get('answer') is None:
+                child_question = child / 'question.json'
+                if child_question.exists():
+                    expired = json.loads(child_question.read_text())
+                    if expired.get('id') == displayed['id'] and expired.get('expired'):
+                        launcher.atomic(parent_question, dict(displayed, expired=True))
         latest_session = max(sessions, key=lambda item: item[0])[1] if sessions else None
         panel_child = (next(child for child, _ in pipelines.values() if child.name == repair_owner)
                        if repair_owner is not None else latest_session)
@@ -856,13 +974,16 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
             unfinished = coordinator.recovery_state(saved) != 'complete'
             if status == launcher_reload.STATUS and not launcher_reload.pending():
                 raise ValueError('pipeline exited with reload status without a reload request')
-            if status == 0 and unfinished and not recovery:
+            from fix_tests import COMPLETED_WITH_FAILURES
+            finished = status in (0, COMPLETED_WITH_FAILURES)
+            if finished and unfinished and not recovery:
                 raise ValueError('pipeline finished with unresolved retained repairs')
-            if status == 0 and not unfinished:
+            if finished and not unfinished:
                 coordinator.discard(child.name)
             states[name]['status'] = ('reload' if status == launcher_reload.STATUS else
                 'limited' if (child / 'limited').exists() else
                 'queued' if status == 0 and recovery else
+                'failed' if status == COMPLETED_WITH_FAILURES else
                 'complete' if status == 0 else 'stopped' if status == 130 else 'blocked')
             publish()
         return status
@@ -915,7 +1036,10 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
                 print(f'[{name}] pipeline infrastructure failed: {error}', flush=True)
                 states[name]['status'] = 'blocked'
             status = 2
-        if status and status != launcher_reload.STATUS:
+        from fix_tests import COMPLETED_WITH_FAILURES
+        if status == COMPLETED_WITH_FAILURES:
+            failed.set()
+        elif status and status != launcher_reload.STATUS:
             if status != 130:
                 failed.set()
             control.stop()  # No worker can wait behind a dead queue owner.

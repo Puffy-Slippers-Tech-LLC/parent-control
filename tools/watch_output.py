@@ -359,6 +359,7 @@ class SessionOutput:
         try:
             question = self.reader.read(run / 'question.json')
             return (self.panel.question is not None and question.get('answer') is None
+                    and not question.get('expired')
                     and question.get('id') == self.panel.question.question['id'])
         except (OSError, ValueError, TypeError, AttributeError):
             return False
@@ -444,7 +445,7 @@ class SessionOutput:
                 panel.chat_state[name] = state[name]
         try:
             question = self.reader.read(run / 'question.json')
-            if owner is None or question.get('answer') is not None:
+            if owner is None or question.get('answer') is not None or question.get('expired'):
                 question = None
         except (OSError, ValueError):
             question = None

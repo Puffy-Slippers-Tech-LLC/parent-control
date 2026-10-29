@@ -59,7 +59,7 @@ The launcher adds the
 recommended label and an editable Other option; do not include those yourself.
 Never propose bypassing a denied grant or weakening acceptance to make it pass.
 For other statuses set blocker to null. Do not print a separate final summary;
-the launcher displays the explanation once and waits without a timeout.
+the launcher displays the explanation once and owns the waiting policy.
 """
 
 
@@ -77,7 +77,7 @@ def validate_blocker(blocker):
 
 
 def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
-                    on_wait=lambda: None, on_poll=lambda: None):
+                    on_wait=lambda: None, on_poll=lambda: None, timeout=None):
     """The owner waits without a timeout; shared observers submit the answer."""
     from launcher_progress import publish_progress
     from launcher_render import AgentRenderer, SessionTranscript
@@ -88,7 +88,11 @@ def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
         path = run / 'question.json'
         previous = json.loads(path.read_text()) if path.exists() else None
         if previous is None or previous['id'] != identity:
+            if timeout is not None:
+                question['deadline'] = time.time() + timeout
             launcher.atomic(path, question)
+        elif timeout is not None and 'deadline' not in previous:
+            launcher.atomic(path, dict(previous, deadline=time.time() + timeout))
     on_wait()
     publish_progress(run, progress_key, [heading, 'Paused — waiting for your answer'])
     with closing(SessionTranscript(sys.stdout, run, append=True)) as transcript:
@@ -98,7 +102,8 @@ def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
         prompt = QuestionInput(question, None)
         prompt.selected = None
         renderer.console.print('\n'.join(prompt.lines()), markup=False)
-        print(f'No timeout. Reattach with tools/{label} to answer after a disconnect.',
+        print((f'Waiting up to {timeout // 60} minutes.' if timeout is not None else 'No timeout.')
+              + f' Reattach with tools/{label} to answer after a disconnect.',
               file=transcript, flush=True)
         while True:
             if (run / 'cancel').exists():
@@ -117,13 +122,21 @@ def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
                     launcher.atomic(view_path, dict(json.loads(view_path.read_text()),
                                                     continue_transcript=True))
                 return {'question': question['question'], 'answer': question['answer']}
+            if timeout is not None and time.time() >= question['deadline']:
+                with launcher.lock(run / 'question-gate') as gate:
+                    fcntl.flock(gate, fcntl.LOCK_EX)
+                    question = json.loads(path.read_text())
+                    if question['answer'] is not None:
+                        continue
+                    launcher.atomic(path, dict(question, expired=True))
+                raise TimeoutError('waiting for input: developer prompt timed out')
             time.sleep(.1)
 
 
 def pending(run):
     path = run / 'question.json'
     question = json.loads(path.read_text()) if path.exists() else None
-    return question if question and question.get('answer') is None else None
+    return question if question and question.get('answer') is None and not question.get('expired') else None
 
 
 def submit(run, identity, choice, instructions=''):

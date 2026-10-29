@@ -18,6 +18,7 @@ import signal
 import subprocess
 import sys
 import uuid
+import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from regression_session import FRAME_DIRECTORY, busy, lock
@@ -43,6 +44,7 @@ REPAIR_TIERS = ((DEFAULT_MODEL, DEFAULT_EFFORT), (APP_MODEL, APP_EFFORT),
                 (DEFAULT_MODEL, 'xhigh'), (DEFAULT_MODEL, 'max'))
 UNIT_REPAIR_TIERS = tuple((DEFAULT_MODEL, effort) for effort in ('low', 'medium', 'high', 'xhigh'))
 MAX_REPAIR_SESSIONS = 5
+COMPLETED_WITH_FAILURES = 3
 CASE_RETRY_CATEGORIES = {'system', 'e2e', 'unit', 'component', 'ui', 'fixture-runtime'}
 STALE_RETENTION = 'retention: previous owner did not finish; preserve evidence for recovery'
 
@@ -53,6 +55,10 @@ class ControllerReload(ReloadRequested):
 
 class RecoveryComplete(Exception):
     """A retained FIFO transaction finished; normal admission belongs to the parent."""
+
+
+class CaseFailed(Exception):
+    """This case is terminal for this run; continue independent selected work."""
 
 
 def reload_controller(root, run, owner, *options, gate=None):
@@ -380,9 +386,12 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
              verified=lambda _repair, _passed: None, rounds=1, resume_test=None, completed=(), start_round=1,
              verification_started=lambda _completed: None,
              task_started=lambda: None, task_completed=lambda: None, outcome=verification_outcome,
-             continuation=None, refresh_failure=lambda _category, failure: failure):
+             continuation=None, refresh_failure=lambda _category, failure: failure,
+             terminal_failure=lambda: False):
     """Keep each case's latest repair handoff until its category passes."""
+    case_failed = False
     def finish_category(category, failure):
+        nonlocal case_failed
         saved = continuation if continuation is not None else {}
         if saved.get('category') != category:
             saved.clear()
@@ -417,8 +426,15 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
                     old['evidence'] = failure
                     verified(old, False)
                 remember('repair')
-                previous = repair(prompt, failure_key=target,
-                                  **({'previous': handoffs[target]} if target in handoffs else {}))
+                try:
+                    previous = repair(prompt, failure_key=target,
+                                      **({'previous': handoffs[target]} if target in handoffs else {}))
+                except CaseFailed:
+                    case_failed = True
+                    handoffs.pop(target, None)
+                    failure = resume_test(category) if target[1] and resume_test else None
+                    remember('repair')
+                    continue
                 handoffs[target] = previous
                 remember('test')
             else:
@@ -467,12 +483,14 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
         verify_round(categories, initial_test, finish_category, check_stop, selected=selected,
                      completed=completed if number == start_round else (),
                      resume_test=resume_test, verification_started=verification_started,
-                     task_started=task_started, task_completed=task_completed)
+                     task_started=task_started, task_completed=task_completed,
+                     terminal_failure=lambda: case_failed or terminal_failure())
 
 
 def verify_round(categories, test, finish_category, check_stop, *, selected, completed=(),
                  resume_test=None, verification_started=lambda _completed: None,
-                 task_started=lambda: None, task_completed=lambda: None):
+                 task_started=lambda: None, task_completed=lambda: None,
+                 terminal_failure=lambda: False):
     """Repeat verification and repairs until this round has a clean pass."""
     if not selected and all(category in completed for category in categories):
         return
@@ -496,6 +514,12 @@ def verify_round(categories, test, finish_category, check_stop, *, selected, com
                 return
             completed = ()
     while True:
+        if terminal_failure():
+            # Failed infrastructure has no case ID to omit from an aggregate.
+            # Visit remaining leaves rather than replaying that blocker forever.
+            return verify_round(categories, test, finish_category, check_stop, selected=True,
+                resume_test=resume_test, verification_started=verification_started,
+                task_started=task_started, task_completed=task_completed)
         verification_started(completed)
         completed = ()
         check_stop()
@@ -650,11 +674,17 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             print(f'fix-tests: checkout cleanup failed: {error}', file=sys.stderr, flush=True)
         budget = TaskBudget(parent or run)
         if parent is None:
+            if status == COMPLETED_WITH_FAILURES:
+                status = 1
             budget.close()
             if (run / 'pipelines.json').exists():
                 from launcher_progress import publish_progress
+                pipelines = json.loads((run / 'pipelines.json').read_text())
+                drained = any(value['status'] == 'failed' for value in pipelines.values()) and all(
+                    value['status'] in ('complete', 'failed') for value in pipelines.values())
                 publish_progress(run, 'pipelines', ['VM test pipelines', 'Status: ' +
                     ('Task limit reached' if status == 0 and (run / 'limited').exists() else
+                     'Complete with failures' if drained else
                      {0: 'Complete', 130: 'Stopped'}.get(status, 'Blocked'))])
         atomic(run / 'result.json', {'status': status, 'tasks': budget.read()['completed']})
         os.close(owner)
@@ -813,7 +843,12 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                    json.dumps(arguments)]
         # The supervisor inherits ownership, but the test/agent does not. Its
         # stdin pipe is a liveness lease, not an interactive agent conversation.
-        with subprocess.Popen(command, cwd=root, env=environment(), stdin=subprocess.PIPE,
+        child_environment = environment()
+        if kind == 'test':
+            from fix_tests_queue import failed_case_selection
+            child_environment['ONPC_REPAIR_FAILED_CASES'] = json.dumps(
+                failed_case_selection(run, commits.state.get('failed_cases', [])))
+        with subprocess.Popen(command, cwd=root, env=child_environment, stdin=subprocess.PIPE,
                               pass_fds=(owner, *detached_launcher.scratch_descriptors(),
                                         *repair_descriptors()),
                               start_new_session=True) as child:
@@ -852,6 +887,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
 
     def test(category, *, resume=False, retry_case='', retry_vm='', fresh=False, probe=False):
         nonlocal pending, verifying_fix, retained_failure
+        if any(item['failure'][0] == category and not item['failure'][1]
+               for item in commits.state.get('failed_cases', [])):
+            return None  # Unidentified infrastructure failed; independent categories still run.
         if retained_failure is not None and retained_failure['category'] == category:
             saved, retained_failure = retained_failure, None
             target = failure_target(saved['failure'], category)
@@ -1174,16 +1212,34 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                    sessions=case_sessions.get(failure_key, 0), prompt=prompt,
                    result=case_results.get(failure_key)))
 
-        def check_budget():
+        def fail_case(reason, *, blocker=None):
+            nonlocal repair_context, restart_continuation, retained_failure, verifying_fix
+            record = dict(failure=list(failure_key), reason=reason, prompt=prompt,
+                          result=case_results.get(failure_key), blocker=blocker,
+                          sessions=case_sessions.get(failure_key, 0))
+            from fix_tests_queue import record_case_failure
+            record_case_failure(run, record, root=root)
+            commits.state.setdefault('failed_cases', []).append(record)
+            # Preserve edits and their ownership record without accepting or committing them.
+            commits.state.setdefault('failed_repairs', []).append(entry)
+            commits.state['repairs'].pop(commits.key(failure_key))
+            commits.state.pop('queued_failure', None)
+            commits.state.pop('controller_restart', None)
+            commits.save()
+            repair_context = None
+            restart_continuation = retained_failure = None
+            verifying_fix = False
+            release_repair()
+            print(f'fix-tests: failed {target}: {reason}; continuing.', flush=True)
+            raise CaseFailed(reason)
+
+        def check_budget(*, blocker=None):
             sessions = case_sessions.get(failure_key, 0)
             if sessions >= MAX_REPAIR_SESSIONS:
                 retain_stop('session_limit')
                 record_usage(run, dict(repair_id=repair_id, sessions=sessions, failure=target),
                              event='session_limit')
-                raise ValueError(f'repair session limit reached ({sessions}/{MAX_REPAIR_SESSIONS}); '
-                                 f'failure: {json.dumps(target)}. '
-                                 'no further agent was started. Retained failure: last-test.log; '
-                                 'case handoff: repair-stop.json.')
+                fail_case(f'session allowance exhausted ({sessions}/{MAX_REPAIR_SESSIONS})', blocker=blocker)
 
         def escalate(reason, *, classification_only=False):
             current = case_tiers.get(failure_key, initial)
@@ -1209,8 +1265,12 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             nonlocal blocker_summary, restart_continuation
             progress_row = repair_progress(run, read_progress(run))[-1]
             repair_context['blocked'] = dict(result=result, session=metadata, id=identity)
-            answer = wait_for_answer(run, result['blocker'], identity, progress_row['key'],
-                label=reattach_label(run), heading=progress_row['lines'][0], on_poll=check_controller)
+            try:
+                answer = wait_for_answer(run, result['blocker'], identity, progress_row['key'],
+                    label=reattach_label(run), heading=progress_row['lines'][0], on_poll=check_controller,
+                    timeout=(30 if 8 <= time.localtime().tm_hour < 23 else 10) * 60)
+            except TimeoutError:
+                fail_case('waiting for input: developer prompt timed out', blocker=result['blocker'])
             if answer is None:
                 raise Stopped()
             developer_answers.append(answer)
@@ -1332,7 +1392,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             record_usage(run, dict(metadata, phase=phase, result=result['status']),
                          event='result_replay' if replaying else 'result')
             if result['status'] == 'blocked':
-                check_budget()
+                check_budget(blocker=result['blocker'])
                 answer_blocker(result, metadata, uuid.uuid4().hex)
                 continue
             if result['status'] in ('app_issue', 'uncertain', 'stalled'):
@@ -1342,8 +1402,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 if raised or initial_classification:
                     continue
                 retain_stop('stalled')
-                raise ValueError('repair stalled; no further repair or test was started. '
-                                 'Retained case handoff: repair-stop.json. ' + result['summary'])
+                fail_case('repair stalled: ' + result['summary'])
             if result['status'] not in ('fixed', 'test_fixed', 'diagnostic_ready'):
                 raise ValueError('unexpected repair result: ' + result['summary'])
             verifying_fix = result['status'] != 'diagnostic_ready'
@@ -1554,7 +1613,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                          start_round=start_round, verification_started=verification_started,
                          task_started=task_started, task_completed=task_completed,
                          verified=verified, outcome=outcome, continuation=loop_state,
-                         refresh_failure=refresh_failure)
+                         refresh_failure=refresh_failure,
+                         terminal_failure=lambda: bool(commits.state.get('failed_cases')))
                 break
             except RecoveryComplete:
                 retained_failure = saved_failure()
@@ -1566,10 +1626,12 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 completed = [kind for kind in categories if kind != retained_failure['category']]
                 start_round = round_number
         commits.require_complete()
-        print('\nfix-tests: ' + ('all selected categories passed.' if requested else
+        has_failures = bool(commits.state.get('failed_cases'))
+        print('\nfix-tests: ' + ('selected work finished with failed cases; see the error log.' if has_failures else
+              'all selected categories passed.' if requested else
               'all categories passed.' if rounds == 1 else
               'all categories and the complete regression passed.'), flush=True)
-        status = 0
+        status = COMPLETED_WITH_FAILURES if has_failures else 0
     except RecoveryComplete:
         status = 0
     except TaskLimitReached:
@@ -1602,7 +1664,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         if previous and not reload:
             lines = previous[-1]['lines']
             lines[-1] = 'Status: ' + ('Task limit reached' if limited else
-                                     {0: 'Complete', 130: 'Stopped'}.get(status, 'Blocked'))
+                                     {0: 'Complete', COMPLETED_WITH_FAILURES: 'Complete with failures',
+                                      130: 'Stopped'}.get(status, 'Blocked'))
             publish_progress(run, previous[-1]['key'], lines)
     return status
 
@@ -1696,7 +1759,8 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
                 retained_waiting = json.loads(waiting.read_text())
         if previous is not None and (previous / 'checkpoint.json').exists():
             retained_git = json.loads((previous / 'checkpoint.json').read_text())
-            if not retained_git['repairs'] and retained_git.get('pending') is None:
+            if (not retained_git['repairs'] and retained_git.get('pending') is None
+                    and not retained_git.get('failed_cases')):
                 retained_git = None  # Completed history stays with its original run.
             else:
                 # Keep active decisions and Git ownership, not historical reports.
@@ -1736,6 +1800,8 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
 
     kind = 'fix-tests-host' if repair_host_only_request(root, categories) else 'fix-tests'
     def started(run):
+        from fix_tests_queue import initialize_error_log
+        initialize_error_log(run, resume=resume)
         # The new run is registered before writing payloads. Publish copies
         # before checkpoints that point to them; never copy old conversations.
         for ticket, source in retained_sources.items():

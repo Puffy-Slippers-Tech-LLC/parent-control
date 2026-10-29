@@ -271,6 +271,10 @@ class Checkpoint:
                 self.store.save(fd, self.state, name=self.name)
         self.selected = set(logical)
         self.excluded = {kind: self.passed(kind) for kind in self.selected}
+        # Repair-run failures are omitted from execution, never awarded pass credit.
+        omitted = json.loads(os.environ.get('ONPC_REPAIR_FAILED_CASES', '{}'))
+        for kind in self.selected:
+            self.excluded[kind].update(completed_cases(json.dumps(omitted.get(kind, []))))
         for kind in self.selected:
             self.snapshot(kind)
         self.synced = time.monotonic()

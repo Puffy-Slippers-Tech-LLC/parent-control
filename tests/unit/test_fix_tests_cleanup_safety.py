@@ -207,7 +207,7 @@ def test_repeated_reload_cannot_renew_case_budget(controller_checkout):
     run, _ = fix_tests.select(root, categories=('unit',))
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 1, output.getvalue()
-    assert 'repair session limit reached (5/5)' in output.getvalue()
+    assert 'session allowance exhausted (5/5)' in output.getvalue()
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     assert len([call for call in calls if call['kind'] == 'agent']) == 5
     assert json.loads((run / 'repair-stop.json').read_text())['sessions'] == 5
@@ -260,7 +260,7 @@ def test_reload_keeps_owner_and_honors_cancellation_before_more_work(controller_
 def test_failed_agent_stops_once_and_explicit_fresh_run_can_retry(checkout):
     root, _ = checkout
     (root / 'mode').write_text('agent-script')
-    script = dict(agents=['test_fixed', 'test_fixed'], tests=['A', 'A', None], agent_exit=7)
+    script = dict(agents=['test_fixed', 'test_fixed'], tests=['A', None], agent_exit=7)
     (root / 'script.json').write_text(json.dumps(script))
     first, _ = fix_tests.select(root, categories=('unit',))
     output = io.StringIO()
@@ -278,7 +278,7 @@ def test_failed_agent_stops_once_and_explicit_fresh_run_can_retry(checkout):
     output = io.StringIO()
     assert fix_tests.follow(resumed, output) == 0, output.getvalue()
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
-    assert [call['kind'] for call in calls] == ['test', 'agent', 'test', 'agent', 'test', 'test']
+    assert [call['kind'] for call in calls] == ['test', 'agent', 'agent', 'test', 'test']
     usage = [json.loads(line) for line in (resumed / 'agent-usage.jsonl').read_text().splitlines()]
     assert [row['repair_session'] for row in usage if row['event'] == 'turn'] == [1]
     assert json.loads((resumed / 'checkpoint.json').read_text())['repairs'] == {}
@@ -305,7 +305,7 @@ def test_verified_case_is_pushed_before_repairing_the_next_failure(checkout):
     root, _ = checkout
     (root / 'mode').write_text('agent-script')
     (root / 'script.json').write_text(json.dumps(dict(
-        agents=['test_fixed', 'test_fixed'], tests=['A', 'B', None],
+        agents=['test_fixed', 'test_fixed'], tests=['A', 'B', 'B', None],
         passed={'1': ['A']}, record_git=True)))
     # Unrelated staged work must survive both commits.
     (root / 'owned.py').write_text('unrelated staged work\n')
@@ -1083,6 +1083,23 @@ def test_blocker_waits_for_reattached_menu_answer_before_repair_or_tests(checkou
     assert not (run / 'result.json').exists()
     assert json.loads((run / 'question.json').read_text())['answer'] is None
     assert fix_tests.select(root, categories=('host',)) == (run, False)
+    if mode == 'agent-blocked' and custom:
+        # Reuse this process boundary case to expire the real persisted prompt.
+        from detached_launcher import atomic
+        question = json.loads((run / 'question.json').read_text())
+        assert 0 < question['deadline'] - time.time() <= 30 * 60
+        atomic(run / 'question.json', dict(question, deadline=time.time() - 1))
+        output = io.StringIO()
+        assert fix_tests.follow(run, output) == 1
+        calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+        assert [call['kind'] for call in calls] == ['test', 'agent']
+        from fix_tests_queue import error_log
+        errors = error_log(run).read_text()
+        assert 'waiting for input: developer prompt timed out' in errors
+        assert question['question'] in errors
+        assert json.loads((run / 'question.json').read_text())['expired']
+        assert json.loads((run / 'checkpoint.json').read_text())['repairs'] == {}
+        return
     answered = []
 
     def type_answer(display):
@@ -1113,7 +1130,8 @@ def test_blocker_waits_for_reattached_menu_answer_before_repair_or_tests(checkou
         assert f'model_reasoning_effort="{effort}"' in agent['args']
     assert len(json.loads((run / 'developer-answers.json').read_text())) == len(answered)
     rendered = Text.from_ansi(output.getvalue()).plain
-    assert 'No timeout. Reattach with tools/fix-tests host' in rendered
+    assert 'Waiting up to ' in rendered
+    assert 'Reattach with tools/fix-tests host' in rendered
     assert 'Answer received. Continuing this repair.' in rendered
 
 
@@ -1355,7 +1373,7 @@ def test_repair_budget_is_per_case_and_stalled_diagnosis_stops_early(checkout, s
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     agents = [call for call in calls if call['kind'] == 'agent']
     assert len(agents) == len(statuses)
-    assert len(calls) == len(statuses) + len(tests) + int(expected == 0)
+    assert len(calls) == len(statuses) + len(tests) + 1
     usage = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
     turns = [row for row in usage if row['event'] == 'turn']
     assert all(row['repair_session'] <= 5 for row in turns)
@@ -1365,7 +1383,7 @@ def test_repair_budget_is_per_case_and_stalled_diagnosis_stops_early(checkout, s
         effort = ladder[row['repair_session'] - 1]
         assert f'model_reasoning_effort="{effort}"' in agent['args']
     if expected and statuses[-1] != 'stalled':
-        assert 'repair session limit reached (5/5)' in output.getvalue()
+        assert 'session allowance exhausted (5/5)' in output.getvalue()
         assert usage[-1]['event'] == 'session_limit'
         assert (run / 'last-test.log').exists() and (run / 'agent-result.json').exists()
         stopped = json.loads((run / 'repair-stop.json').read_text())
@@ -1395,8 +1413,8 @@ def test_answered_blockers_use_case_budget_and_do_not_ask_after_limit(checkout, 
     assert fix_tests.follow(run, output) == 1
     assert len(set(answers)) == 4
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
-    assert [call['kind'] for call in calls] == ['test'] + ['agent'] * 5
-    assert 'repair session limit reached (5/5)' in output.getvalue()
+    assert [call['kind'] for call in calls] == ['test'] + ['agent'] * 5 + ['test']
+    assert 'session allowance exhausted (5/5)' in output.getvalue()
 
 
 def test_later_verification_round_does_not_reset_case_budget(checkout):
@@ -1409,7 +1427,7 @@ def test_later_verification_round_does_not_reset_case_budget(checkout):
     assert fix_tests.follow(run, io.StringIO()) == 1
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     assert len([call for call in calls if call['kind'] == 'agent']) == 5
-    assert len([call for call in calls if call['kind'] == 'test']) == 7
+    assert len([call for call in calls if call['kind'] == 'test']) == 9
 
 
 @pytest.mark.parametrize('category, statuses, tests, options, tiers', [

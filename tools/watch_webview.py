@@ -7,6 +7,7 @@ The extension requests at most one snapshot at a time over its private stdio.
 import argparse
 import base64
 import json
+import re
 from pathlib import Path
 import struct
 import sys
@@ -21,7 +22,7 @@ from watch_viewer import ResourceUsage, viewer_entries
 from watch_output import Output
 
 
-def status_spans(lines):
+def status_spans(lines, *, failures=0, category_failures=None, error_log=None):
     """Keep status colors and emphasis without sending HTML or terminal controls."""
     from rich.text import Text
     from rich.console import Console
@@ -30,6 +31,17 @@ def status_spans(lines):
     rows = []
     for line in lines:
         text = Text.from_ansi(line.replace(SESSION_LINE, ''))
+        if error_log and 'Overall - ' in text.plain:
+            match = re.search(r'\((\d+)/(\d+)\)', text.plain)
+            if match:
+                category = re.search(r'Category: (\S+)', text.plain)
+                failed = ((category_failures or {}).get(category[1], 0)
+                          if category and category[1] != 'all' else failures)
+                counts = Text(str(max(0, int(match[1]) - failed)), style='green')
+                counts.append('/')
+                counts.append(str(failed), style=f'red underline link {error_log}')
+                counts.append('/' + match[2])
+                text = text[:match.start() + 1] + counts + text[match.end() - 1:]
         spans = []
         for segment in text.render(console):
             style = segment.style
@@ -38,6 +50,7 @@ def status_spans(lines):
             themed = color and (color.type.name == 'DEFAULT' or
                                (color.type.name == 'STANDARD' and color.number in (0, 7, 15)))
             spans.append(dict(text=clean(segment.text), bold=bool(style and style.bold),
+                              link=style.link if style else None,
                               color=color.get_truecolor().hex if color and not themed else None))
         rows.append(spans)
     return rows
@@ -92,6 +105,8 @@ class Viewer:
                 self.last_output = root
             status = '' if active else output.completion_status()
             lines = []
+            failures, error_log = 0, None
+            category_failures = {}
             if output.run is not None:
                 try:
                     steps, details = output.status(active)
@@ -100,8 +115,20 @@ class Viewer:
                         lines += ['─', *details]
                 except (OSError, ValueError, KeyError, TypeError):
                     lines = ['Run status unavailable']
-            if self.status_cache.get(root, (None,))[0] != lines:
-                self.status_cache[root] = lines, status_spans(lines)
+                if label == 'fix-tests':
+                    try:
+                        state = output.reader.read(output.run / 'checkpoint.json')
+                        targets = {tuple(item['failure']) for item in state.get('failed_cases', [])}
+                        failures = len(targets)
+                        for category, _case, _vm in targets:
+                            category_failures[category] = category_failures.get(category, 0) + 1
+                        error_log = (output.run.parent / 'errors.md').as_uri()
+                    except (OSError, ValueError, KeyError, TypeError):
+                        pass
+            signature = lines, failures, category_failures, error_log
+            if self.status_cache.get(root, (None,))[0] != signature:
+                self.status_cache[root] = signature, status_spans(lines, failures=failures,
+                    category_failures=category_failures, error_log=error_log)
             sections.append(dict(id=str(root), label=f'[{branch}]' +
                 (f' {label}' + (f' ({status})' if status else '') if label else ''),
                 active=active, status=status, rows=self.status_cache[root][1]))

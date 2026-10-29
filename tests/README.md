@@ -640,10 +640,10 @@ switching cases and later verification rounds; another case or VM has its own
 budget. Non-case failures and legacy handoffs without case IDs share a category
 infrastructure budget (VM-scoped when supplied). Verification and owned cleanup
 after the fifth session still finish, and a pass is accepted. If further repair
-is needed, the run fails before a sixth session or another blocker question.
+is needed, the case fails before a sixth session and the queue continues.
 `repair-stop.json` retains that case's identity, count, latest failure prompt and
 last agent result, even if another case was repaired in between. An entire category
-has no five-session cap. At the highest tier, `stalled` ends the run early when
+has no five-session cap. At the highest tier, `stalled` fails the case when
 there is no useful authorized next step; speculative edits or repeated attempts
 are not required. Lower-tier stalls escalate within the same budget. Missing prerequisites
 and permissions use their maintained repair/blocker routes, not model escalation
@@ -746,7 +746,7 @@ the same tier and under the same case/VM budget, even when the category passed.
 An intervening failure in another case or preparation is handled separately;
 the original diagnostic handoff remains pending until its case returns or the
 category passes. The fifth session's diagnostic run still finishes, but further
-interpretation requires stopping at the budget boundary. `stalled` means no
+interpretation fails that case at the budget boundary and continues the queue. `stalled` means no
 useful authorized next step exists, rather than an experiment awaiting execution.
 
 Closing the terminal detaches; rerun `tools/fix-tests --vm NAME` to attach to the current
@@ -805,16 +805,33 @@ dashboard. Host regressions establish routing and safety contracts, not equal
 model success rates or a measured allowance improvement. No paid-model benchmark
 is part of launcher validation.
 
-An agent-reported blocker pauses the loop for developer instructions using the
+An agent-reported blocker waits for developer instructions using the
 same [question implementation](../tools/launcher_question.py) as `write-e2e`.
 The menu offers two or three suggestions, selects the first recommendation by
 default, and includes editable Other input. Enter submits the selection; neither
 elapsed time nor disconnection submits an answer. Reattach with `tools/fix-tests --vm NAME`
-to answer. No tests or repairs start while waiting. After an answer, a fresh
+to answer. The prompt waits 30 minutes when opened from 08:00 through 22:59
+in the development computer's local time, and 10 minutes otherwise. A timeout
+fails the case with reason **waiting for input** and continues independent work;
+it never selects an answer. Reattachment and controller reload preserve the
+original deadline. No repairs to that case start while waiting. After an answer, a fresh
 session receives the failure evidence, latest repair handoff and developer
 instructions, rechecks prerequisites, and continues the same repair phase.
 Decisions remain available to later repairs in the run within their stated scope.
 Ctrl+C or `--stop` cancels a paused run without answering.
+
+Timed-out prompts, exhausted case session allowances and terminal stalls append
+their case identity, detailed reason, investigation prompt and latest result to
+`errors.md` in the launcher's gitignored test-runs folder (`fix-tests` or
+`fix-tests-host`). A new run resets this cumulative Markdown log; `--resume`
+appends to it. Failed cases receive no passing credit and the launcher finishes
+with a failure result after draining the queue. Unverified repair edits remain
+in the checkout without being committed as verified repairs. Stateful histories
+retain their indivisible scheduling boundary.
+
+Watch case and overall totals show **completed/failed/total**: completed is green,
+and failed is red and underlined. Clicking the failed count in **ONPC: Watch**
+opens the cumulative error log in the VS Code editor.
 
 The [failure mandate](#handling-test-failures) still applies: classify from evidence,
 report expected versus actual behavior and ask before accepting changed behavior

@@ -247,6 +247,16 @@ def main(*, conversation_prompt=None):
             # A focused retry and the remaining category can both reach the
             # script's declared terminal outcome; never invent a passing result.
             case = script['tests'][min(index, len(script['tests']) - 1)]
+            omitted = json.loads(os.environ.get('ONPC_REPAIR_FAILED_CASES', '{}'))
+            def failed_case(value):
+                target = dict(category=category, case=value) if isinstance(value, str) else value
+                return target is not None and target['case'] in omitted.get(target['category'], [])
+            while failed_case(case) and index + 1 < len(script['tests']):
+                index += 1
+                marker.write_text(str(index + 1))
+                case = script['tests'][index]
+            if failed_case(case):
+                return 0  # Omitted failures finish scheduling without earning a pass.
             # Model runner-owned completion evidence, including the exact case
             # after teardown. Different failures remain unknown unless listed.
             passed = script.get('passed', {}).get(str(index), [])
@@ -256,7 +266,7 @@ def main(*, conversation_prompt=None):
                 passed += [arg.partition('=')[2] for arg in args
                            if arg.startswith('--resume-case=')]
             for node in passed:
-                if node and node not in script.get('unexecuted', []):
+                if node and node not in script.get('unexecuted', []) and node not in omitted.get(category, []):
                     checkpoint.event(category, dict(kind='finished', nodeid=node), set())
             checkpoint.save()
             if case is None:

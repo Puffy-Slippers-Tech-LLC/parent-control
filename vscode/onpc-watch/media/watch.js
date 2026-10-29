@@ -173,8 +173,16 @@
                 const line = document.createElement('div');
                 if (!row.length) line.textContent = '\u00a0';
                 row.forEach(part => {
-                    const span = element('span', '', line);
+                    const span = element(part.link ? 'a' : 'span', '', line);
                     span.textContent = part.text;
+                    if (part.link) {
+                        span.href = '#';
+                        span.style.textDecoration = 'underline';
+                        span.addEventListener('click', event => {
+                            event.preventDefault();
+                            vscode.postMessage({ type: 'openErrorLog', uri: part.link });
+                        });
+                    }
                     if (part.color) span.style.color = part.color;
                     if (part.bold) span.style.fontWeight = 'bold';
                 });

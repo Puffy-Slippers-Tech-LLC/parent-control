@@ -101,13 +101,22 @@ def publish_completion(run, key, heading, duration, keys):
 
 def completed_text(text):
     """Render completed progress consistently in controller and dashboard rows."""
-    return re.sub(r'(?<=\()\d+(?=/\d+\))',
+    return re.sub(r'(?<=\()\d+(?=/)',
                   lambda match: '\033[32m' + match[0] + '\033[0m', ANSI.sub('', text))
+
+
+def case_counts(completed, failed, total, error_log):
+    from pathlib import Path
+    count = f'\033[31;4m{failed}\033[0m'
+    if error_log:
+        count = f'\033]8;;{Path(error_log).as_uri()}\033\\{count}\033]8;;\033\\'
+    return f'\033[32m{completed}\033[0m/{count}/{total}'
 
 
 def category_cases(current):
     name = 'E2E' if current['category'] == 'e2e' else current['category'].capitalize()
-    return completed_text(f'{name} Cases: ({current["completed"]}/{current["total"]})')
+    return f'{name} Cases: (' + case_counts(current['completed'], current.get('failed', 0),
+        current['total'], current.get('error_log')) + ')'
 
 
 def case_progress(run, *, reader=None):
@@ -130,11 +139,13 @@ def case_progress(run, *, reader=None):
         raise ValueError('invalid category display progress')
     counts = value.get('categories')
     if (not isinstance(counts, dict) or not counts or set(counts) - {'system', 'e2e'}
-            or any(not isinstance(item, dict) or set(item) != {'completed', 'total'}
+            or any(not isinstance(item, dict) or not {'completed', 'total'} <= set(item)
                    or type(item['completed']) is not int or type(item['total']) is not int
                    or not 0 <= item['completed'] <= item['total'] <= 100000
                    for item in counts.values())
-            or counts.get(value['category']) != dict(completed=value['completed'], total=value['total'])):
+            or any(type(item.get('failed', 0)) is not int or not 0 <= item.get('failed', 0) <= item['total']
+                   for item in counts.values())
+            or any(counts.get(value['category'], {}).get(key) != value[key] for key in ('completed', 'total'))):
         raise ValueError('invalid overall display progress')
     return value
 
@@ -150,11 +161,12 @@ def case_frame(steps, lines, current):
                     started=current['started_ns'] / 1e9)
     overall_done = sum(count['completed'] for count in current['categories'].values())
     overall_total = sum(count['total'] for count in current['categories'].values())
+    overall_failed = sum(count.get('failed', 0) for count in current['categories'].values())
     elapsed = (now - current['vm_started_ns'] / 1e9) / 60
     overall = (f'Overall - {int(100 * overall_done / max(overall_total, 1))}% '
-               f'({overall_done}/{overall_total}) - {elapsed:.1f}m')
+               f'({case_counts(overall_done, overall_failed, overall_total, current.get("error_log"))}) - {elapsed:.1f}m')
     summary = Dashboard.ANSI.sub('', steps[-1]['lines'][0])
-    steps[-1]['lines'][0] = completed_text(
+    steps[-1]['lines'][0] = (
         re.sub(r'Overall - [^|]+', overall + ' ', summary).rstrip()
         if ' | Overall - ' in summary else summary + ' | ' + overall)
     # The main suite and separate upgrade attempts share a category name.
@@ -170,7 +182,7 @@ def case_frame(steps, lines, current):
     for index, line in enumerate(lines):
         plain = Dashboard.ANSI.sub('', line)
         if plain.startswith('Overall - '):
-            line = completed_text(overall)
+            line = overall
         else:
             if index in rows:
                 if index != next(iter(rows)):
@@ -185,6 +197,9 @@ def case_frame(steps, lines, current):
                 elif reason := re.search(r'\) - [0-9.]+[sm] \((.*)\)$', tail):
                     item.wait_reason = reason[1]
                 line = prefix + Dashboard([]).category(item, now)
+                line = re.sub(r'\(\d+/\d+\)', lambda _: '(' + case_counts(done,
+                    current.get('failed', 0), total, current.get('error_log')) + ')',
+                    Dashboard.ANSI.sub('', line))
         result.append(line)
     return result
 

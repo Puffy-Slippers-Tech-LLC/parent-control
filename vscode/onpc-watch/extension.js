@@ -72,6 +72,7 @@ function activate(context) {
             });
         panels.set(root, panel);
         let child, lines, timer, ready = false, busy = false, rendering = false;
+        let errorLogs = new Set();
         let selection = { scope: 'all', selected: 'all' }, reset = true, disposed = false;
         function stop() {
             clearInterval(timer);
@@ -116,6 +117,8 @@ function activate(context) {
                 if (child !== owned || disposed) return;
                 try {
                     const snapshot = JSON.parse(line);
+                    errorLogs = new Set((snapshot.runs || []).flatMap(entry =>
+                        (entry.rows || []).flatMap(row => row.map(part => part.link).filter(Boolean))));
                     busy = false;
                     rendering = true;
                     const delivered = await panel.webview.postMessage({ type: 'snapshot', ...snapshot });
@@ -143,6 +146,13 @@ function activate(context) {
                 poll();
             } else if (message?.type === 'restart') {
                 start();
+            } else if (message?.type === 'openErrorLog' && typeof message.uri === 'string') {
+                if (!errorLogs.has(message.uri)) return;
+                const uri = vscode.Uri.parse(message.uri);
+                if (uri.scheme !== 'file' || path.basename(uri.fsPath) !== 'errors.md') return;
+                // Only links supplied by the trusted backend for visible worktrees.
+                void vscode.window.showTextDocument(uri, { preview: false }).then(undefined,
+                    error => vscode.window.showErrorMessage(`Cannot open repair log: ${error.message}`));
             }
         });
         const visibility = panel.onDidChangeViewState(() => {

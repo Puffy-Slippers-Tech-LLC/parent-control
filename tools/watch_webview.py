@@ -36,6 +36,10 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
     for line in lines:
         compact = line.startswith(COMPACT_LINE)
         text = compact_text(line) if compact else Text.from_ansi(line.replace(SESSION_LINE, ''))
+        heading = re.fullmatch(r'VM: (.+) \([^()]*\)', text.plain)
+        if heading:
+            text = text[4:]
+            text.stylize('bold', 0, len(heading[1]))
         match = re.search(r'Waiting for input', text.plain)
         if match:
             text.stylize('red', match.start(), match.end())

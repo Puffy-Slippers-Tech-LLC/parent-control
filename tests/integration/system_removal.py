@@ -1475,7 +1475,7 @@ def rpm_posterase_reinstalled_rebooted(record):
 def identity_filesystem_refusal_retry(record, variant):
     """Keep each foreign root/identity, native refusal and owned retry together."""
     guest.guard()
-    from system_kiosk_admission import probe, verify_gates
+    from system_kiosk_admission import terminal_admission_probes, verify_gates
     from system_removal_identity import IDENTITY_FILESYSTEM_VARIANTS, identity_filesystem_conflict
     guest.require(variant in IDENTITY_FILESYSTEM_VARIANTS, 'identity-filesystem:variant')
     state, recovery, saved, before, generated = focused_recovery_start(
@@ -1496,9 +1496,9 @@ def identity_filesystem_refusal_retry(record, variant):
         '/var/lib/oh-no-parent-control/fedora-authselect.json').read_text()) if fedora else None)
     execution_provenance = (private_recovery_record(Path(
         '/var/lib/oh-no-parent-control/fedora-execution-policy.json')) if fedora else None)
-    for role in ('ordinary', 'other'):
-        probe('login', role, 0, 'identity-filesystem.before.' + role, record)
     with identity_filesystem_conflict(variant, state['accounts']['other'], record) as conflict:
+        terminal_admission_probes('identity-filesystem.before', record,
+                                  early_refusal=conflict.preflight)
         conflict_before = admission_removal_state()
         output = guest.commands.run(removal_command(), check=False, timeout=1800,
                                     merge_stderr=True)
@@ -1545,9 +1545,8 @@ def identity_filesystem_refusal_retry(record, variant):
                           'identity-filesystem:refusal-guards-not-retained')
             verify_loaded_confinement()
             observe_launch(child, False, variant=state.get('native_variant', 'command'))
-            for role in ('ordinary', 'other'):
-                probe('login', role, 0, 'identity-filesystem.refused.' + role, record)
-            probe('login', 'kiosk', None, 'identity-filesystem.refused.kiosk', record)
+            terminal_admission_probes('identity-filesystem.refused', record,
+                                      early_refusal=True, refused=True)
         else:
             # Fedora may report a successful erase despite failed postun. The
             # retained account, exact callback diagnostic and vendor account
@@ -1628,7 +1627,7 @@ def identity_filesystem_retry_rebooted(record, variant):
 def ownership_refusal_retry(record, variant):
     """Preserve one foreign conflict through native refusal, then rearm its owner."""
     guest.guard()
-    from system_kiosk_admission import probe, verify_gates
+    from system_kiosk_admission import terminal_admission_probes, verify_gates
     from system_removal_ownership import (OWNERSHIP_VARIANTS, ownership_conflict,
                                          ownership_targets, ownership_reason)
     guest.require(variant in OWNERSHIP_VARIANTS, 'ownership:variant')
@@ -1641,11 +1640,6 @@ def ownership_refusal_retry(record, variant):
     reason = ownership_reason(variant, distribution)
     prepared = variant.startswith('confinement-record-')
     early = variant in ('systemd-user-link', 'gdm-hook-link')
-    # Early preflight refusals publish no quarantine. Check the documented
-    # child-invoked login-shell gate, with its ordinary-user controls, rather
-    # than treating an account-only login callback as a complete terminal login.
-    # Later refusals also retain the separate vendor account-expiry barrier.
-    admission_service = 'su-l' if early else 'login'
     if prepared:
         # Use the genuine package owner to create its UID-bound journal. The
         # fixture changes that existing authority, never fabricates provenance.
@@ -1659,8 +1653,7 @@ def ownership_refusal_retry(record, variant):
               '/var/lib/oh-no-parent-control/uninstall-broker-mask',
               '/run/systemd/system/oh-no-parent-control-broker.service')
     guest.require(all(not os.path.lexists(name) for name in guards), 'ownership:nonfresh-guards')
-    for role in ('ordinary', 'other'):
-        probe(admission_service, role, 0, 'ownership.before.' + role, record)
+    terminal_admission_probes('ownership.before', record, early_refusal=early)
     with ownership_conflict(variant, target, state['accounts']['other'], record) as conflict:
         # The native callback owns refusal and any reversible cleanup/rollback.
         output = guest.commands.run(removal_command(), check=False, timeout=1800,
@@ -1696,13 +1689,10 @@ def ownership_refusal_retry(record, variant):
                 verify_quarantine(saved)
         verify_loaded_confinement()
         observe_launch(child, False, variant=state.get('native_variant', 'command'))
-        for role in ('ordinary', 'other'):
-            probe(admission_service, role, 0, 'ownership.refused.' + role, record)
         if distribution == 'ubuntu' and not early:
             guest.require(current_expiry() == 1, 'ownership:quarantine-not-retained')
-        # Require refused admission, regardless of which native PAM barrier
-        # reports it. Quarantine and recovery records are checked independently.
-        probe(admission_service, 'kiosk', None, 'ownership.refused.kiosk', record)
+        terminal_admission_probes('ownership.refused', record,
+                                  early_refusal=early, refused=True)
         conflict.verify()
         record('onpc.ownership.refused',
                variant + '; exact-conflict-and-recovery-records-preserved; payload-retained; child-denied; ordinary-users-allowed; native-PAM-retained; ' +

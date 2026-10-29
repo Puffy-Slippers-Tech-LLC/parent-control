@@ -287,6 +287,20 @@ def probe(service, role, expected, stage, record):
                   'kiosk-admission:unexpected-status:' + stage)
 
 
+def terminal_admission_probes(stage, record, *, early_refusal, refused=False):
+    """Check ordinary controls and, after removal refusal, kiosk rejection.
+
+    Early refusals publish no quarantine. Use the qualified child-invoked
+    login-shell gate there: an account-only login callback is not a complete
+    terminal login. Later refusals also retain the vendor account-expiry gate.
+    """
+    service = 'su-l' if early_refusal else 'login'
+    for role in ('ordinary', 'other'):
+        probe(service, role, 0, stage + '.' + role, record)
+    if refused:
+        probe(service, 'kiosk', None, stage + '.kiosk', record)
+
+
 def durable_probe(service, role, callback, expected, stage, record):
     """Observe the lifecycle's distribution-only barriers after payload erasure.
 

@@ -216,7 +216,10 @@ input before VM acquisition. Unrelated callers retain the `native` closure.
 `check_e2e_baseline_journey` and `check_e2e_active_grant_disable`, respectively,
 to the finite `native`, `activity` and `baseline-child` union. The last subset supplies
 only Riley's four native catalogue launchers; Jordan retains the shared runtime
-and existing native launchers. `E2E-015/child-overlay-cancel`,
+and existing native launchers. `BaselineAppEffectsQualification` binds
+`check_e2e_baseline_app_effects` to the same qualified union so its policy edits
+and grant/use/revocation history have Riley's A/H/S/N launchers before Parent opens.
+`E2E-015/child-overlay-cancel`,
 `E2E-015/child-overlay-escape` and `E2E-015/child-overlay-approved` select this same
 union under their own fixed caller identities before journey construction, so the
 original child activity can be verified and resumed after each exit. Each retains

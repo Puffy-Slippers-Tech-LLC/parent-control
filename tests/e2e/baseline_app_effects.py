@@ -1,4 +1,6 @@
 """C04p's finite native grant/use/revocation history; no scenario completion."""
+import re
+
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
 from feedback_composition import text_fragment
 from installed_journey import JourneyPlan
@@ -7,6 +9,7 @@ from journey_blocks import (desktop_entry, fresh_desktop, native_usable_app,
 from kiosk_approved_flow import obtain_time
 from native_fixtures import fixture_actions
 from policy_edits import policy_edit
+from private_artifacts import require
 from request_composition import GrantAppEffectsJourney
 from ui_observations import SettingsObservation
 
@@ -125,3 +128,26 @@ class BaselineAppEffectsJourney(GrantAppEffectsJourney):
                 'saved-policy': (None, 'zero'),
                 'granted-policy': ('saved-policy', 'positive'),
                 'revoked-policy': ('saved-policy', 'zero')})
+
+    def collect_failure(self):
+        """Keep the save failure's product events in the private transcript."""
+        if self.transport is None or getattr(self, 'effects_failure_logs_collected', False):
+            return
+        self.effects_failure_logs_collected = True
+        try:
+            # The shared journal collection does not include structured product
+            # events. Read them before restoration removes this attempt's state;
+            # a visible error report alone cannot identify the failed operation.
+            self.context.lease.guard()
+            raw = self.transport.call(['date', '-u', '+%F'], timeout=20)
+            require(type(raw) is bytes and re.fullmatch(rb'\d{4}-\d{2}-\d{2}\n', raw),
+                    'baseline-app-effects:diagnostic-date')
+            day = raw.decode('ascii').strip()
+            for component in ('broker', 'parent'):
+                self.context.lease.guard()
+                root = '/var/log/oh-no-parent-control/' + component + '/' + day
+                self.transport.call(['tail', '-c', '32768', '--',
+                                     root + '.events', root + '.incident.events'],
+                                    timeout=20, check=False)
+        finally:
+            super().collect_failure()

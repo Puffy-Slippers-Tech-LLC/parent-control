@@ -110,6 +110,15 @@ def guest_prefix(config):
 
 
 def remote(config, argv):
+    if tuple(argv) == ('/usr/bin/python3', '-c', BOOT_SHA256_PROBE):
+        # Diagnose the intermittent fixture boot-read timeout without retrying
+        # it or exposing guest data. These fixed stderr markers distinguish a
+        # session that never reaches its shell, a stalled ownership guard and
+        # a stalled final boot read in the existing private command artifact.
+        return ("printf '%s\\n' 'transport:boot-probe:guest-shell' >&2 && "
+                + guest_prefix(config)
+                + "printf '%s\\n' 'transport:boot-probe:guard-complete' >&2 && exec "
+                + shlex.join(argv))
     return guest_prefix(config) + 'exec ' + shlex.join(argv)
 
 

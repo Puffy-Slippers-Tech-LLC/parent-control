@@ -1,5 +1,6 @@
 """C04j3: genuine grant, Parent disable and retained usable child work."""
 from copy import deepcopy
+import sys
 
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
 from feedback_composition import text_fragment
@@ -106,6 +107,57 @@ class ActiveGrantDisableJourney(GrantAppEffectsJourney):
                 **({'granted-policy': ('saved-policy', 'positive')}
                    if plan is not ENGINEERING_PLAN else {})})
         self.disabled_seen = False
+
+    def collect_failure(self):
+        """Distinguish save and refresh failures before restoring this guest."""
+        if self.transport is None or self.failure_collected:
+            return
+        try:
+            self.context.lease.guard()
+            # Engineering evidence only. Reuse the installed collector and
+            # schema validator; never return raw journals, names or exceptions.
+            source = '''import hashlib, json, sys
+from datetime import datetime, timedelta, timezone
+from io import BytesIO
+from pathlib import Path
+from zipfile import ZipFile
+assert hashlib.sha256(Path('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest() == sys.argv[1]
+sys.path[:0] = ['/usr/lib/oh-no-parent-control', '/usr/lib/oh-no-parent-control/broker']
+from oh_no_parent_control.diagnostics import collect_logs
+from common.oh_no_parent_control_ui.diagnostic_report import read_report
+with ZipFile(BytesIO(collect_logs())) as archive:
+    logs, info = read_report(archive)
+since = (datetime.now(timezone.utc) - timedelta(seconds=180)).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+records = sorted((record for rows in logs.values() for record in rows
+    if record['component'] in ('parent', 'broker', 'child')
+    and record.get('timestamp', '') >= since),
+    key=lambda record: (record['timestamp'], record['sequence']))
+total = len(records)
+# Routine status polls and child restart events can fill the tail after the
+# failed verification. Keep the original readbacks and delayed observations,
+# not just the later rollback and error-report activity.
+records = [record for record in records
+    if record['component'] in ('parent', 'broker') and (
+        record['level'] in ('WARNING', 'ERROR', 'CRITICAL')
+        or record['event'].startswith('extension-manager.') and record['event'] not in (
+            'extension-manager.001', 'extension-manager.003', 'extension-manager.command'))]
+relevant = len(records)
+records = records[-160:]
+while len(json.dumps(records).encode()) > 65536:
+    records.pop(0)
+print(json.dumps({'event': 'active-grant-disable-failure-logs',
+    'window_seconds': 180, 'counts': info['counts'],
+    'omitted_records': total - len(records),
+    'omitted_relevant_records': relevant - len(records), 'records': records}), flush=True)
+'''
+            self.transport.call(['/usr/bin/python3', '-I', '-c', source, self.boot],
+                                timeout=20)
+        except Exception:
+            # Diagnostic failure must retain the original failure and must not
+            # prevent the existing collection or owned cleanup.
+            print('active-grant-disable:product-logs-unavailable', file=sys.stderr, flush=True)
+        finally:
+            super().collect_failure()
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)

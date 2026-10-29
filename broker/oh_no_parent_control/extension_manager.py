@@ -18,6 +18,7 @@ ENABLED_KEY = "enabled-extensions"
 DISABLED_KEY = "disabled-extensions"
 DISABLE_ALL_KEY = "disable-user-extensions"
 COMMAND_TIMEOUT_SECONDS = 10
+LIVE_SETTINGS_TIMEOUT_SECONDS = 4
 LOG = get_logger("extension-manager")
 LOAD_ASSETS = {"indicatorLogic.mjs": "indicator-logic", "diagnosticEvents.mjs": "diagnostic-events"}
 
@@ -427,6 +428,27 @@ class ExtensionManager:
             raise RuntimeError("GNOME extension runtime verification failed")
         enabled_settings = self._list(account, ENABLED_KEY)
         disabled_settings = self._list(account, DISABLED_KEY)
+        waited = False
+        deadline = time.monotonic() + LIVE_SETTINGS_TIMEOUT_SECONDS
+        # Shell can acknowledge the runtime transition before its asynchronous
+        # settings write is visible to another process. Observe that write;
+        # never replay the activation or replace Shell's extension lists.
+        while ((UUID in enabled_settings) != enabled or
+               enabled and UUID in disabled_settings):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(0.25, remaining))
+            settings = []
+            for key in (ENABLED_KEY, DISABLED_KEY):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                settings.append(self._list(account, key, timeout=remaining))
+            if len(settings) != 2 or time.monotonic() >= deadline:
+                break
+            enabled_settings, disabled_settings = settings
+            waited = True
         if (not self._verify_setting(
                 ENABLED_KEY, (UUID in enabled_settings) == enabled, "live") or
                 not self._verify_setting(
@@ -434,6 +456,13 @@ class ExtensionManager:
             if not enabled:
                 self._observe_disable_settings(account)
             raise RuntimeError("GNOME extension activation verification failed")
+        if waited:
+            # A settings match cannot hide a runtime change during the wait.
+            configured, active = self._runtime_state(account)
+            LOG.info("extension-manager.runtime-verification", expected=enabled,
+                     configured=configured, active=active)
+            if configured != enabled or active != enabled:
+                raise RuntimeError("GNOME extension runtime verification failed")
         LOG.info("extension-manager.005", configured=configured, active=active)
 
     def _observe_disable_settings(self, account):

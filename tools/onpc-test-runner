@@ -446,9 +446,10 @@ def child_retention_owner(argv):
         return True
     if argv[0] != 'integration' or len(argv) <= 1:
         return False
-    from test_commands import INSTALLED_E2E_FIXTURE_SELECTORS
+    from test_commands import INSTALLED_E2E_FIXTURE_SELECTORS, PRODUCT_FREE_E2E_FIXTURE_SELECTORS
     selector = argv[1].removesuffix('.py')
     return (selector in INSTALLED_E2E_FIXTURE_SELECTORS or
+            selector in PRODUCT_FREE_E2E_FIXTURE_SELECTORS or
             selector in ('check_graphical_smoke', 'check_e2e_watch',
                          'check_e2e_kiosk_update_reentry',
                          'check_fixture_recorded_serial', 'check_fixture_live_refresh'))

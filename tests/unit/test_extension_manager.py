@@ -513,6 +513,71 @@ class ExtensionManagerTests(unittest.TestCase):
         verify.assert_not_called()
         set_list.assert_not_called()
 
+    def test_live_transition_waits_for_settings_without_replaying_input(self):
+        for enabled in (False, True):
+            with self.subTest(enabled=enabled):
+                before = (["private@example.com"], [UUID]) if enabled else ([UUID], [])
+                after = ([UUID], []) if enabled else ([], [UUID])
+                with (
+                    mock.patch.object(self.manager, "_run_command") as run,
+                    mock.patch.object(self.manager, "_runtime_state",
+                                      return_value=(enabled, enabled)) as runtime,
+                    mock.patch.object(self.manager, "_list", side_effect=[*before, *after]) as read,
+                    mock.patch.object(self.manager, "_set_list") as write,
+                    mock.patch("oh_no_parent_control.extension_manager.time.sleep") as sleep,
+                    self.assertLogs("onpc", "INFO") as logs,
+                ):
+                    self.manager._set_live(self.account, enabled)
+                run.assert_called_once_with(self.account,
+                    ("gnome-extensions", "enable" if enabled else "disable", "--quiet", UUID),
+                    require_live=True)
+                write.assert_not_called()
+                sleep.assert_called_once_with(0.25)
+                self.assertEqual(runtime.call_count, 2)
+                for call in read.call_args_list[2:]:
+                    self.assertGreater(call.kwargs["timeout"], 0)
+                    self.assertLessEqual(call.kwargs["timeout"], 4)
+                self.assertNotIn("private@example.com", "\n".join(logs.output))
+
+    def test_runtime_change_during_settings_wait_is_rejected(self):
+        with (
+            mock.patch.object(self.manager, "_run_command"),
+            mock.patch.object(self.manager, "_runtime_state",
+                              side_effect=[(True, True), (True, False)]),
+            mock.patch.object(self.manager, "_list", side_effect=[[], [UUID], [UUID], []]),
+            mock.patch("oh_no_parent_control.extension_manager.time.sleep"),
+            self.assertRaisesRegex(RuntimeError, "runtime verification failed"),
+        ):
+            self.manager._set_live(self.account, True)
+
+    def test_persistent_live_settings_disagreement_rolls_back(self):
+        clock = [0.0]
+        account = SimpleNamespace(pw_uid=os.getuid())
+        def sleep(delay):
+            clock[0] += delay
+        with (
+            mock.patch.object(self.manager, "_account", return_value=(account, Path(self.runtime.name))),
+            mock.patch.object(self.manager, "_shell_is_available", return_value=True),
+            mock.patch.object(self.manager, "_runtime_state",
+                              side_effect=[(True, True), (False, False), (True, True)]),
+            mock.patch.object(self.manager, "_list",
+                              side_effect=lambda _account, key, **_kw: [UUID] if key == ENABLED_KEY else []),
+            mock.patch.object(self.manager, "_run_command") as run,
+            mock.patch.object(self.manager, "_set_list") as write,
+            mock.patch.object(self.manager, "_observe_disable_settings"),
+            mock.patch.object(self.manager, "collect_diagnostics"),
+            mock.patch("oh_no_parent_control.extension_manager.time.monotonic", side_effect=lambda: clock[0]),
+            mock.patch("oh_no_parent_control.extension_manager.time.sleep", side_effect=sleep),
+            self.assertRaisesRegex(RuntimeError, "activation verification failed"),
+        ):
+            self.manager.set_enabled(account.pw_uid, False)
+        self.assertEqual(clock[0], 4)
+        run.assert_called_once()
+        self.assertEqual(write.call_args_list, [
+            mock.call(account, ENABLED_KEY, [UUID]),
+            mock.call(account, DISABLED_KEY, []),
+        ])
+
     def test_disable_observations_preserve_failure_and_exclude_identifiers(self):
         for unavailable in (False, True):
             with self.subTest(unavailable=unavailable):
@@ -524,6 +589,10 @@ class ExtensionManagerTests(unittest.TestCase):
                     mock.patch.object(self.manager, "_runtime_state", return_value=(False, False)),
                     mock.patch.object(self.manager, "_list", side_effect=values) as read,
                     mock.patch.object(self.manager, "_set_list") as write,
+                    # Exhaust the persistence wait, then freeze time for the
+                    # independent failure-only diagnostic observations.
+                    mock.patch("oh_no_parent_control.extension_manager.time.monotonic",
+                               side_effect=[0, 4, 4, 4, 4, 4, 4, 4, 4]),
                     mock.patch("oh_no_parent_control.extension_manager.time.sleep") as sleep,
                     self.assertLogs("onpc", "INFO") as logs,
                     self.assertRaisesRegex(RuntimeError, "activation verification failed"),

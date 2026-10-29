@@ -4114,19 +4114,16 @@ class AccessibleUI:
             else:
                 raise UiError('ui:attachment-refusal-missing')
             return {'checked': operation}
-        profile = 'remaining' if operation == 'attachment-remaining' else 'details'
-        if operation == 'attachment-remaining':
-            # The chooser's Files process can retire between registry discovery
-            # and GetItems, even after removal readback completed. Discard that
-            # incomplete observation and reacquire the whole guarded read within
-            # one deadline. Exact file/metadata mismatches still refuse; this
-            # predicate contains no removal or other input to replay.
-            value = self.wait(lambda: self.feedback_snapshot(attachments=profile),
-                              operation, prompt_in_predicate=True)
-        else:
-            value = self.feedback_snapshot(attachments=profile)
+        profile = ('remaining' if operation == 'attachment-remaining' else
+                   'preview' if operation == 'attachment-preview' else 'details')
+        # An external accessibility provider can retire between registry discovery
+        # and GetItems even after Cancel and attachment readback completed.
+        # Every attachment read, including details and removal preflight, needs
+        # the same bounded recovery of the complete ownership/prompt snapshot.
+        # Exact file/metadata mismatches still refuse; no input is replayed.
+        value = self.wait(lambda: self.feedback_snapshot(attachments=profile),
+                          operation, prompt_in_predicate=True)
         if operation == 'attachment-preview':
-            self.feedback_snapshot(attachments='preview')
             # This binding qualifies the explicitly inapplicable branch only.
             # A newly offered action must refuse until its public preview route
             # is bound; never open an external editor or inspect private bytes.

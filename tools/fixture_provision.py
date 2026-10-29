@@ -16,6 +16,7 @@ import json
 import os
 from pathlib import PurePosixPath
 import re
+import subprocess
 import tarfile
 import threading
 
@@ -27,6 +28,40 @@ BOOT_SHA256_PROBE = '''import hashlib,pathlib,re
 value=pathlib.Path('/proc/sys/kernel/random/boot_id').read_text()
 assert re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\n',value)
 print(hashlib.sha256(value.encode()).hexdigest())
+'''
+
+# Read only blocked root SSH sessions. Never retain command lines, environments,
+# arbitrary descriptor paths or kernel addresses in this private diagnostic.
+BOOT_TIMEOUT_DIAGNOSTIC = r'''import itertools,json,pathlib,re
+known_logs={'/var/log/wtmp','/var/log/btmp','/var/log/lastlog',
+ '/var/log/wtmp.db','/var/log/wtmp.db-wal','/var/log/wtmp.db-shm',
+ '/var/lib/lastlog/lastlog2.db','/var/lib/lastlog/lastlog2.db-journal',
+ '/var/lib/lastlog/lastlog2.db-wal','/var/lib/lastlog/lastlog2.db-shm'}
+rows=[];unavailable=0
+for proc in pathlib.Path('/proc').iterdir():
+ if not proc.name.isdecimal():continue
+ try:
+  status=dict(line.split(':',1) for line in (proc/'status').read_text().splitlines() if ':' in line)
+  if (status.get('Name','').strip()!='sshd-session' or
+      status.get('State','').split()[:1]!=['D'] or
+      status.get('Uid','').split()!=['0']*4):continue
+  identity=(proc/'stat').read_text().rsplit(')',1)[1].split()[19]
+  with (proc/'stack').open() as stream:stack=stream.read(8192)
+  frames=re.findall(r'\] ([A-Za-z0-9_.]+)\+',stack)[:24]
+  logs=set()
+  for fd in itertools.islice((proc/'fd').iterdir(),64):
+   try:
+    target=str(fd.readlink())
+    if target in known_logs:logs.add(target)
+   except OSError:pass
+  wait=(proc/'wchan').read_text().strip()
+  if (proc/'stat').read_text().rsplit(')',1)[1].split()[19]!=identity:
+   unavailable+=1;continue
+  rows.append({'pid':int(proc.name),'wait':wait if re.fullmatch(r'[A-Za-z0-9_.]{1,128}',wait) else 'unknown',
+   'kernel_frames':frames,'open_system_logs':sorted(logs)})
+  if len(rows)==16:break
+ except (OSError,ValueError,IndexError):unavailable+=1
+print(json.dumps({'event':'fixture-boot-timeout','blocked_root_ssh':rows,'unavailable':unavailable},sort_keys=True))
 '''
 
 
@@ -267,8 +302,34 @@ class Provisioner:
 
     def _boot(self):
         self._guard()
-        raw = self.transport.call(['/usr/bin/python3', '-c', BOOT_SHA256_PROBE],
-                                  timeout=30, attempts=1)
+        try:
+            raw = self.transport.call(['/usr/bin/python3', '-c', BOOT_SHA256_PROBE],
+                                      timeout=30, attempts=1)
+        except subprocess.TimeoutExpired as error:
+            # The retained shell markers place the stall after PAM output but
+            # before the guest shell. Retained waits reached btrfs_sync_log;
+            # capture kernel frames and known login-history descriptors as well
+            # as login-service events, without replaying any fixture action.
+            # Inline programs keep these replies out of the public watch feed;
+            # Transport retains them in the existing private command artifacts.
+            status = self.transport.commands.last_returncode
+            for command in (
+                ['/usr/bin/ps', '-eo', 'pid,ppid,comm,wchan:40'],
+                ['/usr/bin/python3', '-c', BOOT_TIMEOUT_DIAGNOSTIC],
+                ['/usr/bin/journalctl', '--boot', '--since=-2min', '--no-pager',
+                 '--lines=80', '--unit=sshd.service', '--unit=systemd-logind.service',
+                 '--unit=user@0.service', '--unit=fapolicyd.service'],
+            ):
+                try:
+                    self._guard()
+                    program = 'import os; os.execv(' + repr(command[0]) + ', ' + repr(command) + ')'
+                    self.transport.call(['/usr/bin/python3', '-c', program],
+                                        timeout=10, attempts=1, check=False)
+                except Exception:
+                    error.add_note('fixture-provision:boot-timeout-diagnostic-unavailable')
+                finally:
+                    self.transport.commands.last_returncode = status
+            raise
         require(type(raw) is bytes and re.fullmatch(rb'[0-9a-f]{64}\n', raw), 'boot')
         self._guard()
         return raw.decode().strip()

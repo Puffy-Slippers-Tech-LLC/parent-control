@@ -102,8 +102,6 @@ prefix_rule(
         "./tools/test-vm",
         "tools/vm-pool",
         "./tools/vm-pool",
-        "tools/watch",
-        "./tools/watch",
         "tools/write-e2e",
         "./tools/write-e2e"
     ]],

@@ -444,6 +444,10 @@ class BaselineAuthPauseQualification(KioskEntryQualification):
 
 
 class BaselineAppEffectsQualification(KioskEntryQualification):
+    # The journey manages Riley; native alone supplies Jordan's launchers.
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets
+    fixture_caller = 'check_e2e_baseline_app_effects'
+
     @staticmethod
     def journey(context, progress):
         from app_snapshot import snapshot_name

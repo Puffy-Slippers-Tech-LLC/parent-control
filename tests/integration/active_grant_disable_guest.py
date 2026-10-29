@@ -5,6 +5,7 @@ owned child observes public native estimates and lock signals as Riley. No
 product state or synthetic grant from this probe earns customer credit.
 """
 import json
+import logging
 import os
 from pathlib import Path
 import pwd
@@ -204,7 +205,48 @@ def qualify():
     from gi.repository import Gio
     from oh_no_parent_control.core import Broker, BackendFailure, blocked_targets
     from oh_no_parent_control.service import production_dependencies
+    from common.oh_no_parent_control_ui.diagnostic_events import record_payload
     dependencies = production_dependencies(Gio.bus_get_sync(Gio.BusType.SYSTEM, None))
+
+    # This standalone broker has no service event-file writer. Retain its
+    # validated activation evidence in the existing private failure response,
+    # rather than looking for these events in the separate running service.
+    extension_events = diagnostic['extension_events'] = []
+    diagnostic['extension_events_omitted'] = 0
+
+    class ActivationEvidence(logging.Handler):
+        def emit(self, record):
+            try:
+                value = json.loads(record_payload(record))
+                if value['event'] in ('extension-manager.001', 'extension-manager.003',
+                                      'extension-manager.command'):
+                    return
+                extension_events.append(dict(value, monotonic_ns=time.monotonic_ns()))
+                while (len(extension_events) > 160
+                       or len(json.dumps(extension_events).encode()) > 65536):
+                    extension_events.pop(0)
+                    diagnostic['extension_events_omitted'] += 1
+            except Exception:
+                # Diagnostics must not change the original failure or cleanup.
+                pass
+
+    extension_logger = logging.getLogger('onpc.extension-manager')
+    extension_logger.addHandler(ActivationEvidence())
+    extension_logger.setLevel(logging.INFO)
+    set_live = dependencies.extensions._set_live
+
+    def observe_live(account, enabled):
+        try:
+            return set_live(account, enabled)
+        except Exception:
+            if enabled:
+                # Reuse the bounded, read-only settings observer for enable
+                # failures too, before rollback conceals the disagreement.
+                # A later match never converts this original failure to a pass.
+                dependencies.extensions._observe_disable_settings(account)
+            raise
+
+    dependencies.extensions._set_live = observe_live
     native = dependencies.accounts
     uid = account.pw_uid
     fields = ('limit_type', 'daily_limit', 'daily_schedule', 'extension', 'filter')

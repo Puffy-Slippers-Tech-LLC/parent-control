@@ -155,6 +155,10 @@ restore the prior state. Live activation is accepted only when
 GNOME Shell reports the extension both enabled and active; deactivation is
 accepted only when it reports neither. Offline activation is verified against
 the durable settings that Shell will consume at next login.
+After a verified live transition, the broker allows up to four seconds for
+Shell's asynchronous settings write to become visible. It only rereads settings
+during that wait, then rechecks runtime state before accepting the transition.
+Persistent disagreement and failed reads retain the normal failure and rollback.
 
 Native time transitions use the public `DailySchedule=(0,86400)` and schedule-only
 `LimitType=1` as a verified temporary bridge. This keeps usable time while a

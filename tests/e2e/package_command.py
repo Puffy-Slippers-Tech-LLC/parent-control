@@ -60,36 +60,59 @@ def rpm_scriptlet_output(lines, package, binding):
 
 
 def guest_phase(binding, packages):
-    """Finite public dpkg entry; no private product state or reboot guard."""
+    """Finite native package entry; no private product state or reboot guard."""
     import hashlib
     import re
     import stat
     import subprocess
     from pathlib import Path
     session_control.require(binding in (OLD_INSTALL, UPGRADE), 'package-binding')
-    session_control.require(session_control.package_format() == 'deb', 'historical-release-ubuntu-only')
+    fedora = session_control.package_format() == 'rpm'
     session_control.require(type(packages) is dict and set(packages) == {'previous', 'current'},
                             'package-identities')
     for label in ('previous', 'current'):
-        path = '/var/lib/onpc-e2e-assets/' + ('previous/' if label == 'previous' else '') + 'package.deb'
-        raw = subprocess.check_output(['/usr/bin/dpkg-deb', '-f', path,
-                                       'Package', 'Version', 'Architecture'], timeout=30).decode()
+        path = str(session_control.package_path(label))
+        raw = subprocess.check_output((['/usr/bin/rpm', '-qp', '--queryformat',
+            '%{NAME}\n%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n%{ARCH}\n', path] if fedora else
+            ['/usr/bin/dpkg-deb', '-f', path, 'Package', 'Version', 'Architecture']), timeout=30).decode()
         item = packages[label]
         session_control.require(item == {'name': 'oh-no-parent-control',
-            'architecture': 'amd64', 'version': item['version'], 'sha256': item['sha256']}
-            and raw.splitlines() == ['Package: ' + item['name'], 'Version: ' + item['version'],
-                                    'Architecture: ' + item['architecture']]
+            'architecture': 'x86_64' if fedora else 'amd64',
+            'version': item['version'], 'sha256': item['sha256']}
+            and raw.splitlines() == ([item['name'], item['version'], item['architecture']] if fedora else
+                ['Package: ' + item['name'], 'Version: ' + item['version'],
+                 'Architecture: ' + item['architecture']])
             and session_control.package_digest(label) == item['sha256'], 'package-identity')
-    subprocess.run(['/usr/bin/dpkg', '--compare-versions', packages['current']['version'],
-                    'gt', packages['previous']['version']], check=True, timeout=30)
-    query = subprocess.run(['/usr/bin/dpkg-query', '-W', '-f=${Status}\n${Version}\n',
-                            'oh-no-parent-control'], capture_output=True, timeout=30)
+    if fedora:
+        # Use RPM's native EVR order, as the immutable-input builder does.
+        # Strict fields keep package header values out of Lua syntax.
+        pattern = r'([0-9]+):([A-Za-z0-9][A-Za-z0-9._+~^]*)-([A-Za-z0-9][A-Za-z0-9._+~^]*)'
+        versions = [re.fullmatch(pattern, packages[label]['version']) for label in ('current', 'previous')]
+        session_control.require(all(versions), 'package-version')
+        newer = False
+        for current, previous in zip(versions[0].groups(), versions[1].groups()):
+            result = subprocess.check_output(['/usr/bin/rpm', '--eval',
+                '%{lua:print(rpm.vercmp("' + current + '","' + previous + '"))}'], timeout=30).strip()
+            session_control.require(result in (b'-1', b'0', b'1'), 'package-version')
+            if result != b'0':
+                newer = result == b'1'
+                break
+        session_control.require(newer, 'package-version-order')
+    else:
+        subprocess.run(['/usr/bin/dpkg', '--compare-versions', packages['current']['version'],
+                        'gt', packages['previous']['version']], check=True, timeout=30)
+    query = subprocess.run((['/usr/bin/rpm', '-q', '--queryformat',
+        '%{NAME}\n%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n%{ARCH}\n', 'oh-no-parent-control'] if fedora else
+        ['/usr/bin/dpkg-query', '-W', '-f=${Status}\n${Version}\n', 'oh-no-parent-control']),
+        capture_output=True, timeout=30, env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'})
     boot = hashlib.sha256(Path('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest()
     if binding == OLD_INSTALL:
-        session_control.require(query.returncode == 1 and not query.stdout, 'package-phase')
+        session_control.require(query.returncode == 1 and (query.stdout.decode().splitlines() ==
+            ['package oh-no-parent-control is not installed'] if fedora else not query.stdout), 'package-phase')
     else:
         session_control.require(query.returncode == 0 and query.stdout.decode().splitlines() ==
-            ['install ok installed', packages['previous']['version']], 'package-phase')
+            ([packages['previous']['name'], packages['previous']['version'], packages['previous']['architecture']]
+             if fedora else ['install ok installed', packages['previous']['version']]), 'package-phase')
         marker = Path('/var/lib/onpc-e2e-assets/.previous-install-used')
         info = marker.lstat()
         session_control.require(marker.resolve() == marker and info.st_uid == 0
@@ -208,10 +231,10 @@ def guest_submit(binding, expected, packages=None):
     session_control.require(session_control.source_session(
         session_control.sessions(), account.pw_uid) == source, 'source-changed')
     if session_control.package_format() == 'rpm':
-        session_control.require(binding in (BINDING, *LIFECYCLE), 'historical-release-ubuntu-only')
+        session_control.require(binding in (BINDING, OLD_INSTALL, UPGRADE, *LIFECYCLE), 'package-binding')
         argv = (('/usr/bin/dnf', '--quiet', 'remove', '--no-autoremove', '-y', 'oh-no-parent-control')
                 if binding == REMOVE else
-                ('/usr/bin/dnf', '--quiet', 'install', '-y', str(session_control.package_path())))
+                ('/usr/bin/dnf', '--quiet', 'install', '-y', str(session_control.package_path(label))))
     else:
         argv = (('/usr/bin/apt-get', '-o', 'DPkg::Lock::Timeout=120', 'remove', '-y',
                  'oh-no-parent-control') if binding == REMOVE else
@@ -431,7 +454,8 @@ class PackageCommand:
             return {'operation': self.binding, 'outcome': 'passed', 'exit_status': status,
                     'interface': 'SSH stdout/stderr', 'completion': completion[0], 'notice': None}
         if 'package.rpm' in self.verified.asset_files and self.binding != PURGE:
-            lines = rpm_scriptlet_output(lines, self.package_identities()['current'], self.binding)
+            label = 'previous' if self.binding == OLD_INSTALL else 'current'
+            lines = rpm_scriptlet_output(lines, self.package_identities()[label], self.binding)
         removing = self.binding in (REMOVE, PURGE)
         if removing:
             require((lines[-1] == REMOVAL_NOTICE if self.binding == REMOVE else
@@ -441,7 +465,8 @@ class PackageCommand:
                     lines[-1] in (COMPLETE, NOTICE)), 'package:completion-notice')
         if removing or self.binding in LIFECYCLE or 'package.rpm' in self.verified.asset_files:
             identity = self.read_identity()
-            require(identity['version'] == (None if removing else self.package_identities()['current']['version']),
+            label = 'previous' if self.binding == OLD_INSTALL else 'current'
+            require(identity['version'] == (None if removing else self.package_identities()[label]['version']),
                     'package:installed-version')
         # Retain actual matched public lines, never arbitrary package diagnostics.
         return {'operation': self.binding, 'outcome': 'passed', 'exit_status': status,

@@ -843,16 +843,40 @@ def test_resume_after_session_limit_retains_completed_diagnostic_categories(chec
     checkpoint = Checkpoint(root, [(kind, []) for kind in categories],
                             namespace='fix-tests', resume=True)
     assert checkpoint.complete('unit') and checkpoint.complete('ui')
-    assert not checkpoint.complete('system')
+    # Exhausting diagnostic interpretation fails the case, but later categories
+    # still run and completed diagnostic categories retain their runner passes.
+    assert checkpoint.complete('system')
+    failed = json.loads((run / 'checkpoint.json').read_text())['failed_cases']
+    assert len(failed) == 1
+    assert failed[0]['failure'] == ['ui', 'reminder-case', '']
+    assert failed[0]['reason'] == 'session allowance exhausted (5/5)'
+    evidence_marker = 'Retained private failure context (bounded log tails): '
+    evidence_path = Path(failed[0]['prompt'].split(evidence_marker, 1)[1].splitlines()[0])
+    evidence = json.loads(evidence_path.read_text())
+    from fix_tests_queue import error_log
+    errors = error_log(run).read_text()
+    assert 'reminder-case' in errors and 'session allowance exhausted (5/5)' in errors
+    before_resume = (root / 'calls').read_text()
     (root / 'mode').write_text('pass')
     resumed, started = fix_tests.select(root, categories=categories, resume=True)
     output = io.StringIO()
-    assert started and fix_tests.follow(resumed, output) == 0
+    assert started and fix_tests.follow(resumed, output) == 1
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     tests = [call['category'] for call in calls if call['kind'] == 'test']
-    assert tests == ['unit', 'ui', 'ui', 'ui', 'ui', 'system']
+    # Initial UI failure, three diagnostic runs, then continuation of the
+    # remaining UI selection after the case exhausts its allowance.
+    assert tests == ['unit', 'ui', 'ui', 'ui', 'ui', 'ui', 'system']
+    assert (root / 'calls').read_text() == before_resume
     assert len([call for call in calls if call['kind'] == 'agent']) == 5
-    assert 'retaining passed categories: unit, ui' in output.getvalue()
+    assert 'retaining passed categories: unit, ui, system.' in output.getvalue()
+    # Resume copies retained evidence into its new run and updates that reference;
+    # the full failure record and evidence contents must otherwise stay intact.
+    resumed_evidence = resumed / evidence_path.relative_to(run)
+    expected_failed = [dict(failed[0], prompt=failed[0]['prompt'].replace(
+        evidence_marker + str(evidence_path), evidence_marker + str(resumed_evidence), 1))]
+    assert json.loads((resumed / 'checkpoint.json').read_text())['failed_cases'] == expected_failed
+    assert json.loads(resumed_evidence.read_text()) == evidence
+    assert error_log(resumed).read_text() == errors
     assert json.loads((run / 'repair-stop.json').read_text()) == stopped
 
 

@@ -995,6 +995,11 @@ def test_reserved_driver_cannot_join_a_repair_waiting_for_its_checkout(checkout,
 
 @pytest.mark.parametrize('action', ['stop', 'ctrl-c', 'kill-owner'])
 def test_cancellation_waits_for_runner_cleanup_then_fresh_start(checkout, monkeypatch, action):
+    from vm_selection import WORKER
+
+    # This fixture starts a single worker directly, rather than a public VM
+    # queue. Keep the CLI observer in that same scope when it attaches.
+    monkeypatch.setenv(WORKER, '1')
     root, spawned = checkout
     run, _ = fix_tests.select(root, rounds=2)
     wait_for(root / 'test-ready')

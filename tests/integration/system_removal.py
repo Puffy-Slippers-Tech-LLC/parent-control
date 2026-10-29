@@ -1641,6 +1641,11 @@ def ownership_refusal_retry(record, variant):
     reason = ownership_reason(variant, distribution)
     prepared = variant.startswith('confinement-record-')
     early = variant in ('systemd-user-link', 'gdm-hook-link')
+    # Early preflight refusals publish no quarantine. Check the documented
+    # child-invoked login-shell gate, with its ordinary-user controls, rather
+    # than treating an account-only login callback as a complete terminal login.
+    # Later refusals also retain the separate vendor account-expiry barrier.
+    admission_service = 'su-l' if early else 'login'
     if prepared:
         # Use the genuine package owner to create its UID-bound journal. The
         # fixture changes that existing authority, never fabricates provenance.
@@ -1655,7 +1660,7 @@ def ownership_refusal_retry(record, variant):
               '/run/systemd/system/oh-no-parent-control-broker.service')
     guest.require(all(not os.path.lexists(name) for name in guards), 'ownership:nonfresh-guards')
     for role in ('ordinary', 'other'):
-        probe('login', role, 0, 'ownership.before.' + role, record)
+        probe(admission_service, role, 0, 'ownership.before.' + role, record)
     with ownership_conflict(variant, target, state['accounts']['other'], record) as conflict:
         # The native callback owns refusal and any reversible cleanup/rollback.
         output = guest.commands.run(removal_command(), check=False, timeout=1800,
@@ -1692,12 +1697,12 @@ def ownership_refusal_retry(record, variant):
         verify_loaded_confinement()
         observe_launch(child, False, variant=state.get('native_variant', 'command'))
         for role in ('ordinary', 'other'):
-            probe('login', role, 0, 'ownership.refused.' + role, record)
+            probe(admission_service, role, 0, 'ownership.refused.' + role, record)
         if distribution == 'ubuntu' and not early:
             guest.require(current_expiry() == 1, 'ownership:quarantine-not-retained')
         # Require refused admission, regardless of which native PAM barrier
         # reports it. Quarantine and recovery records are checked independently.
-        probe('login', 'kiosk', None, 'ownership.refused.kiosk', record)
+        probe(admission_service, 'kiosk', None, 'ownership.refused.kiosk', record)
         conflict.verify()
         record('onpc.ownership.refused',
                variant + '; exact-conflict-and-recovery-records-preserved; payload-retained; child-denied; ordinary-users-allowed; native-PAM-retained; ' +

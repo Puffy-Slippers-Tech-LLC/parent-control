@@ -208,6 +208,13 @@ class Output:
         steps = snapshot(self.run / 'controller.json', steps=True, reader=self.reader)
         if self.run.parent.name == 'write-e2e':
             from launcher_session import clock_duration
+            # Match the terminal dashboard: keep only the latest session for
+            # each task, without removing completed task recaps.
+            latest = {step['lines'][0]: step for step in steps
+                      if not step.get('pinned') and not step.get('replaces')}
+            steps = [step for step in steps
+                     if step.get('pinned') or step.get('replaces')
+                     or latest[step['lines'][0]] is step]
             try:
                 state = self.reader.read(self.run / 'chat-state.json')
             except FileNotFoundError:

@@ -452,7 +452,8 @@ labels, percentages, totals and durations retain their default color.
 Integration checks share one compact progress row per VM, counting completed
 checks over the selected inventory. Only active checks, admission waits and
 failures expand beneath it; pending and successful checks remain available in
-the detailed report and progress inventory.
+the detailed report and progress inventory. Expanded rows show the named check's
+status and elapsed time without a separate single-check percentage or counter.
 The VM tile uses the category's completed/total count, the active
 selected case's persistent ID/title and case/category clocks,
 including while its prerequisites run. These display counts never grant a pass;

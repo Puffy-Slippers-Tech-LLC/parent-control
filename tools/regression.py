@@ -1,6 +1,6 @@
 """Run established suites, with a quiet dashboard and durable streaming report."""
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 import codecs
 from datetime import datetime, timezone
 import html
@@ -137,23 +137,26 @@ class Dashboard:
             counts += f'\033[31m{failures}\033[0m/'
         return counts + f'{total})'
 
-    def category(self, item, now):
+    def category(self, item, now, *, show_counts=True):
         total = '?' if item.progress_total is None else str(item.progress_total)
         routine = (f'{HOST_WORKERS} host categories already running', 'waiting for required host jobs')
         reason = '' if item.wait_reason in routine else item.wait_reason
         if item.state == 'Pending':
             if item.wait_reason:
                 suffix = ': ' + reason if reason else ''
-                return f'\033[33m[Waiting] {item.name}{suffix} ({total})\033[0m'
-            return f'\033[90m[Pending] {item.name} ({total})\033[0m'
+                counts = f' ({total})' if show_counts else ''
+                return f'\033[33m[Waiting] {item.name}{suffix}{counts}\033[0m'
+            counts = f' ({total})' if show_counts else ''
+            return f'\033[90m[Pending] {item.name}{counts}\033[0m'
         percent = ('?' if item.progress_total is None else
                    str(int(100 * item.progress_done / max(item.progress_total, 1))))
         label = {'Passed': '✓', 'Failed': '✗', 'Interrupted': '✗',
                  'Blocked': '✗'}.get(item.state, item.state)
         color = {'Passed': '0', 'Failed': '31', 'Interrupted': '31',
                  'Blocked': '31', 'Running': '97;1', 'Pending': '90'}[item.state]
-        return (f'\033[{color}m[{label}] {item.name} - {percent}% '
-                + self.counts(item.progress_done, item.failures, total)
+        counts = (f' - {percent}% ' + self.counts(item.progress_done, item.failures, total)
+                  if show_counts else '')
+        return (f'\033[{color}m[{label}] {item.name}' + counts
                 + f' - {item.duration(now)}'
                 + (f' ({reason})' if reason else '') + '\033[0m')
 
@@ -250,8 +253,6 @@ class Dashboard:
 
     def integration(self, checks, now):
         """Summarize the selected checks without flooding each VM's dashboard."""
-        if len(checks) == 1:
-            return [self.category(checks[0], now)]
         state = next((state for state in ('Failed', 'Interrupted', 'Blocked', 'Running')
                       if any(item.state == state for item in checks)),
                      'Passed' if all(item.state == 'Passed' for item in checks) else 'Pending')
@@ -265,7 +266,9 @@ class Dashboard:
         lines = [self.category(summary, now)]
         # Keep the active check, admission reasons and failures actionable. Full
         # per-check results remain in the report and progress inventory.
-        lines.extend('  ' + self.category(item, now) for item in checks
+        lines.extend('  ' + self.category(replace(item, name='Check: ' + item.name.removeprefix(
+                         CATEGORY_NAMES['integration'] + ' — ')), now, show_counts=False)
+                     for item in checks
                      if item.state in ('Running', 'Failed', 'Interrupted', 'Blocked') or item.wait_reason)
         return lines
 

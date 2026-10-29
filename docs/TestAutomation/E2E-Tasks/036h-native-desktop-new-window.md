@@ -19,10 +19,11 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 Extend the qualified desktop adapter with the supported normal new-window gesture for an existing S activity. Keep old and new public window identities distinct.
 
 Bind the fixture's declared `--instance secondary` route and extend the shared
-APP02/04 reader for that public endpoint. `gui_application.py::main` accepts the
-instance, while the installed native launch/projection currently accepts only
-primary. A supported DING new-window activation remains unqualified; record
-that route before use, without recreating a native double-click task. Reuse
+APP02/04 reader for that public endpoint. Reuse the existing finite
+A-primary/S-secondary command/projection and owner checks; that support does
+not yet bind two distinguishable instances of the same S executable or its
+desktop activation. A supported DING new-window activation remains unqualified;
+record that route before use, without recreating a native double-click task. Reuse
 036g's unchanged placement/first-launch evidence.
 
 ## Live VM acceptance

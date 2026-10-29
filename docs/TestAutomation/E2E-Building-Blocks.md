@@ -2567,6 +2567,13 @@ each selected interruption. Lock/switch reuse successful retained-child entry;
 sign-out uses fresh entry; app-close uses its own normal modal/busy-gated route,
 not Parent LIFE01. A cancelled/denied request consumes no successful-request
 cooldown, so interruption qualification needs no artificial TIME03 delay.
+Qualify only the missing pending-prompt interruption, cancellation and safe
+request-surface return. Compare balances with ordinary elapsed usage allowed;
+cancellation must add neither time nor relaxed app access. Cases 171–175 keep
+the subsequent fresh authenticated approval, independent balances/access and
+usable destination; the qualifier
+does not repeat that complete recovery history. System 255's disconnect checks
+do not supply these graphical customer results.
 
 FLOW19's AppSet preparation uses `policy_edits.policy_edit(..., setup=True)`
 and one independent complete saved-set comparison after the last save. This

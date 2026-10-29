@@ -22,10 +22,12 @@ Reuse the qualified installed Snap profile and guarded SSH command binding. Bind
 Reuse `FixtureUI(kind='snap')` and `gui_application.main` public draft/move
 controls with explicit role/window identity. The existing
 `AccessibleUI.native_launch_command/native_app_snapshot` and
-`journey_blocks.native_usable_app` accept native-primary only; add this finite
-Snap command/result/activity binding instead of treating their names as format
-support. Bind the supported second S instance required by case 242 without
-repeating 109p's package preparation or baseline retry history.
+`journey_blocks.native_usable_app` already supply finite native A-primary/S-secondary
+bindings. Reuse their common guarded launch/result/activity mechanics and add
+only the missing Snap identity, confinement/scope and instance bindings; native
+role support does not qualify Snap. Bind the supported second S instance
+required by case 242 without repeating 109p's package preparation or baseline
+retry history.
 
 ## Live VM acceptance
 

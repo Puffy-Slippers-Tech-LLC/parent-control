@@ -132,6 +132,27 @@ Product-behavior mismatches follow the
 failure, report expected versus actual and obtain any missing behavior decision.
 Fix proven mechanical test defects without weakening checks.
 
+## Resume after a reviewed queue revision
+
+Ordinary restarts retain strict interruption and close-out guards. If an inactive
+`write-e2e` checkpoint still selects an older task after an explicitly reviewed
+queue revision, use its administrative reconciliation route before restarting:
+
+```sh
+tools/write-e2e --reconcile RUN --check
+tools/write-e2e --reconcile RUN
+```
+
+`RUN` is the exact current retained run ID. Review the dry-run result first.
+Reconciliation preserves the original checkpoint, unfinished-task history,
+staging ownership and optimization ledger, then adopts the current queue and
+its first unchecked task. It refuses active owners and unresolved result,
+completion or optimization transactions. It starts no agent, VM or Git action
+and grants no acceptance. Current briefs and prerequisites govern resumed work;
+superseded handoffs cannot select another task or require replaying completed
+checks. Normal implementation still owns any required cleanup and acceptance.
+Do not delete checkpoints or use ordinary-plan reconciliation for this E2E store.
+
 ## Load only the selected context
 
 The working set is this entry plan, one brief, and applicable contract sections,

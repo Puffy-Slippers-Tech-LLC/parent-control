@@ -41,7 +41,13 @@ remain in the shared operation; unchanged draft/chooser qualifications are reuse
 
 ## Live VM acceptance
 
-With authorized service configuration, submit once on the VM, observe the actual app response, dismiss confirmation and reopen feedback to observe clearing. No provider receipt probe or automatic repeat send. Planning is not sending authorization.
+With authorized service configuration, submit once on the VM, observe the actual
+app response and owned confirmation, then dismiss it normally. Qualify the shared
+authorization, single-input and success-result binding; case 156 owns reopening
+and the complete cleared-draft result. Reuse existing draft/chooser checks and
+cover changed authorization/uncertain-input refusals in their focused harness
+owner, without another draft lifecycle. No provider receipt probe or automatic
+repeat send. Planning is not sending authorization.
 
 Planned qualification selector (not registered; implement before use):
 

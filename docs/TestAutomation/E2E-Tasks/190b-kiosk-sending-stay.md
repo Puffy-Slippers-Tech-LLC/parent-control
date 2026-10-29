@@ -20,7 +20,8 @@ stop cannot substitute for staying open.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **150k** — FEED11, FEED09 success and FEED14 kiosk; gate in brief.
+- **150** — Shared authorized submission and success/confirmation operations; gate in brief.
+- **187k** — Qualified public kiosk cooldown-error/report entry; gate in brief.
 - **193a** — Owned VM Internet isolation/recovery; no Parent retry or toggle history.
 
 ## Implementation
@@ -32,6 +33,11 @@ shared feedback API facade for sending/retry and FEED17/18. Reuse LIFE06's
 `InternetIsolation` directly; Parent's toggle/retry journey is not part of
 this surface's qualification. Keep one guarded Send and an independent
 stay-open result.
+
+Reuse the shared kiosk result/exit projections delivered for case 221 when
+available, without depending on that scenario's execution or repeating its
+complete history. Qualify only the new retry/warning/stay boundary and any
+changed safety binding; missing projections remain implementation work.
 
 ## Live VM acceptance
 

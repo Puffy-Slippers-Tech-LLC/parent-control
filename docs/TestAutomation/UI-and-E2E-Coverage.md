@@ -90,6 +90,16 @@ attempt is redundant; retain the failed result, usable controls, draft,
 restoration and successful Retry together. No public failure/recovery trigger
 is established, so the combined capability and complete case 208 remain pending.
 
+Tasks 150o/150k's duplicate Send/dismiss/exit qualifiers are absorbed into
+cases 220/221. Task 150 owns the shared authorization and real service response;
+187o/187k own error-report entry and Privacy. The cases add only missing public
+success/exit projections and keep their complete independent submission,
+confirmation, dismissal and usable destination. Pending-prompt transition
+qualifiers 183a–e retain cancellation and safe return; cases 171–175 own the
+fresh successful approval, balance and access recovery. No lower-layer pass
+supplies those journeys, and changed provider/safety boundaries retain scoped
+qualification.
+
 Task 102's duplicate expiry/replacement qualifier is absorbed into cases
 23/24/126/127. Their existing natural-lock, time-denial, retained-entry and
 parameterized FLOW20 operations supply the composition; 197k and the game

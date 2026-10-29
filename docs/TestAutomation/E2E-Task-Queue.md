@@ -80,6 +80,16 @@ and later app/game journeys remain pending.
 
 ## Reallocated system coverage
 
+Tasks **150o/150k** are absorbed into **262/263** (cases **220/221**).
+Task **150** retains the shared authorized submission and service-success
+boundary; **187o/187k** retain each error-report entry and Privacy binding.
+The complete cases implement only the missing surface success/exit projections,
+then independently observe service acceptance, confirmation, dismissal and the
+usable child-desktop or GDM destination. No precursor repeats that history.
+Later sending/Close consumers reuse those shared operations without depending
+on another scenario's execution. All submission gates and uncovered journeys
+remain pending.
+
 Task **102** is absorbed into cases **23/24/126/127** (tasks
 **103/104/127/130**). They compose natural lock, time denial, parameterized kiosk
 approval and retained activity comparisons through their existing capability
@@ -693,22 +703,20 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 187a | [Observe and decline a overlay cooldown error](E2E-Tasks/187a-overlay-cooldown-error.md) | 048d | REQUEST09 overlay cooldown and FEED15 decline branch; gate in brief | 20–30 |
 | [ ] | 187o | [Review an overlay cooldown report](E2E-Tasks/187o-read-overlay-cooldown-errors-and-report-choices.md) | 187a, 030 | REQUEST09 cooldown and FEED15 overlay; gate in brief | 20–30 |
 | [ ] | 218 | [E2E-039: overlay-cooldown](E2E-Tasks/218-case-176.md) | 187o, 180, 079b, 079d, 052c | Cases 176; includes report review/decline (former 206); gate in brief | 20–30 |
-| [ ] | 150o | [Send an authorized overlay error report](E2E-Tasks/150o-send-an-authorized-overlay-error-report.md) | 150, 187o | FEED11, FEED09 success and FEED14 overlay; gate in brief | 20–30 |
-| [ ] | 262 | [E2E-047: overlay-success](E2E-Tasks/262-case-220.md) | 150o | Cases 220; gate in brief | 20–30 |
+| [ ] | 262 | [E2E-047: overlay-success](E2E-Tasks/262-case-220.md) | 150, 187o | Cases 220; missing shared overlay success/exit projections and complete authorized Send/dismiss/child-desktop history; gate in brief | 20–30 |
 | [ ] | 187b | [Observe and decline a kiosk cooldown error](E2E-Tasks/187b-kiosk-cooldown-error.md) | 021a | REQUEST09 kiosk cooldown and FEED15 decline branch; gate in brief | 20–30 |
 | [ ] | 187k | [Review a kiosk cooldown report](E2E-Tasks/187k-read-station-cooldown-errors-and-report-choices.md) | 187b, 030 | REQUEST09 cooldown and FEED15 kiosk; gate in brief | 20–30 |
 | [ ] | 220 | [E2E-039: kiosk-cooldown-other](E2E-Tasks/220-case-178.md) | 187k, 180, 079b, 079d, 052c | Cases 178; includes report review/decline (former 207); same-child 177 removed; gate in brief | 20–30 |
-| [ ] | 150k | [Send an authorized kiosk error report](E2E-Tasks/150k-send-an-authorized-kiosk-error-report.md) | 150, 187k | FEED11, FEED09 success and FEED14 kiosk; gate in brief | 20–30 |
-| [ ] | 263 | [E2E-047: kiosk-success](E2E-Tasks/263-case-221.md) | 150k | Cases 221; gate in brief | 20–30 |
+| [ ] | 263 | [E2E-047: kiosk-success](E2E-Tasks/263-case-221.md) | 150, 187k | Cases 221; missing shared kiosk success/exit projections and complete authorized Send/dismiss/GDM history; gate in brief | 20–30 |
 | [ ] | 188r | [Observe and retry failed Parent diagnostic collection](E2E-Tasks/188r-parent-collection-retry.md) | 009, 031a | FEED09 Parent collection failure and usable controls; FEED16 Parent collection recovery; gate in brief | 30–45 (exception) |
 | [ ] | 250 | [E2E-046: parent-retry](E2E-Tasks/250-case-208.md) | 188r | Cases 208; gate in brief | 20–30 |
 | [ ] | 188k | [Observe failed kiosk diagnostic collection](E2E-Tasks/188k-retry-failed-kiosk-diagnostic-collection.md) | 187k | FEED09 kiosk collection failure and usable controls; gate in brief | 20–30 |
 | [ ] | 189k | [Send a kiosk report without unavailable logs](E2E-Tasks/189k-send-a-kiosk-report-without-unavailable-logs.md) | 188k, 150 | FEED11 without-logs and FEED09/14 kiosk result; gate in brief | 20–30 |
 | [ ] | 255 | [E2E-046: kiosk-without-logs](E2E-Tasks/255-case-213.md) | 189k | Cases 213; gate in brief | 20–30 |
-| [ ] | 190a | [Keep a sending overlay report open after Close](E2E-Tasks/190a-overlay-sending-stay.md) | 150o, 193a | FEED09 retry and FEED17/18 overlay stay-open branch; gate in brief | 20–30 |
+| [ ] | 190a | [Keep a sending overlay report open after Close](E2E-Tasks/190a-overlay-sending-stay.md) | 150, 187o, 193a | FEED09 retry and FEED17/18 overlay stay-open branch; gate in brief | 20–30 |
 | [ ] | 190o | [Stop a sending overlay report](E2E-Tasks/190o-confirm-stopping-a-sending-overlay-report.md) | 190a | FEED09 retry and FEED17/18 overlay; gate in brief | 20–30 |
 | [ ] | 260 | [E2E-047: overlay-stop](E2E-Tasks/260-case-218.md) | 190o | Cases 218; gate in brief | 20–30 |
-| [ ] | 190b | [Keep a sending kiosk report open after Close](E2E-Tasks/190b-kiosk-sending-stay.md) | 150k, 193a | FEED09 retry and FEED17/18 kiosk stay-open branch; gate in brief | 20–30 |
+| [ ] | 190b | [Keep a sending kiosk report open after Close](E2E-Tasks/190b-kiosk-sending-stay.md) | 150, 187k, 193a | FEED09 retry and FEED17/18 kiosk stay-open branch; gate in brief | 20–30 |
 | [ ] | 190k | [Stop a sending kiosk report](E2E-Tasks/190k-confirm-stopping-a-sending-kiosk-report.md) | 190b | FEED09 retry and FEED17/18 kiosk; gate in brief | 20–30 |
 | [ ] | 261 | [E2E-047: kiosk-stop](E2E-Tasks/261-case-219.md) | 190k | Cases 219; gate in brief | 20–30 |
 | [ ] | 143 | [Qualify distinct retained desktops for one child](E2E-Tasks/143-multi-desktop.md) | 047a | FLOW14 same-child multi-desktop scope; gate in brief | 20–30 |

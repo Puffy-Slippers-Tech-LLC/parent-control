@@ -24,7 +24,7 @@ API surface `close` operation on the owned `kiosk-request-window`, preserving
 its normal busy/modal refusal, then reopen through REQUEST02's direct child
 command. Cancel on the agent is not this route. Read REQUEST03 through the same
 API facade and require the old external prompt absent; a later request must
-authenticate afresh.
+authenticate afresh in case 174.
 
 Extend `request_flow.overlay_authentication`, `onpc_request_flow::overlay_entry`
 and the shared API surface-close operation; FLOW17 has no callable yet. Parent
@@ -34,7 +34,13 @@ safety coverage instead of repeating unchanged authentication histories.
 
 ## Live VM acceptance
 
-On the VM, publicly prepare usable time, capture choices/balances, start approval and close the overlay through the declared public route while authentication is pending. Observe disappearance and normal reopening, inspect cancellation and original balances before another request, then require fresh authentication and its successful time result. Cancellation consumes no cooldown; add no fixed wait.
+On the VM, supply usable time and a real pending approval, close the overlay
+through the declared public route and reopen normally. Qualify this new
+busy/modal close binding, old-prompt absence, cancellation and usable request
+return with unchanged choices/balances. Preserve its reachability gate and
+focused ownership/refusal qualification. Case 174 owns fresh authentication and
+the successful time/access result; do not repeat that complete recovery here.
+Cancellation consumes no cooldown; add no fixed wait.
 
 Planned qualification selector (not registered; implement before use):
 

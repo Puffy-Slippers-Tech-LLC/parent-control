@@ -26,9 +26,12 @@ owned app observations and one normal usability input.
 FILE04/FILE07's Files activation adapter is pending, not supplied by 047.
 Add that bounded exact-directory/file adapter and its supported second-instance
 entry in this slice. `FixtureUI(kind='native', instance='secondary')` can name
-the fixture, but `AccessibleUI.native_launch_command/native_app_snapshot` and
-`journey_blocks.native_usable_app` currently bind primary only. Extend the shared
-result/activity operation rather than copying it into this provider adapter.
+the fixture. Reuse `AccessibleUI.native_app_snapshot` and
+`journey_blocks.native_usable_app`'s existing A-primary/S-secondary command
+bindings and owner checks; they do not qualify Files activation or two instances
+of the same S executable. Extend only that missing shared result/activity binding
+and its Files entry, rather than rebuilding existing instance support in the
+provider adapter.
 The second window proves a new launch while preserving work for case 236;
 ordinary case 74 consumes only the first-launch/use branch.
 

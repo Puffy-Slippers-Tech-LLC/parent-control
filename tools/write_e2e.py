@@ -2,6 +2,7 @@
 
 import argparse
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -1357,6 +1358,111 @@ def initial_state(root, directory, *, destination=None, defer_closeout=False):
     return fresh_state(queue_state(root)[0])
 
 
+def reconcile_queue(root, identity, *, check=False):
+    """Adopt an explicitly reviewed queue without executing or completing tasks."""
+    from execution_plan import Plan
+    from test_storage import directory as storage_directory
+
+    if not isinstance(identity, str) or re.fullmatch(r'[0-9a-f]{32}', identity) is None:
+        raise ValueError('reconciliation needs the exact retained run ID')
+    directory = storage_directory('write-e2e', root=root, create=False)
+    # An administrative check must not create locks or allocate a new run.
+    for name in ('gate', 'owner'):
+        if not (directory / name).is_file():
+            raise ValueError('reconciliation requires an existing launcher checkpoint')
+    with launcher.lock(directory / 'gate') as gate, launcher.lock(directory / 'owner') as owner:
+        try:
+            fcntl.flock(gate, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError('queue reconciliation requires an inactive launcher') from None
+        if os.path.lexists(directory / 'pending-start.json'):
+            raise ValueError('finish the pending launcher start before reconciliation')
+        run = launcher.current_run(directory)
+        if run is None or run.name != identity:
+            raise ValueError('retained run changed; inspect the current checkpoint')
+        if not (run / 'nested-gate').is_file():
+            raise ValueError('retained launcher has no nested-operation guard')
+        with launcher.lock(run / 'nested-gate') as nested:
+            try:
+                fcntl.flock(nested, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise ValueError('finish nested operations before reconciliation') from None
+            if (not (run / 'nested-closed').is_file()
+                    or json.loads((run / 'nested.json').read_text()) != []):
+                raise ValueError('finish owned cleanup before queue reconciliation')
+            checkpoint = run / 'checkpoint.json'
+            if checkpoint.is_symlink() or not checkpoint.is_file():
+                raise ValueError('retained checkpoint must be a regular file')
+            raw = checkpoint.read_bytes()
+            state = json.loads(raw)
+            saved = dict(state.get('suspended_tasks', {}))
+            saved[state['task_id']] = state
+            transactions = ('pending_completion', 'commit_intent', 'worktree_propagation',
+                            'result_recovery', 'source_changed_result', 'optimization_session',
+                            'completion_recovery', 'closeout_recovery_run')
+            if any(value.get(key) is not None and value.get(key) is not False
+                   for value in saved.values() for key in transactions):
+                raise ValueError('finish retained acceptance, Git or result recovery before reconciliation')
+            if any(value.get('phase') == 'blocked' for value in saved.values()):
+                raise ValueError('resolve the retained developer question before reconciliation')
+            if optimization_due(state):
+                raise ValueError('finish the due optimization batch before reconciliation')
+            tasks = Plan(root, PLAN, QUEUE).tasks()
+            current, after = queue_state(root)
+            before = state.get('queue_before')
+            if not isinstance(before, dict) or not before:
+                raise ValueError('retained checkpoint has no queue baseline')
+            if any(done and after.get(task) is not True for task, done in before.items()):
+                raise ValueError('reconciliation cannot remove or reopen a completed task')
+            pending = {}
+            for task, value in saved.items():
+                if task not in after or after[task]:
+                    continue
+                pending[task] = {key: item for key, item in value.items()
+                                 if key not in ('suspended_tasks', 'queue_before', 'progress_keys')}
+                pending[task].update(phase='recover', in_flight=False, recovery_run=str(run),
+                                     task_session_limit=value.get('task_sessions', 0) + MAX_TASK_SESSIONS)
+                pending[task]['handoff'] = (
+                    f'Resume unfinished task {task} using its current brief and scope. '
+                    'The reviewed queue supersedes the old task order and next-task instructions. '
+                    'Preserve the retained implementation, session/model history and owned paths. '
+                    'Verify prior owned cleanup before new live work; reuse completed checks '
+                    'without recovering expired reports or repeating unchanged completed tasks. '
+                    'No acceptance is supplied by queue reconciliation.\n\n'
+                    + value.get('handoff', ''))
+            updated = select_task_state(current, dict(state, suspended_tasks=pending))
+            updated.update(queue_before=after, in_flight=False,
+                           summary=f'Reviewed queue adopted; next task is {current or "none"}.',
+                           reconciliation={'source_run': identity,
+                                           'checkpoint_sha256': hashlib.sha256(raw).hexdigest(),
+                                           'queue': after})
+            if current is None:
+                updated.update(phase='complete', handoff='No active E2E task remains.')
+            elif current not in pending:
+                updated['handoff'] = (
+                    f'Implement task {current} from the current plan and brief. '
+                    'The reviewed queue supersedes historical next-task instructions. '
+                    'Suspended tasks retain their implementation and recovery history. '
+                    'Verify prior owned cleanup before new live work. Trust checked tasks; '
+                    'do not rerun them or recover expired reports. Queue reconciliation '
+                    'grants no task completion or acceptance.')
+            backup = run / ('checkpoint-before-reconcile-'
+                            + updated['reconciliation']['checkpoint_sha256'] + '.json')
+            result = dict(run=identity, next_task=current, backup=str(backup),
+                          suspended_tasks=list(updated.get('suspended_tasks', {})),
+                          checked=check, reconciled=not check, task_count=len(tasks))
+            if not check:
+                original = {'checkpoint_utf8': raw.decode('utf-8')}
+                if os.path.lexists(backup):
+                    if backup.is_symlink() or json.loads(backup.read_text()) != original:
+                        raise ValueError('reconciliation checkpoint backup changed')
+                else:
+                    launcher.atomic(backup, original)
+                launcher.atomic(checkpoint, updated)
+            return result
+
+
 def select(root, argv):
     from vm_selection import extract, check_binding, save_binding, execution_selection, execution_binding, BATCH, VARIABLE
     argv, configured = extract(argv, required=False)
@@ -1371,7 +1477,9 @@ def select(root, argv):
     initial_info = {}
 
     def parse(attaching=False):
-        parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+        parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False,
+            epilog='Reviewed queue revisions: --reconcile RUN [--check] validates/adopts the '
+                   'exact inactive checkpoint without executing tasks, models or VMs.')
         parser.add_argument('--vm', help='registered VM name or ID; omitted: configured enabled queue and concurrency')
         add_options(parser, stop_help='finish the current session and stop before the next')
         return parser.parse_args(argv)
@@ -1432,6 +1540,20 @@ def select(root, argv):
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     root = Path(__file__).resolve().parents[1]
+    if any(option in ('--reconcile', '--check') or option.startswith('--reconcile=')
+           for option in argv):
+        parser = argparse.ArgumentParser(description='Adopt a reviewed E2E queue without task execution.',
+                                         allow_abbrev=False)
+        parser.add_argument('--reconcile', required=True, metavar='RUN',
+                            help='exact inactive retained write-e2e run ID')
+        parser.add_argument('--check', action='store_true', help='validate without changing the checkpoint')
+        args = parser.parse_args(argv)
+        try:
+            print(json.dumps(reconcile_queue(root, args.reconcile, check=args.check)))
+            return 0
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            print(f'write-e2e: {error}', file=sys.stderr)
+            return 2
     run, interrupted = None, False
 
     def cancel(*_):

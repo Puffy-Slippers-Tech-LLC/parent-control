@@ -29,10 +29,13 @@ Case 253 separately owns the real Lunar integration.
 Source boundary: `_build_native_layout` builds the next S version, but
 `native_assets.sources()`/baseline verification declare only the current four
 executables. Bind that existing next-version asset and the exact new nonmatch
-to a finite FILE05 profile; do not rebuild vendor assets. Extend the current
-primary-only `AccessibleUI.native_launch_command` and result projection for
-matching/nonmatching identities. Reuse the installed system native-policy
-owner's backend wildcard/future-version/UID checks rather than another matrix.
+to a finite FILE05 profile; do not rebuild vendor assets. Reuse
+`AccessibleUI.native_launch_command`'s existing finite A/H/S command bindings
+and A-primary/S-secondary public result/owner projections; add only the missing
+copied matching/nonmatching executable identities and their exact owner checks.
+That existing role/instance support is not arbitrary-path support. Reuse the
+installed system native-policy owner's backend wildcard/future-version/UID
+checks rather than another matrix.
 
 Reuse `native_assets.py`'s existing `Applications/Versioned` directory and
 `version_pattern`, with the GUI runtime already supplied by `baseline_assets.py`.

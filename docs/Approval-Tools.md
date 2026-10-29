@@ -433,6 +433,14 @@ supported recovery actions.
 
 ## Category coverage and future additions
 
+After an explicitly reviewed E2E queue revision,
+`tools/write-e2e --reconcile RUN --check` previews adoption of that queue by the
+exact inactive current run; omit `--check` only after reviewing the result.
+This scoped administrative operation preserves the original checkpoint and
+unfinished-task ownership/history, refuses active or unresolved transactions,
+and starts no tests, agents, Git writes or VM operations. It supplies no task
+acceptance. See [E2E resumption](TestAutomation/E2E-Execution-Plan.md#resume-after-a-reviewed-queue-revision).
+
 Setup authorization is separate from runtime test authorization. The installed
 `/usr/local/libexec/onpc-setup` accepts exactly one of `dependencies`,
 `codex-rules`, `test-tools`, `graphical-policy`, `ppa-build-tools`, `rpm-build-tools`, `vm-host`,

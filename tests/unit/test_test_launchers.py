@@ -241,7 +241,8 @@ def test_product_free_fixture_target_refuses_before_package_or_fixture_input(mon
 def test_product_free_runner_freezes_exact_input_before_dispatch(
         monkeypatch, category, arguments, frozen_fixture_selection, vm, target):
     import vm_selection
-    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name=vm))
+    monkeypatch.setenv('ONPC_TEST_VM', vm)
+    fixture_path = vm_selection.selected().fixture_path
     frozen_fixture_selection = replace(frozen_fixture_selection, target=target,
         allocation=frozen_fixture_selection.allocation.replace('ubuntu', target))
     record = frozen_fixture_selection.record()
@@ -249,6 +250,7 @@ def test_product_free_runner_freezes_exact_input_before_dispatch(
     source = source_proof_selection(frozen_fixture_selection)
     def execute(command, **options):
         assert command == commands.python_file(ROOT, 'tools/fixture_execution.py', '--target', target,
+                                               '--fixture-path', fixture_path,
                                                *(['--qualify-source-edit'] if source_edit else []))
         options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n').encode())
         if source_edit:

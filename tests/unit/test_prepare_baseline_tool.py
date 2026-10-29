@@ -103,9 +103,22 @@ def test_declined_preparation_does_not_refresh_helpers(authorized, monkeypatch, 
 
 @pytest.mark.parametrize('exception', [EOFError, KeyboardInterrupt])
 def test_cancelled_queue_confirmation_never_dispatches(authorized, monkeypatch, capsys, exception):
-    monkeypatch.setattr(vm_selection, 'input', Mock(side_effect=exception), raising=False)
+    import vm_pool
+
+    # Reach queue confirmation independently of the host registry and branch.
+    # The subprocess trap below must guard dispatch, not intercept Git discovery.
+    monkeypatch.setattr(authorized['vm_config'], 'execution',
+                        lambda selector: (2, (SimpleNamespace(name='fixture-a'),
+                                              SimpleNamespace(name='fixture-b'))))
+    monkeypatch.setattr(vm_pool, 'check_queue', lambda vms: None)
+    prompt = Mock(side_effect=exception)
+    monkeypatch.setattr(vm_selection, 'input', prompt, raising=False)
+    preparation = Mock(side_effect=AssertionError('preparation attempted'))
+    monkeypatch.setitem(authorized, 'preparation', preparation)
     run = Mock()
     monkeypatch.setattr(authorized['subprocess'], 'run', run)
     assert authorized['main'](['--mode', 'auto', '--vm', 'all']) == 0
     assert 'cancelled' in capsys.readouterr().out
+    prompt.assert_called_once()
+    preparation.assert_not_called()
     run.assert_not_called()

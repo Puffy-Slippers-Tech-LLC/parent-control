@@ -24,10 +24,19 @@ def machine(tmp_path, monkeypatch):
     # Simulate chown only for the private inode: no privileged host operations.
     owners = {}
     real_metadata = ownership.metadata
+    # Ancestors above this case's private directory belong to the shared test
+    # runner and host. Other cases can create directories there during cleanup.
+    # Double only their link counts; keep private directory/file metadata live.
+    shared_links = {}
+    for parent in tmp_path.parents:
+        info = parent.lstat()
+        shared_links[info.st_dev, info.st_ino] = info.st_nlink
 
     def metadata(info):
         value = list(real_metadata(info))
         value[2:4] = owners.get((info.st_dev, info.st_ino), value[2:4])
+        if stat.S_ISDIR(info.st_mode):
+            value[5] = shared_links.get((info.st_dev, info.st_ino), value[5])
         return tuple(value)
 
     def chown(fd, uid, gid):

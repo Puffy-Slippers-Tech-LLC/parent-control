@@ -280,8 +280,11 @@ def main(*, conversation_prompt=None):
                 return 0
             target = dict(category=category, case=case, vm='') if isinstance(case, str) else case
             handoff = root / 'failure.json'
-            handoff.write_text(json.dumps({'prompt': 'LATEST FAILURE ONLY',
-                'categories': [target['category']], 'failures': [target]}))
+            failure = {'prompt': 'LATEST FAILURE ONLY',
+                       'categories': [target['category']], 'failures': [target]}
+            if script.get('attempted_case'):
+                failure['attempted_case'] = dict(target, case=script['attempted_case'])
+            handoff.write_text(json.dumps(failure))
             print(f'Failure handoff: {handoff}', flush=True)
             return 1
         if mode in ('retention-once', 'recovery-wait'):

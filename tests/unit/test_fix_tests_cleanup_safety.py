@@ -1614,7 +1614,9 @@ def test_category_diagnostics_and_repairs_use_one_bounded_case(checkout, resumin
     (root / '.venv/onpc-ui-tests/bin/python').symlink_to(sys.executable)
     (root / 'mode').write_text('agent-script')
     (root / 'script.json').write_text(json.dumps({
-        'agents': ['diagnostic_ready', 'fixed'], 'tests': ['', None, None]}))
+        'agents': ['diagnostic_ready', 'fixed'], 'tests': ['', None, None],
+        # A removed preparation target must not pin selection or gain a verdict.
+        'attempted_case': None if resuming else 'removed::case'}))
     if resuming:
         from test_checkpoint import Checkpoint
         checkpoint = Checkpoint(root, [('ui', ['--timeout', '1800s', '-m', 'not live_e2e'])],
@@ -1637,6 +1639,8 @@ def test_category_diagnostics_and_repairs_use_one_bounded_case(checkout, resumin
     agents = [call for call in calls if call['kind'] == 'agent']
     assert len(agents) == 2
     assert 'Launcher-owned diagnostic execution outcome:' in agents[1]['prompt']
+    usage = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
+    assert all(row.get('failure', {}).get('case') != 'removed::case' for row in usage)
 
 
 def test_sol_high_blocker_continuation_keeps_tier_and_counts_diagnostic_session(checkout, monkeypatch):

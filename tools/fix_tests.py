@@ -928,7 +928,11 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             recent = latest_attempt or {}
             attempted = repaired.get('attempted_case')
             if attempted and attempted not in cases:
-                raise ValueError('retained attempted case is outside the original verification selection')
+                # The current inventory owns selection. A removed case earns
+                # no result and must not keep an infrastructure retry pinned.
+                repaired.pop('attempted_case')
+                attempted = None
+                commits.save()
             candidates = [attempted, repaired.get('verification_case'),
                           recent.get('case') if recent.get('category') == category else None]
             position = run / 'case-progress.json'

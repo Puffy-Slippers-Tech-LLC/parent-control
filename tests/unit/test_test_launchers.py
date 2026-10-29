@@ -628,13 +628,16 @@ def test_e2e_preflight_preserves_frozen_selection_without_opening_bundle(
 @pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 def test_fixture_qualification_forwards_exact_frozen_selection(monkeypatch, suffix, vm, target, frozen_fixture_selection):
     import vm_selection
-    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name=vm))
+    fixture_path = 'selected-fixtures'
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(
+        name=vm, fixture_path=fixture_path))
     selected = replace(frozen_fixture_selection, target=target,
         allocation=frozen_fixture_selection.allocation.replace('ubuntu', target))
     encoded = b'fixture-execution: selection=' + json.dumps(selected.record()).encode() + b'\n'
 
     def execute(command, **kwargs):
-        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py', '--target', target)
+        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py',
+            '--target', target, '--fixture-path', fixture_path)
         assert kwargs['cwd'] == ROOT and kwargs['env'] == {'PRIVATE': 'environment'}
         assert kwargs['timeout'] == 600.0
         # Split both the prefix and the JSON across callback invocations.

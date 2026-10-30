@@ -32,6 +32,11 @@ For `fix-tests`, the link shows **Session 1**, **Session 2**, and so on for
 successive agent sessions repairing the same case. The number remains visible
 between sessions and during verification. Once the repair is accepted and closed,
 the link returns to struck-through **Session**; the next case starts at **Session 1**.
+While an agent repairs an integration check, its **Status** row ends with
+` | Session x: <duration>`, using that session's elapsed time and the shared
+`01:25` / `3h 45m` duration format. The suffix disappears when the session finishes.
+The preceding check duration includes the whole case, including repair sessions
+and retries; the session duration measures only the current agent session.
 For `fix-tests`, Last Error includes the failing check, the runner's error text
 (or a readable summary of a structured failure, falling back to a bounded text
 output tail), and its output-log path. Full JSON results remain in that log. Reload launcher

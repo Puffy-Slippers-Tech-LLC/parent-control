@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 import struct
 import sys
+import time
 import zlib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -197,6 +198,24 @@ class Viewer:
                         session_inactive = session_number is None
                 except (OSError, ValueError, KeyError, TypeError):
                     pass
+            if (output.repair and session.active and session.owner == output.run
+                    and session_number is not None and session.state.get('status') == 'running'
+                    and len(session.state['repair_failure']) == 3
+                    and all(isinstance(part, str) for part in session.state['repair_failure'])):
+                from regression import duration_text
+                category, case, vm = session.state['repair_failure']
+                started = session.state.get('started_at')
+                if category == 'integration' and isinstance(started, (int, float)):
+                    elapsed = duration_text(time.time() - started)
+                    current_vm = ''
+                    for index, line in enumerate(lines):
+                        plain = clean(line).strip()
+                        heading = re.fullmatch(r'VM: (.+) \([^()]*\)', plain)
+                        if heading:
+                            current_vm = heading[1]
+                        if current_vm == vm and re.match(
+                                r'^\[[^]]+\] Check: ' + re.escape(case) + r' - ', plain):
+                            lines[index] = line + f' | Session {session_number}: {elapsed}'
             question = session.panel.question.question if session.panel and session.panel.question else None
             waiting = bool(session.active and (question or session.panel.chat_state.get('status') in ('waiting', 'blocked')))
             deadline = question.get('deadline') if question else None

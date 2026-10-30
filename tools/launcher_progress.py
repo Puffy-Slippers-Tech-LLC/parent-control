@@ -265,6 +265,13 @@ def case_frame(steps, lines, current):
                 line = re.sub(r'\(\d+/\d+\)', lambda _: '(' + case_counts(done,
                     current.get('failed', 0), total, current.get('error_log')) + ')',
                     Dashboard.ANSI.sub('', line))
+            elif current['category'] == 'integration':
+                # The retained case clock includes repair sessions and retries;
+                # the runner row alone measures only test execution time.
+                pattern = (r'(Check: ' + re.escape(current['case_id'])
+                           + r' - )(?:\d{2,}:\d{2}|\d+h \d+m)')
+                line = re.sub(pattern, lambda match: match[1] + duration_text(
+                    now - current['case_started_ns'] / 1e9), line, count=1)
         result.append(line)
     return result
 

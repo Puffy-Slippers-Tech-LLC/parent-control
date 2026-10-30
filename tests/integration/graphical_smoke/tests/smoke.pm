@@ -125,6 +125,12 @@ sub capture {
 
 sub run {
     my $ready = exchange('ready', undef);
+    if ($ready->{gdm_credentials}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_gdm::credential_qualification(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{parent_presentation}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

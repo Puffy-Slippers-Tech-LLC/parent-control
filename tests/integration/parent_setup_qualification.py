@@ -1538,6 +1538,16 @@ class GdmProductFreeQualification(ParentJourneyQualification):
         return GdmProductFreeJourney(context, progress)
 
 
+class GdmCredentialQualification(GdmProductFreeQualification):
+    """Exercise real fixture login without the retired image-input route."""
+
+    @staticmethod
+    def journey(context, progress):
+        from gdm_product_free import GdmCredentialJourney
+        context.product_free = True
+        return GdmCredentialJourney(context, progress)
+
+
 class ProductFreeEntryQualification(ParentJourneyQualification):
     """FIX04 and fresh administrator entry on the accepted empty baseline."""
 

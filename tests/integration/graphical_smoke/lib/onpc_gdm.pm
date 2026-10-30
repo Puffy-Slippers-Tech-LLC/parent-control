@@ -147,6 +147,34 @@ sub product_free_qualification {
     navigation_qualification_with_prefix($exchange, 'gdm-product-free');
 }
 
+sub credential_qualification {
+    onpc_progress::operation('Checking fixture login through the intended password prompt');
+    my ($exchange, $declared, $challenges) = @_;
+    my @stages = qw(initial-list initial-focused initial-prompt initial-returned
+        login-list login-focused recipient-qualified recipient-rechecked authenticated);
+    die 'gdm:credential-plan' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && join('/', @$declared) eq join('/', @stages)
+        && ref($challenges) eq 'HASH' && keys(%$challenges) == 1
+        && ref($challenges->{'parent-login'}) eq 'ARRAY'
+        && join('/', @{$challenges->{'parent-login'}}) eq
+            'parent/recipient-qualified/recipient-rechecked';
+    my $journey = onpc_journey->new(
+        exchange => $exchange, prefix => 'gdm-credentials', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    reattach_functional();
+    my $list = $journey->invoke('initial-list');
+    my $focused = $journey->highlight_choice($list, 'initial-list', 'initial-focused');
+    $journey->consume_observation('initial-focused', $focused);
+    testapi::send_key('ret');
+    my $prompt = $journey->invoke('initial-prompt');
+    $journey->consume_observation('initial-prompt', $prompt);
+    testapi::send_key('esc');
+    $journey->invoke('initial-returned');
+    sign_in_challenge($journey, 'parent-login', 'login-list', 'login-focused', 'authenticated');
+    $journey->finish();
+}
+
 # GDM01/02/03/04/08/09 qualification. The worker never receives or submits a
 # credential. Every prompt proof is consumed before Escape, and the two empty
 # intended-recipient checks are separate controller observations of one prompt.

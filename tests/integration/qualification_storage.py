@@ -75,8 +75,11 @@ def session(*, check=None, target=None, inputs=None, lease=None, live=False, run
     if test_retention.token() is not None:
         journal, selected_run = json.loads(os.environ[test_retention.VARIABLE])
         store = test_retention.Store(journal)
-        # Named command producers and controller ownership require the live owner.
-        if ((check is not None or require_owner or run is not None)
+        # Named qualifications may run beneath the dispatcher's held owner.
+        # Only controllers requiring their own producer need an in-process session.
+        if check is not None:
+            test_retention.owner_descriptor()
+        if ((require_owner or run is not None)
                 and store.producer_binding()[3] != selected_run
                 or run is not None and run != selected_run):
             raise ValueError('retention: qualification producer run changed')

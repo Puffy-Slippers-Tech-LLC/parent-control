@@ -1997,6 +1997,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                                   if credentials is not None else []) as collector:
                 result['qualification_evidence'] = str(collector.path)
                 qualification_class = Qualification
+                if credentials is not None and assets is None and not any((serial, vt6_auth)):
+                    from parent_setup_qualification import GdmCredentialQualification
+                    qualification_class = GdmCredentialQualification
                 if parent_entry is not None:
                     from parent_setup_qualification import RetainedParentQualification, RetainedEntryQualification
                     qualification_class = (RetainedEntryQualification if parent_entry == 'retained-children'

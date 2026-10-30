@@ -1847,10 +1847,13 @@ class AccessibleUI:
         except RuntimeError as error:
             if (self.application_ui is not None
                     and type(error).__name__ == 'UIClientError'
-                    and getattr(error, 'code', None) in ('Unavailable', 'Timeout', 'OwnerChanged')
+                    and getattr(error, 'code', None) in (
+                        'Unavailable', 'Timeout', 'OwnerChanged', 'Transport')
                     and not getattr(error, 'uncertain', False)):
                 # Inventory facts defer label reads until projection. An owner
                 # can exit at either boundary; discard the entire observation.
+                # Exit between the client's owner check and its read reply can
+                # also surface as Transport. It is not a complete absence read.
                 # Keep cached owner pins so a replacement still refuses. This
                 # read-only path never retries input or changes its deadline.
                 self.invalidate_observation()

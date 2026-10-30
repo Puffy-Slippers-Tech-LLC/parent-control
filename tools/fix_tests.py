@@ -1749,6 +1749,7 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
     retained_evidence = {}
     retained_sources = {}
     retained_family_cases = {}
+    integration_inventory_resume = False
     legacy = root / 'artifacts/fix-tests'
     if (legacy / 'owner').exists():
         with lock(legacy / 'owner') as owner:
@@ -1765,6 +1766,7 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
                 return run, False
     def command(run, owner):
         nonlocal retained_git, retained_pipelines, retained_queue, retained_pending, retained_waiting, retained_evidence
+        nonlocal integration_inventory_resume
         # Only explicit resume carries workflow state into a new allocation.
         # Read before shared retention can retire the previous run allocation.
         previous = current_run(run.parent) if resume else None
@@ -1822,6 +1824,13 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
         listing = subprocess.run([str(root / 'tools/run-tests'), '--list'], cwd=root,
                                  env=environment(), capture_output=True, text=True, check=True)
         inventory = requested_inventory(root, categories, inventory=category_inventory(listing.stdout))
+        from test_checkpoint import request_record
+        prior_request = request_record(root, 'fix-tests') if resume else None
+        integration_inventory_resume = (
+            'integration' in inventory and inventory['integration']['args'] == []
+            and (not resume or (prior_request is not None
+                 and prior_request['categories'] == list(categories) and prior_request['vm'] == name
+                 and prior_request.get('integration_inventory_resume', True))))
         default_model, app_model = available_models(selected_model, effort, categories=inventory)
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                 '--worker', str(root), str(run), str(owner), default_model,
@@ -1859,7 +1868,8 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
         save_binding(run, name)
         from test_checkpoint import request_record
         request_record(root, 'fix-tests', dict(categories=list(categories), rounds=rounds,
-                                             vm=name))
+                                             vm=name,
+                                             integration_inventory_resume=integration_inventory_resume))
     def attached(run):
         check_binding(run, name, stopping=stop)
         if tasks is not None:

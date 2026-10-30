@@ -372,6 +372,11 @@ those cases to run again. A failed final controller/cleanup audit repeats a case
 so an empty selection cannot certify recovery. Changed selectors refuse resume;
 start without the option to reset. Host and individual VM checkpoints remain
 separate, and a retry can narrow an aggregate to an original category.
+Whole-integration selections accept additive check inventory growth on resume:
+existing passes remain saved and added checks run as pending work. Removed checks
+and changed explicit selectors still refuse resume. New checkpoints record whether
+the original request selected the whole inventory; older checkpoints require the
+repair launcher's matching retained whole-integration request for this recovery.
 Case IDs above the snapshot length limit are replayed rather than retained as
 passes. Resume repairs older checkpoints containing such IDs while keeping all
 other valid passes; malformed state and unsafe files still refuse execution.

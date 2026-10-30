@@ -207,6 +207,48 @@ def test_resume_refuses_changed_selectors_but_can_narrow_categories(tmp_path, mo
     assert calls == ['check_second']
     assert Checkpoint(root, integration, resume=True).complete('integration')
 
+    # Whole integration inventories grow as new checks land. Retain existing
+    # passes and repair metadata, but leave added checks pending. Exercise the
+    # runner's mixed-scope split as well as the repair launcher's checkpoint.
+    import runpy
+    with monkeypatch.context() as local:
+        names = ['check_first', 'check_second']
+        local.setattr(runpy, 'run_path', lambda _: {'runnable': lambda _: names})
+        for namespace in ('run-tests', 'fix-tests'):
+            names[:] = ['check_first', 'check_second']
+            selection = [('unit', []), ('integration', [])]
+            root = tmp_path / namespace
+            checkpoint = Checkpoint(root, selection, namespace=namespace, binding='guest')
+            checkpoint.event('integration', dict(kind='finished', nodeid='check_first'), set())
+            checkpoint.finish([SimpleNamespace(retry_category='integration',
+                                               count_overall=True, state='Passed')])
+            # Legacy progress needs the retained repair request as provenance.
+            if namespace == 'fix-tests':
+                checkpoint.entry('integration').pop('whole_inventory')
+                checkpoint.save()
+                request_record(root, 'fix-tests', dict(vm={'vms': ['guest']},
+                                                       integration_inventory_resume=True))
+            names.append('check_added')
+            resumed = Checkpoint(root, selection, namespace=namespace, binding='guest', resume=True)
+            assert resumed.passed('integration') == {'check_first'}
+            assert not resumed.complete('integration')
+            assert Checkpoint(root, selection, namespace=namespace, binding='guest', resume=True
+                              ).passed('integration') == {'check_first'}
+            with pytest.raises(ValueError, match='selection differs'):
+                Checkpoint(root, [('integration', ['check_added'])], namespace=namespace,
+                           binding='guest', resume=True)
+            names.remove('check_second')
+            with pytest.raises(ValueError, match='selection differs'):
+                Checkpoint(root, selection, namespace=namespace, binding='guest', resume=True)
+            focused_root = root / 'focused'
+            Checkpoint(focused_root, [('integration', ['check_first']),
+                                      ('integration', ['check_added'])],
+                       namespace=namespace, binding='guest')
+            names.append('check_third')
+            with pytest.raises(ValueError, match='selection differs'):
+                Checkpoint(focused_root, [('integration', [])], namespace=namespace,
+                           binding='guest', resume=True)
+
 
 def test_resume_checks_every_repeated_category_selection(tmp_path):
     selection = [('unit', ['-k', 'first']), ('unit', ['-k', 'second'])]

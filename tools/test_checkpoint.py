@@ -153,6 +153,7 @@ class Checkpoint:
         from test_commands import CATEGORIES, suite_inventory, AGGREGATES, execution_selections
         from vm_selection import VARIABLE, BATCH
         groups = {}
+        unexpanded = []
         self.retry_case = None
         self.retry_area = None
         for kind, args in selections:
@@ -160,12 +161,20 @@ class Checkpoint:
                 expanded = [(name, entry['args']) for name, entry in suite_inventory([kind]).items()]
             else:
                 expanded = [(kind, args)]
+            unexpanded.extend(expanded)
             for name, options in execution_selections(root, expanded):
                 groups.setdefault(name, []).append(list(options))
         # Repeated category groups are valid selections. Retain every group's
         # selectors instead of silently binding resume to only the last one.
         logical = {kind: options[0] if len(options) == 1 else options
                    for kind, options in groups.items()}
+        whole_integration = [(kind, args) for kind, args in unexpanded
+                             if kind == 'integration'] == [('integration', [])]
+        def new_entry(kind, args):
+            entry = dict(args=args, passed=[], complete=False)
+            if kind == 'integration':
+                entry['whole_inventory'] = whole_integration
+            return entry
         self.children = []
         self.dirty = False
         self.synced = time.monotonic()
@@ -177,8 +186,10 @@ class Checkpoint:
                                 or len(logical) != 1 or not binding):
             raise ValueError('missing-category recovery requires one bound VM category on resume')
         if namespace == 'run-tests' and host and vm:
-            self.children = [Checkpoint(root, groups, resume=resume, namespace=namespace, binding=binding)
-                             for groups in (host, vm)]
+            self.children = [Checkpoint(root, [(kind, args) for kind, args in unexpanded
+                                               if scope(kind) == target],
+                                        resume=resume, namespace=namespace, binding=binding)
+                             for target in ('host', 'vm')]
             self.state = dict(version=1, categories={kind: entry for child in self.children
                                                      for kind, entry in child.state['categories'].items()})
             self.selected = set(logical)
@@ -224,15 +235,48 @@ class Checkpoint:
                     if type(entry['complete']) is not bool:
                         raise ValueError('invalid resume category state')
                 if (type(state.get('round', 1)) is not int or state.get('round', 1) < 1
-                        or state.get('pending') not in (None, 'all', *state['categories'])):
+                        or state.get('pending') not in (None, 'all', *state['categories'])
+                        or any('whole_inventory' in entry and type(entry['whole_inventory']) is not bool
+                               for entry in state['categories'].values())):
                     raise ValueError('invalid resume repair progress')
                 # Only fully validated state can identify a different selection.
                 # Repair launchers may replay that selection from scratch, but
                 # malformed progress must retain its refusal and evidence.
+                additions = False
+                if resume and whole_integration and 'integration' in state['categories']:
+                    entry = state['categories']['integration']
+                    old = entry['args']
+                    current = groups['integration']
+                    provenance = entry.get('whole_inventory')
+                    if provenance is None:
+                        # Older checkpoints lack selector provenance. Only the
+                        # repair launcher's retained original public request can
+                        # authorize their additive migration on its bound VMs.
+                        request = request_record(root, 'fix-tests')
+                        vms = request.get('vm', {}) if request else {}
+                        vms = vms.get('vms', []) if isinstance(vms, dict) else [vms]
+                        provenance = bool(request and request.get('integration_inventory_resume') is True
+                                          and binding in vms)
+                    old_groups = [old] if len(old) == 1 and isinstance(old[0], str) else old
+                    # Legacy whole-category checkpoints stored the discovered
+                    # check list, so an added check looked like changed selectors.
+                    # Accept only additive inventory growth, never removals or
+                    # changed focused arguments; new checks gain no pass credit.
+                    additions = (provenance is True and bool(old_groups) and old != logical['integration']
+                                 and all(isinstance(item, list) and len(item) == 1
+                                         and isinstance(item[0], str)
+                                         and item in current for item in old_groups)
+                                 and [item for item in current if item in old_groups] == old_groups
+                                 and len(old_groups) < len(current))
                 if resume and any((kind not in state['categories'] and not recover_missing)
-                       or (kind in state['categories'] and state['categories'][kind]['args'] != args)
+                       or (kind in state['categories'] and state['categories'][kind]['args'] != args
+                           and not (kind == 'integration' and additions))
                        for kind, args in logical.items()):
                     raise ValueError(RESUME_SELECTION_MISMATCH)
+                if additions:
+                    state['categories']['integration'].update(args=logical['integration'], complete=False,
+                                                             whole_inventory=True)
+                    self.dirty = True
                 if namespace == 'run-tests':
                     if not resume:
                         # Attempt/round metadata belongs to the execution being
@@ -242,7 +286,7 @@ class Checkpoint:
                         if not resume or kind not in state['categories']:
                             # Reset only requested categories. A diagnostic in
                             # another suite must not erase this suite's passes.
-                            state['categories'][kind] = dict(args=args, passed=[], complete=False)
+                            state['categories'][kind] = new_entry(kind, args)
                             state.pop('queue_attempt', None)
                             self.dirty = True
                             if resume:
@@ -258,7 +302,7 @@ class Checkpoint:
                         if claims:
                             raise ValueError('family cases remain claimed; use --resume with the original '
                                              'selection to finish or recover their VM owners before a fresh run')
-                        state = dict(version=1, categories={kind: dict(args=args, passed=[], complete=False)
+                        state = dict(version=1, categories={kind: new_entry(kind, args)
                                                             for kind, args in logical.items()})
                         self.dirty = True
                 self.state = state
@@ -266,7 +310,7 @@ class Checkpoint:
                     self.store.save(fd, self.state, name=self.name)
                     self.dirty = False
             else:
-                self.state = dict(version=1, categories={kind: dict(args=args, passed=[], complete=False)
+                self.state = dict(version=1, categories={kind: new_entry(kind, args)
                                                         for kind, args in logical.items()})
                 self.store.save(fd, self.state, name=self.name)
         self.selected = set(logical)

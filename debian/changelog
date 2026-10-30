@@ -3,12 +3,14 @@ oh-no-parent-control (2.0+local1~ubuntu26.04.1) resolute; urgency=medium
   New Features
 
   Bug Fixes
+  * Kiosk: Fixed time requests failing before parent approval when system
+    language discovery is unavailable.
+  * Kiosk: Fixed sign-in being rejected when brief maintenance activity
+    temporarily delays entry.
 
   Non Product Changes
-  * Added local COPR source-recipe, clean Fedora RPM build and dependency
-    validation to the publishing checks.
 
- -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Tue, 27 Oct 2026 21:29:32 +0000
+ -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Fri, 30 Oct 2026 16:41:00 +0000
 
 oh-no-parent-control (1.4+ppa1~ubuntu26.04.1) resolute; urgency=medium
 

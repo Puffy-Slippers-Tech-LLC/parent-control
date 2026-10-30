@@ -440,11 +440,6 @@ def category_run(root, category, argv, *, pipe=True):
     with Control().installed(pipe=pipe) as control:
         if test_commands.live_refresh_selection(category, argv):
             return test_commands.run_live_refresh(root, commands[-1], control=control, environment=env)
-        preparation = test_commands.qualification_artifact_command(root, category, argv)
-        if preparation is not None:
-            status = control.run(preparation, cwd=root, env=env)
-            if status:
-                return status
         if category in ('system', 'e2e') and '--list' not in argv and not test_commands.has_artifacts(commands[0]):
             from vm_selection import arguments as vm_arguments
             directory = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-')
@@ -459,6 +454,10 @@ def category_run(root, category, argv, *, pipe=True):
                 test_commands.prepared_vm_options(category, argv, directory))
         commands[-1] += test_commands.qualification_fixture_options(
             root, category, argv, control=control, environment=env)
+        status = test_commands.prepare_qualification_artifacts(
+            root, category, argv, run=lambda command: control.run(command, cwd=root, env=env))
+        if status:
+            return status
         for command in commands:
             privileged = command[0] == '/usr/bin/pkexec'
             if privileged:

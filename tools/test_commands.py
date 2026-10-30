@@ -621,6 +621,34 @@ def qualification_artifact_command(root, category, args):
     return python_file(root, 'tools/vm_artifacts.py', *flags, '--output', directory, *arguments())
 
 
+def prepare_qualification_artifacts(root, category, args, *, run):
+    """Refresh inputs once if sources changed during a completed build.
+
+    Run after fixture preparation, immediately before dispatch. Never hand off
+    an older bundle as current or retry a failed builder. Continued source edits
+    refuse before the privileged consumer rather than selecting missing inputs.
+    """
+    for attempt in range(2):
+        command = qualification_artifact_command(root, category, args)
+        if command is None:
+            return 0
+        prepared = Path(command[command.index('--output') + 1])
+        status = run(command)
+        if status:
+            return status
+        from test_storage import named_input
+        options = qualification_input_options(root, args[0])
+        if options is None:
+            raise ValueError('qualification input declaration changed during preparation')
+        if named_input(**options) == prepared:
+            return 0
+        if attempt == 0:
+            print('qualification-input: sources changed during preparation; '
+                  'preparing current inputs once', flush=True)
+    raise ValueError('qualification sources kept changing during preparation; '
+                     'no test was dispatched')
+
+
 def fixture_execution_target(category, args):
     """Resolve only delivered fixture envelopes, without preparing any input."""
     if any(argument in INSPECTION_FLAGS for argument in args):
@@ -1166,9 +1194,6 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False):
                                 '--coverage-output=' + directory]
             print('run-tests: output=' + directory, flush=True)
         os.chdir(root)
-        preparation = qualification_artifact_command(root, category, args)
-        if preparation is not None:
-            commands.insert(0, preparation)
         from test_storage import scratch_descriptors
         for command in commands[:-1]:
             status = subprocess.run(command, env=env, pass_fds=scratch_descriptors(),
@@ -1180,6 +1205,12 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False):
             with Control().installed() as control:
                 return run_live_refresh(root, commands[-1], control=control, environment=env)
         commands[-1] += qualification_fixture_options(root, category, args)
+        status = prepare_qualification_artifacts(
+            root, category, args,
+            run=lambda command: subprocess.run(
+                command, env=env, pass_fds=scratch_descriptors(), check=False).returncode)
+        if status:
+            return status if status > 0 else 128 - status
         if commands[-1][0] == '/usr/bin/pkexec':
             from dev_privileges import check
             check(commands[-1][1])

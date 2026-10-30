@@ -16,6 +16,7 @@ import sys
 from contextlib import contextmanager, ExitStack
 import tempfile
 import re
+import hashlib
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = ROOT / 'output/test-runs'
@@ -185,7 +186,45 @@ def named_input(*, package_source=False, fixture_source=False, upgrade_source=Fa
     vm = selected(required=vm_source)
     if vm is not None:
         prefix += vm.name + '-'
-    return named_input_slot(BASE / ('host/allocations/' + prefix + identity))
+    base = BASE / ('host/allocations/' + prefix + identity)
+    result = named_input_slot(base)
+    # Diagnose producer/consumer locator differences without exposing paths or
+    # source contents. Keep selection and all input validation unchanged.
+    print('qualification-input: identity=' + json.dumps({
+        'source_sha256': identity,
+        'source_count': len(paths),
+        'selection_sha256': hashlib.sha256(
+            b'\0'.join(path.as_posix().encode() for path in paths)).hexdigest(),
+        'profile': {'package': package_source, 'fixture': fixture_source,
+                    'upgrade': upgrade_source, 'vm': vm_source},
+        'vm_sha256': hashlib.sha256(vm.name.encode()).hexdigest() if vm else None,
+        'base_locator_sha256': hashlib.sha256(str(base).encode()).hexdigest(),
+        'locator_sha256': hashlib.sha256(str(result).encode()).hexdigest(),
+        'generation': 0 if result == base else int(result.name.rsplit('-', 1)[1]),
+    }, sort_keys=True), flush=True)
+    # The aggregate comparison established source drift, but cannot distinguish
+    # changed bytes from permissions. Record bounded, path-free fingerprints in
+    # selection order. Reconstruct the digest to detect drift during sampling;
+    # these observations never select inputs or relax consumer validation.
+    if len(paths) <= 512:
+        sampled = hashlib.sha256()
+        fingerprints = []
+        for relative in paths:
+            source = ROOT / relative
+            mode = f'{source.stat().st_mode & 0o7777:o}'
+            data = source.read_bytes()
+            sampled.update(relative.as_posix().encode() + b'\0')
+            sampled.update(mode.encode() + b'\0')
+            sampled.update(data)
+            fingerprints.append([mode, hashlib.sha256(data).hexdigest()])
+        for offset in range(0, len(fingerprints), 32):
+            print('qualification-input: source-fingerprints=' + json.dumps({
+                'source_sha256': identity,
+                'sample_sha256': sampled.hexdigest(),
+                'offset': offset,
+                'files': fingerprints[offset:offset + 32],
+            }, separators=(',', ':')), flush=True)
+    return result
 
 
 def named_input_slot(path):

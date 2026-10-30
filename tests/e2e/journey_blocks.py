@@ -61,8 +61,9 @@ def revocation_entry(*, child, approver, duration_seconds, allow_soft):
 
 
 def grant_only_time_profile(*, source, entry, window, initial_enabled, revoke_first,
-                            duration_seconds, request_initial, balance_readback=True):
-    """FLOW13: explicit zero-grant/revoke gate, zero daily, real approval, GDM.
+                            duration_seconds, request_initial, balance_readback=True,
+                            daily_minutes=0):
+    """FLOW13: explicit zero-grant/revoke gate, daily allowance, approval, GDM.
 
     The caller owns balance comparisons and the retained-window identity.
     Later recipes own their duration and all post-preparation assertions. A caller
@@ -71,6 +72,7 @@ def grant_only_time_profile(*, source, entry, window, initial_enabled, revoke_fi
     from kiosk_approved_flow import obtain_time
     require(type(initial_enabled) is bool and type(revoke_first) is bool
             and type(balance_readback) is bool
+            and type(daily_minutes) is int and daily_minutes in (0, 4)
             and type(duration_seconds) is int and duration_seconds in (120, 180, 240, 600, 1200)
             and request_initial in ('default', 'selected')
             and (source, entry, window) in (('gdm', 'fresh', 'new'),
@@ -83,8 +85,10 @@ def grant_only_time_profile(*, source, entry, window, initial_enabled, revoke_fi
         **({'profile-revoke-open': 'ui:revoke-open',
             'profile-revoke-confirm': 'ui:revoke-confirm',
             'profile-cleared': 'ui:revoke-balances'} if revoke_first else {}),
-        'profile-zero': 'ui:time-explanation-zero-read' if initial_enabled else
-                        'ui:time-explanation-setup-zero-read',
+        **({'profile-daily': 'ui:time-explanation-daily-4-'
+                            + ('on' if initial_enabled else 'off') + '-read'} if daily_minutes else {
+            'profile-zero': 'ui:time-explanation-zero-read' if initial_enabled else
+                            'ui:time-explanation-setup-zero-read'}),
         'profile-window': 'ui:retained-parent-leave',
         'profile-switch': 'system:parent-switch-user', 'profile-gdm': 'ui:gdm-returned',
         **prefixed_stages('profile-request', obtain_time(initial=request_initial, child='fixture-child',

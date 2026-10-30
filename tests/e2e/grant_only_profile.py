@@ -1,4 +1,4 @@
-"""Two-minute FLOW13 and independently restored explicit revoke-first entry."""
+"""FLOW13 grant-only/combined and independently restored revoke-first entry."""
 
 from copy import deepcopy
 import time
@@ -10,40 +10,46 @@ from private_artifacts import EvidenceError, require
 from request_flow import CHOICES
 
 
-def plan(*, revoke_first):
+def plan(*, revoke_first, daily_minutes=0):
     screens = {
         **(revocation_entry(**CHOICES) if revoke_first else {}),
         **grant_only_time_profile(source='desktop' if revoke_first else 'gdm',
             entry='same-user' if revoke_first else 'fresh',
             window='retained' if revoke_first else 'new', initial_enabled=revoke_first,
             revoke_first=revoke_first, duration_seconds=120,
-            request_initial='selected' if revoke_first else 'default'),
+            request_initial='selected' if revoke_first else 'default', daily_minutes=daily_minutes),
     }
     logins = {'': 'parent-login', 'profile-return-': 'profile-return'}
     if revoke_first:
         logins['return-'] = 'return'
     login_stages = {prefix + stage for prefix in logins for stage in fresh_desktop('parent')}
     return JourneyPlan(
-        prefix='grant-only-profile',
-        worker_mode='grant_only_revoke' if revoke_first else 'grant_only_profile', screen_tags=screens,
+        prefix='time-profiles-grant' if daily_minutes else 'grant-only-profile',
+        worker_mode='time_profiles_grant' if daily_minutes else
+                    'grant_only_revoke' if revoke_first else 'grant_only_profile', screen_tags=screens,
         phases={'ready': 'setup', 'setup-detached': 'setup', 'installed-greeter': 'start',
                 **{stage: 'step-1' for stage in screens if stage != 'installed-greeter'}},
         invocations=tuple(stage for stage in screens if stage in login_stages),
         challenges={identity: ('parent', prefix + 'recipient-qualified', prefix + 'recipient-rechecked')
                     for prefix, identity in logins.items()},
-        assertions_after={'profile-balance': 'zero-daily-positive-two-minute-grant'},
+        assertions_after={'profile-balance': 'positive-daily-grant-dominant' if daily_minutes else
+                          'zero-daily-positive-two-minute-grant'},
     )
 
 
 PLAN = plan(revoke_first=False)
 REVOKE_PLAN = plan(revoke_first=True)
+COMBINED_PLAN = plan(revoke_first=False, daily_minutes=4)
 
 
 class GrantOnlyProfileJourney(InstalledJourney):
-    def __init__(self, context, progress, plan=None, *, revoke_first=False, actions=None):
+    def __init__(self, context, progress, plan=None, *, revoke_first=False, daily_minutes=0, actions=None):
         super().__init__(context, progress, plan if plan is not None else
-                         REVOKE_PLAN if revoke_first else PLAN, actions=actions)
+                         COMBINED_PLAN if daily_minutes else REVOKE_PLAN if revoke_first else PLAN,
+                         actions=actions)
         self.revoke_first = revoke_first
+        self.daily_minutes = daily_minutes
+        self.daily_before_approval = None
         self.windows = {}
         self.approval_started = None
 
@@ -62,6 +68,19 @@ class GrantOnlyProfileJourney(InstalledJourney):
             self.approval_started = time.monotonic_ns()
         if stage == 'profile-zero':
             check_balances(self, observed, 0)
+        if stage == 'profile-daily':
+            # An allowance is a daily total, not a new bank. Carry the actual
+            # displayed remainder (and its precision) into the grant comparison.
+            balances = observed['ui']['time_explanation']
+            require_zero_grant(balances)
+            daily = balances['daily']
+            require(0 < daily['seconds'] <= self.daily_minutes * 60
+                    and abs(balances['total']['seconds'] - daily['seconds'])
+                        < max(balances['total']['precision_seconds'], daily['precision_seconds']),
+                    'time-profile:positive-daily-before-approval')
+            self.daily_before_approval = deepcopy(daily)
+            observed['comparison'] = {'positive_daily_zero_grant': True,
+                                      'daily_seconds': daily['seconds']}
         if stage not in ('profile-before', 'profile-cleared', 'profile-balance'):
             return
         value = observed['ui']['revoke_cancel']
@@ -83,11 +102,28 @@ class GrantOnlyProfileJourney(InstalledJourney):
                                       'explicit_revoke': self.revoke_first}
         else:
             require(value['settings'] == {'child': 'fixture-child', 'limit_enabled': True,
-                                         'allowance': ['0 minutes']}, 'time-profile:saved-zero-daily')
+                                         'allowance': [f'{self.daily_minutes} minutes']},
+                    'time-profile:saved-daily-allowance')
             require(self.approval_started is not None, 'time-profile:missing-approval')
             elapsed = (time.monotonic_ns() - self.approval_started) / 1_000_000_000
             daily, grant, total = (balances[key]['seconds'] for key in ('daily', 'one_time', 'total'))
             precision = max(balances[key]['precision_seconds'] for key in ('daily', 'one_time', 'total'))
-            require(daily == 0 and 0 < grant <= 120 and grant > 120 - elapsed - precision - 2
-                    and abs(total - grant) < precision, 'time-profile:grant-only-balances')
-            observed['comparison'] = {'zero_daily_positive_grant': True, 'duration_seconds': 120}
+            if self.daily_minutes:
+                require(self.daily_before_approval is not None, 'time-profile:missing-daily-baseline')
+                baseline = self.daily_before_approval
+                margin = precision + baseline['precision_seconds'] + 2
+                # G replaces max(D,G) plus the addition and keeps elapsing while
+                # the parent returns. Total is max(D,G), never their sum.
+                expected = baseline['seconds'] + 120
+                require(grant > daily > 0 and grant - daily > precision
+                        and abs(daily - baseline['seconds']) < margin
+                        and expected - elapsed - margin < grant <= expected + margin
+                        and abs(total - grant) < precision, 'time-profile:combined-balances')
+                observed['comparison'] = {'positive_daily_grant_dominant': True,
+                    'daily_before_approval_seconds': baseline['seconds'],
+                    'additional_seconds': 120, 'elapsed_seconds': elapsed,
+                    'rounding_margin_seconds': margin}
+            else:
+                require(daily == 0 and 0 < grant <= 120 and grant > 120 - elapsed - precision - 2
+                        and abs(total - grant) < precision, 'time-profile:grant-only-balances')
+                observed['comparison'] = {'zero_daily_positive_grant': True, 'duration_seconds': 120}

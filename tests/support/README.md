@@ -317,6 +317,11 @@ zero-grant read before policy edits. The shared request leaves accept finite
 120/180/240/600/1200-second arguments. The installed qualification covers the
 120-second fresh and retained/revoke-first bindings on Ubuntu 26.04; later
 recipes own their finite duration and independent outcomes.
+The same declaration/worker accepts `daily_minutes=4` (the worker's final
+argument), with zero retained as the default. `grant_only_profile.COMBINED_PLAN`
+qualifies fresh four-minute daily/two-minute addition preparation and retained
+Parent G>D>0 readback on Ubuntu 26.04. Comparisons carry the actual earlier D,
+elapsed time and display precision; the configured allowance is not a fresh bank.
 `request_initial='selected'` requires a saved 75-second, soft-included request,
 as supplied by `revocation_entry`; it does not accept arbitrary remembered choices.
 Choose this argument from the preceding request history, independently of

@@ -98,7 +98,7 @@ INSTALLED_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_installed'} | {
     retained_unlock_success review_a_rejected_parent_rule_s_report revocation revoke_cancel
     riley_native_grid save_chooser set_an_allowance_for_a_named_child set_fresh_thirty_minute_allowance
     set_jordan_thirty_minute_allowance shell_panel shell_search shell_search_results station_shortcuts terminal_provider
-    text time_explanation time_profiles_daily toggle trace trace_stable_state unlock
+    text time_explanation time_profiles_daily time_profiles_grant toggle trace trace_stable_state unlock
     wait_a_bounded_real_interval_under_the_attempt_guard window_switch
     '''.split()})
 

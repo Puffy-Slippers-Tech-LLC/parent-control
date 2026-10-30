@@ -1704,6 +1704,7 @@ class SameDailyTimeProfileQualification(KioskEntryQualification):
 
 class GrantOnlyProfileQualification(KioskEntryQualification):
     revoke_first = False
+    daily_minutes = 0
 
     @classmethod
     def journey(cls, context, progress):
@@ -1711,11 +1712,16 @@ class GrantOnlyProfileQualification(KioskEntryQualification):
         from grant_only_profile import GrantOnlyProfileJourney
         version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
         context.installed_snapshot = snapshot_name(version)
-        return GrantOnlyProfileJourney(context, progress, revoke_first=cls.revoke_first)
+        return GrantOnlyProfileJourney(context, progress, revoke_first=cls.revoke_first,
+                                       daily_minutes=cls.daily_minutes)
 
 
 class GrantOnlyRevokeQualification(GrantOnlyProfileQualification):
     revoke_first = True
+
+
+class CombinedTimeProfileQualification(GrantOnlyProfileQualification):
+    daily_minutes = 4
 
 
 class RealIntervalQualification(KioskEntryQualification):

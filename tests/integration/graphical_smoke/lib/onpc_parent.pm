@@ -432,11 +432,13 @@ sub daily_time_profile {
 # FLOW13: the acknowledged initial observation is the no-grant gate unless the
 # caller explicitly authorizes Confirm. Fresh readback follows that mutation.
 sub grant_only_time_profile {
-    onpc_progress::operation('Preparing extra time with no daily allowance for [Child user]');
-    my ($journey, $source, $entry, $window, $initial, $revoke, $seconds, $request_initial, $balance_readback) = @_;
+    onpc_progress::operation('Preparing a daily allowance and extra time for [Child user]');
+    my ($journey, $source, $entry, $window, $initial, $revoke, $seconds, $request_initial, $balance_readback, $daily_minutes) = @_;
     $balance_readback = 1 if @_ == 8;
-    die 'time-profile:grant-binding' unless (@_ == 8 || @_ == 9) && ref($journey) eq 'onpc_journey'
+    $daily_minutes = 0 if @_ < 10;
+    die 'time-profile:grant-binding' unless (@_ == 8 || @_ == 9 || @_ == 10) && ref($journey) eq 'onpc_journey'
         && defined($balance_readback) && $balance_readback =~ /\A[01]\z/
+        && defined($daily_minutes) && $daily_minutes =~ /\A(?:0|4)\z/
         && ($initial eq '0' || $initial eq '1') && ($revoke eq '0' || $revoke eq '1')
         && $seconds =~ /\A(?:120|180|240|600|1200)\z/
         && ($request_initial eq 'default' || $request_initial eq 'selected')
@@ -459,7 +461,8 @@ sub grant_only_time_profile {
     if ($revoke) {
         $journey->seen($_) for qw(profile-revoke-open profile-revoke-confirm profile-cleared);
     }
-    $journey->seen($_) for qw(profile-zero profile-window profile-switch profile-gdm);
+    $journey->seen($daily_minutes ? 'profile-daily' : 'profile-zero');
+    $journey->seen($_) for qw(profile-window profile-switch profile-gdm);
     onpc_request_flow::obtain_time($journey->scope('profile-request'), $request_initial,
         'fixture-child', 'fixture-parent', $seconds, 1, 'automatic');
     return unless $balance_readback;

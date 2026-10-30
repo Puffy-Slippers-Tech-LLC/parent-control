@@ -1074,12 +1074,13 @@ sub run {
         onpc_app_rows::switch_user_expiry_other_child(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
-    if ($ready->{grant_only_profile} || $ready->{grant_only_revoke}) {
+    if ($ready->{grant_only_profile} || $ready->{grant_only_revoke} || $ready->{time_profiles_grant}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
         require onpc_set_allowance;
         onpc_set_allowance::qualify_grant(\&exchange, $ready->{invocations},
-            $ready->{challenge_bindings}, $ready->{grant_only_revoke} ? 1 : 0);
+            $ready->{challenge_bindings}, $ready->{grant_only_revoke} ? 1 : 0,
+            $ready->{time_profiles_grant} ? 4 : 0);
         return;
     }
     if ($ready->{time_profiles_daily} || $ready->{time_profiles_same}) {

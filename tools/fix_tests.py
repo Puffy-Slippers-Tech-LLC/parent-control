@@ -1242,6 +1242,15 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             record = dict(failure=list(failure_key), reason=reason, prompt=prompt,
                           result=case_results.get(failure_key), blocker=blocker,
                           sessions=case_sessions.get(failure_key, 0))
+            if (previous and previous.get('status') in ('fixed', 'test_fixed')
+                    and previous.get('sessions') == record['sessions']
+                    and 'verification' in previous):
+                passed = previous['verification']
+                record['verification'] = dict(
+                    session=previous['sessions'],
+                    outcome='passed' if passed is True else 'failed' if passed is False
+                            else 'unknown_or_not_executed',
+                    failures=(previous.get('evidence') or {}).get('failures', []))
             from fix_tests_queue import record_case_failure
             record_case_failure(run, record, root=root)
             commits.state.setdefault('failed_cases', []).append(record)

@@ -1369,6 +1369,15 @@ def test_repair_budget_is_per_case_and_stalled_diagnosis_stops_early(checkout, s
     usage = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
     turns = [row for row in usage if row['event'] == 'turn']
     assert all(row['repair_session'] <= 5 for row in turns)
+    # The fifth repair still gets its runner-owned verification before the
+    # allowance can fail the case; an agent's "fixed" claim is not a pass.
+    fifth_results = [index for index, row in enumerate(usage)
+                     if row['event'] == 'result' and row.get('repair_session') == 5
+                     and row.get('result') in ('fixed', 'test_fixed')]
+    for index in fifth_results:
+        following = usage[index + 1:]
+        assert following[0]['event'] == 'verification'
+        assert following[0]['failure'] == usage[index]['failure']
     for row, agent in zip(turns, agents):
         ladder = (('low', 'medium', 'high', 'xhigh', 'xhigh') if category == 'unit'
                   else ('medium', 'high', 'xhigh', 'max', 'max'))
@@ -1384,6 +1393,12 @@ def test_repair_budget_is_per_case_and_stalled_diagnosis_stops_early(checkout, s
         last_case_session = max(index for index, row in enumerate(turns, 1)
                                 if row['failure'] == stopped['failure'])
         assert stopped['result']['summary'] == f'fixture result {last_case_session}'
+        failed = json.loads((run / 'checkpoint.json').read_text())['failed_cases']
+        assert failed[-1]['verification']['session'] == 5
+        assert failed[-1]['verification']['outcome'] == 'failed'
+        assert failed[-1]['verification']['failures'] == [usage[-1]['failure']]
+        from fix_tests_queue import error_log
+        assert '"outcome": "failed"' in error_log(run).read_text()
     if statuses[-1] == 'stalled':
         assert 'repair stalled' in output.getvalue()
         assert json.loads((run / 'repair-stop.json').read_text())['reason'] == 'stalled'

@@ -873,6 +873,11 @@ instructions, rechecks prerequisites, and continues the same repair phase.
 Decisions remain available to later repairs in the run within their stated scope.
 Ctrl+C or `--stop` cancels a paused run without answering.
 
+The session allowance limits agent sessions, not launcher-owned test execution.
+A repair returned by the fifth session still receives its exact-case verification;
+only a subsequent need for another agent session reaches the allowance check.
+An agent's `fixed` result is a claim, not passing test credit.
+
 Exhausting a case's session allowance opens a fresh intervention session with a
 short explanation and the same timed question. Continuing explicitly grants
 five more repair sessions; leaving the case failed continues the queue. The
@@ -885,7 +890,9 @@ waiting indicator immediately.
 Timed-out prompts, exhausted case session allowances and terminal stalls append
 their case identity, detailed reason, investigation prompt and latest result to
 `errors.md` in the launcher's gitignored test-runs folder (`fix-tests` or
-`fix-tests-host`). A new run resets this cumulative Markdown log; `--resume`
+`fix-tests-host`). When the latest repair was verified, the record also includes
+its verification outcome and runner-reported failures, separately from the
+agent's result. A new run resets this cumulative Markdown log; `--resume`
 appends to it. Failed cases receive no passing credit and the launcher finishes
 with a failure result after draining the queue. Unverified repair edits remain
 in the checkout without being committed as verified repairs. Stateful histories

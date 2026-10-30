@@ -1233,6 +1233,16 @@ class CountdownOffQualification(CountdownQualification):
     present = False
 
 
+class CountdownSessionQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from countdown_qualification import CountdownJourney, SESSION_PLAN
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return CountdownJourney(context, progress, SESSION_PLAN)
+
+
 class CountdownAnimationQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):

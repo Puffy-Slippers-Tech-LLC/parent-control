@@ -510,7 +510,7 @@ def test_first_session_success_closes_and_stages_without_another_session(
     from rich.text import Text
     assert ('Task 001 complete.\n- Took 1 sessions.\n'
             '- Duration: ') in Text.from_ansi(output.getvalue()).plain
-    assert re.search(r'- Total launcher sessions: 1\n─+\n+✓ Task 001: First \(\d+m\)'
+    assert re.search(r'- Total launcher sessions: 1\n─+\n+✓ Task 001: First \| \d+m'
                      + EXIT_TIMING_PATTERN,
                      Text.from_ansi(output.getvalue()).plain)
     assert len(calls(root)) == 1
@@ -904,7 +904,7 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(
     rendered = Text.from_ansi(output.getvalue())
     assert re.search(
         r'Task 001 complete\.\n- Took 2 sessions\.\n'
-        r'- Duration: \d+ minutes\n- Total launcher sessions: 2\n─+\n+✓ Task 001: First \(\d+m\)'
+        r'- Duration: \d+ minutes\n- Total launcher sessions: 2\n─+\n+✓ Task 001: First \| \d+m'
         + EXIT_TIMING_PATTERN,
         rendered.plain.rstrip())
     assert rendered.plain.count('Task 001 complete.') == 1
@@ -1206,7 +1206,7 @@ def test_completion_reports_each_task_sessions_and_cumulative_launcher_sessions(
     assert 'Task 002 complete.\n- Took 3 sessions.\n- Duration: ' in rendered
     assert rendered.count('Total launcher sessions:') == 1
     assert re.search(r'- Duration: \d+ minutes\n- Total launcher sessions: 5\n─+\n+'
-                     r'✓ Task 001: First \(\d+m\)\n✓ Task 002: Second \(\d+m\)'
+                     r'✓ Task 001: First \| \d+m\n✓ Task 002: Second \| \d+m'
                      + EXIT_TIMING_PATTERN, rendered)
     assert rendered.count('- Duration: ') == 2
     assert len(re.findall(r'─+\nTask \d+ complete\.', rendered)) == 2
@@ -1297,7 +1297,7 @@ def test_completion_excludes_sessions_from_previous_completed_launcher(
     assert len(calls(root)) == 5
     assert ('Task 002 complete.\n- Took 1 sessions.\n'
             '- Duration: ') in Text.from_ansi(output.getvalue()).plain
-    assert re.search(r'- Total launcher sessions: 1\n─+\n+✓ Task 002: Second \(\d+m\)'
+    assert re.search(r'- Total launcher sessions: 1\n─+\n+✓ Task 002: Second \| \d+m'
                      + EXIT_TIMING_PATTERN,
                      Text.from_ansi(output.getvalue()).plain)
     assert workflow.git_output(root, 'log', '--reverse', '--format=%s').stdout.splitlines() == [

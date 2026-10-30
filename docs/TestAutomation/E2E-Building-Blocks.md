@@ -2177,9 +2177,40 @@ wrong-account refusal require no observer preparation/input.
 The original installed provider tuple is Ubuntu 26.04, Shell
 `50.1-0ubuntu1.2`, GDM `50.1-0ubuntu0.1`, `en_US.UTF-8`, `[["xkb", "us"]]`.
 The unchanged enabled/off bindings also have renewed both-target qualification.
-Local lock/greeter presentation
-and explanations remain UI obligations rather than prerequisites. Installed
+Local availability and explanations remain UI obligations rather than customer
+journey prerequisites; the installed session boundary is qualified below. Installed
 remaining-time, natural exhaustion and complete cases retain separate bindings.
+
+#### Locked and inactive child countdown qualification
+
+`check_e2e_countdown_session_availability` passed on Ubuntu 26.04 in
+`20261030T013630Z-abcfcb7b`, using `countdown_qualification.SESSION_PLAN` /
+`CountdownJourney` and `onpc_challenges::countdown_session`. One public positive
+15-minute allowance precedes fresh child entry, explicit Lock, greeter return
+without another Lock, and legitimate retained-child authentication. Shared
+session commands and the existing GDM challenge independently verify destinations.
+The observed provider tuple is Shell `50.1-0ubuntu1.4`, GDM
+`50.1-0ubuntu0.1`, `en_US.UTF-8`, `[["xkb", "us"]]`.
+
+`AccessibleUI.child_countdown_session` pins the child's graphical session,
+same-user ChildUI owner, Shell process and public animation preference before
+Lock. Complete inventories from that child's bus require all six panel controls
+unavailable while locked and while inactive at sign-in, with two seconds of
+stable reads. Request/menu activation and preference input refuse; independent
+inventories verify request absence and unchanged preference after each refusal.
+Absent endpoints, lost owners, incomplete inventories and wrong sessions fail;
+the greeter's separate Shell is never used as the child's panel.
+
+Retained return restores the same pinned session/owner/preference and the normal
+positive countdown, compared against the earlier public Parent balance.
+`child_countdown` keeps its unlocked-active-child entry guard. Collection,
+worker shutdown, callback closure, owned cleanup and baseline restoration passed.
+This supplies 052b's OS-dependent component observation, with no new customer
+scenario or natural-expiry/cross-account qualification.
+Affected enabled/off and animation-preference regressions also passed on Ubuntu
+in `20261030T014248Z-f87a3274` and `20261030T015144Z-d0647819`, with their owned
+cleanup and baseline restoration. Scoped host/source checks passed; no product
+backend code changed.
 
 #### Minute countdown progression qualification
 
@@ -2537,7 +2568,7 @@ qualifies staying open. This gap affects cases 218/219, without changing sending
 | ACCOUNT02 | C | Add/remove/change the role of a registered spare fixture account through shared system commands or AccountsService and read back the change. | Reuse `account_fixture` infrastructure; protect active/last administrator, baseline accounts and station, registered secrets and owned cleanup. Independently observe Parent/request-selector refresh. Implement finite spare registry, removal and role operations before reuse; today's fixed standard-child creation supplies neither a spare administrator nor a spare-only eligible-child profile. Cases 180/181 need safe independent disposable-child profiles before composition, not deletion of protected baseline children. No GNOME Users wizard. | pending |
 | PANEL01 | C | Read the child's saved animation preference through `child-countdown-animation-toggle`; discover the owned panel surface independently. | `AccessibleUI.child_countdown_animation()` uses shared `child-panel` client `getValue`; use `child-countdown-menu.activate` only when ordinary menu entry itself is needed. E2E-022 cases 118/120 own persistence and isolation; E2E-008 case 22 owns locking with animation enabled. | ready for the enabled Ubuntu 26.04 child-desktop binding through `countdown_animation.PLAN` / `check_e2e_operate_the_countdown_context_menu` in `20261029T213121Z-d3a2ec77`; fresh readback and wrong-account refusal passed |
 | PANEL02 | C | Set the canonical animation boolean through the panel API and independently read it before continuing child activity. Preserve session/account persistence assertions. | `AccessibleUI.child_countdown_animation(True)` shares UI17 on `child-countdown-animation-toggle`, independent PANEL01 readback and DESK01; `onpc_challenges::countdown_animation` supplies independent child entry, with no popup or Escape dependency. | ready for enabled Ubuntu 26.04 binding in the same qualification; host on/off owner retained. Collection, worker shutdown, owned cleanup and baseline restoration passed; persistence, isolation and complete cases remain separate |
-| PANEL03 | C | Read the public countdown explanation through `child-request-tooltip.getText` in its local UI owner. | UI01 → UI03 through the shared panel API; local obligation 181h retains text/function assertions. | pending UI coverage |
+| PANEL03 | C | Read the public countdown explanation through `child-request-tooltip.getText` in its local UI owner. | `child_shell_interaction._assert_countdown_explanation` uses the owner-pinned shared `child-panel` client to compare the literal explanation and HH:MM:SS with independent canonical remaining-time reads, allowing one display tick of lag. | ready local UI coverage through `test_child_shell_lifecycle.py`; focused isolated-Shell and indicator Node checks passed in task 181h. No installed time-accuracy or complete-scenario credit |
 | INFO01 | C | Check declared Help/About external links are clickable, then stop. Never invoke them or inspect their URIs/destinations. Kiosk asserts unavailable external actions instead. | `AccessibleUI.clickable_link` reads owned visible/enabled control and sole action without activation. Shared Parent `check_parent_help/check_parent_information` and overlay `read_overlay_link` qualify Help/all five About links with owned Close/unchanged settings or request. Kiosk requires absent external actions. Case 190 is [UI-owned](UI-and-E2E-Coverage.md#duplicate-review-and-allocation) with no executable; case 191 owns overlay information/return. No external handler dependency. [About contracts](#about-block-contracts). | Parent and overlay Help/all five About links qualified; case 190 UI-only/excluded; case 191 overlay information/unchanged-form scope qualified on Ubuntu 26.04; other bindings pending |
 | INFO02 | C | Read one installed product help command or command manual from bounded, guarded SSH stdout as the parent fixture account. | `onpc_documentation::read(journey, binding)` invokes `command_documentation.observe`; the stdout adapter checks fixed command identity, help usage/options or manual sections/purpose without Terminal rendering. Case 193 composes all four bindings and one final independent desktop result. | ready stdout bindings; consolidated case return awaits live verification |
 | FEED15 | C | Review or decline a displayed product error report. Request result entry explicitly sets Report this error then closes the result; Parent entry observes its automatically opened report without inventing a report button. Read the report or declared exit destination. | Request: UI17(report choice) → UI04(result Close) → UI01 → FEED03 for review; Parent: `parent_reports.report_review` / `onpc_feedback_privacy::review_parent_report` → FEED03/UI16 → FEED05 → guarded UI18 → independent destination/rule read. Direct closure: `parent_reports.report_close` / `onpc_feedback_privacy::close_parent_report` → automatic-draft read → guarded UI18 → independent destination/rule read. See [automatic Parent error reports](#automatic-parent-error-reports). Parent has no report-choice toggle. E2E-045. | ready for the declared Parent review and edited/untouched report-close bindings; request surfaces and other bindings pending |

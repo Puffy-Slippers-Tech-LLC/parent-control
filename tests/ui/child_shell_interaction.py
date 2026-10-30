@@ -82,6 +82,27 @@ def _countdown_animation_setting():
     return result.stdout.strip() == "true"
 
 
+def _assert_countdown_explanation():
+    panel = _panel()
+    before = panel.getValue("child-remaining-time")
+    explanation = panel.getText("child-request-tooltip")
+    after = panel.getValue("child-remaining-time")
+    match = re.fullmatch(
+        r"• Time remaining: ([0-9]{2}):([0-5][0-9]):([0-5][0-9])\n"
+        r"• Click to request more time for this session\.\n"
+        r"• Right-click for more options\.", explanation)
+    assert match, f"Unexpected public countdown explanation: {explanation!r}"
+    hours, minutes, seconds = map(int, match.groups())
+    explained_seconds = hours * 3600 + minutes * 60 + seconds
+    assert type(before) is int and type(after) is int and 0 < after <= before <= 2700
+    # The tooltip refreshes once per second, while the canonical public value
+    # is calculated at each read. Allow only that one display tick of lag.
+    assert after <= explained_seconds <= before + 1, (
+        "Countdown explanation disagrees with public remaining time",
+        before, explained_seconds, after)
+    print("Child countdown explanation matches public remaining time", flush=True)
+
+
 def _overlay_automation():
     global OVERLAY
     active = [pid for pid in _launch_records() if _process_exists(pid)]
@@ -292,6 +313,7 @@ def main():
         windows, cancel = _overlay_surfaces()
         if _launch_records() or windows or cancel:
             raise AssertionError("The interaction preview opened an overlay before activation")
+        _assert_countdown_explanation()
         print("interaction stage=initially-closed", flush=True)
         if os.environ.get('ONPC_CHILD_REMINDER_PREVIEW') == '1':
             _reminder_preview()

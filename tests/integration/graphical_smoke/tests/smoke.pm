@@ -396,6 +396,12 @@ sub run {
         onpc_challenges::shell_panel(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{countdown_session}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_challenges::countdown_session(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{countdown_minutes}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

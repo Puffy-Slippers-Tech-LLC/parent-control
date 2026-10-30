@@ -176,6 +176,9 @@ PARENT_NATIVE_OPERATIONS = frozenset('parent-native-' + suffix for suffix in (
     'desktop', 'command-launch', 'activity-launch', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed'))
 OPERATIONS |= PARENT_NATIVE_OPERATIONS
 COUNTDOWN_OPERATIONS = frozenset({'child-countdown-present', 'child-countdown-absent'})
+COUNTDOWN_SESSION_OPERATIONS = frozenset('child-countdown-session-' + state
+    for state in ('pin', 'locked', 'greeter', 'restored'))
+OPERATIONS |= COUNTDOWN_SESSION_OPERATIONS
 NATURAL_EXPIRY_OPERATIONS = frozenset('child-natural-expiry-' + action for action in (
     'observe', 'activity', 'lock-ready', 'lock-result'))
 OPERATIONS |= NATURAL_EXPIRY_OPERATIONS
@@ -183,7 +186,7 @@ OPERATIONS |= {'child-natural-expiry-wrong-account-refused'}
 PANEL_ANIMATION_OPERATIONS = frozenset({'child-countdown-animation-read',
     'child-countdown-animation-on', 'child-countdown-animation-off'})
 CHILD_DESKTOP_OPERATIONS = (frozenset({'fresh-child-desktop', 'child-retained-unlock-diagnostic'}) | COUNTDOWN_OPERATIONS
-                            | PANEL_ANIMATION_OPERATIONS)
+                            | PANEL_ANIMATION_OPERATIONS | COUNTDOWN_SESSION_OPERATIONS)
 OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-panel-ready',
     'overlay-panel-launch', 'overlay-panel-reveal-ready', 'overlay-panel-overview',
     'overlay-qualification-cancel', 'overlay-desktop'})
@@ -7945,6 +7948,102 @@ class AccessibleUI:
         require_active_launch_session()
         return result
 
+    def child_countdown_session(self, state, source=None):
+        """Observe the retained child's complete API inventory, even at GDM.
+
+        This deliberately does not relax child_countdown's active desktop guard.
+        A missing endpoint or replaced owner is an error, never panel absence.
+        """
+        import hashlib
+        import session_control
+        from application_ui import ApplicationUI, UIClientError
+        require(state in ('pin', 'locked', 'greeter', 'restored'), 'ui:countdown-session-state')
+        require(source is None if state == 'pin' else type(source) is str
+                and re.fullmatch(r'[0-9a-f]{64}', source), 'ui:countdown-session-source')
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        uid = os.getuid()
+        require(uid == pwd.getpwnam(CHILD_ACCOUNTS[CHILD]).pw_uid
+                and os.geteuid() == uid, 'ui:countdown-account')
+
+        def session():
+            current = session_control.sessions()
+            if state == 'greeter':
+                identity, props = session_control.locked_entry_source(current, uid)
+            else:
+                identity = session_control.source_session(current, uid, locked=state == 'locked')
+                props = current[identity]
+            return (identity, *(props[key] for key in ('User', 'Remote', 'Class', 'Type', 'Seat')))
+
+        original = session()
+        with_catalog = ApplicationUI()
+        try:
+            client = with_catalog.client('child-panel')
+            # The same-user bus credential is necessary but not sufficient to
+            # associate this endpoint with the child's graphical Shell.
+            process = Path('/proc') / str(client.pid)
+            require(process.stat().st_uid == uid
+                    and (process / 'exe').resolve().name == 'gnome-shell', 'ui:countdown-panel-owner')
+            process_start = (process / 'stat').read_text().rpartition(')')[2].split()[19]
+            ids = {'child-screen-time-indicator', 'child-request-button', 'child-remaining-time',
+                   'child-request-tooltip', 'child-countdown-menu', 'child-countdown-animation-toggle'}
+
+            def inventory():
+                require(session() == original, 'ui:countdown-session-changed')
+                apps = with_catalog.applications(application_ids={CHILD_PANEL_APPLICATION,
+                    'com.puffyslippers.OhNoParentControl.ChildRequest'})
+                panels = [app for app in apps if app.identity == CHILD_PANEL_APPLICATION]
+                require(len(panels) == 1 and panels[0].client is client, 'ui:countdown-panel-owner')
+                require(not any(app.children for app in apps
+                        if app.identity != CHILD_PANEL_APPLICATION), 'ui:countdown-unexpected-request')
+                surfaces = [node for node in panels[0].children
+                            if node.identity == 'child-screen-time-indicator']
+                require(len(surfaces) == 1, 'ui:countdown-incomplete-inventory')
+                root = surfaces[0]
+                controls = {node.identity: node for node in (root, *root.children)}
+                require(set(controls) == ids, 'ui:countdown-incomplete-inventory')
+                visible = state in ('pin', 'restored')
+                require(all(type(node.metadata.get('visible')) is bool
+                            and type(node.metadata.get('enabled')) is bool
+                            and node.metadata['visible'] == visible
+                            and (visible or not node.metadata['enabled'])
+                            for node in controls.values()), 'ui:countdown-session-availability')
+                preference = controls['child-countdown-animation-toggle'].getValue()
+                require(type(preference) is bool, 'ui:countdown-preference')
+                fingerprint = hashlib.sha256(json.dumps([original, client.owner, client.pid,
+                    process_start, preference]).encode()).hexdigest()
+                require(source is None or fingerprint == source, 'ui:countdown-session-replaced')
+                require(session() == original, 'ui:countdown-session-changed')
+                return controls, fingerprint, preference
+
+            controls, fingerprint, preference = inventory()
+            if state in ('locked', 'greeter'):
+                # Read-only stability precedes single-use refusal checks. Never
+                # retry an input, including an uncertain refused API exchange.
+                started = time.monotonic()
+                while time.monotonic() - started < 2:
+                    time.sleep(.2)
+                    controls, _, _ = inventory()
+                for identity, operation in (
+                        ('child-request-button', lambda node: node.activate()),
+                        ('child-countdown-menu', lambda node: node.activate()),
+                        ('child-countdown-animation-toggle', lambda node: node.setValue(not preference))):
+                    controls, _, _ = inventory()
+                    self.input_uncertain = True
+                    try:
+                        operation(controls[identity])
+                    except UIClientError as error:
+                        # The public client conservatively marks remote input
+                        # errors uncertain. Observe once below; never replay.
+                        require(error.code == 'Unavailable', 'ui:countdown-input-refusal')
+                    else:
+                        require(False, 'ui:countdown-input-accepted')
+                    inventory()  # Independent request absence and unchanged preference.
+                    self.input_uncertain = False
+            return {'state': state, 'source': fingerprint, 'available': state in ('pin', 'restored'),
+                    'input_refused': state in ('locked', 'greeter'), 'preference_unchanged': True}
+        finally:
+            with_catalog.close()
+
     def natural_expiry_session(self):
         """Observe one active child desktop, retaining its identity across Lock."""
         uid = os.getuid()
@@ -13286,6 +13385,9 @@ class AccessibleUI:
             else:
                 raise UiError('ui:natural-expiry-wrong-account-accepted')
             result['natural_expiry_refused'] = True
+        elif operation in COUNTDOWN_SESSION_OPERATIONS:
+            result['session_countdown'] = self.child_countdown_session(
+                operation.removeprefix('child-countdown-session-'), self.expected_countdown_source)
         elif operation in COUNTDOWN_OPERATIONS:
             result['countdown'] = self.child_countdown(operation == 'child-countdown-present')
         elif operation in PANEL_ANIMATION_OPERATIONS:
@@ -14634,13 +14736,17 @@ def main():
     natural_expiry_binding = sys.argv[1] in NATURAL_EXPIRY_OPERATIONS
     ui.expected_natural_expiry_source = (sys.argv[4] if len(sys.argv) == 5
                                          and natural_expiry_binding else None)
+    countdown_session_binding = sys.argv[1] in COUNTDOWN_SESSION_OPERATIONS
+    ui.expected_countdown_source = (sys.argv[4] if len(sys.argv) == 5
+                                   and countdown_session_binding else None)
     ui.expected_kiosk_diagnostic_source = sys.argv[4] if len(sys.argv) == 5 and diagnostic_binding else None
     require(not diagnostic_binding or (ui.expected_kiosk_diagnostic_source is not None and
             re.fullmatch(r'[0-9a-f]{64}', ui.expected_kiosk_diagnostic_source)),
             'ui:kiosk-diagnostic-binding')
     ui.expected_mate_challenge = (sys.argv[4] if len(sys.argv) == 5 and not trace_argument
         and not diagnostic_binding and not reminder_binding and not overlay_reminder_binding
-        and not binding_reminder_binding and not natural_expiry_binding else None)
+        and not binding_reminder_binding and not natural_expiry_binding
+        and not countdown_session_binding else None)
     require(ui.expected_mate_challenge is None or (
         sys.argv[1] in MATE_APPROVAL_OPERATIONS | SHELL_APPROVAL_OPERATIONS and
         re.fullmatch(r'[0-9a-f]{64}', ui.expected_mate_challenge)), 'ui:mate-binding')

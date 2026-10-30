@@ -90,6 +90,11 @@ OPERATION_LABELS = {
     'child-retained-unlock-diagnostic': 'Diagnosing the retained child desktop without input',
     'child-countdown-present': 'Reading the child desktop countdown',
     'child-countdown-absent': 'Requiring stable countdown absence on the child desktop',
+    **{'child-countdown-session-' + state: label for state, label in (
+        ('pin', 'Binding the countdown observer to the child desktop'),
+        ('locked', 'Checking countdown unavailability while the child is locked'),
+        ('greeter', 'Checking the retained child countdown at sign-in'),
+        ('restored', 'Checking the same child countdown after sign-in'))},
     'child-countdown-wrong-account-refused': 'Refusing countdown observation on another account',
     'child-countdown-animation-read': 'Reading the child countdown animation preference',
     'child-countdown-animation-on': 'Enabling the child countdown animation preference',
@@ -1404,6 +1409,11 @@ class UiObservations:
             require(type(source) is str and re.fullmatch(r'[0-9a-f]{64}', source),
                     'ui:natural-expiry-source')
             binding = [self.boot_guard or '', source]
+        if operation in accessible_ui.COUNTDOWN_SESSION_OPERATIONS - {'child-countdown-session-pin'}:
+            source = getattr(self, 'countdown_session_source', None)
+            require(type(source) is str and re.fullmatch(r'[0-9a-f]{64}', source),
+                    'ui:countdown-session-source')
+            binding = [self.boot_guard or '', source]
         if operation.endswith(('natural-expiry-lock-ready', 'natural-expiry-lock-result')):
             require(hasattr(self, 'natural_expiry_lock') and (
                 operation != 'child-natural-expiry-lock-result'
@@ -1841,6 +1851,23 @@ class UiObservations:
             expected['activity'] = result['activity']
         if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals'):
             expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
+        if operation in accessible_ui.COUNTDOWN_SESSION_OPERATIONS:
+            state = operation.removeprefix('child-countdown-session-')
+            value = result.get('session_countdown')
+            require(type(value) is dict and set(value) == {
+                'state', 'source', 'available', 'input_refused', 'preference_unchanged'}
+                and value['state'] == state and type(value['source']) is str
+                and re.fullmatch(r'[0-9a-f]{64}', value['source'])
+                and value['available'] is (state in ('pin', 'restored'))
+                and value['input_refused'] is (state in ('locked', 'greeter'))
+                and value['preference_unchanged'] is True, 'ui:countdown-session-response')
+            if state == 'pin':
+                require(not hasattr(self, 'countdown_session_source'), 'ui:countdown-session-replay')
+                self.countdown_session_source = value['source']
+            else:
+                require(value['source'] == self.countdown_session_source,
+                        'ui:countdown-session-replaced')
+            expected['session_countdown'] = value
         if operation in accessible_ui.COUNTDOWN_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'countdown'}, 'ui:response')
             expected['countdown'] = accessible_ui.validate_countdown(

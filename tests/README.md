@@ -916,6 +916,12 @@ Git uses literal paths
 and `commit --only` so unrelated staged files remain outside the commit. Agents
 return explicit owned paths and never commit themselves. A path overlapping
 pre-existing staged work refuses close-out rather than committing that work.
+A retained overlap is released after an explicit check-in only when the file's
+working contents, executable mode and index all match HEAD. Uncommitted work
+remains protected. A pending accepted completion takes priority over an older
+response rejection on restart, preserving its passing checks for Git-only recovery.
+Use `tools/write-e2e --closeout-only` to finish that retained accepted Git
+close-out and leave the next task ready without starting an agent session.
 A staging, commit or push
 failure retains the accepted result; restart retries close-out without repeating
 valid acceptance. Commit intent is checkpointed before Git writes. Recovery

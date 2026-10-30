@@ -51,6 +51,13 @@ host results and a passing installed check through that same shared observation;
 no genuine lock or greeter state is manufactured in the preview.
 This allocation neither reopens completed journeys nor adds a customer scenario.
 
+The same isolated Shell owner checks the countdown explanation through
+`child-request-tooltip` on the owner-pinned shared `child-panel` client. It
+compares the public explanation's meaning and HH:MM:SS with independent
+`child-remaining-time` value reads, allowing one display tick of lag. Task 181h
+completed this local coverage; installed time accuracy and enforcement remain
+under their existing owners.
+
 Attachment fixtures replace only the external chooser's returned file list;
 the frontend still reads/validates files and updates its draft. Local tests do
 not replace the installed chooser handoff. Language/reminder fixtures likewise

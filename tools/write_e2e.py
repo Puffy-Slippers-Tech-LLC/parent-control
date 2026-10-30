@@ -22,7 +22,8 @@ from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_a
 from launcher_runtime import (SessionResultRejected, TaskBudget, add_options, read_session_result,
                               retain_result_rejection, result_recovery_instructions, task_limit,
                               validate_session_result, warn_remaining)
-from launcher_git import closeout_lock, commit_push_propagate, git_output, worktree_snapshot, session_changes
+from launcher_git import (closeout_lock, commit_push_propagate, committed_fingerprints,
+                          git_output, worktree_fingerprint, worktree_snapshot, session_changes)
 
 
 PLAN = 'docs/TestAutomation/E2E-Execution-Plan.md'
@@ -828,6 +829,15 @@ def stage_completion(root, state, result):
                if path in current and current[path] != state.get('stage_baseline', {}).get(path)]
     paths = [*result['stage_paths'], *changed]
     overlap = set(paths).intersection(state.get('protected_staged', []))
+    # An explicit check-in can settle the old ownership overlap. A saved path
+    # remains protected until both its working contents/mode and index match
+    # HEAD; merely touching the path in a later commit proves nothing.
+    if overlap and git_output(root, 'rev-parse', '--verify', 'HEAD', check=False).returncode == 0:
+        committed = committed_fingerprints(root, overlap)
+        indexed = set(filter(None, git_output(
+            root, 'diff', '--cached', '--no-renames', '--name-only', '-z', 'HEAD').stdout.split('\0')))
+        overlap = {path for path in overlap if committed[path] is None
+                   or worktree_fingerprint(root / path) != committed[path] or path in indexed}
     if state.get('commit_required') and overlap:
         raise ValueError('completion overlaps pre-existing staged work: ' + ', '.join(sorted(overlap)))
     return stage_task(root, paths,
@@ -858,6 +868,7 @@ def _finish_completion(root, run, state, result, updated):
             record_completion(updated)
     updated.pop('commit_intent', None)
     updated.pop('pending_completion', None)
+    updated.pop('result_recovery', None)
     updated.pop('worktree_before', None)
     updated.pop('worktree_propagation', None)
     return updated
@@ -1013,6 +1024,7 @@ def worker(root, run, owner, tasks, state_json):
     # Its checkpoint can therefore be newer than the prepared argv.
     checkpoint = run / 'checkpoint.json'
     state = json.loads(checkpoint.read_text() if checkpoint.exists() else state_json)
+    closeout_only = state.pop('closeout_only', False)
     state['commit_required'] = True
     total = state.get('total_sessions', state.get('task_sessions', 0))
     count, completed, status, reason = 0, 0, 0, 'task limit reached'
@@ -1072,7 +1084,9 @@ def worker(root, run, owner, tasks, state_json):
                 total = state.get('task_sessions', 0)
             state['commit_required'] = True
             launcher.atomic(run / 'checkpoint.json', state)
-        while not final_replayed_stall:
+        if closeout_only:
+            reason = 'Git close-out complete; next task is ready'
+        while not final_replayed_stall and not closeout_only:
             if (run / 'cancel').exists():
                 raise launcher.Stopped()
             if state['phase'] == 'complete' and optimization_due(state):
@@ -1275,7 +1289,7 @@ def initial_state(root, directory, *, destination=None, defer_closeout=False):
             saved.pop('progress_keys', None)
             for key in ('evidence_turns', 'evidence_consumers', 'diagnostic_evidence'):
                 saved.pop(key, None)
-        if state.get('result_recovery'):
+        if state.get('result_recovery') and not state.get('pending_completion'):
             used = state.get('task_sessions', 0)
             return dict(state, recovery_run=str(previous), total_sessions=used,
                         task_session_limit=used + MAX_TASK_SESSIONS)
@@ -1481,6 +1495,8 @@ def select(root, argv):
             epilog='Reviewed queue revisions: --reconcile RUN [--check] validates/adopts the '
                    'exact inactive checkpoint without executing tasks, models or VMs.')
         parser.add_argument('--vm', help='registered VM name or ID; omitted: configured enabled queue and concurrency')
+        parser.add_argument('--closeout-only', action='store_true',
+                            help='finish retained accepted Git close-out without starting a task session')
         add_options(parser, stop_help='finish the current session and stop before the next')
         return parser.parse_args(argv)
 
@@ -1507,6 +1523,10 @@ def select(root, argv):
         if args.tasks is None:
             args.tasks = 1
         state = initial_state(root, run.parent, defer_closeout=True)
+        if args.closeout_only:
+            if not state.get('pending_completion') or not state.get('closeout_recovery_run'):
+                raise ValueError('--closeout-only requires a retained accepted completion')
+            state['closeout_only'] = True
         before = state['queue_before'] if state.get('result_recovery') else queue_state(root)[1]
         remaining = sum(not done for done in before.values())
         initial_limits.update(tasks=task_limit(args.tasks), started=0, completed=0, remaining=remaining)

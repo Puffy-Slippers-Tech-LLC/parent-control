@@ -51,6 +51,51 @@ PLAN = plan(True)
 OFF_PLAN = plan(False)
 
 
+def session_plan():
+    """One positive-time child, explicit Lock, retained GDM entry and return."""
+    screens = {
+        **fresh_desktop('parent'), **parent_management(),
+        'allowance-configured': 'ui:time-explanation-positive-read',
+        'repeat-desktop': 'ui:desktop', 'switch-user': 'system:parent-switch-user',
+        'gdm-switched': 'ui:gdm-returned',
+        **{'fresh-' + stage: tag for stage, tag in fresh_desktop('child').items()},
+        'countdown': 'ui:child-countdown-present',
+        'panel-bound': 'ui:child-countdown-session-pin',
+        'lock': 'system:child-lock',
+        'locked-countdown': 'ui:child-countdown-session-locked',
+        'return-greeter': 'system:child-return-greeter',
+        'retained-greeter': 'ui:gdm-returned',
+        'greeter-countdown': 'ui:child-countdown-session-greeter',
+        'retained-list': 'ui:gdm-child-list', 'retained-focused': 'ui:gdm-child-focused',
+        'retained-recipient-qualified': 'ui:gdm-child-recipient',
+        'retained-recipient-rechecked': 'ui:gdm-child-recipient-rechecked',
+        'unlock-desktop': 'ui:fresh-child-desktop',
+        'panel-restored': 'ui:child-countdown-session-restored',
+        'independent-countdown': 'ui:child-countdown-present',
+    }
+    return JourneyPlan(
+        prefix='countdown-session', worker_mode='countdown_session', screen_tags=screens,
+        phases={'ready': 'setup', 'setup-detached': 'setup', 'installed-greeter': 'start',
+                **{stage: 'step-1' for stage in screens if stage != 'installed-greeter'}},
+        invocations=tuple(stage for stage in screens if stage in fresh_desktop('parent')
+            or stage.startswith('fresh-') or stage in ('countdown', 'panel-bound', 'locked-countdown',
+                'greeter-countdown', 'retained-list', 'retained-focused',
+                'retained-recipient-qualified', 'retained-recipient-rechecked', 'unlock-desktop',
+                'panel-restored', 'independent-countdown')),
+        challenges={**PLAN.challenges,
+            'retained-login': ('child', 'retained-recipient-qualified', 'retained-recipient-rechecked')},
+        assertions_after={'allowance-configured': 'positive-daily-time',
+            'countdown': 'desktop-countdown-present', 'panel-bound': 'child-panel-bound',
+            'locked-countdown': 'locked-countdown-unavailable',
+            'greeter-countdown': 'greeter-countdown-unavailable',
+            'panel-restored': 'same-child-panel-restored',
+            'independent-countdown': 'positive-countdown-restored'},
+    )
+
+
+SESSION_PLAN = session_plan()
+
+
 class CountdownJourney(InstalledJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan, actions=actions)

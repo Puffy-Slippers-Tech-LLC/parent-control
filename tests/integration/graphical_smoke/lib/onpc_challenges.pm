@@ -66,26 +66,41 @@ sub countdown_animation {
     return _countdown(1, 1, @_);
 }
 
+sub countdown_session {
+    onpc_progress::operation('Checking the child countdown across lock and retained sign-in');
+    return _countdown(1, 0, @_, 1);
+}
+
 sub _countdown {
     onpc_progress::operation('Qualifying the child desktop countdown');
-    my ($present, $animation, $exchange, $declared, $challenges) = @_;
+    my ($present, $animation, $exchange, $declared, $challenges, $session) = @_;
+    $session //= 0;
     my @stages = qw(installed-greeter parent-focused recipient-qualified recipient-rechecked desktop
         fresh-installed-greeter fresh-child-focused fresh-child-recipient-qualified
         fresh-child-recipient-rechecked fresh-desktop countdown independent-countdown);
     @stages = map { $_ eq 'countdown' ? 'animation-set' :
         $_ eq 'independent-countdown' ? 'animation-read' : $_ } @stages if $animation;
-    die 'countdown:plan' unless @_ == 5 && ($present eq '0' || $present eq '1')
+    if ($session) {
+        splice @stages, -1, 1, qw(panel-bound locked-countdown greeter-countdown
+            retained-list retained-focused retained-recipient-qualified retained-recipient-rechecked
+            unlock-desktop panel-restored independent-countdown);
+    }
+    die 'countdown:plan' unless (@_ == 5 || @_ == 6 && $session == 1 && $present && !$animation)
+        && ($present eq '0' || $present eq '1')
         && ($animation eq '0' || $animation eq '1') && (!$animation || $present)
         && ref($exchange) eq 'CODE' && ref($declared) eq 'ARRAY'
         && join('/', @$declared) eq join('/', @stages)
-        && ref($challenges) eq 'HASH' && keys(%$challenges) == 2
+        && ref($challenges) eq 'HASH' && keys(%$challenges) == ($session ? 3 : 2)
+        && (!$session || ref($challenges->{'retained-login'}) eq 'ARRAY'
+            && join('/', @{$challenges->{'retained-login'}}) eq
+                'child/retained-recipient-qualified/retained-recipient-rechecked')
         && ref($challenges->{'parent-login'}) eq 'ARRAY'
         && join('/', @{$challenges->{'parent-login'}}) eq 'parent/recipient-qualified/recipient-rechecked'
         && ref($challenges->{'child-login'}) eq 'ARRAY'
         && join('/', @{$challenges->{'child-login'}}) eq
             'child/fresh-child-recipient-qualified/fresh-child-recipient-rechecked';
     my $journey = onpc_journey->new(exchange => $exchange,
-        prefix => $animation ? 'countdown-animation' : $present ? 'countdown-enabled' : 'countdown-off', review => 0);
+        prefix => $session ? 'countdown-session' : $animation ? 'countdown-animation' : $present ? 'countdown-enabled' : 'countdown-off', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -97,11 +112,21 @@ sub _countdown {
     $journey->consume_observation('parent-selected', $selected);
     $journey->seen('allowance-configured');
     $journey->seen('limits-disabled') unless $present;
-    $journey->seen('wrong-account-refused');
+    $journey->seen('wrong-account-refused') unless $session;
     onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
     onpc_gdm::sign_in_challenge($journey, 'child-login',
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
     $journey->invoke($animation ? 'animation-set' : 'countdown');
+    if ($session) {
+        $journey->invoke('panel-bound');
+        $journey->seen('lock');
+        $journey->invoke('locked-countdown');
+        $journey->seen('return-greeter');
+        $journey->seen('retained-greeter');
+        $journey->invoke('greeter-countdown');
+        onpc_desktop_session::retained_gdm_unlock($journey);
+        $journey->invoke('panel-restored');
+    }
     $journey->invoke($animation ? 'animation-read' : 'independent-countdown');
     $journey->finish();
 }

@@ -172,6 +172,7 @@ def test_child_indicator_opens_one_shared_overlay_and_can_reopen(render_artifact
     )
     assert result.returncode == 0, diagnostic
     assert "launches=2 max_concurrent_overlays=1 reopened=true" in result.stdout, diagnostic
+    assert "Child countdown explanation matches public remaining time" in result.stdout, diagnostic
     assert ("Child countdown hidden by fullscreen request; active-request input refused; "
             "desktop availability restored") in result.stdout, diagnostic
     assert events.count("request-launch\t") == 2, diagnostic

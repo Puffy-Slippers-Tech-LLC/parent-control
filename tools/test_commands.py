@@ -74,7 +74,7 @@ INSTALLED_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_installed'} | {
     app_activity app_restart app_row_observations approval_flow attachment_items attachment_preview
     attachments auth_prompt auth_result basic_locale_auth baseline_app_effects baseline_auth_pause baseline_journey
     catalogue catalogue_search challenges child_isolation chinese_native_auth choices_overlay_to_kiosk confinement_usability
-    compose_observation_around_one_caller_input countdown countdown_minutes countdown_ticks cross_surface
+    compose_observation_around_one_caller_input countdown countdown_minutes countdown_ticks countdown_session_availability cross_surface
     custom_save_trace desktop_keyring desktop_session diagnostic_export document_open
     edit_and_save_an_open_synthetic_document eligible_kiosk_fixtures feedback_block_semantics
     feedback_collection feedback_formats feedback_length feedback_link_semantics feedback_privacy

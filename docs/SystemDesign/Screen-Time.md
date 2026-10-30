@@ -457,7 +457,13 @@ localized time-limit explanation; an indeterminate check remains fail-closed
 without being mislabeled as confirmed exhaustion. This closes the retained-
 session path while preserving active one-time grants; the kiosk and Ubuntu
 administrator accounts bypass this authentication check in the PAM profile;
-the helper also permits UID 0. Because Malcontent's login-time `RuntimeMaxSec`
+the helper also permits UID 0. For a nonzero daily allowance without an active
+grant, the helper also reads `GetTimeStatus` as root. The broker's existing
+child-owned usage query accounts for recorded use; passing zero used seconds to
+Malcontent alone would admit an already exhausted allowance. A zero broker
+total denies access, while an unavailable or inconsistent read remains a check
+error. Unrestricted accounts and active grants keep their native admission path.
+Because Malcontent's login-time `RuntimeMaxSec`
 snapshot would terminate a live session after a later grant, the native product
 PAM account module follows `pam_malcontent` and replaces its documented
 `systemd.runtime_max_sec` PAM data with `infinity` before a GDM session opens.

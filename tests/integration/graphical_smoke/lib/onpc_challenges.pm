@@ -213,6 +213,52 @@ sub countdown_daily {
     $journey->finish();
 }
 
+sub natural_access {
+    onpc_progress::operation('Checking child access after animated exhaustion, approval and revocation');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'natural-access:plan' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'natural-access', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    my $selected = onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'new', 'child');
+    $journey->consume_observation('same-parent-selected', $selected);
+    $journey->consume_observation($_, $journey->seen($_))
+        for qw(profile-before profile-configured profile-settings policy-before);
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'fresh');
+    $journey->invoke($_) for qw(before-animation animation-set animation-read);
+    onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
+    $journey->invoke('natural-expiry');
+    $journey->consume_observation('lock-input-ready', $journey->invoke('lock-input-ready'));
+    testapi::send_key('shift');
+    $journey->invoke('lock-result');
+    my $denied = onpc_desktop_session::reveal_lock($journey, 'time-denied');
+    $journey->consume_observation('time-denied', $denied);
+    $journey->seen($_) for qw(return-greeter denied-returned retained-before);
+    onpc_request_flow::obtain_time($journey, 'default', 'fixture-child', 'fixture-parent', 600, 1, 'automatic');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'recovery');
+    $journey->seen('recovery-identity');
+    onpc_app_rows::native_read_activity($journey, 'recovery-activity');
+    onpc_app_rows::native_activity_resume($journey, 'resume');
+    onpc_app_rows::native_read_activity($journey, 'usable-activity');
+    # Logout is a guarded shared system operation; its independent GDM result
+    # is kept in this case's declared stages.
+    $journey->consume_observation('logout-ready', $journey->seen('logout-ready'));
+    $journey->seen($_) for qw(logout gdm-logged-out);
+    onpc_gdm::sign_in_challenge($journey, 'return',
+        'return-installed-greeter', 'return-parent-focused', 'return-desktop');
+    $journey->consume_observation('supplied-parent-retained',
+        onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'child', 'supplied'));
+    $journey->seen($_) for qw(before-revoke confirm-open confirm-warning confirmed after-revoke);
+    $journey->consume_observation('parent-leave-ready', $journey->seen('parent-leave-ready'));
+    $journey->seen($_) for qw(parent-leave final-greeter);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'time-denied', 'denied');
+    $journey->finish();
+}
+
 sub fresh_child_allowed {
     onpc_progress::operation('Qualifying fresh child login with saved daily time');
     my $ok = eval { _fresh_child_allowed(@_); 1 };

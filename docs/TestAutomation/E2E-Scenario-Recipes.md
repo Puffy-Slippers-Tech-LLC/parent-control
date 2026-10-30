@@ -435,7 +435,11 @@ Bindings: daily = zero / remaining; sessions = single / multiple.
 
 ### E2E-008
 
-Implementation status: All cases pending.
+Implementation status: Case 22 is registered through `natural_access.PLAN` /
+`NaturalAccessJourney` and `onpc_challenges::natural_access`. The complete journey,
+collection and owned cleanup passed on the selected Ubuntu 26.04 target in
+`20261030T003818Z-f8c88376`; other target families have no acceptance credit from
+that run.
 
 **Natural daily exhaustion, retained unlock and fresh login denial.** Case 22.
 
@@ -448,6 +452,12 @@ results remain intermediate checks in case 22, and its ID must not be reused.
 
 Keep every result along this route in one attempt; final sign-in denial alone
 does not establish natural locking, refused unlock or successful approved recovery.
+The finite recovery uses the existing ten-minute, soft-included station approval
+so retained child recovery, normal logout and fresh Parent reads finish while
+the grant is still positive. The 75-second request expired during those transitions.
+Public Parent policy reads bracket the journey and revocation; the child countdown
+reads bracket animation enablement with elapsed-time bounds. The original native
+activity and retained session are independently checked after approval.
 
 ### E2E-009
 

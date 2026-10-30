@@ -203,14 +203,14 @@ or reuse the removed case ID. Retry expiration remains covered by
 installed retry-deadline acceptance credit.
 
 Excluded tasks: **063** (separate daily-exhaustion unlock journey).
-The developer combined its results into [task 064 / case 22](E2E-Tasks/064-case-22.md)
+The developer combined its results into task 064 / case 22
 on 2026-10-07. Task 063 and inventory case 21 are removed, neither completed nor
 deferred; do not recreate the separate journey or reuse case ID 21. Natural lock,
 input ownership and specific retained time restriction remain mandatory intermediate
 results before approved recovery, normal logout, revocation and fresh sign-in
 correct-password denial. The [recipe](E2E-Scenario-Recipes.md#e2e-008) distinguishes
-native pre-authentication restriction from authenticated denial. Task 064 remains
-pending until the complete journey passes.
+native pre-authentication restriction from authenticated denial. Task 064's
+complete journey passed on the selected Ubuntu 26.04 target.
 
 Excluded tasks: **090b, 091b, 092b, 093b, 094b, 095b, 096b, 097b, 098b,
 110b, 111b, 112b, 117b, 118b, 119b** (repeated app launches with time limits off).
@@ -269,9 +269,9 @@ absorbed into existing journeys, neither completed nor deferred. Do not recreate
 their briefs or reuse their case IDs. [Task 160 / case 118](E2E-Tasks/160-case-118.md)
 owns both children's animation choices after sign-out and return;
 [task 162 / case 120](E2E-Tasks/162-case-120.md) owns them after reboot.
-[Task 064 / case 22](E2E-Tasks/064-case-22.md) verifies natural locking with
-animation enabled during its existing exhaustion wait. All three remain pending;
-this allocation supplies no installed acceptance credit.
+Task 064 / case 22 passed natural locking with animation enabled during its
+existing exhaustion wait on Ubuntu 26.04. Tasks 160 and 162 remain pending;
+this allocation supplies no acceptance credit for those lifecycle journeys.
 
 ## Ordered task queue
 
@@ -501,7 +501,7 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 062 | Use an app until a natural enforced lock | 052a, 047 | TIME04 Riley/native two-minute daily-only natural lock and same-lock harmless input passed on Ubuntu 26.04 / Fedora 44 in `20261013T211559Z-9707db41` / `20261013T211559Z-1783060f`; affected case 6, scoped host/source checks, collection, owned cleanup and preservation passed. [Exact binding and retained reports](E2E-Building-Blocks.md#natural-enforced-lock-qualification). Other app/game/fullscreen bindings and complete scenarios remain separate | 20–30 |
 | [x] | 059 | Check daily time through child unlock and time running out | 052a, 043c, 062 | Cases 27; complete daily-only journey passed on the selected Ubuntu 26.04 VM: public four-minute/no-grant setup, original native window/draft and usable work after legitimate unlock, bounded resumed countdown, minute/final-second progression and natural lock owning normal input. Scoped host checks, collection, recording, worker shutdown, cleanup and baseline restoration passed; coverage refreshed. | 35–55 (exception) |
 | [x] | 181m | Operate the countdown context menu | 052 | UI28 direct-preference route and PANEL01/02 enabled binding qualified on Ubuntu 26.04 through `countdown_animation.PLAN` / `onpc_challenges::countdown_animation` and `check_e2e_operate_the_countdown_context_menu` in `20261029T213121Z-d3a2ec77`: independent child entry, wrong-account refusal, canonical enable and fresh public readback passed. All 216 scoped host checks, collection, worker shutdown, owned cleanup and baseline restoration passed. Existing implementation reused; no popup prerequisite, persistence/isolation or complete-case credit. | 20–30 |
-| [ ] | 064 | [Check the child locks with countdown animation enabled](E2E-Tasks/064-case-22.md) | 062, 043a, 050, 181m | Cases 22; animation enabled during existing natural exhaustion | 40–60 (exception) |
+| [x] | 064 | Check the child locks with countdown animation enabled | 062, 043a, 050, 181m | Cases 22; complete animation-enabled natural exhaustion, lock input ownership, native retained restriction, legitimate approval and usable retained recovery, normal logout, confirmed revocation with D=G=0, and correct-password fresh sign-in denial passed on Ubuntu 26.04 in `20261030T003818Z-f8c88376`. Scoped host/source checks, collection, worker shutdown, recording, owned cleanup and baseline restoration passed; VM independently off and coverage refreshed. The daily-use admission correction passed product/PAM checks, DEB/RPM builds and independent backend review with no actionable findings. | 40–60 (exception) |
 | [ ] | 052b | [Verify countdown availability in UI tests](E2E-Tasks/052b-countdown-absence.md) | 052 | UI obligation; countdown availability on desktop, locked and greeter states | 20–30 |
 | [ ] | 181h | [Read the countdown explanation in UI tests](E2E-Tasks/181h-read-the-countdown-hover-explanation.md) | 052 | UI obligation; readable countdown explanation | 20–30 |
 | [ ] | 065a | [Prepare grant-only time and explicit revoke-first entry](E2E-Tasks/065a-grant-only-profile.md) | 051, 050 | FLOW13 grant-only profile and explicit revoke preparation | 20–30 |

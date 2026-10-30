@@ -134,7 +134,9 @@ sub enter_kiosk_mate_password {
             && ref($journey) eq 'onpc_journey'
             && ($baseline || $isolation || $usability || ($long_request ? (($journey->{prefix} // '') eq 'baseline-app-effects'
                 || ($journey->{prefix} // '') eq 'active-grant-disable-engineering'
-                || ($journey->{prefix} // '') eq 'active-grant-disable-public') :
+                || ($journey->{prefix} // '') eq 'active-grant-disable-public'
+                || (($journey->{prefix} // '') eq 'natural-access'
+                    && ($journey->{stage_prefix} // '') eq '')) :
                 ($chinese || ($journey->{prefix} // '') eq 'kiosk-' . $binding
                 || ($journey->{prefix} // '') eq 'kiosk-approval-flow'
                 || (!$reject && (($journey->{prefix} // '') eq 'kiosk-service-recovery'

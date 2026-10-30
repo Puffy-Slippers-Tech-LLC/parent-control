@@ -412,7 +412,7 @@
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Set a short daily allowance with limits on and no one-time time displayed. Sign in as the child, explicitly save countdown animation on and independently read it. Confirm unchanged time allowance and app access, allowing actual elapsed use, then use an allowed app."},
           {"id": "step-2", "operation": "wait", "description": "Continue using the app until the allowance runs out and the desktop locks by itself; require the lock to own normal input."},
-          {"id": "step-3", "operation": "ui", "description": "Try retained unlock with the correct child password, read the explicit time-limit restriction and require no desktop access."},
+          {"id": "step-3", "operation": "ui", "description": "Observe the retained child's native pre-authentication time restriction, require its explicit time-limit explanation and continued refusal of desktop access, then return to sign-in without releasing a password."},
           {"id": "step-4", "operation": "ui", "description": "Obtain legitimate temporary time at the station, unlock the retained child desktop successfully and require usable access, then log out normally and observe sign-in."},
           {"id": "step-5", "operation": "ui", "description": "Have the parent revoke the temporary grant, confirm revocation and read daily and grant balances both zero."},
           {"id": "step-6", "operation": "ui", "description": "Try fresh sign-in with the correct child password, read the specific time-limit restriction and require no child desktop access."}
@@ -428,7 +428,7 @@
       "assertions": {
         "visible": [
           {"id": "natural-lock", "step_id": "step-2", "description": "Natural daily exhaustion with countdown animation enabled locks the desktop and the lock owns normal input; manual locking or configured zero is not sufficient. Use the existing exhaustion wait; effect rendering is outside acceptance."},
-          {"id": "retained-denial", "step_id": "step-3", "description": "Correct credentials cannot bypass exhausted time on retained unlock; the time-limit restriction is explained and desktop access remains refused."},
+          {"id": "retained-denial", "step_id": "step-3", "description": "The retained child's native time-limit restriction blocks authentication before password entry, explains exhausted time and refuses desktop access."},
           {"id": "approved-recovery", "step_id": "step-4", "description": "Legitimate temporary approval enables successful retained unlock and usable child access before normal logout returns to sign-in."},
           {"id": "revoked-time", "step_id": "step-5", "description": "Confirmed Parent revocation leaves daily and grant balances both zero."},
           {"id": "visible-result", "step_id": "step-6", "description": "Correct credentials cannot bypass exhausted time on fresh sign-in; the time-limit restriction is explained and no child desktop access is granted."}
@@ -446,7 +446,7 @@
         "rationale": "One fresh-login journey consumes real daily time and preserves retained-unlock denial, approved recovery, normal logout, revocation and fresh sign-in denial as intermediate results. The separate unlock case 21 is removed; its ID must not be reused."
       },
       "variants": [
-        {"coverage_id": 22, "id": "fresh-login", "owner": "child-access", "parameters": {"entry": "fresh-login"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 22, "id": "fresh-login", "owner": "child-access", "parameters": {"entry": "fresh-login"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/natural_access.py", "test_id": "fresh-login"}}
       ]
     },
     {

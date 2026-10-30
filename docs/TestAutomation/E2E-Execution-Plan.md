@@ -23,7 +23,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **064 — [Check the child locks with countdown animation enabled](E2E-Tasks/064-case-22.md)**.
+Next task: **052b — [Verify countdown availability in UI tests](E2E-Tasks/052b-countdown-absence.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

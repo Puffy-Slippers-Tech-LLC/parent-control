@@ -116,7 +116,7 @@ def session_scan():
         try:
             raw = call(['/usr/bin/loginctl', 'show-session', identity, '--no-pager',
                         '-p', 'User', '-p', 'Active', '-p', 'Remote', '-p', 'Class',
-                        '-p', 'Type', '-p', 'Seat', '-p', 'LockedHint'])
+                        '-p', 'Type', '-p', 'Seat', '-p', 'LockedHint', '-p', 'State'])
         except subprocess.CalledProcessError:
             # Logout can remove a session between list and show. Confirm that
             # disappearance through a fresh read; never repeat the action.
@@ -126,7 +126,15 @@ def session_scan():
         require(all(len(pair) == 2 for pair in pairs), 'session-properties')
         props = dict(pairs)
         require(len(props) == len(pairs) and set(props) == {
-            'User', 'Active', 'Remote', 'Class', 'Type', 'Seat', 'LockedHint'}, 'session-properties')
+            'User', 'Active', 'Remote', 'Class', 'Type', 'Seat', 'LockedHint', 'State'},
+            'session-properties')
+        # Opening/closing take precedence over foreground status in logind;
+        # neither lifecycle state determines the independent Active property.
+        require(props['State'] in ('opening', 'online', 'active', 'closing')
+                and props['Active'] in ('yes', 'no')
+                and (props['State'] in ('opening', 'closing')
+                     or props['Active'] == ('yes' if props['State'] == 'active' else 'no')),
+                'session-state')
         result[identity] = props
     return result
 
@@ -145,7 +153,12 @@ def sessions():
     for _ in range(3):
         current = session_scan()
         if current == previous:
-            return current
+            # logind's closing state means logged out with leftover processes.
+            # A GDM worker can retain that record after the desktop has exited.
+            # Compare complete scans first; only logged-in sessions can be an
+            # input source, retained desktop or fresh-entry obstruction.
+            return {identity: props for identity, props in current.items()
+                    if props['State'] != 'closing'}
         previous = current
     raise SessionError('session:unstable-observation')
 
@@ -160,6 +173,7 @@ def source_session(current, uid, *, locked=False):
               if local_graphical(props) and props['Active'] == 'yes']
     require(len(active) == 1, 'active-session')
     identity, props = active[0]
+    require(props.get('State') != 'opening', 'source-opening')
     require(props['User'] == str(uid) and props['Class'] in ('user', 'user-early'), 'source-owner')
     require(props['LockedHint'] == ('yes' if locked else 'no'),
             'source-unlocked' if locked else 'source-locked')
@@ -221,7 +235,8 @@ def destination(current, source, uid, action):
     active = [props for props in current.values()
               if local_graphical(props) and props['Active'] == 'yes']
     require(len(active) <= 1, 'ambiguous-destination')
-    greeter = bool(active and active[0]['Class'] == 'greeter')
+    greeter = bool(active and active[0]['Class'] == 'greeter'
+                   and active[0].get('State') != 'opening')
     if action in ('switch-user', 'return-greeter'):
         require(original is not None, 'source-lost')
         return greeter and original['Active'] == 'no' and original['LockedHint'] == 'yes'
@@ -266,6 +281,7 @@ def maintenance_logout(uid, identity):
         matches = [key for key, item in current.items() if local_graphical(item)
                    and item['User'] == str(uid) and item['Class'] in ('user', 'user-early')]
         require(matches == [identity], 'maintenance-source')
+        require(current[identity].get('State') != 'opening', 'source-opening')
         return current[identity]
 
     before = sessions()
@@ -315,10 +331,12 @@ def locked_entry_source(current, uid):
     active = [item for item in current.values()
               if local_graphical(item) and item['Active'] == 'yes']
     require(len(active) == 1 and active[0]['Class'] == 'greeter', 'entry-greeter')
+    require(active[0].get('State') != 'opening', 'entry-opening')
     owned = [(key, item) for key, item in current.items() if local_graphical(item)
              and item['User'] == str(uid) and item['Class'] in ('user', 'user-early')]
     require(len(owned) == 1, 'entry-target')
     identity, target = owned[0]
+    require(target.get('State') != 'opening', 'entry-opening')
     require(target['Active'] == 'no' and target['LockedHint'] == 'yes', 'entry-locked')
     return identity, target
 
@@ -361,6 +379,7 @@ def entry_identity(current, uid, mode):
         active = [item for item in current.values()
                   if local_graphical(item) and item['Active'] == 'yes']
         require(len(active) == 1 and active[0]['Class'] == 'greeter', 'entry-greeter')
+        require(active[0].get('State') != 'opening', 'entry-opening')
         owned = [(key, item) for key, item in current.items() if local_graphical(item)
                  and item['User'] == str(uid) and item['Class'] in ('user', 'user-early')]
         if mode == 'fresh':

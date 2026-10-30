@@ -1631,6 +1631,14 @@ read bracket. `probe-revoke-balances` uses the same maintained reader on that
 Parent scene. Inspect the grant and session with guarded `exec`, then finish
 with `tools/test-vm stop`; neither route supplies acceptance credit.
 
+`tools/test-vm --vm NAME reproduce-natural-access` retains case 22's prepared
+Parent history at `switch-user`, immediately after the independently observed
+usable Parent desktop and before switching to sign-in.
+It reuses `NaturalAccessJourney`
+and the same selected activity fixtures, sealed worker and maintenance envelope.
+Inspect that live guest through guarded `exec`, then finish with `stop`;
+the retained scene supplies diagnostic evidence only.
+
 `tools/test-vm --vm NAME reproduce-retained-app-visits` retains Task 047a's
 shared Parent activity capture and Riley login at `riley-activity-command`.
 It exercises the current guarded native command once and retains its result

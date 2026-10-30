@@ -163,6 +163,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reproduce-revoke-cancel', 'probe-revoke-balances',
                                       'reproduce-countdown-minutes',
                                       'reproduce-natural-expiry',
+                                      'reproduce-natural-access',
                                       'reproduce-countdown-resume',
                                       'reproduce-retained-unlock',
                                       'reproduce-remembered-return', 'probe-remembered-return',
@@ -205,10 +206,12 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             raise ValueError('test-runner:rename-requires-new-name')
         if args.fixture_maintenance and args.action != 'start':
             raise ValueError('test-runner:fixture-maintenance-requires-start')
-        if (args.action in ('sync-fixtures', 'reproduce-baseline-restoration')) != (args.fixture_selection is not None):
+        if (args.action in ('sync-fixtures', 'reproduce-baseline-restoration',
+                           'reproduce-natural-access')) != (args.fixture_selection is not None):
             raise ValueError('test-runner:fixture-sync-requires-selection')
         fixture_options = []
-        if args.fixture_maintenance or args.action in ('sync-fixtures', 'reproduce-baseline-restoration'):
+        if args.fixture_maintenance or args.action in ('sync-fixtures', 'reproduce-baseline-restoration',
+                                                      'reproduce-natural-access'):
             targets = vm_config.fixture_targets(root / 'config/test-vm.json')
             if configured.name not in targets:
                 raise ValueError('test-runner:fixture-target-not-qualified')

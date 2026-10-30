@@ -690,6 +690,32 @@ def reproduce_retained_unlock(lease):
         boundary_operation='child-retained-unlock-diagnostic', unlock_capture=True)
 
 
+def reproduce_natural_access(lease, fixture_selection):
+    """Retain case 22's prepared Parent immediately before switching users."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from natural_access import NaturalAccessJourney, PLAN
+    from e2e_fixture_preparation import validate_input
+    from system_fixture_preparation import guest_target
+    from tools.test_storage import named_input
+
+    system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
+                   'fixtures:e2e-installed-clean-baseline-required')
+    selection = validate_input(fixture_selection,
+                              target=guest_target(lease.capture.state['guest']))
+    name, xml, _record = attested_online_snapshot(lease)
+    lease.installed_name, lease.installed_xml = name, xml
+    lease.online_pending, lease.online_bootstrap = False, None
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    if not assets.is_dir():
+        print('natural-access-diagnosis: prepare the required input with '
+              'tools/run-tests artifacts prepare --for-vm --vm NAME --output ' + str(assets),
+              file=sys.stderr, flush=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, NaturalAccessJourney, PLAN,
+        'switch-user', 'natural-access', assets=assets,
+        fixture_selection=selection, timeout=1800)
+
+
 def reproduce_countdown_resume(lease):
     """Inspect countdown use/pause/return through the qualified lock journey."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -941,9 +967,15 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
     selected_setup = fixture_selection is not None
     if selected_setup or surface == 'baseline-restoration' or timeout != 900:
         from baseline_journey import BaselineJourney, PLAN
-        system.require(selected_setup and surface == 'baseline-restoration'
+        from natural_access import NaturalAccessJourney, PLAN as NATURAL_ACCESS_PLAN
+        restoration = (surface == 'baseline-restoration'
             and journey_type is BaselineJourney and plan is PLAN
             and boundary == 'restore-saved' and boundary_operation == 'parent-save-disabled'
+        )
+        natural_access = (surface == 'natural-access'
+            and journey_type is NaturalAccessJourney and plan is NATURAL_ACCESS_PLAN
+            and boundary == 'switch-user' and boundary_operation is None)
+        system.require(selected_setup and (restoration or natural_access)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -982,7 +1014,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if selected_setup:
             from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS
             context.fixture_selection = fixture_selection
-            context.fixture_subsets, context.fixture_caller = ACTIVITY_SUBSETS, ACTIVITY_CALLER
+            context.fixture_subsets = ACTIVITY_SUBSETS
+            context.fixture_caller = ('E2E-008/fresh-login' if surface == 'natural-access'
+                                      else ACTIVITY_CALLER)
             context.installed_snapshot = lease.installed_name
         expected_inputs = {}
         if assets is not None:

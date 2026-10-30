@@ -22,6 +22,10 @@ ACCOUNTS_INTERFACE = "org.freedesktop.Accounts"
 PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
 SESSION_LIMITS_INTERFACE = "com.endlessm.ParentalControls.SessionLimits"
 CALL_TIMEOUT_MS = 3_000
+# The broker's existing usage helper has a 30-second deadline.
+TIME_STATUS_TIMEOUT_MS = 35_000
+BROKER_NAME = "com.puffyslippers.OhNoParentControl1"
+BROKER_PATH = "/com/puffyslippers/OhNoParentControl1"
 UINT32_MAX = (1 << 32) - 1
 GDM_PASSWORD_SERVICE = "gdm-password"
 SYSTEMD_NAME = "org.freedesktop.systemd1"
@@ -188,7 +192,24 @@ def authentication_outcome(username: str, service: str, connection=None,
             remaining >= 0):
         return AuthenticationOutcome.ERROR
     if allowed:
-        return AuthenticationOutcome.ALLOWED
+        if not enabled or extension_active:
+            return AuthenticationOutcome.ALLOWED
+        # Malcontent's check takes today's active use as an argument. Zero
+        # checks the configured allowance, not whether it has been consumed.
+        # Reuse the broker's recorded-use calculation and child-owned query.
+        try:
+            daily, grant, additional, total = connection.call_sync(
+                BROKER_NAME, BROKER_PATH, BROKER_NAME, "GetTimeStatus",
+                GLib.Variant("(uu)", (identity.pw_uid, 0)),
+                GLib.VariantType.new("(uuuu)"), Gio.DBusCallFlags.NONE,
+                TIME_STATUS_TIMEOUT_MS, None,
+            ).unpack()
+        except (GLib.Error, OSError, RuntimeError, TypeError, ValueError):
+            return AuthenticationOutcome.ERROR
+        if additional != 0 or total != max(daily, grant):
+            return AuthenticationOutcome.ERROR
+        return (AuthenticationOutcome.ALLOWED if total > 0
+                else AuthenticationOutcome.DENIED)
     if enabled and remaining == 0:
         return AuthenticationOutcome.DENIED
     return AuthenticationOutcome.ERROR

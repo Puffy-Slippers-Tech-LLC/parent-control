@@ -247,6 +247,9 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, events => \@events,
     ('', 'approval', 'onpc-wrong-fixture-password', 'base'),
     ('', 'rejection', 'onpc-wrong-fixture-password', 'base'),
     ('typing', 'rejection', 'fixture-only-canary', 'base'),
+    ('', 'long-request', 'fixture-only-canary', 'natural-access'),
+    ('', 'approval', 'fixture-only-canary', 'natural-access'),
+    ('', 'rejection', 'fixture-only-canary', 'natural-access'),
 ])
 def test_mate_secret_is_single_use_sealed_and_terminal_on_uncertainty(fault, binding, credential, scope):
     program = r'''
@@ -276,7 +279,8 @@ my $journey = onpc_journey->new(prefix => $scope eq 'flow' ? 'kiosk-approval-flo
         return {observed => $fault eq 'stale' ? $binding . '-qualified' : $stage};
     });
 $journey = $journey->scope('rejection') if $scope eq 'confinement-usability-rejection';
-my @args = $binding eq 'rejection' ? ($journey, 'wrong') : ($journey);
+my @args = $binding eq 'rejection' ? ($journey, 'wrong') :
+    $binding eq 'long-request' ? ($journey, 'long-request') : ($journey);
 my $ok = eval { onpc_password::enter_kiosk_mate_password(@args); 1 };
 my $error = "$@"; my $before = scalar @events;
 my $retry = eval { onpc_password::enter_kiosk_mate_password(@args); 1 };
@@ -291,6 +295,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
                scope in ('package-removal', 'revoke-cancel', 'revocation', 'confinement-usability',
                          'kiosk-service-recovery')
                and binding == 'approval' or
+               scope == 'natural-access' and binding == 'long-request' or
                scope == 'confinement-usability-rejection' and binding == 'rejection')
     assert bool(value['ok']) == (allowed and not fault), value
     assert value['retry'] == value['capture'] == 0
@@ -300,6 +305,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
         assert value['events'] == []
     elif not fault:
         prefix = 'rejection-' if scope == 'confinement-usability-rejection' else ''
+        binding = 'approval' if binding == 'long-request' else binding
         assert value['events'] == [prefix + binding + '-qualified', prefix + binding + '-rechecked', 'read', 'type']
 
 

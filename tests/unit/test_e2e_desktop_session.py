@@ -23,7 +23,7 @@ from tests.support.perl import run_perl
 @pytest.mark.parametrize('fault,locked', [
     ('wrong-owner', False), ('remote', False), ('wrong-seat', False), ('greeter', False),
     ('wrong-lock-state', False), ('wrong-lock-state', True),
-    ('multiple-active', False), ('multiple-owned', False), ('missing', False),
+    ('multiple-active', False), ('multiple-owned', False), ('opening', False), ('missing', False),
 ])
 def test_source_refuses_wrong_or_ambiguous_sessions(fault, locked):
     source = props(locked='yes' if locked else 'no')
@@ -42,10 +42,49 @@ def test_source_refuses_wrong_or_ambiguous_sessions(fault, locked):
         current['8'] = props('1001')
     elif fault == 'multiple-owned':
         current['8'] = props(active='no')
+    elif fault == 'opening':
+        source['State'] = 'opening'
     else:
         current.clear()
     with pytest.raises(control.SessionError):
         control.source_session(current, 1000, locked=locked)
+
+
+@pytest.mark.parametrize('state,active', [('closing', 'no'), ('closing', 'yes'), ('unknown', 'no')])
+def test_session_reader_distinguishes_logged_out_records_before_fresh_input(monkeypatch, state, active):
+    records = {'7': {**props(active=active), 'State': state},
+               '8': {**props('120', kind='greeter'), 'State': 'active'}}
+    monkeypatch.setattr(control, 'session_ids', lambda: list(records))
+    monkeypatch.setattr(control, 'call', lambda argv: '\n'.join(
+        key + '=' + value for key, value in records[argv[2]].items()))
+    if state != 'closing':
+        with pytest.raises(control.SessionError, match='session-state'):
+            control.sessions()
+        return
+    current = control.sessions()
+    assert control.destination(current, '7', 1000, 'logout')
+    assert control.entry_identity(current, 1000, 'fresh') is None
+    records['7'] = {**props(active='no', locked='yes'), 'State': 'online'}
+    with pytest.raises(control.SessionError, match='entry-not-fresh'):
+        control.entry_identity(control.sessions(), 1000, 'fresh')
+
+
+def test_opening_greeter_cannot_authorize_a_destination_or_fresh_password(monkeypatch):
+    records = {'7': {**props(active='no', locked='yes'), 'State': 'online'},
+               '8': {**props('120', active='no', kind='greeter'), 'State': 'opening'}}
+    monkeypatch.setattr(control, 'session_ids', lambda: list(records))
+    monkeypatch.setattr(control, 'call', lambda argv: '\n'.join(
+        key + '=' + value for key, value in records[argv[2]].items()))
+    for active in ('no', 'yes'):
+        records['8']['Active'] = active
+        current = control.sessions()
+        assert not control.destination(current, '7', 1000, 'switch-user')
+        with pytest.raises(control.SessionError, match='entry-(greeter|opening)'):
+            control.entry_identity(current, 1001, 'fresh')
+    records['8']['State'] = 'active'
+    current = control.sessions()
+    assert control.destination(current, '7', 1000, 'switch-user')
+    assert control.entry_identity(current, 1001, 'fresh') is None
 
 
 def test_logout_is_one_direct_command_without_force_or_a_shell(monkeypatch):

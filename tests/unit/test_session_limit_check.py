@@ -178,6 +178,41 @@ def test_orphaned_helper_cannot_use_a_previous_parent_unit(bridge, parents):
     assert not session_limit_check.is_systemd_user_bus_bridge("child", "login")
 
 
+@pytest.mark.parametrize("status,expected", [
+    ((0, 0, 0, 0), "DENIED"),
+    ((45, 0, 0, 45), "ALLOWED"),
+    ((0, 60, 0, 60), "ALLOWED"),
+    ((0, 0, 0, 120), "ERROR"),
+    (None, "ERROR"),
+])
+def test_gdm_nonzero_daily_allowance_counts_recorded_use(monkeypatch, status, expected):
+    monkeypatch.setattr(session_limit_check.pwd, "getpwnam",
+                        lambda name: SimpleNamespace(pw_name=name, pw_uid=1002))
+    limits = mock.Mock()
+    limits.check_time_remaining.return_value = (True, 120, True, False)
+    manager = mock.Mock()
+    manager.get_session_limits.return_value = limits
+    monkeypatch.setattr(session_limit_check.Malcontent.Manager, "new", lambda bus: manager)
+    connection = mock.Mock()
+    if status is None:
+        connection.call_sync.side_effect = GLib.Error("unavailable")
+    else:
+        connection.call_sync.return_value = GLib.Variant("(uuuu)", status)
+
+    outcome = session_limit_check.authentication_outcome(
+        "child", "gdm-password", connection, object())
+
+    assert outcome == getattr(session_limit_check.AuthenticationOutcome, expected)
+    connection.call_sync.assert_called_once()
+    args = connection.call_sync.call_args.args
+    assert args[:4] == (session_limit_check.BROKER_NAME,
+                       session_limit_check.BROKER_PATH,
+                       session_limit_check.BROKER_NAME, "GetTimeStatus")
+    assert args[4].unpack() == (1002, 0)
+    assert args[5].dup_string() == "(uuuu)"
+    assert args[6:] == (session_limit_check.Gio.DBusCallFlags.NONE, 35000, None)
+
+
 class SessionLimitCheckTests(unittest.TestCase):
     @mock.patch("tools.session_limit_check.pwd.getpwnam")
     @mock.patch("tools.session_limit_check._call")

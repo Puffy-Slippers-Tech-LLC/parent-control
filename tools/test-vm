@@ -15,10 +15,11 @@ MAX_INPUT_BYTES = 64 * 1024 * 1024
 
 def baseline_restoration(args, configured):
     """Freeze the diagnostic's selected fixtures for its exact VM and lifetime."""
-    if not args or args[0] != 'reproduce-baseline-restoration':
+    actions = ('reproduce-baseline-restoration', 'reproduce-natural-access')
+    if not args or args[0] not in actions:
         return None
     targets = vm_config.fixture_targets()
-    if args != ['reproduce-baseline-restoration'] or configured.name not in targets:
+    if len(args) != 1 or configured.name not in targets:
         raise ValueError('baseline restoration requires a qualified target and a fixed action')
     from dev_privileges import check
     from vm_pool import arguments as checkout_arguments, reservation

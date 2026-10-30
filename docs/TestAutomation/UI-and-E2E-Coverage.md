@@ -9,9 +9,11 @@ not require duplicating its local matrix in E2E.
 
 ## Duplicate review and allocation
 
-Remove incidental GUI assertions. Move retained functional assertions only after
-the new owner is executable; pending obligations remain uncovered until then.
-Local coverage gives no customer acceptance credit.
+Remove incidental GUI assertions. For local UI reallocations, move retained
+functional assertions only after the new owner is executable; pending obligations
+remain uncovered until then. System/integration registration follows the
+[standalone assertion boundary](#reuse-of-system-and-integration-coverage),
+including planned E2E composition. Local coverage gives no customer acceptance credit.
 
 Local owners are `test_parent_feedback.py` for feedback/attachments,
 `test_preview_smoke.py` and `test_control_overflow.py` for Parent controls,

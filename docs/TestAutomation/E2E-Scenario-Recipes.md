@@ -2408,6 +2408,9 @@ repeating request preparation. Do not send feedback.
 
 ### Kiosk language presentation
 
+`E2E-060/kiosk-hebrew` (case 261) binds this recipe to
+`kiosk_presentation.PLAN` and `onpc_request_flow::kiosk_language_history`.
+
 One complete restricted kiosk English → Hebrew → English history for Riley,
 Jamie, 75 seconds and soft apps included, with English station desktop.
 In Hebrew, change approver Jamie → Casey once while requiring Riley's checked

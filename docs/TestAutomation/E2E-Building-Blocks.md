@@ -626,14 +626,25 @@ journey construction; missing activity preparation previously refused at that
 boundary. Collection, worker shutdown, owned cleanup, baseline restoration and
 finalization passed. The VM was observed off. This completes task 308 only.
 
+E2E-060/case 261 uses `kiosk_presentation.PLAN` /
+`KioskLanguageHistoryJourney` and `onpc_request_flow::kiosk_language_history`.
+The complete Riley English → Hebrew → English station history passed on Ubuntu
+26.04 in `20261030T135343Z-a4765f49`: the custom 75-second soft-included request
+stayed unchanged through Jamie → Casey, with retained Hebrew choice and matching
+translated text, restored English with Casey retained, station restrictions and
+normal Cancel/sign-in return. `language-history-riley-en-casey-restricted` combines
+the shared station exclusion guard with the exact restored-English form read.
+The initial greeter's recorder phase assignment was corrected without changing
+assertions. Collection, worker shutdown, owned cleanup, baseline restoration and
+recording finalization passed; the VM was observed off. This completes task 309 only.
+
 Remaining compositions and new bindings stay pending. Reuse existing LANG01
 and `language_persistence.PLAN` request readers instead of separate 308a/309a
-presentation histories. Task 309 owns its missing finite projections and
-comparisons; 310a retains the new panel endpoint projection. The remaining complete cases retain:
+presentation histories. Task 310a retains the new panel endpoint projection.
+The remaining complete cases retain:
 
 | Binding | Required result |
 | --- | --- |
-| Kiosk Hebrew request | Child's checked language/request survives one approver change and restored English; no repeated About/error-report tours. |
 | Panel language/time | Refreshed time language and elapsed balance after each overlay save, unchanged work/policy, then natural expiry without reset or grants. Existing fixed countdown reads do not qualify translation/progression/expiry. |
 
 Use the [language recipes](E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition)

@@ -842,6 +842,7 @@ LANGUAGE_HISTORY_REQUESTS = {
            ('jordan', EXISTING_CHILD, 'de'), ('riley', CHILD, 'en'), ('riley', CHILD, 'he'))
        for approver, parent in (('jamie', PARENT), ('casey', OTHER_PARENT))},
     'language-history-overlay-he-casey': (True, CHILD, 'he', OTHER_PARENT, 'form'),
+    'language-history-riley-en-casey-restricted': (False, CHILD, 'en', OTHER_PARENT, 'restricted-form'),
     **{f'language-history-overlay-{language}-jamie':
        (True, CHILD, language, PARENT, 'form') for language in ('en', 'he')},
     **{f'language-history-{name}-{action}': (False, child, 'en', PARENT, action)
@@ -3307,6 +3308,10 @@ class AccessibleUI:
                         child=child, language=language, result_language=after,
                         duration_seconds=75, custom_text='1.25')
                     return {'request': request}
+                if action == 'restricted-form':
+                    # This binding supplies its own exact translated request
+                    # read below; retain the shared station exclusion guard.
+                    self.kiosk_restrictions(check_request=False)
                 return {'language_form': self.kiosk_language_form(language, overlay=overlay,
                     child=child, duration_seconds=75, custom_text='1.25')}
         except BaseException:
@@ -12178,7 +12183,7 @@ class AccessibleUI:
                 'terminal_binding': self.terminal_shortcut_configured()
                     if account == 'standard' and route == 'terminal' else None}
 
-    def kiosk_restrictions(self, *, stable_seconds=2, prepared=False):
+    def kiosk_restrictions(self, *, stable_seconds=2, prepared=False, check_request=True):
         """Complete public station-tree exclusion, anchored by owned form IDs.
 
         No provider targets or names are inferred: any showing content outside
@@ -12189,6 +12194,7 @@ class AccessibleUI:
         require(type(stable_seconds) in (int, float) and 0 <= stable_seconds <= 2,
                 'ui:restriction-interval')
         require(type(prepared) is bool, 'ui:restriction-form-binding')
+        require(type(check_request) is bool, 'ui:restriction-form-binding')
         started = None
 
         def inspect():
@@ -12284,6 +12290,8 @@ class AccessibleUI:
         # The caller declares initial versus FLOW04-prepared state. Never
         # infer an expectation from whichever duration the UI currently shows.
         self.invalidate_observation()
+        if not check_request:
+            return True
         if prepared:
             self.kiosk_valid_choice('kiosk-valid-fraction-soft-read')
         else:

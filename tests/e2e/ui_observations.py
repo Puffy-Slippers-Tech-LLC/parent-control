@@ -645,7 +645,7 @@ class RequestObservation:
             overlay, child, _language, approver, action = accessible_ui.LANGUAGE_HISTORY_REQUESTS[operation]
             if action in ('riley', 'jordan'):
                 child = accessible_ui.CHILD if action == 'riley' else accessible_ui.EXISTING_CHILD
-            require(action in ('form', 'approver', 'riley', 'jordan') and observation == cls(
+            require(action in ('form', 'restricted-form', 'approver', 'riley', 'jordan') and observation == cls(
                 surface='child-overlay' if overlay else 'kiosk', form_count=1,
                 child=accessible_ui.CHILD_IDENTITIES[child],
                 approver=accessible_ui.APPROVER_IDENTITIES[approver], duration_seconds=75,
@@ -1687,7 +1687,7 @@ class UiObservations:
                 expected['restart'] = value
         if operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS:
             action = accessible_ui.LANGUAGE_HISTORY_REQUESTS[operation][4]
-            if action == 'form':
+            if action in ('form', 'restricted-form'):
                 value = result.get('language_form')
                 ids = {'kiosk-child-account-caption', 'kiosk-approver-account-caption',
                        'kiosk-duration-label-1800', 'kiosk-request-submit', 'kiosk-request-cancel'}

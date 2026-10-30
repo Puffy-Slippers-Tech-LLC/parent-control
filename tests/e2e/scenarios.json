@@ -8,6 +8,45 @@
   },
   "scenarios": [
     {
+      "id": "E2E-060",
+      "title": "Keep the child's request language when the approving parent changes",
+      "category": "customer-journey",
+      "owners": ["personal-language"],
+      "requirements": ["ONPC-CORE-REQUEST-005", "ONPC-CORE-REQUEST-006", "ONPC-CORE-REQUEST-008", "ONPC-CORE-REQUEST-009"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/Specification.md", "docs/SystemDesign/Localization.md", "docs/TestAutomation/E2E-Scenario-Recipes.md#kiosk-language-presentation-planned-task-309"],
+      "components": ["parent", "kiosk", "broker"],
+      "environment": ["ubuntu26.04", "fedora44"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
+      "phases": {
+        "setup": [{"id": "setup", "operation": "provision", "description": "Restore the installed snapshot and provision declared fixtures and credentials."}],
+        "start": [{"id": "start", "operation": "begin", "description": "Begin one independent history at the installed greeter."}],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Jamie enables Riley's screen-time control through Parent and returns to sign-in."},
+          {"id": "step-2", "operation": "ui", "description": "At the English station, prepare Riley and Jamie's 75-second request with soft apps included, save Hebrew and compare the unchanged choices and translated request context."},
+          {"id": "step-3", "operation": "ui", "description": "Change only the approver to Casey, verify Riley's Hebrew request and checked language, then restore English with Casey still selected, compare the original choices and station restrictions, and Cancel to sign-in."}
+        ],
+        "end": [{"id": "end", "operation": "collect", "description": "Reconcile the complete language, approver and preserved-request history."}],
+        "cleanup": [{"id": "cleanup", "operation": "outer-reset", "description": "Finish worker shutdown, owned cleanup, baseline restoration and preservation."}]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "original-english-request", "step_id": "step-2", "description": "The original English request names Riley and Jamie, with 75 seconds and included soft apps."},
+          {"id": "hebrew-preserved-request", "step_id": "step-2", "description": "Hebrew public request context preserves the original child, approver, custom duration and soft-app choice."},
+          {"id": "approver-independent-language", "step_id": "step-3", "description": "Selecting Casey changes only the approver; Riley's Hebrew request context and original choices remain."},
+          {"id": "child-language-retained", "step_id": "step-3", "description": "Preferences independently reads Riley's checked Hebrew language with Casey still selected."},
+          {"id": "english-preserved-restricted-request", "step_id": "step-3", "description": "Restored English context matches the original with Casey retained, unchanged child, duration and soft apps, and request-only station controls."},
+          {"id": "normal-station-exit", "step_id": "step-3", "description": "Cancel returns normally to the usable sign-in screen."}
+        ],
+        "backend": [], "other_user": []
+      },
+      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
+      "duration_seconds": 900,
+      "matrix": {"dimensions": {"history": ["kiosk-hebrew"]}, "full_combinations": [], "rationale": "One complete English Hebrew English station history with a single Jamie to Casey change and unchanged Riley request choices."},
+      "variants": [{"coverage_id": 261, "id": "kiosk-hebrew", "owner": "personal-language", "parameters": {"history": "kiosk-hebrew"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/kiosk_presentation.py", "test_id": "kiosk-hebrew"}}]
+    },
+    {
       "id": "E2E-059",
       "title": "Keep a child's request and saved work across Hebrew approval and English restoration",
       "category": "customer-journey",

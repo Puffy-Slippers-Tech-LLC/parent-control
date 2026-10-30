@@ -754,6 +754,32 @@ sub overlay_language {
     $journey->finish();
 }
 
+sub kiosk_language_history {
+    onpc_progress::operation('Checking that the child request language stays independent of the approving parent');
+    my ($exchange, $invocations, $challenges) = @_;
+    die 'kiosk-language-history:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($invocations) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'kiosk-language-history', review => 0);
+    $journey->declare_invocations($invocations);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen($_) for qw(limit-enabled save-enabled switch-user gdm-switched);
+    onpc_gdm::enter_station($journey, '');
+    prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1, 'compact');
+    $journey->seen('english-form');
+    onpc_parent::language_selection($journey, 'hebrew');
+    $journey->seen($_) for qw(hebrew-save hebrew-form casey-select casey-form);
+    onpc_parent::language_selection($journey, 'english');
+    $journey->seen($_) for qw(english-save restored-form cancel returned);
+    $journey->finish();
+}
+
 sub kiosk_language_restoration {
     onpc_progress::operation('Qualifying selected-child kiosk language restoration and approver independence');
     my ($exchange, $invocations, $challenges) = @_;

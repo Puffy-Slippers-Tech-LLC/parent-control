@@ -23,7 +23,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **309 — [Kiosk Hebrew request and child-language ownership](E2E-Tasks/309-kiosk-language-presentation.md)**.
+Next task: **310a — [Check that the child's countdown follows their language](E2E-Tasks/310a-panel-language-refresh.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

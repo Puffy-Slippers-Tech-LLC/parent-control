@@ -1,4 +1,4 @@
-# 310a — Qualify child panel language refresh and presentation
+# 310a — Check that the child's countdown follows their language
 
 Follow the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).

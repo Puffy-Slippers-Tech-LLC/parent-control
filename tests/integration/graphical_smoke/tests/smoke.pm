@@ -173,6 +173,12 @@ sub run {
         onpc_request_flow::kiosk_language(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{kiosk_language_history}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::kiosk_language_history(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{kiosk_language_restoration}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

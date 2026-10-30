@@ -682,13 +682,15 @@ its original position. The repair targets one reported case at a time and
 reruns the original category selectors. A passing category clears its repair
 handoffs.
 
-Each case has at most **five agent sessions per launcher run**, including
+Each case initially has **five agent sessions per launcher run**, including
 classification, escalated repair and answered-blocker continuations. Counts survive
 switching cases and later verification rounds; another case or VM has its own
 budget. Non-case failures and legacy handoffs without case IDs share a category
 infrastructure budget (VM-scoped when supplied). Verification and owned cleanup
 after the fifth session still finish, and a pass is accepted. If further repair
-is needed, the case fails before a sixth session and the queue continues.
+is needed, a fresh session pauses for developer intervention before any more
+repair work. An explicit answer can grant five further sessions; a timeout or
+the choice to leave the case failed logs the failure and continues the queue.
 `repair-stop.json` retains that case's identity, count, latest failure prompt and
 last agent result, even if another case was repaired in between. An entire category
 has no five-session cap. At the highest tier, `stalled` fails the case when
@@ -870,6 +872,15 @@ session receives the failure evidence, latest repair handoff and developer
 instructions, rechecks prerequisites, and continues the same repair phase.
 Decisions remain available to later repairs in the run within their stated scope.
 Ctrl+C or `--stop` cancels a paused run without answering.
+
+Exhausting a case's session allowance opens a fresh intervention session with a
+short explanation and the same timed question. Continuing explicitly grants
+five more repair sessions; leaving the case failed continues the queue. The
+daytime/nighttime deadline and `+10m` extension use the same question mechanism.
+An unanswered timeout fails and logs the case, then continues independent work.
+Watch shows the flashing **Waiting for session intervention** text, countdown
+and `+10m` link in the VM heading. Submitting an answer removes the timer and
+waiting indicator immediately.
 
 Timed-out prompts, exhausted case session allowances and terminal stalls append
 their case identity, detailed reason, investigation prompt and latest result to

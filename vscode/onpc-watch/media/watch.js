@@ -414,8 +414,11 @@
             }
             // Keep the displayed status/error bodies when their owner exits.
             // Session input still follows live ownership, and final log bytes drain above.
-            if (!entry.active && entry.run && section.retainedRun === entry.run) return;
+            // Clear a pending question's controls before retaining the finished view.
+            if (!entry.active && entry.run && section.retainedRun === entry.run
+                    && !entry.session_waiting && !section.retainedWaiting) return;
             section.retainedRun = entry.run;
+            section.retainedWaiting = Boolean(entry.session_waiting);
             const errorSignature = JSON.stringify(entry.error_rows);
             if (section.errorSignature !== errorSignature) {
                 section.errorSignature = errorSignature;
@@ -459,22 +462,21 @@
                     }
                     if (part.color) span.style.color = part.color;
                     if (part.bold) span.style.fontWeight = 'bold';
-                });
-                if (entry.session_waiting && row.some(part => part.waiting)) {
-                    if (Number.isFinite(entry.session_deadline)) {
-                        line.append(' (');
-                        const timer = element('span', '', line);
-                        timer.dataset.deadline = String(entry.session_deadline);
-                        countdown(timer);
-                        line.append(' ');
-                        const extend = link(line, '+10m', () => sessionAction(section, 'extend'));
-                        extend.title = 'Add 10 minutes';
-                        extend.setAttribute('aria-label', 'Add 10 minutes to answer');
-                        line.append(')');
-                    } else {
-                        line.append(' (no timeout)');
+                    if (entry.session_waiting && part.waiting) {
+                        if (Number.isFinite(entry.session_deadline)) {
+                            line.append(' ');
+                            const timer = element('span', '', line);
+                            timer.dataset.deadline = String(entry.session_deadline);
+                            countdown(timer);
+                            line.append(' ');
+                            const extend = link(line, '+10m', () => sessionAction(section, 'extend'));
+                            extend.title = 'Add 10 minutes';
+                            extend.setAttribute('aria-label', 'Add 10 minutes to answer');
+                        } else {
+                            line.append(' (no timeout)');
+                        }
                     }
-                }
+                });
                 return line;
             });
             if (!rows.length) {

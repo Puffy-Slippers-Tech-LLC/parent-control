@@ -85,6 +85,12 @@ def main(*, conversation_prompt=None):
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
         import fix_tests
         import fix_tests_queue
+        wait_for_answer = fix_tests.wait_for_answer
+        def fixture_answer(*args, **kwargs):
+            if kwargs.get('intervention') and not (Path(root) / 'manual-intervention').exists():
+                kwargs['timeout'] = .2
+            return wait_for_answer(*args, **kwargs)
+        fix_tests.wait_for_answer = fixture_answer
         fix_tests_queue.WORKER = Path(__file__).resolve()
         import vm_pool
         vm_pool.selected_reservation = lambda **kwargs: nullcontext()

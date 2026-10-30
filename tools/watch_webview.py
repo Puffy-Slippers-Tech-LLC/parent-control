@@ -34,18 +34,27 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
     from launcher_render import COMPACT_LINE, SESSION_LINE, clean, compact_text
     console = Console()
     rows = []
+    waiting_heading = False
     for line in lines:
         compact = isinstance(line, str) and line.startswith(COMPACT_LINE)
         text = line.copy() if isinstance(line, Text) else (
             compact_text(line) if compact else Text.from_ansi(line.replace(SESSION_LINE, '')))
-        heading = re.fullmatch(r'VM: (.+) \([^()]*\)', text.plain)
+        heading = re.fullmatch(r'VM: (.+) \(([^()]*)\)', text.plain)
         if heading:
             text = text[4:]
             text.stylize('bold', 0, len(heading[1]))
+            if session_waiting and heading[2] == 'Waiting for input':
+                text = text[:len(heading[1])] + Text(' (')
+                text.append('Waiting for session intervention',
+                            style=Style(color='red', meta={'waiting': True}))
+                text.append(')')
+                waiting_heading = True
         match = re.search(r'Waiting for input', text.plain)
         if match:
             text.stylize('red', match.start(), match.end())
         if session_waiting and re.fullmatch(r'Paused\s*[—-]\s*waiting for your answer', text.plain.strip()):
+            if waiting_heading:
+                continue
             text = Text()
             text.append('Paused - waiting for your answer',
                         style=Style(color='red', meta={'waiting': True}))

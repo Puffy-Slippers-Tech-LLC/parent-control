@@ -76,13 +76,19 @@ def validate_blocker(blocker):
         raise ValueError('blocked result needs a concise explanation, question and 2–3 distinct suggestions')
 
 
+def developer_timeout():
+    """Use the development computer's local daytime/nighttime waiting policy."""
+    return (30 if 8 <= time.localtime().tm_hour < 23 else 10) * 60
+
+
 def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
-                    on_wait=lambda: None, on_poll=lambda: None, timeout=None):
-    """The owner waits without a timeout; shared observers submit the answer."""
+                    on_wait=lambda: None, on_poll=lambda: None, timeout=None,
+                    intervention=False):
+    """Wait for an explicit answer, preserving the shared, extendable deadline."""
     from launcher_progress import publish_progress
     from launcher_render import AgentRenderer, SessionTranscript
     validate_blocker(blocker)
-    question = dict(blocker, id=identity, answer=None)
+    question = dict(blocker, id=identity, answer=None, intervention=intervention)
     with launcher.lock(run / 'question-gate') as gate:
         fcntl.flock(gate, fcntl.LOCK_EX)
         path = run / 'question.json'
@@ -93,10 +99,20 @@ def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
             launcher.atomic(path, question)
         elif timeout is not None and 'deadline' not in previous:
             launcher.atomic(path, dict(previous, deadline=time.time() + timeout))
+    fresh = False
+    if intervention:
+        view_path = run / 'session-view.json'
+        view = json.loads(view_path.read_text()) if view_path.exists() else {}
+        fresh = view.get('session') != identity
+        if fresh:
+            launcher.atomic(view_path, dict(view, session=identity, status='finished',
+                                            interactive=False, started_at=time.time(),
+                                            continue_transcript=False))
     on_wait()
     publish_progress(run, progress_key, [heading, 'Paused — waiting for your answer'])
-    with closing(SessionTranscript(sys.stdout, run, append=True)) as transcript:
-        renderer = AgentRenderer(transcript)
+    with closing(SessionTranscript(sys.stdout, run, append=not fresh)) as transcript:
+        renderer = AgentRenderer(transcript,
+            on_description=launcher.descriptive_output(run) if intervention else None)
         renderer.message(blocker['explanation'])
         # Only observers render an editable selection; the transcript has no default vote.
         prompt = QuestionInput(question, None)

@@ -30,7 +30,7 @@ from detached_launcher import (
 )
 import detached_launcher
 from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
-from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer
+from launcher_question import BLOCKER_INSTRUCTIONS, developer_timeout, validate_blocker, wait_for_answer
 from launcher_runtime import (SessionResultRejected, TaskBudget, TaskLimitReached, add_options,
                               read_session_result, retain_result_rejection, result_recovery_instructions,
                               validate_session_result, warn_remaining)
@@ -1258,13 +1258,27 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             print(f'fix-tests: failed {target}: {reason}; continuing.', flush=True)
             raise CaseFailed(reason)
 
-        def check_budget(*, blocker=None):
+        def case_limit():
+            return commits.state.get('session_limits', {}).get(commits.key(failure_key), MAX_REPAIR_SESSIONS)
+
+        def check_budget():
             sessions = case_sessions.get(failure_key, 0)
-            if sessions >= MAX_REPAIR_SESSIONS:
+            limit = case_limit()
+            if sessions >= limit:
                 retain_stop('session_limit')
                 record_usage(run, dict(repair_id=repair_id, sessions=sessions, failure=target),
                              event='session_limit')
-                fail_case(f'session allowance exhausted ({sessions}/{MAX_REPAIR_SESSIONS})', blocker=blocker)
+                reason = f'session allowance exhausted ({sessions}/{limit})'
+                result = dict(summary=reason, blocker=dict(
+                    explanation='This test still needs work after the allowed repair sessions. '
+                                'The previous session has ended, and this new session is waiting for your instructions. '
+                                'You can allow more repair work or leave this test failed and continue with the others.',
+                    question='How should I proceed with this test?',
+                    options=['Continue repairing this test for up to five more sessions.',
+                             'Leave this test failed and continue with the other tests.']))
+                answer_blocker(result, {}, uuid.uuid4().hex, intervention=True)
+                return True
+            return False
 
         def escalate(reason, *, classification_only=False):
             current = case_tiers.get(failure_key, initial)
@@ -1286,18 +1300,30 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         if previous and not diagnostic and previous.get('verification') is False:
             escalate('same_case_verification_failed')
 
-        def answer_blocker(result, metadata, identity):
+        def answer_blocker(result, metadata, identity, *, intervention=False):
             nonlocal blocker_summary, restart_continuation
             progress_row = repair_progress(run, read_progress(run))[-1]
-            repair_context['blocked'] = dict(result=result, session=metadata, id=identity)
+            repair_context['blocked'] = dict(result=result, session=metadata, id=identity,
+                                             intervention=intervention)
             try:
                 answer = wait_for_answer(run, result['blocker'], identity, progress_row['key'],
                     label=reattach_label(run), heading=progress_row['lines'][0], on_poll=check_controller,
-                    timeout=(30 if 8 <= time.localtime().tm_hour < 23 else 10) * 60)
+                    timeout=developer_timeout(), intervention=intervention)
             except TimeoutError:
-                fail_case('waiting for input: developer prompt timed out', blocker=result['blocker'])
+                reason = 'waiting for input: developer prompt timed out'
+                if intervention:
+                    reason = result['summary'] + '; ' + reason
+                fail_case(reason, blocker=result['blocker'])
             if answer is None:
                 raise Stopped()
+            if intervention:
+                question = json.loads((run / 'question.json').read_text())
+                if question['choice'] == 1:
+                    fail_case(result['summary'] + '; developer chose to continue with other tests',
+                              blocker=result['blocker'])
+                commits.state.setdefault('session_limits', {})[commits.key(failure_key)] = (
+                    case_sessions.get(failure_key, 0) + MAX_REPAIR_SESSIONS)
+                commits.save()
             developer_answers.append(answer)
             atomic(run / 'developer-answers.json', developer_answers)
             blocker_summary = result['summary']
@@ -1312,7 +1338,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
 
         if repair_context is not None and repair_context.get('blocked'):
             blocked = repair_context['blocked']
-            answer_blocker(blocked['result'], blocked['session'], blocked['id'])
+            answer_blocker(blocked['result'], blocked['session'], blocked['id'],
+                           intervention=blocked.get('intervention', False))
 
         while True:
             check_stop()
@@ -1342,6 +1369,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             else:
                 check_budget()
                 sessions = case_sessions.get(failure_key, 0) + 1
+                session_limit = case_limit()
                 agent_model, agent_effort = case_tiers.setdefault(failure_key, initial)
                 progress(category, 'fixing errors', model=agent_model, effort=agent_effort)
                 # Aggregate failures can enter a leaf repair before its own test.
@@ -1350,10 +1378,10 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                     failed(category, queued or dict(prompt=failure_prompt, categories=[category]))
                 phase = 'repair review' if classification else 'classify and repair'
                 print(f'\nfix-tests: {phase} ({agent_model}, {agent_effort}); '
-                      f'case session {sessions}/{MAX_REPAIR_SESSIONS}', flush=True)
+                      f'case session {sessions}/{session_limit}', flush=True)
                 (run / 'prompt.txt').write_text(
-                    repair_prompt(prompt + f'\nThis is case session {sessions}/{MAX_REPAIR_SESSIONS}; '
-                                  f'{MAX_REPAIR_SESSIONS - sessions} further agent sessions remain. '
+                    repair_prompt(prompt + f'\nThis is case session {sessions}/{session_limit}; '
+                                  f'{session_limit - sessions} further agent sessions remain. '
                                   'A diagnostic execution after the last session can retain evidence, '
                                   'but cannot start another interpretation session in this run.\n',
                                   app_issue=classification, developer_answers=developer_answers,
@@ -1417,7 +1445,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             record_usage(run, dict(metadata, phase=phase, result=result['status']),
                          event='result_replay' if replaying else 'result')
             if result['status'] == 'blocked':
-                check_budget(blocker=result['blocker'])
+                if check_budget():
+                    continue
                 answer_blocker(result, metadata, uuid.uuid4().hex)
                 continue
             if result['status'] in ('app_issue', 'uncertain', 'stalled'):
@@ -1425,6 +1454,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 classification = result['status'] + ': ' + result['summary']
                 raised = escalate(result['status'], classification_only=initial_classification)
                 if raised or initial_classification:
+                    continue
+                if check_budget():
                     continue
                 retain_stop('stalled')
                 fail_case('repair stalled: ' + result['summary'])
@@ -1575,6 +1606,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             completed.remove(retained_failure['category'])
         saved = commits.state.get('controller_restart', {})
         same_run = saved.get('run') == str(run)
+        if not (reloading or same_run):
+            commits.state.pop('session_limits', None)
         if reloading or same_run:
             # An automatic replacement is the same run, with the same allowances.
             runtime = saved['runtime']

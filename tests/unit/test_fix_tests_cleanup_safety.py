@@ -812,7 +812,8 @@ def test_resume_after_session_limit_retains_completed_diagnostic_categories(chec
     failed = json.loads((run / 'checkpoint.json').read_text())['failed_cases']
     assert len(failed) == 1
     assert failed[0]['failure'] == ['ui', 'reminder-case', '']
-    assert failed[0]['reason'] == 'session allowance exhausted (5/5)'
+    assert failed[0]['reason'] == ('session allowance exhausted (5/5); '
+                                   'waiting for input: developer prompt timed out')
     evidence_marker = 'Retained private failure context (bounded log tails): '
     evidence_path = Path(failed[0]['prompt'].split(evidence_marker, 1)[1].splitlines()[0])
     evidence = json.loads(evidence_path.read_text())
@@ -1388,24 +1389,34 @@ def test_repair_budget_is_per_case_and_stalled_diagnosis_stops_early(checkout, s
         assert json.loads((run / 'repair-stop.json').read_text())['reason'] == 'stalled'
 
 
-def test_answered_blockers_use_case_budget_and_do_not_ask_after_limit(checkout, monkeypatch):
+def test_answered_blockers_use_case_budget_and_wait_for_intervention_at_limit(checkout, monkeypatch):
     from launcher_render import LauncherDisplay
     root, _ = checkout
     (root / 'mode').write_text('agent-script')
-    (root / 'script.json').write_text(json.dumps({'agents': ['blocked'] * 5, 'tests': ['case-A']}))
+    (root / 'manual-intervention').touch()
+    (root / 'script.json').write_text(json.dumps({'agents': ['blocked'] * 6 + ['test_fixed'],
+                                               'tests': ['case-A', None]}))
     run, _ = fix_tests.select(root, categories=('unit',))
     answers = []
     def answer(display):
         if display.question is not None and not display.question.sent:
             answers.append(display.question.question['id'])
+            if display.question.question.get('intervention'):
+                from launcher_question import extend_deadline, pending
+                question = pending(run)
+                deadline = question['deadline']
+                assert 0 < deadline - time.time() <= 30 * 60
+                extend_deadline(run, question['id'])
+                assert pending(run)['deadline'] == deadline + 600
             display.question.feed(b'\r')
+            assert json.loads((run / 'question.json').read_text())['answer'] is not None
     monkeypatch.setattr(LauncherDisplay, 'poll_input', answer)
     output = io.StringIO()
-    assert fix_tests.follow(run, output) == 1
-    assert len(set(answers)) == 4
+    assert fix_tests.follow(run, output) == 0
+    assert len(set(answers)) == 6
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
-    assert [call['kind'] for call in calls] == ['test'] + ['agent'] * 5 + ['test']
-    assert 'session allowance exhausted (5/5)' in output.getvalue()
+    assert [call['kind'] for call in calls] == ['test'] + ['agent'] * 7 + ['test'] * 2
+    assert 'case session 6/10' in output.getvalue()
 
 
 def test_later_verification_round_does_not_reset_case_budget(checkout):

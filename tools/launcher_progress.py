@@ -30,7 +30,7 @@ def plan_task_heading(root, queue, task):
 
 def session_lines(heading, session, model, effort, *, summary=None):
     detail = f'{summary} ({model} {effort})' if summary else f'{model} {effort}'
-    return [heading, f'\033[1mSession [{session}]\033[22m: {detail}']
+    return [heading, f'\033[1mSession {session}\033[22m: {detail}']
 
 
 def format_duration(seconds, *, short=False):
@@ -86,6 +86,8 @@ def plan_status(run, steps, *, reader, active):
     """Shared editor projection for every execution-plan launcher."""
     from launcher_render import clean
     from launcher_session import clock_duration
+    steps = [dict(step, lines=[re.sub(r'Session \[(\d+)\]', r'Session \1', line)
+                               for line in step['lines']]) for step in steps]
     # Retain compact completions and only the latest session for each task.
     def task_key(step):
         heading = clean(step['lines'][0])

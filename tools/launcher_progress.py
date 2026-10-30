@@ -87,10 +87,15 @@ def plan_status(run, steps, *, reader, active):
     from launcher_render import clean
     from launcher_session import clock_duration
     # Retain compact completions and only the latest session for each task.
-    latest = {step['lines'][0]: step for step in steps
+    def task_key(step):
+        heading = clean(step['lines'][0])
+        task = re.match(r'^Task ([\w.-]+):', heading)
+        return ('task', task[1]) if task else ('heading', heading)
+
+    latest = {task_key(step): step for step in steps
               if not step.get('pinned') and not step.get('replaces')}
     steps = [step for step in steps if step.get('pinned') or step.get('replaces')
-             or latest[step['lines'][0]] is step]
+             or latest[task_key(step)] is step]
     steps = [dict(step, lines=[completion_line(step['lines'][0])])
              if step.get('replaces') else step for step in steps]
     try:

@@ -9,6 +9,7 @@ ACTIVITY_CALLER = 'check_e2e_baseline_journey'
 ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',
                     'check_e2e_baseline_app_effects',
                     'check_e2e_natural_expiry',
+                    'check_e2e_overlay_approved_exit',
                     'check_e2e_overlay_approval',
                     'check_e2e_overlay_translated_approval',
                     'E2E-008/fresh-login', 'E2E-010/parent', 'E2E-010/other-child', 'E2E-011/daily-only',

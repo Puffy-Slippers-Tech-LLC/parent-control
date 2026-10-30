@@ -945,8 +945,10 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
             return launcher_reload.STATUS
         child = child_run(name)
         (child / 'result.json').unlink(missing_ok=True)
-        launcher.atomic(child / 'pipeline.json', dict(parent=str(run)))
-        launcher.atomic(child / 'vm.json', {'vm': None if name == 'host' else name})
+        # Older destination launchers authenticate these with the strict private
+        # receipt reader too. Publish 0600 independently of the caller's umask.
+        launcher._publish_start(child / 'pipeline.json', dict(parent=str(run)))
+        launcher._publish_start(child / 'vm.json', {'vm': None if name == 'host' else name})
         if not (child / 'limits.json').exists():
             TaskBudget(child).initialize(None)
         # The runner checkpoint validates selectors and rounds even for a

@@ -82,6 +82,10 @@ def inputs():
 def stage_qualification_assets(assets, staged, commands, *, dual_packages=False,
                                package_only=False):
     """Keep the Parent bootstrap's package-only provenance distinct."""
+    # Match the launcher's prepared locator before validation can refuse it.
+    # Hash the path; never expose arbitrary supplied filenames in diagnostics.
+    print('qualification-input: requested locator_sha256=' +
+          hashlib.sha256(str(assets).encode()).hexdigest(), flush=True)
     if dual_packages:
         runner.stage_upgrade_assets(assets, staged, commands,
                                     **({'package_only': True} if package_only else {}))

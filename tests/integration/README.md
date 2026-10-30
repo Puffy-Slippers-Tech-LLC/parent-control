@@ -229,6 +229,10 @@ and grant/use/revocation history have Riley's A/H/S/N launchers before Parent op
 `NaturalExpiryQualification` binds `check_e2e_natural_expiry` to the same union
 so Riley's activity launch and use until natural lock receive the required
 child catalogue and activity files, with shared independent readback before input.
+`OverlayApprovedExitQualification` binds `check_e2e_overlay_approved_exit` to
+the same union so automatic approval exit can verify and resume the original
+child activity. Its immediate, translated and rejected/cancelled approval
+variants retain their own fixed caller bindings to that union.
 `E2E-015/child-overlay-cancel`,
 `E2E-015/child-overlay-escape` and `E2E-015/child-overlay-approved` select this same
 union under their own fixed caller identities before journey construction, so the

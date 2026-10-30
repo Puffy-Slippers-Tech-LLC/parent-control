@@ -572,15 +572,21 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
                 os.close(owner)
 
 
-def _start_record(path):
-    """Read a finite private startup identity without following replacements."""
+def _start_record(path, *, private=True):
+    """Read bounded caller-owned metadata without following replacements.
+
+    Startup and resolver receipts require 0600. Legacy pipeline metadata uses
+    atomic() and the caller's umask, protected by its private parent directory.
+    """
+    if not private:
+        private_directory(path.parent)
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     try:
         info = os.fstat(fd)
         if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
-                or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1
+                or private and stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1
                 or info.st_size > 16384):
-            raise ValueError('unsafe pending workflow start record')
+            raise ValueError(f'unsafe workflow record: {path}')
         return json.loads(os.read(fd, 16385))
     finally:
         os.close(fd)
@@ -879,11 +885,11 @@ def propagation_source_run(root, source):
     from test_storage import directory
     if source.parent.parent == directory('fix-tests', root=root):
         private_directory(source)
-        binding = _start_record(source / 'vm.json')['vm']
+        binding = _start_record(source / 'vm.json', private=False)['vm']
         name = 'host' if binding is None else binding
         expected = 'pipeline-' + hashlib.sha256(name.encode()).hexdigest()[:24]
         if (source.name != expected or
-                _start_record(source / 'pipeline.json')['parent'] != str(source.parent)):
+                _start_record(source / 'pipeline.json', private=False)['parent'] != str(source.parent)):
             raise ValueError('invalid propagation pipeline identity')
         return source.parent
     return source

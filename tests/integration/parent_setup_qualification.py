@@ -1317,6 +1317,9 @@ class OverlayPromptQualification(ChallengesQualification):
 
 
 class OverlayApprovedExitQualification(ChallengesQualification):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets
+    fixture_caller = 'check_e2e_overlay_approved_exit'
+
     @staticmethod
     def journey(context, progress):
         from app_snapshot import snapshot_name

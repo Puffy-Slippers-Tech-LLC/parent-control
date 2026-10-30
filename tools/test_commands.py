@@ -604,8 +604,12 @@ def qualification_artifact_command(root, category, args):
         return None
     from test_storage import named_input
     from vm_selection import arguments
+    import hashlib
 
     output = str(named_input(**options))
+    # Compare the producer and privileged consumer without logging private paths.
+    print('qualification-input: prepared locator_sha256=' +
+          hashlib.sha256(output.encode()).hexdigest(), flush=True)
     flags = ['--upgrade-inputs'] if options.get('upgrade_source') else []
     if os.path.lexists(output):
         artifact_path(output)

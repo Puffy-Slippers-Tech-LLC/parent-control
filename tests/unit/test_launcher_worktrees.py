@@ -635,7 +635,19 @@ def test_descendant_restart_never_replays_or_retires_the_recovery_stash(trees, m
 
 
 def test_real_supervisor_runs_destination_resolver_with_a_private_agent_double(trees, monkeypatch):
+    import hashlib
+    from test_storage import directory
     f = trees
+    workflow = propagation.launcher.private_directory(
+        directory('fix-tests', root=f.root) / ('b' * 32))
+    f.run = propagation.launcher.private_directory(
+        workflow / ('pipeline-' + hashlib.sha256(b'host').hexdigest()[:24]))
+    # Legacy pipeline writers used atomic() with the development host's umask.
+    for filename, value in [('vm.json', dict(vm=None)),
+                            ('pipeline.json', dict(parent=str(workflow)))]:
+        path = f.run / filename
+        propagation.launcher.atomic(path, value)
+        path.chmod(0o664)
     binary = f.root / 'private-bin'
     binary.mkdir()
     agent = binary / 'codex'
@@ -655,7 +667,7 @@ destination.write_text(json.dumps(dict(status='resolved', summary='Private agent
 ''')
     agent.chmod(0o755)
     monkeypatch.setenv('PATH', str(binary) + os.pathsep + os.environ['PATH'])
-    with propagation.launcher.lock(f.run.parent / 'owner') as owner:
+    with propagation.launcher.lock(workflow.parent / 'owner') as owner:
         fcntl.flock(owner, fcntl.LOCK_EX)
         result = propagation._resolve_once(f.other, f.run, 'merge', dict(source_root=str(f.root)))
         # A later remote conflict must not recreate a successfully retired

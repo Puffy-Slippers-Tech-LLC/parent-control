@@ -65,6 +65,16 @@ do not prove native authentication or actual warning delivery.
 
 ## Reuse of system and integration coverage
 
+System and integration register only standalone tests with assertions outside
+current or planned E2E composition. A qualification that only exercises E2E
+building blocks is not a system or integration test, even before its consumer
+is implemented. Keep its shared operations and focused qualification route;
+do not register it and then add a scheduling exclusion. Register engineering
+faults, internal OS/backend witnesses and essential harness safety checks in
+their appropriate suite. Normal public recovery within such a distinct fault
+history remains part of that test. Classify mixed checks by their assertions and
+remove independent public-only qualification attempts already owned by E2E.
+
 Keep each complete customer journey: its starting state, customer actions,
 intermediate access/recovery results and final usable destination. Assess overlap
 per assertion, not per feature name. Saving a rule in Parent and observing its
@@ -86,7 +96,7 @@ without executable assertions establishes no coverage.
 | Existing language selection and `language_persistence.PLAN` request readers | A second presentation-history qualifier (308a/309a) repeating saved Hebrew/custom-request/approver bindings | Tasks 308/309's complete restoration histories and original-work comparisons; 308b's missing translated approval and 310a's new panel projection remain distinct |
 | Shared `PackageCommand`, match Save and Parent reopen/select operations | Complete catalogue update/remove/reinstall histories repeated in 123/123a qualifiers | Cases 110/111 implement missing verified fixture bindings and retain open drafts, actual package changes, Save, refreshed catalogue, retained rules and child launch results |
 | `test_removal.test_remove_reboot_reinstall` (system 6); `test_install_smoke.test_previous_package_policy_preservation` (287) | Package files/ownership/service/PAM/migration matrices, internal snapshots and duplicate lifecycle qualifiers | Case 139's continuous install/configure/use/remove/use/reinstall/retained-settings/reapply/purge/defaults history; cases 136–138's real notices, activation and usable apps |
-| Kiosk service/configuration recovery and update-reentry integration checks | Reimplementation of their fault/recovery controls and unchanged qualification | Actual unavailable result, restoration, genuine approval and usable return within each complete recipe |
+| Kiosk service/configuration recovery integration checks; shared update-reentry building block | Reimplementation of their fault/recovery controls and unchanged qualification; update-reentry has no integration registration | Actual unavailable result, restoration, genuine approval and usable return within each complete recipe |
 | Delivered native fixture and grant/use/revoke scope in the [reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse) | Rebuilding compatible fixtures or repeating the accepted finite native history for 313a/313 | Each later journey's own approval, access, expiry/revocation and retained-work results; different durations/providers/entry modes retain their missing qualification |
 
 Obligations 147/148 remain with their executable lower-suite owners without

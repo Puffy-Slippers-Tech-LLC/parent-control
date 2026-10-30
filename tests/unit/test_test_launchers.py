@@ -1519,16 +1519,16 @@ def test_privileged_parent_symlink_is_rejected(checkout):
         dispatcher['selection'](checkout, ['integration', 'check_future'])
 
 
-def test_integration_listing_is_host_safe_and_lists_the_snapshot_binding():
+def test_integration_listing_is_host_safe_and_lists_only_registered_tests():
     plan, safety = commands.plan(ROOT, 'integration', ['--list'])
     assert plan == [['/usr/bin/python3', '-B',
                      str(ROOT / 'tests/integration/integration_inventory.py')]]
     assert safety is False
     listing = runpy.run_path(str(ROOT / 'tests/integration/integration_inventory.py'))
-    assert 'check_fixture_snapshots' in {item['name'] for item in listing['inventory']()}
+    registered = {item['name'] for item in listing['inventory']()}
+    assert registered == set(listing['INTEGRATION_CHECKS'])
     scheduled = listing['runnable']()
     assert scheduled and len(scheduled) == len(set(scheduled))
-    assert set(scheduled).isdisjoint(listing['EXCLUDED'])
     assert set(scheduled).isdisjoint({
         'check_test_recovery', 'check_graphical_recovery', 'check_system_recovery',
         'check_tmp_storage', 'check_tmp_storage_cleanup', 'check_storage_migration',
@@ -1540,7 +1540,11 @@ def test_integration_listing_is_host_safe_and_lists_the_snapshot_binding():
             'check_e2e_upgrade_assets',
             'check_e2e_give_repeated_public_operations_distinct_stages'
             }.isdisjoint(scheduled)
-    assert {'check_e2e_baseline_journey', 'check_fixture_e2e_installed',
+    assert {'check_e2e_panel_language_refresh', 'check_e2e_overlay_translated_approval',
+            'check_e2e_baseline_journey', 'check_e2e_natural_expiry',
+            'check_e2e_parent_save', 'check_e2e_kiosk_update_reentry'}.isdisjoint(registered)
+    assert {'check_e2e_auth_prompt', 'check_e2e_kiosk_feedback_confinement',
+            'check_e2e_kiosk_configuration_recovery', 'check_fixture_e2e_installed',
             'check_graphical_credentials', 'check_graphical_worker'} <= set(scheduled)
     ubuntu = set(listing['runnable'](host_os='ubuntu'))
     fedora = set(listing['runnable'](host_os='fedora'))

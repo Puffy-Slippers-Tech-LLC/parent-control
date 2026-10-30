@@ -13,6 +13,14 @@ owns permitted automation routes. Task briefs cannot require excluded coverage.
   authorization, enforcement, saved state, recovery and supported lifecycle
   boundaries at the lowest effective layer. Retain installed checks where the
   actual integration or customer journey is necessary.
+- **Register standalone tests, not E2E building blocks.** System and integration
+  retain checks with distinct OS/backend, authorization, fault/recovery or
+  essential infrastructure assertions outside current or planned E2E composition.
+  Qualifications that only exercise those E2E building blocks have no system or
+  integration registration, even while their consumers are pending. Preserve
+  shared operations and focused qualification routes without scheduling exclusions.
+  A mixed engineering history retains its distinct assertions and necessary
+  public recovery controls, not a separate public-only qualification attempt.
 - **Maintain existing critical infrastructure coverage.** Protect
   runner selection/verdict integrity, credential boundaries and guards against
   destructive or unauthorized actions on accounts, processes, files or VMs.

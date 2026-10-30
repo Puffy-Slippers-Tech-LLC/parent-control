@@ -118,7 +118,9 @@ Bare `system` includes the current-package suite and separate genuine upgrade
 attempts for histories 287 and 288, each through `system --id N --upgrade-inputs`.
 Focused selectors retain their original meaning. Bare `integration` expands the
 [installed binding inventory](integration/integration_inventory.py) into guarded
-per-check launches. `integration --list` includes exclusion reasons; operational
+per-check launches. `integration --list` contains only explicitly registered
+standalone tests, with host applicability. E2E building blocks are not registered,
+even while their customer consumers are pending. Operational
 cleanup/recovery/maintenance and unqualified envelopes never enter its test list.
 See the [installed scheduling contract](integration/README.md#aggregate-scheduling)
 for duplicate and applicability decisions. Every check retains its own input

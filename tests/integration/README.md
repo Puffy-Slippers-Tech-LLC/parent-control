@@ -598,25 +598,52 @@ pending and is never selected. Other pending/retired system IDs and pending E2E
 variants remain excluded by their inventories; package-format-specific histories
 retain their target filtering.
 
-Bare `integration` runs product checks and essential shared safety checks through the existing
+Bare `integration` runs only explicitly registered standalone tests through the
 guarded per-check launcher, including named input preparation and fixture
 selection. It never calls script bodies inside the coordinator. The
-[binding inventory](integration_inventory.py) owns scheduling exclusions and
-exposes their reasons in `tools/run-tests integration --list`:
+[binding inventory](integration_inventory.py) registers tests positively;
+`tools/run-tests integration --list` lists those registrations and host applicability.
+
+E2E building blocks are not integration tests, whether their complete consumers
+are ready or pending. Language refresh, approvals, countdown/expiry, Parent
+saves, catalogue operations, feedback, navigation and package lifecycle
+qualifications retain their shared operations and guarded focused selectors.
+Their presence as `check_*.py` files does not register them in integration or VM
+aggregates. The legacy `integration CHECK` dispatcher can still launch a named
+building-block qualification; that explicit route supplies no category membership
+or complete customer acceptance. New wrappers likewise gain no registration.
+
+Standalone registrations protect credential-recipient refusals, single-use
+challenges, privileged worker containment, immutable fixture integrity, native
+package-manager hooks, and engineering faults/confinement/recovery with internal
+witnesses outside customer composition. A fault history retains its own normal
+public recovery control. The active-grant disable check runs only its engineering
+attempt; its separate public-only attempt belongs to E2E.
+
+The same [assertion boundary](../../docs/TestAutomation/UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage)
+applies to system tests. Their explicit persistent registrations retain direct
+system-bus caller/role and authentication-authority checks, internal package
+payload/reboot/PAM witnesses, native policy/UID isolation, lifecycle ownership
+and injected-fault recovery. These are not public E2E building blocks simply
+because a customer journey uses the same feature. Register no public-only
+qualification in system, including while its E2E consumer is pending. Preserve
+stable IDs for historical references when a binding is removed.
+
+Operations and focused diagnostic routes retain their existing scope:
 
 - `check_test_recovery`, `check_graphical_recovery`, `check_system_recovery`,
   `check_tmp_storage`, `check_tmp_storage_cleanup`, `check_storage_migration` and
   `check_retained_runs_cleanup` are operational recovery, inventory or maintenance
-  commands. They stay explicitly callable, outside test scheduling. Required
+  commands. They stay explicitly callable without test registration. Required
   owned recovery still runs through the normal execution preflight.
 - `check_package_notice` requires host-native APT/dpkg (Ubuntu or
   Debian). It is excluded on Fedora hosts, independently of the selected VM;
   listing includes that applicability reason.
 - Standalone fixture provisioning, snapshots, live refresh, transfer, serial,
   recorded serial, system preparation and product-free E2E preparation
-  qualifications are explicit engineering probes, excluded from routine
-  scheduling. The graphics attachment API comparison/trace probe is likewise
-  excluded. Their guarded explicit selectors remain available when changing
+  qualifications are explicit engineering probes without integration test
+  registration. The graphics attachment API comparison/trace probe likewise
+  remains diagnostic. Their guarded explicit selectors remain available when changing
   those mechanisms. Product journeys still exercise their normal preparation
   and shared runtime guards; `check_fixture_e2e_installed` retains its product
   catalogue/save checks. Credential, worker containment, ownership, recovery
@@ -624,34 +651,34 @@ exposes their reasons in `tools/run-tests integration --list`:
 - Standalone graphics smoke, graphics transport, serial transport, credential-free
   VT6 fixture-prompt inspection (`check_graphical_vt6_prompt`), spectator
   (`check_e2e_watch`), upgrade-asset transfer and repeated-operation stage-label
-  qualifications are also excluded. These qualify harness availability or
+  qualifications have no integration registration. These qualify harness availability or
   presentation rather than product outcomes or a distinct essential safety
   boundary. Explicit engineering selectors remain available. Product journeys,
   including real upgrades and repeated operations, retain their preparation,
   credential-recipient, ownership, cleanup and verdict guards. Dedicated
   credential, VT6 authentication and worker-containment checks remain scheduled.
-- `check_e2e_desktop_language` is excluded as a standalone product-free
+- `check_e2e_desktop_language` is a building-block product-free
   AccountsService fixture qualification. It sets a desktop language and checks
   fixture/provider preservation without exercising the product. Its explicit
   engineering selector and direct account/input safety regressions remain;
-  installed product language and localization journeys stay scheduled.
-- `check_e2e_gdm_product_free` is excluded as a standalone product-free GDM
+  installed product language and localization remain owned by E2E.
+- `check_e2e_gdm_product_free` is a building-block product-free GDM
   navigation qualification. It repeats account focus, credential-prompt opening
   and return without installing or exercising the product or entering credentials.
   Its explicit engineering selector remains available; product lifecycle journeys
   and dedicated credential-recipient checks retain their shared guards.
-- `check_e2e_app_row_observations` is excluded as a duplicate of the complete
+- `check_e2e_app_row_observations` is a building block duplicating the complete
   App Limits row read in `check_e2e_native_fixtures`. Both use the shared
   `read_rows` composition, reject wrong-child/page observations and independently
-  reread unchanged allowed rows. The retained native-catalogue check additionally
+  reread unchanged allowed rows. The native-catalogue building block additionally
   verifies the fixture catalogue. The explicit row-reader selector remains
   available for focused engineering diagnosis; customer journeys retain their
   own child discovery and catalogue assertions.
 
 Dormant Parent About/access wrappers and duplicate MATE-prompt, toggle and
 expanded-time wrappers have been removed. Their product coverage remains in
-the customer cases and `check_e2e_auth_prompt`, `check_e2e_parent_save` and
-`check_e2e_time_explanation`.
+the customer cases and their shared building blocks; `check_e2e_auth_prompt`
+retains its distinct credential-proof/refusal assertions in integration.
 
 Routine desktop navigation, synthetic-file operations, native fixture app use,
 Chinese asset reads, observation traces and bounded waits no longer have

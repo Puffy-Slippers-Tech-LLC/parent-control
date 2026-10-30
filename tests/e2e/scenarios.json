@@ -2708,6 +2708,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
+          {"id": "delayed-current-balance-increment", "step_id": "step-3", "description": "After the delayed approval, the child's countdown includes one 30-second addition to the current balance and distinguishes the elapsed prompt interval from a frozen estimate."},
           {"id": "visible-result", "step_id": "step-3", "description": "Delayed and immediate approval use the larger current balance plus the request. Grant time elapses on both surfaces; daily use is consumed while that child uses its desktop, not while the request station is in use."}
         ],
         "backend": [],
@@ -2732,7 +2733,7 @@
         "rationale": "Six independent journeys retain both surfaces for daily-only and daily-dominant, child-overlay for grant-only and kiosk for grant-dominant. Daily use continues on the desktop but pauses while the child is away at the station; grant time elapses on either surface. Every retained journey keeps the real 45-second prompt interval, current-balance recalculation and second addition. Removed case IDs 226 and 229 must not be reused. Input boundaries and gameplay extension retain their existing owners. Zero-time overlay entry is unavailable."
       },
       "variants": [
-        {"coverage_id": 223, "id": "daily-only-child-overlay", "owner": "request-approval", "parameters": {"balance": "daily-only", "surface": "child-overlay"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
+        {"coverage_id": 223, "id": "daily-only-child-overlay", "owner": "request-approval", "parameters": {"balance": "daily-only", "surface": "child-overlay"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/delayed_approval.py", "test_id": "daily-only-child-overlay"}},
         {"coverage_id": 224, "id": "daily-only-kiosk", "owner": "request-approval", "parameters": {"balance": "daily-only", "surface": "kiosk"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
         {"coverage_id": 225, "id": "grant-only-child-overlay", "owner": "request-approval", "parameters": {"balance": "grant-only", "surface": "child-overlay"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
         {"coverage_id": 227, "id": "daily-dominant-child-overlay", "owner": "request-approval", "parameters": {"balance": "daily-dominant", "surface": "child-overlay"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},

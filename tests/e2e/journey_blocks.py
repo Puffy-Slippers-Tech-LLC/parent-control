@@ -42,7 +42,7 @@ def daily_time_settings(*, source, entry, window, initial_enabled, minutes):
     No revocation or approval is implicit.
     """
     require(window == 'new' and type(initial_enabled) is bool
-            and type(minutes) is int and minutes in (2, 4, 10)
+            and type(minutes) is int and minutes in (2, 4, 6, 10)
             and (source, entry) in (('gdm', 'fresh'), ('desktop', 'same-user')),
             'journey:daily-profile-binding')
     same = entry == 'same-user'

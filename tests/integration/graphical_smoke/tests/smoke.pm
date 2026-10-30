@@ -361,6 +361,12 @@ sub run {
         onpc_request_flow::overlay_prompt(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, 'approval');
         return;
     }
+    if ($ready->{delayed_approval}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::delayed_approval(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     for my $entry ('new', 'open') {
         if ($ready->{'approval_return_' . $entry}) {
             console('sut')->disable();

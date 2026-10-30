@@ -165,7 +165,8 @@ def test_request_binding_cannot_change_between_shell_recipient_proofs():
     assert observer.challenge_failed
 
 
-@pytest.mark.parametrize('fault', [None, 'prefix', 'binding', 'proof', 'repeat'])
+@pytest.mark.parametrize('fault', [None, 'prefix', 'binding', 'proof', 'repeat',
+                                   'delayed-first', 'delayed-second', 'delayed-scope'])
 def test_composed_shell_credential_uses_exact_owner_and_two_fresh_proofs(fault):
     program = r'''
 use strict; use warnings; use JSON::PP;
@@ -179,25 +180,71 @@ sub get_required_var { push @main::events, $_[0]; 'synthetic-fixture-only' }
 sub type_password { push @main::events, 'password'; }
 package main;
 require onpc_journey; require onpc_password;
-my $journey = onpc_journey->new(prefix => $fault eq 'prefix' ? 'unknown' : 'overlay-approval-return',
+my $delayed = $fault =~ /^delayed-/;
+my $scope = $fault eq 'delayed-second' ? 'second' : 'first';
+my $journey = onpc_journey->new(prefix => $fault eq 'prefix' ? 'unknown' :
+    $delayed ? "delayed-approval-$scope" : 'overlay-approval-return',
     review => 0, exchange => sub {
-        my ($stage) = @_; push @events, $stage;
-        return {observed => $fault eq 'proof' ? 'wrong' : $stage};
+        my ($stage) = @_; my $observed = $delayed ? "$scope-$stage" : $stage;
+        push @events, $observed;
+        return {observed => $fault eq 'proof' ? 'wrong' : $observed};
     });
 $journey->{overlay_request} = ['other-child', 'other-parent', $fault eq 'binding' ? 999 : 75, 1];
+$journey->{overlay_request} = ['child', 'parent', 30, 0] if $delayed;
+$journey->{stage_prefix} = $fault eq 'delayed-scope' ? 'wrong-' : "$scope-" if $delayed;
 my $ok = eval { onpc_password::enter_overlay_shell_password($journey); 1 };
 my $before = scalar @events;
 my $retry = eval { onpc_password::enter_overlay_shell_password($journey); 1 };
 print encode_json({ok => $ok ? 1 : 0, retry => $retry ? 1 : 0, before => $before, events => \@events});
 '''
     value = json.loads(run_perl(program, fault or '').stdout)
-    assert bool(value['ok']) == (fault in (None, 'repeat'))
+    assert bool(value['ok']) == (fault in (None, 'repeat', 'delayed-first', 'delayed-second'))
     assert not value['retry'] and value['before'] == len(value['events'])
     if value['ok']:
-        assert value['events'] == ['approval-qualified', 'approval-rechecked',
+        scope = (fault.removeprefix('delayed-') + '-') if fault and fault.startswith('delayed-') else ''
+        assert value['events'] == [scope + 'approval-qualified', scope + 'approval-rechecked',
+                                   '_SECRET_ONPC_PARENT_PASSWORD' if scope else
                                    '_SECRET_ONPC_OTHER_PARENT_PASSWORD', 'password']
     else:
         assert 'password' not in value['events']
+
+
+@pytest.mark.parametrize('index,age,accepted', [(1, 45, True), (2, 31, False)])
+def test_prompt_wait_never_reuses_an_expired_recipient_proof(index, age, accepted):
+    observer = UiObservations(Mock(commands=SimpleNamespace(progress=None)))
+    observer.shell_approval_index = index
+    observer.shell_request_binding = observer.overlay_request = ('child', 'parent', 30, False)
+    observer.shell_approval_checked = a.time.monotonic() - age
+    observer._observe = Mock(return_value={})
+    operation = a.SHELL_APPROVAL_ORDER[index]
+    if accepted:
+        observer.observe(operation)
+        observer._observe.assert_called_once()
+    else:
+        with pytest.raises(EvidenceError, match='ui:shell-stale-proof'):
+            observer.observe(operation)
+        observer._observe.assert_not_called()
+        assert observer.challenge_failed
+
+
+@pytest.mark.parametrize('returned,fresh,accepted', [(True, True, True), (False, True, False),
+                                                   (True, False, False)])
+def test_second_approval_requires_successful_return_and_a_fresh_request(returned, fresh, accepted):
+    observer = UiObservations(Mock(commands=SimpleNamespace(progress=None)))
+    observer.shell_approval_index = len(a.SHELL_APPROVAL_ORDER)
+    observer.shell_returned = returned
+    observer.last_mate_operation = 'overlay-request-estimate' if fresh else 'overlay-desktop'
+    observer.shell_request_binding = observer.overlay_request = ('child', 'parent', 30, False)
+    observer._observe = Mock(return_value={})
+    if accepted:
+        observer.observe('overlay-shell-open')
+        assert observer.shell_approval_index == 1
+        assert not observer.shell_returned
+    else:
+        with pytest.raises(EvidenceError, match='ui:shell-order'):
+            observer.observe('overlay-shell-open')
+        observer._observe.assert_not_called()
+        assert observer.challenge_failed
 
 
 @pytest.mark.parametrize('index,operation', [(1, 'overlay-shell-qualified'), (4, 'overlay-approval-immediate')])

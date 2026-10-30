@@ -1661,7 +1661,8 @@ without a separate submission for former case 215.
 
 ### E2E-048
 
-Implementation status: All cases pending.
+Implementation status: Case 223's complete daily-only child-overlay journey
+passed on Ubuntu 26.04. Other cases pending.
 
 **Approve after the displayed estimate has aged.** Cases 223–225, 227–228 and 230.
 

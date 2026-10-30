@@ -1221,6 +1221,14 @@ class UiObservations:
                     if first:
                         self.lock_recipient_checked = time.monotonic()
                 shell_index = getattr(self, 'shell_approval_index', 0)
+                if (operation == 'overlay-shell-open'
+                        and shell_index == len(accessible_ui.SHELL_APPROVAL_ORDER)
+                        and getattr(self, 'shell_returned', False)
+                        and previous_operation == 'overlay-request-estimate'):
+                    # A new, independently read request after successful return.
+                    # Keep the used challenge set; this grants no recipient proof.
+                    shell_index = 0
+                    self.shell_returned = False
                 if operation == 'overlay-shell-open' and getattr(self, 'shell_cancel_active', False):
                     require(getattr(self, 'shell_dismissed', False)
                             and previous_operation in ('overlay-valid-fraction-soft-read',
@@ -1257,7 +1265,10 @@ class UiObservations:
                         order = (*order[:-1], operation)
                     require(shell_index < len(order) and operation == order[shell_index],
                             'ui:shell-order')
-                    if shell_index:
+                    # Opening the prompt grants no credential authority. The
+                    # parent may decide for a while before the first fresh proof;
+                    # all subsequent recipient/input proofs still expire in 30s.
+                    if shell_index > 1:
                         require(time.monotonic() - self.shell_approval_checked < 30,
                                 'ui:shell-stale-proof')
                     self.shell_approval_index = shell_index + 1
@@ -1351,10 +1362,15 @@ class UiObservations:
                 if operation in accessible_ui.SHELL_OPEN_OPERATIONS:
                     # Opening includes request submission, prompt discovery and
                     # refusal qualification. It grants no password authority;
-                    # age the forthcoming recipient proofs from this completed
-                    # boundary, retaining their own acquisition-start clocks.
+                    # retain the prompt identity while forthcoming recipient
+                    # proofs use their own acquisition-start clocks.
                     self.shell_approval_checked = time.monotonic()
                     self.shell_dismissed = False
+                    self.shell_returned = False
+                if (operation == 'overlay-desktop'
+                        and getattr(self, 'shell_approval_index', 0)
+                            == len(accessible_ui.SHELL_APPROVAL_ORDER)):
+                    self.shell_returned = True
                 if operation == 'overlay-shell-dismissed':
                     self.shell_dismissed = True
                 if operation == 'overlay-shell-cancel-ready':

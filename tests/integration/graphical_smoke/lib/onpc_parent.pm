@@ -417,7 +417,7 @@ sub daily_time_settings {
     my ($journey, $source, $parent, $entry, $window, $child, $initial, $minutes) = @_;
     die 'parent:daily-profile-binding' unless @_ == 8 && ref($journey) eq 'onpc_journey'
         && $parent eq 'parent' && $child eq 'child' && $window eq 'new'
-        && ($initial eq '0' || $initial eq '1') && ($minutes eq '2' || $minutes eq '4' || $minutes eq '10')
+        && ($initial eq '0' || $initial eq '1') && ($minutes eq '2' || $minutes eq '4' || $minutes eq '6' || $minutes eq '10')
         && (($source eq 'gdm' && $entry eq 'fresh')
             || ($source eq 'desktop' && $entry eq 'same-user'));
     my $selected = open_for_child($journey, $source, $entry, $window, $child);

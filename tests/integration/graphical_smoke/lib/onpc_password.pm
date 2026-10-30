@@ -199,7 +199,13 @@ sub enter_overlay_shell_password {
         $prefix //= $reject ? 'rejection' : 'approval';
         my $baseline = ($journey->{prefix} // '') eq
             'baseline-journey-overlay-' . ($reject ? 'rejection' : 'approval');
-        my $composed = ($journey->{prefix} // '') eq 'overlay-approval-return' && !$reject;
+        my $delayed = ($journey->{prefix} // '') =~ /\Adelayed-approval-(first|second)\z/;
+        if ($delayed) {
+            die 'secret:challenge' unless ($journey->{stage_prefix} // '') eq "$1-"
+                && ref($journey->{overlay_request}) eq 'ARRAY'
+                && join(',', @{$journey->{overlay_request}}) eq 'child,parent,30,0';
+        }
+        my $composed = (($journey->{prefix} // '') eq 'overlay-approval-return' || $delayed) && !$reject;
         my $role = 'parent';
         if ($composed) {
             my $binding = $journey->{overlay_request};
@@ -212,7 +218,7 @@ sub enter_overlay_shell_password {
         }
         die 'secret:challenge' if $baseline && (($journey->{stage_prefix} // '') ne
             'overlay-' . ($reject ? 'rejection' : 'approval') . '-');
-        my $id = ($baseline ? $journey->{stage_prefix} : '')
+        my $id = ($baseline || $delayed ? $journey->{stage_prefix} : '')
             . 'overlay-shell-' . ($reject ? 'rejection' : 'approval');
         die 'secret:challenge' unless (@_ == 1 || $reject) && ref($journey) eq 'onpc_journey'
             && $prefix =~ /\A[a-z][a-z0-9-]*\z/

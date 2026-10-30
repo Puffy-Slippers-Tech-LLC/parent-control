@@ -207,6 +207,37 @@ sub approval_return {
     $journey->finish();
 }
 
+sub delayed_approval {
+    onpc_progress::operation('Checking delayed approval and a second addition for [Child user]');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'delayed-approval:arguments' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'delayed-approval', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_gdm::sign_in_challenge($journey, 'initial',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::daily_time_profile($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0, 6);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'child-entry');
+    for my $request ('first', 'second') {
+        $journey->seen("$request-before");
+        my $section = $journey->scope($request);
+        $section->{overlay_request} = ['child', 'parent', 30, 0];
+        prepare($section, 'new', 'new', 'observed', 'fixture-child', 'fixture-parent', 30, 0, 'overlay');
+        overlay_approve($section, 'automatic');
+        $section->seen('countdown');
+        my $visit = "$request-parent";
+        onpc_parent::open_for_child($journey, 'desktop', 'retained', 'retained', 'child', $visit);
+        $journey->seen("$request-balances");
+        if ($request eq 'first') {
+            onpc_desktop_session::enter_desktop($journey, 'desktop', 'child', 'retained',
+                'success', 'return-child', 'parent');
+            $journey->seen('cooldown');
+        }
+    }
+    $journey->finish();
+}
+
 sub overlay_reject {
     onpc_progress::operation('Rejecting or cancelling the overlay and comparing the preserved form');
     my ($journey, $outcome) = @_;
@@ -263,6 +294,8 @@ sub shell_approve {
         && (($journey->{prefix} // '') eq 'overlay-approved-exit'
             || ($journey->{prefix} // '') eq 'overlay-approval-flow'
             || ($journey->{prefix} // '') eq 'overlay-approval-return'
+                && ref($journey->{overlay_request}) eq 'ARRAY' && $exit eq 'automatic'
+            || ($journey->{prefix} // '') =~ /\Adelayed-approval-(?:first|second)\z/
                 && ref($journey->{overlay_request}) eq 'ARRAY' && $exit eq 'automatic'
             || ($journey->{prefix} // '') eq 'baseline-journey-overlay-approval'
                 && $exit eq 'immediate')

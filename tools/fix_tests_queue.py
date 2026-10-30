@@ -885,6 +885,9 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
                                                blocker=blocker, stopping=stopping, session=session)])
             frame = child / 'frame.json'
             details = json.loads(frame.read_text()) if frame.exists() else []
+            if not details:
+                from watch_output import snapshot as read_frame
+                details = read_frame(child / 'test-frame.json')
             try:
                 current = case_progress(child)
             except (OSError, ValueError, KeyError, TypeError):

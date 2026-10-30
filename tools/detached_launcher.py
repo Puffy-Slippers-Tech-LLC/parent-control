@@ -1060,6 +1060,10 @@ def follow_output(run, stream, display, *, label='launcher', test_session=False,
             elif destination is not None:
                 if (steps, lines) != forwarded:
                     atomic(destination / 'frame.json', lines)
+                    if lines:
+                        # Keep the last test tree available while repair runs;
+                        # the live frame is cleared when the child exits.
+                        atomic(destination / 'test-frame.json', lines)
                     atomic(destination / 'test-controller.json', steps)
                     forwarded = (steps, lines)
             else:

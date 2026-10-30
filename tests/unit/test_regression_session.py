@@ -95,6 +95,7 @@ def test_supervised_progress_is_forwarded_without_log_frames(tmp_path, monkeypat
     assert session.follow(run, output) == 0
     assert output.getvalue() == 'runner log\n\nEnded: 01:07\nDuration: 0m\n'
     assert json.loads((destination / 'frame.json').read_text()) == []
+    assert json.loads((destination / 'test-frame.json').read_text()) == ['Overall - 0%']
 
 
 def test_identical_session_frames_do_not_replace_the_file(tmp_path):

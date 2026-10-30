@@ -1749,6 +1749,7 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
     retained_evidence = {}
     retained_sources = {}
     retained_family_cases = {}
+    retained_progress = {}
     integration_inventory_resume = False
     legacy = root / 'artifacts/fix-tests'
     if (legacy / 'owner').exists():
@@ -1770,6 +1771,24 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
         # Only explicit resume carries workflow state into a new allocation.
         # Read before shared retention can retire the previous run allocation.
         previous = current_run(run.parent) if resume else None
+        if previous is not None:
+            from launcher_progress import case_progress
+            from watch_output import snapshot
+            # Capture before allocation retention can retire the old run. These
+            # are display publications only; checkpoints still own execution.
+            for source in (previous, *sorted(previous.glob('pipeline-*'))):
+                if not source.is_dir():
+                    continue
+                ticket = source.relative_to(previous)
+                for filename in ('controller.json', 'test-controller.json', 'frame.json', 'test-frame.json',
+                                 'case-progress.json'):
+                    try:
+                        value = (case_progress(source) if filename == 'case-progress.json' else
+                                 snapshot(source / filename, steps=filename.endswith('controller.json')))
+                    except (OSError, ValueError, KeyError, TypeError):
+                        continue  # Optional display data must not prevent repair recovery.
+                    if value:
+                        retained_progress[ticket / filename] = value
         if previous is not None and (previous / 'pipelines.json').exists():
             retained_queue = json.loads((previous / 'pipelines.json').read_text())
             for child in previous.iterdir():
@@ -1840,6 +1859,9 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
     def started(run):
         from fix_tests_queue import initialize_error_log
         initialize_error_log(run, resume=resume)
+        for relative, value in retained_progress.items():
+            destination = private_directory((run / relative).parent) / relative.name
+            atomic(destination, value)
         # The new run is registered before writing payloads. Publish copies
         # before checkpoints that point to them; never copy old conversations.
         for ticket, source in retained_sources.items():

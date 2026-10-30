@@ -374,6 +374,8 @@ def test_failed_push_resumes_before_remaining_tests_without_duplicate_commit(che
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 1
     assert 'completion push failed' in output.getvalue()
+    tree = ['└─ [✗] Unit and contracts - 50% (1/2)']
+    fix_tests.atomic(run / 'test-frame.json', tree)
     accepted = json.loads((run / 'checkpoint.json').read_text())
     assert accepted['pending'] and accepted['commit_intent']
     from fix_tests_queue import resumed_source_owner, source_directory
@@ -397,6 +399,7 @@ def test_failed_push_resumes_before_remaining_tests_without_duplicate_commit(che
     resumed, started = fix_tests.select(root, categories=('unit',), resume=True)
     output = io.StringIO()
     assert started and fix_tests.follow(resumed, output) == 0, output.getvalue()
+    assert json.loads((resumed / 'test-frame.json').read_text()) == tree
     assert json.loads((resumed / 'repair-source-resume.json').read_text()) == original_owner
     assert not fence.exists()
     after = (root / 'calls').read_text()

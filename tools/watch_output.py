@@ -213,6 +213,8 @@ class Output:
             steps = repair_progress(self.run, steps,
                 child_steps=snapshot(self.run / 'test-controller.json', steps=True, reader=self.reader))
         details = snapshot(self.run / 'frame.json', reader=self.reader) if active else []
+        if self.repair and active and not details:
+            details = snapshot(self.run / 'test-frame.json', reader=self.reader)
         if steps:
             details = [line for line in details if not clean(line).startswith('Overall - ')]
         if details and clean(details[0]).startswith('VM queue | concurrency '):

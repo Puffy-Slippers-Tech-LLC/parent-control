@@ -227,7 +227,9 @@ test('production extension uses live state while the separate preview supplies f
         canOpenRequest: () => true,
         requestCompletionState: () => ({requestActive: false, refreshEstimate: true}),
         recordChildProcessExit() {},
-        Gio: {SubprocessFlags: {NONE: 0}, Subprocess: {new() {
+        Gio: {DBus: {session: {}}, BusNameWatcherFlags: {NONE: 0},
+            bus_watch_name_on_connection: () => 1, bus_unwatch_name() {},
+            SubprocessFlags: {NONE: 0}, Subprocess: {new() {
             return {wait_async(_cancel, done) { requestDone = () => done(this, {}); },
                 wait_finish() {}};
         }}},
@@ -299,6 +301,8 @@ test('suppression startup/reporting and shutdown failures cannot disable the enf
         GnomeApplicationUiAdapter: class { close() {} },
         TranslationContext: class { refresh(done) { done(); } },
         appName: () => 'Product', appLogoPath: () => '/logo', logInfo() {}, logWarning() {},
+        Gio: {DBus: {session: {}}, BusNameWatcherFlags: {NONE: 0},
+            bus_watch_name_on_connection: () => 1, bus_unwatch_name() {}},
     });
     vm.runInContext(readFileSync(new URL('../../child/extension.js', import.meta.url), 'utf8')
         .replace(/^import[\s\S]*?;\n/gm, '')

@@ -185,7 +185,7 @@ sub approval_return {
     my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
         'installed-greeter', 'parent-focused', 'desktop');
     onpc_parent::launch($journey, $desktop, 'management');
-    my $selected = onpc_parent::select_child($journey, $binding->[0] eq 'child' ? 'child' : 'returned',
+    my $selected = onpc_parent::select_child($journey, $binding->[0] eq 'child' ? 'child' : 'existing',
         $journey->seen('child-picker-opened'), 'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
     $journey->consume_observation('parent-selected', $selected);
     $journey->seen('allowance-configured');

@@ -3,6 +3,7 @@
 - **Kiosk**: Improved Polkit auth dialog content layout to make it more explicit and easier to read.
 
 ### Bug Fixes
+- **Screen Time**: Fixed extra-time approvals sometimes adding more time than requested.
 - **Kiosk**: Fixed time requests failing before parent approval when system language discovery is unavailable.
 - **Kiosk**: Fixed sign-in being rejected when brief maintenance activity temporarily delays entry.
 

@@ -43,7 +43,15 @@ def prompt(monkeypatch):
     ('provider', 'wrong-agent'), ('owner', 'owner'), ('session', 'session'),
     ('recipient', 'recipient-context-missing'), ('child', 'request-context-missing'),
     ('duration', 'request-context-missing'), ('apps', 'request-context-missing'),
-    ('obsolete-message', 'request-context-missing'),
+    ('negated-apps', 'request-context-missing'),
+    ('conflicting-apps', 'request-context-missing'),
+    ('conflicting-child', 'request-context-missing'),
+    ('extended-child-name', 'request-context-missing'),
+    ('wrong-unit', 'request-context-missing'),
+    ('numeric-substring', 'request-context-missing'),
+    ('signed-time', 'request-context-missing'),
+    ('fractional-time', 'request-context-missing'),
+    ('conflicting-time', 'request-context-missing'),
     ('ambiguous', 'field-ambiguous'), ('hidden', 'field-state'), ('disabled', 'field-state'),
     ('unfocused', 'field-state'), ('nonempty', 'field-not-empty'), ('stale', 'owner'),
     ('replaced', 'replacement'), ('missing', 'replacement'), ('wrong-child-session', 'overlay-account')])
@@ -58,8 +66,16 @@ def test_wrong_or_stale_challenge_refuses_before_cancel(monkeypatch, fault, code
     elif fault == 'child': message.name = message.name.replace(a.CHILD, a.EXISTING_CHILD)
     elif fault == 'duration': message.name = message.name.replace('1 minute, 15 seconds', '30 minutes')
     elif fault == 'apps': message.name = f'Grant access to {a.CHILD}\nfor 1 minute, 15 seconds'
-    elif fault == 'obsolete-message':
-        message.name = f'Grant {a.CHILD} 1 minute, 15 seconds and allow soft blocked apps?'
+    elif fault == 'negated-apps':
+        message.name = f'Grant {a.CHILD} 1 minute, 15 seconds; do not allow soft blocked apps.'
+    elif fault == 'conflicting-apps': message.name += '\nSoft-blocked apps not allowed'
+    elif fault == 'conflicting-child': message.name += '\n' + a.EXISTING_CHILD
+    elif fault == 'extended-child-name': message.name = message.name.replace(a.CHILD, a.CHILD + 'ish')
+    elif fault == 'wrong-unit': message.name = message.name.replace('15 seconds', '15 minutes')
+    elif fault == 'numeric-substring': message.name = message.name.replace('15 seconds', '115 seconds')
+    elif fault == 'signed-time': message.name = message.name.replace('15 seconds', '-15 seconds')
+    elif fault == 'fractional-time': message.name = message.name.replace('15 seconds', '0.15 seconds')
+    elif fault == 'conflicting-time': message.name += '\n30 seconds'
     elif fault == 'ambiguous': cancel.role = 'password text'
     elif fault in ('hidden', 'disabled', 'unfocused'):
         field.states.discard({'hidden': 'showing', 'disabled': 'sensitive', 'unfocused': 'focused'}[fault])
@@ -71,11 +87,11 @@ def test_wrong_or_stale_challenge_refuses_before_cancel(monkeypatch, fault, code
     with pytest.raises(a.UiError, match='ui:(shell-' + code + '|' + code + ')'):
         ui.shell_prompt(pid, uid, challenge=challenge)
     cancel.action.do_action.assert_not_called()
-    if fault in ('recipient', 'child', 'duration', 'apps', 'obsolete-message'):
+    if code in ('recipient-context-missing', 'request-context-missing'):
         assert field.get_text_iface.call_count == 1  # initial valid proof only
 
 
-@pytest.mark.parametrize('fault', [None, 'english-message', 'english-binding', 'wrong-child'])
+@pytest.mark.parametrize('fault', [None, 'formatting', 'english-message', 'english-binding', 'wrong-child', 'apps'])
 def test_hebrew_context_is_bound_before_protected_field_access(monkeypatch, fault):
     ui, _, _, _, field, cancel, _, message = prompt(monkeypatch)
     # Literal oracle from the Hebrew product catalogue, independent of the guard.
@@ -86,29 +102,50 @@ def test_hebrew_context_is_bound_before_protected_field_access(monkeypatch, faul
                         '✓ Soft-blocked apps allowed')
     elif fault == 'wrong-child':
         message.name = message.name.replace(a.CHILD, a.EXISTING_CHILD)
-    if fault:
+    elif fault == 'apps': message.name = message.name.replace('מותרים', 'אינם מותרים')
+    elif fault == 'formatting': message.name = '\u200f' + message.name.replace('\n', '  ')
+    if fault not in (None, 'formatting'):
         with pytest.raises(a.UiError, match='ui:shell-request-context-missing'):
             ui.shell_prompt(100, 1001, language='en' if fault == 'english-binding' else 'he')
         field.get_text_iface.assert_not_called()
     else:
-        assert ui.shell_prompt(100, 1001, language='he')[2] is field
+        challenge = ui.shell_prompt(100, 1001, language='he')
+        assert challenge[2] is field
+        assert ui.shell_prompt_refusals(100, 1001, challenge, language='he') == list(a.SHELL_PROMPT_REFUSALS)
     cancel.get_action_iface.assert_not_called()
     field.get_description.assert_not_called()
 
 
 @pytest.mark.parametrize('binding,child,parent,message', [
     (('child', 'parent', 30, False), a.CHILD, a.PARENT,
-     'Grant Riley (Child) access?\nRequested time: 30 seconds.'),
+     'Grant access to Riley (Child)\nfor 30 seconds\n\n✗ Soft-blocked not allowed'),
+    (('child', 'parent', 30, False), a.CHILD, a.PARENT,
+     'Grant Riley (Child) access? Requested time: 30 seconds. Soft blocked apps not permitted.'),
     (('other-child', 'other-parent', 75, True), a.EXISTING_CHILD, a.OTHER_PARENT,
      'Grant Jordan (Child) access?\nRequested time: 1 minute, 15 seconds.\nAllow soft blocked apps for this grant.'),
+    (('other-child', 'other-parent', 75, True), a.EXISTING_CHILD, a.OTHER_PARENT,
+     'Grant access to Jordan (Child)\nfor 1 minute, 15 seconds\n\n✓ Soft-blocked apps allowed'),
+    (('other-child', 'other-parent', 75, True), a.EXISTING_CHILD, a.OTHER_PARENT,
+     'Please grant Jordan (Child) access: 75 seconds.\nSoft-blocked apps permitted.'),
+    (('child', 'parent', 30, False), a.CHILD, a.PARENT,
+     '\u200eGrant access to Riley (Child):\t30\u00a0seconds!\nSoft—blocked apps NOT allowed.'),
 ])
 def test_bound_shell_context_precedes_protected_field_access(monkeypatch, binding, child, parent, message):
     ui, _, _, _, field, _, recipient, text = prompt(monkeypatch)
     ui.overlay_request = binding
     recipient.name, text.name = parent, message
-    assert ui.shell_prompt(100, 1001)[2] is field
+    challenge = ui.shell_prompt(100, 1001)
+    assert challenge[2] is field
+    assert ui.shell_prompt_refusals(100, 1001, challenge) == list(a.SHELL_PROMPT_REFUSALS)
     ui.require_child_overlay_session.assert_called_with(child)
     field.get_text_iface.reset_mock()
+    text.name = (message.replace('not allowed', 'allowed').replace('not permitted', 'permitted')
+                 .replace('NOT allowed', 'allowed') if not binding[3]
+                 else message + '\nSoft blocked apps not allowed')
+    with pytest.raises(a.UiError, match='request-context-missing'):
+        ui.shell_prompt(100, 1001)
+    field.get_text_iface.assert_not_called()
+    text.name = message
     recipient.name = a.OTHER_PARENT if parent == a.PARENT else a.PARENT
     with pytest.raises(a.UiError, match='recipient-context-missing'):
         ui.shell_prompt(100, 1001)

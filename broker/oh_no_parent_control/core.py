@@ -14,6 +14,7 @@ from common.oh_no_parent_control_ui.diagnostic_report import LANGUAGE_IDS, MAX_L
 from .grant_diagnostics import GrantDiagnostics
 from .execution_policy import ExecutionPolicyError
 from .extension_manager import ChildExtensionUnavailable
+import math
 import re
 import threading
 import time
@@ -142,6 +143,7 @@ class TimerUsage(Protocol):
     def query_usage(self, uid: int) -> tuple[tuple[int, int], ...]: ...
     def query_usage_as(
             self, uid: int, approver: UserAccount) -> tuple[tuple[int, int], ...]: ...
+    def query_native_deadline(self, uid: int) -> int: ...
 
 
 class RunningApps(Protocol):
@@ -459,7 +461,8 @@ class Broker:
         target = self._target(config, target_uid)
         if caller_uid != target.uid and not self._can_manage_or_kiosk(config, caller_uid):
             raise AccessDenied("caller cannot inspect time for this account")
-        return self._time_status(target.uid, additional_seconds)
+        return self._time_status(target.uid, additional_seconds,
+                                 own=caller_uid == target.uid)
 
     def has_running_soft_blocked_apps(self, caller_uid: int, target_uid: int) -> bool:
         config = self._load_config()
@@ -507,7 +510,8 @@ class Broker:
                 raise BackendFailure("running application status is unavailable") from error
         return tuple(sorted(running))
 
-    def _time_status(self, target_uid: int, additional_seconds: int) -> TimeStatus:
+    def _time_status(self, target_uid: int, additional_seconds: int,
+                     *, own: bool = False) -> TimeStatus:
         if self._preferences is None or self._timer_usage is None:
             raise BackendFailure("remaining-time status is unavailable")
         stage = "preferences"
@@ -515,6 +519,7 @@ class Broker:
             preferences = self._preferences.load(target_uid)
             stage = "usage"
             usage_entries = self._timer_usage.query_usage(target_uid)
+            native_deadline = self._native_deadline(target_uid, preferences) if own else None
             stage = "grant"
             grant_time, grant_duration = self._accounts.get_extension(target_uid)
         except Exception as error:
@@ -523,12 +528,23 @@ class Broker:
 
         return self._time_status_from_usage(
             preferences, usage_entries, grant_time, grant_duration, additional_seconds,
+            native_deadline=native_deadline,
         )
+
+    def _native_deadline(self, target_uid: int, preferences: dict) -> int | None:
+        if not (preferences["parent_control_enabled"] and
+                preferences["daily_time_limit_minutes"] > 0):
+            return None
+        deadline = self._timer_usage.query_native_deadline(target_uid)
+        if type(deadline) is not int or not 0 <= deadline <= (1 << 64) - 1:
+            raise BackendFailure("native remaining time is invalid")
+        return deadline
 
     def _time_status_from_usage(
             self, preferences: dict, usage_entries: tuple[tuple[int, int], ...],
             grant_time: int, grant_duration: int, additional_seconds: int,
-            evaluated_at: datetime | None = None) -> TimeStatus:
+            evaluated_at: datetime | None = None,
+            *, native_deadline: int | None = None) -> TimeStatus:
         now = evaluated_at or self._now()
         now_seconds = int(now.timestamp())
         daily_limit_seconds = (
@@ -557,6 +573,12 @@ class Broker:
                 used_today += end - merged_end
             merged_end = max(merged_end, end)
         daily_remaining = max(0, daily_limit_seconds - used_today)
+        if native_deadline is not None:
+            # Completed records omit uninterrupted activity. The child's fresh
+            # native deadline may only reduce that operand; the live grant and
+            # authenticated additional interval remain broker-owned.
+            native_remaining = max(0, math.ceil(native_deadline / 1_000_000 - self._monotonic()))
+            daily_remaining = min(daily_remaining, native_remaining)
         grant_remaining = max(0, grant_time + grant_duration - now_seconds)
         calculated = calculate_active_extension_seconds(
             daily_remaining, grant_remaining, additional_seconds,
@@ -1497,6 +1519,8 @@ class Broker:
                     raise AccessDenied("preferences changed during authorization")
 
                 try:
+                    native_deadline = (self._native_deadline(target.uid, preferences)
+                                       if request_kind == "child" else None)
                     grant_time, grant_duration = self._accounts.get_extension(target.uid)
                 except Exception as error:
                     raise BackendFailure("remaining-time status is unavailable") from error
@@ -1504,7 +1528,7 @@ class Broker:
                 self._observe_grant(target.uid, grant_time, grant_duration)
                 status = self._time_status_from_usage(
                     preferences, usage_entries, grant_time, grant_duration,
-                    duration_seconds, issued_at_time,
+                    duration_seconds, issued_at_time, native_deadline=native_deadline,
                 )
                 duration = status.calculated_active_extension_seconds
                 LOG.info("core.grant-calculation", request=correlation_id,

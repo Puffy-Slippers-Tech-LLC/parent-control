@@ -1293,6 +1293,41 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(accounts.filter, (False, ("org.example.Game",)))
         self.assertIn(("set_extension", 1001, accounts.extension), accounts.events)
 
+    def test_child_estimate_and_approval_include_ongoing_use_without_increasing_authority(self):
+        for native, grant, expected in ((1699, 0, 1729), (9999, 0, 1830), (0, 600, 630)):
+            with self.subTest(native=native, grant=grant):
+                accounts, preferences, usage = Accounts(), Preferences(), TimerUsage()
+                preferences.values[1001].update(parent_control_enabled=True,
+                                               daily_time_limit_minutes=30)
+                broker = make_broker(accounts=accounts, preferences=preferences, timer_usage=usage)
+                accounts.extension = (int(broker._now().timestamp()), grant)
+                usage.query_native_deadline = mock.Mock(return_value=(100 + native) * 1_000_000)
+                status = broker.get_time_status(1001, 1001, 30)
+                self.assertEqual(status.calculated_active_extension_seconds, expected)
+                self.assertEqual(broker.request_own_access(1001, ":1.child", 1003, 30, True)[1:],
+                                 ("approved", expected))
+                self.assertEqual(usage.as_calls, [(1001, 1003, "admin")])
+                self.assertEqual(usage.query_native_deadline.call_args_list,
+                                 [mock.call(1001), mock.call(1001)])
+
+    def test_native_balance_failure_or_identity_change_cannot_write_a_grant(self):
+        for invalidation in ("unavailable", "approver-changed"):
+            with self.subTest(invalidation=invalidation):
+                accounts, preferences, usage = Accounts(), Preferences(), TimerUsage()
+                preferences.values[1001].update(parent_control_enabled=True,
+                                               daily_time_limit_minutes=30)
+                def native(_uid):
+                    if invalidation == "unavailable":
+                        raise RuntimeError("private backend failure")
+                    accounts.users[1003] = replace(accounts.users[1003], is_admin=False)
+                    return 200 * 1_000_000
+                usage.query_native_deadline = native
+                broker = make_broker(accounts=accounts, preferences=preferences, timer_usage=usage)
+                with self.assertRaises(BackendFailure if invalidation == "unavailable" else AccessDenied):
+                    broker.request_own_access(1001, ":1.child", 1003, 30, True)
+                self.assertFalse(any(event[0].startswith("set_") for event in accounts.events))
+                self.assertEqual(broker._last_request, {})
+
     def test_managed_child_no_soft_request_terminates_only_its_blocked_apps(self):
         accounts, preferences = Accounts(), Preferences()
         preferences.values[1001]["parent_control_enabled"] = True

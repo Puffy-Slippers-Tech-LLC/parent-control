@@ -4,6 +4,10 @@ import GLib from 'gi://GLib';
 export const APPLICATION_UI_NAME = 'com.puffyslippers.OhNoParentControl.ChildUI';
 export const APPLICATION_UI_PATH = '/com/puffyslippers/OhNoParentControl/ApplicationUI';
 const INTERFACE = 'com.puffyslippers.OhNoParentControl.ApplicationUI1';
+const NATIVE_TIME_PATH = '/com/puffyslippers/OhNoParentControl/NativeTime';
+const NATIVE_TIME_XML = `<node><interface name="com.puffyslippers.OhNoParentControl.NativeTime1">
+    <method name="GetDeadline"><arg type="t" direction="out" name="monotonic_microseconds"/></method>
+</interface></node>`;
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const MAX_BYTES = 256 * 1024;
 const XML = `<node><interface name="${INTERFACE}">
@@ -50,6 +54,13 @@ export class ChildApplicationUi {
         this._exported = Gio.DBusExportedObject.wrapJSObject(XML, this);
         try {
             this._exported.export(this._connection, APPLICATION_UI_PATH);
+            // Separate read-only product interface, sharing this connection's
+            // same-user authorization, ownership and extension lifetime.
+            this._nativeTime = Gio.DBusExportedObject.wrapJSObject(NATIVE_TIME_XML, {
+                GetDeadlineAsync: (_parameters, invocation) => this._dispatch(invocation,
+                    () => this._adapter.nativeAllowanceDeadline(), 't'),
+            });
+            this._nativeTime.export(this._connection, NATIVE_TIME_PATH);
             this._ownerId = Gio.bus_own_name_on_connection(
                 this._connection, APPLICATION_UI_NAME, Gio.BusNameOwnerFlags.DO_NOT_QUEUE,
                 () => { if (!this._closed) this._active = true; },
@@ -75,7 +86,7 @@ export class ChildApplicationUi {
         this._dispatch(invocation, () => this._call(...parameters));
     }
 
-    _dispatch(invocation, operation) {
+    _dispatch(invocation, operation, replyType = 's') {
         if (this._closed || this._pending >= 32) {
             invocation.return_dbus_error(`${INTERFACE}.Unavailable`,
                 'Application UI operation refused');
@@ -96,8 +107,9 @@ export class ChildApplicationUi {
                         if (uid !== this._uid) throw new UiError('Denied');
                         if (this._closed || !this._active || !this._adapter)
                             throw new UiError('Unavailable');
-                        invocation.return_value(new GLib.Variant('(s)',
-                            [encodeResult(operation())]));
+                        const value = operation();
+                        invocation.return_value(new GLib.Variant(`(${replyType})`,
+                            [replyType === 's' ? encodeResult(value) : value]));
                     } catch (error) {
                         const code = error instanceof UiError ? error.code :
                             (this._closed ? 'Unavailable' : 'Failed');
@@ -205,6 +217,8 @@ export class ChildApplicationUi {
         this._closed = true;
         this._active = false;
         this._cancellable.cancel();
+        this._nativeTime?.unexport();
+        this._nativeTime = null;
         this._exported.unexport();
         if (this._ownerId) Gio.bus_unown_name(this._ownerId);
         this._ownerId = 0;

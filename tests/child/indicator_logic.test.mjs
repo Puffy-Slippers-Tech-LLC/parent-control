@@ -532,7 +532,10 @@ test('panel API becomes unavailable at lock or greeter before actors are hidden'
     // Isolated implementation check of the production adapter. This does not
     // create or claim a public locked/GDM preview or an installed session.
     const sessionMode = {isLocked: false, isGreeter: false};
-    const context = vm.createContext({Main: {sessionMode}});
+    const manager = {dailyLimitEnabled: true, dailyLimitTime: 140,
+        getCurrentTime: () => 100};
+    const context = vm.createContext({Main: {sessionMode, timeLimitsManager: manager},
+        GLib: {get_monotonic_time: () => 5_000_000}});
     const source = readFileSync(
         new URL('../../child/gnomeApplicationUiAdapter.js', import.meta.url), 'utf8')
         .replace(/^import[^\n]+\n/gm, '')
@@ -564,6 +567,19 @@ test('panel API becomes unavailable at lock or greeter before actors are hidden'
         sessionMode[mode] = false;
         assertAvailability(true);
     }
+    assert.equal(adapter.nativeAllowanceDeadline(), 45_000_000);
+    manager.dailyLimitTime = 90;
+    assert.equal(adapter.nativeAllowanceDeadline(), 5_000_000, 'expired native time remains zero');
+    for (const unavailable of [0, Number.NaN, Number.POSITIVE_INFINITY]) {
+        manager.dailyLimitTime = unavailable;
+        assert.throws(() => adapter.nativeAllowanceDeadline(), /unavailable/);
+    }
+    manager.dailyLimitTime = 140;
+    manager.dailyLimitEnabled = false;
+    assert.throws(() => adapter.nativeAllowanceDeadline(), /unavailable/);
+    manager.dailyLimitEnabled = true;
+    adapter.close();
+    assert.throws(() => adapter.nativeAllowanceDeadline(), /unavailable/);
 });
 
 test('calculates allowance and preserves a verified estimate on a transient failure', () => {

@@ -100,7 +100,7 @@ sub exchange {
             my $value = do { local $/; decode_json(<$proof>) };
             close($proof) or die 'smoke:input-close';
             die 'smoke:input-proof' unless ref($value) eq 'HASH' && keys(%$value) == 6
-                && ($value->{child} eq 'child' || $value->{child} eq 'existing')
+                && ($value->{child} eq 'child' || $value->{child} eq 'existing' || $value->{child} eq 'other-child')
                 && $value->{stage} eq $stage && $value->{token} =~ /\A[0-9a-f]{32}\z/
                 && $value->{source} =~ /\A[0-9a-f]{64}\z/;
             $consumed = 1; # An uncertain callback can never be replayed.

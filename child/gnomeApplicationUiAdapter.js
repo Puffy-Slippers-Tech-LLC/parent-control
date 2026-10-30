@@ -1,4 +1,5 @@
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import GLib from 'gi://GLib';
 
 const SURFACE_ID = 'child-screen-time-indicator';
 const APPLICATION_ID = 'com.puffyslippers.OhNoParentControl.ChildUI';
@@ -144,6 +145,21 @@ export class GnomeApplicationUiAdapter {
             throw new Error('Remaining time is unavailable');
         // A past deadline represents zero remaining time, including hidden reads.
         return Math.max(0, remaining);
+    }
+
+    nativeAllowanceDeadline() {
+        const manager = Main.timeLimitsManager;
+        const end = Number(manager.dailyLimitTime);
+        if (!this._state().available || !manager.dailyLimitEnabled ||
+            !Number.isFinite(end) || end <= 0)
+            throw new Error('Native remaining time is unavailable');
+        // Read the supported native deadline directly, including ongoing use.
+        // Never substitute a retained panel estimate or completed usage here.
+        const remaining = Math.max(0, end - manager.getCurrentTime());
+        const deadline = GLib.get_monotonic_time() + Math.floor(remaining * 1_000_000);
+        if (!Number.isSafeInteger(deadline) || deadline < 0)
+            throw new Error('Native remaining time is unavailable');
+        return deadline;
     }
 
     close() {

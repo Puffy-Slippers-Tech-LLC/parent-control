@@ -421,11 +421,41 @@ class TimerUsage:
     def _query_usage_with_identity(
             self, uid: int, reader_uid: int,
             reader_gid: int) -> tuple[tuple[int, int], ...]:
+        raw = self._query_helper([str(uid)], reader_uid, reader_gid, {"LANG": "C.UTF-8"})
+        if not isinstance(raw, list):
+            raise TimerUsageError("invalid-helper-reply")
+
+        intervals = []
+        for interval in raw:
+            if (not isinstance(interval, list) or len(interval) != 2 or
+                    any(type(value) is not int or not 0 <= value <= (1 << 64) - 1
+                        for value in interval)):
+                raise TimerUsageError("invalid-helper-reply")
+            intervals.append(tuple(interval))
+        LOG.info("adapters.010", interval_count=len(intervals))
+        return tuple(intervals)
+
+    def query_native_deadline(self, uid: int) -> int:
+        """Read the selected child's native deadline on its own session bus."""
+        try:
+            identity = pwd.getpwuid(uid)
+        except KeyError as error:
+            raise TimerUsageError("child-unavailable") from error
+        runtime = "/run/user/" + str(uid)
+        raw = self._query_helper(["--native-deadline"], uid, identity.pw_gid, {
+            "LANG": "C.UTF-8", "XDG_RUNTIME_DIR": runtime,
+            "DBUS_SESSION_BUS_ADDRESS": "unix:path=" + runtime + "/bus",
+        })
+        if type(raw) is not int or not 0 <= raw <= (1 << 64) - 1:
+            raise TimerUsageError("invalid-helper-reply")
+        return raw
+
+    def _query_helper(self, arguments, reader_uid, reader_gid, environment):
         LOG.info("adapters.006")
         try:
             with tempfile.TemporaryFile() as output:
                 result = subprocess.run(
-                    [USAGE_HELPER, str(uid)],
+                    [USAGE_HELPER, *arguments],
                     stdin=subprocess.DEVNULL,
                     stdout=output,
                     stderr=subprocess.DEVNULL,
@@ -434,7 +464,7 @@ class TimerUsage:
                     shell=False,
                     close_fds=True,
                     cwd="/",
-                    env={"LANG": "C.UTF-8"},
+                    env=environment,
                     user=reader_uid,
                     group=reader_gid,
                     extra_groups=(),
@@ -467,15 +497,4 @@ class TimerUsage:
             raw = json.loads(encoded.decode("utf-8", errors="strict"))
         except (json.JSONDecodeError, UnicodeDecodeError) as error:
             raise TimerUsageError("invalid-helper-reply") from error
-        if not isinstance(raw, list):
-            raise TimerUsageError("invalid-helper-reply")
-
-        intervals = []
-        for interval in raw:
-            if (not isinstance(interval, list) or len(interval) != 2 or
-                    any(type(value) is not int or not 0 <= value <= (1 << 64) - 1
-                        for value in interval)):
-                raise TimerUsageError("invalid-helper-reply")
-            intervals.append(tuple(interval))
-        LOG.info("adapters.010", interval_count=len(intervals))
-        return tuple(intervals)
+        return raw

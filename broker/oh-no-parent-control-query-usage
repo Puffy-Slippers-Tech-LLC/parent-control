@@ -92,6 +92,24 @@ def query_usage(connection, target_uid, *, monotonic=time.monotonic, sleep=time.
 def main() -> int:
     if os.geteuid() == 0 or len(sys.argv) != 2:
         return 64
+    if sys.argv[1] == "--native-deadline":
+        if os.getuid() != os.geteuid():
+            return 64
+        try:
+            connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            deadline, = connection.call_sync(
+                "com.puffyslippers.OhNoParentControl.ChildUI",
+                "/com/puffyslippers/OhNoParentControl/NativeTime",
+                "com.puffyslippers.OhNoParentControl.NativeTime1", "GetDeadline",
+                None, GLib.VariantType.new("(t)"), Gio.DBusCallFlags.NO_AUTO_START,
+                CALL_TIMEOUT_MS, None,
+            ).unpack()
+            if type(deadline) is not int or not 0 <= deadline <= (1 << 64) - 1:
+                return 70
+            sys.stdout.write(json.dumps(deadline))
+        except (GLib.Error, OSError, TypeError, ValueError):
+            return 69
+        return 0
     try:
         target_uid = int(sys.argv[1], 10)
     except ValueError:

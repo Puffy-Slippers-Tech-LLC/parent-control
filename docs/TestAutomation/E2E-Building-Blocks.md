@@ -1596,10 +1596,16 @@ submission; no exit input belongs in the automatic branch.
 `overlay_desktop` and `InstalledJourney.check_activity` independently require
 the original usable window/PID/endpoint, exact draft and activity.
 
-Require the complete current broker request message before inspecting protected
-field length; obsolete wording refuses. Authentication inputs bind current
-package sources; a current snapshot does not refresh a fixed legacy bundle.
-Retain provenance, snapshot freshness and ownership guards.
+Before inspecting protected field length, require one request label containing
+the complete bound child name, a duration equal to the requested seconds and an
+explicit matching soft-app permission. `shell_request_matches` independently
+recognizes the existing English/Hebrew vocabulary, tolerating surrounding prose,
+whitespace, punctuation and equivalent duration units. Missing, conflicting or
+unrecognized facts refuse; denial cannot match allowance. Approver, ownership,
+session and same-challenge guards remain exact. The changed guard passed the
+[explicit overlay histories and fixed language regressions](#explicit-overlay-choices-and-countdown-return-qualification).
+Authentication inputs bind current package sources; a current snapshot does not
+refresh a fixed legacy bundle. Retain provenance, freshness and ownership guards.
 
 `overlay_approved_exit.TRANSLATED_PLAN` /
 `check_e2e_overlay_translated_approval` additionally qualify Riley/Jamie's
@@ -1615,6 +1621,32 @@ an incomplete provider read within its normal deadline, without input replay or
 accepting a partial tree. The complete language restoration/history is recorded
 under [complete language histories](#complete-parent-hebrew-history); this
 qualification alone supplies no complete-case acceptance.
+
+#### Explicit overlay choices and countdown return qualification
+
+`request_flow.approval_and_return` / `onpc_request_flow::approval_return`
+compose FLOW04/05 with TIME01 and the caller's earlier public balance and
+immutable activity capture. `approval_return.NEW_PLAN` and `OPEN_PLAN` passed
+independent Riley/Jamie/new/30-second/soft-excluded and
+Jordan/Casey/open/75-second/soft-included histories on Ubuntu 26.04 in
+`20261030T195753Z-0ebb7dd5`, through
+`check_e2e_compose_approval_and_return_to_the_child`. Both proved explicit
+child-owned approval, automatic return, the earlier countdown plus the requested
+interval minus measured elapsed time within two seconds, and the same usable
+original activity. The fixed English and Hebrew approval regressions passed in
+two further restored histories. All four completed collection, worker/callback
+closure, owned cleanup, baseline restoration and host/source preservation;
+the VM was independently observed off.
+
+The shared overlay leaves accept explicit Riley/Jordan, Jamie/Casey,
+30/60/75/120/150/180/900-second and soft-excluded/included choices. The same
+binding follows the form, two fresh authentication-recipient proofs, guarded
+single-use submission, activity and countdown reads. The worker rendezvous
+accepts the declared `other-child` identity; the approval callback still requires
+the exact caller-bound child, challenge-derived token and one Enter value.
+No allowance change or desktop transition belongs to FLOW20 itself. Later
+recipes own their finite choices, policy effects and complete assertions;
+kiosk FLOW20 remains pending. This qualification registers no complete scenario.
 
 #### Overlay immediate exit and approval compositions
 
@@ -2668,23 +2700,26 @@ These fragments do not own fixture provisioning, attempt startup or cleanup.
 Arguments include expected results and the exact accounts/apps/choices. No
 fragment skips an unsuccessful step or resumes a previous attempt.
 
-`request_flow.prepared_request`, `overlay_approved_request`,
-`kiosk_approved_flow.approved_request` / `obtain_time` and
-`onpc_request_flow::prepare` / `approve` bind Riley/Jamie and soft apps included.
+The overlay `request_flow.prepared_request` / `overlay_approved_request` leaves
+accept the finite explicit choices qualified under
+[overlay countdown return](#explicit-overlay-choices-and-countdown-return-qualification).
+`kiosk_approved_flow.approved_request` / `obtain_time` and the kiosk
+`onpc_request_flow::prepare` / `approve` retain Riley/Jamie and soft apps included.
 The shared kiosk leaves accept caller-owned finite 75/120/180/240/600/1200-second
 durations. The 75/600-second leaves retain their existing scope; the distinct
 [120-second FLOW13 profile](#grant-only-time-profile-qualification) is qualified
 on Ubuntu 26.04. Later cases bind their other finite durations and own their
 elapsed-time, arithmetic, app-effect and lifecycle results without replaying
-this qualifier. FLOW20's other identities and soft-choice inputs remain planned
-extensions, not ready merely because the block exists.
+this qualifier. Other kiosk identities and soft-choice inputs remain planned
+extensions.
 Qualify changed parameter/result branches with representative independent
 entries and focused safety coverage rather than repeating unchanged approval,
 rejection, Cancel and exit histories in each consumer.
 
-FLOW20 must carry explicit Riley/Jordan identity, eligible Jamie/Sam approver,
-bounded duration and soft-choice arguments through prompt, automatic result,
-activity and countdown observations. Later recipes own their exact finite
+Overlay FLOW20 carries explicit Riley/Jordan identity, eligible Jamie/Casey
+approver (the recipes' Sam binding), bounded duration and soft-choice arguments
+through prompt, automatic result, activity and countdown observations.
+Later recipes own their exact finite
 values; representative independent qualifications do not require a Cartesian
 choice matrix. FLOW11 names case-level recovery composition, with no standalone
 worker or qualification history. Cases compose TIME04, retained FLOW20 and
@@ -2720,8 +2755,8 @@ of additional named app arguments.
 | FLOW01 | C | Open or return to Parent for a named child and record displayed settings. Inputs declare source, parent entry and `window=new` or `retained`. Default first entry is GDM/fresh/new; a return uses retained entry and the existing window. New launches always use PARENT01's direct command. | `onpc_parent::open_for_child(journey, source, entry, window, child, invocation)` composes fresh FLOW15 → PARENT01(management) → PARENT02, or `desktop/same-user/new` with independent window-absence and Parent-desktop observations before the direct launch and child selection. Retained/same-user branches consume `retained_parent_entry` with explicit invocation and preserved child/page/settings; [exact retained qualification](#retained-parent-desktop-and-window-entry) and [Riley-to-Parent return in the two-child history](#both-retained-child-desktops-and-explicit-entry-modes). `check_e2e_set_an_allowance_for_a_named_child` qualified fresh and independently reopened same-user Parent/child entries, persisted settings and wrong-window refusal, including collection, owned cleanup and baseline restoration. Case 6's affected launch regression passed. Fresh Parent/Riley also passed in case 151; second-parent and other bindings remain pending. | fresh and same-user/new bindings ready; Jamie/Riley retained entry from either child ready; other bindings pending |
 | FLOW02 | C | Configure the selected child's time controls, observing save and explanation. Inputs declare initial/final enablement and allowance. Enable first only when needed to make the allowance editor usable. | `AccessibleUI.configure_time_controls(child, initial_enabled=…, minutes=…, final_enabled=…)`: PARENT04(Screen Limits) → conditional UI17(true)/PARENT08 → PARENT05 preset commit or PARENT06 custom save/PARENT08 → UI17(final boolean)/PARENT08 → PARENT03 → PARENT09. Qualified inputs are 0/15-minute presets and explicit boolean enablement, plus disabled→enabled with 30 minutes through FLOW16's fresh binding and short custom 2/4-minute bindings through [FLOW13's qualification](#daily-only-time-profile-qualification). Other custom bindings remain pending. `check_e2e_time_explanation` qualified enabled→disabled, disabled→enabled and enabled→enabled paths, saved settings, positive/zero balances and wrong-child/initial-state refusal, with collection and owned cleanup. Disabling intentionally clears a grant; it is never navigation. | ready for qualified bindings |
 | FLOW03 | C | Configure one app's matching and access choices through Parent and read the saved row. | `policy_edits.policy_edit` / `onpc_app_rows::edit_policy`: PARENT10 → PARENT11 if declared → PARENT13 → UI16(match draft) → PARENT15(save) → PARENT16 → PARENT12. Caller owns entry, finite inputs and exact comparisons; see [public app-policy edits](#public-app-policy-edits). | ready for Jordan/native fixture A's precise and `*.AppImage` match/access slice; other bindings pending |
-| FLOW04 | C | Open the selected request surface, or use an explicitly already-open form, then choose child/approver/duration/app access and read the estimate. | REQUEST01 or REQUEST02 only for `entry=new`; `entry=open` starts with REQUEST03 → REQUEST04(child only in kiosk, approver, duration) → REQUEST05 if custom → REQUEST06 → REQUEST08. `request_flow.prepared_request` / `onpc_request_flow::prepare` qualify the explicit kiosk child/parent, custom 1.25-minute, soft-included binding for independently open and new entry; see [prepared request qualification](#prepared-request-qualification). `prepared_request(surface='overlay')` / `prepare(..., 'overlay')` reuse the shared overlay entry/form leaves for the fixed child, Jamie approver, 75 seconds and included soft apps: open/default and new/remembered branches passed [overlay FLOW04 qualification](#overlay-flow04-invalid-submission-and-escape-qualification). | pending; declared kiosk and overlay open/new bindings ready; other choices pending |
-| FLOW05 | C | Complete a real approval from a prepared form, observe confirmation and its declared automatic or immediate exit. | REQUEST09 → AUTH02(correct credential) → REQUEST11(success) → REQUEST12(automatic or immediate). `kiosk_approved_flow.approved_request` / `onpc_request_flow::approve`; see [approved kiosk flow qualification](#approved-kiosk-flow-qualification). `request_flow.overlay_approved_request` / `onpc_request_flow::overlay_approve`; see [overlay composition qualification](#overlay-immediate-exit-and-approval-compositions). | fixed kiosk and overlay 75-second/soft-included automatic and immediate bindings ready; other choices pending |
+| FLOW04 | C | Open the selected request surface, or use an explicitly already-open form, then choose child/approver/duration/app access and read the estimate. | REQUEST01 or REQUEST02 only for `entry=new`; `entry=open` starts with REQUEST03 → REQUEST04(child only in kiosk, approver, duration) → REQUEST05 if custom → REQUEST06 → REQUEST08. `request_flow.prepared_request` / `onpc_request_flow::prepare` qualify the explicit kiosk child/parent, custom 1.25-minute, soft-included binding for independently open and new entry; see [prepared request qualification](#prepared-request-qualification). Overlay open/default and new/remembered retain [FLOW04 qualification](#overlay-flow04-invalid-submission-and-escape-qualification); explicit overlay child/approver/duration/soft choices passed [independent new/open histories](#explicit-overlay-choices-and-countdown-return-qualification). | declared kiosk and finite explicit overlay open/new bindings ready; other kiosk choices pending |
+| FLOW05 | C | Complete a real approval from a prepared form, observe confirmation and its declared automatic or immediate exit. | REQUEST09 → AUTH02(correct credential) → REQUEST11(success) → REQUEST12(automatic or immediate). `kiosk_approved_flow.approved_request` / `onpc_request_flow::approve`; see [approved kiosk flow qualification](#approved-kiosk-flow-qualification). `request_flow.overlay_approved_request` / `onpc_request_flow::overlay_approve`; see [overlay composition qualification](#overlay-immediate-exit-and-approval-compositions) and [finite explicit automatic approval](#explicit-overlay-choices-and-countdown-return-qualification). | fixed kiosk and overlay 75-second/soft-included automatic and immediate bindings, plus finite explicit overlay automatic bindings ready; other choices pending |
 | FLOW06 | C | Obtain time through kiosk from an existing GDM screen and return to GDM. | FLOW04(kiosk) → FLOW05. `kiosk_approved_flow.obtain_time` / `onpc_request_flow::obtain_time`; see [approved kiosk flow qualification](#approved-kiosk-flow-qualification). Child login/unlock is deliberately a later step. | fixed kiosk remembered-choice binding ready; other choices pending |
 | FLOW07 | C | Reject/cancel one request and compare its preserved choices. Return with that form open; do not retry yet. | REQUEST03(before) → REQUEST09 → AUTH02(wrong/cancel) → REQUEST11 → UI12. `approval_flow.rejected_request` / `onpc_request_flow::reject`; see [rejected kiosk flow qualification](#rejected-kiosk-flow-qualification). `request_flow.overlay_rejected_request` / `onpc_request_flow::overlay_reject`; see [overlay composition qualification](#overlay-immediate-exit-and-approval-compositions). The recipe can inspect restrictions before invoking FLOW05 for a successful retry, avoiding a second implementation of approval. | fixed kiosk and overlay 75-second/soft-included rejection and Cancel bindings ready; other choices pending |
 | FLOW08 | C | Exercise an app through its declared route and prove the expected usable/denied result. | `journey_blocks.native_usable_app(route, child=...)` / `onpc_app_rows::native_usable_app(journey, route, desktop, child)` compose APP01 → APP02 → APP03 for the declared native `command` or `grid` usable route; [qualification](#native-fixture-preparation). Grid binds Jordan to `other-child` and Riley to `child` explicitly. `native_usable_app('command', child='child')` adds Riley's usable-time command binding through the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification); `child='parent'` explicitly binds Jamie through [distinct-user retention](#distinct-user-retained-app-qualification). No alternative launch after failure. APP03 runs only for expected usable access. | Jordan/Riley native Allowed grid and stated Jamie/child command usable scope ready; policy denial and other bindings pending |
@@ -2735,7 +2770,7 @@ of additional named app arguments.
 | FLOW17 | C | Leave a request with authentication pending by one declared supported action, observe its destination, then return and read cancellation before a new request. | Lock: shared DESK05 shortcut/command → DESK06 → DESK08; switch: DESK03 → FLOW15(return retained); sign-out: DESK04 → FLOW15(fresh); close: UI18(API surface close) → UI11(app), followed by REQUEST01/02 as declared. REQUEST03 → UI11(old prompt). E2E-039; system commands work independently of modal menu access. An unavailable tested app-close control remains gated. | pending |
 | FLOW18 | C | Prepare positive daily time that outlasts a soft-app grant without resetting its launch exception. Finish on the child desktop with both balances positive and daily dominant. | FLOW13(combined, soft included) → FLOW15(child) → FLOW08(soft app) → APP04 → DESK03 → FLOW01(parent retained) → PARENT09 → TIME03(wait until the declared remaining-grant window while child is away) → PARENT09 → UI12(D>G>0) → DESK03 → FLOW15(child retained) → TIME01. No allowance edit or app save after approval. E2E-038. | pending |
 | FLOW19 | C | Configure a finite named app-rule set for one child and return to sign-in. Each match/access edit and save is explicit; no time approval or account preparation is hidden. | FLOW01(parent, explicit source/entry/window/child) → PARENT04(App Limits) → FLOW03 for each declared app/rule → DESK03. First consumers E2E-006/007; reused as AppSet in the recipes. | pending |
-| FLOW20 | C | Approve a specified interval on either request surface and continue as the named child. Accept explicit new/open form entry, child/parent, duration, soft choice, child fresh/retained entry and expected countdown. New overlay entry requires that child's unlocked desktop; new kiosk entry requires GDM. It does not create those preconditions or alter daily policy. | FLOW04(entry and all choices) → FLOW05 → FLOW15(child,declared entry) only for kiosk → TIME01 → UI12(expected interval). Overlay returns to its existing desktop. Reuse FLOW04/05/15 without another surface-specific approval implementation. E2E-048 immediate repeat and E2E-049/050/051. | pending |
+| FLOW20 | C | Approve a specified interval on either request surface and continue as the named child. Accept explicit new/open form entry, child/parent, duration, soft choice, child fresh/retained entry and expected countdown. New overlay entry requires that child's unlocked desktop; new kiosk entry requires GDM. It does not create those preconditions or alter daily policy. | FLOW04(entry and all choices) → FLOW05 → FLOW15(child,declared entry) only for kiosk → TIME01 → UI12(expected interval). `request_flow.approval_and_return` / `onpc_request_flow::approval_return` qualify [finite explicit overlay new/open entry](#explicit-overlay-choices-and-countdown-return-qualification), returning to the same usable activity. Reuse FLOW04/05/15 without another surface-specific approval implementation. E2E-048 immediate repeat and E2E-049/050/051. | overlay new/open form ready; kiosk pending |
 
 FLOW16 separately qualifies Jordan's
 `gdm/parent/fresh/new/existing/0/30/1` through

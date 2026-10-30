@@ -217,6 +217,9 @@ class TimerUsage:
             raise self.error
         return self.entries
 
+    def query_native_deadline(self, uid):
+        return (1 << 64) - 1
+
 
 class RunningApps:
     def __init__(self, events=None, *, terminated=0, error=None):

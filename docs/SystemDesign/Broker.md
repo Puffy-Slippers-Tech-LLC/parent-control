@@ -281,7 +281,12 @@ is false. This UI guard is narrower than the kiosk D-Bus method's authorization.
 
 After authentication, the broker confirms that the requesting bus name still exists
 and revalidates the child, approver, and preferences after authentication,
-after the identity-scoped usage query, and immediately before writes. A
+after the identity-scoped usage query, and immediately before writes. Child
+fixed approvals also read the requesting child's fresh native deadline under
+that child's identity; the [native balance cap](Screen-Time.md#grant-arithmetic-and-usage-identities)
+can only reduce the recorded-use operand and never replaces the root-owned
+grant or the authenticated additional interval. The final identity, preference
+and lifecycle checks cover this read too. A
 nonblocking broker lock permits only one app-policy save, approval, revocation,
 or session-entry reconciliation transaction at a time. The per-caller repeat
 interval is recorded only after a successful grant, so denial or cancellation

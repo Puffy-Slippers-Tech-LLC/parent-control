@@ -165,6 +165,26 @@ def test_helper_and_adapter_exit_status_contract_match():
         USAGE_HELPER_ERROR_CATEGORIES
 
 
+def test_native_deadline_is_a_fresh_same_user_read_without_activation(monkeypatch, capsys):
+    monkeypatch.setattr(helper.os, "geteuid", lambda: 1001)
+    monkeypatch.setattr(helper.os, "getuid", lambda: 1001)
+    monkeypatch.setattr(helper.sys, "argv", ["query-usage", "--native-deadline"])
+    connection = Mock(call_sync=Mock(return_value=GLib.Variant("(t)", (1799000000,))))
+    bus = Mock(return_value=connection)
+    monkeypatch.setattr(helper.Gio, "bus_get_sync", bus)
+    assert helper.main() == 0
+    assert capsys.readouterr() == ("1799000000", "")
+    bus.assert_called_once_with(Gio.BusType.SESSION, None)
+    args = connection.call_sync.call_args.args
+    assert args[:4] == ("com.puffyslippers.OhNoParentControl.ChildUI",
+                       "/com/puffyslippers/OhNoParentControl/NativeTime",
+                       "com.puffyslippers.OhNoParentControl.NativeTime1", "GetDeadline")
+    assert args[6] == Gio.DBusCallFlags.NO_AUTO_START
+    connection.call_sync.side_effect = dbus_error("ServiceUnknown")
+    assert helper.main() == 69
+    assert capsys.readouterr() == ("", "")
+
+
 @pytest.mark.parametrize("name", (
     "private.secret.Error.Busy", "org.freedesktop.MalcontentTimer1.Error.Busy",
     "org.freedesktop.MalcontentTimer1.Child.Error.Busy",

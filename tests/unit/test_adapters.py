@@ -295,6 +295,28 @@ class PolkitAdapterTests(unittest.TestCase):
                 TimerUsage(object()).query_usage(1001)
         run.assert_not_called()
 
+    def test_native_deadline_uses_only_the_selected_childs_session_bus(self):
+        identity = SimpleNamespace(pw_name="private-child-name", pw_gid=1201)
+        with mock.patch("oh_no_parent_control.adapters.pwd.getpwuid", return_value=identity), \
+                mock.patch("oh_no_parent_control.adapters.subprocess.run",
+                           side_effect=self._helper_result("1799000000")) as run:
+            self.assertEqual(TimerUsage(object()).query_native_deadline(1001), 1799000000)
+        self.assertEqual(run.call_args.args[0], [
+            "/usr/libexec/oh-no-parent-control-query-usage", "--native-deadline"])
+        self.assertEqual(run.call_args.kwargs["user"], 1001)
+        self.assertEqual(run.call_args.kwargs["group"], 1201)
+        self.assertEqual(run.call_args.kwargs["extra_groups"], ())
+        self.assertEqual(run.call_args.kwargs["env"], {
+            "LANG": "C.UTF-8", "XDG_RUNTIME_DIR": "/run/user/1001",
+            "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1001/bus"})
+        for reply in ("null", "true", "-1", "[]", "18446744073709551616"):
+            with self.subTest(reply=reply), \
+                    mock.patch("oh_no_parent_control.adapters.pwd.getpwuid", return_value=identity), \
+                    mock.patch("oh_no_parent_control.adapters.subprocess.run",
+                               side_effect=self._helper_result(reply)), \
+                    self.assertRaises(TimerUsageError):
+                TimerUsage(object()).query_native_deadline(1001)
+
     def test_timer_usage_helper_runs_as_authenticated_approver(self):
         identity = SimpleNamespace(pw_name="parent", pw_gid=1200)
         approver = UserAccount(1003, "parent", "Parent", True, False, True)

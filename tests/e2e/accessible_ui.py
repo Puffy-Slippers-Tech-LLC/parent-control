@@ -19,6 +19,7 @@ import stat
 import subprocess
 import sys
 import time
+import unicodedata
 import warnings
 try:
     import session_control
@@ -1043,12 +1044,7 @@ CHILD_DESKTOP_OPERATIONS |= SHELL_APPROVAL_OPERATIONS
 OPERATIONS |= {'overlay-shell-dismissed'}
 CHILD_DESKTOP_OPERATIONS |= {'overlay-shell-dismissed'}
 SHELL_PROMPT_REFUSALS = ('wrong-agent', 'session', *MATE_REFUSALS[1:])
-SHELL_REQUEST_MESSAGES = {
-    'en': f'Grant access to {CHILD}\nfor 1 minute, 15 seconds\n\n'
-          '✓ Soft-blocked apps allowed',
-    'he': f'להעניק גישה ל־{CHILD}\nלמשך 1 דקה, 15 שניות\n\n'
-          '✓ יישומים החסומים עם אפשרות להיתר זמני מותרים',
-}
+SHELL_REQUEST_LANGUAGES = frozenset({'en', 'he'})
 # FLOW20 callers own these finite choices. The same binding follows the form,
 # native Shell recipient, original activity and public countdown.
 OVERLAY_REQUEST_MINUTES = {30: '0.5', 60: '1', 75: '1.25', 120: '2',
@@ -1077,6 +1073,51 @@ def overlay_request_values(value):
     child, parent, seconds, soft = validate_overlay_request(value)
     return (CHILD if child == 'child' else EXISTING_CHILD,
             PARENT if parent == 'parent' else OTHER_PARENT, seconds, soft)
+
+
+def normalize_shell_request(text):
+    text = unicodedata.normalize('NFKC', text).casefold()
+    return ' '.join(''.join(c for c in text if unicodedata.category(c) != 'Cf').split())
+
+
+def shell_request_matches(text, child, seconds, soft, language):
+    """Read independent request facts from one public label before secret access.
+
+    Only the existing English/Hebrew bindings are supported. Formatting and
+    surrounding prose may vary; missing, conflicting or unknown facts refuse.
+    This deliberately does not use the product's message formatter as an oracle.
+    """
+    text = normalize_shell_request(text)
+    names = [name for name in (CHILD, EXISTING_CHILD)
+             for _match in re.finditer(r'(?<!\w)' + re.escape(name.casefold()) + r'(?!\w)', text)]
+    if names != [child]:
+        return False
+    content = re.sub(r'[^\w]+', ' ', text).strip()
+    # Inspect every numeric operand, so a bare expected substring, signed or
+    # fractional value, or an additional conflicting duration cannot pass.
+    without_child = text.replace(child.casefold(), '')
+    numbers = re.findall(r'[+-]?\d+(?:[.,]\d+)?', without_child)
+    if language == 'en':
+        units = {'hour': 3600, 'hours': 3600, 'minute': 60, 'minutes': 60,
+                 'second': 1, 'seconds': 1}
+        status = (r'(?P<denied>(?:do not|don t|never) allow soft blocked apps|'
+                  r'soft blocked (?:apps )?(?:not allowed|not permitted|disallowed))|'
+                  r'(?P<allowed>soft blocked (?:apps )?(?:allowed|permitted)|'
+                  r'allow soft blocked apps)')
+    elif language == 'he':
+        units = {'שעה': 3600, 'שעות': 3600, 'דקה': 60, 'דקות': 60,
+                 'שנייה': 1, 'שניות': 1}
+        status = (r'יישומים החסומים עם אפשרות להיתר זמני '
+                  r'(?:(?P<denied>אינם מותרים)|(?P<allowed>מותרים))')
+    else:
+        return False
+    durations = re.findall(r'(?<!\w)(\d+)\s+(' + '|'.join(units) + r')(?!\w)', content)
+    if (not durations or len({units[unit] for _value, unit in durations}) != len(durations)
+            or numbers != [value for value, _unit in durations]
+            or sum(int(value) * units[unit] for value, unit in durations) != seconds):
+        return False
+    choices = list(re.finditer(r'(?<!\w)(?:' + status + r')(?!\w)', content))
+    return len(choices) == 1 and bool(choices[0].group('allowed')) == soft
 
 OPERATIONS |= SHELL_PROMPT_OPERATIONS
 CHILD_DESKTOP_OPERATIONS |= SHELL_PROMPT_OPERATIONS
@@ -9693,13 +9734,9 @@ class AccessibleUI:
         return ((CHILD, PARENT, 75, True) if binding is None
                 else overlay_request_values(binding))
 
-    def overlay_bound_message(self, language):
+    def overlay_message_matches(self, text, language):
         child, _parent, seconds, soft = self.overlay_bound_values()
-        if getattr(self, 'overlay_request', None) is None:
-            return SHELL_REQUEST_MESSAGES[language]
-        require(language == 'en', 'ui:overlay-request-language')
-        return (f'Grant {child} access?\nRequested time: {OVERLAY_REQUEST_DURATIONS[seconds]}.'
-                + ('\nAllow soft blocked apps for this grant.' if soft else ''))
+        return shell_request_matches(text, child, seconds, soft, language)
 
     def select_overlay_request(self):
         """FLOW04: explicit public choices on the caller's existing child desktop."""
@@ -11273,7 +11310,7 @@ class AccessibleUI:
         https://github.com/GNOME/gnome-shell/blob/50.0/js/ui/components/polkitAgent.js
         Context is checked before accessing even the protected field's length.
         """
-        require(language in SHELL_REQUEST_MESSAGES, 'ui:shell-product-language')
+        require(language in SHELL_REQUEST_LANGUAGES, 'ui:shell-product-language')
         child, approver, _seconds, _soft = self.overlay_bound_values()
         self.require_child_overlay_session(child)
         require(uid == os.getuid(), 'ui:shell-session')
@@ -11300,7 +11337,7 @@ class AccessibleUI:
         labels = [facts[node]['name'] for node in controls
                   if facts[node]['role'] == 'label' and facts[node]['showing']]
         require(labels.count(approver) == 1, 'ui:shell-recipient-context-missing')
-        require(labels.count(self.overlay_bound_message(language)) == 1,
+        require(sum(self.overlay_message_matches(label, language) for label in labels) == 1,
                 'ui:shell-request-context-missing')
         fields = [node for node in controls if facts[node]['role'] == 'password text']
         require(len(fields) == 1, 'ui:shell-field-ambiguous')
@@ -11333,17 +11370,18 @@ class AccessibleUI:
                   if facts[node]['role'] == 'label' and facts[node]['showing']]
         child, approver, seconds, _soft = self.overlay_bound_values()
         recipient = next(node for node in labels if facts[node]['name'] == approver)
-        request = self.overlay_bound_message(language)
-        message = next(node for node in labels if facts[node]['name'] == request)
+        message = next(node for node in labels
+                       if self.overlay_message_matches(facts[node]['name'], language))
+        request = normalize_shell_request(facts[message]['name'])
         duration = '1 דקה, 15 שניות' if language == 'he' else OVERLAY_REQUEST_DURATIONS[seconds]
         for node, key, value, code in (
                 (owner, 'name', 'mate-polkit', 'ui:shell-wrong-agent'),
                 (recipient, 'name', OTHER_PARENT if approver == PARENT else PARENT, 'ui:shell-recipient-context-missing'),
-                (message, 'name', request.replace(child, 'wrong-child'),
+                (message, 'name', request.replace(child.casefold(), 'wrong-child'),
                  'ui:shell-request-context-missing'),
-                (message, 'name', request.replace(duration, '5 דקות' if language == 'he' else '5 minutes'),
+                (message, 'name', f'{request}\n5 דקות' if language == 'he' else f'{request}\n5 minutes',
                  'ui:shell-request-context-missing'),
-                (message, 'name', request.rsplit('\n', 1)[0],
+                (message, 'name', f'{child}\n{duration}',
                  'ui:shell-request-context-missing'),
                 (cancel, 'role', 'password text', 'ui:shell-field-ambiguous')):
             projected = {key: dict(value) for key, value in facts.items()}

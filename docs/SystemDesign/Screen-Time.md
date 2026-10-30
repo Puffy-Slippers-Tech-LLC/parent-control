@@ -239,6 +239,26 @@ Daily usage calculations clip intervals to the current local day and current
 time and merge overlaps before subtraction, so concurrent/overlapping recorded
 intervals are not counted twice. Unavailable usage is an error, not zero use.
 
+During uninterrupted activity, completed records omit the current interval.
+Child-overlay estimates and fixed approvals therefore cap that recorded-use
+daily operand with a fresh native effective balance before taking the maximum
+with the broker-owned grant. The native value can only reduce the recorded-use
+operand; it cannot increase policy, replace the live grant or supply the
+authenticated additional interval. Rest-of-day and zero-daily-limit requests
+need no native cap.
+
+The extension exports the read-only product interface
+`com.puffyslippers.OhNoParentControl.NativeTime1.GetDeadline() -> (t)` at
+`/com/puffyslippers/OhNoParentControl/NativeTime`, under its existing
+`com.puffyslippers.OhNoParentControl.ChildUI` session-bus name and same-user
+credential/lifecycle guards. This reads the supported native `dailyLimitTime`
+directly, independently of UI controls and retained panel estimates, and returns
+a monotonic-microsecond deadline so helper latency consumes time normally.
+The fixed usage helper's `--native-deadline` mode opens a fresh session-bus
+connection as the exact child, with no service activation. Missing or nonfinite
+native state fails the estimate/approval without account writes. It never
+checkpoints usage, changes policy or calls private Shell methods.
+
 For `GetTimeStatus`, the broker first validates the caller and selected child,
 then runs the same fixed-purpose usage helper as that child to read only its own
 usage. Malcontent's public `QueryUsage` implementation permits self-reads and

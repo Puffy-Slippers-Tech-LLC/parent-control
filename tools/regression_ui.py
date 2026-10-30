@@ -90,6 +90,8 @@ from pathlib import PurePosixPath
 # serial overlay launches and public input/result guards.
 # It adds no process owner or persistent host settings; its representative language
 # cycle has an explicit 600-second child deadline within the same Shell bucket.
+# Countdown availability and active-request refusal reuse those same Shell,
+# overlay and complete API observations; no resource lifetime changes.
 # Reminder preview delivery uses that same guardian, real Shell renderer and
 # private session bus. Its single preview source and sender watch are disposed
 # with the extension; no additional compositor, shared service or host setting.

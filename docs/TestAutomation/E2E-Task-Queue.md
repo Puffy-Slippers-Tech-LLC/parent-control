@@ -165,9 +165,13 @@ UI owner; no E2E task). Task 232 retains its completed historical evidence.
 Case 151 already verifies identifying the installed product and returning to
 unchanged management; keep that customer journey once.
 
-Pending UI obligations 052b and 181h retain their IDs and statuses. Their local
-placement after case 27 follows removal of widget checks from that customer
-journey, keeping the newly enabled case immediately after its capabilities.
+UI obligations 052b and 181h retain their IDs and local placement after case 27,
+following removal of widget checks from that customer journey and keeping the
+newly enabled case immediately after its capabilities. Task 052b is complete;
+181h remains pending. Completed task 052b0 supplies 052b's installed
+session-identity absence/restoration observation, which the isolated preview
+cannot establish. This allocation reopens no completed countdown,
+natural-expiry or retained-entry journey.
 
 ## Excluded automation
 
@@ -502,7 +506,8 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 059 | Check daily time through child unlock and time running out | 052a, 043c, 062 | Cases 27; complete daily-only journey passed on the selected Ubuntu 26.04 VM: public four-minute/no-grant setup, original native window/draft and usable work after legitimate unlock, bounded resumed countdown, minute/final-second progression and natural lock owning normal input. Scoped host checks, collection, recording, worker shutdown, cleanup and baseline restoration passed; coverage refreshed. | 35–55 (exception) |
 | [x] | 181m | Operate the countdown context menu | 052 | UI28 direct-preference route and PANEL01/02 enabled binding qualified on Ubuntu 26.04 through `countdown_animation.PLAN` / `onpc_challenges::countdown_animation` and `check_e2e_operate_the_countdown_context_menu` in `20261029T213121Z-d3a2ec77`: independent child entry, wrong-account refusal, canonical enable and fresh public readback passed. All 216 scoped host checks, collection, worker shutdown, owned cleanup and baseline restoration passed. Existing implementation reused; no popup prerequisite, persistence/isolation or complete-case credit. | 20–30 |
 | [x] | 064 | Check the child locks with countdown animation enabled | 062, 043a, 050, 181m | Cases 22; complete animation-enabled natural exhaustion, lock input ownership, native retained restriction, legitimate approval and usable retained recovery, normal logout, confirmed revocation with D=G=0, and correct-password fresh sign-in denial passed on Ubuntu 26.04 in `20261030T003818Z-f8c88376`. Scoped host/source checks, collection, worker shutdown, recording, owned cleanup and baseline restoration passed; VM independently off and coverage refreshed. The daily-use admission correction passed product/PAM checks, DEB/RPM builds and independent backend review with no actionable findings. | 40–60 (exception) |
-| [ ] | 052b | [Verify countdown availability in UI tests](E2E-Tasks/052b-countdown-absence.md) | 052 | UI obligation; countdown availability on desktop, locked and greeter states | 20–30 |
+| [x] | 052b0 | Check the child's countdown while locked and at sign-in | 052, 043c | Owned installed component observation passed on Ubuntu 26.04 in `20261030T013630Z-abcfcb7b`: positive desktop countdown, complete locked/inactive-child panel inventories, request/menu/preference input refusal, unchanged request/preference state, retained authentication and same-session/owner positive countdown restoration. Scoped host/source checks and affected enabled/off and animation regressions passed (`20261030T014248Z-f87a3274`, `20261030T015144Z-d0647819`); collection, worker shutdown, owned cleanup and baseline restoration passed. No complete-scenario credit | 20–30 |
+| [x] | 052b | Verify countdown availability in UI tests | 052, 052b0 | UI obligation; complete owner-pinned desktop/fullscreen-request countdown inventories, request/preference input refusal, unchanged results and restoration after Cancel passed in the isolated Shell. Production lock/greeter hide/restore, deadline and expiry decisions passed in Node; accepted host results retained. Installed locked/sign-in absence, refused input, unchanged preference and same-child restoration passed on Ubuntu 26.04 in `20261030T021143Z-9291cbba` using 052b0's shared observation; collection, worker shutdown, owned cleanup and baseline restoration passed. No complete-scenario credit | 20–30 |
 | [ ] | 181h | [Read the countdown explanation in UI tests](E2E-Tasks/181h-read-the-countdown-hover-explanation.md) | 052 | UI obligation; readable countdown explanation | 20–30 |
 | [ ] | 065a | [Prepare grant-only time and explicit revoke-first entry](E2E-Tasks/065a-grant-only-profile.md) | 051, 050 | FLOW13 grant-only profile and explicit revoke preparation | 20–30 |
 | [ ] | 066 | [E2E-010: parent](E2E-Tasks/066-case-25.md) | 065a, 052, 052c, 047a | Cases 25 | 35–55 (exception) |

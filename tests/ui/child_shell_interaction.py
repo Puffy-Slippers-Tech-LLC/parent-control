@@ -48,6 +48,26 @@ def _find_request_button():
     return node if node.visible and node.enabled else None
 
 
+def _assert_panel_availability(visible, enabled):
+    # A successful complete inventory from the pinned Shell is required. Owner
+    # loss or an incomplete observation must fail, never establish absence.
+    panel = _panel()
+    surface_id = "child-screen-time-indicator"
+    surfaces = [surface for surface in panel.listSurfaces()
+                if surface["id"] == surface_id]
+    assert len(surfaces) == 1 and surfaces[0]["visible"] is visible
+    assert surfaces[0]["enabled"] is enabled
+    inventory = {item["id"]: item for item in panel.inventory(surface_id)}
+    for identity in (surface_id, REQUEST_BUTTON_ID, "child-remaining-time",
+                     "child-request-tooltip", "child-countdown-menu", COUNTDOWN_ANIMATION_ID):
+        assert inventory[identity]["visible"] is visible
+        assert inventory[identity]["enabled"] is enabled
+    if visible:
+        remaining = panel.getValue("child-remaining-time")
+        assert type(remaining) is int and 0 < remaining <= 2700
+        assert re.fullmatch(r"00:4[0-5]", panel.getText("child-remaining-time"))
+
+
 def _countdown_animation_setting():
     schema_dir = (Path(os.environ["XDG_DATA_HOME"]) / "gnome-shell" / "extensions" /
                   EXTENSION_UUID / "schemas")
@@ -282,6 +302,7 @@ def main():
             print("Child panel localization cycle passed", flush=True)
             return 0
 
+        _assert_panel_availability(True, True)
         if _countdown_animation_setting() or _panel().getValue(COUNTDOWN_ANIMATION_ID):
             raise AssertionError("Countdown animation did not default to disabled")
         _panel().setValue(COUNTDOWN_ANIMATION_ID, True)
@@ -295,8 +316,29 @@ def main():
 
         _open_overlay(1)
         print("interaction stage=overlay-visible", flush=True)
+        # The fullscreen overlay hides the panel. A complete inventory from
+        # its still-owned endpoint proves absence without an observer fallback.
+        _assert_panel_availability(False, False)
+        # A pending request cannot launch another overlay or change the
+        # animation preference while the panel is unavailable.
+        for operation in (lambda: _panel().activate(REQUEST_BUTTON_ID),
+                          lambda: _panel().setValue(COUNTDOWN_ANIMATION_ID, False)):
+            try:
+                operation()
+            except UIClientError as error:
+                # Mutation errors are conservatively uncertain in the shared
+                # client. Do not retry; require refusal and independent results.
+                assert error.code == "Unavailable", error.code
+            else:
+                raise AssertionError("Panel input was accepted during an active request")
+        assert len(_launch_records()) == 1
+        assert _panel().getValue(COUNTDOWN_ANIMATION_ID) is True
         _activate_overlay_cancel()
         _wait(lambda: _overlay_closed(1), "the first overlay to close")
+        _wait(_find_request_button, "panel input to become available after Cancel")
+        _assert_panel_availability(True, True)
+        print("Child countdown hidden by fullscreen request; active-request input refused; desktop availability restored",
+              flush=True)
         print("interaction stage=first-overlay-closed", flush=True)
         _open_overlay(2)
         print("interaction stage=overlay-reopened", flush=True)

@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
 import {createIndicator} from './support/indicator.mjs';
 
 import {
@@ -471,6 +473,97 @@ test('display state changes cadence at the final minute and locks only at zero',
     });
     assert.equal(displayState({calculatedEnd: 100, currentTime: 100, locked: false, greeter: false}).shouldLock, true);
     assert.equal(displayState({calculatedEnd: 100, currentTime: 100, locked: true, greeter: false}).shouldLock, false);
+});
+
+test('countdown hides on lock and greeter and resumes only with time remaining', () => {
+    const sessionMode = {isLocked: false, isGreeter: false};
+    let now = 100;
+    let shown;
+    let locks = 0;
+    let displayed;
+    let scheduled;
+    const indicator = createIndicator({
+        displayState,
+        Main: {sessionMode, timeLimitsManager: {
+            getCurrentTime: () => now, dailyLimitEnabled: true,
+        }},
+        logInfo() {},
+    });
+    Object.assign(indicator, {
+        _preview: false, _calculatedEnd: 220, _statusLoaded: true,
+        _activeExtensionEnd: 0,
+        _recordCountdownState() {}, _prepareSession() {},
+        _clearTimeout() { scheduled = null; }, _stopRequestIconSpin() {},
+        _setShown(value) { shown = value; },
+        _updateLabel(value) { displayed = value; },
+        _schedule(value) { scheduled = value; },
+        _lockSession() { locks++; },
+    });
+    indicator._sync();
+    assert.equal(shown, true);
+    assert.equal(displayed, 120);
+    for (const mode of ['isLocked', 'isGreeter']) {
+        sessionMode[mode] = true;
+        indicator._sessionPrepared = true;
+        indicator._sync();
+        assert.equal(shown, false, mode);
+        assert.equal(scheduled, null, mode);
+        assert.equal(indicator._sessionPrepared, false, mode);
+        assert.equal(locks, 0, 'an unavailable desktop must not request another lock');
+        now += 10;
+        sessionMode[mode] = false;
+        indicator._sync();
+        assert.equal(shown, true, mode);
+        assert.equal(displayed, 220 - now, 'return preserves the original countdown deadline');
+        assert.equal(scheduled, 1);
+    }
+    now = 220;
+    sessionMode.isLocked = true;
+    indicator._sync();
+    assert.equal(shown, false);
+    assert.equal(locks, 0);
+    sessionMode.isLocked = false;
+    indicator._sync();
+    assert.equal(shown, false, 'return cannot restore an expired countdown');
+    assert.equal(locks, 1);
+});
+
+test('panel API becomes unavailable at lock or greeter before actors are hidden', () => {
+    // Isolated implementation check of the production adapter. This does not
+    // create or claim a public locked/GDM preview or an installed session.
+    const sessionMode = {isLocked: false, isGreeter: false};
+    const context = vm.createContext({Main: {sessionMode}});
+    const source = readFileSync(
+        new URL('../../child/gnomeApplicationUiAdapter.js', import.meta.url), 'utf8')
+        .replace(/^import[^\n]+\n/gm, '')
+        .replace('export class GnomeApplicationUiAdapter',
+            'globalThis.GnomeApplicationUiAdapter = class GnomeApplicationUiAdapter');
+    vm.runInContext(source, context, {filename: 'gnomeApplicationUiAdapter.js'});
+    const indicator = {
+        container: {visible: true},
+        _settings: {is_writable: () => true},
+        _requestButton: {visible: true, reactive: true, checked: false,
+            get_parent: () => null, get_accessible: () => ({get_description: () => ''})},
+    };
+    const adapter = new context.GnomeApplicationUiAdapter(indicator);
+    const assertAvailability = available => {
+        const [surface] = adapter.listSurfaces();
+        assert.equal(surface.visible, available);
+        assert.equal(surface.enabled, available);
+        const controls = adapter.elements(surface.id);
+        assert.equal(controls.length, 6);
+        assert.ok(controls.every(control => control.visible === available));
+        assert.ok(controls.every(control => control.enabled === available));
+    };
+    assertAvailability(true);
+    for (const mode of ['isLocked', 'isGreeter']) {
+        sessionMode[mode] = true;
+        assertAvailability(false);
+        // Actor visibility is deliberately stale at the session transition.
+        assert.equal(indicator.container.visible, true);
+        sessionMode[mode] = false;
+        assertAvailability(true);
+    }
 });
 
 test('calculates allowance and preserves a verified estimate on a transient failure', () => {

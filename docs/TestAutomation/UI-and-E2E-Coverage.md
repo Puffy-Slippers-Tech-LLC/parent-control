@@ -40,6 +40,17 @@ the shared runtime ownership and input guards without testing those guards.
 | Reminders/presets | Editing, sorting, duplicate/invalid values, literal text versus translated triggers, Save/Cancel/empty list | Saved custom reminders, exact cross-surface readback, reboot and unchanged peer settings; warning delivery is distinct |
 | Automation safety | Shared runtime guards apply; no dedicated tooling assertions | Every journey uses qualified shared guards; traces/per-keystroke sampling are not customer outcomes |
 
+The isolated child preview covers desktop/fullscreen-request countdown
+availability and refusal; Node covers production locked/greeter decisions.
+It has no owned logind/GDM session, so those results do not establish public
+locked/greeter observations. Task 052b0 qualified the
+[installed observation](E2E-Building-Blocks.md#locked-and-inactive-child-countdown-qualification)
+of the retained child's panel, independently of the greeter's Shell, plus
+restoration on Ubuntu 26.04. Task 052b completed the UI obligation with accepted
+host results and a passing installed check through that same shared observation;
+no genuine lock or greeter state is manufactured in the preview.
+This allocation neither reopens completed journeys nor adds a customer scenario.
+
 Attachment fixtures replace only the external chooser's returned file list;
 the frontend still reads/validates files and updates its draft. Local tests do
 not replace the installed chooser handoff. Language/reminder fixtures likewise

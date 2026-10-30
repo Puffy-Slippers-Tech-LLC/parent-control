@@ -1274,6 +1274,9 @@ class CountdownTicksQualification(ChallengesQualification):
 
 
 class NaturalExpiryQualification(ChallengesQualification):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets
+    fixture_caller = 'check_e2e_natural_expiry'
+
     @staticmethod
     def journey(context, progress):
         from app_snapshot import snapshot_name

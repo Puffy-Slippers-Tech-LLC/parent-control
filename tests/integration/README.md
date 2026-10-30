@@ -219,6 +219,9 @@ only Riley's four native catalogue launchers; Jordan retains the shared runtime
 and existing native launchers. `BaselineAppEffectsQualification` binds
 `check_e2e_baseline_app_effects` to the same qualified union so its policy edits
 and grant/use/revocation history have Riley's A/H/S/N launchers before Parent opens.
+`NaturalExpiryQualification` binds `check_e2e_natural_expiry` to the same union
+so Riley's activity launch and use until natural lock receive the required
+child catalogue and activity files, with shared independent readback before input.
 `E2E-015/child-overlay-cancel`,
 `E2E-015/child-overlay-escape` and `E2E-015/child-overlay-approved` select this same
 union under their own fixed caller identities before journey construction, so the

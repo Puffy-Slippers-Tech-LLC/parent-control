@@ -842,6 +842,8 @@ LANGUAGE_HISTORY_REQUESTS = {
            ('jordan', EXISTING_CHILD, 'de'), ('riley', CHILD, 'en'), ('riley', CHILD, 'he'))
        for approver, parent in (('jamie', PARENT), ('casey', OTHER_PARENT))},
     'language-history-overlay-he-casey': (True, CHILD, 'he', OTHER_PARENT, 'form'),
+    **{f'language-history-overlay-{language}-jamie':
+       (True, CHILD, language, PARENT, 'form') for language in ('en', 'he')},
     **{f'language-history-{name}-{action}': (False, child, 'en', PARENT, action)
        for name, child in (('jordan', EXISTING_CHILD), ('riley', CHILD))
        for action in ('custom-open', 'soft')},
@@ -852,7 +854,8 @@ LANGUAGE_HISTORY_REQUESTS = {
     'language-history-riley-restored': (False, EXISTING_CHILD, 'de', PARENT, 'riley'),
 }
 OPERATIONS |= frozenset(LANGUAGE_HISTORY_REQUESTS)
-CHILD_DESKTOP_OPERATIONS |= {'language-history-overlay-he-casey'}
+CHILD_DESKTOP_OPERATIONS |= {operation for operation, binding in LANGUAGE_HISTORY_REQUESTS.items()
+                             if binding[0]}
 # Finite REQUEST04 bindings: field, destination, owning child, input/result language.
 KIOSK_LANGUAGE_ACCOUNTS = {
     'kiosk-language-jordan-jamie': ('approver', PARENT, EXISTING_CHILD, 'en', 'en'),

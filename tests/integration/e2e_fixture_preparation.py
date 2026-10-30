@@ -15,6 +15,7 @@ ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',
                     'E2E-011/grant-only', 'E2E-011/combined',
                     'E2E-015/child-overlay-cancel', 'E2E-015/child-overlay-escape',
                     'E2E-015/child-overlay-approved',
+                    'E2E-059/overlay-hebrew',
                     'E2E-019/native-grid-allowed-enabled')
 LIFECYCLE_SUBSETS = ('native', 'baseline-child')
 LIFECYCLE_CALLER = 'E2E-027/continuous'

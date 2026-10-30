@@ -8,6 +8,48 @@
   },
   "scenarios": [
     {
+      "id": "E2E-059",
+      "title": "Keep a child's request and saved work across Hebrew approval and English restoration",
+      "category": "customer-journey",
+      "owners": ["personal-language"],
+      "requirements": ["ONPC-CORE-REQUEST-005", "ONPC-CORE-REQUEST-006", "ONPC-CORE-REQUEST-008", "ONPC-CORE-REQUEST-009", "ONPC-CORE-TIME-007"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/Specification.md", "docs/SystemDesign/Localization.md", "docs/TestAutomation/E2E-Scenario-Recipes.md#e2e-059"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": ["ubuntu26.04", "fedora44"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
+      "phases": {
+        "setup": [{"id": "setup", "operation": "provision", "description": "Restore the installed snapshot and provision declared activity fixtures and credentials."}],
+        "start": [{"id": "start", "operation": "begin", "description": "Begin one independent history at the installed greeter."}],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Jamie enables Riley's 15-minute allowance through Parent and reads the public starting balance."},
+          {"id": "step-2", "operation": "ui", "description": "Riley uses and captures the original activity, prepares Jamie's 75-second soft-included request in English, then saves Hebrew and compares the unchanged request."},
+          {"id": "step-3", "operation": "ui", "description": "Jamie genuinely approves through the English Shell agent; Riley sees Hebrew success, the original usable activity and the expected public time increment."},
+          {"id": "step-4", "operation": "ui", "description": "Riley reopens once, restores English, compares the original choices and cancels back to the unchanged activity without resetting approved time."}
+        ],
+        "end": [{"id": "end", "operation": "collect", "description": "Reconcile the complete language, request, approval, saved-work and time history."}],
+        "cleanup": [{"id": "cleanup", "operation": "outer-reset", "description": "Finish worker shutdown, owned cleanup, baseline restoration and preservation."}]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "original-english-request", "step_id": "step-2", "description": "The English request captures Riley, Jamie, 75 seconds, custom text and included soft apps."},
+          {"id": "hebrew-preserved-request", "step_id": "step-2", "description": "Hebrew public request text retains the immutable original child, approver and request choices."},
+          {"id": "hebrew-approval-success", "step_id": "step-3", "description": "One genuine guarded Jamie authentication produces the explicit Hebrew Time granted result."},
+          {"id": "approved-original-activity", "step_id": "step-3", "description": "Automatic return preserves the original usable window, draft and activity."},
+          {"id": "approved-time-increment", "step_id": "step-3", "description": "The public countdown agrees with the requested increment and elapsed use."},
+          {"id": "english-preserved-request", "step_id": "step-4", "description": "Restored English public text and request choices match the original capture."},
+          {"id": "cancel-original-activity", "step_id": "step-4", "description": "Normal Cancel returns to the same original usable activity with unchanged synthetic content."},
+          {"id": "original-grant-deadline", "step_id": "step-4", "description": "The final public time stays bounded by the original approval and elapsed active use, without a language-change reset."}
+        ],
+        "backend": [], "other_user": []
+      },
+      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
+      "duration_seconds": 900,
+      "matrix": {"dimensions": {"history": ["overlay-hebrew"]}, "full_combinations": [], "rationale": "One complete English Hebrew English child-overlay history, using the qualified fixed Riley/Jamie approval binding."},
+      "variants": [{"coverage_id": 260, "id": "overlay-hebrew", "owner": "personal-language", "parameters": {"history": "overlay-hebrew"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/overlay_presentation.py", "test_id": "overlay-hebrew"}}]
+    },
+    {
       "id": "E2E-001",
       "title": "Fresh boot and graphical/observation transport",
       "category": "runner-smoke",

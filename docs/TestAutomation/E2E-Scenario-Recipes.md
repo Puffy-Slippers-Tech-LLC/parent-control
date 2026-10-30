@@ -2373,7 +2373,14 @@ and two-second refresh/formatter tolerance; the entire case deadline is 900 seco
 
 <a id="overlay-language-presentation-planned-task-308"></a>
 
-### Overlay language presentation
+### E2E-059
+
+Overlay language presentation is case **260**, `overlay-hebrew`, implemented by
+`overlay_presentation.PLAN` / `OverlayLanguageHistoryJourney` and
+`onpc_request_flow::overlay_language_history`. The complete history has a
+900-second deadline. Its final countdown compares both the original approval
+estimate and the first approved countdown against elapsed active use, allowing
+public minute rounding and two seconds of refresh latency between countdowns.
 
 One complete Riley overlay English → Hebrew → English saved-work history,
 with Jamie selected, 75 seconds and soft apps included. Capture the native

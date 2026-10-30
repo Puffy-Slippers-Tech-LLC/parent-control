@@ -122,6 +122,43 @@ sub overlay_prompt {
     $journey->finish();
 }
 
+sub overlay_language_history {
+    onpc_progress::operation('Preserving the child request and saved activity across Hebrew approval and English restoration');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'overlay-history:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'overlay-approved-exit', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen('allowance-configured');
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    my $activity = onpc_app_rows::native_activity_entry($journey, 'activity', 'command');
+    overlay_entry($journey, 'direct', 'command');
+    prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1, 'overlay');
+    $journey->seen('english-form');
+    onpc_parent::language_selection($journey, 'hebrew');
+    $journey->seen($_) for ('hebrew-save', 'hebrew-form', 'translated-estimate');
+    overlay_approve($journey, 'automatic');
+    onpc_app_rows::native_read_activity($activity, 'returned');
+    $journey->seen('approved-countdown');
+    overlay_entry($journey, 'reopened', 'command');
+    onpc_parent::language_selection($journey, 'english');
+    $journey->seen($_) for ('english-save', 'restored-form', 'cancel', 'cancel-returned');
+    onpc_app_rows::native_read_activity($activity, 'restored');
+    $journey->seen('restored-countdown');
+    onpc_app_rows::native_finish_app($activity);
+    $journey->finish();
+}
+
 sub overlay_approve {
     onpc_progress::operation('Approving the prepared overlay and observing its declared exit');
     my ($journey, $exit) = @_;

@@ -615,15 +615,24 @@ Both children retain Custom `1.25`, 75 seconds and soft inclusion.
 session and overlay reads to Riley; `InternetIsolation` owns recovery.
 Compare policy/name/app captures before/after recovery under the recipe's bound.
 
+E2E-059/case 260 uses `overlay_presentation.PLAN` /
+`OverlayLanguageHistoryJourney` and `onpc_request_flow::overlay_language_history`.
+The complete Riley/Jamie English → Hebrew → English history passed on Ubuntu
+26.04 in `20261030T124615Z-a7c9aacd`: immutable 75-second soft-included request,
+genuine Shell approval, Hebrew success, unchanged usable original activity,
+restored English/Cancel and elapsed-bounded original grant deadline. Its
+attempt declares `ACTIVITY_SUBSETS` with caller `E2E-059/overlay-hebrew` before
+journey construction; missing activity preparation previously refused at that
+boundary. Collection, worker shutdown, owned cleanup, baseline restoration and
+finalization passed. The VM was observed off. This completes task 308 only.
+
 Remaining compositions and new bindings stay pending. Reuse existing LANG01
 and `language_persistence.PLAN` request readers instead of separate 308a/309a
-presentation histories. Implement missing finite literal projections and
-comparisons in tasks 308/309. Task 308b qualified the fixed translated approval
-result below; 310a retains the new panel endpoint projection. The complete cases retain:
+presentation histories. Task 309 owns its missing finite projections and
+comparisons; 310a retains the new panel endpoint projection. The remaining complete cases retain:
 
 | Binding | Required result |
 | --- | --- |
-| Overlay Hebrew request/approval | Unchanged identities/75-second soft-included choices and original activity; one genuine Shell approval during Hebrew, translated success, usable original work and elapsed-time increment, then one English-restoring reopen. |
 | Kiosk Hebrew request | Child's checked language/request survives one approver change and restored English; no repeated About/error-report tours. |
 | Panel language/time | Refreshed time language and elapsed balance after each overlay save, unchanged work/policy, then natural expiry without reset or grants. Existing fixed countdown reads do not qualify translation/progression/expiry. |
 
@@ -1574,8 +1583,9 @@ window/draft/score and the elapsed-bounded public time increment. Collection,
 worker/callback closure, owned cleanup, baseline restoration and host/source
 preservation passed for both. The shared read-only activity capture reacquires
 an incomplete provider read within its normal deadline, without input replay or
-accepting a partial tree. Complete language restoration/history remains task 308;
-this binding supplies no complete-case acceptance.
+accepting a partial tree. The complete language restoration/history is recorded
+under [complete language histories](#complete-parent-hebrew-history); this
+qualification alone supplies no complete-case acceptance.
 
 #### Overlay immediate exit and approval compositions
 

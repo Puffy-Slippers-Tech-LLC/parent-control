@@ -331,6 +331,12 @@ sub run {
         onpc_request_flow::overlay_prompt(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{overlay_language_history}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::overlay_language_history(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{overlay_approved_exit}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

@@ -478,6 +478,9 @@ helpers and verified assets (`tools/run-tests artifacts build` when needed);
 no new generic dispatcher or partial registered scenario. Record a passing slice
 as qualified for its exact scope. Other bindings can keep the catalogue row
 pending; a later complete scenario is not a prerequisite of its own building block.
+Registering this guarded selector does not register an integration or system test;
+category membership follows the [standalone assertion boundary](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage),
+including while the E2E consumer is pending.
 
 ### Scenario acceptance
 

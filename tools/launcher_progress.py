@@ -181,7 +181,7 @@ def case_progress(run, *, reader=None):
     from watch_output import read_json
     value = (reader.read(run / 'case-progress.json', 8192) if reader is not None else
              read_json(run / 'case-progress.json', 8192))
-    if (not isinstance(value, dict) or value.get('category') not in ('system', 'e2e')
+    if (not isinstance(value, dict) or value.get('category') not in ('system', 'integration', 'e2e')
             or type(value.get('area', False)) is not bool
             or any(type(value.get(key)) is not int for key in
                    ('completed', 'total', 'index', 'round', 'vm_started_ns', 'started_ns', 'case_started_ns'))
@@ -190,12 +190,13 @@ def case_progress(run, *, reader=None):
             or value['round'] < 1
             or not 0 <= value['vm_started_ns'] <= value['started_ns'] <= value['case_started_ns'] <= time.monotonic_ns()
             or not isinstance(value.get('case_id'), str)
-            or not re.fullmatch(r'[1-9][0-9]{0,9}', value['case_id'])
+            or not re.fullmatch(r'check_[a-z][a-z0-9_]*' if value['category'] == 'integration'
+                                else r'[1-9][0-9]{0,9}', value['case_id'])
             or not isinstance(value.get('title'), str) or len(value['title']) > 384
             or not value['title'].isprintable()):
         raise ValueError('invalid category display progress')
     counts = value.get('categories')
-    if (not isinstance(counts, dict) or not counts or set(counts) - {'system', 'e2e'}
+    if (not isinstance(counts, dict) or not counts or set(counts) - {'system', 'integration', 'e2e'}
             or any(not isinstance(item, dict) or not {'completed', 'total'} <= set(item)
                    or type(item['completed']) is not int or type(item['total']) is not int
                    or not 0 <= item['completed'] <= item['total'] <= 100000
@@ -324,7 +325,9 @@ def watch_integration_progress(root, vm, progress, *, reader):
             return progress
         description = ast.get_docstring(ast.parse(source.read_text())) or ''
         title = case.removeprefix('check_').replace('_', ' ').capitalize()
-        return dict(current=1, total=1, case_id=case, title=title,
+        counts = ({key: progress[key] for key in ('current', 'total')}
+                  if progress and progress.get('case_id') == case else dict(current=1, total=1))
+        return dict(**counts, case_id=case, title=title,
                     step=' '.join(description.split()), operation='')
     except (OSError, ValueError, KeyError, TypeError, AttributeError, SyntaxError):
         return progress

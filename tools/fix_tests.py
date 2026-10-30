@@ -981,8 +981,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 original = inventory[requested]['args']
                 saved = Checkpoint(root, [(requested, original)], resume=True, binding=selected().name,
                                    recover_missing=resuming)
-                display_cases = (case_inventory(root, requested, original)
-                                 if requested in ('system', 'e2e') else None)
+                display_cases = case_inventory(root, requested, original)
                 if display_cases:
                     totals = case_totals(root, inventory, requested, display_cases)
                     publish_case_progress(root, run, requested, display_cases, retry_case,

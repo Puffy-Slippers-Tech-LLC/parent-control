@@ -450,7 +450,7 @@ def case_totals(root, inventory, category, cases):
     """Discover every selected VM case category before showing the overall total."""
     totals = {category: len(cases)}
     for kind, spec in inventory.items():
-        if kind in ('system', 'e2e') and kind != category:
+        if kind in ('system', 'integration', 'e2e') and kind != category:
             selected = case_inventory(root, kind, spec['args'])
             if selected is not None:
                 totals[kind] = len(selected)
@@ -648,7 +648,7 @@ def run_family_cases(root, category, options, execute, gate, *, inventory,
                 # concurrency slot while a queued owner recovers its claim.
                 checkpoint.entry(category)['complete'] = True
                 checkpoint.save()
-                if cases and category in ('system', 'e2e'):
+                if cases:
                     publish_case_progress(root, gate.run, category, cases, cases[-1], passed,
                         totals=totals, round_number=round_number,
                         completed_categories=completed_categories)
@@ -664,7 +664,7 @@ def run_family_cases(root, category, options, execute, gate, *, inventory,
                           if item['area'] else item['case'])
                 arguments = [*original, '--resume', '--resume-case=' + target,
                              '--resume-area-only' if item['area'] else '--resume-case-only']
-            if cases and category in ('system', 'e2e'):
+            if cases:
                 publish_case_progress(root, gate.run, category, cases, target,
                     checkpoint.passed(category), totals=totals, round_number=round_number,
                     completed_categories=completed_categories, area=item['area'])
@@ -715,7 +715,11 @@ def publish_case_progress(root, run, category, cases, case, passed, *, totals, r
     from launcher_progress import case_progress
     from vm_recording import case_identity
     nodeid = case or cases[-1]
-    identifier, title = case_identity(root, category, dict(nodeid=nodeid))
+    if category == 'integration':
+        identifier = nodeid
+        title = nodeid.removeprefix('check_').replace('_', ' ').capitalize()
+    else:
+        identifier, title = case_identity(root, category, dict(nodeid=nodeid))
     now = time.monotonic_ns()
     try:
         previous = case_progress(run)

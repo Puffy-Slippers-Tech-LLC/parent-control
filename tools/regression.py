@@ -623,6 +623,7 @@ class Execution:
         self.result_closed = False
         self.command_recorded = False
         self.output_tail = ''
+        self.output_error_summary = ''
         run.sequence += 1
         self.sequence = run.sequence
         filename = f'category-{run.sequence:03d}.log'
@@ -644,6 +645,36 @@ class Execution:
         line = raw.decode('utf-8', errors='replace')
         if self.collect or line.startswith('run-tests: output='):
             self.captured.append(line)
+        if not line.startswith(PREFIX):
+            from launcher_render import clean
+            text = clean(line).strip()
+            try:
+                result = json.loads(text)
+            except ValueError:
+                self.output_tail = (self.output_tail + '\n' + text)[-8000:]
+            else:
+                # Decode complete records before bounding presentation text: a
+                # qualification result can exceed the entire output-tail limit.
+                # Metadata stays in the raw log, never in the Error panel.
+                if isinstance(result, dict):
+                    outcomes = result.get('outcomes', {})
+                    failed = [(phase, outcome) for phase, outcome in outcomes.items()
+                              if isinstance(outcome, dict) and outcome.get('outcome') == 'failed'
+                              ] if isinstance(outcomes, dict) else []
+                    if not failed and result.get('outcome') == 'failed':
+                        failed = [('check', result)]
+                    failures = []
+                    for phase, outcome in failed:
+                        code = outcome.get('category')
+                        code = code if isinstance(code, str) else ''
+                        reason = (code.split(':')[-1].replace('-', ' ').replace('_', ' ')
+                                  if code else 'no reason supplied')
+                        failures.append(f'{phase.capitalize()} failed: {reason}.' +
+                                        (f' ({code})' if code else ''))
+                    if failures:
+                        self.output_error_summary = '\n'.join(failures)[:2000]
+                elif not isinstance(result, list):
+                    self.output_tail = (self.output_tail + '\n' + text)[-8000:]
         if self.events and line.startswith(PREFIX):
             event = json.loads(line[len(PREFIX):])
             item = self.item
@@ -719,7 +750,6 @@ class Execution:
         # Each fragment has a category label. UTF-8 and partial lines remain
         # independent even when several children stream their failures together.
         self.raw.write(data)
-        self.output_tail = (self.output_tail + data.decode('utf-8', errors='replace'))[-8000:]
         self.raw.flush()
         self.run.report.dirty.add(Path(self.raw.name))
         self.run.report.write('\n<p><b>' + html.escape(self.item.name) + '</b></p>\n<pre>'
@@ -769,10 +799,7 @@ class Execution:
                         dict(kind='failure', nodeid=sorted(self.finished)[-1]), set())
             item.stop_timer()
             if item.state == 'Failed' and not item.error_detail:
-                from launcher_render import clean
-                lines = [clean(line).strip() for line in self.output_tail.splitlines()
-                         if not line.startswith(PREFIX)]
-                detail = '\n'.join(line for line in lines if line)[-2000:]
+                detail = self.output_error_summary or self.output_tail.strip()[-2000:]
                 item.error_detail = (detail or f'Command exited with status {status}.')
             if item.state == 'Failed':
                 item.error_detail += '\nOutput: ' + str(self.raw.name)

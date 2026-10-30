@@ -29,7 +29,8 @@ the launcher terminal output, **Error** shows the shared launcher's **Last Error
 and **Status** fields with the same colors and elapsed ages, and **Session** opens
 the session transcript and chat.
 For `fix-tests`, Last Error includes the failing check, the runner's error text
-(or a bounded command-output tail), and its output-log path. Reload launcher
+(or a readable summary of a structured failure, falling back to a bounded text
+output tail), and its output-log path. Full JSON results remain in that log. Reload launcher
 changes with `tools/fix-tests --reload`; `./setup.sh --watch` updates the extension.
 The links remain available in every view, including while idle. The copy icon
 before **Status** copies the current tab's body as plain text to the clipboard;

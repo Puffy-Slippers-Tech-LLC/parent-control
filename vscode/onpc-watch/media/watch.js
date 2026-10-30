@@ -182,12 +182,12 @@
     function arrangeTiles(value) {
         tileLayout = value;
         grid.dataset.layout = value;
-        document.querySelectorAll('#tile-layout button').forEach(button => {
+        document.querySelectorAll('#tile-layout button[data-layout]').forEach(button => {
             button.setAttribute('aria-pressed', String(button.dataset.layout === value));
         });
         persist();
     }
-    document.querySelectorAll('#tile-layout button').forEach(button => {
+    document.querySelectorAll('#tile-layout button[data-layout]').forEach(button => {
         button.addEventListener('click', () => arrangeTiles(button.dataset.layout));
     });
     arrangeTiles(tileLayout);
@@ -254,14 +254,35 @@
     function card(entry) {
         const body = document.createElement('article');
         body.className = `card ${entry.kind}`;
-        const title = element('button', 'title', body);
+        const titlebar = element('div', 'tile-titlebar', body);
+        const title = element('button', 'title', titlebar);
         title.addEventListener('click', () => select(state.scope, entry.id));
+        const screenshot = element('button', 'tile-screenshot', titlebar);
+        screenshot.type = 'button';
+        screenshot.title = 'Take UI screenshot';
+        screenshot.setAttribute('aria-label', `Take UI screenshot: ${entry.label}`);
+        screenshot.disabled = true;
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        icon.setAttribute('viewBox', '0 0 20 20');
+        icon.setAttribute('aria-hidden', 'true');
+        const shape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        shape.setAttribute('d', 'M2 6h4l2-3h4l2 3h4v11H2z M13 11a3 3 0 1 1-6 0 3 3 0 1 1 6 0');
+        icon.append(shape);
+        screenshot.append(icon);
         const heading = element('div', 'heading', body);
         const step = element('div', 'step', body);
         const display = element('div', 'display', body);
         const canvas = element('canvas', 'screen', display);
         canvas.setAttribute('aria-label', entry.kind === 'vm' ? 'VM display, view only' : 'UI worker display, view only');
         canvas.hidden = true;
+        screenshot.addEventListener('click', () => {
+            if (canvas.hidden || !canvas.width || !canvas.height) return;
+            try {
+                vscode.postMessage({ type: 'screenshot', png: canvas.toDataURL('image/png') });
+            } catch (error) {
+                vscode.postMessage({ type: 'screenshotError', error: error.message });
+            }
+        });
         const waiting = element('p', 'waiting', display);
         waiting.textContent = 'Waiting for display';
         const activity = element('pre', 'activity', body);
@@ -296,7 +317,7 @@
                 }
             });
         }
-        return { body, title, heading, step, canvas, waiting, activity, status, memory };
+        return { body, title, heading, step, canvas, waiting, activity, status, memory, screenshot };
     }
 
     function image(url) {
@@ -314,6 +335,7 @@
         view.waiting.hidden = Boolean(data);
         if (!data) {
             view.canvas.width = view.canvas.height = 0;
+            view.screenshot.disabled = true;
             return;
         }
         const [frame, cursor] = await Promise.all([
@@ -324,6 +346,7 @@
         const context = view.canvas.getContext('2d', { alpha: false });
         context.drawImage(frame, 0, 0);
         if (cursor) context.drawImage(cursor, data.cursor.x, data.cursor.y);
+        view.screenshot.disabled = !view.canvas.width || !view.canvas.height;
     }
 
     function terminal(text) {

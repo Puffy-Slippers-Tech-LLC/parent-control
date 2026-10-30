@@ -88,6 +88,18 @@ readings show **—**; gaps remain disconnected. History stays in memory and res
 when the VM instance changes or Watch reconnects. Existing VM collectors need
 their next normal restart to publish this additional reading.
 
+The camera icon at the right end of each tile's title bar saves that tile's UI frame
+at its original resolution to the XDG Pictures directory's Screenshots folder,
+without a Save dialog. Names follow `Screenshot From 2026-10-30 10-04-15.png`
+in local time; repeated captures in one second add a numeric suffix.
+A desktop notification appears for five seconds (subject to desktop settings).
+Click it to open the default file manager with the screenshot selected, using
+the standard desktop notification and FileManager1 APIs. This requires the
+system Python's PyGObject/Gio bindings. With Remote SSH, saving and notifications
+occur on the extension host's desktop.
+It excludes the viewer's headings, command text and footers. Long titles truncate before
+the camera, keeping it visible. The camera is disabled without a frame.
+
 Three icon buttons at the right end of the viewer tab row select the tile layout:
 **Auto** (the default grid), **Vertical** (one column), or **Horizontal** (one row).
 The tab remembers the selection. Overflowing tiles scroll in the chosen direction;

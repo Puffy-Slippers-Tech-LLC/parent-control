@@ -99,6 +99,7 @@ function activate(context) {
         const sessionActions = [];
         let sessions = new Map();
         let runRoots = new Set();
+        const notifications = new Set();
         function stop() {
             clearInterval(timer);
             lines?.close();
@@ -176,6 +177,25 @@ function activate(context) {
                 poll();
             } else if (message?.type === 'restart') {
                 start();
+            } else if (message?.type === 'screenshot' && typeof message.png === 'string' &&
+                       message.png.length <= 45 * 1024 * 1024 &&
+                       /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(message.png)) {
+                const helper = spawn('/usr/bin/python3', ['-B',
+                    path.join(context.extensionUri.fsPath, 'screenshot.py')],
+                    { stdio: ['pipe', 'ignore', 'pipe'] });
+                notifications.add(helper);
+                let errors = '';
+                const report = error => void vscode.window.showErrorMessage(`Screenshot: ${error}`);
+                helper.stderr.on('data', data => { errors = (errors + data.toString()).slice(-4096); });
+                helper.on('error', error => report(error.message));
+                helper.stdin.on('error', error => output.appendLine(`Screenshot input: ${error.message}`));
+                helper.on('close', code => {
+                    notifications.delete(helper);
+                    if (code || errors) report(errors || `desktop helper exited (${code})`);
+                });
+                helper.stdin.end(Buffer.from(message.png.slice('data:image/png;base64,'.length), 'base64'));
+            } else if (message?.type === 'screenshotError' && typeof message.error === 'string') {
+                void vscode.window.showErrorMessage(`Cannot take screenshot: ${message.error}`);
             } else if (message?.type === 'copy' && runRoots.has(message.root) &&
                        typeof message.text === 'string') {
                 void vscode.env.clipboard.writeText(message.text).then(undefined,
@@ -213,6 +233,9 @@ function activate(context) {
             visibility.dispose();
             panels.delete(root);
         });
+        context.subscriptions.push({ dispose: () => {
+            for (const helper of notifications) helper.kill();
+        } });
         context.subscriptions.push(panel);
         panel.webview.html = html(panel.webview, context);
         start();

@@ -160,7 +160,8 @@ def main():
                 return matches(connection, args.uuid, args.domain_id, args.xml_sha256,
                                expected_xml=expected_xml)
             require(guard(), 'session-identity')
-            observer = Observer(display, args.uid, args.run)
+            observer = Observer(display, args.uid, args.run,
+                                memory_source=lambda: connection.lookupByUUIDString(args.uuid))
             require(observer.ready.wait(6) and not observer.finished.is_set(), 'session-collector')
             control.sendall(b'ready')
             follow(control, observer, guard)

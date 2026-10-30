@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from e2e_watch_viewer import AsyncFeed, Feed, activity_text, progress_text, WAITING, CONNECTED
 from ui_watch_transport import Feeds, label
 from watch_checkouts import Discovery, checkout, identity
-from watch_model import ResourceUsage, viewer_entries
+from watch_model import ResourceUsage, VMMemory, viewer_entries
 from watch_output import Output, SessionOutput, TAIL_BYTES
 from tests.integration.watch_activity import TerminalControls
 
@@ -119,6 +119,7 @@ class Viewer:
         self.launcher_controls = {}
         self.sessions = {}
         self.resources = ResourceUsage()
+        self.vm_memory = {}
 
     def run_status(self, session_root=None):
         from launcher_render import clean
@@ -276,6 +277,7 @@ class Viewer:
         for entry in tuple(self.vms):
             if entry not in wanted:
                 self.vms.pop(entry)[0].close()
+                self.vm_memory.pop(entry, None)
         for entry in wanted:
             if entry not in self.vms:
                 self.vms[entry] = [AsyncFeed(Feed(entry[1], root=entry[0])), {}]
@@ -326,6 +328,7 @@ class Viewer:
             if case:
                 title = f"[{case['case_id']}] {case['title']}"
             view = dict(kind='vm', heading=title, step=step,
+                memory=self.vm_memory.setdefault((root, name), VMMemory()).chart(meta),
                 status=activity_text(activity, progress or meta.get('progress')) or operation or
                     ('VM running · Waiting for the next operation' if meta.get('state') == 'live' else
                      CONNECTED if meta.get('lease_locked') else WAITING),

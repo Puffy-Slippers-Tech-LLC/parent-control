@@ -251,7 +251,16 @@
         activity.setAttribute('aria-label', 'Filtered VM command output');
         const footer = element('div', 'card-footer', body);
         const status = element('div', 'status', footer);
+        let memory;
         if (entry.kind === 'vm') {
+            memory = element('span', 'resource vm-memory', footer);
+            memory.title = 'Host RAM occupied by the VM process (RSS), in decimal GB. Last minute; scale includes configured guest RAM and QEMU overhead.';
+            element('strong', '', memory).textContent = 'Memory:';
+            element('span', 'memory-value', memory);
+            const graph = element('canvas', 'resource-chart', memory);
+            graph.width = 140;
+            graph.height = 44;
+            graph.setAttribute('aria-hidden', 'true');
             activity.hidden = !sshVisible.has(entry.id);
             const ssh = element('label', 'ssh-control', footer);
             ssh.append('SSH ');
@@ -270,7 +279,7 @@
                 }
             });
         }
-        return { body, title, heading, step, canvas, waiting, activity, status };
+        return { body, title, heading, step, canvas, waiting, activity, status, memory };
     }
 
     function image(url) {
@@ -453,29 +462,32 @@
         snapshot.resource_charts.forEach((data, index) => {
             const group = resources.children[index];
             group.querySelector('.percentage').textContent = data.text;
-            const canvas = group.querySelector('canvas');
+            drawChart(group.querySelector('canvas'), data.segments, colors[index]);
+        });
+    }
+
+    function drawChart(canvas, segments, color) {
             const context = canvas.getContext('2d');
             const { width, height } = canvas;
             context.clearRect(0, 0, width, height);
-            context.fillStyle = `rgba(${colors[index]}, .08)`;
+            context.fillStyle = `rgba(${color}, .08)`;
             context.fillRect(0, 0, width, height);
-            for (const segment of data.segments) {
+            for (const segment of segments) {
                 const points = segment.map(([x, y]) => [2 + x * (width - 4), 2 + y * (height - 4)]);
                 context.beginPath();
                 context.moveTo(points[0][0], height - 2);
                 for (const point of points) context.lineTo(...point);
                 context.lineTo(points[points.length - 1][0], height - 2);
                 context.closePath();
-                context.fillStyle = `rgba(${colors[index]}, .3)`;
+                context.fillStyle = `rgba(${color}, .3)`;
                 context.fill();
                 context.beginPath();
                 context.moveTo(...points[0]);
                 for (const point of points.slice(1)) context.lineTo(...point);
-                context.strokeStyle = `rgb(${colors[index]})`;
+                context.strokeStyle = `rgb(${color})`;
                 context.lineWidth = 2;
                 context.stroke();
             }
-        });
     }
 
     async function render(snapshot) {
@@ -520,6 +532,11 @@
             view.title.textContent = entry.label;
             view.heading.textContent = entry.heading;
             view.step.textContent = entry.step;
+            if (view.memory && view.memorySample !== entry.memory?.sample) {
+                view.memorySample = entry.memory?.sample;
+                view.memory.querySelector('.memory-value').textContent = entry.memory?.text || '—';
+                drawChart(view.memory.querySelector('canvas'), entry.memory?.segments || [], '153, 102, 217');
+            }
             view.status.textContent = entry.kind === 'vm'
                 ? entry.status.replace(/\bsnapshot "([^"]+)"/g, 'snapshot $1').replace(/ - (\([^()]+\))$/, ' $1')
                 : entry.status;

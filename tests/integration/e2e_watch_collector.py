@@ -109,6 +109,14 @@ def receive_progress(control, frames, attach=None):
             frames.publish(lease_locked=packet == b'lease-locked')
             return True
         value = json.loads(packet)
+        if type(value) is dict and set(value) == {'memory'}:
+            memory = value['memory']
+            require(memory is None or (type(memory) is dict
+                    and set(memory) == {'rss_kib', 'maximum_kib', 'instance', 'sample_ns'}
+                    and all(type(n) is int and 0 <= n < 2**63 for n in memory.values())
+                    and memory['maximum_kib'] > 0), 'memory-fields')
+            frames.publish(memory=memory)
+            return True
         require(progress_packet(value) == packet, 'progress-packet')
         frames.publish(progress=value)
         return True

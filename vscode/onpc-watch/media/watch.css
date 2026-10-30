@@ -148,6 +148,7 @@ nav button[aria-pressed="true"] {
 .vm .status { color: #0066ff; }
 .card-footer { display: flex; flex-shrink: 0; align-items: center; min-width: 0; }
 .card-footer .status { flex: 1; min-width: 0; }
+.vm-memory { flex-shrink: 0; padding-left: 8px; font-size: .9em; }
 .ssh-control { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; padding: 4px 8px; white-space: nowrap; }
 footer { display: flex; flex-shrink: 0; gap: 8px; align-items: center; padding: 4px 8px; border-top: 1px solid var(--vscode-panel-border); }
 #resources { display: flex; flex: 1; flex-wrap: wrap; justify-content: flex-end; gap: 6px 16px; min-width: 0; font-family: var(--vscode-editor-font-family); font-size: .9em; }

@@ -77,6 +77,15 @@ to show the filtered command output above the footer. The choice is retained
 when switching viewer tabs until Watch is reopened. Long blue operation messages
 truncate before the toggle, whose space stays reserved.
 
+Immediately before **SSH**, **Memory: x.x GB** shows the VM process's resident
+host RAM (RSS), including QEMU overhead, in decimal gigabytes. Its mini graph
+reuses the footer chart renderer and shows the last minute, sampled once per
+second through the existing watch feed without guest commands. The vertical
+scale covers configured guest RAM and any higher observed RSS. Missing or stale
+readings show **—**; gaps remain disconnected. History stays in memory and resets
+when the VM instance changes or Watch reconnects. Existing VM collectors need
+their next normal restart to publish this additional reading.
+
 Three icon buttons at the right end of the viewer tab row select the tile layout:
 **Auto** (the default grid), **Vertical** (one column), or **Horizontal** (one row).
 The tab remembers the selection. Overflowing tiles scroll in the chosen direction;

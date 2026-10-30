@@ -5,6 +5,49 @@ from pathlib import Path
 import time
 
 
+class VMMemory:
+    """One minute of host RSS from the existing authenticated VM feed."""
+
+    def __init__(self):
+        self.history = deque(maxlen=60)
+        self.last = None
+        self.instance = None
+
+    def chart(self, meta):
+        now = time.monotonic_ns()
+        memory = meta.get('memory')
+        valid = (isinstance(memory, dict)
+                 and all(type(memory.get(key)) is int and memory[key] >= 0
+                         for key in ('rss_kib', 'maximum_kib', 'instance', 'sample_ns'))
+                 and memory['maximum_kib'] > 0
+                 and 0 <= now - memory['sample_ns'] < 3_000_000_000)
+        identity = (meta.get('run'), memory['instance']) if valid else None
+        if valid and identity != self.instance:
+            self.history.clear()
+            self.last = None
+            self.instance = identity
+        if valid and memory['sample_ns'] != self.last:
+            self.last = memory['sample_ns']
+            self.history.append((self.last, memory['rss_kib']))
+        # A stable scale includes QEMU overhead above configured guest RAM.
+        scale = max([memory['maximum_kib']] + [value for _, value in self.history]) if valid else 1
+        segments, segment, previous = [], [], None
+        for stamp, reading in self.history if valid else ():
+            if stamp < now - 59_000_000_000:
+                continue
+            if previous is not None and stamp - previous > 2_500_000_000:
+                if segment:
+                    segments.append(segment)
+                segment = []
+            segment.append(((stamp - now + 59_000_000_000) / 59_000_000_000,
+                            1 - reading / scale))
+            previous = stamp
+        if segment:
+            segments.append(segment)
+        return dict(text=f"{memory['rss_kib'] * 1024 / 1e9:.1f} GB" if valid else '—',
+                    segments=segments, sample=self.last if valid else None)
+
+
 class ResourceUsage:
     """Host utilization sampled once per second, without external commands."""
 

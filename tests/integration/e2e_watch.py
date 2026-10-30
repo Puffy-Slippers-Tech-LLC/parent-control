@@ -253,9 +253,10 @@ class Observer:
     after three seconds, including while the controller waits on guest work.
     """
 
-    def __init__(self, display, uid, run, *, progress=None):
+    def __init__(self, display, uid, run, *, progress=None, memory_source=None):
         self.display = display
         self.progress = progress
+        self.memory_source = memory_source
         self.lease_locked = True
         self.child = self.pidfd = self.publication = self.thread = None
         self.control = self.listener = None
@@ -294,6 +295,7 @@ class Observer:
         deadline = time.monotonic() + 5
         last_progress = None
         last_locked = None
+        next_memory = 0
         try:
             while not self.stop.is_set():
                 try:
@@ -310,6 +312,30 @@ class Observer:
                     self.display_ready.set()
                 elif message == b'':
                     break
+                if self.memory_source is not None and time.monotonic() >= next_memory:
+                    next_memory = time.monotonic() + 1
+                    memory = None
+                    try:
+                        import libvirt
+                        domain = self.memory_source()
+                        instance = domain.ID()
+                        if instance >= 0:
+                            # Never wait behind snapshot or other domain jobs.
+                            reports = domain.connect().domainListGetStats([domain],
+                                libvirt.VIR_DOMAIN_STATS_BALLOON,
+                                libvirt.VIR_CONNECT_GET_ALL_DOMAINS_STATS_NOWAIT)
+                            stats = reports[0][1] if reports else {}
+                            maximum, rss = stats.get('balloon.maximum'), stats.get('balloon.rss')
+                            if (type(rss) is int and rss >= 0 and type(maximum) is int
+                                    and maximum > 0 and domain.ID() == instance):
+                                memory = dict(rss_kib=rss, maximum_kib=maximum,
+                                              instance=instance, sample_ns=time.monotonic_ns())
+                    except Exception:
+                        pass  # Missing memory statistics must never disable viewing.
+                    try:
+                        self.control.send(json.dumps({'memory': memory}).encode(), socket.MSG_DONTWAIT)
+                    except BlockingIOError:
+                        pass
                 if self.lease_locked != last_locked:
                     try:
                         self.control.send(b'lease-locked' if self.lease_locked else b'lease-unlocked',
@@ -408,7 +434,8 @@ def start(adapter):
             from vm_watch_session import Session
             return Session(adapter, int(uid))
         observer = Observer(adapter.open_display(), int(uid), adapter.run,
-                            progress=getattr(adapter.lease, 'watch_progress', None))
+                            progress=getattr(adapter.lease, 'watch_progress', None),
+                            memory_source=lambda: adapter.lease.source.domain)
         if not observer.ready.wait(6) or observer.finished.is_set():
             observer.close()
             log('disabled')
@@ -471,7 +498,8 @@ def begin(lease):
     observer = None
     try:
         observer = Observer(None, int(uid), uuid.uuid4().hex,
-                            progress=getattr(lease, 'watch_progress', None))
+                            progress=getattr(lease, 'watch_progress', None),
+                            memory_source=lambda: lease.source.domain)
         require(observer.ready.wait(6) and not observer.finished.is_set(), 'collector-unavailable')
         lease.watch = observer
     except Exception:

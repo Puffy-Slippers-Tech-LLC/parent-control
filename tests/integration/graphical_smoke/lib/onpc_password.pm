@@ -136,7 +136,10 @@ sub enter_kiosk_mate_password {
                 || (($journey->{prefix} // '') eq 'grant-only-profile-profile-request'
                     || ($journey->{prefix} // '') eq 'switch-user-expiry-parent-profile-request'
                     || ($journey->{prefix} // '') eq 'switch-user-expiry-other-child-profile-request')
-                && ($journey->{stage_prefix} // '') eq 'profile-request-' && ($profile_request || $long_request));
+                && ($journey->{stage_prefix} // '') eq 'profile-request-' && ($profile_request || $long_request)
+                || ($journey->{prefix} // '') eq 'countdown-grant-profile-request'
+                && ($journey->{stage_prefix} // '') eq 'profile-request-'
+                && defined($wrong) && $wrong eq 'request-120');
         my $id = ($baseline || $isolation || $profile ? ($journey->{stage_prefix} // '') : '')
             . 'kiosk-mate-' . ($chinese || $long_request || $profile_request ? $wrong : $binding);
         die 'secret:challenge' unless (@_ == 1 || $reject || $chinese || $long_request || $profile_request)

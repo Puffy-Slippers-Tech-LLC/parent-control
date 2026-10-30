@@ -2061,10 +2061,10 @@ and enforcement results.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
-| TIME01 | C | Read the child's remaining usable time during activity or session return. Retain stable absence on the limits-off desktop as a qualified supporting observation; local lock/greeter visibility belongs to UI obligation 052b. | UI01 → UI03, or UI11 with the destination positively identified. `AccessibleUI.child_countdown(present)` / `countdown.CountdownObservation` and `check_countdown_balance`; [child-desktop qualification](#child-desktop-countdown-qualification). | child-desktop horizontal presence and limits-off absence ready; new customer time/session bindings need qualification, local visibility is UI scope |
-| TIME02 | C | Compare displayed remaining time across real activity with public starting balances, elapsed intervals and explicit precision/tolerances. This supports actual time-use and expiry outcomes; tick formatting belongs in UI tests. | `countdown.CountdownSample`, `check_countdown_progress` and `await_countdown_progress` compare immutable minute or exact-second endpoints bracketed by controller monotonic reads, including an explicitly declared minute-to-seconds transition. TIME03 `interval_action` retains the original bound and attempt guard. `countdown_qualification.MINUTE_PLAN` / `CountdownMinutesJourney` and `TICK_PLAN` / `CountdownTicksJourney` share `onpc_challenges` daily-only preparation and independent child reads, qualified by `check_e2e_countdown_minutes` / `check_e2e_countdown_ticks`. No guest clock/usage manipulation. [Minute qualification](#minute-countdown-progression-qualification) and [final-second qualification](#final-second-countdown-progression-qualification). | minute and final-second progression ready on Ubuntu 26.04 and Fedora 44; other customer bindings pending |
+| TIME01 | C | Read the child's remaining usable time during activity or session return. Retain stable absence on the limits-off desktop as a qualified supporting observation; local lock/greeter visibility belongs to UI obligation 052b. | UI01 → UI03, or UI11 with the destination positively identified. `AccessibleUI.child_countdown(present)` / `countdown.CountdownObservation` and `check_countdown_balance`; [child-desktop qualification](#child-desktop-countdown-qualification). | child-desktop horizontal presence and limits-off absence ready; E2E-011 daily-only/grant-only ready on Ubuntu 26.04; other new customer time/session bindings need qualification, local visibility is UI scope |
+| TIME02 | C | Compare displayed remaining time across real activity with public starting balances, elapsed intervals and explicit precision/tolerances. This supports actual time-use and expiry outcomes; tick formatting belongs in UI tests. | `countdown.CountdownSample`, `check_countdown_progress` and `await_countdown_progress` compare immutable minute or exact-second endpoints bracketed by controller monotonic reads, including an explicitly declared minute-to-seconds transition. TIME03 `interval_action` retains the original bound and attempt guard. `countdown_qualification.MINUTE_PLAN` / `CountdownMinutesJourney` and `TICK_PLAN` / `CountdownTicksJourney` share `onpc_challenges` daily-only preparation and independent child reads, qualified by `check_e2e_countdown_minutes` / `check_e2e_countdown_ticks`. No guest clock/usage manipulation. [Minute qualification](#minute-countdown-progression-qualification) and [final-second qualification](#final-second-countdown-progression-qualification). | minute and final-second progression ready on Ubuntu 26.04 and Fedora 44; E2E-011 daily-only/grant-only ready on Ubuntu 26.04; other customer bindings pending |
 | TIME03 | A | Let a declared bounded real interval elapse while retaining the runner guard and deadline. Return elapsed time only; this does not prove a lock or grant expiry. | `real_interval.wait_real_interval(duration, deadline=absolute_monotonic, guard=attempt_guard, progress=callback)` accepts finite durations through 300 seconds, checks ownership/deadline between sleeps of at most 250 ms and publishes five checkpoints. `interval_action(duration)` binds it to an `InstalledJourney` stage action using the guard's attempt deadline. `real_interval_qualification.PLAN` / `onpc_parent_about::run_interval` passed `check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard`: five real seconds between independent unchanged About endpoint/PID/product/version reads, valid entry and wrong-entry refusal, collection, owned cleanup and baseline restoration. Host safety checks cover lost ownership, deadline, cancellation, recorder failure and durable reply refusal. No product state follows from elapsed time. | guarded elapsed-time helper ready; five-second About slice qualified; complete consumers remain separate |
-| TIME04 | C | Use the selected app/game until natural expiry, then observe the lock owning normal input and loss of desktop access. Earlier visible time and the timeout are explicit inputs. | `natural_expiry_observation.await_natural_expiry` consumes an immutable countdown and original activity under the original display upper bound plus 15 seconds and attempt deadline. `AccessibleUI.natural_expiry` binds the child session/window before ordinary Submit input, stops input near zero or Lock, and reuses the qualified curtain/restriction reader without inspecting the app underneath. `NaturalExpiryJourney` / `onpc_challenges::natural_expiry` add fresh lock-ready → harmless Shift → independent same-lock read through `check_e2e_natural_expiry`; [installed qualification](#natural-enforced-lock-qualification). A native time restriction needs no password field; input ownership alone supplies no authenticated-denial result. | Riley/native two-minute daily-only binding ready on Ubuntu 26.04 and Fedora 44; other app/game/fullscreen and customer bindings pending |
+| TIME04 | C | Use the selected app/game until natural expiry, then observe the lock owning normal input and loss of desktop access. Earlier visible time and the timeout are explicit inputs. | `natural_expiry_observation.await_natural_expiry` consumes an immutable countdown and original activity under the original display upper bound plus 15 seconds and attempt deadline. `AccessibleUI.natural_expiry` binds the child session/window before ordinary Submit input, stops input near zero or Lock, and reuses the qualified curtain/restriction reader without inspecting the app underneath. `NaturalExpiryJourney` / `onpc_challenges::natural_expiry` add fresh lock-ready → harmless Shift → independent same-lock read through `check_e2e_natural_expiry`; [installed qualification](#natural-enforced-lock-qualification). A native time restriction needs no password field; input ownership alone supplies no authenticated-denial result. | Riley/native two-minute daily-only binding ready on Ubuntu 26.04 and Fedora 44; E2E-011 daily-only/grant-only ready on Ubuntu 26.04; other app/game/fullscreen and customer bindings pending |
 | LIFE01 | C | Close and reopen one named ordinary app through a shared direct command, unless the case explicitly tests its graphical launch route; observe its opening window. Do not reselect a child or restore settings before reading them. | `onpc_lifecycle::reopen(journey, 'parent', prior_window, 'management')` consumes `prior-window`, independently guards the active owned window, composes UI18 → PARENT01, then reads the initial child selection before edits. `app_restart.PLAN` / `onpc_app_restart::run` passed `check_e2e_app_restart`: fresh entry, already-closed and wrong named-window refusal without repair, complete old-window absence, new management window, initial selection, collection, owned cleanup and baseline restoration. Shared launch/close helpers are unchanged. Other ordinary apps use APP01 with the declared route; overlay/kiosk reopening uses their explicit exit/entry blocks. | Parent→management ready with the baseline eligible children; other apps/bindings pending |
 | LIFE02 | C | Reboot through a fixed supported system command in the owned guest, then observe a new boot and fresh GDM in the same attempt. | `JourneyPlan.reboot_transition`, `InstalledJourney.submit_reboot` and `Transport.request_customer_reboot`; independent `ReadOnlyObservations.wait_boot_change` then fresh GDM. [Qualified install/reboot composition](#customer-reboot-continuity). No Shell power menu; product persistence and activation notices remain required. | fresh install/reboot/administrator return ready; other bindings pending |
 | LIFE03 | C | Suspend through a fixed supported system command, wait the real interval, wake through the owned VM's supported input and observe the return. | Shared lifecycle harness → TIME03 → bound wake input → public result; unlock remains DESK08. No Shell menus. | pending |
@@ -2098,15 +2098,19 @@ both `en_US.UTF-8`, `xkb/us`.
 Authenticated denial, other apps/games, fullscreen, reminder delivery and
 complete customer histories remain separate.
 
-Complete daily-only case 27 now composes TIME01/02/04 with the qualified direct
-child lock/unlock and original native activity operations through
+Complete E2E-011 cases 27 and 28 compose TIME01/02/04 with the qualified direct
+child lock/unlock and original native activity operations. Daily-only case 27 uses
 [`countdown_daily.PLAN` / `CountdownDailyJourney`](../../tests/e2e/countdown_daily.py)
-and `onpc_challenges::countdown_daily`. The selected Ubuntu 26.04 run passed
-public four-minute/no-grant preparation, retained original work and resumed time,
-minute/final-second progression, natural lock and same-lock input ownership,
-collection, worker shutdown, recording, owned cleanup and baseline restoration.
-This qualifies that complete daily-only binding on Ubuntu; Fedora acceptance and
-the grant-only/combined customer bindings are not supplied by this result.
+and `onpc_challenges::countdown_daily`; its affected Ubuntu 26.04 regression passed
+in `20261030T092025Z-90141f75` with public four-minute/no-grant preparation.
+Grant-only case 28 uses
+[`countdown_grant.PLAN` / `CountdownGrantJourney`](../../tests/e2e/countdown_grant.py)
+and `onpc_challenges::countdown_grant`; it passed in `20261030T090926Z-dabc2614`
+with zero daily time and one real two-minute approval. Both passed retained
+original usable work and resumed time, minute/final-second progression, natural
+lock and same-lock input ownership, collection, worker shutdown, recording,
+owned cleanup and baseline restoration. This qualifies those complete bindings
+on Ubuntu; Fedora and combined-case acceptance remain separate.
 The [recipe](E2E-Scenario-Recipes.md#e2e-011) owns its finite margins and endpoints.
 
 #### Installed restart notice qualification
@@ -2713,6 +2717,13 @@ cleanup, baseline restoration and recording finalization passed. Other callers
 retain Parent readback by default. The original grant deadline is never reset
 by a later observation. Other bindings remain outside this acceptance.
 
+Case 28 uses the same direct GDM finish, then independently calls the shared
+`revoke-balances` Application UI reader on the retained Parent window before
+fresh child entry. This keeps the public D=0/G>0/total=G result without spending
+the two-minute wall-clock grant on another Parent login. The unchanged reader
+retains owner/child bindings and fresh status reload. Its complete customer
+history is recorded under [natural enforced lock](#natural-enforced-lock-qualification).
+
 Case 26 passed the same four-minute preparation on Ubuntu 26.04 in
 `20261030T063013Z-c491dbd2`, with the other child's limits-off activity captured
 before approval. Its exact scoped kiosk credential binding retains the two fresh
@@ -3149,6 +3160,10 @@ Uncertain input is never replayed.
 fresh distinct Parent/Jordan challenges with two ordered proofs each, one
 `AccessibleUI.native_launch_command` submission over guarded SSH, then independent
 owned-window/use/close results. Command success alone proves no window.
+The supporting command's two preflights bind the active unlocked local account, complete
+owned-window absence and prompt refusal. They need no repeated Shell desktop
+stability tour; Overview preparation stays between the fresh preflights.
+Normal closure still requires its independently recognized desktop.
 `native_activity.PLAN` / `check_e2e_app_activity` adds APP04/FLOW08 capture/
 reread; replacement windows with identical text cannot establish retention.
 `AppActivityObservation.from_value` freezes endpoint/state;

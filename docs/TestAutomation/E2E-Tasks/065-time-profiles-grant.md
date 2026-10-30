@@ -1,4 +1,4 @@
-# 065 — Compose the combined grant-dominant profile
+# 065 — Combine a child's daily time with extra time
 
 Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).

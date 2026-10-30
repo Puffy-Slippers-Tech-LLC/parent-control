@@ -12464,7 +12464,7 @@ class AccessibleUI:
         locked_session = None
         def ready():
             nonlocal locked_session
-            require_active_launch_session()
+            require_active_launch_session(unlocked=not locked)
             if child == CHILD:
                 self.require_child_overlay_session()
             if locked:
@@ -12473,8 +12473,11 @@ class AccessibleUI:
                 require(locked_session is None or session == locked_session, 'ui:lock-session-changed')
                 locked_session = session
                 return self.shell_lock_snapshot(os.getuid(), 'restriction') is not None
-            self.desktop_result(child, 'success')
-            require(self.native_app_closed(instance) if role is not None else self.native_app_closed(),
+            # A supporting command needs the active local session, complete
+            # owned-window absence and prompt refusal. Repeating Shell's
+            # stable-desktop tour here spends real grant time without adding
+            # a launch guard; Overview is prepared separately below.
+            require(self.native_app_closed(instance, desktop=False),
                     'ui:native-window-exists')
             self.handle_system_prompt()
             return True
@@ -12672,10 +12675,11 @@ class AccessibleUI:
                   prompt_in_predicate=True)
         self.activate_id('onpc-fixture-native-' + instance + '-submit')
 
-    def native_app_closed(self, instance='primary'):
-        """Complete owned absence with the independently recognized Shell desktop."""
-        require(instance in ('primary', 'secondary'), 'ui:native-binding')
-        self.standard_shell_desktop(no_prompt=True)
+    def native_app_closed(self, instance='primary', *, desktop=True):
+        """Complete owned absence; closure also recognizes the stable desktop."""
+        require(instance in ('primary', 'secondary') and type(desktop) is bool, 'ui:native-binding')
+        if desktop:
+            self.standard_shell_desktop(no_prompt=True)
         node = self.snapshot_owned_target('onpc-fixture-native-' + instance, showing=False,
                                           check_prompt=True)
         return node is None or not self.showing(node)
@@ -14242,10 +14246,10 @@ def validate_countdown(value, present):
     return dict(value)
 
 
-def require_active_launch_session():
+def require_active_launch_session(*, unlocked=False):
     """Bind direct execution to one active local graphical session of this UID."""
     uid = os.getuid()
-    require(uid >= 1000 and os.geteuid() == uid, 'ui:launch-identity')
+    require(type(unlocked) is bool and uid >= 1000 and os.geteuid() == uid, 'ui:launch-identity')
 
     def call(*args):
         return subprocess.run(['/usr/bin/loginctl', *args], capture_output=True,
@@ -14263,11 +14267,13 @@ def require_active_launch_session():
         require(re.fullmatch(r'[a-zA-Z0-9]+', session), 'ui:session-id')
         props = dict(line.split('=', 1) for line in call(
             'show-session', session, '--no-pager', '-p', 'User', '-p', 'Active',
-            '-p', 'Remote', '-p', 'Class', '-p', 'Type', '-p', 'Seat').splitlines())
+            '-p', 'Remote', '-p', 'Class', '-p', 'Type', '-p', 'Seat',
+            *(['-p', 'LockedHint'] if unlocked else [])).splitlines())
         if props.get('User') == str(uid) and props.get('Active') == 'yes':
             if props.get('Class') in ('user', 'user-early') and props.get('Type') in ('wayland', 'x11'):
                 require(props.get('Remote') == 'no' and props.get('Seat') == 'seat0',
                         'ui:launch-session')
+                require(not unlocked or props.get('LockedHint') == 'no', 'ui:launch-session')
                 active.append(session)
     require(len(active) == 1, 'ui:launch-session')
 

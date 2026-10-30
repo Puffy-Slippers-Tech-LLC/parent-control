@@ -220,17 +220,43 @@ sub countdown_daily {
     onpc_gdm::sign_in_challenge($journey, 'parent-login',
         'installed-greeter', 'parent-focused', 'desktop');
     onpc_parent::daily_time_profile($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0, 4);
+    countdown_activity($journey, 1);
+}
+
+sub countdown_grant {
+    onpc_progress::operation('Following approved extra time and original child work through unlock and natural lock');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'countdown-grant:plan' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'countdown-grant', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 120, 'default', 0);
+    # Read the retained Parent window through its public API while GDM stays
+    # active. An extra Parent login would spend the child's wall-clock grant.
+    $journey->seen('profile-balance');
+    countdown_activity($journey, 0, 0);
+}
+
+sub countdown_activity {
+    my ($journey, $minute_edges, $desktop_observation) = @_;
+    $desktop_observation = 1 if @_ == 2;
+    die 'countdown:activity-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
+        && defined($minute_edges) && $minute_edges =~ /\A[01]\z/
+        && defined($desktop_observation) && $desktop_observation =~ /\A[01]\z/;
     onpc_gdm::sign_in_challenge($journey, 'child-login',
-        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
-    $journey->invoke('initial-countdown');
-    onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
+        'fresh-installed-greeter', 'fresh-child-focused',
+        $desktop_observation ? 'fresh-desktop' : 'initial-countdown');
+    $journey->invoke('initial-countdown') if $desktop_observation;
+    onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child', $desktop_observation);
     onpc_desktop_session::lock($journey, $journey->seen('lock-ready'), 'lock-ready');
     onpc_desktop_session::unlock_success($journey);
     $journey->invoke('returned-countdown');
     onpc_app_rows::native_read_activity($journey, 'returned-activity');
     onpc_app_rows::native_activity_resume($journey, 'resume');
     onpc_app_rows::native_read_activity($journey, 'usable-activity');
-    $journey->invoke($_) for qw(minute-progression final-second-transition second-progression
+    $journey->invoke('minute-progression') if $minute_edges;
+    $journey->invoke($_) for qw(final-second-transition second-progression
         independent-second-progression natural-expiry);
     $journey->consume_observation('lock-input-ready', $journey->invoke('lock-input-ready'));
     testapi::send_key('shift');

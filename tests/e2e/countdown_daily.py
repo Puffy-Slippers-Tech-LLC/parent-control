@@ -17,10 +17,7 @@ from ui_observations import AppActivityObservation, SettingsObservation, compare
 TIME_STAGES = ('initial-countdown', 'returned-countdown', 'minute-progression',
                'final-second-transition', 'second-progression',
                'independent-second-progression', 'natural-expiry')
-SCREENS = {
-    **fresh_desktop('parent'),
-    **daily_time_profile(source='desktop', entry='same-user', window='new',
-                         initial_enabled=False, minutes=4),
+ACTIVITY_SCREENS = {
     **prefixed_stages('fresh', fresh_desktop('child')),
     'initial-countdown': 'ui:child-countdown-present',
     **native_activity_entry('activity', child='child'),
@@ -34,6 +31,12 @@ SCREENS = {
     **{stage: 'ui:child-countdown-present' for stage in TIME_STAGES[2:]},
     'lock-input-ready': 'ui:child-natural-expiry-lock-ready',
     'lock-result': 'ui:child-natural-expiry-lock-result',
+}
+SCREENS = {
+    **fresh_desktop('parent'),
+    **daily_time_profile(source='desktop', entry='same-user', window='new',
+                         initial_enabled=False, minutes=4),
+    **ACTIVITY_SCREENS,
 }
 PLAN = JourneyPlan(
     prefix='countdown-daily', worker_mode='countdown_daily', screen_tags=SCREENS,
@@ -68,13 +71,19 @@ PLAN = JourneyPlan(
 )
 
 
-class CountdownDailyJourney(DailyTimeProfileJourney):
-    def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan, no_grant_checks=('profile-before',),
-            actions=actions if actions is not None else {
+class CountdownActivityJourney:
+    """Shared retained-work and immutable countdown comparisons for E2E-011."""
+
+    def __init__(self, context, progress, plan, *, actions=None, **kwargs):
+        if actions is None:
+            available = {
                 **fixture_actions(include_refusal=False), 'minute-progress': self.minutes,
                 'final-transition': self.transition, 'second-progress': self.seconds,
-                'natural-expiry': self.expiry})
+                'natural-expiry': self.expiry}
+            actions = {name: action for name, action in available.items()
+                       if name in plan.stage_actions.values()}
+        super().__init__(context, progress, plan, **kwargs,
+                         actions=actions)
         self.balance = None
         self.samples = {}
         self.last_progress = None
@@ -106,7 +115,8 @@ class CountdownDailyJourney(DailyTimeProfileJourney):
                 observed_monotonic_ns=previous.countdown.observed_monotonic_ns)
         else:
             previous = self.last_progress or self.samples['returned-countdown']
-            current.elapsed_since(previous, max_elapsed_seconds=90 if stage == 'minute-progression' else 15)
+            current.elapsed_since(previous, max_elapsed_seconds=90 if stage in (
+                'minute-progression', 'final-second-transition') else 15)
             require(countdown_seconds(current.countdown.text)[0]
                     <= countdown_seconds(previous.countdown.text)[0], 'countdown:no-progress')
             if stage == 'natural-expiry' and current.countdown.text != previous.countdown.text:
@@ -166,6 +176,12 @@ class CountdownDailyJourney(DailyTimeProfileJourney):
     def expiry(journey, guard):
         return await_natural_expiry(journey, guard, journey.samples['natural-expiry'],
                                     journey.activity_observations['activity-capture'])
+
+
+class CountdownDailyJourney(CountdownActivityJourney, DailyTimeProfileJourney):
+    def __init__(self, context, progress, plan=PLAN, *, actions=None):
+        super().__init__(context, progress, plan, no_grant_checks=('profile-before',),
+                         actions=actions)
 
 
 def execute(recorder, context):

@@ -589,7 +589,7 @@
           {"id": "usable-child-activity", "step_id": "step-1", "description": "Public balances and the child countdown agree before recognizable allowed work begins."},
           {"id": "resumed-time", "step_id": "step-2", "description": "The refreshed countdown remains within the earlier balance and measured elapsed interval without restarting time."},
           {"id": "retained-work", "step_id": "step-2", "description": "The same original app window and draft survive legitimate unlock and remain usable."},
-          {"id": "minute-progression", "step_id": "step-3", "description": "Successive minute readings decrease consistently with measured elapsed use while the original work continues."},
+          {"id": "minute-progression", "step_id": "step-3", "description": "Minute-precision readings, including the transition to final seconds for the two-minute grant, decrease consistently with measured elapsed use while the original work continues."},
           {"id": "second-progression", "step_id": "step-3", "description": "The countdown enters final seconds and successive exact-second readings decrease within the declared tolerance."},
           {"id": "visible-result", "step_id": "step-3", "description": "The remaining interval predicts natural exhaustion; the independently observed lock owns normal input and desktop access is unavailable."}
         ],
@@ -607,7 +607,7 @@
       },
       "variants": [
         {"coverage_id": 27, "id": "daily-only", "owner": "countdown", "parameters": {"time": "daily-only"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/countdown_daily.py", "test_id": "daily-only"}},
-        {"coverage_id": 28, "id": "grant-only", "owner": "countdown", "parameters": {"time": "grant-only"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 28, "id": "grant-only", "owner": "countdown", "parameters": {"time": "grant-only"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/countdown_grant.py", "test_id": "grant-only"}},
         {"coverage_id": 29, "id": "combined", "owner": "countdown", "parameters": {"time": "combined"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },

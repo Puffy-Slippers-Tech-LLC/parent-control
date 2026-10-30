@@ -427,6 +427,7 @@ def main(argv=None):
                                           'reproduce-countdown-minutes',
                                           'reproduce-natural-expiry',
                                           'reproduce-natural-access',
+                                          'reproduce-countdown-grant',
                                           'reproduce-countdown-resume',
                                           'reproduce-retained-unlock',
                                           'reproduce-retained-app-visits',
@@ -458,7 +459,7 @@ def main(argv=None):
         runner.require(args.action != 'exec' or probe is not None, 'vm-control:arguments')
         runner.require(not args.fixture_maintenance or args.action == 'start', 'vm-control:arguments')
         runner.require((args.action in ('sync-fixtures', 'reproduce-baseline-restoration',
-                                       'reproduce-natural-access'))
+                                       'reproduce-natural-access', 'reproduce-countdown-grant'))
                        == (args.fixture_selection is not None),
                        'vm-control:arguments')
         if args.new_name is not None:
@@ -508,12 +509,15 @@ def main(argv=None):
         elif args.action == 'rename-disk':
             from vm_disk_rename import rename_disk
             rename_disk(lease)
-        elif args.action in ('reproduce-baseline-restoration', 'reproduce-natural-access'):
-            from vm_probe import reproduce_baseline_restoration, reproduce_natural_access
+        elif args.action in ('reproduce-baseline-restoration', 'reproduce-natural-access',
+                             'reproduce-countdown-grant'):
+            from vm_probe import (reproduce_baseline_restoration, reproduce_natural_access,
+                                  reproduce_countdown_grant)
             resume(lease)
             try:
-                reproduce = (reproduce_natural_access if args.action == 'reproduce-natural-access'
-                             else reproduce_baseline_restoration)
+                reproduce = {'reproduce-natural-access': reproduce_natural_access,
+                             'reproduce-baseline-restoration': reproduce_baseline_restoration,
+                             'reproduce-countdown-grant': reproduce_countdown_grant}[args.action]
                 reproduce(lease, fixture_selection)
             except BaseException:
                 if getattr(lease, 'maintenance_rebind_pending', False):

@@ -1650,6 +1650,17 @@ and the same selected activity fixtures, sealed worker and maintenance envelope.
 Inspect that live guest through guarded `exec`, then finish with `stop`;
 the retained scene supplies diagnostic evidence only.
 
+`tools/test-vm --vm NAME reproduce-countdown-grant` retains case 28's original
+two-minute station approval, fresh child entry, original work, legitimate
+unlock, minute-to-seconds comparison and both exact-second decreases at
+`natural-expiry`, before natural lock.
+It uses `CountdownGrantJourney` / `PLAN`,
+the same VM-bound activity fixtures and the existing maintenance envelope, and
+records a public countdown in `boundary-observation.json`. Inspect the retained
+guest through guarded `exec`, then finish with `tools/test-vm stop`. This supplies
+diagnostic evidence only. Missing named package inputs use the printed
+`tools/run-tests artifacts prepare --for-vm --vm NAME --output PATH` command.
+
 `tools/test-vm --vm NAME reproduce-retained-app-visits` retains Task 047a's
 shared Parent activity capture and Riley login at `riley-activity-command`.
 It exercises the current guarded native command once and retains its result

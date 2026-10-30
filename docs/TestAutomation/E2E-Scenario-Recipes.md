@@ -510,8 +510,8 @@ history does not supply this family's expiry or complete-case acceptance.
 
 ### E2E-011
 
-Implementation status: Daily-only case 27 passed on the selected Ubuntu 26.04
-VM. Grant-only and combined cases remain pending.
+Implementation status: Daily-only case 27 and grant-only case 28 passed on the
+selected Ubuntu 26.04 VM. Combined case 29 remains pending.
 
 **Plan child activity with the remaining-time countdown.** Cases 27, 28, 29.
 
@@ -534,6 +534,27 @@ controller read brackets, declared display precision and two-second tolerance.
 TIME04 uses the last immutable seconds sample's upper bound plus 15 seconds,
 continues ordinary work until near zero, and requires the natural lock to retain
 input ownership after harmless Shift. No clock or usage manipulation is allowed.
+
+Case 28 uses `countdown_grant.PLAN` / `CountdownGrantJourney`: enabled zero
+daily minutes and one real two-minute station approval, with independent Parent
+D=0/G>0/total=G readback before fresh Riley entry. After the station's automatic
+GDM return, read the retained Parent window through its public Application UI
+API; no extra Parent sign-in or desktop tour is needed for this balance result.
+The first public countdown also proves fresh child entry; normal app launch
+guards its active session. Capture the same native activity, then lock and
+legitimately unlock it. At those boundaries, directly compare the original
+public app window/draft instead of repeating unrelated Shell desktop tours.
+The initial display must show `00:01`; after unlock require at least 30 seconds
+for resumed work and progression. A missed margin fails preparation without
+replacing the grant. Compare returned time and the original usable window/draft
+as above. The two-minute grant has no extra full minute edge after navigation:
+measure its `00:01` to positive final-seconds decrease within 90 seconds of the
+immutable returned sample if it still has minute precision, or the initial
+sample if activity/unlock already crossed that edge. Preserve that endpoint
+and deadline across resumed work, with the declared minute precision and
+two-second tolerance. Then reuse the two successive
+15-second exact-second comparisons and TIME04 natural-lock/input-ownership
+result above. Keep this complete history and the original grant in one attempt.
 
 ### E2E-012
 

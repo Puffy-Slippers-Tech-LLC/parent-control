@@ -9,6 +9,7 @@ ACTIVITY_CALLER = 'check_e2e_baseline_journey'
 ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',
                     'check_e2e_baseline_app_effects',
                     'E2E-008/fresh-login', 'E2E-010/parent', 'E2E-010/other-child', 'E2E-011/daily-only',
+                    'E2E-011/grant-only',
                     'E2E-015/child-overlay-cancel', 'E2E-015/child-overlay-escape',
                     'E2E-015/child-overlay-approved',
                     'E2E-019/native-grid-allowed-enabled')

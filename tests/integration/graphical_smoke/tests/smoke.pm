@@ -420,6 +420,12 @@ sub run {
         onpc_challenges::countdown_daily(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{countdown_grant}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_challenges::countdown_grant(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{natural_access}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

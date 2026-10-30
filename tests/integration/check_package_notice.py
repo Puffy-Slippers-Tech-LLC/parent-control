@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import runpy
 import shutil
 import stat
 import sys
@@ -48,6 +49,7 @@ def copy_binary(root, path, commands):
 
 
 def prepare(directory, commands):
+    render = runpy.run_path(str(ROOT / 'packaging/render_lifecycle.py'))['render']
     root = directory / 'root'
     root.mkdir()
     for binary in (
@@ -92,7 +94,9 @@ def prepare(directory, commands):
             # Execute the exact production bootstrap, excluding unrelated
             # kiosk/PAM/service setup. The rest of this fixture only supplies
             # the normal reboot/completion events and a real dpkg trigger.
-            bootstrap = (ROOT / 'debian/preinst').read_text().split(
+            # Debian's checked-in scripts are expansion slots; use the same
+            # rendered lifecycle source that the package build embeds.
+            bootstrap = render(ROOT, 'ubuntu', 'preinst').split(
                 '\nif [ "$1" = install ]', 1)[0]
             write(stage, 'DEBIAN/preinst', bootstrap + '\nprepare_package_notice\n', 0o755)
             write(stage, 'DEBIAN/postinst', '#!/bin/sh\nset -e\n'
@@ -100,7 +104,7 @@ def prepare(directory, commands):
                   '    printf "%s\\n" oh-no-parent-control > /run/reboot-required.pkgs\n'
                   '    dpkg-trigger --no-await onpc-notice-trigger\n'
                   '    /usr/libexec/oh-no-parent-control-package-notice --configured\nfi\n', 0o755)
-            cleanup = (ROOT / 'debian/postrm').read_text().split('\ncheck_tree() {', 1)[0]
+            cleanup = render(ROOT, 'ubuntu', 'postrm').split('\ncheck_tree() {', 1)[0]
             write(stage, 'DEBIAN/postrm', cleanup + '\nif [ "$1" = remove ]; then\n'
                   '    printf "%s\\n" oh-no-parent-control > /run/reboot-required.pkgs\nfi\n', 0o755)
             write(stage, 'usr/libexec/oh-no-parent-control-package-notice',
@@ -138,6 +142,8 @@ def main():
     require(os.geteuid() == os.getegid() == 0, 'package-notice:root-required')
     require(Path.cwd() == ROOT, 'package-notice:checkout')
     os.umask(0o077)
+    # Direct script execution adds tests/integration, not the checkout root.
+    sys.path.insert(0, str(ROOT))
     from tools.test_retention import allocate
     directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-package-notice-'))
     commands = Commands()

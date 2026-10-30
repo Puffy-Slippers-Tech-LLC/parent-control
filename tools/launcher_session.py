@@ -53,7 +53,10 @@ class SessionPanel(LauncherDisplay):
         if not self.hide_tool_results:
             return logs
         rows = []
-        activity = None
+        # The bounded transcript (or a reconnect's byte tail) can start in
+        # the middle of a result, after its heading has been discarded. Do not
+        # expose that orphaned body as prose; resume at the next known block.
+        activity = 'orphan'
         detail_pending = False
         for line in logs:
             text = Text.from_ansi(line)

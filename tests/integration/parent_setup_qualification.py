@@ -1337,6 +1337,9 @@ class OverlayRejectionQualification(ChallengesQualification):
 
 
 class OverlayApprovalImmediateQualification(OverlayApprovedExitQualification):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets
+    fixture_caller = 'check_e2e_overlay_approval'
+
     @staticmethod
     def journey(context, progress):
         from overlay_approved_exit import IMMEDIATE_PLAN
@@ -1345,6 +1348,9 @@ class OverlayApprovalImmediateQualification(OverlayApprovedExitQualification):
 
 
 class OverlayFlowRejectionQualification(OverlayApprovedExitQualification):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets
+    fixture_caller = 'check_e2e_overlay_approval'
+
     @staticmethod
     def journey(context, progress):
         from overlay_approved_exit import FLOW_REJECTION_PLAN
@@ -1353,6 +1359,9 @@ class OverlayFlowRejectionQualification(OverlayApprovedExitQualification):
 
 
 class OverlayFlowCancelQualification(OverlayApprovedExitQualification):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets
+    fixture_caller = 'check_e2e_overlay_approval'
+
     @staticmethod
     def journey(context, progress):
         from overlay_approved_exit import FLOW_CANCEL_PLAN

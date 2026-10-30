@@ -750,6 +750,11 @@ def test_system_case_retry_selects_its_required_history_without_crediting_omissi
     interrupted = Checkpoint(normal_root, [('system', options)], resume=True, binding=vm_name())
     assert cases[-1] not in interrupted.passed('system')
     assert not interrupted.complete('system')
+    # Finished case events alone cannot release a claim whose runner failed
+    # before report/recording finalization or cleanup completed.
+    for case in cases:
+        interrupted.event('system', dict(kind='finished', nodeid=case), set())
+    interrupted.save()
     # The real repair owner drains its source ticket before ordinary work
     # resumes. Model that boundary instead of waiting behind our own failure.
     gate.acquire()
@@ -760,6 +765,18 @@ def test_system_case_retry_selects_its_required_history_without_crediting_omissi
     assert calls == ([cases[-1], cases[-1]] if history else [cases[0], cases[-1]])
     completed = Checkpoint(normal_root, [('system', options)], resume=True, binding=vm_name())
     assert set(cases) <= completed.passed('system') and completed.complete('system')
+
+    # A resumed runner may predate the repair queue. Import its saved passes
+    # before claiming work, including complete histories and independent areas.
+    resumed_root = tmp_path / 'resumed'
+    saved = Checkpoint(resumed_root, [('system', options)], binding=vm_name())
+    for case in cases:
+        saved.event('system', dict(kind='finished', nodeid=case), set())
+    saved.save()
+    resumed_gate = fix_tests_queue.RepairGate(resumed_root)
+    assert fix_tests_queue.run_cases(resumed_root, 'system', [*options, '--resume'],
+        lambda _: pytest.fail('resumed queue replayed completed work'), resumed_gate,
+        inventory=inventory, round_number=1) == 0
 
 
 @pytest.mark.parametrize('pending_phase', ['rollback', 'rollback-rearmed-rebooted'])

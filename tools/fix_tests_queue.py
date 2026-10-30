@@ -623,6 +623,12 @@ def run_family_cases(root, category, options, execute, gate, *, inventory,
                 failed = {case for cases_failed in state.get('failed', {}).values() for case in cases_failed}
                 accepted = {case for key in state['completed']
                             for case in state['items'][key]['cases']} - failed
+                # Resume can retain runner passes from before this queue existed.
+                # A live/interrupted claim still needs its runner to return after
+                # finalization and cleanup, even if all case events were saved.
+                claimed = {case for key in state['claims']
+                           for case in state['items'][key]['cases']}
+                accepted |= checkpoint.passed(category) - claimed - failed
                 if cases is not None:
                     accepted.intersection_update(cases)
                 state['completed'] = list(set(state['completed']) | {

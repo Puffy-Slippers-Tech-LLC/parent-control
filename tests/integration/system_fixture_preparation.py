@@ -113,6 +113,11 @@ def prepare(vm, lease, directory, selection, *, installed=False, subsets=SUBSETS
         require_installed_restore(lease)
         selection = installed_selection(selection, target=guest_target(lease.capture.state['guest']))
     selection = validate_input(selection, target=guest_target(lease.capture.state['guest']))
+    return provision(vm, lease, directory, selection, subsets=subsets)
+
+
+def provision(vm, lease, directory, selection, *, subsets):
+    """Share staging intent and fresh readiness after the caller's entry guards."""
     identity = attempt_id(directory)
     controller = fixture_provision.Provisioner(lease, vm,
         register_staging=lambda path: register_staging(directory, lease, identity, path))

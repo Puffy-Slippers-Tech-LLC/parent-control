@@ -1,6 +1,6 @@
 """Qualified E2E runtime closures after owned restoration and SSH readiness."""
-from tools import fixture_execution, fixture_manifest, fixture_provision
-from system_fixture_preparation import attempt_id, guest_target, register_staging
+from tools import fixture_execution, fixture_manifest
+from system_fixture_preparation import attempt_id, guest_target, provision
 import xml.etree.ElementTree as ET
 
 SUBSETS = ('native',)
@@ -75,13 +75,7 @@ def prepare(vm, lease, directory, selection, *, product_free=False,
             or (online_restore(lease) and lease.online_bootstrap is not None)
             or (not online_restore(lease) and lease._restored_name != lease.installed_name)):
         raise ValueError('fixtures:e2e-installed-restored-rebound-required')
-    identity = attempt_id(directory)
-    controller = fixture_provision.Provisioner(lease, vm,
-        register_staging=lambda path: register_staging(directory, lease, identity, path))
-    receipt = controller.provision(record, subsets, attempt_id=identity)
-    controller.require_ready(receipt)
-    return {'vm': vm, 'lease': lease, 'directory': directory,
-            'controller': controller, 'receipt': receipt,
+    return {**provision(vm, lease, directory, record, subsets=subsets),
             'subsets': subsets, 'caller': caller,
             **({'product_free': True} if product_free else {})}
 

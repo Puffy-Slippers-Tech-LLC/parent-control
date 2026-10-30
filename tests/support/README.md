@@ -146,6 +146,16 @@ that folder through the existing authenticated input boundary; SSH copies the
 selected files and assigns ownership from accepted guest roles. Host and guest
 accounts need no matching numeric IDs or permission synchronization.
 
+System, installed-journey and standalone graphical/serial preparation share
+`system_fixture_preparation.provision` for the attempt ID, staging-intent
+registration, provisioner construction and immediate readiness check. Callers
+first enforce their own qualified target, restored-state, input and subset gates;
+the shared handoff grants no additional binding and owns no recovery. Reuse it
+instead of assembling another staging/readiness envelope. It retains the same
+attempt-local intent file, transport and cleanup owner. Host checks keep their
+private files and in-memory doubles, with no new process, display, bus, shared
+cache or resource demand; existing unit/cleanup classifications remain applicable.
+
 `provision(selection, subsets, attempt_id=...)` preflights the target, accepted
 account roles, complete selected destinations, absence controls and native
 metadata. Private staging precedes placement, exact native activation, labels,

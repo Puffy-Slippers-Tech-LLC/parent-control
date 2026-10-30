@@ -4713,6 +4713,13 @@ account/profile, execution order, independent result endpoints and failure stop
 before later input. Inspect shared consumers when their contract changes;
 unchanged transport, decoding and recording need no renewed qualification.
 
+For a composed approval, trace the actual scoped journey prefix and request
+duration through the shared credential binding before the first VM attempt.
+Renaming checkpoints does not authorize that secret route. Use the existing
+credential-owner check with the real composed prefix; keep its two fresh
+recipient proofs and single-use submission. A passing unscoped approval probe
+does not exercise a newly prefixed consumer.
+
 Run the smallest existing checks for changed core execution, verdict, credential
 or ownership guards. Add a focused regression only for a concrete uncovered
 guarantee admitted by the [test scope mandate](../Mandates/Test-Scope-Mandate.md).

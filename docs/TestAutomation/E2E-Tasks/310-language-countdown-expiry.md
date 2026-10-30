@@ -28,7 +28,12 @@ No manual lock may stand in for the natural-expiry result.
 
 ## Shared implementation
 
-Reuse 051, TIME01/02/03/04, 310a and native activity operations. The case owns the finite starting allowance, sample schedule, tolerances and terminal public assertions.
+Reuse 051, TIME01/02/03/04, 310a and native activity operations.
+`AccessibleUI.child_countdown` / `CountdownObservation` now provide canonical
+`seconds`, translated `request_text` and monotonic observation time through the
+shared `child-panel` endpoint. Reuse those observations; the case owns its
+10-minute starting allowance, language history, sample schedule, tolerances and
+terminal public assertions.
 
 ## Implementation entry
 

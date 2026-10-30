@@ -1642,6 +1642,12 @@ read bracket. `probe-revoke-balances` uses the same maintained reader on that
 Parent scene. Inspect the grant and session with guarded `exec`, then finish
 with `tools/test-vm stop`; neither route supplies acceptance credit.
 
+`tools/test-vm --vm NAME reproduce-panel-language` reuses `PanelLanguageJourney`
+and retains the child's desktop after Hebrew Save and normal overlay Cancel,
+before `panel-after` assertions. Its public countdown is recorded in
+`boundary-observation.json`. Inspect that same child's session with guarded
+`exec`, then finish with `tools/test-vm stop`; this supplies no acceptance credit.
+
 `tools/test-vm --vm NAME reproduce-natural-access` retains case 22's prepared
 Parent history at `switch-user`, immediately after the independently observed
 usable Parent desktop and before switching to sign-in.

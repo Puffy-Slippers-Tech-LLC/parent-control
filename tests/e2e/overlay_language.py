@@ -3,22 +3,8 @@ from copy import deepcopy
 
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop, parent_management, overlay_entry, language_selection
+from kiosk_language import CHOOSER, FORM, TEXT_IDS
 from private_artifacts import require
-
-CHOOSER = {
-    'en': ('English', 'Choose your language', 'Save', 'Save your language preference.'),
-    'de': ('Deutsch', 'Sprache wählen', 'Speichern', 'Die Spracheinstellung speichern.'),
-    'zh-Hans': ('中文（简体）', '选择语言', '保存', '保存语言偏好设置。'),
-    'he': ('עברית', 'בחירת השפה שלך', 'שמירה', 'שמירת העדפת השפה שלך.'),
-}
-FORM = {
-    'en': ('Child', 'Approver', '30 minutes', 'REQUEST', 'REQUEST', 'CANCEL', 'CANCEL'),
-    'de': ('Kind', 'Genehmigung durch', '30 Minuten', 'ANFRAGEN', 'ANFRAGEN', 'Abbrechen', 'Abbrechen'),
-    'zh-Hans': ('孩子', '批准人', '30 分钟', '提交请求', '提交请求', '取消', '取消'),
-    'he': ('ילד', 'מאשר', '30 דקות', 'בקשה', 'בקשה', 'ביטול', 'ביטול'),
-}
-TEXT_IDS = ('kiosk-child-account-caption', 'kiosk-approver-account-caption',
-            'kiosk-duration-label-1800', 'kiosk-request-submit', 'kiosk-request-cancel')
 
 SCREENS = {
     **fresh_desktop('parent'), **parent_management(),

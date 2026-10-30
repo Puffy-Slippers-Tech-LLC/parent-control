@@ -88,8 +88,11 @@ from pathlib import PurePosixPath
 # retains its whole-module bucket and existing resource reservation.
 # The panel localization cycle reuses that guardian-owned nested Shell and its
 # serial overlay launches and public input/result guards.
-# It adds no process owner or persistent host settings; its representative language
-# cycle has an explicit 600-second child deadline within the same Shell bucket.
+# Its first overlay is command-launched by a recorded Popen in the interaction
+# worker, reaped after Cancel and boundedly terminated on failure, still inside
+# the same guardian. Other overlays remain Shell-owned, with no overlap or new
+# bus/display/cache/host settings. Keep its existing ui-shell reservation and
+# explicit 600-second child deadline.
 # Countdown availability and active-request refusal reuse those same Shell,
 # overlay and complete API observations; no resource lifetime changes.
 # Reminder preview delivery uses that same guardian, real Shell renderer and

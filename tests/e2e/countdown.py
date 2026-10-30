@@ -15,12 +15,14 @@ class CountdownObservation:
     text: str | None
     observed_monotonic_ns: int
     stable_ms: int
+    seconds: int | None
+    request_text: str | None
 
     @classmethod
     def from_value(cls, value, *, present):
         value = validate_countdown(value, present)
         return cls(value['present'], value['text'], value['observed_monotonic_ns'],
-                   value['stable_ms'])
+                   value['stable_ms'], value['seconds'], value['request_text'])
 
 
 def check_countdown_balance(countdown, *, seconds, precision_seconds,

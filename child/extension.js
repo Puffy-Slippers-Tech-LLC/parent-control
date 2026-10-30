@@ -85,6 +85,18 @@ export default class OhNoParentControlExtension extends Extension {
             // A UI transport failure must not disable screen-time enforcement.
             this._errors.report(_error, 'ui-transport');
         }
+        // The ordinary child command can open the overlay independently of
+        // _showRequest. Follow its actual application lifetime in this session,
+        // so every overlay exit reloads the child's saved presentation settings.
+        this._requestOwner = null;
+        this._requestWatch = Gio.bus_watch_name_on_connection(Gio.DBus.session,
+            'com.puffyslippers.OhNoParentControl.ChildRequest', Gio.BusNameWatcherFlags.NONE,
+            (_connection, _name, owner) => { this._requestOwner = owner; },
+            () => {
+                if (!this._requestOwner) return;
+                this._requestOwner = null;
+                this._refreshLanguage();
+            });
         this._refreshLanguage();
     }
 
@@ -151,6 +163,9 @@ export default class OhNoParentControlExtension extends Extension {
     }
 
     disable() {
+        if (this._requestWatch) Gio.bus_unwatch_name(this._requestWatch);
+        this._requestWatch = 0;
+        this._requestOwner = null;
         this._sessionUnlock?.close();
         this._sessionUnlock = null;
         this._sessionDiagnostics?.close();

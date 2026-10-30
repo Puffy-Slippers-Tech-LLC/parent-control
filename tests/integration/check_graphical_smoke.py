@@ -767,6 +767,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          riley_native_grid=False,
          native_app=False, app_activity=False, retained_app_visits=False, chinese_language_assets=False, desktop_language=False,
          chinese_native_auth=False, parent_language=False, kiosk_language=False, overlay_language=False,
+         panel_language_refresh=False,
          kiosk_language_restoration=False, overlay_reminder_editing=False, kiosk_reminder_binding=False,
          reminder_fullscreen_preference=False,
          chinese_current_install=False, parent_language_isolation=False,
@@ -904,6 +905,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         and not any(value for name, value in locals().items()
             if name not in ('assets', 'provision_credentials', 'reminder_fullscreen_preference')
             and isinstance(value, bool)))), 'smoke:reminder-fullscreen-preference-prerequisites')
+    require(type(panel_language_refresh) is bool and (not panel_language_refresh or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and lock_surface is None and parent_entry is None and approval_flow is None
+        and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'panel_language_refresh')
+            and isinstance(value, bool)))), 'smoke:panel-language-prerequisites')
     require(type(overlay_language) is bool and (not overlay_language or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1714,6 +1721,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-kiosk-language-restoration-qualification'
         if overlay_language:
             result['scope'] = 'installed-overlay-language-qualification'
+        if panel_language_refresh:
+            result['scope'] = 'installed-panel-language-qualification'
         if overlay_reminder_editing:
             result['scope'] = 'installed-overlay-reminder-editing-qualification'
         if kiosk_reminder_binding:
@@ -1953,7 +1962,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if (product_free_entry or parent_entry is not None or lock_surface is not None or parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or kiosk_preferences_confinement or baseline_app_effects or baseline_auth_pause or baseline_journey or active_grant_disable or confinement_usability
-                        or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or overlay_reminder_editing or kiosk_reminder_binding or reminder_fullscreen_preference or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or app_activity or retained_app_visits
+                        or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or panel_language_refresh or overlay_reminder_editing or kiosk_reminder_binding or reminder_fullscreen_preference or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or app_activity or retained_app_visits
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or revoke_cancel or revocation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
@@ -2216,6 +2225,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if overlay_language:
                     from parent_setup_qualification import OverlayLanguageQualification
                     qualification_class = OverlayLanguageQualification
+                if panel_language_refresh:
+                    from parent_setup_qualification import PanelLanguageQualification
+                    qualification_class = PanelLanguageQualification
                 if overlay_reminder_editing:
                     from parent_setup_qualification import OverlayReminderEditingQualification
                     qualification_class = OverlayReminderEditingQualification

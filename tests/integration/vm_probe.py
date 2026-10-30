@@ -659,6 +659,15 @@ def reproduce_countdown_minutes(lease):
                             boundary_operation='child-countdown-present')
 
 
+def reproduce_panel_language(lease):
+    """Retain the child's desktop after Hebrew Save, before its language assertion."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from panel_language import PanelLanguageJourney
+    return reproduce_denial(lease, PanelLanguageJourney, None,
+                            'panel-after', 'panel-language',
+                            boundary_operation='child-countdown-present')
+
+
 def reproduce_natural_expiry(lease):
     """Retain the naturally owned child lock before any harmless lock input."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))

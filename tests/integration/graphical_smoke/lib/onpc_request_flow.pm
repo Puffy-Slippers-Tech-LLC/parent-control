@@ -754,6 +754,38 @@ sub overlay_language {
     $journey->finish();
 }
 
+sub panel_language_refresh {
+    onpc_progress::operation('Checking that the child countdown follows the saved language without extra time');
+    my ($exchange, $invocations, $challenges) = @_;
+    die 'panel-language:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($invocations) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'panel-language', review => 0);
+    $journey->declare_invocations($invocations);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen($_) for ('allowance-configured', 'policy-before');
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    overlay_entry($journey, 'direct', 'command');
+    $journey->seen($_) for ('initial-save', 'initial-form', 'initial-cancel', 'initial-returned');
+    $journey->invoke('panel-before');
+    overlay_entry($journey, 'renewed', 'command');
+    onpc_parent::language_selection($journey, 'hebrew');
+    $journey->seen($_) for ('hebrew-save', 'hebrew-form', 'cancel', 'returned');
+    $journey->invoke('panel-after');
+    $journey->seen($_) for ('child-switch-user', 'child-gdm-switched');
+    onpc_gdm::sign_in_challenge($journey, 'return-parent', 'return-greeter', 'return-focused', 'return-desktop');
+    $journey->seen('policy-after');
+    $journey->finish();
+}
+
 sub kiosk_language_history {
     onpc_progress::operation('Checking that the child request language stays independent of the approving parent');
     my ($exchange, $invocations, $challenges) = @_;

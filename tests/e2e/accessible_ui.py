@@ -7975,7 +7975,9 @@ class AccessibleUI:
                 text = controls[-1].getText()
                 countdown_seconds(text)
                 return {'child': 'fixture-child', 'surface': 'desktop', 'present': True,
-                        'text': text, 'observed_monotonic_ns': time.monotonic_ns(),
+                        'text': text, 'seconds': controls[-1].getValue(),
+                        'request_text': controls[1].getText(),
+                        'observed_monotonic_ns': time.monotonic_ns(),
                         'stable_ms': 0}
             if any(node is not None and self.showing(node) for node in controls):
                 stable_since = None
@@ -7986,7 +7988,8 @@ class AccessibleUI:
             if now - stable_since < 2_000_000_000:
                 return None
             return {'child': 'fixture-child', 'surface': 'desktop', 'present': False,
-                    'text': None, 'observed_monotonic_ns': now,
+                    'text': None, 'seconds': None, 'request_text': None,
+                    'observed_monotonic_ns': now,
                     'stable_ms': (now - stable_since) // 1_000_000}
         result = self.wait(observe, 'child-countdown', prompt_in_predicate=True)
         require_active_launch_session()
@@ -14272,16 +14275,22 @@ def validate_panel_animation(value):
 
 def validate_countdown(value, present):
     require(type(value) is dict and set(value) == {
-        'child', 'surface', 'present', 'text', 'observed_monotonic_ns', 'stable_ms'}
+        'child', 'surface', 'present', 'text', 'seconds', 'request_text',
+        'observed_monotonic_ns', 'stable_ms'}
         and value['child'] == 'fixture-child' and value['surface'] == 'desktop'
         and type(value['present']) is bool and value['present'] is present
         and type(value['observed_monotonic_ns']) is int and value['observed_monotonic_ns'] > 0
         and type(value['stable_ms']) is int, 'ui:countdown-response')
     if present:
-        countdown_seconds(value['text'])
-        require(value['stable_ms'] == 0, 'ui:countdown-response')
+        low, high = countdown_seconds(value['text'])
+        require(type(value['seconds']) is int and 0 <= value['seconds'] < 86400
+                and low - 1 <= value['seconds'] <= high + 1
+                and type(value['request_text']) is str
+                and 0 < len(value['request_text']) <= 256
+                and value['stable_ms'] == 0, 'ui:countdown-response')
     else:
-        require(value['text'] is None and 2000 <= value['stable_ms'] <= 45000,
+        require(value['text'] is value['seconds'] is value['request_text'] is None
+                and 2000 <= value['stable_ms'] <= 45000,
                 'ui:countdown-response')
     return dict(value)
 

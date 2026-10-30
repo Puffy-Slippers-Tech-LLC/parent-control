@@ -161,6 +161,12 @@ sub run {
         onpc_request_flow::reminder_fullscreen_preference(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{panel_language_refresh}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::panel_language_refresh(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{overlay_language}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

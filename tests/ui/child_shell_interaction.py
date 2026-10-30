@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -232,18 +233,36 @@ def _open_overlay(expected_launches):
 def _review_language_changes(oracles):
     """Finite expected text stays in the case; controls use the common facade."""
     for launches, (language, expected) in enumerate(oracles.items(), start=1):
-        _open_overlay(launches)
-        overlay = _overlay_automation()
-        _complete_language_setup(overlay)
-        overlay.setValue("kiosk-menu-button", "preferences")
-        _wait(lambda: any(surface["id"] == "language-dialog"
-                          for surface in overlay.listSurfaces()), "the language chooser")
-        overlay.setValue("language-list", language, surface_id="language-dialog")
-        overlay.activate("language-continue", surface_id="language-dialog")
-        _wait(lambda: overlay.getText("kiosk-request-submit") == expected["request"],
-              "the overlay applies its committed translation")
-        overlay.activate(OVERLAY_CANCEL_ID)
-        _wait(lambda: _overlay_closed(launches), "the language-review overlay closes")
+        command = None
+        try:
+            if launches == 1:
+                # The ordinary command is independent of the extension's own
+                # subprocess. Its exit must refresh the same panel as panel entry.
+                command = subprocess.Popen(shlex.split(os.environ["OH_NO_PARENT_CONTROL_REQUEST_APP"]))
+                _wait(lambda: _one_overlay(launches), "one command-launched child overlay")
+            else:
+                _open_overlay(launches)
+            overlay = _overlay_automation()
+            _complete_language_setup(overlay)
+            overlay.setValue("kiosk-menu-button", "preferences")
+            _wait(lambda: any(surface["id"] == "language-dialog"
+                              for surface in overlay.listSurfaces()), "the language chooser")
+            overlay.setValue("language-list", language, surface_id="language-dialog")
+            overlay.activate("language-continue", surface_id="language-dialog")
+            _wait(lambda: overlay.getText("kiosk-request-submit") == expected["request"],
+                  "the overlay applies its committed translation")
+            overlay.activate(OVERLAY_CANCEL_ID)
+            if command is not None:
+                assert command.wait(timeout=TIMEOUT_SECONDS) == 0
+            _wait(lambda: _overlay_closed(launches), "the language-review overlay closes")
+        finally:
+            if command is not None and command.poll() is None:
+                command.terminate()
+                try:
+                    command.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    command.kill()
+                    command.wait(timeout=5)
         panel_pattern = re.escape(expected["panel"]).replace(
             re.escape("%(time)s"), r"\d{2}:\d{2}") + ", generation-one"
         _wait(lambda: re.fullmatch(panel_pattern, _panel().getText(REQUEST_BUTTON_ID)),
@@ -252,6 +271,8 @@ def _review_language_changes(oracles):
         assert actual == expected["description"], (language, "panel description", expected["description"], actual)
         actual = _panel().getText(COUNTDOWN_ANIMATION_ID)
         assert actual == expected["countdown"], (language, "countdown label", expected["countdown"], actual)
+        # Translation refresh must preserve the live balance as well as meaning.
+        _assert_panel_availability(True, True)
         print("Child panel localization reviewed: " + language, flush=True)
 
 

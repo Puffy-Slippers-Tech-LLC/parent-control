@@ -167,6 +167,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reproduce-natural-access',
                                       'reproduce-countdown-grant',
                                       'reproduce-countdown-resume',
+                                      'reproduce-panel-language',
                                       'reproduce-retained-unlock',
                                       'reproduce-remembered-return', 'probe-remembered-return',
                                       'repeat-remembered-return', 'enter-remembered-return'))

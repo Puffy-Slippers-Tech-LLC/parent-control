@@ -514,7 +514,7 @@ cases remain pending.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
-| LANG01 | C | Observe the owned frontend's untouched first-run language chooser or open its public Preferences chooser; read the checked choice and native names, select one declared candidate, apply Save or Cancel once, and independently observe closure, readiness, translated labels and the retained choice after reopening. Callers own language/account values, relaunches, isolation and policy comparisons. | `AccessibleUI.language_scope`, public chooser Save/Cancel/readiness operations, `parent_language.py` and `onpc_parent::language_selection`. `initial-language` observes untouched presentation; ordinary `parent-window` may perform setup. Reacquire stale chooser reads within the original deadline, without input replay. See the qualified bindings below. | pending overall; stated Parent, fixed Jordan kiosk, fixed Riley overlay and Jordan/German–Riley/Hebrew station restoration/approver isolation bindings qualified (see below); Parent inherited dialogs qualified below; other isolation bindings, panel, other inherited dialogs and Hebrew logical text, countdown and complete-case acceptance remain separate |
+| LANG01 | C | Observe the owned frontend's untouched first-run language chooser or open its public Preferences chooser; read the checked choice and native names, select one declared candidate, apply Save or Cancel once, and independently observe closure, readiness, translated labels and the retained choice after reopening. Callers own language/account values, relaunches, isolation and policy comparisons. | `AccessibleUI.language_scope`, public chooser Save/Cancel/readiness operations, `parent_language.py` and `onpc_parent::language_selection`. `initial-language` observes untouched presentation; ordinary `parent-window` may perform setup. Reacquire stale chooser reads within the original deadline, without input replay. See the qualified bindings below. | pending overall; stated Parent, fixed Jordan kiosk, fixed Riley overlay and Jordan/German–Riley/Hebrew station restoration/approver isolation bindings qualified (see below); Parent inherited dialogs and Riley English→Hebrew panel refresh qualified below; other isolation bindings, other inherited dialogs and Hebrew logical text, countdown histories and complete-case acceptance remain separate |
 
 The language reader compares public visible text and accessible labels
 independently against caller-owned literals. Shared IDs stay language independent.
@@ -526,6 +526,7 @@ Qualification is surface/account specific:
 | Parent chooser | `check_e2e_parent_language`, `read_parent_language`, `parent_language_management/operation/state`: Ubuntu 26.04, untouched English/native names, English/German/Simplified Chinese/Hebrew Save/readback, Chinese Cancel preserving German, relaunch persistence and unchanged selected child/zero allowance/app policy. |
 | Jordan kiosk | `kiosk_language.PLAN`, `onpc_request_flow::kiosk_language`, `read_kiosk_language`, `kiosk_language_form/policy`: same four-language Save/Cancel/German-reentry scope; request values and public policy unchanged. The [baseline binding](#c04l-kiosk-language-and-human-pause) renews both targets and adds only the 90-second initial-chooser pause. |
 | Riley overlay | `overlay_language.PLAN` / `OverlayLanguageJourney`, `onpc_request_flow::overlay_language`, `read_overlay_language`, `overlay_language_operation`: Ubuntu 26.04, child application/active Riley session, untouched and reopened UID-bound chooser, same four languages/Cancel, fixed request and German direct-command relaunch without automatic startup setup. |
+| Riley panel after overlay Save | `panel_language.PanelLanguageJourney` / `PLAN`, `onpc_request_flow::panel_language_refresh`, `check_e2e_panel_language_refresh`: Ubuntu 26.04 in `20261030T145814Z-b56f6fea`, English → Hebrew through a command-opened overlay, normal Cancel and independent `child-panel` meaning/canonical-time reads. Request values, saved Parent policy/app rules and zero grant remain unchanged. Time changes only within monotonic elapsed bounds plus one tick. Restoration, progression and natural expiry remain task 310's complete history. |
 | Selected-child kiosk restoration | `kiosk_language_restoration.PLAN` / `KioskLanguageRestorationJourney`, `onpc_request_flow::kiosk_language_restoration`: Ubuntu 26.04, Jordan/German and Riley/Hebrew restoration, approver independence, fresh reentry, unchanged policy/time/apps and Parent English. Each child retains 1800 seconds, hidden custom text and excluded soft apps. |
 | Enabled Parent isolation | `ParentLanguageIsolationJourney` / `ISOLATION_PLAN`, `onpc_parent::qualify_language_isolation`, `check_e2e_parent_language_isolation`: Jamie/Chinese on Ubuntu 26.04, Riley→Jordan→Riley, separate immutable English 60-minute policy/name/balance captures, zero grants and public readbacks/relaunch within 600 seconds. |
 
@@ -2217,6 +2218,19 @@ wrong-session, incomplete or defunct reads restart that interval. Wrong owners,
 duplicate IDs, unknown prompts, inactive/wrong accounts and malformed text refuse.
 
 `countdown.CountdownObservation.from_value` returns an immutable result.
+Present observations also retain canonical `seconds` from `child-remaining-time`
+and localized `request_text` from `child-request-button`. The shared controller
+checks finite seconds against the horizontal display interval with one tick of
+read/update tolerance; absent observations require both fields to be null.
+`panel_language.PanelLanguageJourney` / `PLAN` and
+`onpc_request_flow::panel_language_refresh` qualify the fixed English → Hebrew
+overlay Save/normal Cancel comparison through `check_e2e_panel_language_refresh`
+on Ubuntu 26.04 in `20261030T145814Z-b56f6fea`. Public countdown meaning, canonical
+1745 → 1675 seconds over 70.177 real seconds, request values and unchanged saved
+Parent policy/app rules with zero grant passed, including collection and owned
+cleanup. The panel observes the overlay's session application lifetime, covering
+ordinary command entry as well as panel entry. Other language histories,
+progression, restoration and natural expiry remain separate.
 `countdown.check_countdown_balance` takes explicit public seconds, precision
 and monotonic timestamp. Allow at most 180 real elapsed seconds, reported
 precision (one second in this qualifier), minute flooring above 60 seconds and

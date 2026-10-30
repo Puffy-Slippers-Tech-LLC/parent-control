@@ -163,9 +163,10 @@ feedback undo. Do not recreate workers/timers/authentication. Async results carr
 data or stable categories so they render in the current language.
 
 There is no broker change signal. GTK refreshes on Preferences/process start;
-the child panel refreshes on enable, resume and overlay exit without delaying
-countdown or locks. Isolated previews share disposable language state, never
-product records.
+the child panel refreshes on enable, resume and overlay exit, including overlays
+opened through the ordinary child command. It observes the session application's
+bus-name lifetime without delaying countdown or locks. Isolated previews share
+disposable language state, never product records.
 
 Shared dialogs inherit their owner. User reports/names/paths stay data.
 Portal page links (Help, Website and Privacy) use that owner's resolved language:

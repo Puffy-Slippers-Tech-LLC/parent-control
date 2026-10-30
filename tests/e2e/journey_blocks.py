@@ -504,7 +504,7 @@ def overlay_entry(prefix, route, *, form_operation='overlay-request-form'):
             and route in ('command', 'panel', 'panel-reopen'), 'journey:overlay-binding')
     require(form_operation in ('overlay-request-form', 'overlay-valid-excluded-read',
                                'overlay-valid-fraction-soft-read', 'overlay-language-initial',
-                               'overlay-language-form-de', 'language-history-overlay-he-casey',
+                               'overlay-language-form-en', 'overlay-language-form-de', 'language-history-overlay-he-casey',
                                'language-history-overlay-he-jamie',
                                'overlay-long-approver-select'),
             'journey:overlay-form-binding')

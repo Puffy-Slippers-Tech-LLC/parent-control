@@ -429,6 +429,7 @@ def main(argv=None):
                                           'reproduce-natural-access',
                                           'reproduce-countdown-grant',
                                           'reproduce-countdown-resume',
+                                          'reproduce-panel-language',
                                           'reproduce-retained-unlock',
                                           'reproduce-retained-app-visits',
                                           'probe-retained-app-launch',
@@ -545,6 +546,7 @@ def main(argv=None):
                              'reproduce-countdown-minutes',
                              'reproduce-natural-expiry',
                              'reproduce-countdown-resume',
+                             'reproduce-panel-language',
                              'reproduce-retained-unlock',
                              'reproduce-retained-app-visits',
                              'reproduce-transfer-refusal', 'reproduce-remembered-return', 'repeat-remembered-return',
@@ -556,6 +558,7 @@ def main(argv=None):
             from vm_probe import reproduce_retained_app_visits
             from vm_probe import reproduce_revoke_cancel
             from vm_probe import reproduce_countdown_minutes, reproduce_countdown_resume
+            from vm_probe import reproduce_panel_language
             from vm_probe import reproduce_retained_unlock
             from vm_probe import reproduce_natural_expiry
             from vm_probe import reproduce_kiosk_entry, reproduce_kiosk_approval, reproduce_kiosk_preferences
@@ -578,6 +581,7 @@ def main(argv=None):
              'reproduce-countdown-minutes': reproduce_countdown_minutes,
              'reproduce-natural-expiry': reproduce_natural_expiry,
              'reproduce-countdown-resume': reproduce_countdown_resume,
+             'reproduce-panel-language': reproduce_panel_language,
              'reproduce-retained-unlock': reproduce_retained_unlock,
              'reproduce-retained-app-visits': reproduce_retained_app_visits,
              'reproduce-transfer-refusal': reproduce_transfer_refusal,

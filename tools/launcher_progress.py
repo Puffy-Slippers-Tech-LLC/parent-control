@@ -215,7 +215,7 @@ def case_progress(run, *, reader=None):
 
 def case_frame(steps, lines, current):
     """Show VM-wide overall progress and category-specific selected-case counters."""
-    from regression import Category, Dashboard, CATEGORY_NAMES
+    from regression import Category, Dashboard, CATEGORY_NAMES, duration_text
     if not steps or f'Category: {current["category"]} (' not in steps[-1]['lines'][0]:
         return lines
     done, total = current['completed'], current['total']
@@ -225,9 +225,9 @@ def case_frame(steps, lines, current):
     overall_done = sum(count['completed'] for count in current['categories'].values())
     overall_total = sum(count['total'] for count in current['categories'].values())
     overall_failed = sum(count.get('failed', 0) for count in current['categories'].values())
-    elapsed = (now - current['vm_started_ns'] / 1e9) / 60
+    elapsed = duration_text(now - current['vm_started_ns'] / 1e9)
     overall = (f'Overall - {int(100 * overall_done / max(overall_total, 1))}% '
-               f'({case_counts(overall_done, overall_failed, overall_total, current.get("error_log"))}) - {elapsed:.1f}m')
+               f'({case_counts(overall_done, overall_failed, overall_total, current.get("error_log"))}) - {elapsed}')
     summary = Dashboard.ANSI.sub('', steps[-1]['lines'][0])
     steps[-1]['lines'][0] = (
         re.sub(r'Overall - [^|]+', overall + ' ', summary).rstrip()

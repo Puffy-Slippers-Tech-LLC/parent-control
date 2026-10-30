@@ -423,12 +423,19 @@ def execute(binding):
         else:
             identity = entry_identity(current, account.pw_uid, mode)
         confirmed = sessions()
-        if confirmed != current:
+        # Entry is bound to local graphical sessions, not background user
+        # managers left over from an earlier greeter. Those can finish exiting
+        # while the retained desktop and current greeter remain unchanged.
+        # Keep complete properties for every graphical session on both reads;
+        # a replaced source, new competing desktop or changed lock still refuses.
+        graphical_before = {key: item for key, item in current.items() if local_graphical(item)}
+        graphical_after = {key: item for key, item in confirmed.items() if local_graphical(item)}
+        if graphical_after != graphical_before:
             # Private engineering evidence: public session IDs/properties only,
             # never names, passwords or product state. Preserve the refusal.
             print('session-entry-observation: ' + json.dumps(
                 {'before': current, 'after': confirmed}, sort_keys=True), file=sys.stderr)
-        require(confirmed == current, 'source-changed')
+        require(graphical_after == graphical_before, 'source-changed')
         return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
                 'entry': mode, 'session_sha256': identity}
     if action == 'enter-locked':

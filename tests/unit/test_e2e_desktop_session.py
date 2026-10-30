@@ -87,6 +87,35 @@ def test_opening_greeter_cannot_authorize_a_destination_or_fresh_password(monkey
     assert control.entry_identity(current, 1001, 'fresh') is None
 
 
+@pytest.mark.parametrize('change', ['manager-exited', 'source-owner', 'greeter-replaced', 'lock-state'])
+def test_retained_entry_rechecks_graphical_identity_despite_background_manager_exit(monkeypatch, change):
+    before = {'7': props(active='no', locked='yes'),
+              '8': props('120', kind='greeter'),
+              '9': {**props('121', kind='manager-early'), 'Seat': '', 'Type': 'unspecified'}}
+    after = {key: dict(value) for key, value in before.items() if key != '9'}
+    if change == 'source-owner':
+        after['7']['User'] = '1001'
+    elif change == 'greeter-replaced':
+        after['10'] = after.pop('8')
+    elif change == 'lock-state':
+        after['7']['LockedHint'] = 'no'
+    monkeypatch.setattr(control.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(control.pwd, 'getpwnam', lambda _: SimpleNamespace(pw_uid=1000))
+    reads = Mock(side_effect=[before, after])
+    monkeypatch.setattr(control, 'sessions', reads)
+    submit = Mock()
+    monkeypatch.setattr(control, 'submit', submit)
+    if change == 'manager-exited':
+        result = control.execute('parent-entry-retained')
+        assert result['session_sha256'] == control.entry_identity(before, 1000, 'retained')
+        assert result['entry'] == 'retained' and result['outcome'] == 'passed'
+    else:
+        with pytest.raises(control.SessionError, match='source-changed'):
+            control.execute('parent-entry-retained')
+    assert reads.call_count == 2
+    submit.assert_not_called()
+
+
 def test_logout_is_one_direct_command_without_force_or_a_shell(monkeypatch):
     call = Mock()
     monkeypatch.setattr(control, 'call', call)

@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">16785</span>/<span style="color: gray">0</span>/16785 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">16797</span>/<span style="color: gray">0</span>/16797 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">221</span>/<span style="color: gray">0</span>/221 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">294</span>/<span style="color: gray">0</span>/294 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">136</span>/<span style="color: gray">0</span>/136 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">148</span>/<span style="color: gray">0</span>/148 | Checks installed product behavior and essential shared safety boundaries. |
+| Integration qualification | <span style="color: green">149</span>/<span style="color: gray">0</span>/149 | Checks installed product behavior and essential shared safety boundaries. |
 | E2E | <span style="color: green">48</span>/<span style="color: gray">145</span>/193 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">17644</span>/<span style="color: gray">145</span>/17789** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">17657</span>/<span style="color: gray">145</span>/17802** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Integration excludes maintenance operations and explicit engineering probes, and counts host-specific tests once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 

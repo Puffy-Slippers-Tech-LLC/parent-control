@@ -80,6 +80,12 @@ admission uses the artifact category's two CPU slots, 4 GiB and I/O limits.
 Final source, output and both compiler scratch sizes are logged and bounded by
 128 MiB; this is final allocation accounting, not a measured peak or byte quota.
 
+If an interrupted producer leaves an unfinished slot, read its exact
+`transaction_id` from `output/test-runs/host/fixtures/producer.json`, then run
+`tools/run-tests fixtures recover TRANSACTION`. This calls the existing
+`Store.recover()` guard: active descendants, changed identities and unknown
+allocations still refuse. It touches no VM or completed execution input.
+
 Schema 1 contains `fixture-manifest.json`, deterministic `payload.tar` and
 `complete.json`. Build identity hashes source, target, toolchain and dependency
 inputs. Content identity hashes exact manifest/archive bytes, including the
@@ -303,6 +309,16 @@ and validation, then independent saved settings and PARENT09 balances. They
 never revoke or approve. `time_profiles_daily.PLAN` / `SAME_PLAN` own separate
 fresh-2/same-user-4 qualification histories and finish through DESK03.
 Other profiles, children and retained windows remain outside this slice.
+FLOW13 grant-only uses `journey_blocks.grant_only_time_profile` and
+`onpc_parent::grant_only_time_profile`, with caller-owned checks in
+`grant_only_profile.GrantOnlyProfileJourney`. Reuse the initial zero-grant
+read; only explicit `revoke_first=True` permits Confirm, followed by a fresh
+zero-grant read before policy edits. The shared request leaves accept finite
+120/180/240/600/1200-second arguments. The installed qualification covers the
+120-second fresh and retained/revoke-first bindings on Ubuntu 26.04; later
+recipes own their finite duration and independent outcomes. Existing credential
+and producer-recovery checks retain private files/in-memory doubles and bounded,
+waited children, with no new host module, VM, display, bus or cleanup owner.
 The existing toggle/unit modules use pytest-private evidence, in-memory doubles
 and bounded waited Perl children; the accessible-adapter preview uses its
 existing private display/process group. No shared path/cache, socket/bus,

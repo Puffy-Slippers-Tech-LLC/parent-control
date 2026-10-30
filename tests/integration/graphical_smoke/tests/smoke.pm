@@ -1056,6 +1056,14 @@ sub run {
         onpc_fresh_thirty_allowance::run(\&exchange, 'existing');
         return;
     }
+    if ($ready->{grant_only_profile} || $ready->{grant_only_revoke}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        require onpc_set_allowance;
+        onpc_set_allowance::qualify_grant(\&exchange, $ready->{invocations},
+            $ready->{challenge_bindings}, $ready->{grant_only_revoke} ? 1 : 0);
+        return;
+    }
     if ($ready->{time_profiles_daily} || $ready->{time_profiles_same}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

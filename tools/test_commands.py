@@ -45,7 +45,7 @@ CATEGORIES = {
     'coverage': CategorySpec('unit and private-D-Bus Python coverage in a new private directory', leaf=False),
     'check': CategorySpec('the current make check aggregate', leaf=False),
     'component-all': CategorySpec('the current make check-component aggregate', leaf=False),
-    'fixtures': CategorySpec('build, verify PATH; native-runtime also supports prepare; --kind native-runtime --target ubuntu|fedora; generated build output', leaf=False),
+    'fixtures': CategorySpec('build, verify PATH; native-runtime also supports prepare; --kind native-runtime --target ubuntu|fedora; recover TRANSACTION retries exact interrupted producer cleanup', leaf=False),
     'artifacts': CategorySpec('two fresh package/fixture builds and reproducibility; build, prepare (verified reuse), verify PATH, compare FIRST SECOND'),
     'integration': CategorySpec('runnable guarded check_* tests; optional basename; --list includes scheduling exclusions', scope='vm'),
     'system': CategorySpec('current-package suite plus separate 287/288 upgrades by default; --id N[,N...] or --area/--test focuses selection; optional --artifacts; --previous-artifacts, --list', scope='vm'),
@@ -79,7 +79,7 @@ INSTALLED_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_installed'} | {
     edit_and_save_an_open_synthetic_document eligible_kiosk_fixtures feedback_block_semantics
     feedback_collection feedback_formats feedback_length feedback_link_semantics feedback_privacy
     feedback_read feedback_rejection feedback_reset feedback_states file_chooser files format
-    fresh_child_allowed fresh_desktop gdm_navigation gdm_recipient
+    fresh_child_allowed fresh_desktop gdm_navigation gdm_recipient grant_only_profile
     give_repeated_public_operations_distinct_stages independent_network_management kiosk_approval
     kiosk_admission_contention kiosk_approved_flow kiosk_configuration_recovery kiosk_eligible_choices kiosk_entry kiosk_feedback_confinement kiosk_fixtures
     kiosk_identity_helper kiosk_language kiosk_language_restoration kiosk_lease_variation kiosk_multiple kiosk_no_child kiosk_notification_wellbeing kiosk_optional_artwork
@@ -975,6 +975,10 @@ def plan(root, category, argv):
                  '--cov-report=term-missing', '--', *targets]], True
     if category in ('fixtures', 'artifacts'):
         action = argv[0] if argv else 'build'
+        if category == 'fixtures' and action == 'recover':
+            if len(argv) != 2 or not re.fullmatch(r'[0-9a-f]{32}', argv[1]):
+                raise ValueError('fixture recovery requires one exact transaction ID')
+            return [python_file(root, 'tools/fixture_producer.py', '--recover', argv[1])], False
         if category == 'fixtures' and '--kind' in argv:
             options = argv[1:] if action in ('build', 'prepare') else argv[2:]
             if (action not in ('build', 'prepare', 'verify') or len(options) != 4

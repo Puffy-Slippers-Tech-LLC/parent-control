@@ -429,6 +429,44 @@ sub daily_time_profile {
     return onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
 }
 
+# FLOW13: the acknowledged initial observation is the no-grant gate unless the
+# caller explicitly authorizes Confirm. Fresh readback follows that mutation.
+sub grant_only_time_profile {
+    onpc_progress::operation('Preparing extra time with no daily allowance for [Child user]');
+    my ($journey, $source, $entry, $window, $initial, $revoke, $seconds, $request_initial) = @_;
+    die 'time-profile:grant-binding' unless @_ == 8 && ref($journey) eq 'onpc_journey'
+        && ($initial eq '0' || $initial eq '1') && ($revoke eq '0' || $revoke eq '1')
+        && $seconds =~ /\A(?:120|180|240|600|1200)\z/
+        && ($request_initial eq 'default' || $request_initial eq 'selected')
+        && (($source eq 'gdm' && $entry eq 'fresh' && $window eq 'new')
+            || ($source eq 'desktop' && $entry eq 'same-user' && $window eq 'retained'));
+    require onpc_request_flow;
+    require onpc_desktop_session;
+    if ($window eq 'new') {
+        my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+            'installed-greeter', 'parent-focused', 'desktop');
+        launch($journey, $desktop, 'management');
+        $journey->consume_observation('parent-selected', select_child($journey, 'child',
+            $journey->seen('child-picker-opened'), 'child-picker-opened',
+            'child-choice-highlighted', 'parent-selected'));
+    } else {
+        $journey->consume_observation('profile-entry-parent-retained',
+            open_for_child($journey, $source, $entry, $window, 'child', 'profile-entry'));
+    }
+    $journey->seen('profile-before');
+    if ($revoke) {
+        $journey->seen($_) for qw(profile-revoke-open profile-revoke-confirm profile-cleared);
+    }
+    $journey->seen($_) for qw(profile-zero profile-window profile-switch profile-gdm);
+    onpc_request_flow::obtain_time($journey->scope('profile-request'), $request_initial,
+        'fixture-child', 'fixture-parent', $seconds, 1, 'automatic');
+    onpc_gdm::sign_in_challenge($journey, 'profile-return',
+        'profile-return-installed-greeter', 'profile-return-parent-focused', 'profile-return-desktop');
+    $journey->consume_observation('profile-result-parent-retained',
+        open_for_child($journey, 'desktop', 'same-user', 'retained', 'child', 'profile-result', 0));
+    $journey->seen($_) for qw(profile-balance profile-final-switch profile-final-gdm);
+}
+
 # PARENT02/UI15: canonical choice inventory -> API selection -> independent result.
 # The caller may already hold the inventory proof at a recorder phase boundary.
 sub select_child {

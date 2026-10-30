@@ -465,3 +465,25 @@ class Producer:
             updated['slot']['state'] = 'verifying'
             self._store._save(self._fd, updated)
             self._state = updated
+
+
+def main(argv=None):
+    """Expose exact interrupted-build recovery without caller-selected paths."""
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    parser.add_argument('--recover', required=True)
+    args = parser.parse_args(argv)
+    try:
+        _require(_token(args.recover), 'transaction ID must be UUID32')
+        recovered = Store().recover(args.recover)
+        print('fixture-producer: recovery=' + ('passed' if recovered else 'already-clean'))
+    except (ValueError, OSError) as error:
+        print(str(error), file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

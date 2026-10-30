@@ -64,7 +64,7 @@ def prepared_request(*, prefix, entry, initial, child, approver, duration_second
     require(entry in ('open', 'new') and initial in ('default', 'selected'),
             'request-flow:entry')
     require(child == 'fixture-child' and approver == 'fixture-parent'
-            and type(duration_seconds) is int and duration_seconds in (75, 600)
+            and type(duration_seconds) is int and duration_seconds in (75, 120, 180, 240, 600, 1200)
             and allow_soft is True, 'request-flow:choices')
     require(surface in ('kiosk', 'overlay'), 'request-flow:surface')
     require(type(compact) is bool and (not compact or
@@ -72,19 +72,21 @@ def prepared_request(*, prefix, entry, initial, child, approver, duration_second
     if compact and initial == 'selected':
         return {**(station_entry('cancel-') if entry == 'new' else {}),
                 prefix + '-estimate': 'ui:kiosk-valid-fraction-soft-read'}
-    if duration_seconds == 600:
+    if duration_seconds != 75:
         require(surface == 'kiosk', 'request-flow:long-surface')
-        require(initial == 'default', 'request-flow:long-initial')
+        binding = ('kiosk-long-request' if duration_seconds == 600 and initial == 'default'
+                   else f'kiosk-request-{duration_seconds}')
         stages = station_entry('cancel-') if entry == 'new' else {}
         stages.update({
-            prefix + '-form': 'ui:kiosk-request-form',
-            prefix + '-child': 'ui:kiosk-child-select',
-            prefix + '-approver': 'ui:kiosk-approver-select',
-            prefix + '-selections': 'ui:kiosk-enabled-form',
-            prefix + '-duration': 'ui:kiosk-long-request-duration-select',
-            prefix + '-duration-read': 'ui:kiosk-long-request-duration-read',
-            prefix + '-apps': 'ui:kiosk-long-request-soft-select',
-            prefix + '-estimate': 'ui:kiosk-long-request-soft-read',
+            prefix + '-form': 'ui:kiosk-request-form' if initial == 'default' else 'ui:kiosk-valid-fraction-soft-read',
+            prefix + '-child': 'ui:kiosk-child-select' if initial == 'default' else 'ui:kiosk-flow-child-select',
+            prefix + '-approver': 'ui:kiosk-approver-select' if initial == 'default' else 'ui:kiosk-flow-approver-select',
+            prefix + '-selections': 'ui:kiosk-enabled-form' if initial == 'default' else 'ui:kiosk-valid-fraction-soft-read',
+            prefix + '-duration': f'ui:{binding}-' + ('duration-select' if initial == 'default' else 'included-duration-select'),
+            prefix + '-duration-read': f'ui:{binding}-' + ('duration-read' if initial == 'default' else 'soft-read'),
+            prefix + '-apps': f'ui:{binding}-soft-select',
+            prefix + '-estimate': ('ui:kiosk-long-request-soft-read' if duration_seconds == 600
+                                   else f'ui:{binding}-soft-read'),
         })
         return stages
     if surface == 'overlay':

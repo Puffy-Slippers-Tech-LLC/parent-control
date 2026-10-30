@@ -766,10 +766,20 @@ def test_fixture_qualification_freezes_after_package_before_privilege(
     ['build', '--kind', 'native-runtime', '--target', 'ubuntu', '--output', '/elsewhere'],
     ['verify', '--kind', 'native-runtime', '--target', 'ubuntu'],
     ['build', '--target', 'ubuntu', '--kind', 'native-runtime'],
+    ['recover'],
+    ['recover', '/elsewhere'],
+    ['recover', '1' * 32, '2' * 32],
 ])
 def test_native_fixture_options_refuse_before_allocating(options):
     with pytest.raises(ValueError):
         commands.plan(ROOT, 'fixtures', options)
+
+
+def test_fixture_recovery_forwards_only_the_exact_transaction():
+    planned, privileged = commands.plan(ROOT, 'fixtures', ['recover', '1' * 32])
+    assert planned == [commands.python_file(
+        ROOT, 'tools/fixture_producer.py', '--recover', '1' * 32)]
+    assert privileged is False
 
 
 def test_native_fixture_category_registers_build_output_before_execution(monkeypatch, tmp_path):

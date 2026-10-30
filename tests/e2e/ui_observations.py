@@ -591,6 +591,8 @@ class RequestObservation:
                      and observation.custom_text == '10'
                      or operation in accessible_ui.KIOSK_VALID_REQUESTS
                      and operation.startswith('kiosk-long-request-') and observation.custom_text == '10'
+                     or operation in accessible_ui.PROFILE_REQUESTS
+                     and observation.custom_text == accessible_ui.PROFILE_REQUESTS[operation][1]
                      or operation in accessible_ui.TRANSFER_REQUESTS and observation.custom_text == '2.5'
                      or invalid is not None and observation.custom_text ==
                      accessible_ui.KIOSK_INVALID_VALUES[invalid[0]])
@@ -1203,6 +1205,9 @@ class UiObservations:
                             and previous_operation == 'kiosk-valid-fraction-soft-read'
                             or operation == 'kiosk-long-mate-open'
                             and previous_operation == 'kiosk-long-request-soft-read'
+                            or operation in accessible_ui.PROFILE_MATE_REQUESTS
+                            and operation.endswith('-mate-open')
+                            and previous_operation == operation.removesuffix('-mate-open') + '-soft-read'
                             or operation == 'jordan-mate-open'
                             and previous_operation in ('jordan-fraction-soft-read',
                                                        'jordan-fraction-estimate-refresh'))):
@@ -1213,10 +1218,13 @@ class UiObservations:
                         self.mate_long_request = operation == accessible_ui.LONG_MATE_ORDER[0]
                         self.mate_jordan = operation == accessible_ui.JORDAN_MATE_ORDER[0]
                         self.mate_paused = operation == accessible_ui.PAUSE_MATE_ORDER[0]
+                        self.mate_profile = accessible_ui.PROFILE_MATE_REQUESTS.get(operation)
                     if getattr(self, 'mate_chinese', False):
                         order = accessible_ui.CHINESE_MATE_ORDER
                     if getattr(self, 'mate_long_request', False):
                         order = accessible_ui.LONG_MATE_ORDER
+                    if getattr(self, 'mate_profile', None):
+                        order = accessible_ui.PROFILE_MATE_ORDERS[self.mate_profile['duration_seconds']]
                     if getattr(self, 'mate_jordan', False):
                         order = accessible_ui.JORDAN_MATE_ORDER
                     if getattr(self, 'mate_paused', False):
@@ -1385,7 +1393,8 @@ class UiObservations:
             binding = [self.boot_guard]
         if operation in accessible_ui.MATE_APPROVAL_OPERATIONS and operation not in (
                 'kiosk-mate-open', 'kiosk-mate-rejection-open', 'chinese-mate-open', 'kiosk-long-mate-open',
-                'kiosk-pause-mate-open', 'jordan-mate-open'):
+                'kiosk-pause-mate-open', 'jordan-mate-open') and not (
+                    operation in accessible_ui.PROFILE_MATE_REQUESTS and operation.endswith('-mate-open')):
             binding = [self.boot_guard or '', self.mate_approval_identity]
         if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS and operation not in (
                 'overlay-shell-open', accessible_ui.SHELL_REJECTION_ORDER[0]):
@@ -2033,18 +2042,21 @@ class UiObservations:
             elif operation in ('kiosk-mate-submit-success', 'kiosk-mate-submit-immediate',
                                'chinese-mate-submit-success', 'kiosk-long-mate-submit-success',
                                'jordan-mate-submit-success',
-                               'kiosk-pause-mate-submit-success'):
+                               'kiosk-pause-mate-submit-success') or (
+                                   operation in accessible_ui.PROFILE_MATE_REQUESTS
+                                   and operation.endswith('-submit-success')):
                 require(value == {'approved': True, 'form_success': True,
                                   **({'immediate_exit': True} if operation.endswith('immediate') else {})}
                         and all(type(item) is bool for item in value.values()), 'ui:mate-result')
             else:
                 chinese = operation in accessible_ui.CHINESE_MATE_ORDER
                 long_request = operation in accessible_ui.LONG_MATE_ORDER
+                profile_request = accessible_ui.PROFILE_MATE_REQUESTS.get(operation)
                 jordan = operation in accessible_ui.JORDAN_MATE_ORDER
                 paused = operation in accessible_ui.PAUSE_MATE_ORDER
                 fields = {'challenge_id'} | ({'provider', 'texts', 'child', 'approver', 'agent_id',
                     'duration_seconds', 'allow_soft', 'rejected_proofs'} if chinese else set()) | (
-                    {'request'} if long_request or jordan else set()) | ({'provider'} if paused else set())
+                    {'request'} if long_request or jordan or profile_request else set()) | ({'provider'} if paused else set())
                 require(type(value) is dict and set(value) == fields and
                         type(value['challenge_id']) is str and
                         re.fullmatch(r'[0-9a-f]{64}', value['challenge_id']), 'ui:mate-identity')
@@ -2054,10 +2066,10 @@ class UiObservations:
                         self.mate_pause_provider = dict(value['provider'])
                     else:
                         require(value['provider'] == self.mate_pause_provider, 'ui:mate-provider-changed')
-                if long_request or jordan:
+                if long_request or jordan or profile_request:
                     request = value['request']
                     require(type(request) is dict and request == (
-                            accessible_ui.JORDAN_MATE_REQUEST if jordan else accessible_ui.LONG_MATE_REQUEST)
+                            profile_request or (accessible_ui.JORDAN_MATE_REQUEST if jordan else accessible_ui.LONG_MATE_REQUEST))
                             and type(request.get('duration_seconds')) is int
                             and request.get('allow_soft') is True, 'ui:mate-request-binding')
                 if chinese:
@@ -2071,7 +2083,8 @@ class UiObservations:
                                 list(accessible_ui.CHINESE_MATE_REFUSALS) if operation == 'chinese-mate-open' else []),
                             'ui:mate-native-response')
                 if operation in ('kiosk-mate-open', 'kiosk-mate-rejection-open', 'chinese-mate-open',
-                                 'kiosk-long-mate-open', 'kiosk-pause-mate-open', 'jordan-mate-open'):
+                                 'kiosk-long-mate-open', 'kiosk-pause-mate-open', 'jordan-mate-open') or (
+                                     profile_request and operation.endswith('-mate-open')):
                     require(value['challenge_id'] not in self.challenges, 'ui:challenge-replay')
                     self.challenges.add(value['challenge_id'])
                     self.mate_approval_identity = value['challenge_id']

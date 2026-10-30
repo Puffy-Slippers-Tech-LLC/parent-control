@@ -22,6 +22,11 @@ def check_balances(journey, observed, expected_seconds=900):
     observed['comparison'] = {'ordinary_balances': True, 'independent_read': earlier is not None}
 
 
+def require_zero_grant(balances):
+    """FLOW13 never discards an undeclared existing grant."""
+    require(balances['one_time']['seconds'] == 0, 'time-profile:unexpected-grant')
+
+
 class AllowanceJourney(InstalledJourney):
     """Compare caller-declared saved balances before each keyboard reply."""
 
@@ -46,7 +51,7 @@ class DailyTimeProfileJourney(AllowanceJourney):
         super().check_settings(stage, observed)
         if stage in self.no_grant_checks:
             value = observed['ui']['time_explanation']
-            require(value['one_time']['seconds'] == 0, 'time-profile:unexpected-grant')
+            require_zero_grant(value)
             observed['comparison'] = {'zero_grant_before_edits': True}
         if stage in self.plan.balance_checks:
             value = observed['ui']['time_explanation']

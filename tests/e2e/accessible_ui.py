@@ -893,6 +893,19 @@ KIOSK_VALID_REQUESTS.update({f'kiosk-long-request-{choice}-{action}': (600, '10'
     for choice, soft in (('duration', False), ('soft', True))
     for action in ('select', 'read')})
 KIOSK_VALID_REQUESTS['kiosk-long-included-duration-select'] = (600, '10', True)
+# Caller-owned finite recipe durations. These use the same custom-duration,
+# independent form read and native authentication operations as the 600s leaf.
+PROFILE_REQUEST_SECONDS = (120, 180, 240, 600, 1200)
+PROFILE_REQUESTS = {
+    f'kiosk-request-{seconds}-{choice}-{action}': (seconds, str(seconds // 60), soft)
+    for seconds in PROFILE_REQUEST_SECONDS
+    for choice, soft in (('duration', False), ('soft', True))
+    for action in ('select', 'read')
+}
+PROFILE_REQUESTS.update({f'kiosk-request-{seconds}-included-duration-select':
+                         (seconds, str(seconds // 60), True)
+                         for seconds in PROFILE_REQUEST_SECONDS})
+KIOSK_VALID_REQUESTS.update(PROFILE_REQUESTS)
 KIOSK_VALID_OPERATIONS = frozenset(KIOSK_VALID_REQUESTS) | {'kiosk-valid-custom-open'}
 CHINESE_VALID_BINDINGS = {
     'chinese-' + suffix: 'kiosk-valid-' + suffix for suffix in
@@ -955,6 +968,17 @@ LONG_MATE_ORDER = tuple('kiosk-long-mate-' + suffix for suffix in
 LONG_MATE_REQUEST = dict(child='fixture-child', approver='fixture-parent',
                          duration_seconds=600, allow_soft=True)
 MATE_APPROVAL_OPERATIONS |= frozenset(LONG_MATE_ORDER)
+PROFILE_MATE_ORDERS = {
+    seconds: tuple(f'kiosk-request-{seconds}-mate-' + suffix for suffix in
+                   ('open', 'qualified', 'rechecked', 'submit-success'))
+    for seconds in PROFILE_REQUEST_SECONDS
+}
+PROFILE_MATE_REQUESTS = {
+    operation: dict(child='fixture-child', approver='fixture-parent',
+                    duration_seconds=seconds, allow_soft=True)
+    for seconds, order in PROFILE_MATE_ORDERS.items() for operation in order
+}
+MATE_APPROVAL_OPERATIONS |= frozenset(PROFILE_MATE_REQUESTS)
 JORDAN_MATE_ORDER = tuple('jordan-mate-' + suffix for suffix in
                          ('open', 'qualified', 'rechecked', 'submit-success'))
 JORDAN_MATE_REQUEST = dict(child='existing-fixture-child', approver='fixture-parent',
@@ -10503,7 +10527,8 @@ class AccessibleUI:
         seconds, custom, soft = (JORDAN_VALID_REQUESTS if jordan else
                                 CHINESE_VALID_REQUESTS if chinese else
                                 OVERLAY_VALID_REQUESTS if overlay else KIOSK_VALID_REQUESTS)[operation]
-        if operation in ('kiosk-long-included-duration-select', 'overlay-long-approver-select'):
+        if (operation in ('kiosk-long-included-duration-select', 'overlay-long-approver-select')
+                or operation in PROFILE_REQUESTS and operation.endswith('-included-duration-select')):
             before = self.kiosk_request_form(enabled=True,
                 expected_selection=None if overlay else ('child', 'fixture-child'),
                 duration_seconds=600 if overlay else 75,
@@ -10571,7 +10596,8 @@ class AccessibleUI:
                 duration_seconds=seconds, custom_text=custom)
             self.select_kiosk_account('approver', PARENT, expected=(PARENT, OTHER_PARENT),
                 duration_seconds=seconds, custom_text=custom)
-        elif operation in ('kiosk-long-request-duration-select', 'kiosk-long-included-duration-select'):
+        elif (operation in ('kiosk-long-request-duration-select', 'kiosk-long-included-duration-select')
+              or operation in PROFILE_REQUESTS and operation.endswith('-duration-select')):
             self._invoke_target(self.kiosk_valid_target('kiosk-duration-custom'))
             self.invalidate_observation()
             self.wait(lambda: self.kiosk_valid_target('kiosk-custom-duration', awaiting_custom=True),
@@ -10587,7 +10613,8 @@ class AccessibleUI:
             identity = ('kiosk-soft-apps-toggle' if action in (
                 'kiosk-valid-soft-select', 'kiosk-valid-excluded-select',
                 'kiosk-valid-fraction-soft-select', 'kiosk-valid-fraction-excluded-select',
-                'kiosk-long-request-soft-select')
+                'kiosk-long-request-soft-select') or operation in PROFILE_REQUESTS
+                and operation.endswith('-soft-select')
                 else f'kiosk-duration-{seconds}')
             target = self.kiosk_valid_target(identity, child=child, overlay=overlay)
             if identity == 'kiosk-soft-apps-toggle':
@@ -10727,7 +10754,8 @@ class AccessibleUI:
         require(language in ('en', 'zh-Hans') and (language == 'en' or binding is None),
                 'ui:mate-language-binding')
         require(request is None or (binding is None and language == 'en'
-                and type(request) is dict and request in (LONG_MATE_REQUEST, JORDAN_MATE_REQUEST)
+                and type(request) is dict and request in (
+                    LONG_MATE_REQUEST, JORDAN_MATE_REQUEST, *PROFILE_MATE_REQUESTS.values())
                 and type(request.get('duration_seconds')) is int
                 and request.get('allow_soft') is True), 'ui:mate-request-binding')
         child, approver = MULTIPLE_MATE_BINDINGS[binding] if binding else (CHILD, PARENT)
@@ -10776,7 +10804,7 @@ class AccessibleUI:
         # label. Check every sentence, including the explicit soft-app choice.
         message = (f'Grant {child} access?\nRequested time: 1 minute, 15 seconds.\n'
                    'Allow soft blocked apps for this grant.' if request == JORDAN_MATE_REQUEST else
-                   f'Grant {CHILD} access?\nRequested time: 10 minutes.\n'
+                   f'Grant {CHILD} access?\nRequested time: {request["duration_seconds"] // 60} minutes.\n'
                    'Allow soft blocked apps for this grant.' if request is not None else
                    f'Grant {child} access?\nRequested time: 30 minutes.' if binding else
                    f'Grant {CHILD} access?\nRequested time: 1 minute, 15 seconds.\n'
@@ -10952,14 +10980,17 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         chinese = operation in CHINESE_MATE_ORDER
         long_request = operation in LONG_MATE_ORDER
+        profile_request = PROFILE_MATE_REQUESTS.get(operation)
         jordan = operation in JORDAN_MATE_ORDER
         paused = operation in PAUSE_MATE_ORDER
         language = 'zh-Hans' if chinese else 'en'
-        action = (operation.replace('jordan-mate-', 'kiosk-mate-', 1) if jordan else
+        action = ('kiosk-mate-' + operation.split('-mate-', 1)[1] if profile_request else
+                  operation.replace('jordan-mate-', 'kiosk-mate-', 1) if jordan else
                   operation.replace('chinese-mate-', 'kiosk-mate-', 1) if chinese else
                   operation.replace('kiosk-long-mate-', 'kiosk-mate-', 1) if long_request else
                   operation.replace('kiosk-pause-mate-', 'kiosk-mate-', 1) if paused else operation)
-        options = ({'request': dict(JORDAN_MATE_REQUEST)} if jordan else
+        options = ({'request': dict(profile_request)} if profile_request else
+                   {'request': dict(JORDAN_MATE_REQUEST)} if jordan else
                    {'language': language} if chinese else
                    {'request': dict(LONG_MATE_REQUEST)} if long_request else {})
         pid = self.mate_agent_pid()
@@ -10970,6 +11001,7 @@ class AccessibleUI:
             if opening:
                 self.kiosk_valid_choice('jordan-fraction-soft-read' if jordan else
                     'chinese-fraction-soft-read' if chinese else
+                    f'kiosk-request-{profile_request["duration_seconds"]}-soft-read' if profile_request else
                     'kiosk-long-request-soft-read' if long_request else 'kiosk-valid-fraction-soft-read')
                 require(self.mate_prompt(pid, **options) is None, 'ui:mate-already-open')
                 self._invoke_target(self.kiosk_valid_target('kiosk-request-submit',
@@ -11019,8 +11051,8 @@ class AccessibleUI:
                         'duration_seconds': 75, 'allow_soft': True, 'rejected_proofs': rejected}
             return {'challenge_id': identity,
                     **({'provider': self.mate_provider_metadata(pid)} if paused else {}),
-                    **({'request': dict(JORDAN_MATE_REQUEST if jordan else LONG_MATE_REQUEST)}
-                       if long_request or jordan else {})}
+                    **({'request': dict(profile_request or (JORDAN_MATE_REQUEST if jordan else LONG_MATE_REQUEST))}
+                       if long_request or jordan or profile_request else {})}
         except BaseException:
             self.input_uncertain = True
             raise

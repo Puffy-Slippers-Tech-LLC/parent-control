@@ -42,4 +42,24 @@ sub qualify_daily {
         $same ? 'same-user' : 'fresh', 'new', 'child', 0, $same ? 4 : 2);
     $journey->finish();
 }
+sub qualify_grant {
+    onpc_progress::operation('Qualifying a parent giving two minutes and explicitly replacing an existing grant');
+    my ($exchange, $invocations, $challenges, $revoke) = @_;
+    die 'time-profile:arguments' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && ref($invocations) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && ($revoke eq '0' || $revoke eq '1');
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'grant-only-profile', review => 0);
+    $journey->declare_invocations($invocations);
+    $journey->declare_challenges($challenges);
+    if ($revoke) {
+        require onpc_time_explanation;
+        onpc_time_explanation::revoke_entry($journey);
+    } else {
+        onpc_gdm::reattach_functional();
+    }
+    onpc_parent::grant_only_time_profile($journey, $revoke ? 'desktop' : 'gdm',
+        $revoke ? 'same-user' : 'fresh', $revoke ? 'retained' : 'new', $revoke, $revoke, 120,
+        $revoke ? 'selected' : 'default');
+    $journey->finish();
+}
 1;

@@ -994,8 +994,9 @@ substitute for a usable public form, grant read or app result.
 | Existing features | Reuse language Save/Cancel/reentry, request-choice estimates/persistence, reminder identity/isolation and restricted About return as separate feature histories. Saved-preset editing, Hours, What's New and notification delivery retain their own scope. |
 | Complete baseline | Compose the ordered negative, approval, activity, revocation and fresh-request results without resets between effects. Operation qualifications do not prove the complete history. |
 
-A 600-second approval does not qualify a different account, 120-second profile,
-natural grant expiry, parameterized approval matrix or broader complete scenario.
+A 600-second approval does not qualify a different account, natural grant
+expiry, parameterized approval matrix or broader complete scenario. The distinct
+[120-second profile](#grant-only-time-profile-qualification) has its own qualification.
 Daily-only natural-lock qualification does not prove grant-only expiry.
 Unknown, ambiguous, replaced or stale recipients and uncertain input refuse
 without a replay. Neither timeout nor a missing window proves denial.
@@ -2585,11 +2586,14 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 
 `request_flow.prepared_request`, `overlay_approved_request`,
 `kiosk_approved_flow.approved_request` / `obtain_time` and
-`onpc_request_flow::prepare` / `approve` currently bind Riley/Jamie,
-75 seconds and soft apps included. FLOW13 and FLOW20's other finite inputs are
-planned extensions of those shared APIs, not ready merely because the block
-exists. Qualify each named profile/approval binding; cases retain their own
-elapsed-time, app-effect and lifecycle results.
+`onpc_request_flow::prepare` / `approve` bind Riley/Jamie and soft apps included.
+The shared kiosk leaves accept caller-owned finite 75/120/180/240/600/1200-second
+durations. The 75/600-second leaves retain their existing scope; the distinct
+[120-second FLOW13 profile](#grant-only-time-profile-qualification) is qualified
+on Ubuntu 26.04. Later cases bind their other finite durations and own their
+elapsed-time, arithmetic, app-effect and lifecycle results without replaying
+this qualifier. FLOW20's other identities and soft-choice inputs remain planned
+extensions, not ready merely because the block exists.
 Qualify changed parameter/result branches with representative independent
 entries and focused safety coverage rather than repeating unchanged approval,
 rejection, Cancel and exit histories in each consumer.
@@ -2641,7 +2645,7 @@ of additional named app arguments.
 | FLOW10 | C | Launch the prepared real game with its declared mode/level and play to natural lock. | FLOW08(game, usable, registered launch options) → APP05 → APP04(record activity) → TIME04. | pending |
 | FLOW11 | C | After a displayed lock, obtain legitimate replacement time, unlock and observe the expected retained app or closed blocked app. | Case-level DESK11 → FLOW20(kiosk, retained) → APP02 → APP04(compare) → APP03 when preservation is expected. Closed-app branch ends at APP02. Reuse the case's original captures; no standalone qualifier. Tasks 197k and the app/game owners retain missing bindings. | pending complete customer histories; no separate qualification task |
 | FLOW12 | C | From an open request form, visit the other surface for that child and compare duration/custom/soft-app choices before editing. Compare the independently remembered parent for each requesting OS user, not parent equality across surfaces. Interactive mute is separate deferred scope. Finish with the second form open. | Overlay→kiosk: `request_flow.overlay_to_kiosk` / `onpc_request_flow::overlay_to_kiosk` compose REQUEST12(cancel) → DESK03 → REQUEST01 → REQUEST03. `KioskRequestJourney` compares immutable endpoints declared in `request_transfer_checks`; `choices_overlay_to_kiosk.PLAN` binds both children and same-kiosk persistence/isolation readbacks. The [both-child qualification](#overlay-choices-transferred-to-kiosk) passed the shortened scope on Ubuntu 26.04 and Fedora 44; its historical independent retained entry is no longer a prerequisite. Kiosk→overlay: `request_flow.kiosk_to_overlay` / `onpc_request_flow::kiosk_to_overlay` compose REQUEST12(cancel) → FLOW15(child, declared fresh/retained entry) → REQUEST02 → REQUEST03 → UI12(shared values and user-local selectors); `cross_surface.PLAN` binds both children through fresh entry. See [reverse qualification](#kiosk-choices-transferred-to-overlays). Interactive mute remains deferred outside this current-choice composite. | both directions ready for both children; overlay-to-kiosk same-kiosk persistence/isolation ready; kiosk-to-overlay fresh entry and complete cases 60–61 passed; retained reverse entry pending |
-| FLOW13 | C | Establish a named time profile entirely through customer controls and finish at GDM. Entry/window arguments are explicit. Verify no grant or revoke it first; use the profile table below. | `journey_blocks.daily_time_profile` / `DailyTimeProfileJourney` / `onpc_parent::daily_time_profile` compose FLOW01 → PARENT09 → UI12(G=0 on that initial observation, no unchanged reread) → FLOW02(short custom allowance) → independent saved settings and UI12(D>0/G=0) → DESK03. [Qualified daily-only bindings and selector](#daily-only-time-profile-qualification). Later revocation inputs require PARENT17 → PARENT18(confirm) → PARENT09 before the no-grant check. Grant profiles then FLOW06 → FLOW01(parent/window retained); daily-dominant adds PARENT06(larger allowance, still enabled) → PARENT08. All grant profiles finish PARENT09 → UI12(profile) → DESK03. | daily-only fresh 2-minute/same-user 4-minute bindings ready; other bindings, revocation, retained Parent and grant profiles pending |
+| FLOW13 | C | Establish a named time profile entirely through customer controls and finish at GDM. Entry/window arguments are explicit. Verify no grant or revoke it first; use the profile table below. | `journey_blocks.daily_time_profile` / `DailyTimeProfileJourney` / `onpc_parent::daily_time_profile` compose FLOW01 → PARENT09 → UI12(G=0 on that initial observation, no unchanged reread) → FLOW02(short custom allowance) → independent saved settings and UI12(D>0/G=0) → DESK03. [Qualified daily-only bindings and selector](#daily-only-time-profile-qualification). `journey_blocks.grant_only_time_profile` / `GrantOnlyProfileJourney` / `onpc_parent::grant_only_time_profile` add explicit optional PARENT17 → PARENT18(confirm) → fresh PARENT09(G=0), FLOW02(zero daily), FLOW06 and retained Parent result before DESK03. [Qualified grant-only bindings and selector](#grant-only-time-profile-qualification). Combined and daily-dominant profiles remain separate; daily-dominant adds PARENT06(larger allowance, still enabled) → PARENT08. | daily-only fresh 2-minute/same-user 4-minute bindings ready; grant-only fresh and retained/revoke-first 2-minute bindings ready on Ubuntu 26.04; other profiles/bindings pending |
 | FLOW14 | C | Open apps/recognizable activities for a finite declared user list, retaining each desktop through Switch User. Inputs state each user's fresh/retained entry and usable-time/policy prerequisites. Start and finish at GDM. | `journey_blocks.retained_app_activities` / `onpc_app_rows::retained_app_activities`: for each distinct user, FLOW15 → FLOW08(command) → APP04(capture) → desktop identity → DESK03. Earlier retained desktops must be revisited, not recreated. Parent native operations bind Jamie's active session explicitly. Duplicate users refuse; same-child multiple desktops retain a separate same-child customer-route gate. [Distinct-user qualification](#distinct-user-retained-app-qualification). | stated Jamie/Parent retained and Riley fresh preparation ready; other bindings pending |
 | FLOW16 | C | As the named parent, reach Parent for the named child and set a daily allowance and final limit state. This is the reusable “Set Jordan's daily allowance to zero” recipe; zero is an allowance, not an approval. | `onpc_parent::set_allowance` composes FLOW01→FLOW02. Qualified `gdm/parent/fresh/new/child/0/0/1`, `desktop/parent/same-user/new/child/1/15/1` and `gdm/parent/fresh/new/child/0/30/1` bind explicit saved settings and independent zero/positive/1800-0-1800 balances through `set_allowance.PLAN/fresh_thirty_allowance.PLAN`. Wrong child/state/window refuses before reply. Finish in Parent without implicit logout. Other allowances/parents/retained windows need qualification; local case 161 has no E2E executable. | pending; fresh-zero, fresh-thirty and same-user-positive bindings ready |
 | FLOW17 | C | Leave a request with authentication pending by one declared supported action, observe its destination, then return and read cancellation before a new request. | Lock: shared DESK05 shortcut/command → DESK06 → DESK08; switch: DESK03 → FLOW15(return retained); sign-out: DESK04 → FLOW15(fresh); close: UI18(API surface close) → UI11(app), followed by REQUEST01/02 as declared. REQUEST03 → UI11(old prompt). E2E-039; system commands work independently of modal menu access. An unavailable tested app-close control remains gated. | pending |
@@ -2672,8 +2676,27 @@ same-user `desktop/parent/same-user/new/child/0/4` require initial G=0;
 unexpected grants refuse without revocation. Public custom Save must produce
 positive daily time, G=0, total 120/240 seconds and saved enabled 2/4-minute
 settings. A newly observed Parent desktop precedes Switch User/usable GDM.
-Other initial/account/window/minute bindings, optional revoke, retained Parent,
-grant profiles and complete scenarios remain separate.
+Other daily-only initial/account/window/minute bindings and complete scenarios
+remain separate. Grant-only qualification is scoped below.
+
+#### Grant-only time profile qualification
+
+`grant_only_profile.PLAN/REVOKE_PLAN`, `onpc_set_allowance::qualify_grant`
+and `check_e2e_grant_only_profile` qualify Riley/Jamie on Ubuntu 26.04 through
+two independently restored attempts. Fresh `gdm/fresh/new` entry reuses the
+initial public G=0 read. Retained `desktop/same-user/retained` entry obtains a
+real existing grant through the unchanged 75-second approval leaves, verifies
+G>0 and the undeclared-grant refusal, explicitly confirms Revoke, then reads
+G=0 afresh before editing policy. Neither branch silently clears a grant.
+
+Both save enabled zero daily minutes, approve a real 120-second soft-included
+kiosk request, independently return to the same Parent window and require
+saved D=0/G>0/total=G within elapsed-time and display-precision bounds. Both
+finish at usable GDM. Worker/callback shutdown, collection, owned baseline
+restoration and finalization passed. The shared request leaves accept finite
+120/180/240/600/1200-second caller arguments; later recipes retain their own
+duration, arithmetic, deadline, recovery and child-effect assertions. This
+qualification supplies no complete-scenario credit or other-family result.
 
 #### Distinct-user retained app qualification
 

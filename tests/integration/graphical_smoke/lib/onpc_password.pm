@@ -114,6 +114,8 @@ sub enter_kiosk_mate_password {
         my $reject = @_ == 2 && defined($wrong) && $wrong eq 'wrong';
         my $chinese = @_ == 2 && defined($wrong) && $wrong =~ /\Achinese-(?:first|second)\z/;
         my $long_request = @_ == 2 && defined($wrong) && $wrong eq 'long-request';
+        my $profile_request = @_ == 2 && defined($wrong)
+            && $wrong =~ /\Arequest-(?:120|180|240|1200)\z/;
         my $usability = !$chinese && !$long_request && (
             $reject && ($journey->{prefix} // '') eq 'confinement-usability-rejection'
                 && ($journey->{stage_prefix} // '') eq 'rejection-'
@@ -128,11 +130,17 @@ sub enter_kiosk_mate_password {
         die 'secret:challenge' if $baseline && (($journey->{stage_prefix} // '') ne
             substr($journey->{prefix}, length('baseline-journey-')) . '-');
         my $binding = $chinese ? substr($wrong, 8) . '-approval' : $reject ? 'rejection' : 'approval';
-        my $id = ($baseline || $isolation ? $journey->{stage_prefix} : '')
-            . 'kiosk-mate-' . ($chinese || $long_request ? $wrong : $binding);
-        die 'secret:challenge' unless (@_ == 1 || $reject || $chinese || $long_request)
+        my $profile = !$reject && !$chinese && ($profile_request || $long_request || !defined($wrong))
+            && (($journey->{prefix} // '') eq 'grant-only-profile'
+                && ($journey->{stage_prefix} // '') eq '' && !defined($wrong)
+                || ($journey->{prefix} // '') eq 'grant-only-profile-profile-request'
+                && ($journey->{stage_prefix} // '') eq 'profile-request-' && ($profile_request || $long_request));
+        my $id = ($baseline || $isolation || $profile ? ($journey->{stage_prefix} // '') : '')
+            . 'kiosk-mate-' . ($chinese || $long_request || $profile_request ? $wrong : $binding);
+        die 'secret:challenge' unless (@_ == 1 || $reject || $chinese || $long_request || $profile_request)
             && ref($journey) eq 'onpc_journey'
-            && ($baseline || $isolation || $usability || ($long_request ? (($journey->{prefix} // '') eq 'baseline-app-effects'
+            && (!$profile_request || $profile)
+            && ($profile || $baseline || $isolation || $usability || ($long_request ? (($journey->{prefix} // '') eq 'baseline-app-effects'
                 || ($journey->{prefix} // '') eq 'active-grant-disable-engineering'
                 || ($journey->{prefix} // '') eq 'active-grant-disable-public'
                 || (($journey->{prefix} // '') eq 'natural-access'

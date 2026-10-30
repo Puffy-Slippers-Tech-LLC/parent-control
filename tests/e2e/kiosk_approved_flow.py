@@ -9,14 +9,15 @@ def approved_request(*, child, approver, duration_seconds, allow_soft, exit):
     """FLOW05 from the independently prepared form; one invocation per attempt."""
     require(dict(child=child, approver=approver, duration_seconds=duration_seconds,
                  allow_soft=allow_soft) == {**CHOICES, 'duration_seconds': duration_seconds}
-            and duration_seconds in (75, 600)
+            and duration_seconds in (75, 120, 180, 240, 600, 1200)
             and type(duration_seconds) is int and allow_soft is True,
             'approved-flow:choices')
     require(exit in ('automatic', 'immediate'), 'approved-flow:exit')
-    if duration_seconds == 600:
+    if duration_seconds != 75:
         require(exit == 'automatic', 'approved-flow:long-exit')
+        binding = 'kiosk-long-mate' if duration_seconds == 600 else f'kiosk-request-{duration_seconds}-mate'
         return {
-            **{'approval-' + suffix: 'ui:kiosk-long-mate-' + operation
+            **{'approval-' + suffix: f'ui:{binding}-' + operation
                for suffix, operation in (('open', 'open'), ('qualified', 'qualified'),
                                          ('rechecked', 'rechecked'), ('success', 'submit-success'))},
             'new-returned': 'ui:gdm-station-returned',

@@ -88,15 +88,26 @@ def mate_form():
     return ui, desktop, agent, dialog, field, cancel, submit, message, recipient
 
 
-@pytest.mark.parametrize('fault', [None, 'child', 'duration', 'soft', 'missing-time',
-                                  'duplicate', 'hidden', 'legacy'])
-def test_mate_approval_checks_complete_catalogue_request_before_secret_proofs(fault):
+@pytest.mark.parametrize('fault,seconds', [
+    *[(fault, 75) for fault in (None, 'child', 'duration', 'soft', 'missing-time',
+                               'duplicate', 'hidden', 'legacy')],
+    (None, 120), ('duration', 120),
+])
+def test_mate_approval_checks_complete_catalogue_request_before_secret_proofs(fault, seconds):
     ui, desktop, agent, dialog, field, cancel, submit, message, recipient = mate_form()
     ui.mate_challenge_identity = Mock(return_value='a' * 64)
+    operations = ('kiosk-mate-open', 'kiosk-mate-qualified', 'kiosk-mate-rechecked')
+    duration = '1 minute, 15 seconds'
+    if seconds != 75:
+        operations = accessible_ui.PROFILE_MATE_ORDERS[seconds][:3]
+        duration = f'{seconds // 60} minutes'
+        message.name = message.name.replace('1 minute, 15 seconds', duration)
+        # This check owns provider context validation, below product form setup.
+        ui.kiosk_valid_choice = Mock()
     if fault == 'child':
         message.name = message.name.replace(accessible_ui.CHILD, 'unrelated')
     elif fault == 'duration':
-        message.name = message.name.replace('1 minute, 15 seconds', '5 minutes')
+        message.name = message.name.replace(duration, '5 minutes')
     elif fault == 'soft':
         message.name = message.name.removesuffix('\nAllow soft blocked apps for this grant.')
     elif fault == 'missing-time':
@@ -107,7 +118,7 @@ def test_mate_approval_checks_complete_catalogue_request_before_secret_proofs(fa
         message.states.discard('visible')
     elif fault == 'legacy':
         message.name = f'Grant {accessible_ui.CHILD} 1 minute, 15 seconds and allow soft blocked apps?'
-    opening = 'kiosk-mate-open'
+    opening = operations[0]
     if fault:
         with pytest.raises(UiError, match='ui:mate-request-context-missing'):
             ui.run(opening, '')
@@ -116,9 +127,11 @@ def test_mate_approval_checks_complete_catalogue_request_before_secret_proofs(fa
             ui.run(opening, '')
     else:
         expected = {'challenge_id': 'a' * 64}
+        if seconds != 75:
+            expected['request'] = accessible_ui.PROFILE_MATE_REQUESTS[opening]
         assert ui.run(opening, '')['approval'] == expected
         ui.expected_mate_challenge = 'a' * 64
-        for operation in ('kiosk-mate-qualified', 'kiosk-mate-rechecked'):
+        for operation in operations[1:]:
             assert ui.run(operation, '')['approval'] == expected
     submit.action.do_action.assert_called_once()
     cancel.action.do_action.assert_not_called()
@@ -410,14 +423,22 @@ def test_approval_submits_once_and_requires_explicit_success(fault):
     exit_action.action.do_action.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', [None, 'replay', 'changed', 'intervening', 'out-of-order', 'stale'])
-def test_approval_controller_reconciles_fresh_proofs_and_latches(fault):
+@pytest.mark.parametrize('fault,seconds', [
+    *[(fault, 75) for fault in (None, 'replay', 'changed', 'intervening', 'out-of-order', 'stale')],
+    (None, 120), ('wrong-duration', 120),
+])
+def test_approval_controller_reconciles_fresh_proofs_and_latches(fault, seconds):
     observer = UiObservations(Mock())
     operations = ('kiosk-mate-open', 'kiosk-mate-qualified', 'kiosk-mate-rechecked',
                   'kiosk-mate-submit-success')
+    if seconds != 75:
+        operations = accessible_ui.PROFILE_MATE_ORDERS[seconds]
     def call(_args, operation, **_kwargs):
         approval = ({'approved': True, 'form_success': True} if operation.endswith('success') else
                     {'challenge_id': ('b' if fault == 'changed' and operation.endswith('rechecked') else 'a') * 64})
+        if seconds != 75 and not operation.endswith('success'):
+            approval['request'] = {**accessible_ui.PROFILE_MATE_REQUESTS[operation],
+                'duration_seconds': 180 if fault == 'wrong-duration' and operation.endswith('qualified') else seconds}
         value = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'approval': approval}
         if operation != operations[0]:
             value['boot_sha256'] = 'c' * 64
@@ -429,7 +450,7 @@ def test_approval_controller_reconciles_fresh_proofs_and_latches(fault):
     if fault:
         operation = {'replay': operations[0], 'intervening': 'desktop',
                      'out-of-order': operations[3], 'changed': operations[2],
-                     'stale': operations[1]}[fault]
+                     'stale': operations[1], 'wrong-duration': operations[1]}[fault]
         if fault == 'changed':
             observer.observe(operations[1])
         with pytest.raises(Exception, match='ui:'):

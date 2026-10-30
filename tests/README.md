@@ -947,16 +947,20 @@ an actionable close-out failure; the launcher does not change Git configuration
 or bypass hooks.
 
 Every **three accepted and committed tasks**, a fresh **GPT-6.1 Sol High** session
-runs before another queue task. Its scope is the batch's exact three completed
+runs before another queue task. Its batch identity is the exact three completed
 queue IDs, displayed as the actual first-to-last ID range (IDs may have suffixes
-or inserted prerequisites). This required session optimizes the current code;
+or inserted prerequisites). Its reuse audit covers all VM tests, including
+system tests, installed integration tests, E2E cases and shared support, rather than only the
+batch's affected E2E cases. This required session optimizes the current code;
 it does not collect proof, inspect old reports or repeat completed tasks' checks.
 Refactoring changes receive only their affected validation; unchanged code needs
 no new test run. It analyzes lessons from successful work
 and merges useful guidance into the owning instructions/mandates without
-duplicates. It also audits the batch's delivered or affected ready E2E cases:
-cases compose shared building blocks, harness and libraries with finite case
-data, ordering and assertions; one-off mechanics move to their reusable owners.
+duplicates. It audits duplicated and one-off mechanics across VM test suites and
+refactors them into existing shared owners for reuse. Tests retain finite data,
+ordering and assertions; ready E2E cases compose shared building blocks, harness
+and libraries. Refactoring targets concrete reuse opportunities without adding
+unrelated test coverage.
 It also cleans up code delivered or affected by each task that became messy
 across progressive sessions of that same task, including redundant or obsolete
 code, temporary workarounds and inconsistent structure left by successive attempts.

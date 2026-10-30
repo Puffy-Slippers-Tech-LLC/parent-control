@@ -14510,6 +14510,27 @@ def observation_environment(account, operation):
 
 def desktop_prompt_diagnostic(ui):
     """Observe a refused return to desktop; never dismiss or accept a prompt."""
+    # Match public policy messages locally; retain only standard action IDs,
+    # never dialog text, account labels or password contents. A failed lookup
+    # leaves the original prompt refusal intact.
+    policy_actions = None
+    try:
+        catalog = subprocess.run(['/usr/bin/pkaction', '--verbose'],
+            stdin=subprocess.DEVNULL, capture_output=True, text=True, check=True,
+            timeout=2, env={**os.environ, 'LC_ALL': 'C.UTF-8'})
+        if len(catalog.stdout) + len(catalog.stderr) <= 524288:
+            policy_actions = []
+            identity = None
+            for line in catalog.stdout.splitlines():
+                if line and not line[0].isspace():
+                    identity = line.removesuffix(':')
+                elif line.startswith('  message:') and identity is not None:
+                    if (re.fullmatch(r'(?:org\.freedesktop\.|org\.gnome\.|com\.redhat\.|'
+                            r'tech\.puffyslippers\.com\.ohnoparentcontrol\.)[a-zA-Z0-9_.-]{1,160}',
+                            identity)):
+                        policy_actions.append((identity, line.split(':', 1)[1].strip()))
+    except (OSError, subprocess.SubprocessError, UnicodeError):
+        pass
     deadline = time.monotonic() + 5
     for index in range(3):
         if time.monotonic() >= deadline:
@@ -14526,6 +14547,7 @@ def desktop_prompt_diagnostic(ui):
         except (OSError, subprocess.SubprocessError):
             pass
         snapshot = None
+        matched_actions = None
         try:
             ui.invalidate_observation()
             started = time.monotonic_ns()
@@ -14533,10 +14555,21 @@ def desktop_prompt_diagnostic(ui):
             finished = time.monotonic_ns()
             snapshot = ui.retained_unlock_snapshot(
                 observation, observation_window=(started, finished))
+            nodes, edges, _identities, facts = observation
+            dialog_nodes = set()
+            for node in nodes:
+                if facts[node]['showing'] and facts[node]['role'] in ('dialog', 'alert'):
+                    dialog_nodes.update(ui.snapshot_scope(nodes, edges, node))
+            labels = {facts[node]['name'].strip() for node in dialog_nodes
+                      if facts[node]['showing'] and facts[node]['role'] == 'label'}
+            if policy_actions is not None:
+                matched_actions = sorted({identity for identity, message in policy_actions
+                                          if message and message in labels})[:16]
         except Exception:
             pass  # A diagnostic read cannot change the original refusal.
         print(json.dumps({'event': 'desktop-prompt-diagnostic', 'sample': index,
-                          'screensaver_active': active, 'snapshot': snapshot},
+                          'screensaver_active': active, 'snapshot': snapshot,
+                          'policy_actions': matched_actions},
                          sort_keys=True), file=sys.stderr, flush=True)
         if index < 2 and time.monotonic() < deadline:
             time.sleep(min(.25, max(0, deadline - time.monotonic())))

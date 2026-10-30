@@ -508,7 +508,8 @@ This is the mandatory optimization after three completed tasks, not a queue task
 ## Scope
 Tasks {batch[0]} to {batch[-1]} in {QUEUE}; exact completed IDs: {', '.join(batch)}.
 Do not implement or close another task, change queue status/order or advance its pointer.
-Optimize the current delivered code. Completed tasks stay complete: do not collect
+Optimize the current delivered code, auditing reuse across all VM tests rather
+than only this batch's E2E cases. Completed tasks stay complete: do not collect
 proof, repair old report links or repeat their validation. Refactoring changes
 own only their affected checks; unchanged code needs no new test run.
 
@@ -521,12 +522,14 @@ its owning instructions or mandates; search existing guidance and avoid duplicat
 Do not create a lessons archive or infer lessons unsupported by evidence.
 
 ## Ask 2
-Audit the E2E case code delivered or affected by this batch, including its ready
-case bindings in tests/e2e/scenarios.json. Each ready case must be a composition
-of reusable building blocks, harness and libraries with finite case data, ordering
-and assertions. Refactor one-off mechanics into the existing shared owners to
-maximize reuse across cases. Preserve customer assertions, provider qualifications,
-ownership, guards and acceptance; do not broaden this batch to unrelated cases.
+Audit all VM test code, including system tests, installed integration tests, E2E cases and their
+shared support, not only code delivered or affected by this batch. Identify
+duplicated and one-off mechanics and refactor them into existing shared owners
+for reuse across VM test suites. Keep finite test data, ordering and assertions
+with each test; ready E2E cases in tests/e2e/scenarios.json must compose reusable
+building blocks, harness and libraries. Preserve customer assertions, provider
+qualifications, ownership, guards and acceptance. Keep refactoring focused on
+concrete reuse opportunities; do not implement unrelated test coverage.
 Use tests/support/README.md and the shared task contract in
 docs/TestAutomation/E2E-Execution-Contracts.md. Read applicable mandates before edits.
 

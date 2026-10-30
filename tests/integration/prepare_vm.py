@@ -644,6 +644,22 @@ def disable_screensaver(username: str, *, runner: Runner) -> None:
         raise PreparationError("verify:screensaver", "idle blanking remains enabled")
 
 
+def disable_software_updates(username: str, *, runner: Runner) -> None:
+    """Keep background package downloads under baseline preparation ownership."""
+    settings = ['runuser', '--user', username, '--', 'dbus-run-session', '--', 'gsettings']
+    # GNOME Software is optional on supported desktops. Do not install it just
+    # to configure it. A retained inactive session otherwise refreshes Flatpak
+    # metadata and can leave an administrator-password dialog over the desktop.
+    schema = 'org.gnome.software'
+    if schema not in runner.run([*settings, 'list-schemas']).stdout.splitlines():
+        return
+    key = [schema, 'download-updates']
+    if runner.run([*settings, 'get', *key]).stdout.strip() != 'false':
+        runner.run([*settings, 'set', *key, 'false'])
+    if runner.run([*settings, 'get', *key]).stdout.strip() != 'false':
+        raise PreparationError('verify:software-updates', 'automatic software downloads remain enabled')
+
+
 def configure_terminal_shortcut(username: str, *, runner: Runner, os_id: str) -> None:
     """Give fixed Fedora desktops the same Ctrl+Alt+T control as Ubuntu."""
     if os_id != 'fedora':
@@ -765,6 +781,7 @@ def reconcile_accounts(
         seen_uids.add(uid)
         suppress_initial_setup(identity.username, runner=runner, os_id=os_id)
         disable_screensaver(identity.username, runner=runner)
+        disable_software_updates(identity.username, runner=runner)
         configure_terminal_shortcut(identity.username, runner=runner, os_id=os_id)
         print(f"prepare-vm: {identity.label} first-login welcome suppression verified", file=sys.stderr)
         verified[identity.username] = {"uid": uid, "role": identity.role}

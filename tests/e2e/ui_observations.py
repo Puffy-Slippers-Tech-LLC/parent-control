@@ -1,6 +1,7 @@
 """Guarded controller for public UI operations, with sanitized evidence."""
 
 import json
+import re
 import sys
 import time
 import secrets
@@ -990,6 +991,52 @@ class UiObservations:
                                     'feedback-collection-events')
         if (self.system_prompt is None and not form_diagnostics and not event_trace
                 and self.accessibility_trace is None):
+            if operation == 'desktop':
+                # Retained command logs can rotate before a repair session.
+                # Keep static source sites and matched public policy action IDs
+                # in the category log; never forward dialog text or raw stderr.
+                errors = bytearray()
+                def collect(data, stream):
+                    if stream == 'stderr':
+                        errors.extend(data[:max(0, 65537 - len(errors))])
+                try:
+                    return self.transport.call(argv, input=input, timeout=timeout,
+                                               on_stream=collect), []
+                except BaseException:
+                    sites = []
+                    policies = []
+                    if len(errors) <= 65536:
+                        for line in errors.splitlines():
+                            try:
+                                value = json.loads(line)
+                            except (ValueError, UnicodeError, RecursionError):
+                                continue
+                            if (type(value) is dict and
+                                    value.get('event') == 'desktop-prompt-diagnostic'):
+                                actions = value.get('policy_actions')
+                                if (len(policies) < 3 and (actions is None or
+                                        type(actions) is list and len(actions) <= 16
+                                        and all(type(action) is str and re.fullmatch(
+                                            r'(?:org\.freedesktop\.|org\.gnome\.|com\.redhat\.|'
+                                            r'tech\.puffyslippers\.com\.ohnoparentcontrol\.)'
+                                            r'[a-zA-Z0-9_.-]{1,160}', action) for action in actions))):
+                                    policies.append(actions)
+                            if (type(value) is not dict or
+                                    value.get('event') != 'ui-adapter-failure'):
+                                continue
+                            locations = value.get('locations')
+                            if type(locations) is list and len(locations) <= 12:
+                                sites = [{'module': site['module'], 'line': site['line']}
+                                    for site in locations if type(site) is dict
+                                    and site.get('module') in (
+                                        'accessible_ui', 'public_atspi', 'fixture_ui')
+                                    and type(site.get('line')) is int
+                                    and 0 < site['line'] <= 100000]
+                    print('e2e:desktop-failure-sites=' + json.dumps(sites, sort_keys=True),
+                          file=sys.stderr, flush=True)
+                    print('e2e:desktop-prompt-policy=' + json.dumps(policies),
+                          file=sys.stderr, flush=True)
+                    raise
             return self.transport.call(argv, input=input, timeout=timeout), []
         commands = self.transport.commands
         previous = commands.progress

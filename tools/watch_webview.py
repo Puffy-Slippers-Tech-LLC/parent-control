@@ -238,6 +238,7 @@ class Viewer:
             sections.append(dict(id=str(root), label=f'[{branch}]' +
                 (f' {label}' + (f' ({status})' if status else '') if label else ''),
                 active=active or session.active, status=status, rows=self.status_cache[root][1],
+                run=str(output.run) if output.run is not None else None,
                 launcher_output=self.launcher_logs[root],
                 error_rows=status_spans(error_lines),
                 session=session.identity,
@@ -245,8 +246,10 @@ class Viewer:
                 session_number=session_number, session_inactive=session_inactive,
                 session_waiting=waiting, session_deadline=deadline, session_question=prompt_id,
                 session_view=session_view))
-        active = [section for section in sections if section['active']]
-        return active or [section for section in sections if section['id'] == str(self.last_output)]
+        # Exiting one launcher must not remove its tabs while another checkout
+        # is still active. Retain observed runs for this reader's lifetime.
+        retained = [section for section in sections if section['run'] or section['session']]
+        return retained or [section for section in sections if section['id'] == str(self.last_output)]
 
     def close(self):
         self.discovery.close()

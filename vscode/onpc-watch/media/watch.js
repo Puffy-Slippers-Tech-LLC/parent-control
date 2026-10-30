@@ -412,6 +412,10 @@
                 section.launcher.textContent = terminal(entry.launcher_output || 'Waiting for launcher output…');
                 if (follow) section.launcher.scrollTop = section.launcher.scrollHeight;
             }
+            // Keep the displayed status/error bodies when their owner exits.
+            // Session input still follows live ownership, and final log bytes drain above.
+            if (!entry.active && entry.run && section.retainedRun === entry.run) return;
+            section.retainedRun = entry.run;
             const errorSignature = JSON.stringify(entry.error_rows);
             if (section.errorSignature !== errorSignature) {
                 section.errorSignature = errorSignature;

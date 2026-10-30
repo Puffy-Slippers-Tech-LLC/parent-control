@@ -2713,6 +2713,14 @@ cleanup, baseline restoration and recording finalization passed. Other callers
 retain Parent readback by default. The original grant deadline is never reset
 by a later observation. Other bindings remain outside this acceptance.
 
+Case 26 passed the same four-minute preparation on Ubuntu 26.04 in
+`20261030T063013Z-c491dbd2`, with the other child's limits-off activity captured
+before approval. Its exact scoped kiosk credential binding retains the two fresh
+recipient proofs and single-use input. The other child resumed the original
+window/draft before expiry and across four measured one-minute intervals;
+retained-child time denial and final use of that same activity passed, with
+collection, owned cleanup, baseline restoration and recording finalization.
+
 #### Distinct-user retained app qualification
 
 `retained_app_visits.PLAN` / `RetainedAppVisitsJourney`,

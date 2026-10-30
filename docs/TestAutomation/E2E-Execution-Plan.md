@@ -23,7 +23,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **067 — [E2E-010: other-child](E2E-Tasks/067-case-26.md)**.
+Next task: **068 — [Check a child's countdown and lock when extra time runs out](E2E-Tasks/068-case-28.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

@@ -583,6 +583,34 @@ sub switch_user_expiry_parent {
     $journey->finish();
 }
 
+sub switch_user_expiry_other_child {
+    onpc_progress::operation('Keeping the other child working while the original child time expires');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'switch-expiry:arguments' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'switch-user-expiry-other-child', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    retained_app_activities($journey, [['other-setup', 'other-child', 'fresh']]);
+    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 240, 'default', 0);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'child-start');
+    $journey->seen('initial-countdown');
+    retained_app_visit($journey, 'other-work', 'other-child', 'desktop', 'child');
+    $journey->seen('other-child-active');
+    for my $number (1 .. 4) {
+        native_activity_resume($journey, 'work-' . $number);
+        $journey->seen('work-' . $number . '-wait');
+    }
+    $journey->seen('original-interval-passed');
+    onpc_desktop_session::enter_desktop($journey, 'desktop', 'child', 'retained', 'time-denied',
+                                      'child-return', 'other-child');
+    onpc_gdm::return_from_time_denial($journey,
+        'denied-return-ready', 'denied-return-state', 'denied-returned');
+    retained_app_visit($journey, 'other-return', 'other-child', 'gdm');
+    $journey->seen('other-usable-activity');
+    $journey->finish();
+}
+
 sub native_close_app {
     onpc_progress::operation('Closing the owned native fixture and observing desktop return');
     my ($journey, $submitted) = @_;

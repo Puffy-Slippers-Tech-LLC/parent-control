@@ -1062,6 +1062,12 @@ sub run {
         onpc_app_rows::switch_user_expiry_parent(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{switch_user_expiry_other_child}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::switch_user_expiry_other_child(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{grant_only_profile} || $ready->{grant_only_revoke}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

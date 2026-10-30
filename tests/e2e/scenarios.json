@@ -550,7 +550,7 @@
       },
       "variants": [
         {"coverage_id": 25, "id": "parent", "owner": "child-access", "parameters": {"foreground": "parent"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/switch_user_expiry.py", "test_id": "parent"}},
-        {"coverage_id": 26, "id": "other-child", "owner": "child-access", "parameters": {"foreground": "other-child"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 26, "id": "other-child", "owner": "child-access", "parameters": {"foreground": "other-child"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/switch_user_expiry.py", "test_id": "other-child"}}
       ]
     },
     {

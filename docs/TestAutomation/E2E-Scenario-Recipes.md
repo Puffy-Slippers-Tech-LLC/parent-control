@@ -473,8 +473,8 @@ Bindings: soft-apps = excluded / included.
 
 ### E2E-010
 
-Implementation status: Case 25 is implemented in `switch_user_expiry.py` and
-passed installed acceptance on Ubuntu 26.04. Case 26 is pending.
+Implementation status: Cases 25 and 26 are implemented in
+`switch_user_expiry.py` and passed installed acceptance on Ubuntu 26.04.
 
 **Switch User while child time expires.** Cases 25, 26.
 
@@ -489,6 +489,14 @@ observations bracket grant issuance on the controller's clock. Four one-minute
 work intervals leave ample setup margin and cross the original latest deadline.
 The original grant deadline, positive initial time, child denial
 after expiry and continued use of the parent's original activity remain required.
+
+Case 26 uses the same four-minute grant and bounded work intervals. Before
+grant preparation, FLOW14 captures the other child's native activity with limits
+off and retains that desktop at GDM. After the initial child countdown, FLOW09
+returns to that original activity before the grant's earliest expiry. Every
+work interval and the final return compare against the immutable original
+window/draft. The retained child must be denied after the original latest
+deadline; FLOW09 then resumes the other child's same usable activity.
 
 1. FLOW13(grant-only) → C(fresh) → TIME01 → V(foreground) → FLOW08 → APP04.
 2. repeat until original interval passed: APP03 → TIME03(bounded interval).

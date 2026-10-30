@@ -61,14 +61,16 @@ def revocation_entry(*, child, approver, duration_seconds, allow_soft):
 
 
 def grant_only_time_profile(*, source, entry, window, initial_enabled, revoke_first,
-                            duration_seconds, request_initial):
+                            duration_seconds, request_initial, balance_readback=True):
     """FLOW13: explicit zero-grant/revoke gate, zero daily, real approval, GDM.
 
     The caller owns balance comparisons and the retained-window identity.
-    Later recipes own their duration and all post-preparation assertions.
+    Later recipes own their duration and all post-preparation assertions. A caller
+    observing the approved grant in the child can omit the extra Parent round trip.
     """
     from kiosk_approved_flow import obtain_time
     require(type(initial_enabled) is bool and type(revoke_first) is bool
+            and type(balance_readback) is bool
             and type(duration_seconds) is int and duration_seconds in (120, 180, 240, 600, 1200)
             and request_initial in ('default', 'selected')
             and (source, entry, window) in (('gdm', 'fresh', 'new'),
@@ -87,10 +89,14 @@ def grant_only_time_profile(*, source, entry, window, initial_enabled, revoke_fi
         'profile-switch': 'system:parent-switch-user', 'profile-gdm': 'ui:gdm-returned',
         **prefixed_stages('profile-request', obtain_time(initial=request_initial, child='fixture-child',
             approver='fixture-parent', duration_seconds=duration_seconds, allow_soft=True, exit='automatic')),
-        **prefixed_stages('profile-return', fresh_desktop('parent')),
-        **prefixed_stages('profile-result', retained_parent_entry(source='same-user', desktop_observation=False)),
-        'profile-balance': 'ui:revoke-balances',
-        'profile-final-switch': 'system:parent-switch-user', 'profile-final-gdm': 'ui:gdm-returned',
+        **({
+            **prefixed_stages('profile-return', fresh_desktop('parent')),
+            **prefixed_stages('profile-result', retained_parent_entry(
+                source='same-user', desktop_observation=False)),
+            'profile-balance': 'ui:revoke-balances',
+            'profile-final-switch': 'system:parent-switch-user',
+            'profile-final-gdm': 'ui:gdm-returned',
+        } if balance_readback else {}),
     }
 
 

@@ -401,6 +401,10 @@ Previous progress: {json.dumps(state.get('progress'), ensure_ascii=False)}
 Last formal live acceptance: {json.dumps(acceptance_evidence(state), ensure_ascii=False)}
 Previous diagnostic progress: {json.dumps(state.get('diagnostic_progress'), ensure_ascii=False)}
 Each checks item contains only kind (host or installed), target and actual result.
+For kind host, target MUST be the empty string ""; never put a command, suite
+name or description there. For kind installed, target MUST be the exact selected
+VM name, with no test name or description appended. Put explanations in handoff.
+Example: {{"kind":"host","target":"","result":"passed"}}.
 No evidence field or report reference is required.
 Do not collect or renew report bundles for the launcher.
 The task owns validation; a completed predecessor needs no further proof.
@@ -665,7 +669,9 @@ def validate_checks(state, result):
                 or check['kind'] == 'host' and check['target']
                 or check['kind'] == 'installed' and (not check['target'] or
                     targets and check['target'] not in targets)):
-            raise ValueError('invalid E2E check or target')
+            raise ValueError('invalid E2E check or target: host target must be ""; '
+                             'installed target must be an exact selected VM name '
+                             f'({targets!r}); result must be passed, failed or not_run')
     if (result['host_validated'] and not any(check['kind'] == 'host' and
             check['result'] == 'passed' for check in checks)
             or any(check['kind'] == 'host' and check['result'] != 'passed'

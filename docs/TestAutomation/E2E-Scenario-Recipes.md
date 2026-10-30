@@ -473,11 +473,22 @@ Bindings: soft-apps = excluded / included.
 
 ### E2E-010
 
-Implementation status: All cases pending.
+Implementation status: Case 25 is implemented in `switch_user_expiry.py` and
+passed installed acceptance on Ubuntu 26.04. Case 26 is pending.
 
 **Switch User while child time expires.** Cases 25, 26.
 
 Bindings: foreground = parent / other-child.
+
+Case 25 uses a four-minute grant and compares its initial countdown with the
+public request estimate using the
+shared [sampling tolerance](E2E-Building-Blocks.md#child-desktop-countdown-qualification).
+Zero daily time is read before approval. It enters the child directly after
+approval, omitting the extra Parent balance round trip. The public authentication
+observations bracket grant issuance on the controller's clock. Four one-minute
+work intervals leave ample setup margin and cross the original latest deadline.
+The original grant deadline, positive initial time, child denial
+after expiry and continued use of the parent's original activity remain required.
 
 1. FLOW13(grant-only) → C(fresh) → TIME01 → V(foreground) → FLOW08 → APP04.
 2. repeat until original interval passed: APP03 → TIME03(bounded interval).
@@ -631,7 +642,8 @@ time through TIME01 before closing the app. `KioskRequestJourney` binds the
 countdown to the immutable public `open-estimate`, already bounded by the earlier
 900-second daily/no-grant balance, real elapsed child usage and the 75-second
 request. Its `estimate` binding retains one-second public precision, minute
-flooring and two-second sampling tolerance within 180 real elapsed seconds.
+flooring and the shared [sampling tolerance](E2E-Building-Blocks.md#child-desktop-countdown-qualification)
+within 180 real elapsed seconds.
 
 Case 49 uses `kiosk_approved.PLAN` / `onpc_kiosk_cancel::run(exchange, 'approved',...)`, the shared
 `approved_request(exit='immediate')` declaration and
@@ -644,7 +656,8 @@ and invoke the offered immediate action once, then independently require absent
 form and usable GDM. Freshly sign in as the intended child and require its usable
 desktop before TIME01. `KioskRequestJourney` compares an immutable countdown
 with the explicit 975-second approved balance, one-second public precision,
-minute flooring and two-second sampling tolerance within 180 real elapsed
+minute flooring and the shared [sampling tolerance](E2E-Building-Blocks.md#child-desktop-countdown-qualification)
+within 180 real elapsed
 seconds of the estimate; no grant, clock or private-state probe supplies it.
 
 **Request surface exit behavior.** Cases 44, 45, 46, 47, 48, 49.

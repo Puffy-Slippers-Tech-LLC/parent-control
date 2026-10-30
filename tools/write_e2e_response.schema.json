@@ -24,7 +24,7 @@
         "type": "object",
         "properties": {
           "kind": {"type": "string", "enum": ["host", "installed"]},
-          "target": {"type": "string"},
+          "target": {"type": "string", "description": "For host checks use the empty string. For installed checks use only the exact selected VM name. Never use a command, test name or description."},
           "result": {"type": "string", "enum": ["passed", "failed", "not_run"]}
         },
         "required": ["kind", "target", "result"],

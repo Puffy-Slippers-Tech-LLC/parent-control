@@ -40,8 +40,9 @@ REVOKE_PLAN = plan(revoke_first=True)
 
 
 class GrantOnlyProfileJourney(InstalledJourney):
-    def __init__(self, context, progress, *, revoke_first=False):
-        super().__init__(context, progress, REVOKE_PLAN if revoke_first else PLAN)
+    def __init__(self, context, progress, plan=None, *, revoke_first=False, actions=None):
+        super().__init__(context, progress, plan if plan is not None else
+                         REVOKE_PLAN if revoke_first else PLAN, actions=actions)
         self.revoke_first = revoke_first
         self.windows = {}
         self.approval_started = None

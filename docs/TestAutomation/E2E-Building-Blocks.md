@@ -2171,7 +2171,11 @@ duplicate IDs, unknown prompts, inactive/wrong accounts and malformed text refus
 `countdown.check_countdown_balance` takes explicit public seconds, precision
 and monotonic timestamp. Allow at most 180 real elapsed seconds, reported
 precision (one second in this qualifier), minute flooring above 60 seconds and
-two seconds of estimate/sampling tolerance. No private clock/usage/grant/policy
+30 seconds of estimate/sampling tolerance by default. The developer explicitly
+extended this allowance to all balance-to-countdown comparisons; a caller may
+declare a smaller `sampling_seconds` value. Historical qualifications used two
+seconds. This does not change countdown-progress tolerances, original expiry
+deadlines or required denied-access results. No private clock/usage/grant/policy
 manipulation supplies results. Independently repeated desktop reads and
 wrong-account refusal require no observer preparation/input.
 
@@ -2698,6 +2702,17 @@ restoration and finalization passed. The shared request leaves accept finite
 duration, arithmetic, deadline, recovery and child-effect assertions. This
 qualification supplies no complete-scenario credit or other-family result.
 
+The shared declaration/worker accepts `balance_readback=False` / final argument
+`0` to finish at GDM directly after approval. The caller must independently read
+saved zero daily time before approval, then the public estimate, success and
+positive child countdown. Case 25 passed this route with a four-minute request
+on Ubuntu 26.04 in `20261030T054552Z-161dd5f4`, including initial countdown,
+foreground activity before expiry, four real one-minute intervals, retained-child
+denial and continued use of the original Parent activity. Collection, owned
+cleanup, baseline restoration and recording finalization passed. Other callers
+retain Parent readback by default. The original grant deadline is never reset
+by a later observation. Other bindings remain outside this acceptance.
+
 #### Distinct-user retained app qualification
 
 `retained_app_visits.PLAN` / `RetainedAppVisitsJourney`,
@@ -2738,8 +2753,9 @@ Case 49/`kiosk_approved.PLAN` /
 entry and countdown after public daily900/grant0 setup.
 `KioskRequestJourney.countdown_checks` /
 `countdown.check_countdown_balance` compare immutable estimate/countdown:
-975 seconds, one-second precision, minute flooring, two-second sampling
-tolerance and at most 180 seconds from public estimate.
+975 seconds, one-second precision, minute flooring, the shared
+[sampling tolerance](#child-desktop-countdown-qualification) and at most 180
+seconds from public estimate.
 No private grant/time probe supplies acceptance; FLOW06 remains automatic-only.
 
 Case 50/`restricted_station.PLAN` /`onpc_restricted_station::run` composes

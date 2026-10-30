@@ -252,6 +252,8 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, events => \@events,
     ('', 'rejection', 'fixture-only-canary', 'natural-access'),
     ('', 'approval', 'fixture-only-canary', 'grant-only-profile'),
     ('', 'request-120', 'fixture-only-canary', 'profile-request'),
+    ('', 'request-120', 'fixture-only-canary', 'switch-user-expiry-parent-profile-request'),
+    ('', 'request-120', 'fixture-only-canary', 'switch-user-expiry-parent'),
     ('', 'request-120', 'fixture-only-canary', 'unknown'),
     ('', 'request-120', 'fixture-only-canary', 'grant-only-profile'),
 ])
@@ -274,7 +276,7 @@ sub type_password {
 }
 package main;
 require onpc_journey; require onpc_password;
-my $journey = onpc_journey->new(prefix => $scope eq 'profile-request' ? 'grant-only-profile' : $scope eq 'flow' ? 'kiosk-approval-flow' : $scope eq 'base' ? 'kiosk-' . $binding : $scope eq 'confinement-usability-rejection' ? 'confinement-usability' : $scope, review => ($fault eq 'review' ? 1 : 0),
+my $journey = onpc_journey->new(prefix => $scope eq 'profile-request' ? 'grant-only-profile' : $scope eq 'switch-user-expiry-parent-profile-request' ? 'switch-user-expiry-parent' : $scope eq 'flow' ? 'kiosk-approval-flow' : $scope eq 'base' ? 'kiosk-' . $binding : $scope eq 'confinement-usability-rejection' ? 'confinement-usability' : $scope, review => ($fault eq 'review' ? 1 : 0),
     exchange => sub {
         my ($stage) = @_;
         push @events, $stage;
@@ -283,7 +285,8 @@ my $journey = onpc_journey->new(prefix => $scope eq 'profile-request' ? 'grant-o
         return {observed => $fault eq 'stale' ? $binding . '-qualified' : $stage};
     });
 $journey = $journey->scope('rejection') if $scope eq 'confinement-usability-rejection';
-$journey = $journey->scope('profile-request') if $scope eq 'profile-request';
+$journey = $journey->scope('profile-request')
+    if $scope eq 'profile-request' || $scope eq 'switch-user-expiry-parent-profile-request';
 my @args = $binding eq 'rejection' ? ($journey, 'wrong') :
     $binding =~ /\A(?:long-request|request-120)\z/ ? ($journey, $binding) : ($journey);
 my $ok = eval { onpc_password::enter_kiosk_mate_password(@args); 1 };
@@ -301,7 +304,8 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
                          'kiosk-service-recovery')
                and binding == 'approval' or
                scope == 'natural-access' and binding == 'long-request' or
-               scope == 'profile-request' and binding == 'request-120' or
+               scope in ('profile-request', 'switch-user-expiry-parent-profile-request')
+               and binding == 'request-120' or
                scope == 'grant-only-profile' and binding == 'approval' or
                scope == 'confinement-usability-rejection' and binding == 'rejection')
     assert bool(value['ok']) == (allowed and not fault), value
@@ -312,7 +316,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
         assert value['events'] == []
     elif not fault:
         prefix = ('rejection-' if scope == 'confinement-usability-rejection' else
-                  'profile-request-' if scope == 'profile-request' else '')
+                  'profile-request-' if scope in ('profile-request', 'switch-user-expiry-parent-profile-request') else '')
         binding = 'approval' if binding in ('long-request', 'request-120') else binding
         assert value['events'] == [prefix + binding + '-qualified', prefix + binding + '-rechecked', 'read', 'type']
 

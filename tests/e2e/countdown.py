@@ -24,29 +24,31 @@ class CountdownObservation:
 
 
 def check_countdown_balance(countdown, *, seconds, precision_seconds,
-                            observed_monotonic_ns, max_elapsed_seconds=180):
+                            observed_monotonic_ns, max_elapsed_seconds=180,
+                            sampling_seconds=30):
     """Compare public balances, allowing only declared rounding and real elapsed time.
 
     Time spent outside the child's active session may consume none of its daily
     allowance. It cannot consume more than the real interval between these reads.
     Horizontal minutes are floored; final seconds are exact. This is not a tick test.
+    Callers may declare up to thirty seconds for estimate refresh and read latency.
     """
     require(isinstance(countdown, CountdownObservation) and countdown.present,
             'countdown:presence-required')
     require(type(seconds) is int and 0 < seconds < 86400
             and type(precision_seconds) is int and 1 <= precision_seconds <= 60
             and type(observed_monotonic_ns) is int and observed_monotonic_ns > 0
-            and type(max_elapsed_seconds) is int and 0 < max_elapsed_seconds <= 300,
+            and type(max_elapsed_seconds) is int and 0 < max_elapsed_seconds <= 300
+            and type(sampling_seconds) is int and 0 <= sampling_seconds <= 30,
             'countdown:balance-binding')
     elapsed = (countdown.observed_monotonic_ns - observed_monotonic_ns) / 1_000_000_000
     require(0 < elapsed <= max_elapsed_seconds, 'countdown:elapsed-bound')
     low, high = countdown_seconds(countdown.text)
-    # Two seconds cover the product's estimate update and sampling boundary.
-    require(low <= seconds + precision_seconds - 1 + 2
-            and high >= seconds - precision_seconds + 1 - elapsed - 2,
+    require(low <= seconds + precision_seconds - 1 + sampling_seconds
+            and high >= seconds - precision_seconds + 1 - elapsed - sampling_seconds,
             'countdown:balance-mismatch')
     return {'elapsed_seconds': elapsed, 'rounding_seconds': precision_seconds,
-            'sampling_seconds': 2, 'display_interval_seconds': [low, high]}
+            'sampling_seconds': sampling_seconds, 'display_interval_seconds': [low, high]}
 
 
 @dataclass(frozen=True)

@@ -233,6 +233,9 @@ child catalogue and activity files, with shared independent readback before inpu
 the same union so automatic approval exit can verify and resume the original
 child activity. Its immediate, translated and rejected/cancelled approval
 variants retain their own fixed caller bindings to that union.
+`OverlayChoicesQualification` binds `check_e2e_overlay_choices` to the same union
+before journey construction so its Cancel/Escape checks can compare the original
+child activity, with shared readiness and independent fixture readback before input.
 `E2E-015/child-overlay-cancel`,
 `E2E-015/child-overlay-escape` and `E2E-015/child-overlay-approved` select this same
 union under their own fixed caller identities before journey construction, so the

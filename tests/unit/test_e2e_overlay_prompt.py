@@ -9,7 +9,7 @@ from unittest.mock import Mock
 import pytest
 
 import accessible_ui as a
-from overlay_approved_exit import OverlayApprovedExitJourney
+from approval_return import ApprovalReturnJourney
 from private_artifacts import EvidenceError
 from tests.support.accessible_ui import Node, ui_for
 from tests.support.perl import run_perl
@@ -94,6 +94,73 @@ def test_hebrew_context_is_bound_before_protected_field_access(monkeypatch, faul
         assert ui.shell_prompt(100, 1001, language='he')[2] is field
     cancel.get_action_iface.assert_not_called()
     field.get_description.assert_not_called()
+
+
+@pytest.mark.parametrize('binding,child,parent,message', [
+    (('child', 'parent', 30, False), a.CHILD, a.PARENT,
+     'Grant Riley (Child) access?\nRequested time: 30 seconds.'),
+    (('other-child', 'other-parent', 75, True), a.EXISTING_CHILD, a.OTHER_PARENT,
+     'Grant Jordan (Child) access?\nRequested time: 1 minute, 15 seconds.\nAllow soft blocked apps for this grant.'),
+])
+def test_bound_shell_context_precedes_protected_field_access(monkeypatch, binding, child, parent, message):
+    ui, _, _, _, field, _, recipient, text = prompt(monkeypatch)
+    ui.overlay_request = binding
+    recipient.name, text.name = parent, message
+    assert ui.shell_prompt(100, 1001)[2] is field
+    ui.require_child_overlay_session.assert_called_with(child)
+    field.get_text_iface.reset_mock()
+    recipient.name = a.OTHER_PARENT if parent == a.PARENT else a.PARENT
+    with pytest.raises(a.UiError, match='recipient-context-missing'):
+        ui.shell_prompt(100, 1001)
+    field.get_text_iface.assert_not_called()
+
+
+def test_request_binding_cannot_change_between_shell_recipient_proofs():
+    observer = UiObservations(Mock(commands=SimpleNamespace(progress=None)))
+    observer.shell_approval_index = 1
+    observer.shell_request_binding = ('child', 'parent', 30, False)
+    observer.overlay_request = ('other-child', 'other-parent', 75, True)
+    observer.shell_approval_checked = a.time.monotonic()
+    observer._observe = Mock()
+    with pytest.raises(EvidenceError, match='shell-request-replaced'):
+        observer.observe('overlay-shell-qualified')
+    observer._observe.assert_not_called()
+    assert observer.challenge_failed
+
+
+@pytest.mark.parametrize('fault', [None, 'prefix', 'binding', 'proof', 'repeat'])
+def test_composed_shell_credential_uses_exact_owner_and_two_fresh_proofs(fault):
+    program = r'''
+use strict; use warnings; use JSON::PP;
+our $fault = shift @ARGV; our @events;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub current_console { 'sut' }
+sub get_var { 1 }
+sub get_required_var { push @main::events, $_[0]; 'synthetic-fixture-only' }
+sub type_password { push @main::events, 'password'; }
+package main;
+require onpc_journey; require onpc_password;
+my $journey = onpc_journey->new(prefix => $fault eq 'prefix' ? 'unknown' : 'overlay-approval-return',
+    review => 0, exchange => sub {
+        my ($stage) = @_; push @events, $stage;
+        return {observed => $fault eq 'proof' ? 'wrong' : $stage};
+    });
+$journey->{overlay_request} = ['other-child', 'other-parent', $fault eq 'binding' ? 999 : 75, 1];
+my $ok = eval { onpc_password::enter_overlay_shell_password($journey); 1 };
+my $before = scalar @events;
+my $retry = eval { onpc_password::enter_overlay_shell_password($journey); 1 };
+print encode_json({ok => $ok ? 1 : 0, retry => $retry ? 1 : 0, before => $before, events => \@events});
+'''
+    value = json.loads(run_perl(program, fault or '').stdout)
+    assert bool(value['ok']) == (fault in (None, 'repeat'))
+    assert not value['retry'] and value['before'] == len(value['events'])
+    if value['ok']:
+        assert value['events'] == ['approval-qualified', 'approval-rechecked',
+                                   '_SECRET_ONPC_OTHER_PARENT_PASSWORD', 'password']
+    else:
+        assert 'password' not in value['events']
 
 
 @pytest.mark.parametrize('index,operation', [(1, 'overlay-shell-qualified'), (4, 'overlay-approval-immediate')])
@@ -241,7 +308,7 @@ print encode_json({ok => $ok ? 1 : 0, retry => $retry ? 1 : 0,
 
 @pytest.mark.parametrize('fault', [None, 'missing', 'token', 'stage', 'symlink'])
 def test_shell_rendezvous_uses_owned_evidence_and_requires_exact_ack(tmp_path, fault):
-    journey = OverlayApprovedExitJourney(SimpleNamespace(directory=tmp_path), Mock())
+    journey = ApprovalReturnJourney(SimpleNamespace(directory=tmp_path), Mock())
     journey.publish_trace_input('approval-success', 'a' * 32, 'a' * 64)
     assert json.loads((tmp_path / 'approval-success.input.json').read_bytes()) == {
         'stage': 'approval-success', 'token': 'a' * 32, 'source': 'a' * 64,

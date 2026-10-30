@@ -93,8 +93,14 @@ class JourneyPlan:
     access_checks: dict = field(default_factory=dict)
     activity_checks: dict = field(default_factory=dict)
     activity_entries: dict = field(default_factory=dict)
+    overlay_request: tuple | None = None
 
     def __post_init__(self):
+        if self.overlay_request is not None:
+            accessible_ui.validate_overlay_request(self.overlay_request)
+        require(not any(tag in ('ui:overlay-request-select', 'ui:overlay-request-estimate')
+                        for tag in self.screen_tags.values()) or self.overlay_request is not None,
+                self.prefix + ':overlay-request-required')
         # Invocation IDs are filenames and immutable observation identities,
         # independent of the public operation (which may occur many times).
         require(all(type(stage) is str and re.fullmatch(r'[a-z][a-z0-9-]*', stage)
@@ -137,12 +143,13 @@ class JourneyPlan:
                     and self.screen_tags[binding[0]] in (
                         'ui:kiosk-valid-fraction-soft-read', 'ui:overlay-valid-fraction-soft-read',
                         'ui:overlay-hebrew-fraction-soft-read',
-                        'ui:kiosk-long-request-soft-read', 'ui:overlay-fraction-estimate-refresh')
+                        'ui:kiosk-long-request-soft-read', 'ui:overlay-fraction-estimate-refresh',
+                        'ui:overlay-request-estimate')
                     and (type(binding[1]) is int and 0 < binding[1] < 86400
                          or binding[1] == 'estimate'
                          and self.screen_tags[binding[0]] in (
                              'ui:overlay-valid-fraction-soft-read', 'ui:overlay-fraction-estimate-refresh',
-                             'ui:overlay-hebrew-fraction-soft-read'))
+                             'ui:overlay-hebrew-fraction-soft-read', 'ui:overlay-request-estimate'))
                     and type(binding[2]) is int and 1 <= binding[2] <= 60
                     and type(binding[3]) is int and 0 < binding[3] <= 300
                     for stage, binding in self.countdown_checks.items()),
@@ -563,7 +570,8 @@ class InstalledJourney:
         require(not os.path.lexists(destination), 'ui:trace-input-replay')
         with pending.open('x') as stream:
             json.dump({'stage': stage, 'token': token, 'source': source,
-                       'child': self.plan.child_bindings.get(stage, 'child'),
+                       'child': (self.plan.overlay_request[0] if self.plan.overlay_request is not None
+                                 else self.plan.child_bindings.get(stage, 'child')),
                        'binding': 'overlay-approve', 'values': ['ret']}, stream)
             stream.flush()
             os.fsync(stream.fileno())
@@ -655,6 +663,8 @@ class InstalledJourney:
         observed = {'stage': stage, 'outcome': 'observed' if self.review else 'passed'}
         if stage == 'ready':
             reply = {plan.worker_mode: True}
+            if plan.overlay_request is not None:
+                reply['overlay_request'] = list(plan.overlay_request)
             if plan.invocations:
                 reply['invocations'] = list(plan.invocations)
             if plan.challenges:
@@ -745,6 +755,7 @@ class InstalledJourney:
                 # Check the boot before UI input on the same guarded SSH call;
                 # a separate observer process added a round trip to every step.
                 self.ui.boot_guard = self.boot or ''
+                self.ui.overlay_request = plan.overlay_request
                 challenge = plan.challenge_at(stage)
                 if tag.removeprefix('ui:') in accessible_ui.SHELL_SUCCESS_OPERATIONS:
                     def worker_input(token, source):

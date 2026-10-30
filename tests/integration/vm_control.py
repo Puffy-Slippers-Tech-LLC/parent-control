@@ -436,6 +436,7 @@ def main(argv=None):
                                           'reproduce-transfer-refusal', 'probe-transfer-refusal',
                                           'reproduce-riley-native-grid', 'probe-riley-native-grid',
                                           'reproduce-overlay-activity', 'probe-overlay-activity',
+                                          'reproduce-overlay-return',
                                           'reproduce-remembered-return', 'probe-remembered-return',
                                           'repeat-remembered-return', 'enter-remembered-return'))
     parser.add_argument('keys', nargs='*', type=int)
@@ -462,7 +463,7 @@ def main(argv=None):
         runner.require(not args.fixture_maintenance or args.action == 'start', 'vm-control:arguments')
         runner.require((args.action in ('sync-fixtures', 'reproduce-baseline-restoration',
                                        'reproduce-natural-access', 'reproduce-countdown-grant',
-                                       'reproduce-overlay-activity'))
+                                       'reproduce-overlay-activity', 'reproduce-overlay-return'))
                        == (args.fixture_selection is not None),
                        'vm-control:arguments')
         if args.new_name is not None:
@@ -513,15 +514,16 @@ def main(argv=None):
             from vm_disk_rename import rename_disk
             rename_disk(lease)
         elif args.action in ('reproduce-baseline-restoration', 'reproduce-natural-access',
-                             'reproduce-countdown-grant', 'reproduce-overlay-activity'):
+                             'reproduce-countdown-grant', 'reproduce-overlay-activity', 'reproduce-overlay-return'):
             from vm_probe import (reproduce_baseline_restoration, reproduce_natural_access,
-                                  reproduce_countdown_grant, reproduce_overlay_activity)
+                                  reproduce_countdown_grant, reproduce_overlay_activity, reproduce_overlay_return)
             resume(lease)
             try:
                 reproduce = {'reproduce-natural-access': reproduce_natural_access,
                              'reproduce-baseline-restoration': reproduce_baseline_restoration,
                              'reproduce-countdown-grant': reproduce_countdown_grant,
-                             'reproduce-overlay-activity': reproduce_overlay_activity}[args.action]
+                             'reproduce-overlay-activity': reproduce_overlay_activity,
+                             'reproduce-overlay-return': reproduce_overlay_return}[args.action]
                 reproduce(lease, fixture_selection)
             except BaseException:
                 if getattr(lease, 'maintenance_rebind_pending', False):

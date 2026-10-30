@@ -199,6 +199,17 @@ sub enter_overlay_shell_password {
         $prefix //= $reject ? 'rejection' : 'approval';
         my $baseline = ($journey->{prefix} // '') eq
             'baseline-journey-overlay-' . ($reject ? 'rejection' : 'approval');
+        my $composed = ($journey->{prefix} // '') eq 'overlay-approval-return' && !$reject;
+        my $role = 'parent';
+        if ($composed) {
+            my $binding = $journey->{overlay_request};
+            die 'secret:challenge' unless ref($binding) eq 'ARRAY' && @$binding == 4
+                && $binding->[0] =~ /\A(?:child|other-child)\z/
+                && $binding->[1] =~ /\A(?:parent|other-parent)\z/
+                && $binding->[2] =~ /\A(?:30|60|75|120|150|180|900)\z/
+                && ($binding->[3] == 0 || $binding->[3] == 1);
+            $role = $binding->[1];
+        }
         die 'secret:challenge' if $baseline && (($journey->{stage_prefix} // '') ne
             'overlay-' . ($reject ? 'rejection' : 'approval') . '-');
         my $id = ($baseline ? $journey->{stage_prefix} : '')
@@ -206,7 +217,7 @@ sub enter_overlay_shell_password {
         die 'secret:challenge' unless (@_ == 1 || $reject) && ref($journey) eq 'onpc_journey'
             && $prefix =~ /\A[a-z][a-z0-9-]*\z/
             && (($journey->{prefix} // '') eq ($reject ? 'overlay-rejection' : 'overlay-approved-exit')
-                || ($journey->{prefix} // '') eq 'overlay-approval-flow' || $baseline)
+                || ($journey->{prefix} // '') eq 'overlay-approval-flow' || $baseline || $composed)
             && !$journey->{review} && !$challenges_used{$id};
         $challenges_used{$id} = 1;
         $authentication_started = $functional_started = $functional_input_started = 1;
@@ -218,9 +229,9 @@ sub enter_overlay_shell_password {
             die 'secret:recipient' unless ref($proof) eq 'HASH' && keys(%$proof) == 1
                 && ($proof->{observed} // '') eq ($journey->{stage_prefix} // '') . $stage;
         }
-        $active_challenge = {journey => $journey, id => $id, role => 'parent',
+        $active_challenge = {journey => $journey, id => $id, role => $role,
                              stage => $prefix . '-rechecked', proof => $proof, wrong => $reject};
-        type_fixture_secret('parent', $journey, $proof, $id);
+        type_fixture_secret($role, $journey, $proof, $id);
         1;
     };
     unless ($ok) {
@@ -286,7 +297,8 @@ sub type_fixture_secret {
     $functional_input_started = 1 unless defined($challenge);
     my $ok = eval {
         die "secret:arguments\n" unless (@_ == 3 || @_ == 4)
-            && ($role eq 'parent' || $role eq 'other-child' || ($role eq 'child' && defined($challenge)))
+            && ($role eq 'parent' || $role eq 'other-child'
+                || (($role eq 'child' || $role eq 'other-parent') && defined($challenge)))
             && ref($journey) eq 'onpc_journey' && !$journey->{review};
         my $stage;
         my $wrong = 0;

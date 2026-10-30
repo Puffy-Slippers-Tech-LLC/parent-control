@@ -233,6 +233,10 @@ child catalogue and activity files, with shared independent readback before inpu
 the same union so automatic approval exit can verify and resume the original
 child activity. Its immediate, translated and rejected/cancelled approval
 variants retain their own fixed caller bindings to that union.
+`ApprovalReturnNewQualification` / `ApprovalReturnOpenQualification` bind
+`check_e2e_compose_approval_and_return_to_the_child` to that same union for
+independent Riley/Jamie and Jordan/Casey entries. Their caller-owned request
+binding follows the form, Shell recipient, original activity and public countdown.
 `OverlayChoicesQualification` binds `check_e2e_overlay_choices` to the same union
 before journey construction so its Cancel/Escape checks can compare the original
 child activity, with shared readiness and independent fixture readback before input.

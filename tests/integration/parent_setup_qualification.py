@@ -1329,6 +1329,28 @@ class OverlayApprovedExitQualification(ChallengesQualification):
         return OverlayApprovedExitJourney(context, progress)
 
 
+class ApprovalReturnNewQualification(OverlayApprovedExitQualification):
+    fixture_caller = 'check_e2e_compose_approval_and_return_to_the_child'
+
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from approval_return import ApprovalReturnJourney, NEW_PLAN
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return ApprovalReturnJourney(context, progress, NEW_PLAN)
+
+
+class ApprovalReturnOpenQualification(ApprovalReturnNewQualification):
+    @staticmethod
+    def journey(context, progress):
+        from approval_return import ApprovalReturnJourney, OPEN_PLAN
+        from app_snapshot import snapshot_name
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return ApprovalReturnJourney(context, progress, OPEN_PLAN)
+
+
 class OverlayRejectionQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):

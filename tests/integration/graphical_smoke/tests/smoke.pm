@@ -361,6 +361,15 @@ sub run {
         onpc_request_flow::overlay_prompt(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, 'approval');
         return;
     }
+    for my $entry ('new', 'open') {
+        if ($ready->{'approval_return_' . $entry}) {
+            console('sut')->disable();
+            exchange('setup-detached', undef);
+            onpc_request_flow::approval_return(\&exchange, $ready->{invocations},
+                $ready->{challenge_bindings}, $ready->{overlay_request}, $entry);
+            return;
+        }
+    }
     if ($ready->{overlay_rejection}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

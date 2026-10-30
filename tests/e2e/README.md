@@ -1648,6 +1648,18 @@ before `panel-after` assertions. Its public countdown is recorded in
 `boundary-observation.json`. Inspect that same child's session with guarded
 `exec`, then finish with `tools/test-vm stop`; this supplies no acceptance credit.
 
+`tools/test-vm --vm NAME reproduce-overlay-return` reuses FLOW20's
+`ApprovalReturnJourney` / `NEW_PLAN` through Riley/Jamie's prepared 30-second,
+soft-excluded request and its public estimate. It stops at `countdown`,
+after automatic desktop return and before the increment assertion, retaining the
+verified prefix in `observations.jsonl` and an independent public balance in
+`boundary-observation.json` for approval-calculation experiments.
+The VM-bound activity fixtures, sealed worker, recipient guards and maintenance
+envelope are unchanged. Missing package inputs print the exact maintained
+artifact-preparation command before fixture construction. Inspect the same child
+session through guarded `exec`, then finish with `tools/test-vm stop`; this route
+supplies diagnostic evidence only.
+
 `tools/test-vm --vm NAME reproduce-natural-access` retains case 22's prepared
 Parent history at `switch-user`, immediately after the independently observed
 usable Parent desktop and before switching to sign-in.

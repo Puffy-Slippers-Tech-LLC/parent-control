@@ -25,7 +25,8 @@ def worker_evidence(tmp_path, monkeypatch):
 def attempt(tmp_path):
     """A synthetic recorder contract with no guest credential provisioning."""
     document, _ = inventory.read_json(inventory.INVENTORY)
-    document['scenarios'] = document['scenarios'][:1]
+    document['scenarios'] = [next(scenario for scenario in document['scenarios']
+                                  if scenario['id'] == 'E2E-001')]
     document['scenarios'][0]['duration_seconds'] = 600
     document['scenarios'][0]['preconditions'].remove('fixture-credentials-via-secret-api')
     for relative in ('tests/requirements.json', 'docs/TestAutomation/E2E-Building-Blocks.md'):

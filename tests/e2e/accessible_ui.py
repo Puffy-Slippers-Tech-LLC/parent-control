@@ -1049,6 +1049,35 @@ SHELL_REQUEST_MESSAGES = {
     'he': f'להעניק גישה ל־{CHILD}\nלמשך 1 דקה, 15 שניות\n\n'
           '✓ יישומים החסומים עם אפשרות להיתר זמני מותרים',
 }
+# FLOW20 callers own these finite choices. The same binding follows the form,
+# native Shell recipient, original activity and public countdown.
+OVERLAY_REQUEST_MINUTES = {30: '0.5', 60: '1', 75: '1.25', 120: '2',
+                           150: '2.5', 180: '3', 900: '15'}
+OVERLAY_REQUEST_DURATIONS = {30: '30 seconds', 60: '1 minute', 75: '1 minute, 15 seconds',
+                            120: '2 minutes', 150: '2 minutes, 30 seconds',
+                            180: '3 minutes', 900: '15 minutes'}
+OVERLAY_BOUND_OPERATIONS = frozenset({*SHELL_APPROVAL_ORDER, *OVERLAY_NATIVE_OPERATIONS,
+    'child-command-launch', 'overlay-request-select', 'overlay-request-estimate',
+    'overlay-desktop', 'child-countdown-present'})
+OPERATIONS |= {'overlay-request-select', 'overlay-request-estimate'}
+CHILD_DESKTOP_OPERATIONS |= {'overlay-request-select', 'overlay-request-estimate'}
+OVERLAY_VALID_OPERATIONS |= {'overlay-request-estimate'}
+
+
+def validate_overlay_request(value):
+    require(type(value) in (tuple, list) and len(value) == 4
+            and value[0] in ('child', 'other-child')
+            and value[1] in ('parent', 'other-parent')
+            and type(value[2]) is int and value[2] in OVERLAY_REQUEST_MINUTES
+            and type(value[3]) is bool, 'ui:overlay-request-binding')
+    return tuple(value)
+
+
+def overlay_request_values(value):
+    child, parent, seconds, soft = validate_overlay_request(value)
+    return (CHILD if child == 'child' else EXISTING_CHILD,
+            PARENT if parent == 'parent' else OTHER_PARENT, seconds, soft)
+
 OPERATIONS |= SHELL_PROMPT_OPERATIONS
 CHILD_DESKTOP_OPERATIONS |= SHELL_PROMPT_OPERATIONS
 OPERATIONS |= MATE_OPERATIONS | {'parent-mate-refused'}
@@ -4871,6 +4900,7 @@ class AccessibleUI:
                     'ui:app-row-page')
         if identity == 'kiosk-custom-duration':
             self.kiosk_valid_target(identity, child=child,
+                                    approver=self.overlay_bound_values()[1] if getattr(self, 'overlay_request', None) else PARENT,
                                     overlay=getattr(self, 'text_overlay', False))
         if identity == 'parent-match-rule-entry':
             self.match_entry(child, getattr(self, 'text_match_app', MATCH_APP), editor=True)
@@ -7936,11 +7966,11 @@ class AccessibleUI:
         finally:
             self.retained_unlock_diagnostic_active = False
 
-    def child_countdown(self, present):
+    def child_countdown(self, present, *, child=CHILD):
         """Read the panel's public API text or bounded complete absence."""
         require(type(present) is bool, 'ui:countdown-binding')
         try:
-            self.require_child_overlay_session()
+            self.require_child_overlay_session(child)
         except UiError as error:
             if str(error) == 'ui:overlay-account':
                 raise UiError('ui:countdown-account') from error
@@ -7974,7 +8004,7 @@ class AccessibleUI:
                     return None
                 text = controls[-1].getText()
                 countdown_seconds(text)
-                return {'child': 'fixture-child', 'surface': 'desktop', 'present': True,
+                return {'child': CHILD_IDENTITIES[child], 'surface': 'desktop', 'present': True,
                         'text': text, 'seconds': controls[-1].getValue(),
                         'request_text': controls[1].getText(),
                         'observed_monotonic_ns': time.monotonic_ns(),
@@ -7987,7 +8017,7 @@ class AccessibleUI:
                 stable_since = now
             if now - stable_since < 2_000_000_000:
                 return None
-            return {'child': 'fixture-child', 'surface': 'desktop', 'present': False,
+            return {'child': CHILD_IDENTITIES[child], 'surface': 'desktop', 'present': False,
                     'text': None, 'seconds': None, 'request_text': None,
                     'observed_monotonic_ns': now,
                     'stable_ms': (now - stable_since) // 1_000_000}
@@ -9655,6 +9685,53 @@ class AccessibleUI:
                 'ui:overlay-account')
         require_active_launch_session()
 
+    def overlay_bound_values(self):
+        binding = getattr(self, 'overlay_request', None)
+        return ((CHILD, PARENT, 75, True) if binding is None
+                else overlay_request_values(binding))
+
+    def overlay_bound_message(self, language):
+        child, _parent, seconds, soft = self.overlay_bound_values()
+        if getattr(self, 'overlay_request', None) is None:
+            return SHELL_REQUEST_MESSAGES[language]
+        require(language == 'en', 'ui:overlay-request-language')
+        return (f'Grant {child} access?\nRequested time: {OVERLAY_REQUEST_DURATIONS[seconds]}.'
+                + ('\nAllow soft blocked apps for this grant.' if soft else ''))
+
+    def select_overlay_request(self):
+        """FLOW04: explicit public choices on the caller's existing child desktop."""
+        require(getattr(self, 'overlay_request', None) is not None, 'ui:overlay-request-binding')
+        child, approver, seconds, soft = self.overlay_bound_values()
+        self.require_child_overlay_session(child)
+        def ready():
+            observation = self.read_snapshot()
+            application = self.snapshot_matches(CHILD_APPLICATION, observation[0],
+                showing=False, identities=observation[2])
+            if application is None:
+                return None
+            window = self.snapshot_owned_target('kiosk-request-window', root=application,
+                                                observation=observation)
+            if window is None:
+                return None
+            selector = self.snapshot_owned_target('kiosk-child-selector', root=window,
+                                                  observation=observation)
+            if selector is None or selector.getValue() == '':
+                return None
+            require(not self.has_state(selector, self.api.StateType.SENSITIVE)
+                    and selector.getValue() == str(pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid),
+                    'ui:overlay-request-child')
+            self.request_surface(observation, overlay=True, child=child)
+            return True
+        self.wait(ready, 'overlay-request-entry')
+        self.complete_request_language_setup()
+        self.set_value('kiosk-approver-selector', str(pwd.getpwnam(APPROVER_ACCOUNTS[approver]).pw_uid))
+        self.wait(lambda: self.kiosk_valid_target('kiosk-duration-custom', child=child,
+            approver=approver, overlay=True), 'overlay-request-ready')
+        self.set_value('kiosk-duration-choices', 'custom')
+        self.set_value('kiosk-custom-duration-units', 'minutes')
+        self.set_text('kiosk-custom-duration', OVERLAY_REQUEST_MINUTES[seconds], child=child)
+        self.set_value('kiosk-soft-apps-toggle', soft)
+
     def overlay_panel_target(self):
         """Resolve the child panel control by its desktop-neutral API endpoint."""
         self.require_child_overlay_session()
@@ -10531,7 +10608,9 @@ class AccessibleUI:
         chinese = operation in CHINESE_VALID_BINDINGS
         jordan = operation in JORDAN_VALID_BINDINGS
         require(operation in KIOSK_VALID_OPERATIONS or overlay or chinese, 'ui:kiosk-valid-binding')
-        child = EXISTING_CHILD if chinese or jordan else CHILD
+        bound = operation == 'overlay-request-estimate'
+        child, approver = (self.overlay_bound_values()[:2] if bound else
+                           (EXISTING_CHILD if chinese or jordan else CHILD, PARENT))
         language = ('he' if operation == 'overlay-hebrew-fraction-soft-read' else
                     'zh-Hans' if chinese else 'en')
         action = (JORDAN_VALID_BINDINGS[operation] if jordan else
@@ -10548,9 +10627,12 @@ class AccessibleUI:
                                                      child=child, overlay=overlay),
                       'kiosk-custom-open')
             return None
-        seconds, custom, soft = (JORDAN_VALID_REQUESTS if jordan else
+        seconds, custom, soft = ((self.overlay_bound_values()[2],
+                                OVERLAY_REQUEST_MINUTES[self.overlay_bound_values()[2]],
+                                self.overlay_bound_values()[3]) if bound else
+                                (JORDAN_VALID_REQUESTS if jordan else
                                 CHINESE_VALID_REQUESTS if chinese else
-                                OVERLAY_VALID_REQUESTS if overlay else KIOSK_VALID_REQUESTS)[operation]
+                                OVERLAY_VALID_REQUESTS if overlay else KIOSK_VALID_REQUESTS)[operation])
         if (operation in ('kiosk-long-included-duration-select', 'overlay-long-approver-select')
                 or operation in PROFILE_REQUESTS and operation.endswith('-included-duration-select')):
             before = self.kiosk_request_form(enabled=True,
@@ -10654,9 +10736,11 @@ class AccessibleUI:
                     self.kiosk_valid_target(identity, child=child, overlay=overlay),
                     self.api.StateType.PRESSED), 'kiosk-duration-selected')
         request = self.kiosk_request_form(enabled=True,
-            expected_selection=('approver', 'fixture-parent') if overlay else ('child', CHILD_IDENTITIES[child]),
-            duration_seconds=seconds, custom_text=custom, overlay=overlay, language=language)
-        require(request['approver'] == 'fixture-parent' and request['allow_soft'] is soft,
+            expected_selection=('approver', APPROVER_IDENTITIES[approver]) if overlay else ('child', CHILD_IDENTITIES[child]),
+            duration_seconds=seconds, custom_text=custom, overlay=overlay, language=language,
+            overlay_child=child)
+        require(request['child'] == CHILD_IDENTITIES[child]
+                and request['approver'] == APPROVER_IDENTITIES[approver] and request['allow_soft'] is soft,
                 'ui:kiosk-valid-choice')
         def estimate():
             node = self.snapshot_owned_target('kiosk-request-status', check_prompt=True)
@@ -10933,7 +11017,7 @@ class AccessibleUI:
     def kiosk_approval_success(self, *, immediate=False, overlay=False, pinned=None, language='en'):
         """REQUEST11: explicit owned success, never prompt disappearance alone."""
         if overlay:
-            self.require_child_overlay_session()
+            self.require_child_overlay_session(self.overlay_bound_values()[0])
         require(language in ('en', 'zh-Hans', 'he') and (language == 'en'
                 or language == 'he' and overlay and not immediate
                 or language == 'zh-Hans' and not overlay and not immediate),
@@ -10976,6 +11060,9 @@ class AccessibleUI:
                                         '请求已获批准' if language == 'zh-Hans' else
                                         'Time granted' if overlay else 'Request approved'),
                     'ui:kiosk-approval-result')
+            # Approval hides the result-child label (only restart notices show
+            # it). The verified child session and pinned request window above
+            # bind this explicit success to the requesting child.
             # Latch the brief public result before a slower desktop-wide scan.
             if not pinned:
                 require(self.system_prompt_kind() is None, 'ui:kiosk-approval-prompt')
@@ -11184,7 +11271,8 @@ class AccessibleUI:
         Context is checked before accessing even the protected field's length.
         """
         require(language in SHELL_REQUEST_MESSAGES, 'ui:shell-product-language')
-        self.require_child_overlay_session()
+        child, approver, _seconds, _soft = self.overlay_bound_values()
+        self.require_child_overlay_session(child)
         require(uid == os.getuid(), 'ui:shell-session')
         if observation is None:
             self.invalidate_observation()
@@ -11208,8 +11296,8 @@ class AccessibleUI:
                     for node in (owner, *controls)), 'ui:shell-owner')
         labels = [facts[node]['name'] for node in controls
                   if facts[node]['role'] == 'label' and facts[node]['showing']]
-        require(labels.count(PARENT) == 1, 'ui:shell-recipient-context-missing')
-        require(labels.count(SHELL_REQUEST_MESSAGES[language]) == 1,
+        require(labels.count(approver) == 1, 'ui:shell-recipient-context-missing')
+        require(labels.count(self.overlay_bound_message(language)) == 1,
                 'ui:shell-request-context-missing')
         fields = [node for node in controls if facts[node]['role'] == 'password text']
         require(len(fields) == 1, 'ui:shell-field-ambiguous')
@@ -11240,14 +11328,15 @@ class AccessibleUI:
                     (pid, uid, observation, (owner, dialog, cancel, field), 'ui:shell-replacement')]
         labels = [node for node in self.snapshot_scope(nodes, edges, dialog)
                   if facts[node]['role'] == 'label' and facts[node]['showing']]
-        recipient = next(node for node in labels if facts[node]['name'] == PARENT)
-        message = next(node for node in labels if facts[node]['name'] == SHELL_REQUEST_MESSAGES[language])
-        request = SHELL_REQUEST_MESSAGES[language]
-        duration = '1 דקה, 15 שניות' if language == 'he' else '1 minute, 15 seconds'
+        child, approver, seconds, _soft = self.overlay_bound_values()
+        recipient = next(node for node in labels if facts[node]['name'] == approver)
+        request = self.overlay_bound_message(language)
+        message = next(node for node in labels if facts[node]['name'] == request)
+        duration = '1 דקה, 15 שניות' if language == 'he' else OVERLAY_REQUEST_DURATIONS[seconds]
         for node, key, value, code in (
                 (owner, 'name', 'mate-polkit', 'ui:shell-wrong-agent'),
-                (recipient, 'name', OTHER_PARENT, 'ui:shell-recipient-context-missing'),
-                (message, 'name', request.replace(CHILD, 'wrong-child'),
+                (recipient, 'name', OTHER_PARENT if approver == PARENT else PARENT, 'ui:shell-recipient-context-missing'),
+                (message, 'name', request.replace(child, 'wrong-child'),
                  'ui:shell-request-context-missing'),
                 (message, 'name', request.replace(duration, '5 דקות' if language == 'he' else '5 minutes'),
                  'ui:shell-request-context-missing'),
@@ -11320,11 +11409,13 @@ class AccessibleUI:
         require(operation in SHELL_APPROVAL_OPERATIONS, 'ui:shell-binding')
         language = 'he' if operation in SHELL_HEBREW_APPROVAL_ORDER else 'en'
         operation = operation.replace('overlay-hebrew-', 'overlay-', 1)
-        self.require_child_overlay_session()
+        child, approver, _seconds, _soft = self.overlay_bound_values()
+        self.require_child_overlay_session(child)
         try:
             opening = operation in ('overlay-shell-open', SHELL_REJECTION_ORDER[0])
             if opening:
-                self.kiosk_valid_choice('overlay-hebrew-fraction-soft-read' if language == 'he'
+                self.kiosk_valid_choice('overlay-request-estimate' if getattr(self, 'overlay_request', None)
+                                        else 'overlay-hebrew-fraction-soft-read' if language == 'he'
                                         else 'overlay-valid-fraction-soft-read')
             self.invalidate_observation()
             observation = self.read_snapshot(protect_text=True)
@@ -11334,7 +11425,8 @@ class AccessibleUI:
                 nodes, edges, _identities, facts = observation
                 require(self.system_prompt_kind(observation=(nodes, edges, facts)) is None,
                         'ui:shell-already-open')
-                self._invoke_target(self.kiosk_valid_target('kiosk-request-submit', overlay=True))
+                self._invoke_target(self.kiosk_valid_target('kiosk-request-submit', overlay=True,
+                                                          child=child, approver=approver))
                 challenge = self.wait(lambda: self.shell_prompt(pid, uid, language=language), 'shell-prompt',
                                       prompt_in_predicate=True)
                 rejected = self.shell_prompt_refusals(pid, uid, challenge, language=language)
@@ -13294,10 +13386,11 @@ class AccessibleUI:
 
     def _run(self, operation, version, *, child=CHILD):
         require(operation in OPERATIONS, 'ui:operation')
+        bound_child = self.overlay_bound_values()[0]
         self.text_overlay = (operation.startswith('text-overlay-')
-                             or operation == 'overlay-fraction-estimate-refresh')
+                             or operation in ('overlay-fraction-estimate-refresh', 'overlay-request-select'))
         if self.text_overlay:
-            self.require_child_overlay_session()
+            self.require_child_overlay_session(bound_child)
         self.prompt_enabled = operation not in GREETER_OPERATIONS and operation not in STATION_BRANCH_OPERATIONS
         self.prompt_session = ('station' if operation in KIOSK_SESSION_OPERATIONS
                                or operation == 'station-default-entry' else
@@ -13321,10 +13414,10 @@ class AccessibleUI:
         elif operation in NATIVE_APP_OPERATIONS or operation in OVERLAY_NATIVE_OPERATIONS or operation in PARENT_NATIVE_OPERATIONS:
             overlay_native = operation in OVERLAY_NATIVE_OPERATIONS
             if overlay_native:
-                self.require_child_overlay_session()
+                self.require_child_overlay_session(bound_child)
             value = (self.baseline_native_operation(operation) if operation in BASELINE_NATIVE_BINDINGS else
                      self.native_app_operation(operation.removeprefix('overlay-').removeprefix('parent-'),
-                                             child=CHILD if overlay_native else
+                                             child=bound_child if overlay_native else
                                              PARENT if operation in PARENT_NATIVE_OPERATIONS else EXISTING_CHILD))
             if value is not None:
                 result['activity'] = value
@@ -13468,7 +13561,7 @@ class AccessibleUI:
             result['session_countdown'] = self.child_countdown_session(
                 operation.removeprefix('child-countdown-session-'), self.expected_countdown_source)
         elif operation in COUNTDOWN_OPERATIONS:
-            result['countdown'] = self.child_countdown(operation == 'child-countdown-present')
+            result['countdown'] = self.child_countdown(operation == 'child-countdown-present', child=bound_child)
         elif operation in PANEL_ANIMATION_OPERATIONS:
             desired = (None if operation.endswith('-read') else operation.endswith('-on'))
             result['panel_animation'] = self.child_countdown_animation(desired)
@@ -13518,8 +13611,10 @@ class AccessibleUI:
         elif operation in ('parent-command-launch', 'standard-parent-command-launch'):
             self.launch_parent_command(standard=operation == 'standard-parent-command-launch')
         elif operation == 'child-command-launch':
-            self.require_child_overlay_session()
-            self.launch_child_command(child=CHILD)
+            self.require_child_overlay_session(bound_child)
+            self.launch_child_command(child=bound_child)
+        elif operation == 'overlay-request-select':
+            self.select_overlay_request()
         elif operation == 'overlay-panel-ready':
             if self.snapshot_owned_target('kiosk-request-window') is None:
                 self.overlay_panel_target()
@@ -13549,7 +13644,7 @@ class AccessibleUI:
             require(target is not None, 'ui:overlay-cancel')
             self._invoke_target(target)
         elif operation == 'overlay-desktop':
-            self.overlay_desktop()
+            self.overlay_desktop(child=bound_child)
         elif operation == 'overlay-wrong-account-refused':
             try:
                 self.require_child_overlay_session()
@@ -14051,8 +14146,8 @@ class AccessibleUI:
             value = self.kiosk_valid_choice(operation)
             if value is not None:
                 result['valid_choice'] = value
-        elif operation in OVERLAY_VALID_REQUESTS or operation == 'overlay-valid-custom-open':
-            self.require_child_overlay_session()
+        elif operation in OVERLAY_VALID_REQUESTS or operation in ('overlay-valid-custom-open', 'overlay-request-estimate'):
+            self.require_child_overlay_session(bound_child)
             value = self.kiosk_valid_choice(operation)
             if value is not None:
                 result['valid_choice'] = value
@@ -14273,11 +14368,12 @@ def validate_panel_animation(value):
     return dict(value)
 
 
-def validate_countdown(value, present):
+def validate_countdown(value, present, *, child='fixture-child'):
     require(type(value) is dict and set(value) == {
         'child', 'surface', 'present', 'text', 'seconds', 'request_text',
         'observed_monotonic_ns', 'stable_ms'}
-        and value['child'] == 'fixture-child' and value['surface'] == 'desktop'
+        and value['child'] in ('fixture-child', 'existing-fixture-child')
+        and value['child'] == child and value['surface'] == 'desktop'
         and type(value['present']) is bool and value['present'] is present
         and type(value['observed_monotonic_ns']) is int and value['observed_monotonic_ns'] > 0
         and type(value['stable_ms']) is int, 'ui:countdown-response')
@@ -14794,6 +14890,11 @@ def crash_report_diagnostic(directory='/var/crash'):
 
 
 def main():
+    overlay_request = None
+    if len(sys.argv) >= 5 and sys.argv[-2] == '--overlay-request':
+        overlay_request = validate_overlay_request(json.loads(sys.argv[-1]))
+        del sys.argv[-2:]
+        require(sys.argv[1] in OVERLAY_BOUND_OPERATIONS, 'ui:overlay-request-operation')
     require(len(sys.argv) in (3, 4, 5, 6) and sys.argv[1] in OPERATIONS, 'ui:arguments')
     child = sys.argv[5] if len(sys.argv) == 6 else None
     require(child is None or (child in NAMED_CUSTOM_CHILDREN and
@@ -14835,6 +14936,7 @@ def main():
     else:
         account = greeter_account(timeout=120 if sys.argv[1] in GDM_SESSION_OPERATIONS else None) if greeter else pwd.getpwnam(
             'oh-no-parent-control' if kiosk else
+            CHILD_ACCOUNTS[overlay_request_values(overlay_request)[0]] if overlay_request is not None else
             CHILD_ACCOUNTS[TRANSFER_OPERATIONS[sys.argv[1]][1]] if sys.argv[1] in TRANSFER_OPERATIONS else
             (CHILD_ACCOUNTS[CHILD] if sys.argv[1] in CHILD_DESKTOP_OPERATIONS else
              'onpc-child-jordan' if sys.argv[1] in STANDARD_OPERATIONS else 'onpc-parent-jamie'))
@@ -14872,6 +14974,7 @@ def main():
         timing=lambda value: print(json.dumps(value, sort_keys=True), file=sys.stderr, flush=True),
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     ui.branch_owner = branch_owner
+    ui.overlay_request = overlay_request
     if sys.argv[1] == 'overlay-native-opened':
         ui.native_open_diagnostic = {'event': 'ui-native-public-observation', 'complete_reads': 0}
     trace_argument = (sys.argv[1] in ACCESSIBILITY_TRACE_OPERATIONS or

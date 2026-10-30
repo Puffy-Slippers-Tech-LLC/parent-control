@@ -66,7 +66,9 @@ class KioskRequestJourney(InstalledJourney):
             require(stage not in self.countdowns, 'countdown:comparison-replay')
             estimated, timestamp = self.countdown_baselines[before]
             require(seconds == 'estimate' or estimated == seconds, 'countdown:expected-estimate')
-            current = CountdownObservation.from_value(observed['ui']['countdown'], present=True)
+            current = CountdownObservation.from_value(observed['ui']['countdown'], present=True,
+                child='existing-fixture-child' if self.plan.overlay_request is not None
+                    and self.plan.overlay_request[0] == 'other-child' else 'fixture-child')
             comparison = check_countdown_balance(current,
                 seconds=estimated, precision_seconds=precision,
                 observed_monotonic_ns=timestamp, max_elapsed_seconds=elapsed)

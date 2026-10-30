@@ -253,6 +253,8 @@ OPERATION_LABELS = {
     'overlay-panel-reveal-ready': 'Checking the open overlay before revealing its panel',
     'overlay-panel-overview': 'Checking Overview before returning to the open overlay',
     'overlay-request-form': 'Reading one overlay with the fixed child account',
+    'overlay-request-select': 'Choosing the declared child request and eligible parent',
+    'overlay-request-estimate': 'Reading the declared request and public time estimate',
     'overlay-qualification-cancel': 'Closing the qualification overlay with Cancel',
     'overlay-desktop': 'Checking the overlay closed and child desktop returned',
     'overlay-wrong-account-refused': 'Refusing overlay entry from another account',
@@ -579,10 +581,24 @@ class RequestObservation:
     mute: bool | None
 
     @classmethod
-    def from_request(cls, value, *, operation='kiosk-request-form'):
+    def from_request(cls, value, *, operation='kiosk-request-form', binding=None):
         fields = tuple(cls.__dataclass_fields__)
         require(type(value) is dict and set(value) == set(fields), 'ui:request')
         observation = cls(**value)
+        if operation == 'overlay-request-estimate':
+            child, parent, seconds, soft = accessible_ui.overlay_request_values(binding)
+            require(observation == cls(surface='child-overlay', form_count=1,
+                child=accessible_ui.CHILD_IDENTITIES[child],
+                approver=accessible_ui.APPROVER_IDENTITIES[parent], duration_seconds=seconds,
+                custom_text=accessible_ui.OVERLAY_REQUEST_MINUTES[seconds], allow_soft=soft,
+                child_selector_enabled=False, approver_selector_enabled=True, duration_enabled=True,
+                soft_choice_enabled=True, request_enabled=True, cancel_enabled=True, message='', mute=None)
+                and all(type(getattr(observation, field)) is bool for field in (
+                    'allow_soft', 'child_selector_enabled', 'approver_selector_enabled',
+                    'duration_enabled', 'soft_choice_enabled', 'request_enabled', 'cancel_enabled'))
+                and type(observation.duration_seconds) is int and type(observation.form_count) is int,
+                'ui:request')
+            return observation
         invalid = accessible_ui.INVALID_REQUEST_OPERATIONS.get(operation)
         require(type(observation.surface) is str and type(observation.form_count) is int
                 and type(observation.child) is str and type(observation.approver) is str
@@ -708,6 +724,8 @@ def compare_settings(observed, expected):
 class UiObservations:
     def __init__(self, transport, *, system_prompt=None, progress=None):
         self.transport = transport
+        self.overlay_request = None
+        self.shell_request_binding = None
         self.progress = progress
         self.last_operation = None
         self.challenges = set()
@@ -1226,6 +1244,9 @@ class UiObservations:
                 if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS:
                     require(not self.challenge_failed, 'ui:challenge-previous-failure')
                     if shell_index == 0:
+                        self.shell_request_binding = self.overlay_request
+                    require(self.overlay_request == self.shell_request_binding, 'ui:shell-request-replaced')
+                    if shell_index == 0:
                         self.shell_rejection = operation == accessible_ui.SHELL_REJECTION_ORDER[0]
                         self.shell_hebrew = operation == accessible_ui.SHELL_HEBREW_APPROVAL_ORDER[0]
                     order = (accessible_ui.SHELL_REJECTION_ORDER if getattr(self, 'shell_rejection', False) else
@@ -1508,6 +1529,9 @@ class UiObservations:
             binding.append(child)
         # The standalone observer can exceed Linux's per-argument limit after
         # SSH shell quoting. Carry its bytes on the existing guarded stdin pipe.
+        if self.overlay_request is not None and operation in accessible_ui.OVERLAY_BOUND_OPERATIONS:
+            binding += ['--overlay-request', json.dumps(
+                accessible_ui.validate_overlay_request(self.overlay_request))]
         try:
             raw, prompts = self.call(['/usr/bin/python3', '-I', '-', operation, version, *binding],
                                      operation, input=program.encode())
@@ -1931,7 +1955,9 @@ class UiObservations:
         if operation in accessible_ui.COUNTDOWN_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'countdown'}, 'ui:response')
             expected['countdown'] = accessible_ui.validate_countdown(
-                result['countdown'], operation == 'child-countdown-present')
+                result['countdown'], operation == 'child-countdown-present',
+                child=accessible_ui.CHILD_IDENTITIES[accessible_ui.overlay_request_values(
+                    self.overlay_request)[0]] if self.overlay_request is not None else 'fixture-child')
         if operation in accessible_ui.PANEL_ANIMATION_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'panel_animation'}, 'ui:response')
             value = accessible_ui.validate_panel_animation(result['panel_animation'])
@@ -2676,6 +2702,10 @@ class UiObservations:
         valid_requests = {**accessible_ui.KIOSK_VALID_REQUESTS, **accessible_ui.OVERLAY_VALID_REQUESTS,
                           **accessible_ui.JORDAN_VALID_REQUESTS,
                           **accessible_ui.CHINESE_VALID_REQUESTS}
+        if self.overlay_request is not None:
+            _child, _parent, seconds, soft = accessible_ui.overlay_request_values(self.overlay_request)
+            valid_requests['overlay-request-estimate'] = (
+                seconds, accessible_ui.OVERLAY_REQUEST_MINUTES[seconds], soft)
         if operation in valid_requests:
             require(type(result) is dict and set(result) == {*expected, 'valid_choice'}, 'ui:response')
             value = result['valid_choice']
@@ -2692,7 +2722,7 @@ class UiObservations:
                         and 0 < bounds[0] <= bounds[1] == value['observed_monotonic_ns']
                         and bounds[1] - bounds[0] <= 45_000_000_000,
                         'ui:overlay-refresh-bounds')
-            RequestObservation.from_request(value['request'], operation=operation)
+            RequestObservation.from_request(value['request'], operation=operation, binding=self.overlay_request)
             estimate = value['estimate']
             if valid_requests[operation][0] == 0:
                 require(estimate == {'kind': 'midnight'}, 'ui:kiosk-valid-response')

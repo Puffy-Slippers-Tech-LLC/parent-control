@@ -61,6 +61,12 @@ def prepared_request(*, prefix, entry, initial, child, approver, duration_second
                      surface='kiosk', compact=False):
     """Declare custom input, optionally reusing independently read saved choices."""
     require(prefix in ('open', 'new'), 'request-flow:prefix')
+    if surface == 'overlay' and initial == 'observed':
+        overlay_choices(child, approver, duration_seconds, allow_soft)
+        require(entry in ('open', 'new') and compact is False, 'request-flow:entry')
+        return {**({prefix + '-launch': 'ui:child-command-launch'} if entry == 'new' else {}),
+                prefix + '-choices': 'ui:overlay-request-select',
+                prefix + '-estimate': 'ui:overlay-request-estimate'}
     require(entry in ('open', 'new') and initial in ('default', 'selected'),
             'request-flow:entry')
     require(child == 'fixture-child' and approver == 'fixture-parent'
@@ -226,17 +232,35 @@ def overlay_authentication(*, result, prefix, exit='automatic', language='en'):
 
 
 def overlay_approved_request(*, child, approver, duration_seconds, allow_soft, exit):
-    """FLOW05: fixed prepared overlay, explicit success and declared child return."""
-    require(dict(child=child, approver=approver, duration_seconds=duration_seconds,
-                 allow_soft=allow_soft) == CHOICES
-            and type(duration_seconds) is int and allow_soft is True, 'overlay-flow:choices')
+    """FLOW05: caller-bound prepared overlay, explicit success and child return."""
+    overlay_choices(child, approver, duration_seconds, allow_soft)
     return {**overlay_authentication(result='approval', prefix='approval', exit=exit),
             'returned': 'ui:overlay-desktop'}
+
+
+def overlay_choices(child, approver, duration_seconds, allow_soft):
+    """Validate caller choices before any entry, policy change or UI discovery."""
+    from accessible_ui import validate_overlay_request
+    require(child in ('fixture-child', 'existing-fixture-child')
+            and approver in ('fixture-parent', 'other-fixture-parent'), 'overlay-flow:choices')
+    return validate_overlay_request((
+        'child' if child == 'fixture-child' else 'other-child',
+        'parent' if approver == 'fixture-parent' else 'other-parent', duration_seconds, allow_soft))
+
+
+def approval_and_return(*, prefix, entry, child, approver, duration_seconds, allow_soft):
+    """FLOW20 overlay only: caller supplies its desktop/open form and earlier balance."""
+    choices = dict(child=child, approver=approver, duration_seconds=duration_seconds, allow_soft=allow_soft)
+    return {**prepared_request(prefix=prefix, entry=entry, initial='observed', surface='overlay', **choices),
+            **overlay_approved_request(exit='automatic', **choices),
+            'countdown': 'ui:child-countdown-present'}
 
 
 def overlay_rejected_request(*, outcome, child, approver, duration_seconds, allow_soft,
                              fresh_estimate=False):
     """FLOW07: one denial/Cancel and immutable readback; leave the form open."""
+    require(dict(child=child, approver=approver, duration_seconds=duration_seconds,
+                 allow_soft=allow_soft) == CHOICES, 'overlay-flow:choices')
     overlay_approved_request(child=child, approver=approver, duration_seconds=duration_seconds,
                              allow_soft=allow_soft, exit='automatic')
     require(outcome in ('rejection', 'cancel'), 'overlay-flow:outcome')

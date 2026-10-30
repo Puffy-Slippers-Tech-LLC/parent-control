@@ -19,8 +19,8 @@ class CountdownObservation:
     request_text: str | None
 
     @classmethod
-    def from_value(cls, value, *, present):
-        value = validate_countdown(value, present)
+    def from_value(cls, value, *, present, child='fixture-child'):
+        value = validate_countdown(value, present, child=child)
         return cls(value['present'], value['text'], value['observed_monotonic_ns'],
                    value['stable_ms'], value['seconds'], value['request_text'])
 

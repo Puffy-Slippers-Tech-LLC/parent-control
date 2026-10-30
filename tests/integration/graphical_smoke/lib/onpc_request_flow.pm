@@ -168,6 +168,45 @@ sub overlay_approve {
     return $journey->seen('returned');
 }
 
+sub approval_return {
+    onpc_progress::operation('Approving time and returning to the same child and saved work');
+    my ($exchange, $declared, $challenges, $binding, $entry) = @_;
+    die 'overlay-return:binding' unless @_ == 5 && ref($binding) eq 'ARRAY'
+        && @$binding == 4 && ($entry eq 'new' || $entry eq 'open')
+        && $binding->[0] =~ /\A(?:child|other-child)\z/
+        && $binding->[1] =~ /\A(?:parent|other-parent)\z/
+        && $binding->[2] =~ /\A(?:30|60|75|120|150|180|900)\z/
+        && ($binding->[3] == 0 || $binding->[3] == 1);
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'overlay-approval-return', review => 0);
+    $journey->{overlay_request} = $binding;
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, $binding->[0] eq 'child' ? 'child' : 'returned',
+        $journey->seen('child-picker-opened'), 'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen('allowance-configured');
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    my $recipient = $binding->[0] eq 'child' ? 'child' : 'standard';
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', "fresh-$recipient-focused", 'fresh-desktop');
+    my $activity = onpc_app_rows::native_activity_entry($journey, 'activity', 'command');
+    $journey->seen('before-countdown');
+    $journey->seen('independent-launch') if $entry eq 'open';
+    prepare($journey, $entry, $entry, 'observed',
+        $binding->[0] eq 'child' ? 'fixture-child' : 'existing-fixture-child',
+        $binding->[1] eq 'parent' ? 'fixture-parent' : 'other-fixture-parent',
+        $binding->[2], $binding->[3], 'overlay');
+    overlay_approve($journey, 'automatic');
+    $journey->seen('countdown');
+    onpc_app_rows::native_read_activity($activity, 'returned');
+    onpc_app_rows::native_finish_app($activity);
+    $journey->finish();
+}
+
 sub overlay_reject {
     onpc_progress::operation('Rejecting or cancelling the overlay and comparing the preserved form');
     my ($journey, $outcome) = @_;
@@ -223,6 +262,8 @@ sub shell_approve {
     die 'shell-approve:binding' unless (@_ == 1 || @_ == 2) && ref($journey) eq 'onpc_journey'
         && (($journey->{prefix} // '') eq 'overlay-approved-exit'
             || ($journey->{prefix} // '') eq 'overlay-approval-flow'
+            || ($journey->{prefix} // '') eq 'overlay-approval-return'
+                && ref($journey->{overlay_request}) eq 'ARRAY' && $exit eq 'automatic'
             || ($journey->{prefix} // '') eq 'baseline-journey-overlay-approval'
                 && $exit eq 'immediate')
         && ($exit eq 'automatic' || $exit eq 'immediate');
@@ -239,7 +280,8 @@ sub shell_approve {
                 && keys(%$proof) == 6 && ($proof->{stage} // '') eq
                     ($journey->{stage_prefix} // '') . 'approval-success'
                 && ($proof->{binding} // '') eq 'overlay-approve'
-                && ($proof->{child} // '') eq 'child'
+                && ($proof->{child} // '') eq ($journey->{overlay_request}
+                    ? $journey->{overlay_request}[0] : 'child')
                 && ($proof->{source} // '') =~ /\A[0-9a-f]{64}\z/
                 && ($proof->{token} // '') eq substr($proof->{source}, 0, 32)
                 && ref($proof->{values}) eq 'ARRAY' && @{$proof->{values}} == 1
@@ -461,6 +503,20 @@ sub qualify_cross_surface {
 sub prepare {
     onpc_progress::operation('Preparing the declared kiosk request without submitting');
     my ($journey, $prefix, $entry, $initial, $child, $approver, $seconds, $soft, $invalid) = @_;
+    if (@_ == 9 && $initial eq 'observed' && $invalid eq 'overlay') {
+        die 'request-flow:binding' unless ref($journey) eq 'onpc_journey'
+            && ($prefix eq 'open' || $prefix eq 'new') && ($entry eq 'open' || $entry eq 'new')
+            && ($child eq 'fixture-child' || $child eq 'existing-fixture-child')
+            && ($approver eq 'fixture-parent' || $approver eq 'other-fixture-parent')
+            && $seconds =~ /\A(?:30|60|75|120|150|180|900)\z/ && ($soft == 0 || $soft == 1)
+            && ref($journey->{overlay_request}) eq 'ARRAY'
+            && $journey->{overlay_request}[0] eq ($child eq 'fixture-child' ? 'child' : 'other-child')
+            && $journey->{overlay_request}[1] eq ($approver eq 'fixture-parent' ? 'parent' : 'other-parent')
+            && $journey->{overlay_request}[2] == $seconds && $journey->{overlay_request}[3] == $soft;
+        $journey->seen("$prefix-launch") if $entry eq 'new';
+        $journey->seen("$prefix-choices");
+        return $journey->seen("$prefix-estimate");
+    }
     die 'request-flow:binding' unless (@_ == 8 || @_ == 9
         && ($invalid eq 'invalid' || $invalid eq 'overlay' || $invalid eq 'compact'))
         && ref($journey) eq 'onpc_journey'

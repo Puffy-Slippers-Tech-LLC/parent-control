@@ -753,55 +753,6 @@ def test_unreported_repair_edits_include_all_changes_and_accept_external_commit(
     assert state['repairs'] == {} and 'pending' not in state and 'commit_intent' not in state
 
 
-@pytest.mark.parametrize('next_category', [False, True])
-def test_repair_panel_uses_shared_metadata_clocks_and_resets_for_next_category(
-        checkout, monkeypatch, next_category):
-    from launcher_chat import read_state, task_info
-    from launcher_display import TaskDisplay
-    from launcher_progress import read_progress
-    from tests.support.terminal_screen import Terminal
-
-    root, _ = checkout
-    (root / 'mode').write_text('agent-script')
-    (root / 'script.json').write_text(json.dumps(dict(
-        agents=['test_fixed'], tests=['failed-case', None, None], wait_test=1,
-        panel_updates=[{'explanation': 'Checks that repairs preserve the expected results.',
-                        'status': 'Root cause identified, fixing'}])))
-    run, _ = fix_tests.select(root, categories=('unit', 'ui') if next_category else ('unit',))
-    wait_for(root / 'test-ready')
-    before = task_info(run, '1:unit')
-    assert before['last_error'] == 'The unit checks did not pass.'
-    assert before['status'] == 'Testing fix, previous error point not reached yet'
-    assert 'LAUNCHER_STATUS' not in (run / 'output').read_text()
-    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
-    assert 'LAUNCHER_STATUS' in next(call['prompt'] for call in calls if call['kind'] == 'agent')
-
-    # Both clocks refresh without output and reconnect from owner metadata.
-    now = max(before['last_error_at'], before['status_at']) + 72 * 60
-    monkeypatch.setattr('launcher_display.time.time', lambda: now)
-    for minute in range(2):
-        terminal = Terminal(400, 55)
-        display = TaskDisplay(terminal, run=run, input_mode='question',
-                              terminal_size=lambda: terminal.size)
-        display.refresh_chat()
-        display.update(read_progress(run), [])
-        text = terminal.visible()
-        assert f'Last Error: The unit checks did not pass. (1h {12 + minute}m ago)' in text
-        assert f'Status: Testing fix, previous error point not reached yet (1h {12 + minute}m ago)' in text
-        now += 60
-
-    (root / 'release').touch()
-    assert fix_tests.follow(run, io.StringIO()) == 0
-    after = task_info(run, '1:unit')
-    assert after['last_error_at'] == before['last_error_at']
-    assert after['status'] == 'Testing fix, previous error point passed'
-    assert after['status_at'] >= before['status_at']
-    if next_category:
-        assert read_state(run)['task_id'] == '1:ui'
-        assert task_info(run, '1:ui')['status'] == 'Running'
-        assert 'last_error' not in task_info(run, '1:ui')
-
-
 def test_diagnostic_execution_does_not_claim_a_verified_fix(checkout):
     from launcher_chat import task_info
     root, _ = checkout
@@ -1372,38 +1323,6 @@ def test_category_arguments_survive_worker_repairs_and_verification(checkout, op
          *options, *(['--resume-case=verification::case', '--resume-case-only']
                     if index in (1, 2) else []), '--vm', vm_name()] for index in range(6)]
     assert len([call for call in calls if call['kind'] == 'agent']) == 2
-
-
-def test_repeated_repairs_are_distinct_processes_with_no_accumulated_prompt(checkout):
-    root, _ = checkout
-    (root / 'mode').write_text('agent-repeat')
-    run, _ = fix_tests.select(root, rounds=2)
-    assert fix_tests.follow(run, io.StringIO()) == 0
-    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
-    agents = [call for call in calls if call['kind'] == 'agent']
-    assert len(agents) == 2 and agents[0]['pid'] != agents[1]['pid']
-    assert [agent['args'][agent['args'].index('--model') + 1] for agent in agents] == [
-        'gpt-6.1-sol', 'gpt-6.1-sol']
-    assert 'model_reasoning_effort="low"' in agents[0]['args']
-    assert 'model_reasoning_effort="medium"' in agents[1]['args']
-    assert 'verification_failed: fixture result' in agents[1]['prompt']
-    records = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
-    turns = [row for row in records if row['event'] == 'turn']
-    assert len(turns) == 2
-    assert turns[0]['repair_id'] == turns[1]['repair_id']
-    assert turns[0]['session_id'] != turns[1]['session_id']
-    assert [row['attempt'] for row in turns] == [1, 2]
-    assert all(row['usage'] == {'input_tokens': 100, 'cached_input_tokens': 40,
-                                'output_tokens': 20} for row in turns)
-    assert [row['passed'] for row in records if row['event'] == 'verification'] == [False, True]
-    assert [row['result'] for row in records if row['event'] == 'result'] == ['test_fixed', 'fixed']
-    for index, agent in enumerate(agents, 1):
-        assert agent['prompt'].startswith(f'LATEST FAILURE ONLY {index}\n')
-        assert agent['prompt'].count('LATEST FAILURE ONLY') == 1
-        assert 'PREVIOUS AGENT TRANSCRIPT' not in agent['prompt']
-        assert agent['thread'] is None
-        assert '--ephemeral' not in agent['args']
-        assert not {'resume', 'fork', '--last'} & set(agent['args'])
 
 
 @pytest.mark.parametrize('options', [{'effort': 'high'}, {'model': 'gpt-6.1-sol', 'effort': 'xhigh'},

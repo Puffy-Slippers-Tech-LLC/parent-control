@@ -143,11 +143,13 @@ class RepairCoordinator:
             eligible = waiting[:1] == [ticket] if writer else not waiting
             if owner is not None and owner != ticket:
                 if (self.run / owner / 'result.json').exists() or writer and eligible:
-                    raise ValueError('an unfinished case repair retains unverified edits; resume that repair first')
+                    raise ValueError('an unfinished case repair retains unverified edits; resume that repair first '
+                                     'or use --reset to abandon saved progress and verify from scratch')
             if not eligible:
                 return False
             if owner is not None and not writer:
-                raise ValueError('an unfinished case repair retains unverified edits; resume that repair first')
+                raise ValueError('an unfinished case repair retains unverified edits; resume that repair first '
+                                 'or use --reset to abandon saved progress and verify from scratch')
             try:
                 fcntl.flock(descriptor, (fcntl.LOCK_EX if writer else fcntl.LOCK_SH) | fcntl.LOCK_NB)
             except BlockingIOError:
@@ -162,7 +164,8 @@ class RepairCoordinator:
                 try:
                     resumed = json.loads(inherited.read_text()) if writer and inherited.exists() else None
                     if resumed != {'run': source_owner}:
-                        raise ValueError('another unfinished repair retains unverified checkout edits; resume that repair first')
+                        raise ValueError('another unfinished repair retains unverified checkout edits; resume that repair first '
+                                         'or use --reset to abandon saved progress and verify from scratch')
                 except BaseException:
                     fcntl.flock(descriptor, fcntl.LOCK_UN)
                     raise

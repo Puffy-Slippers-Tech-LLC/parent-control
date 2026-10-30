@@ -75,7 +75,11 @@ def current_session(directory):
 def select(root, argv, *, reload=False):
     # Activity descriptor state is process-local. Concurrent callers in this
     # process serialize only startup; detached host/VM workers remain independent.
-    with _startup:
+    from test_commands import is_inspection
+    if is_inspection(argv):
+        return None, False
+    from test_reset import startup
+    with startup(root), _startup:
         return _select(root, argv, reload=reload)
 
 
@@ -130,7 +134,7 @@ def _select(root, argv, *, reload=False):
                 broken = not result.exists() or int(result.read_text()) != 0
             except (ValueError, OSError):
                 broken = True
-            if '--resume' not in argv and same_vm and not (run / 'delivered').exists() and (not argv or not broken):
+            if '--resume' not in argv and same_vm and not (run / 'delivered').exists() and not argv and broken:
                 return run, False
             if broken and not (run / 'delivered').exists():
                 print(f'Previous test owner is idle; preserving its incomplete/failed output in {run}.',
@@ -209,7 +213,7 @@ def follow(run, stream=None):
             atomic(Path(destination) / 'frame.json', [])
 
 
-def main(root, argv, *, reload=False):
+def main(root, argv, *, reload=False, reset=False):
     run = None
     requested = False
 
@@ -221,7 +225,17 @@ def main(root, argv, *, reload=False):
 
     previous = signal.signal(signal.SIGINT, cancel)
     try:
-        run, started = select(root, argv, **({'reload': True} if reload else {}))
+        def start():
+            return select(root, argv, **({'reload': True} if reload else {}))
+        if reset:
+            from test_reset import reset as reset_state
+            from test_commands import host_only_request, validate
+            from vm_selection import vm_config
+            validate(root, argv or ['all'])
+            _, selector = vm_config.extract_selector(argv)
+            run, started = reset_state(root, start, host_only=host_only_request(argv or ['all']), selector=selector)
+        else:
+            run, started = start()
         if run is None:
             from test_commands import is_inspection
             if '--stop' in argv and not is_inspection(argv):

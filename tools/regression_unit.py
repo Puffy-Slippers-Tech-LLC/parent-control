@@ -872,6 +872,9 @@ from regression_ui import Bucket
 # overlap and cancellation tests use private checkout locks and retained paths,
 # with bounded child workers reaped by their fixtures. Queue VM operations are
 # mocked; no live guest, shared cache, display or host service is introduced.
+# Test/repair startup serialization adds one lock in each fixture's private
+# checkout state. Existing recorded child ownership and teardown are unchanged;
+# regression_session, fix_tests and fix_tests_cleanup_safety stay compatible.
 # Existing test_activity, regression_session, fix_tests and vm_config compatible
 # classifications remain valid; no cleanup inventory change is needed.
 # Upgrade asset checks use private tiny DEBs, waited dpkg/Perl children and

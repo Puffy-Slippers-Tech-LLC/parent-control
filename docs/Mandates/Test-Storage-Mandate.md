@@ -106,6 +106,14 @@ unregistered or invalid input or to bypass a refusal.
   the recorded identities, owner locks and cleanup operations of the shared
   libraries; preserve unknown or replaced entries.
 
+Explicit test/repair `--reset` has one narrow legacy exception: after draining
+launcher owners, the shared scratch library may remove a private `run-<32hex>`
+shell with no owner or identity file and no payload, optionally containing only
+an empty private `tmp/` directory. Under the scratch gate it pins directory
+descriptors, validates ownership, modes and mount boundaries, and rechecks each
+entry's identity before `rmdir`. It never fabricates a receipt or recursively
+deletes unrecorded contents. Ordinary allocation still preserves these shells.
+
 Build and launcher subprocess layers must forward
 `tools.test_storage.scratch_descriptors()` through `pass_fds` when descendants
 use scratch, including through intermediate fixture builders. A coordinator's

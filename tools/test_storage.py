@@ -581,6 +581,63 @@ def reclaim_scratch(parent, fd, retention, record=None):
     os.fsync(fd)
 
 
+def reset_orphan_scratch(*, root=None):
+    """Remove empty legacy shells after explicit reset drains launcher owners.
+
+    Missing control files never authorize recursive deletion or a fabricated
+    receipt. Only an empty run directory, optionally containing an empty tmp/
+    directory, can be retired here. Normal reclamation owns recorded scratch.
+    """
+    if __package__:
+        from . import test_retention as retention
+    else:
+        import test_retention as retention
+    parent = directory('scratch', root=root)
+    store = retention.Store(parent)
+    removed = 0
+    with store.opened() as fd, store.locked(fd, 'gate'):
+        reclaim_scratch(parent, fd, retention)
+        for name in os.listdir(fd):
+            if re.fullmatch(r'run-[0-9a-f]{32}', name) is None:
+                continue
+            child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+            try:
+                info = os.fstat(child)
+                retention.private(info)
+                if retention.mount_id(child) != retention.mount_id(fd):
+                    raise ValueError('scratch orphan is mounted')
+                entries = os.listdir(child)
+                if entries not in ([], ['tmp']):
+                    continue  # Includes live owner files, receipts and unknown payloads.
+                if entries:
+                    temporary = os.open('tmp', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=child)
+                    try:
+                        temporary_info = os.fstat(temporary)
+                        retention.private(temporary_info)
+                        if retention.mount_id(temporary) != retention.mount_id(child):
+                            raise ValueError('scratch orphan tmp directory is mounted')
+                        if os.listdir(temporary):
+                            continue
+                        current = os.stat(name, dir_fd=fd, follow_symlinks=False)
+                        if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+                            raise ValueError('scratch orphan directory changed')
+                        current = os.stat('tmp', dir_fd=child, follow_symlinks=False)
+                        if (current.st_dev, current.st_ino) != (temporary_info.st_dev, temporary_info.st_ino):
+                            raise ValueError('scratch orphan tmp directory changed')
+                        os.rmdir('tmp', dir_fd=child)
+                    finally:
+                        os.close(temporary)
+                current = os.stat(name, dir_fd=fd, follow_symlinks=False)
+                if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+                    raise ValueError('scratch orphan directory changed')
+                os.rmdir(name, dir_fd=fd)
+                os.fsync(fd)
+                removed += 1
+            finally:
+                os.close(child)
+    return removed
+
+
 def scratch_directory():
     """Process-owned disk scratch, also reclaimed after an abrupt owner exit.
 

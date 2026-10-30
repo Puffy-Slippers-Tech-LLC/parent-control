@@ -138,6 +138,7 @@ sub enter_kiosk_mate_password {
                     || ($journey->{prefix} // '') eq 'switch-user-expiry-other-child-profile-request')
                 && ($journey->{stage_prefix} // '') eq 'profile-request-' && ($profile_request || $long_request)
                 || (($journey->{prefix} // '') eq 'countdown-grant-profile-request'
+                    || ($journey->{prefix} // '') eq 'countdown-combined-profile-request'
                     || ($journey->{prefix} // '') eq 'time-profiles-grant-profile-request')
                 && ($journey->{stage_prefix} // '') eq 'profile-request-'
                 && defined($wrong) && $wrong eq 'request-120');

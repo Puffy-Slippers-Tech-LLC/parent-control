@@ -608,7 +608,7 @@
       "variants": [
         {"coverage_id": 27, "id": "daily-only", "owner": "countdown", "parameters": {"time": "daily-only"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/countdown_daily.py", "test_id": "daily-only"}},
         {"coverage_id": 28, "id": "grant-only", "owner": "countdown", "parameters": {"time": "grant-only"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/countdown_grant.py", "test_id": "grant-only"}},
-        {"coverage_id": 29, "id": "combined", "owner": "countdown", "parameters": {"time": "combined"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 29, "id": "combined", "owner": "countdown", "parameters": {"time": "combined"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/countdown_combined.py", "test_id": "combined"}}
       ]
     },
     {

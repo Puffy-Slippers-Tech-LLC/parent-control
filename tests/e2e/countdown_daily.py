@@ -74,6 +74,8 @@ PLAN = JourneyPlan(
 class CountdownActivityJourney:
     """Shared retained-work and immutable countdown comparisons for E2E-011."""
 
+    minute_edge_limit = 3
+
     def __init__(self, context, progress, plan, *, actions=None, **kwargs):
         if actions is None:
             available = {
@@ -136,10 +138,10 @@ class CountdownActivityJourney:
         require(value['state'] == 'desktop', 'countdown-daily:early-lock')
         compare_app_activity(AppActivityObservation.from_value(value['activity']), activity)
         progressions, activities = [], []
-        # Four daily minutes allow at most three minute edges. Each edge keeps
-        # its original 90-second bound; ordinary app use resumes between them.
+        # Each profile declares its finite number of minute edges. Every edge
+        # keeps its 90-second bound; ordinary app use resumes between them.
         while current.countdown.text != '00:01':
-            require(len(progressions) < 3, 'countdown-daily:minute-bound')
+            require(len(progressions) < journey.minute_edge_limit, 'countdown-daily:minute-bound')
             current, comparison = await_countdown_progress(journey, guard, current,
                 precision_seconds=60, tolerance_seconds=2, max_elapsed_seconds=90)
             progressions.append(comparison)

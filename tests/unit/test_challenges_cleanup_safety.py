@@ -258,6 +258,9 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, events => \@events,
     ('', 'request-120', 'fixture-only-canary', 'time-profiles-grant-profile-request'),
     ('', 'request-240', 'fixture-only-canary', 'time-profiles-grant-profile-request'),
     ('', 'request-120', 'fixture-only-canary', 'time-profiles-grant'),
+    ('', 'request-120', 'fixture-only-canary', 'countdown-combined-profile-request'),
+    ('', 'request-240', 'fixture-only-canary', 'countdown-combined-profile-request'),
+    ('', 'request-120', 'fixture-only-canary', 'countdown-combined'),
     ('', 'request-120', 'fixture-only-canary', 'unknown'),
     ('', 'request-120', 'fixture-only-canary', 'grant-only-profile'),
 ])
@@ -280,7 +283,7 @@ sub type_password {
 }
 package main;
 require onpc_journey; require onpc_password;
-my $profile_scope = $scope =~ /\A(?:switch-user-expiry-(?:parent|other-child)|time-profiles-grant)-profile-request\z/;
+my $profile_scope = $scope =~ /\A(?:switch-user-expiry-(?:parent|other-child)|time-profiles-grant|countdown-combined)-profile-request\z/;
 my $journey = onpc_journey->new(prefix => $scope eq 'profile-request' ? 'grant-only-profile' : $profile_scope ? substr($scope, 0, -length('-profile-request')) : $scope eq 'flow' ? 'kiosk-approval-flow' : $scope eq 'base' ? 'kiosk-' . $binding : $scope eq 'confinement-usability-rejection' ? 'confinement-usability' : $scope, review => ($fault eq 'review' ? 1 : 0),
     exchange => sub {
         my ($stage) = @_;
@@ -310,7 +313,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
                and binding == 'approval' or
                scope == 'natural-access' and binding == 'long-request' or
                scope in ('profile-request', 'switch-user-expiry-parent-profile-request',
-                         'time-profiles-grant-profile-request')
+                         'time-profiles-grant-profile-request', 'countdown-combined-profile-request')
                and binding == 'request-120' or
                scope == 'switch-user-expiry-other-child-profile-request'
                and binding == 'request-240' or
@@ -326,7 +329,8 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
         prefix = ('rejection-' if scope == 'confinement-usability-rejection' else
                   'profile-request-' if scope in ('profile-request', 'switch-user-expiry-parent-profile-request',
                                                   'switch-user-expiry-other-child-profile-request',
-                                                  'time-profiles-grant-profile-request') else '')
+                                                  'time-profiles-grant-profile-request',
+                                                  'countdown-combined-profile-request') else '')
         binding = 'approval' if binding in ('long-request', 'request-120', 'request-240') else binding
         assert value['events'] == [prefix + binding + '-qualified', prefix + binding + '-rechecked', 'read', 'type']
 

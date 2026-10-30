@@ -510,8 +510,8 @@ history does not supply this family's expiry or complete-case acceptance.
 
 ### E2E-011
 
-Implementation status: Daily-only case 27 and grant-only case 28 passed on the
-selected Ubuntu 26.04 VM. Combined case 29 remains pending.
+Implementation status: Daily-only case 27, grant-only case 28 and combined case
+29 passed on the selected Ubuntu 26.04 VM.
 
 **Plan child activity with the remaining-time countdown.** Cases 27, 28, 29.
 
@@ -555,6 +555,20 @@ and deadline across resumed work, with the declared minute precision and
 two-second tolerance. Then reuse the two successive
 15-second exact-second comparisons and TIME04 natural-lock/input-ownership
 result above. Keep this complete history and the original grant in one attempt.
+
+Case 29 uses `countdown_combined.PLAN` / `CountdownCombinedJourney`: four daily
+minutes and a real two-minute addition through the same combined FLOW13 binding.
+Retain the actual pre-approval daily balance and require Parent G>D>0 and
+total=max(D,G) before fresh child entry. Read the retained Parent window through
+the public API after the station's automatic GDM return, without another login.
+Require at least three displayed minutes initially and two after legitimate
+same-child unlock; compare the original native window/draft before resuming work.
+Reuse case 27's minute progression with at most five edges for the combined
+six-minute upper bound, then its final-second progression and natural-lock/input
+ownership results. Each edge retains its 90-second deadline, seconds comparisons
+retain 15 seconds and two-second tolerance, and TIME04 retains the final sample's
+upper bound plus 15 seconds. No replacement approval, usage or clock manipulation
+is permitted within this complete history.
 
 ### E2E-012
 

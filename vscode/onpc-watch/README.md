@@ -28,6 +28,10 @@ name show `launcher` until their next start, attachment or reload request.
 the launcher terminal output, **Error** shows the shared launcher's **Last Error**
 and **Status** fields with the same colors and elapsed ages, and **Session** opens
 the session transcript and chat.
+For `fix-tests`, the link shows **Session 1**, **Session 2**, and so on for
+successive agent sessions repairing the same case. The number remains visible
+between sessions and during verification. Once the repair is accepted and closed,
+the link returns to struck-through **Session**; the next case starts at **Session 1**.
 For `fix-tests`, Last Error includes the failing check, the runner's error text
 (or a readable summary of a structured failure, falling back to a bounded text
 output tail), and its output-log path. Full JSON results remain in that log. Reload launcher

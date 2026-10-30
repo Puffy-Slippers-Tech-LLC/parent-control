@@ -382,6 +382,9 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         session_view = dict(session=uuid.uuid4().hex, status='running',
             started_at=time.time(), interactive=interactive,
             model=command[command.index('--model') + 1], effort='')
+        if session_state is not None and 'repair_failure' in session_state:
+            session_view.update(repair_failure=session_state['repair_failure'],
+                                task_session=session_state['task_sessions'])
         for index, value in enumerate(command):
             if index and command[index - 1] == '-c' and value.partition('=')[0].strip() == 'model_reasoning_effort':
                 session_view['effort'] = tomllib.loads(value)['model_reasoning_effort']

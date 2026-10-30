@@ -179,6 +179,24 @@ class Viewer:
                     except (OSError, ValueError, KeyError, TypeError):
                         pass
             session_run = session.run if session.active else None
+            session_number = None
+            session_inactive = not session.active
+            if output.repair and session.run is not None:
+                # The case remains unfinished during verification and between
+                # agent attempts. Only accepted repair close-out removes it.
+                try:
+                    failure = session.state.get('repair_failure')
+                    number = session.state.get('task_session')
+                    if isinstance(failure, list) and type(number) is int and number > 0:
+                        state = session.reader.read(session.run / 'checkpoint.json', limit=2 * 1024 * 1024)
+                        repair = state.get('repairs', {}).get(json.dumps(failure))
+                        if repair is not None:
+                            number -= repair.get('session_start', 0)
+                            if number > 0:
+                                session_number = number
+                        session_inactive = session_number is None
+                except (OSError, ValueError, KeyError, TypeError):
+                    pass
             question = session.panel.question.question if session.panel and session.panel.question else None
             waiting = bool(session.active and (question or session.panel.chat_state.get('status') in ('waiting', 'blocked')))
             deadline = question.get('deadline') if question else None
@@ -205,6 +223,7 @@ class Viewer:
                 error_rows=status_spans(error_lines),
                 session=session.identity,
                 session_active=session.active,
+                session_number=session_number, session_inactive=session_inactive,
                 session_waiting=waiting, session_deadline=deadline, session_question=prompt_id,
                 session_view=session_view))
         active = [section for section in sections if section['active']]

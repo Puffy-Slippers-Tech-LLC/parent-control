@@ -46,7 +46,8 @@
 
     function sessionHeading(section) {
         const entry = section.entry;
-        const signature = JSON.stringify([entry.label, entry.session, entry.session_active, section.view]);
+        const signature = JSON.stringify([entry.label, entry.session, entry.session_active,
+            entry.session_number, entry.session_inactive, section.view]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
         section.heading.replaceChildren();
@@ -71,9 +72,10 @@
         links.append(' ');
         for (const [view, label] of [['status', 'Status'], ['launcher', 'Launcher'], ['error', 'Error'], ['session', 'Session']]) {
             if (view !== 'status') links.append(' | ');
-            const item = link(links, label, () => runView(entry.id, view));
+            const text = view === 'session' && entry.session_number ? `Session ${entry.session_number}` : label;
+            const item = link(links, text, () => runView(entry.id, view));
             item.classList.add('run-tab');
-            if (view === 'session' && !entry.session_active) item.classList.add('session-inactive');
+            if (view === 'session' && (entry.session_inactive ?? !entry.session_active)) item.classList.add('session-inactive');
             if (section.view === view) item.setAttribute('aria-current', 'page');
         }
     }

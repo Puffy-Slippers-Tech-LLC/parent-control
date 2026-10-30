@@ -576,6 +576,8 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
         status = detached_launcher.supervise(root, run, owner, kind, command, on_usage=on_usage,
                                               interactive=True, task=task,
                                               session_state=dict(task_id=task,
+                                                  repair_failure=[metadata['failure'][name]
+                                                      for name in ('category', 'case', 'vm')],
                                                   total_sessions=metadata['session_id'],
                                                   task_sessions=metadata['repair_session']),
                                               on_model=lambda active: metadata.update(model=active))
@@ -1180,8 +1182,12 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
 
     def repair_owned(prompt, *, failure_key, previous=None):
         nonlocal verifying_fix, restart_continuation, repair_context
+        new_repair = commits.key(failure_key) not in commits.state['repairs']
         commits.begin(failure_key, inventory[failure_key[0]]['args'])
         entry = commits.state['repairs'][commits.key(failure_key)]
+        if new_repair:
+            entry['session_start'] = case_sessions.get(failure_key, 0)
+            commits.save()
         queued = commits.state.get('queued_failure', {}).get('failure', {})
         attempted = queued.get('attempted_case')
         if (not failure_key[1] and isinstance(attempted, dict)

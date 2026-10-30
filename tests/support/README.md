@@ -316,9 +316,14 @@ read; only explicit `revoke_first=True` permits Confirm, followed by a fresh
 zero-grant read before policy edits. The shared request leaves accept finite
 120/180/240/600/1200-second arguments. The installed qualification covers the
 120-second fresh and retained/revoke-first bindings on Ubuntu 26.04; later
-recipes own their finite duration and independent outcomes. Existing credential
-and producer-recovery checks retain private files/in-memory doubles and bounded,
-waited children, with no new host module, VM, display, bus or cleanup owner.
+recipes own their finite duration and independent outcomes.
+`request_initial='selected'` requires a saved 75-second, soft-included request,
+as supplied by `revocation_entry`; it does not accept arbitrary remembered choices.
+Choose this argument from the preceding request history, independently of
+whether the Parent window is new or retained.
+Existing credential and producer-recovery checks retain private files/in-memory
+doubles and bounded, waited children, with no new host module, VM, display, bus
+or cleanup owner.
 The existing toggle/unit modules use pytest-private evidence, in-memory doubles
 and bounded waited Perl children; the accessible-adapter preview uses its
 existing private display/process group. No shared path/cache, socket/bus,

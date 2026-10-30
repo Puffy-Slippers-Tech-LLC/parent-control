@@ -139,7 +139,7 @@ def session_scan():
     return result
 
 
-def sessions():
+def sessions(*, diagnostic=None):
     """Require convergent readback before interpreting session relationships.
 
     A seat switch can happen between show-session calls: the old desktop can
@@ -150,9 +150,17 @@ def sessions():
     caller's refusal checks. Only observations repeat, never session input.
     """
     previous = session_scan()
+    scans = [previous]
     for _ in range(3):
         current = session_scan()
+        scans.append(current)
         if current == previous:
+            # The failing switch is intermittent. Retain its convergent reads
+            # too, so a passing diagnostic can show session churn and which
+            # side of the single submission observed it. No extra reads.
+            if diagnostic is not None:
+                print('session-switch-observation: ' + json.dumps(
+                    {'phase': diagnostic, 'scans': scans}, sort_keys=True), file=sys.stderr)
             # logind's closing state means logged out with leftover processes.
             # A GDM worker can retain that record after the desktop has exited.
             # Compare complete scans first; only logged-in sessions can be an
@@ -160,6 +168,11 @@ def sessions():
             return {identity: props for identity, props in current.items()
                     if props['State'] != 'closing'}
         previous = current
+    # Private engineering evidence. Keep the existing four-scan bound and
+    # refusal; never resubmit input or accept a torn scan.
+    # These are public logind IDs/properties, without names or credentials.
+    print('session-unstable-observation: ' + json.dumps(
+        {'phase': diagnostic, 'scans': scans}, sort_keys=True), file=sys.stderr)
     raise SessionError('session:unstable-observation')
 
 
@@ -440,7 +453,9 @@ def execute(binding):
                     'interface': 'system session', 'wrong_entry_refused': True}
         require(False, 'wrong-entry-accepted')
     locked = action == 'return-greeter'
-    source = source_session(sessions(), account.pw_uid, locked=locked)
+    switch_diagnostic = binding == 'parent-switch-user'
+    source = source_session(sessions(
+        diagnostic='source' if switch_diagnostic else None), account.pw_uid, locked=locked)
     if action == 'desktop-identity':
         current = sessions()
         require(source_session(current, account.pw_uid) == source, 'source-changed')
@@ -456,7 +471,9 @@ def execute(binding):
     os.environ.clear()
     os.environ.update(env)
     # Recheck after changing identity, immediately before the single submission.
-    require(source_session(sessions(), account.pw_uid, locked=locked) == source, 'source-changed')
+    require(source_session(sessions(
+        diagnostic='before-submit' if switch_diagnostic else None),
+        account.pw_uid, locked=locked) == source, 'source-changed')
     if action == 'continuous-activity':
         previous = prepare_continuous_activity()
         require(source_session(sessions(), account.pw_uid) == source, 'source-changed')
@@ -473,7 +490,18 @@ def execute(binding):
                 'administrator': True, 'package_sha256': digest}
     submit(action)
     deadline = time.monotonic() + 45
-    while not destination(sessions(), source, account.pw_uid, action):
+    while True:
+        try:
+            current = sessions(diagnostic='after-submit' if switch_diagnostic else None)
+        except SessionError as error:
+            if str(error) != 'session:unstable-observation':
+                raise
+            # Greeter creation, its user manager and the seat switch can
+            # change every scan in one batch. Keep observing within the
+            # existing deadline; never interpret a torn scan or repeat input.
+        else:
+            if destination(current, source, account.pw_uid, action):
+                break
         require(time.monotonic() < deadline, 'destination-timeout')
         time.sleep(.2)
     return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',

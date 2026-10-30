@@ -25,6 +25,8 @@ TASK_STATUSES = (
     'Testing fix, previous error point not reached yet',
     'Testing fix, previous error point passed',
     'Running',
+    'Collecting diagnostic evidence',
+    'Diagnostic case passed; awaiting interpretation',
 )
 
 

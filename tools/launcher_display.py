@@ -41,7 +41,8 @@ def error_status_lines(task_info, key, clock):
         last_error.append('-')
     status_line = Text('Status: ')
     status_line.stylize('bold', 0, len('Status:'))
-    colors = dict(zip(TASK_STATUSES, ('#0098ff', '#0098ff', 'yellow', 'green', '#0098ff')))
+    colors = dict(zip(TASK_STATUSES, ('#0098ff', '#0098ff', 'yellow', 'green', '#0098ff',
+                                    'yellow', '#0098ff')))
     status_line.append(status, style=colors[status])
     status_line.append(f' ({status_age} ago)', style='#0098ff')
     return [last_error, Text(''), status_line], clock

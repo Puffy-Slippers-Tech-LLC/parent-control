@@ -958,8 +958,10 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 commits.save()
             print(f'fix-tests: bounded verification case: {retry_case}', flush=True)
             fresh, resume = False, True
-        focused = repaired is not None and (unidentified or
-                   bool(retry_case) and repaired.get('status') in ('fixed', 'test_fixed'))
+        # Diagnostics use the same exact-case boundary as corrective retries.
+        # Otherwise --resume-case continues the category outside run_cases,
+        # leaving its shared case counters and active-case identity frozen.
+        focused = repaired is not None and (unidentified or bool(retry_case))
         verification_vm = (retry_vm or None) if focused or probe else None
         checking_fix = checking_fix or focused
         resume = not fresh and (resume or (resuming and (category == pending or
@@ -1034,7 +1036,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             repair_testing = (checking_fix or probe or commits.state['repairs']
                               or commits.state.get('queued_failure'))
             progress(category, 'Verifying' if repair_testing else 'Running tests')
-            if checking_fix:
+            if repaired is not None and repaired.get('status') == 'diagnostic_ready':
+                panel({'status': 'Collecting diagnostic evidence'})
+            elif checking_fix:
                 panel({'status': 'Testing fix, previous error point not reached yet'})
             status_line = category_status(category, categories)
             print(f'\nfix-tests: running {category}', flush=True)
@@ -1063,7 +1067,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                     if outcome(None, (category, retry_case, retry_vm)) is not True:
                         raise ValueError('queued case recheck has no teardown-complete case evidence')
                     return None  # The exact case passed; the category still needs its remaining cases.
-                if checking_fix:
+                if checking_fix and repaired is not None and repaired.get('status') == 'diagnostic_ready':
+                    panel({'status': 'Diagnostic case passed; awaiting interpretation'})
+                elif checking_fix:
                     panel({'status': 'Testing fix, previous error point passed'})
                 if focused and resume:
                     if repaired.get('status') == 'diagnostic_ready':

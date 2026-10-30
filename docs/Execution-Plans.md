@@ -505,6 +505,8 @@ exactly one of the following. With no last error, it is always blue `Running`:
 | Root cause identified, fixing | Blue |
 | Testing fix, previous error point not reached yet | Yellow |
 | Testing fix, previous error point passed | Green |
+| Collecting diagnostic evidence | Yellow |
+| Diagnostic case passed; awaiting interpretation | Blue |
 
 Blue status values and the elapsed age use explicit blue (`#0098ff`) so terminal
 palette settings cannot render them gray. The `Status:` label keeps its normal color.
@@ -526,7 +528,10 @@ round/category. Its controller records each failed run once; repair agents updat
 their investigation/fixing status through the same commentary
 protocol. Before corrective verification the controller sets the yellow testing
 status, and a passing selected run sets green while retaining the last error and
-its age. Diagnostic execution alone grants no verified-fix status. Moving to a
+its age. Diagnostic retries show `Collecting diagnostic evidence`, then
+`Diagnostic case passed; awaiting interpretation` after an exact-case pass.
+They stop before later cases and return observations to the repair agent;
+diagnostic execution alone grants no verified-fix status. Moving to a
 different category or round selects its own metadata and clocks.
 
 Before launching the test or retry that verifies a fix at the previous error point,

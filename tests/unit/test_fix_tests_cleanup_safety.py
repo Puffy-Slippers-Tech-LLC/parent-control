@@ -799,7 +799,7 @@ def test_diagnostic_execution_does_not_claim_a_verified_fix(checkout):
         tests=['failed-case', None, None], wait_test=1)))
     run, _ = fix_tests.select(root, categories=('unit',))
     wait_for(root / 'test-ready')
-    assert task_info(run, '1:unit')['status'] == 'Investigating'
+    assert task_info(run, '1:unit')['status'] == 'Collecting diagnostic evidence'
     (root / 'release').touch()
     assert fix_tests.follow(run, io.StringIO()) == 0
     assert task_info(run, '1:unit')['status'] == 'Testing fix, previous error point passed'
@@ -1614,8 +1614,8 @@ def test_diagnostic_experiment_retains_evidence_and_selectors_without_repair_cla
         ['--stop-on-error', 'unit', '-k', 'selected', '-q', '--vm', vm_name()],
         *[[*(['--resume'] if case else []), '--stop-on-error', 'unit', '-k', 'selected', '-q',
            *(['--resume-case=' + case] if case else []),
-           *(['--resume-case-only'] if index > 0 else []), '--vm', vm_name()]
-          for index, case in enumerate(retries)],
+           '--resume-case-only', '--vm', vm_name()]
+          for case in retries],
         ['--resume', '--stop-on-error', 'unit', '-k', 'selected', '-q', '--vm', vm_name()]]
     rows = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
     diagnostics = [row for row in rows if row['event'] == 'diagnostic_execution']

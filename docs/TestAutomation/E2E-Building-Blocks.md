@@ -4756,6 +4756,13 @@ credential-owner check with the real composed prefix; keep its two fresh
 recipient proofs and single-use submission. A passing unscoped approval probe
 does not exercise a newly prefixed consumer.
 
+For a journey that preserves the child's work, trace its fixture subset and
+qualified caller from the case entry through journey initialization and asset
+verification. Declare both before constructing the journey: activity checks
+need the activity closure even when all approval and language operations are
+already qualified. Reuse the shared fixture declarations; do not provision a
+missing activity from inside the running case.
+
 Run the smallest existing checks for changed core execution, verdict, credential
 or ownership guards. Add a focused regression only for a concrete uncovered
 guarantee admitted by the [test scope mandate](../Mandates/Test-Scope-Mandate.md).

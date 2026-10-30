@@ -3,8 +3,12 @@
 from copy import deepcopy
 from functools import partial
 
+from accessible_ui import countdown_seconds
+from countdown import (CountdownSample, await_countdown_progress,
+                       check_countdown_balance, check_countdown_progress)
+from natural_expiry_observation import await_natural_expiry
 from private_artifacts import require
-from ui_observations import AppRowsObservation
+from ui_observations import AppActivityObservation, AppRowsObservation, compare_app_activity
 from installed_journey import InstalledJourney
 
 
@@ -57,6 +61,115 @@ class DailyTimeProfileJourney(AllowanceJourney):
             value = observed['ui']['time_explanation']
             require(value['daily']['seconds'] > 0 and value['one_time']['seconds'] == 0,
                     'time-profile:daily-only-balances')
+
+
+class CountdownActivityJourney:
+    """Shared retained-work and immutable countdown comparisons for E2E-011."""
+
+    def __init__(self, context, progress, plan, *, time_stages, actions=None, **kwargs):
+        if actions is None:
+            from native_fixtures import fixture_actions
+            available = {
+                **fixture_actions(include_refusal=False), 'minute-progress': self.minutes,
+                'final-transition': self.transition, 'second-progress': self.seconds,
+                'natural-expiry': self.expiry}
+            actions = {name: action for name, action in available.items()
+                       if name in plan.stage_actions.values()}
+        super().__init__(context, progress, plan, **kwargs,
+                         actions=actions)
+        self.time_stages = time_stages
+        self.balance = None
+        self.samples = {}
+        self.last_progress = None
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage == 'profile-configured':
+            value = observed['ui']['time_explanation']
+            self.balance = (value['total']['seconds'], value['total']['precision_seconds'],
+                            value['observed_monotonic_ns'])
+        if stage not in self.time_stages:
+            return
+        current = CountdownSample.from_ui(observed['ui'], boot_sha256=observed['boot_sha256'])
+        require(stage not in self.samples and countdown_seconds(current.countdown.text)[0] > 0,
+                'countdown-daily:missed-or-replayed-window')
+        if stage == 'initial-countdown':
+            require(self.balance is not None, 'countdown:missing-balance')
+            observed['comparison'] = check_countdown_balance(current.countdown,
+                seconds=self.balance[0], precision_seconds=self.balance[1],
+                observed_monotonic_ns=self.balance[2])
+        elif stage == 'returned-countdown':
+            previous = self.samples['initial-countdown']
+            current.elapsed_since(previous, max_elapsed_seconds=180)
+            require(countdown_seconds(current.countdown.text)[0]
+                    <= countdown_seconds(previous.countdown.text)[0], 'countdown-daily:return-reset')
+            observed['comparison'] = check_countdown_balance(current.countdown,
+                seconds=countdown_seconds(previous.countdown.text)[0],
+                precision_seconds=previous.precision_seconds,
+                observed_monotonic_ns=previous.countdown.observed_monotonic_ns)
+        else:
+            previous = self.last_progress or self.samples['returned-countdown']
+            current.elapsed_since(previous, max_elapsed_seconds=90 if stage in (
+                'minute-progression', 'final-second-transition') else 15)
+            require(countdown_seconds(current.countdown.text)[0]
+                    <= countdown_seconds(previous.countdown.text)[0], 'countdown:no-progress')
+            if stage == 'natural-expiry' and current.countdown.text != previous.countdown.text:
+                observed['comparison'] = check_countdown_progress(current, previous,
+                    precision_seconds=1, tolerance_seconds=2, max_elapsed_seconds=15)
+        self.samples[stage] = current
+
+    @staticmethod
+    def minutes(journey, guard):
+        current = journey.samples['minute-progression']
+        require(current.precision_seconds == 60 and countdown_seconds(current.countdown.text)[0] >= 120,
+                'countdown-daily:minute-margin')
+        activity = journey.activity_observations['activity-capture']
+        guard()
+        value = journey.ui.observe('child-natural-expiry-observe')['natural_expiry']
+        guard()
+        require(value['state'] == 'desktop', 'countdown-daily:early-lock')
+        compare_app_activity(AppActivityObservation.from_value(value['activity']), activity)
+        progressions, activities = [], []
+        # Each profile declares its finite number of minute edges. Every edge
+        # keeps its 90-second bound; ordinary app use resumes between them.
+        while current.countdown.text != '00:01':
+            require(len(progressions) < journey.minute_edge_limit, 'countdown-daily:minute-bound')
+            current, comparison = await_countdown_progress(journey, guard, current,
+                precision_seconds=60, tolerance_seconds=2, max_elapsed_seconds=90)
+            progressions.append(comparison)
+            guard()
+            value = journey.ui.observe('child-natural-expiry-activity')['natural_expiry']
+            guard()
+            require(value['state'] == 'desktop' and value['acted'], 'countdown-daily:early-lock')
+            compare_app_activity(AppActivityObservation.from_value(value['activity']), activity)
+            activities.append(value)
+        journey.last_progress = current
+        return {'progressions': progressions, 'activities': activities}
+
+    @staticmethod
+    def transition(journey, guard):
+        current, result = await_countdown_progress(journey, guard, journey.last_progress,
+            precision_seconds=1, previous_precision_seconds=60, tolerance_seconds=2,
+            max_elapsed_seconds=90, initial_sample=journey.samples['final-second-transition'])
+        require(countdown_seconds(current.countdown.text)[0] > 0, 'countdown:final-window-missed')
+        journey.last_progress = current
+        return result
+
+    @staticmethod
+    def seconds(journey, guard):
+        stage = ('independent-second-progression' if 'independent-second-progression' in journey.samples
+                 else 'second-progression')
+        current, result = await_countdown_progress(journey, guard, journey.last_progress,
+            precision_seconds=1, tolerance_seconds=2, max_elapsed_seconds=15,
+            initial_sample=journey.samples[stage])
+        require(countdown_seconds(current.countdown.text)[0] > 0, 'countdown:final-window-missed')
+        journey.last_progress = current
+        return result
+
+    @staticmethod
+    def expiry(journey, guard):
+        return await_natural_expiry(journey, guard, journey.samples['natural-expiry'],
+                                    journey.activity_observations['activity-capture'])
 
 
 class RetainedSessionJourney(AllowanceJourney):

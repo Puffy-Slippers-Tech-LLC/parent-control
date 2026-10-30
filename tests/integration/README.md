@@ -1452,7 +1452,7 @@ failed test assertion.
   export. Agent cleanup signals only its directly spawned pidfd; run
   `test_system_agent_cleanup_safety.py` before integrated use. This text-agent
   coverage does not replace graphical authentication journeys.
-- `tests/system/test_authorization.py`: reusable `batch`, `call`,
+- `system_assertions.py`: reusable `batch`, `call`,
   `account_property` and `account_state` assertions. Account state compares
   private preferences and public limit/grant/filter state without printing
   private values. Keep phase expectations aligned with actual collection;

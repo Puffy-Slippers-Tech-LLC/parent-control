@@ -266,6 +266,11 @@ explicit two-second estimate tolerance. Final-second comparisons declare one-sec
 precision, with an explicit prior precision of 60 only for the transition.
 They require distinct decreases, include read latency and never demand each tick.
 An independently supplied stage read retains the earlier endpoint/deadline.
+The daily, grant-only and combined retained-work cases compose
+`journey_blocks.countdown_activity` and `journey_checks.CountdownActivityJourney`.
+Each case keeps its own profile, progression stages, minute-edge bound, recorder
+phases and customer assertions; shared work/lock/countdown mechanics must not
+depend on importing another runnable case or inheriting its plan.
 `CountdownMinutesJourney` composes the qualified same-user four-minute daily-only
 profile with independently supplied child entry and two progression invocations.
 The [minute progression slice](../../docs/TestAutomation/E2E-Building-Blocks.md#minute-countdown-progression-qualification)

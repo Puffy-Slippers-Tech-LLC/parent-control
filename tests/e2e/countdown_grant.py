@@ -1,53 +1,58 @@
 """Case 28: real two-minute approval, retained work and natural exhaustion."""
 
-from dataclasses import replace
-
 from accessible_ui import countdown_seconds
-from countdown_daily import ACTIVITY_SCREENS, PLAN as DAILY_PLAN, CountdownActivityJourney
 from grant_only_profile import GrantOnlyProfileJourney
-from installed_journey import record_installed_journey
-from journey_blocks import fresh_desktop, grant_only_time_profile
+from installed_journey import JourneyPlan, record_installed_journey
+from journey_blocks import countdown_activity, fresh_desktop, grant_only_time_profile
+from journey_checks import CountdownActivityJourney
 from private_artifacts import require
 
 
+TIME_STAGES = ('initial-countdown', 'returned-countdown', 'final-second-transition',
+               'second-progression', 'independent-second-progression', 'natural-expiry')
 SCREENS = {
     **grant_only_time_profile(source='gdm', entry='fresh', window='new',
         initial_enabled=False, revoke_first=False, duration_seconds=120,
         request_initial='default', balance_readback=False),
     'profile-balance': 'ui:revoke-balances',
     **{stage: ('ui:overlay-native-activity' if stage in ('lock-ready', 'unlock-desktop') else tag)
-       for stage, tag in ACTIVITY_SCREENS.items()
-       if stage not in ('minute-progression', 'fresh-desktop', 'activity-desktop')},
+       for stage, tag in countdown_activity(TIME_STAGES[2:]).items()
+       if stage not in ('fresh-desktop', 'activity-desktop')},
 }
 LOGIN_PREFIXES = {'': 'parent-login', 'fresh-': 'child-login'}
 LOGIN_STAGES = {prefix + stage for prefix in LOGIN_PREFIXES
                 for stage in fresh_desktop('child' if prefix == 'fresh-' else 'parent')}
-PLAN = replace(DAILY_PLAN,
+PLAN = JourneyPlan(
     prefix='countdown-grant', worker_mode='countdown_grant', screen_tags=SCREENS,
     phases={'ready': 'setup', 'setup-detached': 'setup',
             **{stage: 'step-1' for stage in SCREENS}, 'installed-greeter': 'start',
             **{stage: 'step-2' for stage in tuple(SCREENS)[tuple(SCREENS).index('lock-ready'):]},
             **{stage: 'step-3' for stage in tuple(SCREENS)[tuple(SCREENS).index('final-second-transition'):]}},
+    advance_after={'activity-capture': 'step-2', 'usable-activity': 'step-3'},
     invocations=tuple(stage for stage in SCREENS
-                      if stage in LOGIN_STAGES or stage in DAILY_PLAN.invocations),
+                      if stage in LOGIN_STAGES or stage in TIME_STAGES
+                      or stage in ('lock-input-ready', 'lock-result')),
     challenges={identity: ('child' if prefix == 'fresh-' else 'parent',
         prefix + ('child-' if prefix == 'fresh-' else '') + 'recipient-qualified',
         prefix + ('child-' if prefix == 'fresh-' else '') + 'recipient-rechecked')
         for prefix, identity in LOGIN_PREFIXES.items()},
-    settings_checks={}, balance_checks={},
-    stage_actions={stage: action for stage, action in DAILY_PLAN.stage_actions.items()
-                   if stage in SCREENS},
-    activity_checks={**DAILY_PLAN.activity_checks,
-                     **{stage: ('activity-capture', 'same')
-                        for stage in ('lock-ready', 'unlock-desktop')}},
-    assertions_after={**{stage: assertion for stage, assertion in DAILY_PLAN.assertions_after.items()
-                        if stage in SCREENS}, 'final-second-transition': 'minute-progression'},
+    stage_actions={'desktop': 'native-verify', 'final-second-transition': 'final-transition',
+                   'second-progression': 'second-progress',
+                   'independent-second-progression': 'second-progress',
+                   'natural-expiry': 'natural-expiry'},
+    activity_entries={'natural-expiry': 'activity-capture'},
+    activity_checks={stage: ('activity-capture', 'same') for stage in (
+        'returned-activity', 'resume-opened', 'usable-activity', 'lock-ready', 'unlock-desktop')},
+    assertions_after={'activity-capture': 'usable-child-activity',
+                      'returned-countdown': 'resumed-time', 'usable-activity': 'retained-work',
+                      'independent-second-progression': 'second-progression',
+                      'lock-result': 'visible-result', 'final-second-transition': 'minute-progression'},
 )
 
 
 class CountdownGrantJourney(CountdownActivityJourney, GrantOnlyProfileJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan, actions=actions)
+        super().__init__(context, progress, plan, time_stages=TIME_STAGES, actions=actions)
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)

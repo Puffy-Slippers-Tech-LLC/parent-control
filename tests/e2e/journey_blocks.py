@@ -15,6 +15,25 @@ def prefixed_stages(prefix, screens):
     return {prefix + '-' + stage: tag for stage, tag in screens.items()}
 
 
+def countdown_activity(time_stages):
+    """Child work, retained unlock and caller-declared countdown observations."""
+    return {
+        **prefixed_stages('fresh', fresh_desktop('child')),
+        'initial-countdown': 'ui:child-countdown-present',
+        **native_activity_entry('activity', child='child'),
+        'lock-ready': 'ui:fresh-child-desktop', 'lock': 'system:child-lock',
+        **lock_challenge(account='child'), **lock_recipient(account='child'),
+        'unlock-desktop': 'ui:fresh-child-desktop',
+        'returned-countdown': 'ui:child-countdown-present',
+        'returned-activity': 'ui:overlay-native-activity',
+        **native_activity_resume('resume', child='child'),
+        'usable-activity': 'ui:overlay-native-activity',
+        **{stage: 'ui:child-countdown-present' for stage in time_stages},
+        'lock-input-ready': 'ui:child-natural-expiry-lock-ready',
+        'lock-result': 'ui:child-natural-expiry-lock-result',
+    }
+
+
 def daily_time_profile(*, source, entry, window, initial_enabled, minutes):
     """FLOW13 daily-only: explicit new Parent entry, zero grant, save, GDM.
 

@@ -126,6 +126,17 @@ Ubuntu/Fedora qualification; see the [exact scope and reports](../../docs/TestAu
 observation supplies the required public result. No Quick Settings, confirmation
 dialog or fallback after uncertain submission is involved.
 
+For logout followed by fresh sign-in, reuse `session_control.sessions()` rather
+than treating every listed logind record as a retained desktop. The reader
+requires matching complete scans before excluding `State=closing` records:
+the child has logged out even if GDM or another process keeps that record alive.
+An `opening` session cannot authorize input or establish a ready greeter.
+Inspect lifecycle `State` separately from foreground `Active` when diagnosing
+these transitions; opening and closing records can have either active value.
+Keep this interpretation in the shared reader, with fresh source/recipient
+checks at input, rather than adding case-specific filters or longer waits for
+the record to disappear.
+
 After a successful `desktop` or `fresh-parent-desktop` observation and boot
 continuity check, `InstalledJourney` automatically verifies the fixture Parent
 for continuous application UI operations through `session_control`'s

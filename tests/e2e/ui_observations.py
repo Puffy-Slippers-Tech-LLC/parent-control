@@ -82,6 +82,8 @@ OPERATION_LABELS = {
     'overlay-shell-submit-ready': 'Guarding one submission to the filled Shell challenge',
     'overlay-approval-success': 'Reading explicit approval before automatic overlay exit',
     'overlay-approval-immediate': 'Reading explicit approval and taking the owned immediate exit',
+    **{operation: 'Checking Hebrew product approval with the English desktop password prompt'
+       for operation in accessible_ui.SHELL_HEBREW_APPROVAL_ORDER},
     **{operation: 'Qualifying the wrong-password Shell challenge: ' +
        operation.removeprefix('overlay-shell-rejection-')
        for operation in accessible_ui.SHELL_REJECTION_ORDER},
@@ -1225,9 +1227,12 @@ class UiObservations:
                     require(not self.challenge_failed, 'ui:challenge-previous-failure')
                     if shell_index == 0:
                         self.shell_rejection = operation == accessible_ui.SHELL_REJECTION_ORDER[0]
+                        self.shell_hebrew = operation == accessible_ui.SHELL_HEBREW_APPROVAL_ORDER[0]
                     order = (accessible_ui.SHELL_REJECTION_ORDER if getattr(self, 'shell_rejection', False) else
+                             accessible_ui.SHELL_HEBREW_APPROVAL_ORDER if getattr(self, 'shell_hebrew', False) else
                              accessible_ui.SHELL_APPROVAL_ORDER)
-                    if not getattr(self, 'shell_rejection', False) and operation == 'overlay-approval-immediate':
+                    if not getattr(self, 'shell_rejection', False) and not getattr(self, 'shell_hebrew', False) \
+                            and operation == 'overlay-approval-immediate':
                         order = (*order[:-1], operation)
                     require(shell_index < len(order) and operation == order[shell_index],
                             'ui:shell-order')
@@ -1322,7 +1327,7 @@ class UiObservations:
                             and self.chinese_returned, 'ui:mate-fresh-session-order')
                     self.mate_approval_index = 0
                     self.chinese_returned = False
-                if operation in ('overlay-shell-open', accessible_ui.SHELL_REJECTION_ORDER[0]):
+                if operation in accessible_ui.SHELL_OPEN_OPERATIONS:
                     # Opening includes request submission, prompt discovery and
                     # refusal qualification. It grants no password authority;
                     # age the forthcoming recipient proofs from this completed
@@ -1443,8 +1448,7 @@ class UiObservations:
                 'kiosk-pause-mate-open', 'jordan-mate-open') and not (
                     operation in accessible_ui.PROFILE_MATE_REQUESTS and operation.endswith('-mate-open')):
             binding = [self.boot_guard or '', self.mate_approval_identity]
-        if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS and operation not in (
-                'overlay-shell-open', accessible_ui.SHELL_REJECTION_ORDER[0]):
+        if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS and operation not in accessible_ui.SHELL_OPEN_OPERATIONS:
             binding = [self.boot_guard or '', self.shell_approval_identity]
         if operation == 'kiosk-reminder-preview-cancel':
             require(self.last_operation == 'kiosk-reminder-preview' and
@@ -2153,7 +2157,7 @@ class UiObservations:
                             'rejected', 'cancel_ready', 'same_challenge_rechecked')),
                         'ui:shell-rejection-result')
             else:
-                opening = operation in ('overlay-shell-open', accessible_ui.SHELL_REJECTION_ORDER[0])
+                opening = operation in accessible_ui.SHELL_OPEN_OPERATIONS
                 require(type(value) is dict and set(value) == (
                     {'challenge_id', 'provider', 'rejected_proofs'} if opening else {'challenge_id'}),
                     'ui:shell-response')
@@ -2161,6 +2165,10 @@ class UiObservations:
                 require(type(identity) is str and re.fullmatch(r'[0-9a-f]{64}', identity), 'ui:shell-identity')
                 if opening:
                     accessible_ui.validate_shell_metadata(value['provider'])
+                    if operation == accessible_ui.SHELL_HEBREW_APPROVAL_ORDER[0]:
+                        require(value['provider']['locale'] in (
+                            'en_US.UTF-8', 'en_US.utf8', 'C', 'C.UTF-8', 'C.utf8'),
+                            'ui:shell-native-language')
                     require(value['rejected_proofs'] == list(accessible_ui.SHELL_PROMPT_REFUSALS),
                             'ui:shell-refusals')
                     require(identity not in self.challenges, 'ui:challenge-replay')
@@ -2693,7 +2701,8 @@ class UiObservations:
                     'kind', 'text', 'seconds', 'precision_seconds'} and estimate['kind'] == 'fixed',
                     'ui:kiosk-valid-response')
                 require(estimate == {'kind': 'fixed', **accessible_ui.duration_projection(estimate['text'],
-                    **({'language': 'zh-Hans'} if operation in accessible_ui.CHINESE_VALID_REQUESTS else {}))},
+                    language=('he' if operation == 'overlay-hebrew-fraction-soft-read' else
+                              'zh-Hans' if operation in accessible_ui.CHINESE_VALID_REQUESTS else 'en'))},
                         'ui:kiosk-valid-response')
                 if fresh:
                     require(estimate['precision_seconds'] == 1, 'ui:overlay-refresh-precision')

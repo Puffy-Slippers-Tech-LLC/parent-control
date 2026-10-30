@@ -1,9 +1,9 @@
 """048d: fixed Shell approval, explicit success and the original child activity."""
 from dataclasses import replace
 from installed_journey import JourneyPlan
-from journey_blocks import fresh_desktop, parent_management, native_activity_entry, overlay_entry
+from journey_blocks import fresh_desktop, parent_management, native_activity_entry, overlay_entry, language_selection
 from native_fixtures import fixture_actions
-from request_flow import prepared_request, overlay_approved_request, overlay_rejected_request, CHOICES
+from request_flow import prepared_request, overlay_approved_request, overlay_rejected_request, overlay_authentication, CHOICES
 from request_composition import KioskRequestJourney
 
 CHILD_ENTRY_SCREENS = {
@@ -56,6 +56,29 @@ PLAN = JourneyPlan(
 IMMEDIATE_PLAN = replace(PLAN, worker_mode='overlay_approval_immediate',
     screen_tags={**SCREENS, 'approval-success': 'ui:overlay-approval-immediate'},
     assertions_after={**PLAN.assertions_after, 'returned': 'immediate-child-return'})
+
+
+TRANSLATED_SCREENS = {
+    **ENTRY_SCREENS,
+    **language_selection('hebrew', 'he', surface='overlay'),
+    'hebrew-save': 'ui:overlay-language-save',
+    'translated-estimate': 'ui:overlay-hebrew-fraction-soft-read',
+    **overlay_authentication(result='approval', prefix='approval', language='he'),
+    'returned': 'ui:overlay-desktop',
+    'activity-returned': 'ui:overlay-native-activity',
+    'countdown': 'ui:child-countdown-present',
+    'activity-close': 'ui:overlay-native-close', 'activity-closed': 'ui:overlay-native-closed',
+}
+# The native provider, request tuple and credential namespace are unchanged.
+# Only the product-owned message and success branches use Hebrew.
+TRANSLATED_PLAN = replace(PLAN, worker_mode='overlay_translated_approval',
+    screen_tags=TRANSLATED_SCREENS,
+    phases={**PLAN.phases, **{stage: 'step-2' for stage in TRANSLATED_SCREENS
+                             if stage not in PLAN.phases}},
+    request_checks={'translated-estimate': ('open-estimate', 'overlay-translation:changed-request',
+                                           'preserved_choices')},
+    countdown_checks={'countdown': ('translated-estimate', 'estimate', 1, 180)},
+    assertions_after={**PLAN.assertions_after, 'countdown': 'elapsed-public-time-increment'})
 
 
 FLOW_REJECTION_SCREENS = {

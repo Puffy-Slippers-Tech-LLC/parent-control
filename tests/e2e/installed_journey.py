@@ -136,11 +136,13 @@ class JourneyPlan:
                     and binding[0] in stages and stages.index(binding[0]) < stages.index(stage)
                     and self.screen_tags[binding[0]] in (
                         'ui:kiosk-valid-fraction-soft-read', 'ui:overlay-valid-fraction-soft-read',
+                        'ui:overlay-hebrew-fraction-soft-read',
                         'ui:kiosk-long-request-soft-read', 'ui:overlay-fraction-estimate-refresh')
                     and (type(binding[1]) is int and 0 < binding[1] < 86400
                          or binding[1] == 'estimate'
                          and self.screen_tags[binding[0]] in (
-                             'ui:overlay-valid-fraction-soft-read', 'ui:overlay-fraction-estimate-refresh'))
+                             'ui:overlay-valid-fraction-soft-read', 'ui:overlay-fraction-estimate-refresh',
+                             'ui:overlay-hebrew-fraction-soft-read'))
                     and type(binding[2]) is int and 1 <= binding[2] <= 60
                     and type(binding[3]) is int and 0 < binding[3] <= 300
                     for stage, binding in self.countdown_checks.items()),
@@ -552,7 +554,7 @@ class InstalledJourney:
 
     def publish_trace_input(self, stage, token, source):
         """Release external authentication input while its owned observer runs."""
-        shell = self.plan.screen_tags.get(stage) in ('ui:overlay-approval-success', 'ui:overlay-approval-immediate')
+        shell = self.plan.screen_tags.get(stage, '').removeprefix('ui:') in accessible_ui.SHELL_SUCCESS_OPERATIONS
         require(shell
                 and re.fullmatch(r'[0-9a-f]{32}', token)
                 and re.fullmatch(r'[0-9a-f]{64}', source), 'ui:trace-input-plan')
@@ -744,12 +746,11 @@ class InstalledJourney:
                 # a separate observer process added a round trip to every step.
                 self.ui.boot_guard = self.boot or ''
                 challenge = plan.challenge_at(stage)
-                if tag in ('ui:overlay-approval-success', 'ui:overlay-approval-immediate'):
+                if tag.removeprefix('ui:') in accessible_ui.SHELL_SUCCESS_OPERATIONS:
                     def worker_input(token, source):
                         guard()
                         self.publish_trace_input(stage, token, source)
-                    observed['ui'] = self.ui.observe_shell_success(worker_input, **(
-                        {'operation': tag[3:]} if tag == 'ui:overlay-approval-immediate' else {}))
+                    observed['ui'] = self.ui.observe_shell_success(worker_input, operation=tag[3:])
                     self.verify_trace_input(stage, self.ui.shell_approval_identity[:32])
                 elif tag == 'ui:parent-custom-save-trace':
                     observed['ui'] = self.ui.observe_accessibility_input(

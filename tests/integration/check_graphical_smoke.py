@@ -1329,7 +1329,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(challenge_profile in ('parent', 'fresh-child', 'fresh-child-denied',
                                   'countdown-enabled', 'countdown-off', 'countdown-animation', 'countdown-minutes', 'countdown-ticks', 'countdown-session', 'natural-expiry', 'shell-panel',
                                   'overlay-valid-choices', 'overlay-choices', 'choices-overlay-to-kiosk', 'cross-surface', 'overlay-prompt', 'overlay-approved-exit', 'overlay-rejection', 'overlay-license',
-                                  'overlay-approval-immediate', 'overlay-flow-rejection', 'overlay-flow-cancel',
+                                  'overlay-approval-immediate', 'overlay-translated-approval', 'overlay-flow-rejection', 'overlay-flow-cancel',
                                   'overlay-browser-links', 'overlay-information') and
             (challenge_profile == 'parent' or challenges is True), 'smoke:challenge-profile')
     require(type(challenges) is bool and (not challenges or (
@@ -1900,6 +1900,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 'overlay-approved-exit': 'installed-overlay-approved-exit-qualification',
                 'overlay-rejection': 'installed-overlay-rejection-qualification',
                 'overlay-approval-immediate': 'installed-overlay-approval-immediate-qualification',
+                'overlay-translated-approval': 'installed-overlay-translated-approval-qualification',
                 'overlay-flow-rejection': 'installed-overlay-flow-rejection-qualification',
                 'overlay-flow-cancel': 'installed-overlay-flow-cancel-qualification',
                 'overlay-license': 'installed-overlay-license-qualification',
@@ -2076,7 +2077,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         OverlayValidChoicesQualification, OverlayChoicesQualification, ChoicesOverlayToKioskQualification, CrossSurfaceQualification, OverlayLicenseQualification,
                         OverlayBrowserLinksQualification, OverlayInformationQualification, OverlayPromptQualification,
                         OverlayApprovedExitQualification, OverlayRejectionQualification,
-                        OverlayApprovalImmediateQualification, OverlayFlowRejectionQualification,
+                        OverlayApprovalImmediateQualification, OverlayTranslatedApprovalQualification, OverlayFlowRejectionQualification,
                         OverlayFlowCancelQualification)
                     qualification_class = {'parent': ChallengesQualification,
                         'fresh-child': FreshChildAllowedQualification,
@@ -2097,6 +2098,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         'overlay-approved-exit': OverlayApprovedExitQualification,
                         'overlay-rejection': OverlayRejectionQualification,
                         'overlay-approval-immediate': OverlayApprovalImmediateQualification,
+                        'overlay-translated-approval': OverlayTranslatedApprovalQualification,
                         'overlay-flow-rejection': OverlayFlowRejectionQualification,
                         'overlay-flow-cancel': OverlayFlowCancelQualification,
                         'overlay-license': OverlayLicenseQualification,

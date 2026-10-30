@@ -44,6 +44,13 @@ and the [prepared guest tool inventory](guest_test_dependencies.py). Record actu
 versions in each result; do not use a dated development-workstation package
 table as evidence of the installed guest's environment.
 
+For the translated overlay's original-activity boundary,
+`tools/test-vm --vm NAME reproduce-overlay-activity` reuses the shared journey
+and retains Riley's submitted activity before approval. `probe-overlay-activity`
+reads that same activity through the maintained observer. These fixed
+[maintenance routes](vm_probe.py) supply no acceptance credit; follow the
+[live diagnosis and cleanup contract](../README.md#live-diagnosis-before-another-repair-attempt).
+
 ## Package and fixture inputs
 
 `tools/build_test_artifacts.py` builds without installing the product on the

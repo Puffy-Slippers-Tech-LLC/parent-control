@@ -618,8 +618,8 @@ Compare policy/name/app captures before/after recovery under the recipe's bound.
 Remaining compositions and new bindings stay pending. Reuse existing LANG01
 and `language_persistence.PLAN` request readers instead of separate 308a/309a
 presentation histories. Implement missing finite literal projections and
-comparisons in tasks 308/309; 308b still qualifies the new translated approval
-result and 310a the new panel endpoint projection. The complete cases retain:
+comparisons in tasks 308/309. Task 308b qualified the fixed translated approval
+result below; 310a retains the new panel endpoint projection. The complete cases retain:
 
 | Binding | Required result |
 | --- | --- |
@@ -1562,6 +1562,20 @@ Require the complete current broker request message before inspecting protected
 field length; obsolete wording refuses. Authentication inputs bind current
 package sources; a current snapshot does not refresh a fixed legacy bundle.
 Retain provenance, snapshot freshness and ownership guards.
+
+`overlay_approved_exit.TRANSLATED_PLAN` /
+`check_e2e_overlay_translated_approval` additionally qualify Riley/Jamie's
+75-second soft-included request with Hebrew product text and the unchanged
+English desktop agent. Both independent clean entries passed on Ubuntu 26.04,
+Shell `50.1-0ubuntu1.4`, `en_US.UTF-8`, `xkb/us` in `20261030T121510Z-a41107c4`:
+fresh same-challenge recipient/refusal proofs, one sealed credential submission,
+Hebrew **זמן הוענק** success, automatic return, the same usable original
+window/draft/score and the elapsed-bounded public time increment. Collection,
+worker/callback closure, owned cleanup, baseline restoration and host/source
+preservation passed for both. The shared read-only activity capture reacquires
+an incomplete provider read within its normal deadline, without input replay or
+accepting a partial tree. Complete language restoration/history remains task 308;
+this binding supplies no complete-case acceptance.
 
 #### Overlay immediate exit and approval compositions
 

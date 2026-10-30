@@ -23,7 +23,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **308b — [Qualify translated overlay approval and return](E2E-Tasks/308b-overlay-translated-approval.md)**.
+Next task: **308 — [Overlay Hebrew request and translated approval](E2E-Tasks/308-overlay-language-presentation.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

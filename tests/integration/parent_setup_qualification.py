@@ -1347,6 +1347,17 @@ class OverlayApprovalImmediateQualification(OverlayApprovedExitQualification):
         return type(journey)(context, progress, IMMEDIATE_PLAN)
 
 
+class OverlayTranslatedApprovalQualification(OverlayApprovedExitQualification):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets
+    fixture_caller = 'check_e2e_overlay_translated_approval'
+
+    @staticmethod
+    def journey(context, progress):
+        from overlay_approved_exit import TRANSLATED_PLAN
+        journey = OverlayApprovedExitQualification.journey(context, progress)
+        return type(journey)(context, progress, TRANSLATED_PLAN)
+
+
 class OverlayFlowRejectionQualification(OverlayApprovedExitQualification):
     from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets
     fixture_caller = 'check_e2e_overlay_approval'

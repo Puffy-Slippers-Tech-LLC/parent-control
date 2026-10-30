@@ -344,6 +344,7 @@ sub run {
         return;
     }
     for my $binding (['overlay_approval_immediate', 'approval-immediate'],
+                     ['overlay_translated_approval', 'approval-translated'],
                      ['overlay_flow_rejection', 'flow-rejection'],
                      ['overlay_flow_cancel', 'flow-cancel']) {
         if ($ready->{$binding->[0]}) {

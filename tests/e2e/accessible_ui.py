@@ -931,6 +931,7 @@ OVERLAY_VALID_REQUESTS['overlay-flow-approver-select'] = (75, '1.25', True)
 OVERLAY_VALID_REQUESTS['overlay-long-approver-select'] = (600, '10', True)
 OVERLAY_VALID_REQUESTS['overlay-long-request-read'] = (600, '10', True)
 OVERLAY_VALID_REQUESTS['overlay-fraction-estimate-refresh'] = (75, '1.25', True)
+OVERLAY_VALID_REQUESTS['overlay-hebrew-fraction-soft-read'] = (75, '1.25', True)
 OVERLAY_VALID_REQUESTS['overlay-valid-fraction-excluded-select'] = (75, '1.25', False)
 OVERLAY_VALID_REQUESTS['overlay-valid-fraction-excluded-read'] = (75, '1.25', False)
 OVERLAY_VALID_OPERATIONS = frozenset(OVERLAY_VALID_REQUESTS) | {
@@ -1022,8 +1023,13 @@ SHELL_PROMPT_OPERATIONS = frozenset({'overlay-shell-cancel-ready'})
 SHELL_APPROVAL_ORDER = ('overlay-shell-open', 'overlay-shell-qualified',
                         'overlay-shell-rechecked', 'overlay-shell-submit-ready',
                         'overlay-approval-success')
-SHELL_APPROVAL_OPERATIONS = frozenset(SHELL_APPROVAL_ORDER)
-SHELL_SUCCESS_OPERATIONS = frozenset({'overlay-approval-success', 'overlay-approval-immediate'})
+SHELL_HEBREW_APPROVAL_ORDER = tuple(operation.replace('overlay-', 'overlay-hebrew-', 1)
+                                   for operation in SHELL_APPROVAL_ORDER)
+SHELL_OPEN_OPERATIONS = frozenset({SHELL_APPROVAL_ORDER[0], SHELL_HEBREW_APPROVAL_ORDER[0],
+                                  'overlay-shell-rejection-open'})
+SHELL_APPROVAL_OPERATIONS = frozenset((*SHELL_APPROVAL_ORDER, *SHELL_HEBREW_APPROVAL_ORDER))
+SHELL_SUCCESS_OPERATIONS = frozenset({'overlay-approval-success', 'overlay-approval-immediate',
+                                     SHELL_HEBREW_APPROVAL_ORDER[-1]})
 SHELL_APPROVAL_OPERATIONS |= SHELL_SUCCESS_OPERATIONS
 SHELL_REJECTION_ORDER = tuple('overlay-shell-rejection-' + suffix for suffix in
     ('open', 'qualified', 'rechecked', 'submit-ready', 'cancel-ready'))
@@ -1033,6 +1039,12 @@ CHILD_DESKTOP_OPERATIONS |= SHELL_APPROVAL_OPERATIONS
 OPERATIONS |= {'overlay-shell-dismissed'}
 CHILD_DESKTOP_OPERATIONS |= {'overlay-shell-dismissed'}
 SHELL_PROMPT_REFUSALS = ('wrong-agent', 'session', *MATE_REFUSALS[1:])
+SHELL_REQUEST_MESSAGES = {
+    'en': f'Grant {CHILD} access?\nRequested time: 1 minute, 15 seconds.\n'
+          'Allow soft blocked apps for this grant.',
+    'he': f'להעניק גישה ל־{CHILD}?\nהזמן המבוקש: 1 דקה, 15 שניות.\n'
+          'לאפשר יישומים החסומים עם אפשרות להיתר זמני למשך ההרשאה הזאת.',
+}
 OPERATIONS |= SHELL_PROMPT_OPERATIONS
 CHILD_DESKTOP_OPERATIONS |= SHELL_PROMPT_OPERATIONS
 OPERATIONS |= MATE_OPERATIONS | {'parent-mate-refused'}
@@ -10509,7 +10521,8 @@ class AccessibleUI:
         jordan = operation in JORDAN_VALID_BINDINGS
         require(operation in KIOSK_VALID_OPERATIONS or overlay or chinese, 'ui:kiosk-valid-binding')
         child = EXISTING_CHILD if chinese or jordan else CHILD
-        language = 'zh-Hans' if chinese else 'en'
+        language = ('he' if operation == 'overlay-hebrew-fraction-soft-read' else
+                    'zh-Hans' if chinese else 'en')
         action = (JORDAN_VALID_BINDINGS[operation] if jordan else
                   CHINESE_VALID_BINDINGS[operation] if chinese else
                   operation.replace('overlay-', 'kiosk-', 1) if overlay else operation)
@@ -10638,9 +10651,11 @@ class AccessibleUI:
             node = self.snapshot_owned_target('kiosk-request-status', check_prompt=True)
             require(node is not None, 'ui:kiosk-estimate-missing')
             message = ' '.join(node.get_name().split())
-            if message == ('正在估算可用时间…' if chinese else 'Calculating time estimate…'):
+            if message == ('חישוב הערכת הזמן…' if language == 'he' else
+                           '正在估算可用时间…' if chinese else 'Calculating time estimate…'):
                 return None
-            prefix = '预计剩余时间：' if chinese else 'Estimated remaining time: '
+            prefix = ('יתרת הזמן המשוערת: ' if language == 'he' else
+                      '预计剩余时间：' if chinese else 'Estimated remaining time: ')
             # Every duration, including rest of day, first clears the old
             # estimate while the shared 250 ms debounce is pending.
             if message == prefix.rstrip():
@@ -10908,7 +10923,9 @@ class AccessibleUI:
         """REQUEST11: explicit owned success, never prompt disappearance alone."""
         if overlay:
             self.require_child_overlay_session()
-        require(language in ('en', 'zh-Hans') and (language == 'en' or not overlay and not immediate),
+        require(language in ('en', 'zh-Hans', 'he') and (language == 'en'
+                or language == 'he' and overlay and not immediate
+                or language == 'zh-Hans' and not overlay and not immediate),
                 'ui:approval-language')
         def success():
             self.invalidate_observation()
@@ -10944,7 +10961,8 @@ class AccessibleUI:
                 page = self.find_id('kiosk-result-page', root=window)
             if title is None or page is None or not self.showing(title) or not self.showing(page):
                 return False
-            require(title.get_name() == ('请求已获批准' if language == 'zh-Hans' else
+            require(title.get_name() == ('זמן הוענק' if language == 'he' else
+                                        '请求已获批准' if language == 'zh-Hans' else
                                         'Time granted' if overlay else 'Request approved'),
                     'ui:kiosk-approval-result')
             # Latch the brief public result before a slower desktop-wide scan.
@@ -11147,13 +11165,14 @@ class AccessibleUI:
                 'ui:shell-owner')
         return owner
 
-    def shell_prompt(self, pid, uid, *, observation=None, challenge=None, filled=False):
+    def shell_prompt(self, pid, uid, *, observation=None, challenge=None, filled=False, language='en'):
         """Shell-only AUTH01: active child session, exact public request/recipient.
 
         Shell 50 displays the AccountsService real name, not MATE's PAM label:
         https://github.com/GNOME/gnome-shell/blob/50.0/js/ui/components/polkitAgent.js
         Context is checked before accessing even the protected field's length.
         """
+        require(language in SHELL_REQUEST_MESSAGES, 'ui:shell-product-language')
         self.require_child_overlay_session()
         require(uid == os.getuid(), 'ui:shell-session')
         if observation is None:
@@ -11179,8 +11198,7 @@ class AccessibleUI:
         labels = [facts[node]['name'] for node in controls
                   if facts[node]['role'] == 'label' and facts[node]['showing']]
         require(labels.count(PARENT) == 1, 'ui:shell-recipient-context-missing')
-        require(labels.count(f'Grant {CHILD} access?\nRequested time: 1 minute, 15 seconds.\n'
-                             'Allow soft blocked apps for this grant.') == 1,
+        require(labels.count(SHELL_REQUEST_MESSAGES[language]) == 1,
                 'ui:shell-request-context-missing')
         fields = [node for node in controls if facts[node]['role'] == 'password text']
         require(len(fields) == 1, 'ui:shell-field-ambiguous')
@@ -11199,11 +11217,11 @@ class AccessibleUI:
         require(challenge is None or current == challenge, 'ui:shell-replacement')
         return current
 
-    def shell_prompt_refusals(self, pid, uid, challenge):
+    def shell_prompt_refusals(self, pid, uid, challenge, *, language='en'):
         """Refuse projections of the fresh real challenge without delivering input."""
         self.invalidate_observation()
         observation = self.read_snapshot(protect_text=True)
-        self.shell_prompt(pid, uid, observation=observation, challenge=challenge)
+        self.shell_prompt(pid, uid, observation=observation, challenge=challenge, language=language)
         nodes, edges, identities, facts = observation
         owner, dialog, field, cancel = challenge
         variants = [(pid, uid + 1, observation, challenge, 'ui:shell-session'),
@@ -11212,17 +11230,17 @@ class AccessibleUI:
         labels = [node for node in self.snapshot_scope(nodes, edges, dialog)
                   if facts[node]['role'] == 'label' and facts[node]['showing']]
         recipient = next(node for node in labels if facts[node]['name'] == PARENT)
-        message = next(node for node in labels if facts[node]['name'].startswith('Grant '))
+        message = next(node for node in labels if facts[node]['name'] == SHELL_REQUEST_MESSAGES[language])
+        request = SHELL_REQUEST_MESSAGES[language]
+        duration = '1 דקה, 15 שניות' if language == 'he' else '1 minute, 15 seconds'
         for node, key, value, code in (
                 (owner, 'name', 'mate-polkit', 'ui:shell-wrong-agent'),
                 (recipient, 'name', OTHER_PARENT, 'ui:shell-recipient-context-missing'),
-                (message, 'name', 'Grant wrong-child access?\nRequested time: 1 minute, 15 seconds.\n'
-                 'Allow soft blocked apps for this grant.',
+                (message, 'name', request.replace(CHILD, 'wrong-child'),
                  'ui:shell-request-context-missing'),
-                (message, 'name', f'Grant {CHILD} access?\nRequested time: 5 minutes.\n'
-                 'Allow soft blocked apps for this grant.',
+                (message, 'name', request.replace(duration, '5 דקות' if language == 'he' else '5 minutes'),
                  'ui:shell-request-context-missing'),
-                (message, 'name', f'Grant {CHILD} access?\nRequested time: 1 minute, 15 seconds.',
+                (message, 'name', request.rsplit('\n', 1)[0],
                  'ui:shell-request-context-missing'),
                 (cancel, 'role', 'password text', 'ui:shell-field-ambiguous')):
             projected = {key: dict(value) for key, value in facts.items()}
@@ -11230,7 +11248,8 @@ class AccessibleUI:
             variants.append((pid, uid, (nodes, edges, identities, projected), challenge, code))
         for expected_pid, expected_uid, tree, expected_challenge, code in variants:
             try:
-                self.shell_prompt(expected_pid, expected_uid, observation=tree, challenge=expected_challenge)
+                self.shell_prompt(expected_pid, expected_uid, observation=tree,
+                                  challenge=expected_challenge, language=language)
             except UiError as error:
                 require(str(error) == code, 'ui:shell-refusal-mismatch')
             else:
@@ -11288,11 +11307,14 @@ class AccessibleUI:
         """Fresh Shell proofs; password and one Enter remain worker-owned."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(operation in SHELL_APPROVAL_OPERATIONS, 'ui:shell-binding')
+        language = 'he' if operation in SHELL_HEBREW_APPROVAL_ORDER else 'en'
+        operation = operation.replace('overlay-hebrew-', 'overlay-', 1)
         self.require_child_overlay_session()
         try:
             opening = operation in ('overlay-shell-open', SHELL_REJECTION_ORDER[0])
             if opening:
-                self.kiosk_valid_choice('overlay-valid-fraction-soft-read')
+                self.kiosk_valid_choice('overlay-hebrew-fraction-soft-read' if language == 'he'
+                                        else 'overlay-valid-fraction-soft-read')
             self.invalidate_observation()
             observation = self.read_snapshot(protect_text=True)
             owner = self.shell_prompt_owner(observation)
@@ -11302,16 +11324,17 @@ class AccessibleUI:
                 require(self.system_prompt_kind(observation=(nodes, edges, facts)) is None,
                         'ui:shell-already-open')
                 self._invoke_target(self.kiosk_valid_target('kiosk-request-submit', overlay=True))
-                challenge = self.wait(lambda: self.shell_prompt(pid, uid), 'shell-prompt',
+                challenge = self.wait(lambda: self.shell_prompt(pid, uid, language=language), 'shell-prompt',
                                       prompt_in_predicate=True)
-                rejected = self.shell_prompt_refusals(pid, uid, challenge)
-                self.shell_prompt(pid, uid, challenge=challenge)
+                rejected = self.shell_prompt_refusals(pid, uid, challenge, language=language)
+                self.shell_prompt(pid, uid, challenge=challenge, language=language)
                 return {'challenge_id': self.mate_challenge_identity(pid, challenge),
                         'provider': self._shell_provider_metadata(owner),
                         'rejected_proofs': rejected}
             if operation == SHELL_REJECTION_ORDER[-1]:
                 return self.overlay_shell_rejected(pid, uid)
             challenge = self.shell_prompt(pid, uid, observation=observation,
+                                          language=language,
                                           filled=operation in ('overlay-shell-submit-ready',
                                                                *SHELL_SUCCESS_OPERATIONS,
                                                                SHELL_REJECTION_ORDER[-2]))
@@ -11336,7 +11359,7 @@ class AccessibleUI:
                                   'challenge_id': identity, 'boot_sha256': self.trace_boot},
                                  sort_keys=True), flush=True)
                 result = self.kiosk_approval_success(overlay=True, pinned=(app, window),
-                    immediate=operation == 'overlay-approval-immediate')
+                    immediate=operation == 'overlay-approval-immediate', language=language)
                 self.input_uncertain = True
                 return result
             self.input_uncertain = operation in ('overlay-shell-submit-ready', SHELL_REJECTION_ORDER[-2])
@@ -12799,7 +12822,13 @@ class AccessibleUI:
             return self.wait(lambda: self.native_app_snapshot('ONPC fixture draft', pending=True),
                              'native-submitted')
         elif operation == 'native-activity':
-            return self.native_app_snapshot('ONPC fixture draft', with_window=True)
+            # A desktop provider can exit between enumeration and its public
+            # identity query. Discard that incomplete read and reacquire the
+            # whole observation, retaining the normal deadline and all exact
+            # activity/owner checks. This path performs no input.
+            return self.wait(lambda: self.native_app_snapshot(
+                'ONPC fixture draft', with_window=True), 'native-activity',
+                prompt_in_predicate=True)
         elif operation == 'native-activity-wrong-entry':
             require(self.native_app_closed(), 'ui:native-wrong-entry')
             try:

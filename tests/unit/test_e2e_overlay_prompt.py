@@ -75,6 +75,40 @@ def test_wrong_or_stale_challenge_refuses_before_cancel(monkeypatch, fault, code
         assert field.get_text_iface.call_count == 1  # initial valid proof only
 
 
+@pytest.mark.parametrize('fault', [None, 'english-message', 'english-binding', 'wrong-child'])
+def test_hebrew_context_is_bound_before_protected_field_access(monkeypatch, fault):
+    ui, _, _, _, field, cancel, _, message = prompt(monkeypatch)
+    # Literal oracle from the Hebrew product catalogue, independent of the guard.
+    message.name = (f'להעניק גישה ל־{a.CHILD}?\nהזמן המבוקש: 1 דקה, 15 שניות.\n'
+                    'לאפשר יישומים החסומים עם אפשרות להיתר זמני למשך ההרשאה הזאת.')
+    if fault == 'english-message':
+        message.name = (f'Grant {a.CHILD} access?\nRequested time: 1 minute, 15 seconds.\n'
+                        'Allow soft blocked apps for this grant.')
+    elif fault == 'wrong-child':
+        message.name = message.name.replace(a.CHILD, a.EXISTING_CHILD)
+    if fault:
+        with pytest.raises(a.UiError, match='ui:shell-request-context-missing'):
+            ui.shell_prompt(100, 1001, language='en' if fault == 'english-binding' else 'he')
+        field.get_text_iface.assert_not_called()
+    else:
+        assert ui.shell_prompt(100, 1001, language='he')[2] is field
+    cancel.get_action_iface.assert_not_called()
+    field.get_description.assert_not_called()
+
+
+@pytest.mark.parametrize('index,operation', [(1, 'overlay-shell-qualified'), (4, 'overlay-approval-immediate')])
+def test_translated_challenge_cannot_switch_language_between_recipient_proofs(index, operation):
+    observer = UiObservations(Mock(commands=SimpleNamespace(progress=None)))
+    observer.shell_approval_index = index
+    observer.shell_hebrew = True
+    observer.shell_approval_checked = a.time.monotonic()
+    observer._observe = Mock()
+    with pytest.raises(EvidenceError, match='ui:shell-order'):
+        observer.observe(operation)
+    observer._observe.assert_not_called()
+    assert observer.challenge_failed
+
+
 @pytest.mark.parametrize('fault', ['missing', 'ambiguous', 'nested', 'foreign-user', 'stale'])
 def test_fullscreen_prompt_entry_refuses_unbound_shell_owner_before_submission(monkeypatch, fault):
     ui, desktop, owner, dialog, *_ = prompt(monkeypatch)

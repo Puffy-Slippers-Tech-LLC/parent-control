@@ -182,7 +182,7 @@ def chinese_request(prefix):
     }
 
 
-def overlay_authentication(*, result, prefix, exit='automatic'):
+def overlay_authentication(*, result, prefix, exit='automatic', language='en'):
     """Declare Shell authentication separately from form/destination readback.
 
     Requires the prepared fixed overlay request. Cancel returns prompt absence;
@@ -193,6 +193,8 @@ def overlay_authentication(*, result, prefix, exit='automatic'):
     """
     import re
     require(result in ('cancel', 'approval', 'rejection'), 'overlay-authentication:result')
+    require(language == 'en' or language == 'he' and result == 'approval'
+            and exit == 'automatic', 'overlay-authentication:language')
     require(exit in ('automatic', 'immediate') and (result == 'approval' or exit == 'automatic'),
             'overlay-authentication:exit')
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
@@ -211,7 +213,7 @@ def overlay_authentication(*, result, prefix, exit='automatic'):
             prefix + '-cancel-ready': 'ui:overlay-shell-rejection-cancel-ready',
             prefix + '-dismissed': 'ui:overlay-shell-dismissed',
         }
-    return {
+    stages = {
         prefix + '-open': 'ui:overlay-shell-open',
         prefix + '-qualified': 'ui:overlay-shell-qualified',
         prefix + '-rechecked': 'ui:overlay-shell-rechecked',
@@ -219,6 +221,8 @@ def overlay_authentication(*, result, prefix, exit='automatic'):
         prefix + '-success': ('ui:overlay-approval-immediate' if exit == 'immediate'
                               else 'ui:overlay-approval-success'),
     }
+    return {stage: operation.replace('ui:overlay-', 'ui:overlay-hebrew-', 1)
+            if language == 'he' else operation for stage, operation in stages.items()}
 
 
 def overlay_approved_request(*, child, approver, duration_seconds, allow_soft, exit):

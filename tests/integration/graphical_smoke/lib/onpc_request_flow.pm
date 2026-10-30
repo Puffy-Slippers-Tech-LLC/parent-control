@@ -70,7 +70,7 @@ sub overlay_information {
 sub overlay_prompt {
     onpc_progress::operation('Qualifying one real Shell prompt and preserved form after Cancel');
     my ($exchange, $declared, $challenges, $approval) = @_;
-    die 'overlay-prompt:arguments' unless (@_ == 3 || @_ == 4 && $approval =~ /\A(?:approval|rejection|approval-immediate|flow-rejection|flow-cancel)\z/) && ref($exchange) eq 'CODE'
+    die 'overlay-prompt:arguments' unless (@_ == 3 || @_ == 4 && $approval =~ /\A(?:approval|rejection|approval-immediate|approval-translated|flow-rejection|flow-cancel)\z/) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
     my $journey = onpc_journey->new(exchange => $exchange,
         prefix => !$approval ? 'overlay-prompt' : $approval =~ /^flow-/ ? 'overlay-approval-flow'
@@ -96,6 +96,10 @@ sub overlay_prompt {
     overlay_entry($journey, 'direct', 'command');
     $journey->seen('wrong-surface-refused');
     prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1, 'overlay');
+    if ($approval && $approval eq 'approval-translated') {
+        onpc_parent::language_selection($journey, 'hebrew');
+        $journey->seen($_) for ('hebrew-save', 'translated-estimate');
+    }
     if ($approval && $approval ne 'rejection') {
         overlay_reject($journey, substr($approval, 5)) if $approval =~ /^flow-/;
         overlay_approve($journey, $approval eq 'approval-immediate' || $approval eq 'flow-cancel'
@@ -112,6 +116,7 @@ sub overlay_prompt {
     $journey->seen('returned') unless $approval && $approval ne 'rejection';
     if ($approval && $approval ne 'rejection') {
         onpc_app_rows::native_read_activity($activity, 'returned');
+        $journey->seen('countdown') if $approval eq 'approval-translated';
         onpc_app_rows::native_finish_app($activity);
     }
     $journey->finish();

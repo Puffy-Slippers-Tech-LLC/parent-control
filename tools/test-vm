@@ -16,7 +16,7 @@ MAX_INPUT_BYTES = 64 * 1024 * 1024
 def baseline_restoration(args, configured):
     """Freeze the diagnostic's selected fixtures for its exact VM and lifetime."""
     actions = ('reproduce-baseline-restoration', 'reproduce-natural-access',
-               'reproduce-countdown-grant')
+               'reproduce-countdown-grant', 'reproduce-overlay-activity')
     if not args or args[0] not in actions:
         return None
     targets = vm_config.fixture_targets()

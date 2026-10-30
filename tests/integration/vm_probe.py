@@ -843,6 +843,44 @@ def reproduce_station_shortcuts(lease):
                             'standard-shortcut-run-read', 'station-shortcuts')
 
 
+def reproduce_overlay_activity(lease, fixture_selection):
+    """Retain the translated approval history at Riley's original activity read."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from overlay_approved_exit import OverlayApprovedExitJourney, TRANSLATED_PLAN
+    from e2e_fixture_preparation import validate_input
+    from system_fixture_preparation import guest_target
+    from tools.test_storage import named_input
+    system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
+                   'fixtures:e2e-installed-clean-baseline-required')
+    selection = validate_input(fixture_selection,
+                              target=guest_target(lease.capture.state['guest']))
+    name, xml, _record = attested_online_snapshot(lease)
+    lease.installed_name, lease.installed_xml = name, xml
+    lease.online_pending, lease.online_bootstrap = False, None
+    return reproduce_denial(lease, OverlayApprovedExitJourney, TRANSLATED_PLAN,
+        'activity-capture', 'overlay-activity',
+        assets=named_input(fixture_source=True),
+        boundary_operation='overlay-native-activity', fixture_selection=selection, timeout=1800)
+
+
+def probe_overlay_activity(lease):
+    """Read the same retained Riley activity through the maintained observer."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from ui_observations import UiObservations
+    from qualification_storage import recovery_session, allocate
+    with operation('Reading Riley original activity before the translated request'), recovery_session(
+            check='probe_overlay_activity', lease=lease, live=True):
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-overlay-activity-probe-'))
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
+        print('overlay-activity-probe: evidence=' + str(directory), flush=True)
+        observed = UiObservations(connect(lease)).observe('overlay-native-activity')
+        (directory / 'observed.json').write_text(json.dumps(observed))
+        lease.guard()
+        print('overlay-activity-probe: complete activity read passed', flush=True)
+
+
 def reproduce_riley_native_grid(lease):
     """Retain Riley's second grid entry after the actual first launch/use/close."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -995,6 +1033,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from baseline_journey import BaselineJourney, PLAN
         from natural_access import NaturalAccessJourney, PLAN as NATURAL_ACCESS_PLAN
         from countdown_grant import CountdownGrantJourney, PLAN as COUNTDOWN_GRANT_PLAN
+        from overlay_approved_exit import OverlayApprovedExitJourney, TRANSLATED_PLAN
         restoration = (surface == 'baseline-restoration'
             and journey_type is BaselineJourney and plan is PLAN
             and boundary == 'restore-saved' and boundary_operation == 'parent-save-disabled'
@@ -1005,7 +1044,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         countdown_grant = (surface == 'countdown-grant'
             and journey_type is CountdownGrantJourney and plan is COUNTDOWN_GRANT_PLAN
             and boundary == 'natural-expiry' and boundary_operation == 'child-countdown-present')
-        system.require(selected_setup and (restoration or natural_access or countdown_grant)
+        overlay_activity = (surface == 'overlay-activity'
+            and journey_type is OverlayApprovedExitJourney and plan is TRANSLATED_PLAN
+            and boundary == 'activity-capture' and boundary_operation == 'overlay-native-activity')
+        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1046,7 +1088,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             context.fixture_selection = fixture_selection
             context.fixture_subsets = ACTIVITY_SUBSETS
             context.fixture_caller = ({'natural-access': 'E2E-008/fresh-login',
-                                       'countdown-grant': 'E2E-011/grant-only'}.get(surface, ACTIVITY_CALLER))
+                                       'countdown-grant': 'E2E-011/grant-only',
+                                       'overlay-activity': 'check_e2e_overlay_translated_approval'
+                                       }.get(surface, ACTIVITY_CALLER))
             context.installed_snapshot = lease.installed_name
         expected_inputs = {}
         if assets is not None:

@@ -434,6 +434,7 @@ def main(argv=None):
                                           'probe-retained-app-launch',
                                           'reproduce-transfer-refusal', 'probe-transfer-refusal',
                                           'reproduce-riley-native-grid', 'probe-riley-native-grid',
+                                          'reproduce-overlay-activity', 'probe-overlay-activity',
                                           'reproduce-remembered-return', 'probe-remembered-return',
                                           'repeat-remembered-return', 'enter-remembered-return'))
     parser.add_argument('keys', nargs='*', type=int)
@@ -459,7 +460,8 @@ def main(argv=None):
         runner.require(args.action != 'exec' or probe is not None, 'vm-control:arguments')
         runner.require(not args.fixture_maintenance or args.action == 'start', 'vm-control:arguments')
         runner.require((args.action in ('sync-fixtures', 'reproduce-baseline-restoration',
-                                       'reproduce-natural-access', 'reproduce-countdown-grant'))
+                                       'reproduce-natural-access', 'reproduce-countdown-grant',
+                                       'reproduce-overlay-activity'))
                        == (args.fixture_selection is not None),
                        'vm-control:arguments')
         if args.new_name is not None:
@@ -510,14 +512,15 @@ def main(argv=None):
             from vm_disk_rename import rename_disk
             rename_disk(lease)
         elif args.action in ('reproduce-baseline-restoration', 'reproduce-natural-access',
-                             'reproduce-countdown-grant'):
+                             'reproduce-countdown-grant', 'reproduce-overlay-activity'):
             from vm_probe import (reproduce_baseline_restoration, reproduce_natural_access,
-                                  reproduce_countdown_grant)
+                                  reproduce_countdown_grant, reproduce_overlay_activity)
             resume(lease)
             try:
                 reproduce = {'reproduce-natural-access': reproduce_natural_access,
                              'reproduce-baseline-restoration': reproduce_baseline_restoration,
-                             'reproduce-countdown-grant': reproduce_countdown_grant}[args.action]
+                             'reproduce-countdown-grant': reproduce_countdown_grant,
+                             'reproduce-overlay-activity': reproduce_overlay_activity}[args.action]
                 reproduce(lease, fixture_selection)
             except BaseException:
                 if getattr(lease, 'maintenance_rebind_pending', False):
@@ -595,6 +598,10 @@ def main(argv=None):
                           if probe[2] else execute(lease, probe[1], probe[0]))
                 event('Maintenance: exec complete')
                 return status
+        elif args.action == 'probe-overlay-activity':
+            from vm_probe import probe_overlay_activity
+            resume(lease)
+            probe_overlay_activity(lease)
         elif args.action == 'probe-lock-curtain':
             from vm_probe import probe_lock_curtain
             resume(lease)

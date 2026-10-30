@@ -160,6 +160,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'probe-retained-app-launch',
                                       'reproduce-transfer-refusal', 'probe-transfer-refusal',
                                       'reproduce-riley-native-grid', 'probe-riley-native-grid',
+                                      'reproduce-overlay-activity', 'probe-overlay-activity',
                                       'reproduce-revoke-cancel', 'probe-revoke-balances',
                                       'reproduce-countdown-minutes',
                                       'reproduce-natural-expiry',
@@ -208,11 +209,13 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         if args.fixture_maintenance and args.action != 'start':
             raise ValueError('test-runner:fixture-maintenance-requires-start')
         if (args.action in ('sync-fixtures', 'reproduce-baseline-restoration',
-                           'reproduce-natural-access', 'reproduce-countdown-grant')) != (args.fixture_selection is not None):
+                           'reproduce-natural-access', 'reproduce-countdown-grant',
+                           'reproduce-overlay-activity')) != (args.fixture_selection is not None):
             raise ValueError('test-runner:fixture-sync-requires-selection')
         fixture_options = []
         if args.fixture_maintenance or args.action in ('sync-fixtures', 'reproduce-baseline-restoration',
-                                                      'reproduce-natural-access', 'reproduce-countdown-grant'):
+                                                      'reproduce-natural-access', 'reproduce-countdown-grant',
+                                                      'reproduce-overlay-activity'):
             targets = vm_config.fixture_targets(root / 'config/test-vm.json')
             if configured.name not in targets:
                 raise ValueError('test-runner:fixture-target-not-qualified')

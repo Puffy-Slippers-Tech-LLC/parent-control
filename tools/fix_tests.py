@@ -1605,6 +1605,14 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         # continues its existing operation instead of accepting it here.
         if resuming and not reloading:
             close_verified()
+        if (loop_state.get('phase') == 'test' and loop_state.get('failure') is None
+                and not any(isinstance(value, dict) and value.get('status') == 'diagnostic_ready'
+                            for _, value in loop_state.get('handoffs', []))):
+            # Diagnostic interpretation may have finished its repair while test()
+            # still owns the remaining category. Resume that operation, retaining
+            # any unfinished exact-case verification and the last runner result.
+            retained_failure = saved_failure()
+            loop_state.clear()
         for entry in commits.state['repairs'].values():
             category = entry['failure'][0]
             if (entry.get('status') in ('fixed', 'test_fixed') or entry.get('pending_response') is not None) and category in completed:

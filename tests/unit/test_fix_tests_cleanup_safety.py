@@ -163,13 +163,19 @@ def test_changed_dependency_bytes_reload_before_validation_retry_or_answer_conti
         assert 'Previous attempt paused with this handoff:\nfixture result 1' in calls[2]['prompt']
 
 
-def test_reload_preserves_diagnostic_execution_and_interpretation(controller_checkout):
+@pytest.mark.parametrize('reload_test', [2, 3])
+def test_reload_preserves_diagnostic_execution_and_interpretation(controller_checkout, reload_test):
     root, _ = controller_checkout
     (root / 'mode').write_text('agent-script')
     (root / 'script.json').write_text(json.dumps(dict(
         agents=['diagnostic_ready', 'test_fixed'], tests=['A', None, None],
-        change_source='repair_evidence.py', change_test_source=[1])))
+        change_source='repair_evidence.py', change_test_source=[1], wait_test=reload_test)))
     run, _ = fix_tests.select(root, categories=('unit', '-k', 'selected'), tasks=1)
+    # Reload at exact verification or after close-out during remaining work.
+    wait_for(root / 'test-ready')
+    from launcher_reload import request
+    request(run)
+    (root / 'release').touch()
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0, output.getvalue()
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
@@ -181,6 +187,9 @@ def test_reload_preserves_diagnostic_execution_and_interpretation(controller_che
     assert [row['repair_session'] for row in usage if row['event'] == 'turn'] == [1, 2]
     limits = json.loads((run / 'limits.json').read_text())
     assert limits['started'] == limits['completed'] == 1
+    from test_checkpoint import Checkpoint
+    assert Checkpoint(root, [('unit', ['-k', 'selected'])], resume=True,
+                      namespace='fix-tests').complete('unit')
 
 
 @pytest.mark.parametrize('rounds,tests', [(1, ['A', None]), (2, [None, None])])

@@ -176,6 +176,10 @@ function activate(context) {
                 poll();
             } else if (message?.type === 'restart') {
                 start();
+            } else if (message?.type === 'copy' && runRoots.has(message.root) &&
+                       typeof message.text === 'string') {
+                void vscode.env.clipboard.writeText(message.text).then(undefined,
+                    error => vscode.window.showErrorMessage(`Cannot copy tab content: ${error.message}`));
             } else if (message?.type === 'sessionView' &&
                        (message.root === '' || runRoots.has(message.root))) {
                 sessionRoot = message.root;

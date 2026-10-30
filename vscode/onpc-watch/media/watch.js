@@ -52,8 +52,25 @@
         section.heading.replaceChildren();
         element('span', 'run-label', section.heading).textContent = entry.label;
         const links = element('span', 'run-links', section.heading);
+        const copy = element('button', 'run-copy', links);
+        copy.type = 'button';
+        copy.title = 'Copy current tab content';
+        copy.setAttribute('aria-label', copy.title);
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        icon.setAttribute('viewBox', '0 0 20 20');
+        icon.setAttribute('aria-hidden', 'true');
+        const shape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        shape.setAttribute('d', 'M7 7h10v10H7z M4 13H3V3h10v1');
+        icon.append(shape);
+        copy.append(icon);
+        copy.addEventListener('click', () => {
+            const body = { status: section.content, launcher: section.launcher,
+                error: section.errorStatus, session: section.output }[section.view];
+            vscode.postMessage({ type: 'copy', root: entry.id, text: body.innerText });
+        });
+        links.append(' ');
         for (const [view, label] of [['status', 'Status'], ['launcher', 'Launcher'], ['error', 'Error'], ['session', 'Session']]) {
-            if (links.childNodes.length) links.append(' | ');
+            if (view !== 'status') links.append(' | ');
             const item = link(links, label, () => runView(entry.id, view));
             item.classList.add('run-tab');
             if (view === 'session' && !entry.session_active) item.classList.add('session-inactive');

@@ -31,7 +31,9 @@ the session transcript and chat.
 For `fix-tests`, Last Error includes the failing check, the runner's error text
 (or a bounded command-output tail), and its output-log path. Reload launcher
 changes with `tools/fix-tests --reload`; `./setup.sh --watch` updates the extension.
-The links remain available in every view, including while idle.
+The links remain available in every view, including while idle. The copy icon
+before **Status** copies the current tab's body as plain text to the clipboard;
+in **Session**, it copies the displayed transcript.
 For `write-e2e`, **Status** starts with **Total Tasks: completed/unfinished/total**
 and **Total Duration**, using the shared launcher counters and colors. A divider
 spans the panel above the completed task recaps and current task/session rows.

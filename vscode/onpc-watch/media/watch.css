@@ -31,6 +31,13 @@ nav button[aria-pressed="true"] {
 }
 .run-label { min-width: 0; }
 .run-links { margin-left: auto; white-space: nowrap; }
+.run-copy {
+    display: inline-flex; vertical-align: middle; align-items: center; justify-content: center;
+    width: 28px; height: 28px; padding: 4px; border: 1px solid transparent;
+    border-radius: 3px; background: transparent;
+}
+.run-copy:hover { background: var(--vscode-toolbar-hoverBackground); }
+.run-copy svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 .run-heading.failed { color: var(--vscode-errorForeground); }
 .session-link { color: #0066ff; text-decoration: underline; cursor: pointer; }
 .run-tab {

@@ -352,6 +352,27 @@ conflicts with `--continue-on-errors`.
 
 ### Resuming test execution
 
+`tools/run-tests --reset` and `tools/fix-tests --reset` explicitly abandon saved
+execution progress and start over. Reset is checkout-wide: it requests cancellation
+of both launchers' host and VM owners, waits for their owned cleanup, runs the
+maintained recovery path for the requested and recorded VM selections, and clears
+test checkpoints, remembered requests, current-run pointers and the retained repair
+source fence. Source edits become existing checkout work; historical logs and
+reports retain their normal lifetime. No previous repair or Git close-out is
+resumed. Kernel lock files remain in place.
+An idle successful run needs no further VM cleanup; its historical VM selection
+does not block reset after a branch or registry change.
+
+Reset conflicts with `--resume`, `--stop` and `--reload`; help and inspection do
+not reset anything. Recovery must succeed before progress is cleared. Other
+workflows holding checkout resources, denied recovery, unsafe ownership or
+unverifiable allocation identities still produce an actionable refusal rather
+than deleting foreign state. Retry `--reset` after resolving that failure.
+Reset also removes private empty scratch shells lacking both owner and identity
+files, including a shell containing only an empty private `tmp/` directory.
+Scratch containing payloads or ownership records retains its existing protections.
+Reset never discards source changes or unknown files.
+
 `tools/run-tests --resume` restores the latest public selection and retries its
 failed or interrupted category and cases. It can also accompany the original
 categories and selectors, for example `tools/run-tests --resume --stop-on-error
@@ -359,6 +380,10 @@ unit 'tests/unit/test_core.py' -q`. A new execution without `--resume` resets th
 checkpoint for the selected categories and starts that selection from the beginning;
 other categories in the same scope retain their progress. Attachment to a live
 owner keeps that owner's options; inspection never changes checkpoints.
+An idle successful owner starts a fresh execution even if its result was not
+previously viewed. With no arguments, an unread failed result remains available
+for reconnection; an explicit selection starts fresh subject to normal recovery
+and ownership guards.
 
 Resumed category, bucket and overall counters include retained passes and keep
 the original selected total in the dashboard, controller header and saved progress.
@@ -683,7 +708,10 @@ the next clean pass clears previous category completions before queuing work;
 an interruption can resume only that pass's completions.
 Fresh startup preserves source edits as existing checkout work, but does not
 inherit unfinished repairs or their Git ownership bookkeeping. Only `--resume`
-recovers pending repairs and accepted Git close-out before tests. An active run
+recovers pending repairs and accepted Git close-out before tests. A retained
+source fence from an interrupted repair can still block fresh startup; use
+`--resume` to finish that repair or `--reset` to abandon its saved transaction
+and verify the current checkout from the beginning. An active run
 still reattaches regardless of `--resume`; a fresh allocation starts only after
 its owner and owned cleanup release their locks. Lock files remain in place;
 kernel locks, rather than file existence, determine ownership.
@@ -1944,6 +1972,10 @@ staging slot; interrupted initialization and deletion can resume without
 adopting unknown payloads or losing the directory identity.
 An older scratch directory missing its owner or identity receipt is reported
 and left untouched; it does not block a fresh, independently owned allocation.
+Explicit `--reset` may retire an empty legacy shell after draining launcher
+owners, under the scratch gate. It pins and checks the shell and optional empty
+`tmp/` directory's identities, ownership, modes and mounts, and uses only `rmdir`.
+It never creates a replacement receipt or recursively deletes unrecorded payloads.
 Unsafe ownership, symlinks, replaced identities and unfinished recorded
 reclamation still refuse rather than being adopted or deleted.
 Pruning always audits registered allocations and budgets, but rewrites its

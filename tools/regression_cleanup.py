@@ -600,6 +600,9 @@ test_retention test_storage ui ui_artifacts ui_watch vm_backup vm_control vm_wat
 # checkout/evidence and finite waited synthetic children. No VM, display,
 # socket, external service or shared cache is added; unit/cleanup compatibility
 # and the existing teardown owner remain valid. UI gains no resource owner.
+# Test/repair startup serialization uses only the fixture's private checkout
+# lock; recorded synthetic children retain existing cancellation and teardown.
+# fix_tests_cleanup_safety remains compatible here and in the unit inventory.
 ESTIMATES = {'test_backing_verification_cleanup_safety.py': 12,
              'test_fix_tests_cleanup_safety.py': 38,
              'test_write_e2e_cleanup_safety.py': 54,

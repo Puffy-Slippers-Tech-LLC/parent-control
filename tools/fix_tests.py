@@ -1744,7 +1744,13 @@ def resume_failure_context(previous, run, values):
     return rewrite(values), snapshots
 
 
-def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1, resume=False, tasks=None,
+def select(root, **options):
+    from test_reset import startup
+    with startup(root):
+        return _select(root, **options)
+
+
+def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1, resume=False, tasks=None,
            reload=False):
     from vm_selection import execution_binding, check_binding, save_binding
     from test_commands import repair_host_only_request
@@ -1951,6 +1957,9 @@ def main(argv=None):
     parser.add_argument('--resume', action='store_true',
                         help='preserve saved progress, repairs, queues and pending close-out; '
                              'without it, an idle launcher starts fresh')
+    parser.add_argument('--reset', action='store_true',
+                        help='stop checkout test/repair owners, recover leftovers and clear saved progress '
+                             'before starting fresh; preserve source edits and historical logs')
     parser.add_argument('--model', help='repair model (only gpt-6.1-sol is supported)')
     parser.add_argument('--rounds', type=int, metavar='X',
                         help='run round 1 once, then round 2 X-1 times (default: 1)')
@@ -1962,6 +1971,9 @@ def main(argv=None):
                      'Omitting categories selects every leaf. Host and VM workflows have '
                      'separate sessions; attach using the same scope. Bare --stop cancels both scopes.')
     args, categories = parser.parse_known_args(argv)
+    if args.reset and (args.resume or args.stop or args.reload
+                       or any(arg.startswith('--resume-') for arg in categories)):
+        parser.error('--reset conflicts with --resume, --stop and --reload')
     root = Path(__file__).resolve().parents[1]
     if args.resume and not categories and not args.stop:
         from test_checkpoint import request_record
@@ -2015,11 +2027,17 @@ def main(argv=None):
             os.environ.pop(VARIABLE, None)
             os.environ.pop(BATCH, None)
         requested_inventory(root, args.categories)
-        run, started = select(root, stop=requested, model=args.model, effort=args.effort,
+        def start():
+            return select(root, stop=requested, model=args.model, effort=args.effort,
                               categories=args.categories, rounds=args.rounds,
                               **({'tasks': args.tasks} if args.tasks is not None else {}),
                               **({'resume': True} if args.resume else {}),
                               **({'reload': True} if args.reload else {}))
+        if args.reset:
+            from test_reset import reset as reset_state
+            run, started = reset_state(root, start, host_only=host_only, selector=args.vm)
+        else:
+            run, started = start()
         if run is None:
             print('fix-tests: no active launcher.')
             return 0

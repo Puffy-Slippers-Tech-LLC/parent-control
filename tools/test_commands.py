@@ -282,20 +282,25 @@ def usage():
     listing = '\n'.join(f'  {name:<{width}}  {CATEGORIES[name].description}' for name in inventory)
     helpers = '\n'.join(f'  {name:<{width}}  {spec.description}'
                         for name, spec in CATEGORIES.items() if name not in inventory)
-    return f'''Usage: tools/run-tests [--vm NAME] [--resume] [--stop-on-error] [category [args ...]] ...
+    return f'''Usage: tools/run-tests [--vm NAME] [--resume | --reset] [--stop-on-error] [category [args ...]] ...
        tools/run-tests --help
        tools/run-tests --list
        tools/run-tests --stop
        tools/run-tests --reload
 
-With no categories, start the all aggregate. An active run or
-unread result takes precedence over new execution categories. Attach to a
+With no categories, start the all aggregate. An active run takes precedence
+over new execution categories; no arguments can replay an unread failed result.
+An idle successful run starts fresh. Attach to a
 configured queue without --vm; narrowed runs require their original --vm NAME.
 Help, listing and collection return immediately without attaching.
 --resume reuses the last matching category/test checkpoint, skipping completed
 cases and retrying failed or interrupted cases. Without it, a new execution
 resets the checkpoint. Keep the original selectors; a changed selection refuses
 resume. Required preparation and lifecycle prerequisites still run.
+--reset stops both test and repair launchers in this checkout, waits for owned
+cleanup, recovers recorded resources and clears saved progress before starting
+fresh. Source edits and historical logs are preserved. Conflicts with --resume,
+--stop and --reload; inspection performs no reset.
 --stop requests cancellation of the active run and waits for owned cleanup.
 --reload refreshes a running launcher at safe boundaries and stays attached;
 when idle, the flag is ignored and execution starts normally.
@@ -1313,6 +1318,12 @@ def is_inspection(argv):
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    reset = '--reset' in argv
+    if reset:
+        argv = [arg for arg in argv if arg != '--reset']
+        if any(arg == '--resume' or arg.startswith('--resume-') or arg in ('--stop', '--reload') for arg in argv):
+            print('run-tests: --reset conflicts with --resume, --stop and --reload', file=sys.stderr)
+            return 2
     reload = '--reload' in argv
     if reload:
         argv = [arg for arg in argv if arg != '--reload']
@@ -1331,17 +1342,23 @@ def main(argv=None):
     if is_inspection(argv):
         return _main(argv)
     if os.geteuid() == 0:
+        if reset:
+            print('run-tests: --reset requires an unprivileged public invocation', file=sys.stderr)
+            return 2
         return _main(argv)
     try:
         root = Path(__file__).resolve().parents[1]
         if test_activity.descriptors() or test_activity.VARIABLE in os.environ:
+            if reset:
+                raise ValueError('--reset requires an independent public invocation')
             # Internal workers inherit a verified lock, and must execute their
             # assigned category instead of observing their own parent session.
             with test_activity.activity(root):
                 validate(root, argv)
                 return _main(argv)
         from regression_session import main as session_main
-        return session_main(root, argv, **({'reload': True} if reload else {}))
+        return session_main(root, argv, **({'reload': True} if reload else {}),
+                            **({'reset': True} if reset else {}))
     except (ValueError, OSError) as error:
         detail = str(error) if isinstance(error, ValueError) else 'test activity ownership unavailable'
         print('run-tests: ' + detail, file=sys.stderr)

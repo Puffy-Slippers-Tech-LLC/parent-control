@@ -14476,6 +14476,40 @@ def observation_environment(account, operation):
     return session_environment(account)
 
 
+def desktop_prompt_diagnostic(ui):
+    """Observe a refused return to desktop; never dismiss or accept a prompt."""
+    deadline = time.monotonic() + 5
+    for index in range(3):
+        if time.monotonic() >= deadline:
+            break
+        active = None
+        try:
+            result = subprocess.run([
+                '/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.ScreenSaver',
+                '--object-path', '/org/gnome/ScreenSaver',
+                '--method', 'org.gnome.ScreenSaver.GetActive'],
+                stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                check=True, timeout=.5)
+            active = {'(true,)': True, '(false,)': False}.get(result.stdout.strip())
+        except (OSError, subprocess.SubprocessError):
+            pass
+        snapshot = None
+        try:
+            ui.invalidate_observation()
+            started = time.monotonic_ns()
+            observation = ui.read_snapshot(protect_text=True)
+            finished = time.monotonic_ns()
+            snapshot = ui.retained_unlock_snapshot(
+                observation, observation_window=(started, finished))
+        except Exception:
+            pass  # A diagnostic read cannot change the original refusal.
+        print(json.dumps({'event': 'desktop-prompt-diagnostic', 'sample': index,
+                          'screensaver_active': active, 'snapshot': snapshot},
+                         sort_keys=True), file=sys.stderr, flush=True)
+        if index < 2 and time.monotonic() < deadline:
+            time.sleep(min(.25, max(0, deadline - time.monotonic())))
+
+
 def allowance_failure_diagnostic(ui=None):
     """Distinguish desktop input grabs from a missing preset, without UI text."""
     active = None
@@ -14777,6 +14811,12 @@ def main():
             error.add_note('public-atspi-cache-reread:' + status)
         raise
     except UiError as error:
+        if (sys.argv[1] == 'desktop'
+                and str(error) == 'ui:system-prompt-refused:desktop:shell-polkit'):
+            try:
+                desktop_prompt_diagnostic(ui)
+            except Exception:
+                print('ui:desktop-prompt-diagnostic-unavailable', file=sys.stderr, flush=True)
         if sys.argv[1] == 'overlay-native-opened':
             try:
                 print(json.dumps(ui.native_open_diagnostic, sort_keys=True),

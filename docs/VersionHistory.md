@@ -1,5 +1,6 @@
 ## v2.0 -
 ### New Features
+- **Kiosk**: Improved Polkit auth dialog content layout to make it more explicit and easier to read.
 
 ### Bug Fixes
 - **Kiosk**: Fixed time requests failing before parent approval when system language discovery is unavailable.

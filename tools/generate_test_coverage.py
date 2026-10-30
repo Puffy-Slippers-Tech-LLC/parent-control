@@ -74,12 +74,10 @@ def collect_counts(root):
     rows.append(('Child GJS', len(commands),
                  'Checks child extension behavior that depends on the GNOME JavaScript runtime.'))
     inventory = runpy.run_path(str(root / 'tests/integration/integration_inventory.py'))
-    # Count scheduled tests across supported hosts, excluding explicit probes
-    # and operational maintenance.
-    integrations = [item for item in inventory['inventory'](root / 'tests/integration')
-                    if item['name'] not in inventory['EXCLUDED']]
-    rows.append(('Integration qualification', len(integrations),
-                 'Checks installed product behavior and essential shared safety boundaries.'))
+    # Count explicit test registrations once across supported hosts.
+    integrations = inventory['inventory'](root / 'tests/integration')
+    rows.append(('Integration', len(integrations),
+                 'Checks standalone engineering and essential shared safety boundaries outside E2E composition.'))
     return rows
 
 
@@ -130,7 +128,7 @@ def render(document, counts, *, root=ROOT):
         'Python parameter combinations count separately; property-test examples do not. '
         'Script-based checks count once per executable entry point; Node subtests are not expanded. '
         'Installed-system cases count repeated phases and prerequisites once. '
-        'Integration excludes maintenance operations and explicit engineering probes, and counts host-specific tests once. '
+        'Integration counts explicit standalone test registrations and host-specific tests once; E2E building blocks are not integration tests. '
         'Aggregate, build, static-analysis and prerequisite commands are not additional test cases.',
         '', '## E2E scenarios', '',
         '| Subcategory | Count (Ready/Pending/Total) |',

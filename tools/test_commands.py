@@ -47,7 +47,7 @@ CATEGORIES = {
     'component-all': CategorySpec('the current make check-component aggregate', leaf=False),
     'fixtures': CategorySpec('build, verify PATH; native-runtime also supports prepare; --kind native-runtime --target ubuntu|fedora; recover TRANSACTION retries exact interrupted producer cleanup', leaf=False),
     'artifacts': CategorySpec('two fresh package/fixture builds and reproducibility; build, prepare (verified reuse), verify PATH, compare FIRST SECOND'),
-    'integration': CategorySpec('runnable guarded check_* tests; optional basename; --list includes scheduling exclusions', scope='vm'),
+    'integration': CategorySpec('registered standalone integration tests; optional guarded qualification basename; --list shows test registrations and host applicability', scope='vm'),
     'system': CategorySpec('current-package suite plus separate 287/288 upgrades by default; --id N[,N...] or --area/--test focuses selection; optional --artifacts; --previous-artifacts, --list', scope='vm'),
     'e2e': CategorySpec('all runnable E2E cases by default; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)', scope='vm'),
     'fast': CategorySpec('reserved for the make test-fast target', leaf=False, implemented=False, scope='vm'),
@@ -348,7 +348,8 @@ Complete categories (combine in any order; execute host, system, integration, e2
   VM names follow numeric config IDs; no timestamp, age or size rotation.
   system --id N[,N...] selects persistent IDs shown by system --list.
   Bare system also runs 287 and 288 as separate upgrade-input attempts.
-  integration --list shows scheduling exclusions and their reasons; a focused
+  integration --list shows registered standalone tests and host applicability.
+  E2E building blocks are not integration registrations. A focused qualification
   basename keeps its existing guarded launch and input preparation route.
   Narrowed combined categories share one report and reuse host's package artifacts.
   Without host, VM categories prepare verified package inputs (reuse or build).

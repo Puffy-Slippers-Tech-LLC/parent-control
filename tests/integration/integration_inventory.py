@@ -1,40 +1,45 @@
-"""Read-only listing of the installed dispatcher's literal check bindings."""
+"""Explicit standalone integration registrations, not E2E building blocks."""
 import ast
 import json
 from pathlib import Path
 import platform
 
-# Explicit engineering probes and operations remain callable through the
-# dispatcher. Routine integration covers product behavior and essential safety;
-# keep exclusions visible in --list rather than scheduling every check_*.
-EXCLUDED = {
-    **{name: 'maintenance/recovery operation, not a test' for name in (
-        'check_test_recovery', 'check_graphical_recovery', 'check_system_recovery',
-        'check_tmp_storage', 'check_tmp_storage_cleanup', 'check_storage_migration',
-        'check_retained_runs_cleanup')},
-    **{name: 'standalone fixture preparation qualification; explicit engineering use only'
-       for name in (
-        'check_fixture_provisioning', 'check_fixture_snapshots',
-        'check_fixture_live_refresh', 'check_fixture_transfer',
-        'check_fixture_serial', 'check_fixture_recorded_serial',
-        'check_fixture_system_product_free', 'check_fixture_system_installed',
-        'check_fixture_e2e_product_free')},
-    'check_graphical_attachment':
-        'graphics API comparison/trace probe; explicit engineering use only',
-    'check_e2e_app_row_observations':
-        'duplicate complete row-read qualification; covered by check_e2e_native_fixtures',
-    **{name: 'standalone harness qualification, not a product or essential safety check'
-       for name in (
-        'check_graphical_smoke', 'check_graphical_transport',
-        'check_graphical_serial', 'check_graphical_vt6_prompt', 'check_e2e_watch',
-        'check_e2e_gdm_product_free',
-        'check_e2e_upgrade_assets', 'check_e2e_desktop_language',
-        'check_e2e_give_repeated_public_operations_distinct_stages')},
-}
+# Register only assertions outside current or planned E2E composition. A new
+# check_* wrapper is not automatically a test. Existing guarded selectors remain
+# available for building-block qualification and engineering diagnostics.
+INTEGRATION_CHECKS = (
+    # Credential-recipient refusal, single-use challenges and privileged workers.
+    'check_e2e_auth_prompt',
+    'check_e2e_challenges',
+    'check_e2e_gdm_recipient',
+    'check_e2e_overlay_prompt',
+    'check_graphical_credentials',
+    'check_graphical_vt6_authentication',
+    'check_graphical_worker',
+    # Engineering mutations, native witnesses and recovery, never customer setup.
+    'check_e2e_active_grant_disable',
+    'check_e2e_basic_locale_auth',
+    'check_e2e_child_isolation',
+    'check_e2e_kiosk_admission_contention',
+    'check_e2e_kiosk_configuration_recovery',
+    'check_e2e_kiosk_feedback_confinement',
+    'check_e2e_kiosk_identity_helper',
+    'check_e2e_kiosk_lease_variation',
+    'check_e2e_kiosk_notification_wellbeing',
+    'check_e2e_kiosk_optional_artwork',
+    'check_e2e_kiosk_preferences_confinement',
+    'check_e2e_kiosk_routing_variation',
+    'check_e2e_kiosk_service_recovery',
+    'check_e2e_kiosk_service_route',
+    'check_e2e_kiosk_service_variation',
+    'check_e2e_locale_discovery_auth',
+    # Immutable fixture integrity and real package-manager hooks.
+    'check_fixture_e2e_installed',
+    'check_package_notice',
+)
 
 # These checks exercise host-native services/tools, independently of the guest.
 HOSTS = {
-    'check_graphical_transport': ('ubuntu',),  # libvirtd's AppArmor profile
     'check_package_notice': ('ubuntu', 'debian'),  # real APT/dpkg chroots
 }
 
@@ -42,12 +47,13 @@ HOSTS = {
 def inventory(directory=Path(__file__).resolve().parent, *, host_os=None):
     host_os = platform.freedesktop_os_release()['ID'] if host_os is None else host_os
     result = []
-    for path in sorted(directory.glob('check_*.py')):
+    for name in sorted(INTEGRATION_CHECKS):
+        path = directory / (name + '.py')
         if path.is_symlink() or not path.is_file():
-            continue
+            raise ValueError('integration:missing-registered-check:' + name)
         description = ast.get_docstring(ast.parse(path.read_text())) or ''
-        reason = EXCLUDED.get(path.stem)
-        if reason is None and path.stem in HOSTS and host_os not in HOSTS[path.stem]:
+        reason = None
+        if path.stem in HOSTS and host_os not in HOSTS[path.stem]:
             reason = 'host-specific check; requires ' + '/'.join(HOSTS[path.stem])
         result.append({'name': path.stem, 'description': description.split('\n')[0],
                        'excluded_reason': reason})

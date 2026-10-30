@@ -166,13 +166,13 @@ msgstr "سيتم إغلاق هذه التطبيقات قيد التشغيل ال
 
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s."
-msgstr "هل تريد منح %(target)s حق الوصول؟\nالوقت المطلوب: %(duration)s."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✗ Soft-blocked not allowed"
+msgstr "منح %(target)s حق الوصول\nلمدة %(duration)s\n\n✗ التطبيقات المحظورة القابلة للسماح المؤقت غير مسموح بها"
 
 #. Complete prompt including temporary access to soft blocked apps.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
-msgstr "هل تريد منح %(target)s حق الوصول؟\nالوقت المطلوب: %(duration)s.\nالسماح بالتطبيقات المحظورة مع إمكانية السماح المؤقت طوال مدة هذا الإذن."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
+msgstr "منح %(target)s حق الوصول\nلمدة %(duration)s\n\n✓ التطبيقات المحظورة القابلة للسماح المؤقت مسموح بها"
 
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"

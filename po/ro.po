@@ -166,13 +166,13 @@ msgstr "Aceste aplicații care rulează și sunt blocate temporar vor fi închis
 
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s."
-msgstr "Acordați acces pentru %(target)s?\nTimp solicitat: %(duration)s."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✗ Soft-blocked not allowed"
+msgstr "Acordați acces pentru %(target)s\npentru %(duration)s\n\n✗ Aplicațiile blocate condiționat nu sunt permise"
 
 #. Complete prompt including temporary access to soft blocked apps.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
-msgstr "Acordați acces pentru %(target)s?\nTimp solicitat: %(duration)s.\nPermiteți aplicațiile blocate condiționat pe durata acestei aprobări."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
+msgstr "Acordați acces pentru %(target)s\npentru %(duration)s\n\n✓ Aplicațiile blocate condiționat sunt permise"
 
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"

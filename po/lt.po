@@ -166,13 +166,13 @@ msgstr "Šios veikiančios laikinai blokuojamos programos bus uždarytos:"
 
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s."
-msgstr "Suteikti prieigą paskyrai %(target)s?\nPrašomas laikas: %(duration)s."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✗ Soft-blocked not allowed"
+msgstr "Suteikti prieigą paskyrai %(target)s\n%(duration)s laikotarpiui\n\n✗ Programos, kurias galima laikinai atblokuoti, neleidžiamos"
 
 #. Complete prompt including temporary access to soft blocked apps.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
-msgstr "Suteikti prieigą paskyrai %(target)s?\nPrašomas laikas: %(duration)s.\nŠio leidimo laikotarpiu leisti programas, kurias galima laikinai atblokuoti."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
+msgstr "Suteikti prieigą paskyrai %(target)s\n%(duration)s laikotarpiui\n\n✓ Programos, kurias galima laikinai atblokuoti, leidžiamos"
 
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"

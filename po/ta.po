@@ -166,13 +166,13 @@ msgstr "தற்காலிகமாகத் தடுக்கப்பட�
 
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s."
-msgstr "%(target)s-க்கு அணுகலை அனுமதிக்கவா?\nகோரிய நேரம்: %(duration)s."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✗ Soft-blocked not allowed"
+msgstr "%(target)s-க்கு அணுகலை அனுமதிக்கவும்\n%(duration)s நேரத்திற்கு\n\n✗ தற்காலிகமாகத் தடையை நீக்கக்கூடிய செயலிகள் அனுமதிக்கப்படவில்லை"
 
 #. Complete prompt including temporary access to soft blocked apps.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
-msgstr "%(target)s-க்கு அணுகலை அனுமதிக்கவா?\nகோரிய நேரம்: %(duration)s.\nஇந்த அனுமதியின் காலத்தில் தற்காலிகமாகத் தடையை நீக்கக்கூடிய செயலிகளை அனுமதிக்கவும்."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
+msgstr "%(target)s-க்கு அணுகலை அனுமதிக்கவும்\n%(duration)s நேரத்திற்கு\n\n✓ தற்காலிகமாகத் தடையை நீக்கக்கூடிய செயலிகள் அனுமதிக்கப்படுகின்றன"
 
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"

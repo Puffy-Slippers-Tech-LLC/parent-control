@@ -1017,8 +1017,8 @@ def chinese_mate_texts(provider_version=None):
                if provider_version is not None else '1.26.1')
     require(version in ('1.26.1', '1.28.1'), 'ui:mate-native-version')
     return {'recipient': 'onpc-parent-jamie 的密码(P)：',
-            'message': '允许 Jordan (Child) 访问吗？\n请求时长：1 分钟、15 秒。\n'
-                       '在本次授权期间允许使用可临时解除封锁的应用。',
+            'message': '允许 Jordan (Child) 访问\n时长为 1 分钟、15 秒\n\n'
+                       '✓ 允许使用可临时解除封锁的应用',
             'cancel': '取消' if version == '1.28.1' else '取消(C)', 'authenticate': '授权(A)',
             'explanation': ('一个程序正试图执行一个需要特权的动作。要求授权为超级用户以执行该动作。'
                             if version == '1.28.1' else
@@ -1044,10 +1044,10 @@ OPERATIONS |= {'overlay-shell-dismissed'}
 CHILD_DESKTOP_OPERATIONS |= {'overlay-shell-dismissed'}
 SHELL_PROMPT_REFUSALS = ('wrong-agent', 'session', *MATE_REFUSALS[1:])
 SHELL_REQUEST_MESSAGES = {
-    'en': f'Grant {CHILD} access?\nRequested time: 1 minute, 15 seconds.\n'
-          'Allow soft blocked apps for this grant.',
-    'he': f'להעניק גישה ל־{CHILD}?\nהזמן המבוקש: 1 דקה, 15 שניות.\n'
-          'לאפשר יישומים החסומים עם אפשרות להיתר זמני למשך ההרשאה הזאת.',
+    'en': f'Grant access to {CHILD}\nfor 1 minute, 15 seconds\n\n'
+          '✓ Soft-blocked apps allowed',
+    'he': f'להעניק גישה ל־{CHILD}\nלמשך 1 דקה, 15 שניות\n\n'
+          '✓ יישומים החסומים עם אפשרות להיתר זמני מותרים',
 }
 OPERATIONS |= SHELL_PROMPT_OPERATIONS
 CHILD_DESKTOP_OPERATIONS |= SHELL_PROMPT_OPERATIONS
@@ -10828,13 +10828,13 @@ class AccessibleUI:
                 'ui:mate-recipient-context-missing')
         # The native catalogues keep the complete request in one multiline
         # label. Check every sentence, including the explicit soft-app choice.
-        message = (f'Grant {child} access?\nRequested time: 1 minute, 15 seconds.\n'
-                   'Allow soft blocked apps for this grant.' if request == JORDAN_MATE_REQUEST else
-                   f'Grant {CHILD} access?\nRequested time: {request["duration_seconds"] // 60} minutes.\n'
-                   'Allow soft blocked apps for this grant.' if request is not None else
-                   f'Grant {child} access?\nRequested time: 30 minutes.' if binding else
-                   f'Grant {CHILD} access?\nRequested time: 1 minute, 15 seconds.\n'
-                   'Allow soft blocked apps for this grant.')
+        message = (f'Grant access to {child}\nfor 1 minute, 15 seconds\n\n'
+                   '✓ Soft-blocked apps allowed' if request == JORDAN_MATE_REQUEST else
+                   f'Grant access to {CHILD}\nfor {request["duration_seconds"] // 60} minutes\n\n'
+                   '✓ Soft-blocked apps allowed' if request is not None else
+                   f'Grant access to {child}\nfor 30 minutes\n\n✗ Soft-blocked not allowed' if binding else
+                   f'Grant access to {CHILD}\nfor 1 minute, 15 seconds\n\n'
+                   '✓ Soft-blocked apps allowed')
         require(labels.count(texts['message'] if texts else message) == 1, 'ui:mate-request-context-missing')
         if texts:
             require(labels.count(texts['explanation']) == 1, 'ui:mate-native-explanation')
@@ -11464,13 +11464,13 @@ class AccessibleUI:
             node for node in labels if facts[node]['name'].startswith('Grant '))
         mutations = (
                 (recipient, 'Password for wrong-parent:', 'ui:mate-recipient-context-missing'),
-                (message, 'Grant wrong-child access?\nRequested time: 1 minute, 15 seconds.\n'
-                 'Allow soft blocked apps for this grant.',
+                (message, 'Grant access to wrong-child\nfor 1 minute, 15 seconds\n\n'
+                 '✓ Soft-blocked apps allowed',
                  'ui:mate-request-context-missing'),
-                (message, f'Grant {CHILD} access?\nRequested time: 5 minutes.\n'
-                 'Allow soft blocked apps for this grant.',
+                (message, f'Grant access to {CHILD}\nfor 5 minutes\n\n'
+                 '✓ Soft-blocked apps allowed',
                  'ui:mate-request-context-missing'),
-                (message, f'Grant {CHILD} access?\nRequested time: 1 minute, 15 seconds.',
+                (message, f'Grant access to {CHILD}\nfor 1 minute, 15 seconds',
                  'ui:mate-request-context-missing'))
         if texts:
             mutations = (
@@ -11478,7 +11478,7 @@ class AccessibleUI:
                  'ui:mate-recipient-context-missing'),
                 (message, texts['message'].replace('Jordan (Child)', 'wrong-child'), 'ui:mate-request-context-missing'),
                 (message, texts['message'].replace('1 分钟、15 秒', '5 分钟'), 'ui:mate-request-context-missing'),
-                (message, texts['message'].split('\n在本次授权')[0], 'ui:mate-request-context-missing'))
+                (message, texts['message'].split('\n\n')[0], 'ui:mate-request-context-missing'))
         for node, value, code in mutations:
             projected = {key: dict(value) for key, value in facts.items()}
             projected[node]['name'] = value

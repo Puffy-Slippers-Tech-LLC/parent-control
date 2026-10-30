@@ -166,13 +166,13 @@ msgstr "Disse kørende apps med midlertidig blokering bliver lukket:"
 
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s."
-msgstr "Giv %(target)s adgang?\nAnmodet tid: %(duration)s."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✗ Soft-blocked not allowed"
+msgstr "Giv %(target)s adgang\ni %(duration)s\n\n✗ Betinget blokerede apps er ikke tilladt"
 
 #. Complete prompt including temporary access to soft blocked apps.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
-msgstr "Giv %(target)s adgang?\nAnmodet tid: %(duration)s.\nTillad betinget blokerede apps i denne tilladelses varighed."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
+msgstr "Giv %(target)s adgang\ni %(duration)s\n\n✓ Betinget blokerede apps er tilladt"
 
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"

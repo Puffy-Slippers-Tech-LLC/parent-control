@@ -166,13 +166,13 @@ msgstr "Chestis aplicazions in esecuzion cun bloc temporani a saran sieradis:"
 
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s."
-msgstr "Permeti l’acès a %(target)s?\nTimp domandât: %(duration)s."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✗ Soft-blocked not allowed"
+msgstr "Permeti l’acès a %(target)s\npar %(duration)s\n\n✗ Aplicazions che si puedin sblocâ par un timp no permetudis"
 
 #. Complete prompt including temporary access to soft blocked apps.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
-msgstr "Permeti l’acès a %(target)s?\nTimp domandât: %(duration)s.\nPermeti lis aplicazions blocadis che si puedin sblocâ par un timp pe durade di chest permès."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
+msgstr "Permeti l’acès a %(target)s\npar %(duration)s\n\n✓ Aplicazions che si puedin sblocâ par un timp permetudis"
 
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"

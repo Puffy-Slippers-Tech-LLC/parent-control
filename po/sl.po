@@ -166,13 +166,13 @@ msgstr "Te delujoče aplikacije z začasno blokado bodo zaprte:"
 
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s."
-msgstr "Odobri dostop računu %(target)s?\nZahtevani čas: %(duration)s."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✗ Soft-blocked not allowed"
+msgstr "Odobri dostop računu %(target)s\nza %(duration)s\n\n✗ Pogojno blokirane aplikacije niso dovoljene"
 
 #. Complete prompt including temporary access to soft blocked apps.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
-msgstr "Odobri dostop računu %(target)s?\nZahtevani čas: %(duration)s.\nMed tem dovoljenjem dovoli aplikacije, ki jih je mogoče začasno odblokirati."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
+msgstr "Odobri dostop računu %(target)s\nza %(duration)s\n\n✓ Pogojno blokirane aplikacije so dovoljene"
 
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"

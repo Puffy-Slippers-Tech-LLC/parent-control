@@ -320,8 +320,9 @@ REST_OF_DAY = gettext('Rest of the day')
 # Translators: Product-owned PolicyKit prompt. target is an account label;
 # duration is a localized duration or the translated Rest of the day label.
 # Keep each complete prompt together; the authentication agent owns its controls.
-POLKIT_GRANT = gettext('Grant %(target)s access?\nRequested time: %(duration)s.')
-POLKIT_GRANT_SOFT_APPS = gettext('Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant.')
+# Keep the blank line before the soft-app status; ✓/✗ show the selected state.
+POLKIT_GRANT = gettext('Grant access to %(target)s\nfor %(duration)s\n\n✗ Soft-blocked not allowed')
+POLKIT_GRANT_SOFT_APPS = gettext('Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed')
 # Translators: Separator between nonzero hour, minute and second duration units.
 DURATION_LIST_SEPARATOR = pgettext('duration list separator', ', ')
 SELECT_ACCOUNT = gettext('Select an account to manage')

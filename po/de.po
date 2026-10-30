@@ -42,13 +42,13 @@ msgstr "Diese laufenden, vorübergehend freigebbaren Apps werden geschlossen:"
 
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s."
-msgstr "%(target)s Zugriff gewähren?\nAngeforderte Zeit: %(duration)s."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✗ Soft-blocked not allowed"
+msgstr "Zugriff für %(target)s gewähren\nfür %(duration)s\n\n✗ Vorübergehend freigebbare Apps nicht erlaubt"
 
 #. Complete prompt including temporary access to soft blocked apps.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
-msgstr "%(target)s Zugriff gewähren?\nAngeforderte Zeit: %(duration)s.\nFür diese Freigabe vorübergehend freigebbare Apps erlauben."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
+msgstr "Zugriff für %(target)s gewähren\nfür %(duration)s\n\n✓ Vorübergehend freigebbare Apps erlaubt"
 
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"

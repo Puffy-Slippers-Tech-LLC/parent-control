@@ -360,7 +360,7 @@ def test_authentication_outcomes_and_selected_identity_are_preserved(lifecycle, 
         "own-access" if surface == "child" else "access")
     assert flags == 1
     assert details == {"target-account": "Child", "approver-user": "admin",
-                       "polkit.message": "Grant $(target-account) access?\nRequested time: 5 minutes.\nAllow soft blocked apps for this grant."}
+                       "polkit.message": "Grant access to $(target-account)\nfor 5 minutes\n\n✓ Soft-blocked apps allowed"}
     lifecycle.authorities.reply(authorized=outcome == "approved",
                                 details={"polkit.dismissed": "true"} if outcome == "cancelled" else {},
                                 error=outcome == "agent-lost")

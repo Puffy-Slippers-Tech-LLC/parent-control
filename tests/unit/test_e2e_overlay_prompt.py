@@ -26,8 +26,8 @@ def prompt(monkeypatch):
     # Shell has no Action interface: only its normal Escape binding is used.
     cancel.get_action_iface = Mock(return_value=None)
     recipient = Node(a.PARENT, 'label')
-    message = Node(f'Grant {a.CHILD} access?\nRequested time: 1 minute, 15 seconds.\n'
-                   'Allow soft blocked apps for this grant.', 'label')
+    message = Node(f'Grant access to {a.CHILD}\nfor 1 minute, 15 seconds\n\n'
+                   '✓ Soft-blocked apps allowed', 'label')
     dialog = Node('Authentication Required', 'dialog', children=[recipient, message, field, cancel])
     owner = Node('gnome-shell', 'application', children=[dialog])
     desktop = Node('desktop', 'desktop frame', children=[owner])
@@ -57,7 +57,7 @@ def test_wrong_or_stale_challenge_refuses_before_cancel(monkeypatch, fault, code
     elif fault == 'recipient': recipient.name = a.OTHER_PARENT
     elif fault == 'child': message.name = message.name.replace(a.CHILD, a.EXISTING_CHILD)
     elif fault == 'duration': message.name = message.name.replace('1 minute, 15 seconds', '30 minutes')
-    elif fault == 'apps': message.name = f'Grant {a.CHILD} access?\nRequested time: 1 minute, 15 seconds.'
+    elif fault == 'apps': message.name = f'Grant access to {a.CHILD}\nfor 1 minute, 15 seconds'
     elif fault == 'obsolete-message':
         message.name = f'Grant {a.CHILD} 1 minute, 15 seconds and allow soft blocked apps?'
     elif fault == 'ambiguous': cancel.role = 'password text'
@@ -79,11 +79,11 @@ def test_wrong_or_stale_challenge_refuses_before_cancel(monkeypatch, fault, code
 def test_hebrew_context_is_bound_before_protected_field_access(monkeypatch, fault):
     ui, _, _, _, field, cancel, _, message = prompt(monkeypatch)
     # Literal oracle from the Hebrew product catalogue, independent of the guard.
-    message.name = (f'להעניק גישה ל־{a.CHILD}?\nהזמן המבוקש: 1 דקה, 15 שניות.\n'
-                    'לאפשר יישומים החסומים עם אפשרות להיתר זמני למשך ההרשאה הזאת.')
+    message.name = (f'להעניק גישה ל־{a.CHILD}\nלמשך 1 דקה, 15 שניות\n\n'
+                    '✓ יישומים החסומים עם אפשרות להיתר זמני מותרים')
     if fault == 'english-message':
-        message.name = (f'Grant {a.CHILD} access?\nRequested time: 1 minute, 15 seconds.\n'
-                        'Allow soft blocked apps for this grant.')
+        message.name = (f'Grant access to {a.CHILD}\nfor 1 minute, 15 seconds\n\n'
+                        '✓ Soft-blocked apps allowed')
     elif fault == 'wrong-child':
         message.name = message.name.replace(a.CHILD, a.EXISTING_CHILD)
     if fault:

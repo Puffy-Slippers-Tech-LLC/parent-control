@@ -621,7 +621,7 @@ class CoreTests(unittest.TestCase):
         broker.request_access(991, ":1.42", 1001, 1003, 0, False)
         call = authorizer.calls[0]
         self.assertEqual(call[3:5], ("Zoë <&> $(approver-user)", "admin"))
-        self.assertEqual(call[5], "Grant $(target-account) access?\nRequested time: Rest of the day.")
+        self.assertEqual(call[5], "Grant access to $(target-account)\nfor Rest of the day\n\n✗ Soft-blocked not allowed")
 
     def test_remaining_time_formula_uses_later_backend_expiry_then_adds_grant(self):
         self.assertEqual(calculate_active_extension_seconds(31 * 60, 10 * 60, 5 * 60),

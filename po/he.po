@@ -166,13 +166,13 @@ msgstr "היישומים הפעילים האלה עם חסימה זמנית יי
 
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s."
-msgstr "להעניק גישה ל־%(target)s?\nהזמן המבוקש: %(duration)s."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✗ Soft-blocked not allowed"
+msgstr "להעניק גישה ל־%(target)s\nלמשך %(duration)s\n\n✗ יישומים החסומים עם אפשרות להיתר זמני אינם מותרים"
 
 #. Complete prompt including temporary access to soft blocked apps.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
-msgstr "להעניק גישה ל־%(target)s?\nהזמן המבוקש: %(duration)s.\nלאפשר יישומים החסומים עם אפשרות להיתר זמני למשך ההרשאה הזאת."
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
+msgstr "להעניק גישה ל־%(target)s\nלמשך %(duration)s\n\n✓ יישומים החסומים עם אפשרות להיתר זמני מותרים"
 
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"

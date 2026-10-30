@@ -109,9 +109,9 @@ def test_mate_approval_checks_complete_catalogue_request_before_secret_proofs(fa
     elif fault == 'duration':
         message.name = message.name.replace(duration, '5 minutes')
     elif fault == 'soft':
-        message.name = message.name.removesuffix('\nAllow soft blocked apps for this grant.')
+        message.name = message.name.removesuffix('\n\n✓ Soft-blocked apps allowed')
     elif fault == 'missing-time':
-        message.name = message.name.replace('\nRequested time: 1 minute, 15 seconds.', '')
+        message.name = message.name.replace('\nfor 1 minute, 15 seconds', '')
     elif fault == 'duplicate':
         dialog.children.append(Node(message.name, 'label'))
     elif fault == 'hidden':

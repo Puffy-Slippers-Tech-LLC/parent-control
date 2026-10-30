@@ -166,13 +166,13 @@ msgstr "अस्थायी रूप से अवरुद्ध ये च�
 
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s."
-msgstr "%(target)s को पहुँच दें?\nअनुरोधित समय: %(duration)s।"
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✗ Soft-blocked not allowed"
+msgstr "%(target)s को पहुँच दें\n%(duration)s के लिए\n\n✗ अस्थायी अनुमति योग्य अवरुद्ध ऐप की अनुमति नहीं है"
 
 #. Complete prompt including temporary access to soft blocked apps.
 #, python-format
-msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
-msgstr "%(target)s को पहुँच दें?\nअनुरोधित समय: %(duration)s।\nइस अनुमति की अवधि में अस्थायी अनुमति योग्य अवरुद्ध ऐप की अनुमति दें।"
+msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
+msgstr "%(target)s को पहुँच दें\n%(duration)s के लिए\n\n✓ अस्थायी अनुमति योग्य अवरुद्ध ऐप की अनुमति है"
 
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"

@@ -349,7 +349,21 @@ def test_polkit_request_uses_child_catalogue_and_complete_prompt(
             assert message == translations.gettext(template.source) % {
                 'target': '$(target-account)', 'duration': duration,
             }
-            if language != 'en':
+            lines = message.splitlines()
+            assert len(lines) == 4, (language, message)
+            assert lines[0].strip() and '$(target-account)' in lines[0], language
+            assert duration in lines[1], language
+            assert lines[2] == '', language
+            assert lines[3].startswith('✓ ' if allow_soft else '✗ '), language
+            if language == 'en':
+                assert lines == [
+                    'Grant access to $(target-account)',
+                    f'for {duration}',
+                    '',
+                    ('✓ Soft-blocked apps allowed' if allow_soft
+                     else '✗ Soft-blocked not allowed'),
+                ]
+            else:
                 assert not message.startswith('Grant '), language
             if seconds == 0:
                 assert translations.gettext('Rest of the day') in message

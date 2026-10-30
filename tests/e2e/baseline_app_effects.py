@@ -1,7 +1,10 @@
 """C04p's finite native grant/use/revocation history; no scenario completion."""
+import json
 import re
+import sys
 
-from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
+from accessible_ui import (MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS,
+                           NATIVE_EXECUTION_ERRNOS)
 from feedback_composition import text_fragment
 from installed_journey import JourneyPlan
 from journey_blocks import (desktop_entry, fresh_desktop, native_usable_app,
@@ -130,11 +133,57 @@ class BaselineAppEffectsJourney(GrantAppEffectsJourney):
                 'revoked-policy': ('saved-policy', 'zero')})
 
     def collect_failure(self):
-        """Keep the save failure's product events in the private transcript."""
+        """Keep private logs and a bounded native launch diagnostic."""
         if self.transport is None or getattr(self, 'effects_failure_logs_collected', False):
             return
         self.effects_failure_logs_collected = True
         try:
+            # The unprivileged launch observer can see no user-journal entries
+            # even after systemd reports EXEC failure. Read the fixed fixture
+            # namespace through the existing root transport before restoration.
+            # Keep structured unit/executable/errno fields for attribution;
+            # these diagnostics never substitute for the denial assertion.
+            self.context.lease.guard()
+            diagnostic = {'event': 'baseline-native-exec-journal',
+                          'status': 'unavailable', 'entries': 0, 'exec_errors': []}
+            try:
+                raw = self.transport.call([
+                    'journalctl', '--boot', '--no-pager', '--lines=64', '--output=json',
+                    r'--grep=onpc-test-native-[0-9a-f]{32}\.service',
+                ], timeout=20)
+                if type(raw) is not bytes:
+                    diagnostic['status'] = 'invalid'
+                elif len(raw) > 131072 or len(raw.splitlines()) > 64:
+                    diagnostic['status'] = 'oversized'
+                else:
+                    entries = [json.loads(line) for line in raw.splitlines()]
+                    if any(type(entry) is not dict for entry in entries):
+                        raise ValueError('invalid journal record')
+                    diagnostic.update(status='read', entries=len(entries))
+                    for entry in entries:
+                        unit = entry.get('USER_UNIT') or entry.get('_SYSTEMD_USER_UNIT')
+                        executable = entry.get('EXECUTABLE')
+                        if (type(unit) is not str or re.fullmatch(
+                                r'onpc-test-native-[0-9a-f]{32}\.service', unit) is None
+                                or executable not in (
+                                    '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
+                                    '/opt/onpc-test-fixtures/Applications/Path With Spaces.AppImage',
+                                    '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage')):
+                            continue
+                        message = entry.get('MESSAGE')
+                        prefix = unit + ': Failed at step EXEC spawning ' + executable + ': '
+                        if type(message) is str and message.startswith(prefix):
+                            errno = entry.get('ERRNO')
+                            diagnostic['exec_errors'].append(
+                                NATIVE_EXECUTION_ERRNOS.get(errno, 'other')
+                                if type(errno) is str else 'other')
+            except ValueError:
+                diagnostic.update(status='invalid', exec_errors=[])
+            except Exception:
+                pass  # Keep the original failure and continue collecting product events.
+            # Only fixed labels and bounded counts enter retained runner output;
+            # raw journal messages remain in the private command transcript.
+            print(json.dumps(diagnostic, sort_keys=True), file=sys.stderr, flush=True)
             # The shared journal collection does not include structured product
             # events. Read them before restoration removes this attempt's state;
             # a visible error report alone cannot identify the failed operation.

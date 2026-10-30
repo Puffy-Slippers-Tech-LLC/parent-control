@@ -37,6 +37,14 @@ class DisplayFixture:
     def revalidate(self):
         pass
 
+    def close_serial(self):
+        # This socket-only fixture never acquires a serial connection.
+        pass
+
+    def close_observer(self):
+        # No VM observer exists in this non-VM qualification.
+        pass
+
     def request(self, action, run):
         require(action == 'graphics' and run == RUN and self.display is None,
                 'qualification:unexpected-callback')

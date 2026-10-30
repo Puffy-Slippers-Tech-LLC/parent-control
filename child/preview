@@ -7,6 +7,8 @@ preview_root="$(mktemp -d)"
 source "$child_dir/preview-orchestration.sh"
 
 onpc_preview_configure "$child_dir" "$preview_root"
+export ONPC_PREVIEW_AUTH=1
+export ONPC_PREVIEW_AUTH_BUS_ADDRESS=${DBUS_SYSTEM_BUS_ADDRESS:-unix:path=/run/dbus/system_bus_socket}
 
 onpc_preview_exit() {
     local status=$?

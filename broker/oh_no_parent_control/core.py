@@ -6,9 +6,11 @@ from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_c
 from common.oh_no_parent_control_ui.app_policy import replacement_policy_ids
 from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.localization import load_translations
+from common.oh_no_parent_control_ui.approval_prompt import (
+    format_approval_message, format_requested_duration,
+)
 from common.oh_no_parent_control_ui.languages import desktop_language_candidates
 from common.oh_no_parent_control_ui.diagnostic_report import LANGUAGE_IDS, MAX_LANGUAGE_USERS
-import gettext
 from .grant_diagnostics import GrantDiagnostics
 from .execution_policy import ExecutionPolicyError
 from .extension_manager import ChildExtensionUnavailable
@@ -178,22 +180,6 @@ def seconds_until_local_midnight(now: datetime) -> int:
     if not 0 < seconds <= MAX_LOCAL_MIDNIGHT_SECONDS:
         raise BackendFailure("local-midnight duration is outside the safe range")
     return seconds
-
-
-def format_requested_duration(duration_seconds: int, translations=None) -> str:
-    """Render validated request seconds using the child's private context."""
-    if translations is None:
-        translations = gettext.NullTranslations()
-    if duration_seconds == 0:
-        return m.REST_OF_DAY.render(translations)
-    hours, remainder = divmod(duration_seconds, 60 * 60)
-    minutes, seconds = divmod(remainder, 60)
-    parts = []
-    for value, message in ((hours, m.hour_count), (minutes, m.minute_count),
-                           (seconds, m.second_count)):
-        if value:
-            parts.append(message(value).render(translations))
-    return m.DURATION_LIST_SEPARATOR.render(translations).join(parts)
 
 
 class Broker:
@@ -1457,15 +1443,8 @@ class Broker:
             translations = (load_translations(language, (target.desktop_language,))
                             if not language and request_kind == "kiosk" else
                             load_translations(language))
-            template = (m.POLKIT_GRANT_SOFT_APPS if allow_soft_blocked_apps
-                        else m.POLKIT_GRANT)
-            # Polkit expands details once, after translation. Keep the account
-            # label in its own detail so literal $(...) in user data cannot be
-            # interpreted as message properties.
-            message = (template % {
-                "target": "$(target-account)",
-                "duration": format_requested_duration(duration_seconds, translations),
-            }).render(translations)
+            message = format_approval_message(
+                duration_seconds, allow_soft_blocked_apps, translations)
             approval = authorization_scope.enter_context(self._authorizer.check(
                 request_kind, sender, correlation_id, target.label, approver.username,
                 message,

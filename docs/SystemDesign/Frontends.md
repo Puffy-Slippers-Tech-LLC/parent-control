@@ -350,6 +350,18 @@ Development previews use real disposable Mutter surfaces/scales on an explicit
 private bus, leaving host displays and saved data unchanged. Their viewer/input
 support is a manual review aid, not an automation or installed-acceptance route.
 Child previews require GNOME Shell 50 and isolated payload/presentation state.
+`make preview-child`, `make preview-kiosk` and `make preview-child-overlay`
+authenticate a real selected host administrator through the host desktop's
+PolicyKit agent. They share the broker's localized prompt/duration builder and
+the request window's approval, denial, cancellation and confirmation handling.
+Only the grant is simulated: previews never write account policy or screen time.
+The dialog appears on the host desktop; its provider styling follows that
+desktop, rather than the kiosk's dedicated MATE agent. Automated component
+previews retain their explicit private dependencies.
+Development setup installs a separate, uncached preview action with no executable
+binding. Its owner annotation permits only the checkout owner to supply custom
+prompt details; it changes no product authorization. Refresh older development
+hosts with `./setup.sh --test-tools-only`.
 Production extension changes require package activation and session renewal.
 
 Package staging precomputes fixed lava RGBA treatments with a version/dimension/

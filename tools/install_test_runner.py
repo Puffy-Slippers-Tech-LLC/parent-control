@@ -208,6 +208,14 @@ def main():
     policy = 'com.puffyslippers.onpc.development.policy'
     install_file(Path('/usr/share/polkit-1/actions') / policy,
                  policy_data, 0o644)
+    # Interactive preview authentication has no helper/executable binding and
+    # deliberately requires fresh administrator authentication on each request.
+    preview_policy = 'com.puffyslippers.onpc.preview.policy'
+    install_file(Path('/usr/share/polkit-1/actions') / preview_policy,
+                 (root / 'config' / preview_policy).read_text().replace(
+                     '@PREVIEW_OWNER_UID@', str(root.stat().st_uid)).encode(), 0o644)
+    install_file(Path('/etc/polkit-1/rules.d/00-onpc-preview.rules'),
+                 (root / 'config/00-onpc-preview.rules').read_bytes(), 0o644)
     # Install authorization only after all validated, root-owned helpers exist.
     # polkitd watches this directory; activation is immediate (none).
     for name, data in policy_rules.items():

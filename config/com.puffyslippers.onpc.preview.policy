@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD polkit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>Puffy Slippers Tech LLC</vendor>
+  <!-- No executable binding or retained authorization: this authenticates only. -->
+  <action id="com.puffyslippers.onpc.preview.approve">
+    <description>Authenticate an administrator for a Parent Control preview</description>
+    <message>Approve this Parent Control preview request. No account settings or screen time will change.</message>
+    <!-- Only the checkout owner may supply the product's localized message.
+         This action is consumed solely by the unprivileged preview. -->
+    <annotate key="org.freedesktop.policykit.owner">unix-user:@PREVIEW_OWNER_UID@</annotate>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+  </action>
+</policyconfig>

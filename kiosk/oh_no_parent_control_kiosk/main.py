@@ -951,6 +951,10 @@ class RequestWindow(Adw.ApplicationWindow):
         # Tests may inject an API-compatible private connection without
         # changing which production request paths the window executes.
         self._interactive_preview = broker_connection is not None
+        self._preview_approval = None
+        if preview and not self._interactive_preview and os.environ.get('ONPC_PREVIEW_AUTH') == '1':
+            from .preview_auth import PreviewApproval
+            self._preview_approval = PreviewApproval()
         self._child_overlay = child_overlay
         self._errors = ErrorHandler(self, "Child App" if child_overlay else "Kiosk App")
         self._error_report = None
@@ -1024,6 +1028,8 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _on_destroy(self, *_args):
         self._estimate_closed = True
+        if getattr(self, '_preview_approval', None) is not None:
+            self._preview_approval.close()
         self._request_revision += 1
         self._request_stage = None
         self._pending_request = None
@@ -1762,7 +1768,11 @@ class RequestWindow(Adw.ApplicationWindow):
             users = PREVIEW_USERS[:1] if self._child_overlay else PREVIEW_USERS
             self._request_content.set_loading()
             self._request_content.set_accounts(users)
-            self._request_content.set_approvers(PREVIEW_APPROVERS)
+            if self._preview_approval is not None:
+                from .preview_auth import approvers
+                self._request_content.set_approvers(approvers())
+            else:
+                self._request_content.set_approvers(PREVIEW_APPROVERS)
             self._queue_time_estimate()
             return
         LOG.info("kiosk.013", overlay=self._child_overlay)
@@ -2037,6 +2047,12 @@ class RequestWindow(Adw.ApplicationWindow):
         if self._estimate_closed:
             return
         if self._preview and not self._interactive_preview:
+            if self._preview_approval is not None:
+                try:
+                    self._preview_approval.request(self)
+                except Exception as error:
+                    self._show_error(error)
+                return
             try:
                 self._request_content.selected()
             except ValueError as error:
@@ -2150,30 +2166,28 @@ class RequestWindow(Adw.ApplicationWindow):
             if outcome not in {"approved", "denied", "cancelled"}:
                 raise ValueError("broker returned malformed result")
             LOG.info("kiosk.029", request=correlation_id, outcome=outcome)
-            if outcome == "approved":
-                if self._child_overlay:
-                    self._show_child_success()
-                else:
-                    self._show_result(m.REQUEST_APPROVED, "")
-                    self._schedule_success_logout()
-            elif outcome == "cancelled":
-                # Cancellation is not an error or a session transition.  The
-                # administrator returns to the same kiosk request form without
-                # an additional message.
-                self._request_content.clear_validation_error()
-                self._stack.set_visible_child_name("request")
-            else:
-                # A completed authorization attempt that was not approved
-                # (for example, an incorrect password) is actionable, so keep
-                # the request choices visible and show the error in place.
-                self._request_content.show_validation_error(m.REQUEST_DENIED)
-                self._stack.set_visible_child_name("request")
+            self._present_request_outcome(outcome)
         except Exception as error:
             self._request_failed(error, revision)
         finally:
             if self._request_is_current(revision, 'result'):
                 self._finish_request()
                 self._queue_time_estimate()
+
+    def _present_request_outcome(self, outcome):
+        if outcome == "approved":
+            if self._child_overlay:
+                self._show_child_success()
+            else:
+                self._show_result(m.REQUEST_APPROVED, "")
+                self._schedule_success_logout()
+        elif outcome == "cancelled":
+            # Dismissal returns to the same form without an extra message.
+            self._request_content.clear_validation_error()
+            self._stack.set_visible_child_name("request")
+        else:
+            self._request_content.show_validation_error(m.REQUEST_DENIED)
+            self._stack.set_visible_child_name("request")
 
     def _finish_request(self):
         self._request_stage = None

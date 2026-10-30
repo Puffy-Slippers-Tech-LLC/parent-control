@@ -277,6 +277,7 @@ def main(argv=None, *, session_factory=PreviewSession):
         parser.error("Screen previews require the validated Mutter 50.x development interface.")
     configure_console()
     host = dict(os.environ)
+    host['ONPC_PREVIEW_AUTH'] = '1'
     session = None
 
     def interrupted(_signum, _frame):

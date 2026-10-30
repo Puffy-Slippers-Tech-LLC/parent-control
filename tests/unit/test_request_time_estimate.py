@@ -453,7 +453,7 @@ def request_window(overlay=False):
         _cancel_success_dismiss=Mock(), _thunder=None,
     ), RequestWindow, (
         '_request_access', '_request_is_current', '_preferences_saved', '_agent_prepared',
-        '_request_done', '_request_failed', '_finish_request', '_on_destroy',
+        '_request_done', '_present_request_outcome', '_request_failed', '_finish_request', '_on_destroy',
     ))
 
 

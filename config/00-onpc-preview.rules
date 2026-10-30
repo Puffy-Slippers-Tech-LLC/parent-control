@@ -1,0 +1,8 @@
+polkit.addAdminRule(function(action, subject) {
+    if (action.id != "com.puffyslippers.onpc.preview.approve")
+        return null;
+    var approver = action.lookup("approver-user");
+    if (approver && /^[A-Za-z_][A-Za-z0-9_.-]*[$]?$/.test(approver))
+        return ["unix-user:" + approver];
+    return [];
+});

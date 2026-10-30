@@ -174,7 +174,7 @@ Simulated checkouts must copy that complete inventory too:
 covers this. A missing required launcher is a test-fixture failure, not a reason
 to weaken rendering validation or refresh host permissions.
 
-Dedicated Polkit actions bind these exact executable paths and default to `no`,
+Development-helper Polkit actions bind these exact executable paths and default to `no`,
 so missing authorization rules cannot trigger an authentication dialog. The
 wrappers query their own process identity without action details, which Polkit
 reserves for trusted callers. Polkit authorizes these programs for an active, local member of
@@ -184,6 +184,12 @@ dialog. The checkout launchers check that authorization noninteractively before
 using `pkexec`, so a missing installation or unavailable grant fails with setup
 guidance. They do not enable password caching, authorize general privileged
 interpreters, or grant libvirt control to all domains.
+
+Interactive [request previews](SystemDesign/Frontends.md#responsive-request-layout)
+instead use a separate authentication-only action with `auth_admin`, without
+retained authorization or an executable binding. The checkout owner's UID may
+supply its localized product prompt details. This grants no product privileges;
+the preview mocks the grant after real administrator authentication.
 
 The executable binding uses Polkit's documented
 [`org.freedesktop.policykit.exec.path` action annotation](https://polkit.pages.freedesktop.org/polkit/pkexec.1.html),

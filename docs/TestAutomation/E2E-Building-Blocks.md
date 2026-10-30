@@ -657,6 +657,9 @@ This completes task 310 only; no Fedora acceptance is claimed. For LANG01,
 FLOW13 and TIME01–04, this is the additional accepted ten-minute
 `E2E-061/panel-expiry` composition; table references to other pending bindings
 exclude this exact scope and do not qualify further consumers.
+Its Parent preparation composes `journey_blocks.daily_time_settings` /
+`onpc_parent::daily_time_settings`, the case-owned policy capture and DESK03.
+The full daily-profile helpers reuse that same settings portion before DESK03.
 
 Other compositions and new bindings stay pending. Reuse existing LANG01
 and `language_persistence.PLAN` request readers instead of separate 308a/309a
@@ -4787,6 +4790,13 @@ dispatch through observation, recorder and assertion. Confirm the intended
 account/profile, execution order, independent result endpoints and failure stop
 before later input. Inspect shared consumers when their contract changes;
 unchanged transport, decoding and recording need no renewed qualification.
+
+Inspect the final resolved phase map: merging a screen group's phases must not
+overwrite the initial greeter's `start` phase. For a language-changing history,
+trace each entry's current form language through the shared declaration's allowed
+observer bindings and worker dispatch. An already implemented translated reader
+must also be admitted by that declaration; do not add a second reader or reset
+the child's saved language to fit an English-only entry.
 
 For a composed approval, trace the actual scoped journey prefix and request
 duration through the shared credential binding before the first VM attempt.

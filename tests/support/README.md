@@ -324,6 +324,13 @@ and validation, then independent saved settings and PARENT09 balances. They
 never revoke or approve. `time_profiles_daily.PLAN` / `SAME_PLAN` own separate
 fresh-2/same-user-4 qualification histories and finish through DESK03.
 Other profiles, children and retained windows remain outside this slice.
+For a policy capture before leaving Parent, compose
+`journey_blocks.daily_time_settings` / `onpc_parent::daily_time_settings`,
+then the caller's capture and shared DESK03 switch. These are the settings
+portion of the full profile, with the same zero-grant gate and saved readbacks.
+`panel_expiry` uses the accepted same-user ten-minute binding this way; keep its
+policy assertion and uninterrupted child history in the case. Do not copy the
+profile worker or remove/reinsert stages from a completed profile declaration.
 FLOW13 grant-only uses `journey_blocks.grant_only_time_profile` and
 `onpc_parent::grant_only_time_profile`, with caller-owned checks in
 `grant_only_profile.GrantOnlyProfileJourney`. Reuse the initial zero-grant

@@ -34,11 +34,12 @@ def countdown_activity(time_stages):
     }
 
 
-def daily_time_profile(*, source, entry, window, initial_enabled, minutes):
-    """FLOW13 daily-only: explicit new Parent entry, zero grant, save, GDM.
+def daily_time_settings(*, source, entry, window, initial_enabled, minutes):
+    """FLOW13 daily-only through saved settings, before leaving Parent.
 
     The caller compares the initial grant, saved settings and resulting balances
-    before the worker receives a reply. No revocation or approval is implicit.
+    before the worker receives a reply. It may capture policy before DESK03.
+    No revocation or approval is implicit.
     """
     require(window == 'new' and type(initial_enabled) is bool
             and type(minutes) is int and minutes in (2, 4, 10)
@@ -54,6 +55,14 @@ def daily_time_profile(*, source, entry, window, initial_enabled, minutes):
         'profile-configured': f'ui:time-explanation-daily-{minutes}-'
                               + ('on' if initial_enabled else 'off') + '-read',
         'profile-settings': 'ui:parent-selected',
+    }
+
+
+def daily_time_profile(*, source, entry, window, initial_enabled, minutes):
+    """FLOW13 daily-only: explicit new Parent entry, zero grant, save, GDM."""
+    return {
+        **daily_time_settings(source=source, entry=entry, window=window,
+                              initial_enabled=initial_enabled, minutes=minutes),
         'repeat-desktop': 'ui:desktop',
         'switch-user': 'system:parent-switch-user',
         'gdm-switched': 'ui:gdm-returned',

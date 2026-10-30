@@ -797,10 +797,8 @@ sub panel_language_expiry {
     onpc_gdm::reattach_functional();
     onpc_gdm::sign_in_challenge($journey, 'parent-login',
         'installed-greeter', 'parent-focused', 'desktop');
-    my $selected = onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'new', 'child');
-    $journey->consume_observation('same-parent-selected', $selected);
-    $journey->consume_observation($_, $journey->seen($_)) for
-        ('profile-before', 'profile-configured', 'profile-settings', 'policy-before');
+    onpc_parent::daily_time_settings($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0, 10);
+    $journey->consume_observation('policy-before', $journey->seen('policy-before'));
     onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
     onpc_gdm::sign_in_challenge($journey, 'child-login',
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');

@@ -5,7 +5,7 @@ from dataclasses import asdict
 from accessible_ui import countdown_seconds
 from countdown import CountdownSample
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import (daily_time_profile, fresh_desktop, language_selection,
+from journey_blocks import (daily_time_settings, fresh_desktop, language_selection,
                             native_activity_entry, overlay_entry, prefixed_stages)
 from journey_checks import CountdownActivityJourney, DailyTimeProfileJourney
 from overlay_language import OverlayLanguageJourney
@@ -15,8 +15,10 @@ from ui_observations import SettingsObservation
 
 SETUP = {
     **fresh_desktop('parent'),
-    **daily_time_profile(source='desktop', entry='same-user', window='new',
-                         initial_enabled=False, minutes=10),
+    **daily_time_settings(source='desktop', entry='same-user', window='new',
+                          initial_enabled=False, minutes=10),
+    'policy-before': 'ui:overlay-language-policy', 'repeat-desktop': 'ui:desktop',
+    'switch-user': 'system:parent-switch-user', 'gdm-switched': 'ui:gdm-returned',
 }
 ENGLISH = {
     **prefixed_stages('fresh', fresh_desktop('child')),
@@ -54,11 +56,6 @@ EXPIRY = {
     'parent-rechecked-return': 'ui:gdm-parent-recipient-rechecked',
     'parent-desktop-return': 'ui:desktop', 'policy-after': 'ui:overlay-language-policy',
 }
-# Capture policy before leaving Parent, without interrupting the child's history.
-SETUP = {stage: tag for stage, tag in SETUP.items() if stage not in (
-    'repeat-desktop', 'switch-user', 'gdm-switched')} | {
-    'policy-before': 'ui:overlay-language-policy', 'repeat-desktop': 'ui:desktop',
-    'switch-user': 'system:parent-switch-user', 'gdm-switched': 'ui:gdm-returned'}
 SCREENS = {**SETUP, **ENGLISH, **HEBREW, **RESTORED, **EXPIRY}
 PLAN = JourneyPlan(prefix='panel-expiry', worker_mode='panel_language_expiry', screen_tags=SCREENS,
     phases={'ready': 'setup', 'setup-detached': 'setup',

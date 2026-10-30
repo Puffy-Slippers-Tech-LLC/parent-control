@@ -358,7 +358,7 @@ TEXT_VALUES = {
     'reply-clear': ('feedback-reply-email', ''),
     'reply-malformed': ('feedback-reply-email', 'invalid-reply'),
     **{'daily-' + str(value): ('parent-custom-daily-limit', str(value))
-       for value in (0, 1, 2, 3, 4, 5, 6, 7, 15, 1439)},
+       for value in (0, 1, 2, 3, 4, 5, 6, 7, 10, 15, 1439)},
 }
 TEXT_VALUES.update({'daily-invalid-' + key: ('parent-custom-daily-limit', value)
                     for key, value in INVALID.items()})
@@ -478,7 +478,7 @@ TIME_EXPLANATION_OPERATIONS = frozenset({
     'time-explanation-setup-zero-read', 'time-explanation-setup-positive-read',
     'time-explanation-setup-thirty-read',
     *{f'time-explanation-daily-{minutes}-{state}-read'
-      for minutes in (2, 4) for state in ('off', 'on')},
+      for minutes in (2, 4, 10) for state in ('off', 'on')},
 })
 OPERATIONS |= TIME_EXPLANATION_OPERATIONS
 REVOKE_DISABLED_OPERATIONS = {
@@ -6457,7 +6457,7 @@ class AccessibleUI:
             'time-explanation-positive-read': (False, 15, True),
             'time-explanation-zero-read': (True, 0, True),
             **{f'time-explanation-daily-{minutes}-{state}-read': (state == 'on', minutes, True)
-               for minutes in (2, 4) for state in ('off', 'on')},
+               for minutes in (2, 4, 10) for state in ('off', 'on')},
         }
         if operation in configurations:
             initial, minutes, final = configurations[operation]
@@ -6527,7 +6527,7 @@ class AccessibleUI:
         require(type(initial_enabled) is bool and type(final_enabled) is bool
                 and type(minutes) is int
                 and (minutes in (0, 15) or
-                     minutes in (2, 4) and final_enabled or
+                     minutes in (2, 4, 10) and final_enabled or
                      minutes == 30 and not initial_enabled and final_enabled), 'ui:time-binding')
         self.time_explanation_entry(child)
         if minutes == 30:
@@ -6541,7 +6541,7 @@ class AccessibleUI:
         if not initial_enabled:
             self.set_toggle('parent-screen-limit-toggle', True, root=self.parent())
             self.parent_save_snapshot(child, True)
-        if minutes in (2, 4):
+        if minutes in (2, 4, 10):
             self.custom_allowance(child, minutes, action='open')
             self.set_text('parent-custom-daily-limit', str(minutes), child=child, activate=True)
             self.custom_allowance(child, minutes, action='saved')
@@ -6612,7 +6612,7 @@ class AccessibleUI:
         presets. ``reopen-current`` keeps the existing custom selection, as
         autosave intentionally preserves the ongoing editor and its focus.
         """
-        require(type(minutes) is int and minutes in (0, 1, 2, 3, 4, 5, 6, 7, 15, 1439)
+        require(type(minutes) is int and minutes in (0, 1, 2, 3, 4, 5, 6, 7, 10, 15, 1439)
                 and action in ('open', 'saved', 'reopen', 'reopen-current'),
                 'ui:allowance-binding')
         self.allowance_entry(child)

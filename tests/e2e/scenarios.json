@@ -8,6 +8,216 @@
   },
   "scenarios": [
     {
+      "id": "E2E-061",
+      "title": "Language changes preserve countdown and natural expiry",
+      "category": "customer-journey",
+      "owners": [
+        "personal-language",
+        "countdown"
+      ],
+      "requirements": [
+        "ONPC-CORE-TIME-001",
+        "ONPC-CORE-TIME-006",
+        "ONPC-CORE-TIME-007",
+        "ONPC-CORE-TIME-008",
+        "ONPC-CORE-TIME-009"
+      ],
+      "requirement_gap": null,
+      "contract_refs": [
+        "docs/Specification.md",
+        "docs/SystemDesign/Localization.md",
+        "docs/SystemDesign/Screen-Time.md",
+        "docs/TestAutomation/E2E-Scenario-Recipes.md#panel-language-and-expiry-planned-task-310"
+      ],
+      "components": [
+        "parent",
+        "child",
+        "kiosk",
+        "broker"
+      ],
+      "environment": [
+        "ubuntu26.04",
+        "fedora44"
+      ],
+      "preconditions": [
+        "existing-guarded-vm-lease",
+        "accepted-product-free-baseline",
+        "digest-verified-assets",
+        "isolated-cleanup-safety-prerequisites",
+        "installed-digest-verified-product",
+        "fixture-credentials-via-secret-api",
+        "declared-public-route-and-recipe-data"
+      ],
+      "phases": {
+        "setup": [
+          {
+            "id": "setup",
+            "operation": "provision",
+            "description": "Restore the installed snapshot and provision declared activity fixtures and credentials."
+          }
+        ],
+        "start": [
+          {
+            "id": "start",
+            "operation": "begin",
+            "description": "Begin one independent history at the installed greeter."
+          }
+        ],
+        "steps": [
+          {
+            "id": "step-1",
+            "operation": "ui",
+            "description": "Jamie saves Riley's ten-minute daily-only allowance through Parent and captures app policy and zero grant."
+          },
+          {
+            "id": "step-2",
+            "operation": "ui",
+            "description": "Riley starts the native activity, saves English in the overlay and independently reads the original public countdown."
+          },
+          {
+            "id": "step-3",
+            "operation": "ui",
+            "description": "Riley saves Hebrew and cancels back to the same usable app and draft; the translated panel follows real elapsed time without resetting it."
+          },
+          {
+            "id": "step-4",
+            "operation": "ui",
+            "description": "Riley restores English and cancels back to the same work and request choices; the panel retains the original time deadline."
+          },
+          {
+            "id": "step-5",
+            "operation": "ui",
+            "description": "Riley uses the app through minute and final-second progression until natural locking; harmless input remains owned by the lock, and Jamie verifies unchanged policy with no remaining time or grant."
+          }
+        ],
+        "end": [
+          {
+            "id": "end",
+            "operation": "collect",
+            "description": "Reconcile the uninterrupted language, work, countdown and natural-expiry history."
+          }
+        ],
+        "cleanup": [
+          {
+            "id": "cleanup",
+            "operation": "outer-reset",
+            "description": "Finish worker shutdown, owned cleanup, baseline restoration and preservation."
+          }
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {
+            "id": "original-daily-only-policy",
+            "step_id": "step-1",
+            "description": "Riley has an enabled ten-minute allowance, captured app rules and zero grant."
+          },
+          {
+            "id": "original-child-work",
+            "step_id": "step-2",
+            "description": "The native app accepts Riley's recognizable synthetic draft and activity."
+          },
+          {
+            "id": "original-english-time",
+            "step_id": "step-2",
+            "description": "English public countdown agrees with the original daily balance and elapsed entry."
+          },
+          {
+            "id": "hebrew-request-preserved",
+            "step_id": "step-3",
+            "description": "Hebrew request context preserves the original request values without submitting or granting time."
+          },
+          {
+            "id": "hebrew-original-work",
+            "step_id": "step-3",
+            "description": "Normal Cancel preserves the same usable app, window and synthetic content."
+          },
+          {
+            "id": "hebrew-time-without-reset",
+            "step_id": "step-3",
+            "description": "Hebrew canonical time decreases within bracketed elapsed bounds and two seconds of tick tolerance."
+          },
+          {
+            "id": "english-request-restored",
+            "step_id": "step-4",
+            "description": "Restored English request context preserves the original request values."
+          },
+          {
+            "id": "english-original-work",
+            "step_id": "step-4",
+            "description": "Normal Cancel again returns to the same usable app and original content."
+          },
+          {
+            "id": "english-time-without-reset",
+            "step_id": "step-4",
+            "description": "Restored English time retains the original deadline within elapsed bounds and two seconds of tolerance."
+          },
+          {
+            "id": "minute-progression",
+            "step_id": "step-5",
+            "description": "At most nine genuine minute edges reach the last minute, with normal app use and each edge bounded by ninety seconds."
+          },
+          {
+            "id": "final-second-progression",
+            "step_id": "step-5",
+            "description": "The minute-to-second transition and two independent final-second changes follow real time within two seconds, with ninety and fifteen second bounds respectively."
+          },
+          {
+            "id": "natural-enforced-lock",
+            "step_id": "step-5",
+            "description": "Ordinary app use ends at the independently observed natural lock under the original displayed expiry plus fifteen seconds."
+          },
+          {
+            "id": "lock-owns-normal-input",
+            "step_id": "step-5",
+            "description": "The same natural lock owns harmless Shift input and desktop access remains unavailable."
+          },
+          {
+            "id": "unchanged-policy-zero-time",
+            "step_id": "step-5",
+            "description": "Parent independently shows the original saved allowance and app rules, zero daily time and no grant."
+          }
+        ],
+        "backend": [],
+        "other_user": []
+      },
+      "expected_evidence": [
+        "action-trace",
+        "cleanup",
+        "continuity",
+        "input-provenance",
+        "outcomes",
+        "screen"
+      ],
+      "duration_seconds": 1200,
+      "matrix": {
+        "dimensions": {
+          "history": [
+            "panel-expiry"
+          ]
+        },
+        "full_combinations": [],
+        "rationale": "One uninterrupted ten-minute daily-only English Hebrew English child history through natural expiry; no manual lock or time reset."
+      },
+      "variants": [
+        {
+          "coverage_id": 262,
+          "id": "panel-expiry",
+          "owner": "personal-language",
+          "parameters": {
+            "history": "panel-expiry"
+          },
+          "status": "ready",
+          "pending_reason": null,
+          "executable": {
+            "path": "tests/e2e/panel_expiry.py",
+            "test_id": "panel-expiry"
+          }
+        }
+      ]
+    },
+    {
       "id": "E2E-060",
       "title": "Keep the child's request language when the approving parent changes",
       "category": "customer-journey",

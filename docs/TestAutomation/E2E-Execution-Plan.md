@@ -23,7 +23,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **310 — [Language changes preserve countdown and natural expiry](E2E-Tasks/310-language-countdown-expiry.md)**.
+Next task: **197 — [Compose overlay approval and return](E2E-Tasks/197-compose-approval-and-return-to-the-child.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

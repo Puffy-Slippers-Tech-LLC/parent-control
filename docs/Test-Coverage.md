@@ -14,8 +14,8 @@
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | Integration qualification | <span style="color: green">152</span>/<span style="color: gray">0</span>/152 | Checks installed product behavior and essential shared safety boundaries. |
-| E2E | <span style="color: green">54</span>/<span style="color: gray">141</span>/195 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">17683</span>/<span style="color: gray">141</span>/17824** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">55</span>/<span style="color: gray">141</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">17684</span>/<span style="color: gray">141</span>/17825** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Integration excludes maintenance operations and explicit engineering probes, and counts host-specific tests once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">53</span>/<span style="color: gray">141</span>/194 |
+| customer-journey | <span style="color: green">54</span>/<span style="color: gray">141</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -88,6 +88,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [259](#scenario-259) | Finish fresh installation through the kiosk restart notice | `E2E-058/kiosk` | ready |
 | [260](#scenario-260) | Keep a child's request and saved work across Hebrew approval and English restoration | `E2E-059/overlay-hebrew` | ready |
 | [261](#scenario-261) | Keep the child's request language when the approving parent changes | `E2E-060/kiosk-hebrew` | ready |
+| [262](#scenario-262) | Language changes preserve countdown and natural expiry | `E2E-061/panel-expiry` | ready |
 | <span style="color: gray">[7](#scenario-7)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-new`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[8](#scenario-8)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: retained; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-retained`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[9](#scenario-9)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-new`</span> | <span style="color: gray">pending</span> |
@@ -980,6 +981,22 @@ Variant: history: kiosk hebrew
 - Jamie enables Riley's screen-time control through Parent and returns to sign-in.
 - At the English station, prepare Riley and Jamie's 75-second request with soft apps included, save Hebrew and compare the unchanged choices and translated request context.
 - Change only the approver to Casey, verify Riley's Hebrew request and checked language, then restore English with Casey still selected, compare the original choices and station restrictions, and Cancel to sign-in.
+
+### Scenario 262
+
+**Language changes preserve countdown and natural expiry**
+
+Case: `E2E-061/panel-expiry` · Category: customer-journey · Status: **ready**
+
+Variant: history: panel expiry
+
+**Steps:**
+
+- Jamie saves Riley's ten-minute daily-only allowance through Parent and captures app policy and zero grant.
+- Riley starts the native activity, saves English in the overlay and independently reads the original public countdown.
+- Riley saves Hebrew and cancels back to the same usable app and draft; the translated panel follows real elapsed time without resetting it.
+- Riley restores English and cancels back to the same work and request choices; the panel retains the original time deadline.
+- Riley uses the app through minute and final-second progression until natural locking; harmless input remains owned by the lock, and Jamie verifies unchanged policy with no remaining time or grant.
 
 <div style="color: gray">
 

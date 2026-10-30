@@ -41,7 +41,7 @@ def daily_time_profile(*, source, entry, window, initial_enabled, minutes):
     before the worker receives a reply. No revocation or approval is implicit.
     """
     require(window == 'new' and type(initial_enabled) is bool
-            and type(minutes) is int and minutes in (2, 4)
+            and type(minutes) is int and minutes in (2, 4, 10)
             and (source, entry) in (('gdm', 'fresh'), ('desktop', 'same-user')),
             'journey:daily-profile-binding')
     same = entry == 'same-user'
@@ -504,7 +504,8 @@ def overlay_entry(prefix, route, *, form_operation='overlay-request-form'):
             and route in ('command', 'panel', 'panel-reopen'), 'journey:overlay-binding')
     require(form_operation in ('overlay-request-form', 'overlay-valid-excluded-read',
                                'overlay-valid-fraction-soft-read', 'overlay-language-initial',
-                               'overlay-language-form-en', 'overlay-language-form-de', 'language-history-overlay-he-casey',
+                               'overlay-language-form-en', 'overlay-language-form-de',
+                               'overlay-language-form-he', 'language-history-overlay-he-casey',
                                'language-history-overlay-he-jamie',
                                'overlay-long-approver-select'),
             'journey:overlay-form-binding')

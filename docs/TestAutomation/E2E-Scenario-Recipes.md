@@ -2433,6 +2433,11 @@ E2E-053's continuous Chinese case.
 
 ### Panel language and expiry
 
+Case **262**, `E2E-061/panel-expiry`, binds this recipe through
+`panel_expiry.PLAN` / `PanelExpiryJourney` and
+`onpc_request_flow::panel_language_expiry`. The catalogue records its
+[complete accepted scope](E2E-Building-Blocks.md#complete-panel-language-and-expiry-history).
+
 One uninterrupted Riley child history with an initial 10-minute daily-only
 allowance, zero grant and recorded app-policy rows. Use the declared native
 activity, capturing its synthetic content. Change English → Hebrew → English
@@ -2451,6 +2456,15 @@ TIME02, then use the activity until natural TIME04 expiry. Require the lock to
 own harmless normal input and desktop access to end; manual locking cannot
 substitute. Declare exact sample windows/tolerances in the finite case plan
 before execution; missed windows fail rather than restoring or resetting time.
+The case bounds each language transition by 180 seconds and compares canonical
+seconds against controller-bracketed elapsed time with two seconds of tick
+tolerance. At most nine minute edges, each within 90 seconds, reach `00:01`;
+the final-second transition has 90 seconds, followed by two independent
+15-second progression windows, each with two seconds of tolerance. App activity
+continues between minute samples. Natural expiry retains the final displayed
+upper bound plus 15 seconds. The complete attempt has a 1,200-second deadline.
+After the same-lock input check, return normally to Jamie and independently
+compare the original saved policy/app rules and exact zero daily/grant balances.
 
 The [complete family review](UI-and-E2E-Coverage.md#complete-scenario-family-review)
 records the customer outcome and allocation decision for every registered,

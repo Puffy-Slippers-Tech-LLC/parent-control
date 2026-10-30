@@ -786,6 +786,47 @@ sub panel_language_refresh {
     $journey->finish();
 }
 
+sub panel_language_expiry {
+    onpc_progress::operation('Following the child language changes, original work and countdown until time runs out');
+    my ($exchange, $invocations, $challenges) = @_;
+    die 'panel-expiry:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($invocations) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'panel-expiry', review => 0);
+    $journey->declare_invocations($invocations);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    my $selected = onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'new', 'child');
+    $journey->consume_observation('same-parent-selected', $selected);
+    $journey->consume_observation($_, $journey->seen($_)) for
+        ('profile-before', 'profile-configured', 'profile-settings', 'policy-before');
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
+    overlay_entry($journey, 'direct', 'command');
+    $journey->seen($_) for ('initial-save', 'initial-form', 'initial-cancel', 'initial-returned');
+    $journey->invoke('initial-countdown');
+    for my $language ('hebrew', 'english') {
+        overlay_entry($journey, "$language-entry", 'command');
+        onpc_parent::language_selection($journey, $language);
+        $journey->seen("$language-$_") for ('save', 'form', 'cancel', 'returned');
+        onpc_app_rows::native_read_activity($journey, "$language-activity");
+        $journey->invoke($language eq 'hebrew' ? 'panel-hebrew' : 'panel-restored');
+    }
+    $journey->invoke($_) for ('minute-progression', 'final-second-transition',
+        'second-progression', 'independent-second-progression', 'natural-expiry');
+    $journey->consume_observation('lock-input-ready', $journey->invoke('lock-input-ready'));
+    testapi::send_key('shift');
+    $journey->invoke('lock-result');
+    $journey->seen($_) for ('return-greeter', 'returned-gdm');
+    onpc_gdm::sign_in_challenge($journey, 'return-parent',
+        'parent-greeter', 'parent-focused-return', 'parent-desktop-return');
+    $journey->seen('policy-after');
+    $journey->finish();
+}
+
 sub kiosk_language_history {
     onpc_progress::operation('Checking that the child request language stays independent of the approving parent');
     my ($exchange, $invocations, $challenges) = @_;

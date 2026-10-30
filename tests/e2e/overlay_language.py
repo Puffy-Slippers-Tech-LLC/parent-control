@@ -55,6 +55,8 @@ PLAN = JourneyPlan(prefix='overlay-language', worker_mode='overlay_language', sc
 
 
 class OverlayLanguageJourney(InstalledJourney):
+    policy_minutes = 30
+
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan, actions=actions)
         self.committed = self.candidate = 'en'
@@ -71,7 +73,7 @@ class OverlayLanguageJourney(InstalledJourney):
         if operation == 'overlay-language-policy':
             policy = value['language_policy']
             require(policy['settings'] == {'child': 'fixture-child', 'limit_enabled': True,
-                    'allowance': ['30 minutes']} and policy['balances']['one_time'] == 0
+                    'allowance': [f'{self.policy_minutes} minutes']} and policy['balances']['one_time'] == 0
                     and policy['balances']['total'] == policy['balances']['daily'], 'language:declared-policy')
             saved = {'settings': policy['settings'], 'rows': policy['rows']}
             if self.policy_projection is None:

@@ -639,14 +639,28 @@ The initial greeter's recorder phase assignment was corrected without changing
 assertions. Collection, worker shutdown, owned cleanup, baseline restoration and
 recording finalization passed; the VM was observed off. This completes task 309 only.
 
-Remaining compositions and new bindings stay pending. Reuse existing LANG01
-and `language_persistence.PLAN` request readers instead of separate 308a/309a
-presentation histories. Task 310a retains the new panel endpoint projection.
-The remaining complete cases retain:
+#### Complete panel language and expiry history
 
-| Binding | Required result |
-| --- | --- |
-| Panel language/time | Refreshed time language and elapsed balance after each overlay save, unchanged work/policy, then natural expiry without reset or grants. Existing fixed countdown reads do not qualify translation/progression/expiry. |
+E2E-061/case 262 uses `panel_expiry.PLAN` / `PanelExpiryJourney` and
+`onpc_request_flow::panel_language_expiry`. Its uninterrupted Riley English →
+Hebrew → English history passed on Ubuntu 26.04 in `20261030T153447Z-0cf92259`:
+Jamie publicly saved the ten-minute daily-only allowance with zero grant;
+both language changes preserved the original usable activity, request values
+and elapsed countdown. Real minute/final-second progression led to natural
+locking, with the same lock owning harmless input. Jamie independently read
+unchanged saved policy/app rules and exact zero daily/grant balances afterward.
+The case declares `ACTIVITY_SUBSETS` and caller `E2E-061/panel-expiry` before
+journey construction. `overlay_entry` accepts its existing Hebrew form observer
+for the restored-English entry. Collection, worker shutdown, owned cleanup,
+baseline restoration and recording finalization passed; the VM was observed off.
+This completes task 310 only; no Fedora acceptance is claimed. For LANG01,
+FLOW13 and TIME01–04, this is the additional accepted ten-minute
+`E2E-061/panel-expiry` composition; table references to other pending bindings
+exclude this exact scope and do not qualify further consumers.
+
+Other compositions and new bindings stay pending. Reuse existing LANG01
+and `language_persistence.PLAN` request readers instead of separate 308a/309a
+presentation histories. Task 310a supplies the shared panel endpoint projection.
 
 Use the [language recipes](E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition)
 for full values/order. Shared IDs and prerequisite qualifications do not establish

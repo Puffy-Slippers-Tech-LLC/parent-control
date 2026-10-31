@@ -340,6 +340,7 @@ def test_recovery_validates_recorded_identity_before_cleanup(tmp_path, change, c
     events = []
     lease.guard = Mock(side_effect=lambda: events.append('guard'))
     lease.finish = Mock(side_effect=lambda: events.append('finish'))
+    lease.stop_by_restore = Mock(side_effect=lambda: events.append('restore'))
     # Recovery owns the controller lease, while the shared lock implementation
     # owns central VM reservations. Keep this journal test at that boundary.
     with patch.object(runner.baseline, 'open_controller_lock', return_value=42) as acquire, \
@@ -354,7 +355,8 @@ def test_recovery_validates_recorded_identity_before_cleanup(tmp_path, change, c
             lease.guard.assert_not_called()
         else:
             recover()
-            assert events == ['guard', 'finish']
+            assert events == (['guard', 'restore', 'finish'] if graphics_type == 'vnc'
+                              else ['guard', 'finish'])
             assert lease.view.run == state['run'] and lease.view.domain_id == 17
         assert lease.fd is None
         acquire.assert_called_once_with(lease.capture.lock_path, vm_uuid=source.uuid)
@@ -495,10 +497,11 @@ def test_never_started_cleanup_refuses_replaced_or_unproven_state(lease_rig, rig
     assert reopened.fd is None
 
 
-@pytest.mark.parametrize('mode', ['explicit', 'recorded'])
-@pytest.mark.parametrize('fault', [None, 'instance', 'record', 'sharing', 'baseline',
-                                  'ambiguous', 'null-without-authorization', 'maintenance-owner',
-                                  'recorded-instance'])
+@pytest.mark.parametrize('mode,fault', [
+    (mode, fault) for mode in ('explicit', 'recorded')
+    for fault in (None, 'instance', 'record', 'sharing', 'baseline', 'ambiguous',
+                  'null-without-authorization', 'maintenance-owner', 'recorded-instance')
+] + [('current-run', None), ('current-run', 'instance')])
 def test_interrupted_live_snapshot_recovery_requires_instance_and_private_proof(
         lease_rig, rig, monkeypatch, mode, fault):
     import xml.etree.ElementTree as ET
@@ -508,7 +511,7 @@ def test_interrupted_live_snapshot_recovery_requires_instance_and_private_proof(
     lease.view.graphics_type = 'vnc'
     lease.__enter__()
     lease.prepare()
-    saved_run = 'e' * 32
+    saved_run = lease.state['run'] if mode == 'current-run' else 'e' * 32
     tree = ET.fromstring(current['xml'])
     tree.find('description').text = runner.TAG + saved_run
     saved_xml = ET.tostring(tree, encoding='unicode')
@@ -529,8 +532,8 @@ def test_interrupted_live_snapshot_recovery_requires_instance_and_private_proof(
     lease.source.off = False
     if fault == 'sharing':
         current['xml'] = saved_xml.replace('</devices>', '<channel/></devices>')
-    lease.state['domain_id'] = 72 if mode == 'recorded' else None
-    if fault == 'recorded-instance' or (fault == 'instance' and mode == 'recorded'):
+    lease.state['domain_id'] = 72 if mode != 'explicit' else None
+    if fault == 'recorded-instance' or (fault == 'instance' and mode != 'explicit'):
         lease.state['domain_id'] = 71
     if fault == 'null-without-authorization':
         lease.state['domain_id'] = None
@@ -546,6 +549,7 @@ def test_interrupted_live_snapshot_recovery_requires_instance_and_private_proof(
     definitions = lease.source.connection.defineXML.call_count
     reopened = runner.Lease(lease.source, rig.commands, rig.inspect,
         directory=rig.directory, anchor=rig.anchor, graphics_type='vnc')
+    lease.source.shutdown = Mock(side_effect=AssertionError('recovery has no SSH transport'))
     kwargs = ({'recovery_instance': 71 if fault == 'instance' else 72}
               if mode == 'explicit' and fault != 'null-without-authorization' else {})
     if fault:
@@ -560,6 +564,7 @@ def test_interrupted_live_snapshot_recovery_requires_instance_and_private_proof(
         assert json.loads(lease.journal.read_bytes())['phase'] == 'complete'
         assert lease.source.domain.revertToSnapshot.call_count == restores + 1
     lease.source.domain.create.assert_not_called()
+    lease.source.shutdown.assert_not_called()
     lease.source.domain.destroyFlags.assert_not_called()
     assert reopened.fd is None
 

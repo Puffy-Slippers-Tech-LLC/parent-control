@@ -81,6 +81,24 @@ def developer_timeout():
     return (30 if 8 <= time.localtime().tm_hour < 23 else 10) * 60
 
 
+def allowance_blocker(subject, recordings='', *, stop_option):
+    """One concise intervention prompt for repair and implementation launchers."""
+    explanation = (f'{subject} still needs work after the allowed sessions. '
+                   'The previous session has ended. I am waiting for your instructions.')
+    for receipt in recordings.strip().split('\n\n'):
+        if receipt and len(explanation) + len(receipt) + 2 <= 2000:
+            explanation += '\n\n' + receipt
+    return dict(
+        explanation=explanation,
+        question='How should I proceed?',
+        options=['Continue for up to five more sessions.', stop_option])
+
+
+def wait_for_intervention(*args, **kwargs):
+    """Shared fresh session, local deadline, extensions and observer status."""
+    return wait_for_answer(*args, **kwargs, timeout=developer_timeout(), intervention=True)
+
+
 def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
                     on_wait=lambda: None, on_poll=lambda: None, timeout=None,
                     intervention=False):

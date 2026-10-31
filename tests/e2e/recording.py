@@ -78,6 +78,8 @@ class ScenarioRecorder:
                                      monotonic_seconds=self.elapsed())
         self._record['outcomes'][category] = 'failed'
         print('e2e:scenario-' + category + '-failed', file=sys.stderr, flush=True)
+        from tools.vm_recording import report_failure
+        report_failure()
 
     def checkpoint(self, event):
         """Only fixed controller events and structured records enter reports."""

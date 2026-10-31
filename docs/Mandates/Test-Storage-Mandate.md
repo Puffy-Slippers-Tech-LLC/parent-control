@@ -17,7 +17,9 @@ Human-readable VM watch recordings use the shared library's owner-private
 `output/test-runs/recordings/` directory and identity-owned publication through
 `tools/recording_storage.py`, under the
 [latest-only recording contract](../../tests/README.md#vm-watch-recordings).
-They retain one playable file per category/numeric case ID across VM combinations,
+They retain one playable file per category/case ID across VM combinations;
+system/E2E IDs are numeric and qualification/building-block IDs are stable check
+basenames. Cases publish independently at completion and retain no prior video,
 without age or size rotation. This explicit recording policy is an exception to
 ordinary bounded run retention and host/privileged directory split; it does not
 change any other artifact's lifetime. Only the unprivileged recorder creates

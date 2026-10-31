@@ -5,13 +5,12 @@ The user-owned endpoint accepts metadata only and has no VM input capability.
 """
 
 from contextlib import ExitStack, contextmanager
-from dataclasses import dataclass, field
+from concurrent.futures import ThreadPoolExecutor
 import json
-import bisect
-import math
 import os
 from pathlib import Path
 import secrets
+import shutil
 import socket
 import stat
 import struct
@@ -26,68 +25,6 @@ from collections import defaultdict
 VARIABLE = 'ONPC_VM_RECORDING_CONTROL'
 ROOT = Path(__file__).resolve().parents[1]
 _capture_tokens = defaultdict(dict)
-
-
-@dataclass
-class Window:
-    category: str
-    identifier: int
-    start_ns: int
-    end_ns: int
-    title: str = ''
-    failed: bool = False
-    interrupted: bool = False
-    vms: set = field(default_factory=set)
-
-
-class Timeline:
-    """Merge concurrent and lifecycle executions by persistent case identity."""
-
-    def __init__(self):
-        self.windows = {}
-        self.active = {}
-        self.last = {}
-        self.finished_vms = set()
-
-    def event(self, vm, category, identifier, kind, at_ns, title=''):
-        if category not in ('system', 'e2e') or type(identifier) is not int or identifier < 1:
-            raise ValueError('recording: invalid case identity')
-        if kind not in ('prepared', 'started', 'finished', 'failure') or type(at_ns) is not int or at_ns < 0:
-            raise ValueError('recording: invalid case event')
-        key = category, identifier
-        if key not in self.windows:
-            self.windows[key] = Window(category, identifier, at_ns, at_ns, title)
-        window = self.windows[key]
-        window.start_ns = min(window.start_ns, at_ns)
-        window.end_ns = max(window.end_ns, at_ns)
-        window.vms.add(vm)
-        if kind in ('prepared', 'started'):
-            previous = self.active.get(vm)
-            if previous is not None and previous != key:
-                self.windows[previous].end_ns = max(self.windows[previous].end_ns, at_ns)
-                self.windows[previous].interrupted = True
-            self.active[vm] = key
-            self.last[vm] = key
-            self.finished_vms.discard(vm)
-        elif kind == 'failure':
-            window.failed = True
-        elif self.active.get(vm) == key:
-            del self.active[vm]
-
-    def finish_vm(self, vm, at_ns):
-        if vm in self.finished_vms:
-            return
-        self.finished_vms.add(vm)
-        if vm in self.last:
-            window = self.windows[self.last[vm]]
-            window.end_ns = max(window.end_ns, at_ns)
-            if vm in self.active:
-                window.interrupted = True
-                del self.active[vm]
-
-    def close(self, at_ns):
-        for vm in tuple(self.active):
-            self.finish_vm(vm, at_ns)
 
 
 @lru_cache(maxsize=8)
@@ -113,10 +50,16 @@ def case_identity(root, category, event):
         return (identity.numeric_id, identity.title) if identity else None
     if category == 'e2e':
         return e2e_identities(root).get(nodeid)
-    return None
+    # Guarded integration qualifications use their literal basename as the
+    # building-block identity. Other VM categories can use the same contract.
+    from recording_storage import case_identity as valid_identity
+    nodeid = nodeid.removesuffix('.py')
+    if valid_identity(nodeid):
+        return nodeid, nodeid.removeprefix('check_').replace('_', ' ')
+    raise ValueError('recording: invalid named VM case')
 
 
-def request(endpoint, value, *, timeout=5):
+def request(endpoint, value, *, timeout=180):
     with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET) as peer:
         peer.settimeout(timeout)
         peer.connect(endpoint['socket'])
@@ -129,7 +72,8 @@ def request(endpoint, value, *, timeout=5):
 
 def report_event(root, category, event):
     endpoint = os.environ.get(VARIABLE)
-    if not endpoint or category not in ('system', 'e2e'):
+    from test_commands import CATEGORIES
+    if not endpoint or category not in CATEGORIES or CATEGORIES[category].scope != 'vm':
         return
     if event.get('kind') == 'collection':
         if not event.get('nodeids'):
@@ -142,8 +86,109 @@ def report_event(root, category, event):
         raise ValueError('recording: unregistered VM case')
     from vm_selection import selected
     vm = selected()
-    request(json.loads(endpoint), dict(op='event', vm=vm.name, category=category,
+    reply = request(json.loads(endpoint), dict(op='event', vm=vm.name, category=category,
         id=identity[0], title=identity[1], kind=event['kind'], at_ns=time.monotonic_ns()))
+    record = reply.get('recording')
+    if record:
+        print(describe(record), flush=True)
+    return record
+
+
+def describe(record):
+    errors = record.get('errors', [])
+    return ('Recording: [Open recording](<' + Path(record['path']).as_uri() + '>)' +
+            ''.join(f"\nRecording error: {error['timestamp']} "
+                    f"({error['seconds']:.6f}s, frame {error['frame']}, "
+                    f"{error['vm']}; {error['kind']})" for error in errors[:4]))
+
+
+def intervention_recording(root, category, nodeid):
+    from test_commands import CATEGORIES
+    if not nodeid or category not in CATEGORIES or CATEGORIES[category].scope != 'vm':
+        return ''
+    try:
+        record = latest(root, category, nodeid)
+        return '\n\n' + describe(record) if record else ''
+    except (OSError, ValueError) as error:
+        return f'\n\nRecording unavailable: {type(error).__name__}; inspect runner diagnostics.'
+
+
+def latest(root, category, nodeid):
+    """Read a verified latest receipt for an intervention, without creating media."""
+    from recording_storage import Store
+    identity = case_identity(root, category, dict(nodeid=nodeid))
+    if identity is None:
+        return None
+    try:
+        with Store(root=root, create=False).owner(category, identity[0]) as owner:
+            current = owner.state['current']
+            if current is None:
+                return None
+            owner._verify(current)
+            return dict(owner.state['provenance'], path=str(owner.store.path / current['name']),
+                        sha256=current['sha256'])
+    except FileNotFoundError:
+        return None
+
+
+def workflow_records(root, run, previous=()):
+    """Keep finite latest receipts across agent sessions without retaining media."""
+    from detached_launcher import nested_runs
+    from recording_storage import Store
+    candidates = list(previous)
+    records = {}
+    try:
+        children = list(nested_runs(root, run)) if (run / 'nested.json').exists() else []
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        print(f'Recording links unavailable: {type(error).__name__}; retained task state unchanged.',
+              file=sys.stderr, flush=True)
+        children = []
+    for child in children:
+        try:
+            # Index metadata is optional and bounded; media ownership remains
+            # with Store. Never offer a superseded clip's old error offsets.
+            fd = os.open(child / 'recordings.json', os.O_RDONLY | os.O_NOFOLLOW)
+            with os.fdopen(fd) as stream:
+                info = os.fstat(stream.fileno())
+                if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_size > 8 * 1024 * 1024:
+                    raise ValueError('recording: unsafe index')
+                index = json.load(stream)
+            candidates.extend(index['recordings'])
+        except FileNotFoundError:
+            continue
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            print(f'Recording links unavailable: {type(error).__name__}; retained task state unchanged.',
+                  file=sys.stderr, flush=True)
+    for record in candidates:
+        try:
+            key = record['category'], record['id']
+            with Store(root=root, create=False).owner(*key) as owner:
+                current = owner.state['current']
+                if current:
+                    owner._verify(current)
+                    records[key] = dict(owner.state['provenance'], category=key[0], id=key[1],
+                        path=str(owner.store.path / current['name']), sha256=current['sha256'])
+        except FileNotFoundError:
+            continue
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            print(f'Recording links unavailable: {type(error).__name__}; retained task state unchanged.',
+                  file=sys.stderr, flush=True)
+    return sorted(records.values(), key=lambda record: record['published_at'])[-4:]
+
+
+def workflow_recordings(root, run, *, limit=1400, previous=()):
+    """Latest review links from this workflow's registered, identity-bound tests."""
+    return recording_links(workflow_records(root, run, previous), limit=limit)
+
+
+def recording_links(records, *, limit=1400):
+    """Fit whole recording receipts, never cut a clickable path in half."""
+    descriptions = []
+    for record in reversed(records):
+        text = describe(record)
+        if len('\n\n'.join([*descriptions, text])) <= limit:
+            descriptions.append(text)
+    return '\n\n'.join(descriptions)
 
 
 def report_finished():
@@ -153,6 +198,20 @@ def report_finished():
         vm = selected(required=False)
         if vm is not None:
             request(json.loads(endpoint), dict(op='finished', vm=vm.name, at_ns=time.monotonic_ns()))
+
+
+def report_failure(root=ROOT):
+    """Timestamp a host controller's failure before it starts owned cleanup."""
+    at_ns = time.monotonic_ns()
+    if VARIABLE not in os.environ and os.geteuid() != 0:
+        return
+    from vm_selection import selected
+    vm = selected(required=False)
+    if vm is None:
+        return
+    endpoint = protected_endpoint(root)
+    if endpoint is not None:
+        request(endpoint, dict(op='failure', vm=vm.name, at_ns=at_ns))
 
 
 def protected_endpoint(root=ROOT):
@@ -219,36 +278,16 @@ def playable(path):
                for line in decoded.stdout.splitlines())
 
 
-def keyframes(path):
-    # Packet flags identify stream-copy boundaries without decoding the whole
-    # session. Complete candidate decoding remains the publication guard.
-    result = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0',
-        '-show_entries', 'packet=pts_time,flags',
-        '-of', 'json', str(path)], stdin=subprocess.DEVNULL, capture_output=True,
-        timeout=120, check=True)
-    values = []
-    for packet in json.loads(result.stdout)['packets']:
-        if 'K' not in packet.get('flags', ''):
-            continue
-        try:
-            value = float(packet['pts_time'])
-        except (KeyError, TypeError, ValueError) as error:
-            raise RuntimeError('recording: invalid keyframe timestamp') from error
-        if not math.isfinite(value) or value < 0:
-            raise RuntimeError('recording: invalid keyframe timestamp')
-        values.append(value)
-    if not values:
-        raise RuntimeError('recording: no keyframe packets')
-    return sorted(values)
-
-
 class Session:
-    """A single shared renderer/encoder for the complete selected VM queue."""
+    """One shared renderer; bounded encoders publish at each case boundary."""
 
-    def __init__(self, root=ROOT, *, vm_names=None):
+    def __init__(self, root=ROOT, *, vm_names=None, run=None):
         self.root = Path(root)
+        self.run = run
         self.stack = ExitStack()
-        self.timeline = Timeline()
+        self.cases = {}
+        self.active = {}
+        self.case_lock = threading.Lock()
         self.lock = threading.Lock()
         self.stop = threading.Event()
         self.errors = []
@@ -259,7 +298,6 @@ class Session:
         self.broken = False
         self.publication = None
         self.started_ns = None
-        self.paths = []
         self.records = []
         self.finalized = False
         self.summary = None
@@ -274,7 +312,7 @@ class Session:
                 self.control.sendall(json.dumps(value).encode())
                 reply = json.loads(self.control.recv(65536))
                 spans = []
-                while value['op'] == 'close' and reply.get('event') == 'vm-spans':
+                while value['op'] in ('close', 'end') and reply.get('event') == 'vm-spans':
                     chunk = reply.get('items')
                     if not isinstance(chunk, list) or len(chunk) > 128 or len(spans) > 1000000:
                         raise RuntimeError('recording: invalid span stream')
@@ -282,7 +320,7 @@ class Session:
                     reply = json.loads(self.control.recv(65536))
                 if spans:
                     reply['vm_spans'] = spans + reply.get('vm_spans', [])
-                expected = {'close': 'closed', 'seal': 'sealed'}[value['op']]
+                expected = {'close': 'closed', 'seal': 'sealed', 'begin': 'begun', 'end': 'ended'}[value['op']]
                 if reply.get('event') != expected or (value['op'] == 'seal' and (
                         reply.get('token') != value['token'] or
                         type(reply.get('sealed')) is not bool or
@@ -313,15 +351,14 @@ class Session:
             self.publication = Publication(self.root)
             self.stack.callback(self.publication.close)
             runtime = self.stack.enter_context(runtime_directory(prefix='onpc-record-control-'))
-            scratch = Path(self.stack.enter_context(tempfile.TemporaryDirectory(
+            scratch = self.scratch = Path(self.stack.enter_context(tempfile.TemporaryDirectory(
                 prefix='onpc-watch-recording-', dir=scratch_directory())))
-            self.master = scratch / 'watch.webm'
             self.log = self.stack.enter_context((scratch / 'worker.log').open('xb'))
             os.fchmod(self.log.fileno(), 0o600)
             self.control, remote = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
             self.control.settimeout(30)
             try:
-                self.process = subprocess.Popen(launch_command(self.root, remote.fileno(), self.master,
+                self.process = subprocess.Popen(launch_command(self.root, remote.fileno(),
                     owner_fd=self.publication.descriptors()[0], vm_names=tuple(self.configured)),
                     env=launch_environment(),
                     stdin=subprocess.DEVNULL, stdout=self.log, stderr=subprocess.STDOUT,
@@ -341,6 +378,8 @@ class Session:
             self.server.settimeout(.2)
             self.endpoint = dict(socket=str(runtime / 'control'), nonce=secrets.token_hex(24))
             self.publication.publish(self.endpoint)
+            self.handlers = ThreadPoolExecutor(max_workers=len(self.configured) + 2,
+                                              thread_name_prefix='recording-peer')
             self.thread = threading.Thread(target=self.serve, daemon=True, name='recording-controller')
             self.thread.start()
             os.environ[VARIABLE] = json.dumps(self.endpoint)
@@ -363,7 +402,6 @@ class Session:
             print('Recording renderer diagnostics:\n' + tail, file=sys.stderr, flush=True)
 
     def serve(self):
-        configured = self.configured
         while not self.stop.is_set():
             try:
                 peer, _ = self.server.accept()
@@ -371,80 +409,118 @@ class Session:
                 continue
             except OSError:
                 return
-            with peer:
-                peer.settimeout(5)
+            self.handlers.submit(self.handle, peer)
+
+    def handle(self, peer):
+        with peer:
+            peer.settimeout(5)
+            try:
+                uid = struct.unpack('3i', peer.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))[1]
+                if uid not in (0, os.getuid()):
+                    raise ValueError('recording: caller')
+                value = json.loads(peer.recv(8192))
+                if value.pop('nonce', None) != self.endpoint['nonce']:
+                    raise ValueError('recording: session')
+                operation = value.get('op')
+                record = None
+                if operation == 'seal':
+                    # Validation/publication never holds this control lock.
+                    self.exchange(value)
+                elif value.get('vm') not in self.configured:
+                    raise ValueError('recording: VM')
+                else:
+                    with self.case_lock:
+                        if operation == 'event':
+                            record = self.event(value)
+                        elif operation == 'failure':
+                            key = self.active.get(value['vm'])
+                            if key is not None:
+                                self.event(dict(value, category=key[0], id=key[1], kind='failure'))
+                        elif operation == 'finished':
+                            record = self.finish_vm(value['vm'], interrupted=True)
+                        else:
+                            raise ValueError('recording: operation')
+                peer.sendall(json.dumps(dict(ok=True, recording=record)).encode())
+            except Exception as error:
+                self.errors.append(type(error).__name__)
                 try:
-                    uid = struct.unpack('3i', peer.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))[1]
-                    if uid not in (0, os.getuid()):
-                        raise ValueError('recording: caller')
-                    value = json.loads(peer.recv(8192))
-                    if value.pop('nonce', None) != self.endpoint['nonce']:
-                        raise ValueError('recording: session')
-                    operation = value.get('op')
-                    if operation == 'seal':
-                        self.exchange(value)
-                    elif value.get('vm') not in configured:
-                        raise ValueError('recording: VM')
-                    elif operation == 'event':
-                        self.timeline.event(value['vm'], value['category'], value['id'],
-                            value['kind'], value['at_ns'], value.get('title', ''))
-                    elif operation == 'finished':
-                        self.timeline.finish_vm(value['vm'], value['at_ns'])
-                    else:
-                        raise ValueError('recording: operation')
-                    peer.sendall(b'{"ok":true}')
-                except (OSError, ValueError, RuntimeError, KeyError, TypeError) as error:
-                    self.errors.append(type(error).__name__)
-                    try:
-                        peer.sendall(b'{"ok":false}')
-                    except OSError:
-                        pass
+                    peer.sendall(b'{"ok":false}')
+                except OSError:
+                    pass
 
-    def publish(self, summary):
-        from test_storage import scratch_descriptors
-        configured = self.configured
-        ordered = sorted(configured, key=lambda name: int(configured[name].id))
-        self.timeline.close(time.monotonic_ns())
-        total = len(self.timeline.windows)
+    def event(self, value):
+        from recording_storage import case_identity as valid_identity, _token
+        category, identifier, vm = value['category'], value['id'], value['vm']
+        kind, at_ns = value['kind'], value['at_ns']
+        if (not _token(category) or not valid_identity(identifier)
+                or kind not in ('prepared', 'started', 'failure', 'finished')
+                or type(at_ns) is not int or not 0 <= at_ns <= time.monotonic_ns()):
+            raise ValueError('recording: invalid case event')
+        key = category, identifier
+        if kind == 'finished' and self.active.get(vm) != key:
+            return None
+        if vm in self.active and self.active[vm] != key:
+            self.finish_vm(vm, interrupted=True)
+        if vm not in self.cases:
+            if kind == 'finished':
+                return None
+            # Encoder scratch is owned by the inherited scratch/controller
+            # leases. The final per-case lease is held only during publication,
+            # so simultaneous VMs can finish the same case independently.
+            path = self.scratch / (secrets.token_hex(16) + '.webm')
+            self.cases[vm] = dict(path=path, errors=[], title=value.get('title', ''), interrupted=False)
+            self.active[vm] = key
+            ready = self.exchange(dict(op='begin', category=category, id=identifier, vm=vm, path=str(path)))
+            self.cases[vm]['started_ns'] = ready['started_ns']
+        case = self.cases[vm]
+        self.active[vm] = key
+        if kind == 'failure' and not case['errors']:
+            elapsed_ns = max(0, at_ns - case['started_ns'])
+            seconds = elapsed_ns / 1_000_000_000
+            milliseconds = elapsed_ns // 1_000_000
+            hours, rest = divmod(milliseconds, 3600000)
+            minutes, rest = divmod(rest, 60000)
+            case['errors'].append(dict(seconds=seconds, frame=elapsed_ns * 5 // 1_000_000_000, vm=vm,
+                timestamp=f'{hours:02}:{minutes:02}:{rest / 1000:06.3f}', kind='failure observed'))
+        if kind == 'finished':
+            return self.finish_vm(vm)
 
-        def progress(completed):
-            line = f'Recording: {completed}/{total}'
-            if hasattr(sys.stdout, 'controller'):
-                sys.stdout.controller('recording', [line])
-            else:
-                print('\r' + line, end='\n' if completed == total else '', flush=True)
-
-        progress(0)
-        frames = keyframes(self.master)
-        for key, window in sorted(self.timeline.windows.items()):
-            requested_start = max(0., (window.start_ns - self.started_ns) / 1e9)
-            # Stream-copy starts on a real keyframe. Include every VM visible
-            # in that short prelude in the honest final filename as well.
-            start = frames[max(0, bisect.bisect_right(frames, requested_start) - 1)]
-            end = min(summary['duration_seconds'], max(start + .2,
-                (window.end_ns - self.started_ns) / 1e9))
-            clip_start_ns = self.started_ns + int(start * 1e9)
-            clip_end_ns = self.started_ns + int(end * 1e9)
-            names = {span['vm'] for span in summary['vm_spans']
-                     if span['start_ns'] < clip_end_ns and span['end_ns'] > clip_start_ns}
-            if not names:
-                raise RuntimeError('recording: no VM display captured for ' + str(key))
-            if names - configured.keys():
-                raise RuntimeError('recording: VM registry changed during capture')
-            with self.store.begin(window.category, window.identifier) as recording:
-                subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
-                    '-ss', f'{start:.6f}', '-i', str(self.master), '-t', f'{end-start:.6f}',
-                    '-map', '0:v:0', '-c', 'copy', '-avoid_negative_ts', 'make_zero',
-                    str(recording.path)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                    stderr=self.log, timeout=120, check=True,
-                    pass_fds=(*recording.descriptors(), *scratch_descriptors()))
-                path = recording.publish([name for name in ordered if name in names], validate=playable)
-                self.paths.append(path)
-                self.records.append(dict(category=window.category, id=window.identifier,
-                    title=window.title, path=str(path), sha256=recording.state['current']['sha256'],
-                    failed=window.failed, interrupted=window.interrupted,
-                    start_seconds=start, end_seconds=end))
-                progress(len(self.records))
+    def finish_vm(self, vm, *, interrupted=False):
+        key = self.active.get(vm)
+        if key is None:
+            return None
+        case = self.cases[vm]
+        case['interrupted'] |= interrupted
+        category, identifier = key
+        summary = self.exchange(dict(op='end', category=category, id=identifier, vm=vm))
+        self.active.pop(vm)
+        names = {span['vm'] for span in summary['vm_spans']}
+        # Initial VM startup may precede the first available display texture;
+        # the case's configured panel still identifies that recorded attempt.
+        if not names:
+            names = {vm}
+        if names - self.configured.keys():
+            raise ValueError('recording: unknown captured VM')
+        ordered = sorted(names, key=lambda name: int(self.configured[name].id))
+        metadata = dict(title=case['title'], errors=case['errors'],
+                        failed=bool(case['errors']), interrupted=case['interrupted'],
+                        duration_seconds=summary['duration_seconds'], fps=summary['fps'])
+        try:
+            with self.store.begin(category, identifier) as owner:
+                shutil.copyfile(case['path'], owner.path)
+                path = owner.publish(ordered, validate=playable, metadata=metadata)
+                record = dict(metadata, category=category, id=identifier, path=str(path),
+                              sha256=owner.state['current']['sha256'])
+            # An index contains only the current recording for each identity.
+            self.records[:] = [old for old in self.records
+                               if (old['category'], old['id']) != key]
+            self.records.append(record)
+            if self.run is not None:
+                self.write_index(self.run, None)
+            return record
+        finally:
+            case['path'].unlink(missing_ok=True)
+            del self.cases[vm]
 
     def close(self, *, publish=True):
         if self.previous is None:
@@ -458,12 +534,16 @@ class Session:
                 self.broken = True
         if self.server is not None:
             self.server.close()
+        if hasattr(self, 'handlers'):
+            self.handlers.shutdown(wait=True)
         try:
             if self.process is not None:
                 from watch_recording_worker import stop_owned
                 summary = None
                 try:
                     if not self.broken and self.started_ns is not None and self.process.poll() is None:
+                        for vm in tuple(self.active):
+                            self.finish_vm(vm, interrupted=True)
                         summary = self.exchange(dict(op='close'))
                         self.summary = summary
                         if self.process.wait(timeout=15):
@@ -471,7 +551,6 @@ class Session:
                     if publish:
                         if summary is None or summary.get('event') != 'closed' or self.errors:
                             raise RuntimeError('recording: incomplete capture; previous recordings preserved')
-                        self.publish(summary)
                         self.finalized = True
                 finally:
                     if self.identity is not None:
@@ -484,6 +563,7 @@ class Session:
             self.diagnostics()
             raise
         finally:
+            self.cases.clear()
             if self.control is not None:
                 self.control.close()
             if self.pidfd is not None:
@@ -525,14 +605,14 @@ class Session:
 
 
 @contextmanager
-def recording(root, *, enabled):
+def recording(root, *, enabled, run=None):
     if enabled and VARIABLE in os.environ:
         from recording_control import endpoint
         if endpoint(root) != json.loads(os.environ[VARIABLE]):
             raise ValueError('recording: inherited controller differs from live owner')
         yield None
     elif enabled:
-        with Session(root) as session:
+        with Session(root, run=run) as session:
             yield session
     else:
         yield None

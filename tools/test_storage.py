@@ -67,12 +67,6 @@ def recordings_directory(*, root=None, caller_uid=None, create=True):
     if caller_uid is None:
         if os.geteuid() == 0:
             raise ValueError('recordings require an unprivileged owner')
-        if create:
-            if __package__:
-                from .recording_control import relocate_legacy
-            else:
-                from recording_control import relocate_legacy
-            relocate_legacy(root)
         return _directory('recordings', root=root, create=create, owner=None, uid=os.geteuid())
     if os.geteuid() != 0 or type(caller_uid) is not int or caller_uid <= 0 or create:
         raise ValueError('recordings caller lookup requires root, a positive UID and create=False')

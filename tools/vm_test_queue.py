@@ -115,6 +115,25 @@ def run(root, argv, *, reloading=False):
             return status
     with Control().installed() as control:
         store = test_retention.Store(test_activity.retention_path(root))
+        def queue_output_guard():
+            # Queue recovery owns host output only, never VM-bound inputs.
+            from test_storage import directory as storage_directory
+            allocations = storage_directory('allocations', root=root)
+            with store.opened() as fd:
+                state = store.read(fd)
+                for _, record in test_retention.latest_allocations([*state['history'], state] if state else []):
+                    path = Path(record['path'])
+                    if path.parent == allocations and path.name.startswith('onpc-vm-queue-'):
+                        continue
+                    try:
+                        path.lstat()
+                    except FileNotFoundError:
+                        continue
+                    raise ValueError('queue retention contains non-queue allocations; '
+                                     'recover them through their owning workflow before retrying')
+        # The inherited owner lease excludes live workers; every VM still
+        # separately recovers its own journal and guest state.
+        store.reconcile(queue_output_guard, completed_guard=lambda paths: None)
         with store.session():
             directory = Path(test_retention.allocate(tempfile.mkdtemp, prefix='onpc-vm-queue-'))
             # Named inputs are VM-bound. Each worker prepares them inside its

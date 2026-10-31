@@ -166,6 +166,23 @@ def wait_for(path):
         time.sleep(.02)
 
 
+def answer_intervention(run, choice=1):
+    from launcher_question import extend_deadline, submit
+    wait_for(run / 'question.json')
+    deadline = time.monotonic() + 15
+    while True:
+        question = json.loads((run / 'question.json').read_text())
+        if question.get('intervention') and question.get('answer') is None:
+            break
+        assert time.monotonic() < deadline, 'session intervention never opened'
+        time.sleep(.02)
+    assert question['deadline'] > time.time()
+    assert not (run / 'result.json').exists()
+    extend_deadline(run, question['id'])
+    assert json.loads((run / 'question.json').read_text())['deadline'] == question['deadline'] + 600
+    assert submit(run, question['id'], choice)
+
+
 @pytest.fixture
 def checkout(tmp_path, monkeypatch):
     import vm_config
@@ -821,16 +838,18 @@ def test_diagnostic_continuation_survives_restart_without_new_acceptance_or_stag
 def test_diagnostic_rounds_still_exhaust_the_existing_task_session_cap(checkout):
     root, _ = checkout
     script(root, {'result': reply()}, *({'result': reply('investigating', 'not_run',
-        handoff=f'Probe {index} observed event order; next compare the session identity.')} for index in range(5)))
+        handoff=f'Probe {index} observed event order; next compare the session identity.'),
+        'stop': index == 4} for index in range(5)))
     run, _ = select_vm(root, ['--tasks', '2'])
     output = io.StringIO()
-    assert launcher.follow(run, output) == 1
-    assert len(calls(root)) == 5
+    answer_intervention(run, choice=0)
+    assert launcher.follow(run, output) == 0
+    assert len(calls(root)) == 6
     state = json.loads((run / 'checkpoint.json').read_text())
-    assert state['task_sessions'] == 5 and state['live_attempts'] == state['failed_attempts'] == 1
+    assert state['task_sessions'] == 6 and state['live_attempts'] == state['failed_attempts'] == 1
     assert state['model_tier'] == 0 and state['diagnostic_continuation']
-    assert json.loads((run / 'result.json').read_text()) == {'status': 1, 'sessions': 5, 'tasks': 0}
-    assert 'Task 001 is not complete in 5 sessions' in output.getvalue()
+    assert state['task_session_limit'] == 10
+    assert json.loads((run / 'result.json').read_text()) == {'status': 0, 'sessions': 6, 'tasks': 0}
     assert workflow.queue_state(root)[0] == '001'
 
 
@@ -1365,11 +1384,12 @@ def test_task_cap_stops_entire_launcher_with_final_red_warning(checkout, args):
     run, started = select_vm(root, args)
     assert started
     output = io.StringIO()
+    answer_intervention(run)
     assert launcher.follow(run, output) == 1
     assert len(calls(root)) == 5
     assert json.loads((run / 'result.json').read_text()) == {
         'status': 1, 'sessions': 5, 'tasks': 0}
-    assert 'task session limit reached' in (run / 'handoff.txt').read_text()
+    assert 'task session allowance exhausted' in (run / 'handoff.txt').read_text()
     from rich.console import Console
     from rich.text import Text
     rendered = Text.from_ansi(output.getvalue())
@@ -1382,6 +1402,7 @@ def test_task_cap_stops_entire_launcher_with_final_red_warning(checkout, args):
     assert workflow.queue_state(root)[0] == '001'
     restarted, started = select_vm(root, ['--tasks', '2'])
     assert started
+    answer_intervention(restarted)
     assert launcher.follow(restarted, io.StringIO()) == 1
     assert len(calls(root)) == 10
     assert json.loads((restarted / 'result.json').read_text()) == {
@@ -1396,6 +1417,7 @@ def test_task_cap_renews_without_resetting_task_sessions(checkout):
     first, _ = select_vm(root, [])
     assert launcher.follow(first, io.StringIO()) == 0
     second, _ = select_vm(root, ['--tasks', '2'])
+    answer_intervention(second)
     assert launcher.follow(second, io.StringIO()) == 1
     assert len(calls(root)) == 8
     assert json.loads((second / 'result.json').read_text()) == {
@@ -1409,6 +1431,7 @@ def test_six_prior_sessions_get_five_more_in_plain_new_launcher(checkout):
     script(root, {'result': reply()},
            *({'result': reply(live='failed'), 'stop': index == 4} for index in range(10)))
     first, _ = select_vm(root, [])
+    answer_intervention(first)
     assert launcher.follow(first, io.StringIO()) == 1
     second, _ = select_vm(root, [])
     assert launcher.follow(second, io.StringIO()) == 0
@@ -1416,6 +1439,7 @@ def test_six_prior_sessions_get_five_more_in_plain_new_launcher(checkout):
     third, started = select_vm(root, [])
     assert started
     output = io.StringIO()
+    answer_intervention(third)
     assert launcher.follow(third, output) == 1
     assert len(calls(root)) == 11
     assert json.loads((third / 'result.json').read_text()) == {
@@ -1699,6 +1723,7 @@ def test_rejected_responses_exhaust_existing_cap_and_resume_same_task(checkout):
     script(root, *[{'result': reply(task_id='wrong')} for _ in range(5)],
            {'result': reply(), 'stop': True})
     run, _ = select_vm(root, [])
+    answer_intervention(run)
     assert launcher.follow(run, io.StringIO()) == 1
     state = json.loads((run / 'checkpoint.json').read_text())
     assert state['task_sessions'] == 5 and state['model_tier'] == 0
@@ -1778,15 +1803,17 @@ def test_answer_permits_recovery_when_blocker_used_the_last_session(checkout):
     from launcher_question import submit
     root, spawned = checkout
     script(root, *[{'result': reply()} for _ in range(4)],
-           {'result': reply('blocked')}, {'result': reply(live='failed')})
+           {'result': reply('blocked')}, {'result': reply(live='failed'), 'stop': True})
     run, _ = select_vm(root, [])
     wait_for(run / 'question.json')
     assert len(calls(root)) == 5 and not (run / 'result.json').exists()
     question = json.loads((run / 'question.json').read_text())
+    assert question['intervention']
     assert submit(run, question['id'], 0)
-    assert finish_answered_run(run, spawned) == 1  # recovery used the explicitly extended task cap
+    assert finish_answered_run(run, spawned) == 0
     assert len(calls(root)) == 6
     assert json.loads((run / 'result.json').read_text())['sessions'] == 6
+    assert json.loads((run / 'checkpoint.json').read_text())['task_session_limit'] == 10
 
 
 def test_nested_registration_refuses_dead_parent_and_replaced_identity(tmp_path, monkeypatch):

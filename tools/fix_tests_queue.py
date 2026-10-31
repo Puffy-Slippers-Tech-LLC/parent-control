@@ -547,6 +547,8 @@ def failed_case_selection(run, records):
 
 def record_case_failure(run, record, *, root):
     """Append across resumes; the category owner resets the log on a new run."""
+    from vm_recording import intervention_recording
+    record = dict(record, recording=intervention_recording(root, *record['failure'][:2]).strip())
     owner = parent_run(run) or run
     with launcher.lock(owner.parent / 'errors-gate') as fd:
         fcntl.flock(fd, fcntl.LOCK_EX)
@@ -807,7 +809,7 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
     media = None
     status = 1
     try:
-        with launcher_reload.watching(run), Control().installed() as control, recording(root, enabled=True) as media:
+        with launcher_reload.watching(run), Control().installed() as control, recording(root, enabled=True, run=run) as media:
             status = _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds, resume, control)
         if status == launcher_reload.STATUS:
             from fix_tests import ControllerReload

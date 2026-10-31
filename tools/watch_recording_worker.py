@@ -1,4 +1,4 @@
-"""Private, input-free rendering of the watch viewer into one WebM stream.
+"""Private, input-free rendering of the watch viewer into active case WebMs.
 
 The runner owns retained paths and case publication. This child owns only its
 explicit compositor and encoder. Its inherited SOCK_SEQPACKET control endpoint
@@ -69,11 +69,11 @@ class CaptureGate:
         return False
 
 
-def launch_command(root, control_fd, output, *, owner_fd=None, vm_names=None):
+def launch_command(root, control_fd, *, owner_fd=None, vm_names=None):
     """Run inside a private session bus; pass control and scratch owner FDs."""
     return ['dbus-run-session', '--', '/usr/bin/python3', '-B',
             str(Path(__file__).resolve()), '--control', str(control_fd),
-            '--root', str(root), '--output', str(output),
+            '--root', str(root),
             *(['--owner', str(owner_fd)] if owner_fd is not None else []),
             *(['--vms', json.dumps(list(vm_names))] if vm_names is not None else [])]
 
@@ -139,13 +139,17 @@ def final_reply(control, summary):
     """Stream large span inventories without seqpacket truncation or omissions."""
     def packet(value):
         return json.dumps(value, separators=(',', ':')).encode()
-    control.settimeout(5)
-    if len(packet(summary)) > 48 * 1024:
-        spans = summary['vm_spans']
-        for begin in range(0, len(spans), 128):
-            control.sendall(packet(dict(event='vm-spans', items=spans[begin:begin + 128])))
-        summary = dict(summary, vm_spans=[])
-    control.sendall(packet(summary))
+    previous_timeout = control.gettimeout()
+    try:
+        control.settimeout(5)
+        if len(packet(summary)) > 48 * 1024:
+            spans = summary['vm_spans']
+            for begin in range(0, len(spans), 128):
+                control.sendall(packet(dict(event='vm-spans', items=spans[begin:begin + 128])))
+            summary = dict(summary, vm_spans=[])
+        control.sendall(packet(summary))
+    finally:
+        control.settimeout(previous_timeout)
 
 
 def process_identity(process):
@@ -201,7 +205,7 @@ class Encoder:
         self.started = self.started_ns / 1e9
         self.ended = None
         self.process = subprocess.Popen([
-            'ffmpeg', '-hide_banner', '-loglevel', 'error', '-n',
+            'ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
             '-f', 'rawvideo', '-pixel_format', 'rgba', '-video_size', f'{width}x{height}',
             '-framerate', str(fps), '-i', 'pipe:0', '-an',
             '-c:v', 'libvpx-vp9', '-deadline', 'realtime', '-cpu-used', '8',
@@ -260,7 +264,7 @@ class Encoder:
                 if self.count == target:
                     self.write_frame(pixels, names)
                 previous, previous_names = pixels, names
-            target = max(1, round((self.ended - self.started) * self.fps))
+            target = max(1, int((self.ended - self.started) * self.fps) + 1)
             while self.count < target:
                 self.write_frame(previous, previous_names)
             self.process.stdin.close()
@@ -323,7 +327,7 @@ def widget_pixels(window, width=WIDTH, height=HEIGHT):
     return b''.join(pixels[row * stride:row * stride + width * 4] for row in range(height))
 
 
-def render(control, root, output, *, compositor=None, sources=None, vm_names=None):
+def render(control, root, *, compositor=None, sources=None, vm_names=None):
     import gi
     gi.require_version('Gtk', '4.0')
     from gi.repository import GLib
@@ -332,14 +336,13 @@ def render(control, root, output, *, compositor=None, sources=None, vm_names=Non
     state = dict(ready=False, closing=False, error=None, render_ns=0, samples=0,
                  last_render_ns=time.monotonic_ns(), skipped_render_frames=0)
     gate = CaptureGate()
-    vm_spans, shown_vms = [], {}
     # An independent application cannot forward to a user's live singleton.
     sources = sources or {root: {}}
     if vm_names is not None:
         sources = {checkout: dict(options, vm_names=vm_names) for checkout, options in sources.items()}
     app = application(checkouts={root: root.name}, sources=sources,
                       window_size=(WIDTH, HEIGHT))
-    encoder = Encoder(output)
+    encoders = {}
     control.setblocking(False)
 
     def reply(value):
@@ -356,7 +359,8 @@ def render(control, root, output, *, compositor=None, sources=None, vm_names=Non
         if pixels is None:
             state['skipped_render_frames'] += 1
             return None
-        encoder.submit(pixels, names=names)
+        for encoder in encoders.values():
+            encoder.submit(pixels, names=names)
         state['last_render_ns'] = time.monotonic_ns()
         return names
 
@@ -381,10 +385,8 @@ def render(control, root, output, *, compositor=None, sources=None, vm_names=Non
                 children = [('worker', identity_for_pid(os.getpid()))]
                 if compositor is not None:
                     children.append(('compositor', process_identity(compositor)))
-                if hasattr(encoder, 'process'):
-                    children.append(('encoder', encoder.identity))
                 reply(dict(event='ready', fps=FPS, width=WIDTH, height=HEIGHT,
-                           started_ns=encoder.started_ns,
+                           started_ns=time.monotonic_ns(),
                            processes=[dict(role=role, pid=pid, start_ticks=start)
                                       for role, (pid, start) in children]))
                 state['ready'] = True
@@ -411,12 +413,25 @@ def render(control, root, output, *, compositor=None, sources=None, vm_names=Non
                     reply(dict(event='sealed', token=token, sealed=bool(gate.tokens)))
                 elif operation in ('begin', 'end'):
                     category, identifier = command.get('category'), command.get('id')
-                    if (not isinstance(category, str) or not category or len(category) > 64
-                            or type(identifier) is not int or identifier < 1):
+                    from recording_storage import case_identity, _token
+                    if not _token(category) or not case_identity(identifier):
                         raise ValueError('recording case identity')
-                    reply(dict(event='begun' if operation == 'begin' else 'ended',
-                               category=category, id=identifier, seconds=encoder.seconds(),
-                               at_ns=time.monotonic_ns()))
+                    key = command.get('vm')
+                    if key not in (vm_names or ()):
+                        raise ValueError('recording VM identity')
+                    if operation == 'begin':
+                        if key in encoders or len(encoders) >= len(vm_names or (None,)):
+                            raise ValueError('recording active case limit')
+                        encoder = encoders[key] = Encoder(Path(command['path']))
+                        # All new encoders pass through the existing opacity gate.
+                        submit_frame()
+                        reply(dict(event='begun', started_ns=encoder.started_ns))
+                    else:
+                        submit_frame()
+                        encoder = encoders.pop(key)
+                        summary = encoder.close()
+                        summary.update(event='ended', started_ns=encoder.started_ns)
+                        final_reply(control, summary)
                 elif operation == 'close':
                     state['closing'] = True
                     break
@@ -431,13 +446,9 @@ def render(control, root, output, *, compositor=None, sources=None, vm_names=Non
                 if time.monotonic_ns() - state['last_render_ns'] > 3_000_000_000:
                     raise RuntimeError('recording window stopped painting')
                 return True
-            for vm in set(shown_vms) - names:
-                vm_spans.append(dict(vm=vm, start_ns=shown_vms.pop(vm), end_ns=started))
-            for vm in names - set(shown_vms):
-                shown_vms[vm] = started
             state['render_ns'] += time.monotonic_ns() - started
             state['samples'] += 1
-            if encoder.error:
+            if any(encoder.error for encoder in encoders.values()):
                 raise RuntimeError('recording encoder failed')
             return True
         except Exception as error:
@@ -453,12 +464,18 @@ def render(control, root, output, *, compositor=None, sources=None, vm_names=Non
     finally:
         if app.discovery is not None:
             app.discovery.close()
-        summary = encoder.close()
-    ended_ns = time.monotonic_ns()
-    vm_spans.extend(dict(vm=vm, start_ns=start, end_ns=ended_ns) for vm, start in shown_vms.items())
-    summary.update(event='closed', render_ns=state['render_ns'], samples=state['samples'],
-                   skipped_render_frames=state['skipped_render_frames'],
-                   vm_spans=summary.get('vm_spans', vm_spans))
+        # A controller normally ends each case before closing the renderer.
+        # Still reap every explicitly owned encoder on interruption/failure.
+        errors = []
+        for encoder in encoders.values():
+            try:
+                encoder.close()
+            except Exception as error:
+                errors.append(type(error).__name__)
+        if errors:
+            state['error'] = errors[0]
+    summary = dict(event='closed', fps=FPS, render_ns=state['render_ns'], samples=state['samples'],
+                   skipped_render_frames=state['skipped_render_frames'])
     own = resource.getrusage(resource.RUSAGE_SELF)
     children = resource.getrusage(resource.RUSAGE_CHILDREN)
     cpu = own.ru_utime + own.ru_stime + children.ru_utime + children.ru_stime
@@ -489,7 +506,6 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--control', type=int, required=True)
     parser.add_argument('--root', type=Path, required=True)
-    parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--owner', type=int)
     parser.add_argument('--vms', type=json.loads)
     args = parser.parse_args(argv)
@@ -538,7 +554,7 @@ def main(argv=None):
                         or time.monotonic() >= deadline):
                     raise RuntimeError('recording compositor did not start')
                 time.sleep(.05)
-            return render(control, root, args.output, compositor=compositor, vm_names=args.vms)
+            return render(control, root, compositor=compositor, vm_names=args.vms)
         except (OSError, ValueError, RuntimeError) as error:
             traceback.print_exc()
             try:

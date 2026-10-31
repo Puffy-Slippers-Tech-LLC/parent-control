@@ -93,13 +93,30 @@ function activate(context) {
             });
         panels.set(root, panel);
         let child, lines, timer, ready = false, busy = false, rendering = false;
-        let errorLogs = new Set();
+        let runLinks = new Set();
         let selection = { scope: 'all', selected: 'all' }, reset = true, disposed = false;
         let sessionRoot = '';
         const sessionActions = [];
         let sessions = new Map();
         let runRoots = new Set();
         const notifications = new Set();
+        function desktopCommand(command, args, label, input) {
+            const helper = spawn(command, args,
+                { stdio: [input === undefined ? 'ignore' : 'pipe', 'ignore', 'pipe'] });
+            notifications.add(helper);
+            let errors = '';
+            const report = error => void vscode.window.showErrorMessage(`${label}: ${error}`);
+            helper.stderr.on('data', data => { errors = (errors + data.toString()).slice(-4096); });
+            helper.on('error', error => report(error.message));
+            helper.on('close', code => {
+                notifications.delete(helper);
+                if (code || errors) report(errors || `desktop helper exited (${code})`);
+            });
+            if (input !== undefined) {
+                helper.stdin.on('error', error => output.appendLine(`${label} input: ${error.message}`));
+                helper.stdin.end(input);
+            }
+        }
         function stop() {
             clearInterval(timer);
             lines?.close();
@@ -148,8 +165,10 @@ function activate(context) {
                     runRoots = new Set((snapshot.runs || []).map(entry => entry.id));
                     sessions = new Map((snapshot.runs || []).filter(entry => entry.session)
                         .map(entry => [entry.id, entry.session]));
-                    errorLogs = new Set((snapshot.runs || []).flatMap(entry =>
-                        (entry.rows || []).flatMap(row => row.map(part => part.link).filter(Boolean))));
+                    runLinks = new Set((snapshot.runs || []).flatMap(entry =>
+                        [...(entry.rows || []), ...(entry.error_rows || []),
+                            ...(entry.session_view?.rows || [])]
+                            .flatMap(row => row.map(part => part.link).filter(Boolean))));
                     busy = false;
                     rendering = true;
                     const delivered = await panel.webview.postMessage({ type: 'snapshot', ...snapshot });
@@ -180,20 +199,9 @@ function activate(context) {
             } else if (message?.type === 'screenshot' && typeof message.png === 'string' &&
                        message.png.length <= 45 * 1024 * 1024 &&
                        /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(message.png)) {
-                const helper = spawn('/usr/bin/python3', ['-B',
-                    path.join(context.extensionUri.fsPath, 'screenshot.py')],
-                    { stdio: ['pipe', 'ignore', 'pipe'] });
-                notifications.add(helper);
-                let errors = '';
-                const report = error => void vscode.window.showErrorMessage(`Screenshot: ${error}`);
-                helper.stderr.on('data', data => { errors = (errors + data.toString()).slice(-4096); });
-                helper.on('error', error => report(error.message));
-                helper.stdin.on('error', error => output.appendLine(`Screenshot input: ${error.message}`));
-                helper.on('close', code => {
-                    notifications.delete(helper);
-                    if (code || errors) report(errors || `desktop helper exited (${code})`);
-                });
-                helper.stdin.end(Buffer.from(message.png.slice('data:image/png;base64,'.length), 'base64'));
+                desktopCommand('/usr/bin/python3', ['-B',
+                    path.join(context.extensionUri.fsPath, 'screenshot.py')], 'Screenshot',
+                    Buffer.from(message.png.slice('data:image/png;base64,'.length), 'base64'));
             } else if (message?.type === 'screenshotError' && typeof message.error === 'string') {
                 void vscode.window.showErrorMessage(`Cannot take screenshot: ${message.error}`);
             } else if (message?.type === 'copy' && runRoots.has(message.root) &&
@@ -214,13 +222,28 @@ function activate(context) {
                 sessionActions.push({ root: message.root, session: message.session,
                     kind: message.kind, text: message.text, id: message.id });
                 poll();
-            } else if (message?.type === 'openErrorLog' && typeof message.uri === 'string') {
-                if (!errorLogs.has(message.uri)) return;
-                const uri = vscode.Uri.parse(message.uri);
-                if (uri.scheme !== 'file' || path.basename(uri.fsPath) !== 'errors.md') return;
+            } else if (message?.type === 'openRunFile' && typeof message.uri === 'string') {
+                if (!runLinks.has(message.uri)) return;
+                const uri = path.isAbsolute(message.uri) ? vscode.Uri.file(message.uri) :
+                    vscode.Uri.parse(message.uri);
+                if (uri.scheme !== 'file' || uri.authority || uri.query || uri.fragment) return;
                 // Only links supplied by the trusted backend for visible worktrees.
-                void vscode.window.showTextDocument(uri, { preview: false }).then(undefined,
-                    error => vscode.window.showErrorMessage(`Cannot open repair log: ${error.message}`));
+                if (path.extname(uri.fsPath) === '.webm' && [...runRoots].some(checkout =>
+                        path.dirname(uri.fsPath) === path.join(checkout, 'output', 'test-runs', 'recordings'))) {
+                    // GIO dispatches by the desktop's MIME association on this host,
+                    // including Remote SSH. VS Code's file opener targets the editor.
+                    try {
+                        if (fs.realpathSync(uri.fsPath) !== uri.fsPath || !fs.lstatSync(uri.fsPath).isFile()) {
+                            throw new Error('Recording is no longer a regular file at the published path.');
+                        }
+                        desktopCommand('gio', ['open', uri.fsPath], 'Cannot open recording');
+                    } catch (error) {
+                        void vscode.window.showErrorMessage(`Cannot open recording: ${error.message}`);
+                    }
+                } else if (path.basename(uri.fsPath) === 'errors.md') {
+                    void vscode.window.showTextDocument(uri, { preview: false }).then(undefined,
+                        error => vscode.window.showErrorMessage(`Cannot open repair log: ${error.message}`));
+                }
             }
         });
         const visibility = panel.onDidChangeViewState(() => {

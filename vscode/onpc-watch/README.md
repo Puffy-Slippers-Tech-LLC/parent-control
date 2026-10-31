@@ -77,6 +77,9 @@ Waiting for input flashes unless reduced motion is
 enabled. Enter sends chat directly; there is no Send button. Shift+Enter or
 Alt+Enter inserts a new line. Input is
 routed only to the displayed, still-current launcher session.
+Recording links in **Session**, **Status** and **Error** open through GIO using
+the desktop's default video application. They open on the extension host, also
+with Remote SSH, like opening the file in its file manager.
 Repair case totals show green completed, red failed and total counts. The failed
 count is underlined; click it to open the cumulative `errors.md` in the editor.
 

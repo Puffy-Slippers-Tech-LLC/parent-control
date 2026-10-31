@@ -18,7 +18,8 @@ import detached_launcher as launcher
 from launcher_progress import (format_duration, plan_progress as task_progress,
                                plan_task_heading, publish_completion, session_lines)
 from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
-from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer as wait_for_developer
+from launcher_question import (BLOCKER_INSTRUCTIONS, allowance_blocker, validate_blocker,
+                               wait_for_answer as wait_for_developer, wait_for_intervention)
 from launcher_runtime import (SessionResultRejected, TaskBudget, add_options, read_session_result,
                               retain_result_rejection, result_recovery_instructions, task_limit,
                               validate_session_result, warn_remaining)
@@ -800,7 +801,7 @@ def retain_diagnostic_state(state, result):
     return state
 
 
-def wait_for_answer(run, state, progress_key, *, on_poll=lambda: None):
+def wait_for_answer(run, state, progress_key, *, on_poll=lambda: None, root=None):
     """The detached owner waits; terminals may come and go without answering."""
     from launcher_progress import read_progress
     blocker = state.get('blocker') or {
@@ -808,6 +809,11 @@ def wait_for_answer(run, state, progress_key, *, on_poll=lambda: None):
         'question': 'How should we unblock this task?',
         'options': ['Recheck the blocker and resolve work already authorized.',
                     'Inspect the evidence and explain the decision needed before making changes.']}
+    from vm_recording import workflow_recordings
+    root = root or Path(__file__).resolve().parents[1]
+    recordings = workflow_recordings(root, run, limit=950, previous=state.get('recordings', []))
+    if recordings:
+        blocker = dict(blocker, explanation=blocker['explanation'][:1000] + '\n\n' + recordings)
     state.setdefault('blocker_id', uuid.uuid4().hex)
     steps = read_progress(run)
     heading = steps[-1]['lines'][0] if steps else f"Task {state['task_id']}"
@@ -815,7 +821,7 @@ def wait_for_answer(run, state, progress_key, *, on_poll=lambda: None):
                     'task_session': state['task_sessions'], 'task_id': state['task_id'], 'status': 'blocked'})
     answer = wait_for_developer(
         run, blocker, state['blocker_id'], progress_key, label='write-e2e', heading=heading,
-        on_wait=lambda: save_handoff(run, state, 'waiting for your answer', display=False),
+        on_wait=lambda: save_handoff(run, state, 'waiting for your answer', display=False, root=root),
         on_poll=on_poll)
     if answer is None:
         return False
@@ -940,7 +946,7 @@ def validate_completion_queue(state, after):
     return dict(after, **{task: False})
 
 
-def save_handoff(run, state, reason, *, display=True):
+def save_handoff(run, state, reason, *, display=True, root=None):
     prompt = state['handoff'] + result_recovery_instructions(state.get('result_recovery'))
     if state.get('pending_completion'):
         prompt = (f"Task {state['task_id']} passed acceptance and queue close-out; Git close-out remains. "
@@ -957,6 +963,12 @@ def save_handoff(run, state, reason, *, display=True):
         model, effort = session_model(state)
         prompt = f'Next coordinator and implementer: {model} {effort}.\n\n' + prompt
     text = f"Task {state['task_id'] or 'none'}: {reason}. {state['summary']}\n\nNext session prompt:\n{prompt}\n"
+    from vm_recording import recording_links, workflow_records
+    state['recordings'] = workflow_records(root or Path(__file__).resolve().parents[1], run,
+                                         state.get('recordings', []))
+    recordings = recording_links(state['recordings'])
+    if recordings:
+        text += '\n' + recordings + '\n'
     (run / 'handoff.txt').write_text(text, encoding='utf-8')
     launcher.atomic(run / 'checkpoint.json', state)
     if display:
@@ -983,6 +995,30 @@ def show_completion(task, task_sessions, duration):
 def task_session_limit_reached(state):
     return (state['phase'] != 'complete'
             and state.get('task_sessions', 0) >= state.get('task_session_limit', MAX_TASK_SESSIONS))
+
+
+def intervene_session_limit(root, run, state, progress_key, *, on_poll=lambda: None):
+    from vm_recording import workflow_recordings
+    from launcher_progress import read_progress
+    state.setdefault('allowance_intervention', uuid.uuid4().hex)
+    blocker = allowance_blocker('This task', workflow_recordings(root, run, previous=state.get('recordings', [])),
+                               stop_option='Stop here and keep this task unfinished.')
+    steps = read_progress(run)
+    heading = steps[-1]['lines'][0] if steps else f"Task {state['task_id']}"
+    answer = wait_for_intervention(run, blocker, state['allowance_intervention'], progress_key,
+        label='write-e2e', heading=heading, on_poll=on_poll,
+        on_wait=lambda: save_handoff(run, state, 'waiting for session intervention', display=False, root=root))
+    if answer is None or json.loads((run / 'question.json').read_text())['choice'] == 1:
+        return False
+    state['task_session_limit'] = state['task_sessions'] + MAX_TASK_SESSIONS
+    state['user_answer'] = answer
+    if state['phase'] == 'blocked':
+        state.update(phase='recover', recovery_run=str(run))
+        state.pop('blocker_id', None)
+        state.pop('blocker', None)
+    state.pop('allowance_intervention', None)
+    launcher.atomic(run / 'checkpoint.json', state)
+    return True
 
 
 def show_session_limit(state):
@@ -1105,8 +1141,9 @@ def worker(root, run, owner, tasks, state_json):
                 reason = 'stopped at a session boundary'
                 break
             reload_request.check()
-            if state['phase'] == 'blocked':
-                if not wait_for_answer(run, state, str(count), on_poll=reload_request.check):
+            if (state['phase'] == 'blocked' and not task_session_limit_reached(state)
+                    and not state.get('allowance_intervention')):
+                if not wait_for_answer(run, state, str(count), on_poll=reload_request.check, root=root):
                     reason = 'paused at your request'
                     break
                 # An explicit answer authorizes a recovery session even when
@@ -1116,10 +1153,20 @@ def worker(root, run, owner, tasks, state_json):
                                                   state['task_sessions'] + 1)
                 launcher.atomic(run / 'checkpoint.json', state)
                 reload_request.check()
-            if task_session_limit_reached(state):
-                status, reason = 1, 'task session limit reached'
-                budget.close()
-                break
+            if state.get('allowance_intervention') or task_session_limit_reached(state):
+                try:
+                    continuing = intervene_session_limit(root, run, state, str(count),
+                                                         on_poll=reload_request.check)
+                except TimeoutError:
+                    continuing = False
+                    reason = 'task session allowance exhausted; developer prompt timed out'
+                if not continuing:
+                    state.pop('allowance_intervention', None)
+                    status = 1
+                    if 'timed out' not in reason:
+                        reason = 'task session allowance exhausted; stopped at developer intervention'
+                    budget.close()
+                    break
             if not budget.admit(exempt=bool(state.get('optimization_session'))):
                 reason = 'task limit reached'
                 break
@@ -1175,6 +1222,8 @@ def worker(root, run, owner, tasks, state_json):
             state['worktree_before'] = worktree_snapshot(root)
             state['queue_before'] = before
             state['in_flight'] = True
+            from vm_recording import workflow_records
+            state['recordings'] = workflow_records(root, run, state.get('recordings', []))
             launcher.atomic(run / 'checkpoint.json', state)
             launcher.atomic(run / 'progress.json', {'session': count,
                                                    'task_id': task, 'phase': state['phase']})
@@ -1254,7 +1303,7 @@ def worker(root, run, owner, tasks, state_json):
                 reloading, reason = False, 'stopped at a session boundary'
         if reloading:
             state['reload_runtime'] = dict(sessions=count, completed=completed, completions=completions)
-            save_handoff(run, state, reason, display=False)
+            save_handoff(run, state, reason, display=False, root=root)
             try:
                 replace_interpreter(['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                     '--worker', str(root), str(run), str(owner), json.dumps(tasks), '{}'],
@@ -1275,7 +1324,7 @@ def worker(root, run, owner, tasks, state_json):
         for task, task_sessions, duration, _, _ in completions:
             show_completion(task, task_sessions, duration)
         save_handoff(run, state, reason,
-                     display=not (status == 0 and completed and state['phase'] == 'complete'))
+                     display=not (status == 0 and completed and state['phase'] == 'complete'), root=root)
         if task_session_limit_reached(state) and state['phase'] != 'blocked':
             show_session_limit(state)
         if completions:

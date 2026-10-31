@@ -359,7 +359,7 @@ def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
                     checkpoint.event(categories[0], dict(kind='failure', nodeid=replay[0]), set())
             before_run(root, argv, categories=categories)
         from vm_recording import recording
-        with recording(root, enabled=not host_only_selection([(kind, []) for kind in categories])) as media:
+        with recording(root, enabled=not host_only_selection([(kind, []) for kind in categories]), run=run) as media:
             status = _main(argv, detached=True, **({'checkpoint': checkpoint} if checkpoint else {}),
                            **({'reloading': True} if continuing else {}))
     except ReloadRequested:

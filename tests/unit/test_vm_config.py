@@ -727,8 +727,10 @@ def test_queue_controller_runs_host_once_and_admits_guests_independently(
     monkeypatch.setattr(queue.test_activity, 'retention_path', lambda root: tmp_path / 'journal')
     monkeypatch.setattr(queue.test_launcher, 'environment', lambda root: dict(os.environ))
     original_allocate = queue.test_retention.allocate
+    from test_storage import directory as storage_directory
+    allocations = storage_directory('allocations', root=tmp_path)
     monkeypatch.setattr(queue.test_retention, 'allocate',
-                        lambda factory, **kwargs: original_allocate(factory, dir=tmp_path, **kwargs))
+                        lambda factory, **kwargs: original_allocate(factory, dir=allocations, **kwargs))
     hosts = []
     # This controller test owns scheduling/results. Real option and input
     # validation is exercised by the focused launcher tests against ROOT.
@@ -828,6 +830,15 @@ def test_queue_controller_runs_host_once_and_admits_guests_independently(
                 active_cases.remove(identity)
             return 1 if name == failure_vm and failed_guest else 0
     monkeypatch.setattr(queue, 'Control', FakeControl)
+    # An interrupted queue owns host logs only. Recover it before admitting
+    # fresh VM work, while preserving its output and the per-VM recovery route.
+    store = queue.test_retention.Store(tmp_path / 'journal')
+    with store.session() as interrupted:
+        retained_output = allocations / 'onpc-vm-queue-interrupted'
+        retained_output.mkdir(mode=0o700)
+        queue.test_retention.retain(retained_output)
+        (retained_output / 'output').write_text('previous queue output')
+        queue.test_retention.preserve_for_recovery()
     if replay:
         from test_checkpoint import Checkpoint
         from vm_case_queue import family_binding, work_items, work_key
@@ -840,6 +851,8 @@ def test_queue_controller_runs_host_once_and_admits_guests_independently(
             checkpoint.state.update(queue_claims={key: members[0]}, queue_items={key: original_unit})
             checkpoint.save()
     assert queue.run(tmp_path, requested) == int(failed_guest)
+    assert (store.path / f'recovered-{interrupted}.json').exists()
+    assert (retained_output / 'output').read_text() == 'previous queue output'
     assert hosts == expected_host
     assert len({identity for _, _, identity in calls}) == len(calls)
     assert peak == concurrency
@@ -850,7 +863,7 @@ def test_queue_controller_runs_host_once_and_admits_guests_independently(
             for case in ([replay] if replay else identities[category])}
     else:
         assert len(calls) == 1
-    evidence, = tmp_path.glob('onpc-vm-queue-*')
+    evidence, = (path for path in allocations.glob('onpc-vm-queue-*') if path != retained_output)
     if failed_guest:
         handoff = json.loads((evidence / 'failure.json').read_text())
         if handoff_fault in ('missing', 'malformed'):

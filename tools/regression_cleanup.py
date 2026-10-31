@@ -584,6 +584,8 @@ test_retention test_storage ui ui_artifacts ui_watch vm_backup vm_control vm_wat
 # recorded synthetic agent/test children and bounded teardown. Cleanup finishes
 # before correction; the five-session limit bounds repeated rejection. No new
 # shared resource or owner; both launcher modules remain compatible here and in unit.
+# Allowance intervention checks answer/extend only their private question files
+# under those same bounded child lifetimes; compatible scheduling is unchanged.
 # Parent rejected-report recorder cases reuse function-local tmp_path evidence,
 # UI/transport doubles and the existing durable-reply fault matrix. No guest,
 # display, process or shared state is added; the unit/cleanup split stays valid.

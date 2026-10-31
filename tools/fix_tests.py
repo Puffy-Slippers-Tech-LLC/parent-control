@@ -30,7 +30,8 @@ from detached_launcher import (
 )
 import detached_launcher
 from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
-from launcher_question import BLOCKER_INSTRUCTIONS, developer_timeout, validate_blocker, wait_for_answer
+from launcher_question import (BLOCKER_INSTRUCTIONS, allowance_blocker, developer_timeout,
+                               validate_blocker, wait_for_answer, wait_for_intervention)
 from launcher_runtime import (SessionResultRejected, TaskBudget, TaskLimitReached, add_options,
                               read_session_result, retain_result_rejection, result_recovery_instructions,
                               validate_session_result, warn_remaining)
@@ -1278,13 +1279,10 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 record_usage(run, dict(repair_id=repair_id, sessions=sessions, failure=target),
                              event='session_limit')
                 reason = f'session allowance exhausted ({sessions}/{limit})'
-                result = dict(summary=reason, blocker=dict(
-                    explanation='This test still needs work after the allowed repair sessions. '
-                                'The previous session has ended, and this new session is waiting for your instructions. '
-                                'You can allow more repair work or leave this test failed and continue with the others.',
-                    question='How should I proceed with this test?',
-                    options=['Continue repairing this test for up to five more sessions.',
-                             'Leave this test failed and continue with the other tests.']))
+                from vm_recording import intervention_recording
+                recording_details = intervention_recording(root, *failure_key[:2])
+                result = dict(summary=reason, blocker=allowance_blocker('This test', recording_details,
+                    stop_option='Leave this test failed and continue with the other tests.'))
                 answer_blocker(result, {}, uuid.uuid4().hex, intervention=True)
                 return True
             return False
@@ -1315,9 +1313,10 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             repair_context['blocked'] = dict(result=result, session=metadata, id=identity,
                                              intervention=intervention)
             try:
-                answer = wait_for_answer(run, result['blocker'], identity, progress_row['key'],
+                wait = wait_for_intervention if intervention else wait_for_answer
+                answer = wait(run, result['blocker'], identity, progress_row['key'],
                     label=reattach_label(run), heading=progress_row['lines'][0], on_poll=check_controller,
-                    timeout=developer_timeout(), intervention=intervention)
+                    **({} if intervention else dict(timeout=developer_timeout())))
             except TimeoutError:
                 reason = 'waiting for input: developer prompt timed out'
                 if intervention:

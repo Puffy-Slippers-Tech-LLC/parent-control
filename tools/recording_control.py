@@ -5,7 +5,6 @@ replace only a complete self-identifying journal, never an unknown stale name.
 Privileged readers discover only their authenticated caller's private endpoint.
 """
 import fcntl
-import ctypes
 import json
 import os
 from pathlib import Path
@@ -21,70 +20,6 @@ else:
 
 MANIFEST = 'control.json'
 LOCK = '.controller.lock'
-
-
-def relocate_legacy(root=None):
-    """Move the complete old directory only after all recorded writers exit.
-
-    Keep directory/file identities and journals intact. Never merge two roots,
-    replace an unknown destination, or move a live controller's path away.
-    """
-    uid = os.geteuid()
-    if uid == 0:
-        raise ValueError('recording migration: unprivileged owner required')
-    try:
-        legacy = test_storage._directory('recordings', root=root, create=False, owner='host', uid=uid)
-    except FileNotFoundError:
-        return
-    target = legacy.parent.parent / 'recordings'
-    descriptors = []
-    fd = test_retention.directory(legacy)
-    try:
-        _private(os.fstat(fd), uid, directory=True)
-        for name in (LOCK, *(name for name in os.listdir(fd)
-                           if re.fullmatch(r'\.[a-z][a-z0-9]*-[1-9][0-9]*\.lock', name))):
-            lock = os.open(name, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
-            descriptors.append((name, lock))
-            _private(os.fstat(lock), uid)
-            if test_retention.mount_id(lock) != test_retention.mount_id(fd):
-                raise ValueError('recording migration: mounted lock refused')
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError as error:
-                raise ValueError('recording migration: an existing recorder is active') from error
-        state = _load(fd, uid)
-        if state is None or state['lock'] != _identity(os.fstat(descriptors[0][1])):
-            raise ValueError('recording migration: unknown controller journal or lock')
-        if state['active'] and _alive(state['owner']):
-            raise ValueError('recording migration: an existing controller is alive')
-        source_parent = test_retention.directory(legacy.parent)
-        destination_parent = None
-        try:
-            destination_parent = test_retention.directory(target.parent)
-            if (_identity(os.stat(legacy.name, dir_fd=source_parent, follow_symlinks=False))
-                    != _identity(os.fstat(fd))):
-                raise ValueError('recording migration: directory changed')
-            for name, lock in descriptors:
-                if (_identity(os.stat(name, dir_fd=fd, follow_symlinks=False))
-                        != _identity(os.fstat(lock))):
-                    raise ValueError('recording migration: lock changed')
-            rename = ctypes.CDLL(None, use_errno=True).renameat2
-            rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
-                               ctypes.c_char_p, ctypes.c_uint]
-            rename.restype = ctypes.c_int
-            if rename(source_parent, os.fsencode(legacy.name), destination_parent,
-                      os.fsencode(target.name), 1):
-                raise OSError(ctypes.get_errno(), 'recording migration: destination exists or move refused')
-            os.fsync(source_parent)
-            os.fsync(destination_parent)
-        finally:
-            os.close(source_parent)
-            if destination_parent is not None:
-                os.close(destination_parent)
-    finally:
-        for _name, lock in descriptors:
-            os.close(lock)
-        os.close(fd)
 
 
 def _identity(info):

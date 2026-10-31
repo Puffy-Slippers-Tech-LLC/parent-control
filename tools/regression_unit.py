@@ -256,7 +256,10 @@ Shared response-recovery checks reuse execution_plan_launcher's private
 Markdown/checkpoint trees and process-local doubles, launcher_chat's in-memory
 protocol, and write_e2e/fix_tests cleanup modules' finite, recorded agent/test
 children. Repeated rejection and restart spend at most the existing five-session
-budget per fixture. No real model, VM, display, bus, network, shared cache or
+budget per fixture. Allowance interventions use the same private questions and
+recorded children; tests explicitly answer/extend them with bounded waits, so
+compatible unit/cleanup overlap and ownership remain unchanged.
+No real model, VM, display, bus, network, shared cache or
 new cleanup owner is introduced; compatible unit/cleanup classifications remain.
 Stale-controller and rejected-completion regressions use private source files,
 checkpoint/response trees and process-local agent/Git/cleanup doubles. They add
@@ -877,6 +880,8 @@ from regression_ui import Bucket
 # regression_session, fix_tests and fix_tests_cleanup_safety stay compatible.
 # Existing test_activity, regression_session, fix_tests and vm_config compatible
 # classifications remain valid; no cleanup inventory change is needed.
+# Queue-summary recovery in vm_config reuses private retention/log trees and
+# existing synthetic workers; no live VM or new shared resource is introduced.
 # Upgrade asset checks use private tiny DEBs, waited dpkg/Perl children and
 # process-local lease/transport doubles. No real VM, bus or shared mutable path.
 # Missing-Fedora-predecessor checks reuse those private files and command

@@ -585,10 +585,12 @@ def _check_recording_owner(owner):
 def _validate_recording_source(value, record):
     logical._object(value, {'category', 'case_id', 'required_id', 'path', 'root', 'lock'},
                     'recording source authority')
-    import re
-    if (not isinstance(value['category'], str)
-            or re.fullmatch(r'[a-z][a-z0-9]*', value['category']) is None
-            or type(value['case_id']) is not int or value['case_id'] <= 0):
+    if __package__:
+        from .recording_storage import case_identity, _token
+    else:
+        from recording_storage import case_identity, _token
+    if (not _token(value['category'])
+            or not case_identity(value['case_id'])):
         raise ValueError('capture: invalid recording case')
     logical._hex(value['required_id'])
     repository = record['context']['repository']
@@ -603,7 +605,7 @@ def _validate_recording_source(value, record):
     for key in ('device', 'inode'):
         logical._integer(value['root'][key], minimum=1)
         logical._integer(value['lock'][key], minimum=1)
-    key = '%s-%d' % (value['category'], value['case_id'])
+    key = f"{value['category']}-{value['case_id']}"
     if value['lock']['name'] != '.' + key + '.lock':
         raise ValueError('capture: recording case lease changed')
     if (record['status'] != 'diagnostic' or record['completeness'] != 'complete'

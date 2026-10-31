@@ -2,7 +2,7 @@
   "name": "onpc-watch",
   "displayName": "ONPC Watch",
   "description": "Run status and live UI/VM viewers in a VS Code editor tab.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "publisher": "puffyslippers",
   "license": "SEE LICENSE IN LICENSE",
   "engines": { "vscode": "^1.85.0" },

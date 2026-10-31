@@ -24,7 +24,15 @@ else:
 
 
 def _token(value):
-    return isinstance(value, str) and re.fullmatch(r'[a-z][a-z0-9]*', value)
+    return (isinstance(value, str) and len(value) <= 64 and
+            re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*', value))
+
+
+def case_identity(value):
+    """Numeric public cases and bounded, literal qualification/block names."""
+    return ((type(value) is int and value > 0) or
+            (isinstance(value, str) and
+             re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,119}', value) is not None))
 
 
 def _identity(info, name):
@@ -61,14 +69,14 @@ class Store:
         Use as a context manager. Encoders must write the existing path in
         place, preserve mode 0600, and finish before publish or context exit.
         """
-        if not _token(category) or type(case_id) is not int or case_id <= 0:
-            raise ValueError('recordings: invalid category or numeric case ID')
+        if not _token(category) or not case_identity(case_id):
+            raise ValueError('recordings: invalid category or case ID')
         return Recording(self, category, case_id)
 
     def owner(self, category, case_id):
         """Hold a case for capture recovery without retiring or allocating media."""
-        if not _token(category) or type(case_id) is not int or case_id <= 0:
-            raise ValueError('recordings: invalid category or numeric case ID')
+        if not _token(category) or not case_identity(case_id):
+            raise ValueError('recordings: invalid category or case ID')
         return Recording(self, category, case_id, reserve=False)
 
 
@@ -194,7 +202,7 @@ class Recording:
                 raise ValueError('recordings: oversized manifest')
             value = json.load(stream)
         if isinstance(value, dict) and value.get('version') == 1 and size > 65536:
-            raise ValueError('recordings: oversized legacy manifest')
+            raise ValueError('recordings: oversized ordinary manifest')
         if (not isinstance(value, dict)
                 or set(value) - {'version', 'category', 'case_id', 'current', 'staging', 'pending', 'provenance', 'required'}
                 or not {'version', 'category', 'case_id', 'current', 'staging', 'pending', 'provenance'} <= set(value)
@@ -548,7 +556,7 @@ class Recording:
                 required['retired'] = True
             self._save()
 
-    def publish(self, vm_names, *, validate):
+    def publish(self, vm_names, *, validate, metadata=None):
         """Publish after encoder shutdown and a caller-supplied playback check.
 
         vm_names are canonical registry names in numeric registry-ID order,
@@ -583,7 +591,8 @@ class Recording:
             os.close(fd)
         self.state['pending'] = dict(candidate=candidate, target=target,
                                      previous=self.state['current'], provenance=dict(
-                                         vm_names=names, published_at=datetime.now(timezone.utc).isoformat()))
+                                         vm_names=names, published_at=datetime.now(timezone.utc).isoformat(),
+                                         **(metadata or {})))
         self._save()
         self._recover()
         self.published = self.store.path / target

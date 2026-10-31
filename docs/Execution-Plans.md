@@ -236,7 +236,11 @@ session's kind and charge neither allowance again. An exhausted allowance stops
 with the exact retained handoff rather than skipping the task.
 This is a launcher failure: the unfinished task remains unchecked and later
 tasks do not start, since they may depend on it. This rule also applies to
-`write-e2e`. Only `fix-tests` may record an exhausted case as failed and continue
+`write-e2e` after its shared timed developer intervention: the developer may
+explicitly grant five more sessions for the same unfinished task; stopping or
+timeout retains the failure and handoff. Its intervention uses the same recording
+links, playback offsets, deadline, flashing status and `+10m` extension as
+`fix-tests`, through `launcher_question`. Only `fix-tests` may record an exhausted case as failed and continue
 its independent repair queue; that exception must not enter shared plan execution.
 Older checkpoints retain their original charges; an absent repair counter starts
 at zero without guessing or refunding historical turn classifications.

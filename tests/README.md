@@ -898,10 +898,13 @@ with a failure result after draining the queue. Unverified repair edits remain
 in the checkout without being committed as verified repairs. Stateful histories
 retain their indivisible scheduling boundary.
 
-This fail-and-continue policy belongs only to `fix-tests`. `write-e2e` and other
-execution-plan launchers must exit with failure on allowance exhaustion while
-retaining the unfinished task and handoff; they must not advance to dependent
-tasks. See the [plan allowance contract](../docs/Execution-Plans.md#common-launcher-interface).
+This fail-and-continue policy belongs only to `fix-tests`. `write-e2e` uses the
+same intervention session, recording links, playback error offsets, local
+daytime/nighttime deadline, flashing waiting status and `+10m` extension.
+Continuing grants five more sessions on the same task. Stopping or timeout exits
+with failure and retains the unfinished task and handoff; dependent tasks never
+start. Other plan launchers retain their
+[plan allowance contract](../docs/Execution-Plans.md#common-launcher-interface).
 
 Watch case and overall totals show **completed/failed/total**: completed is green,
 and failed is red and underlined. Clicking the failed count in **ONPC: Watch**
@@ -932,7 +935,11 @@ session limit. Each task can use at most 5 sessions per new launcher process.
 A restarted launcher retains the task's cumulative
 session count and adds 5 to it for that process's task cap. Attaching to a
 running launcher does not renew the cap. If the task is still incomplete at
-that cap, the entire launcher exits with failure and prints a bold
+that cap, a fresh intervention session presents a concise explanation and the
+latest test/building-block recording links with playback error timestamps.
+It uses the [shared repair intervention](#scripted-repair-loop), including the
+same deadline, flashing status and extension. Continuing grants five more
+sessions; stopping or timeout exits with failure and prints a bold
 red warning as the final line of its worker summary, after the follow-up
 instructions and before the shared observer's final tasks overview recap.
 The next task starts with its own cap of 5.
@@ -1887,13 +1894,15 @@ This is development/test tooling only; package update activation is **none**.
 
 ### VM watch recordings
 
-`tools/run-tests` automatically records system and E2E execution through the
+`tools/run-tests` automatically records every VM-scoped category, including
+system, integration and E2E execution, through the
 private GTK recording renderer with shared read-only VM feeds and filtered SSH
 terminals. The recording includes the viewer tabs, VM panels, SSH output
 and progress footer at full frame size; it excludes the left runner terminal,
 window header and bottom checkout/resource controls.
-One private renderer/encoder belongs to the runner, including its concurrent VM
-queue. For `fix-tests` VM queues, the parent repair launcher owns that controller
+One private renderer belongs to the runner, including its concurrent VM queue.
+It fans the same masked frames to at most one encoder per active VM case.
+For `fix-tests` VM queues, the parent repair launcher owns that controller
 through all worker retries and owned cleanup; nested runners inherit its verified
 endpoint rather than creating competing controllers. Its recording index belongs
 to the parent run. Capture includes only that queue's feeds from this checkout: another
@@ -1911,14 +1920,15 @@ has had another paint interval.
 
 Final WebMs live directly in the shared managed
 `output/test-runs/recordings/` directory, already gitignored by `output/`.
-It stays private to the unprivileged recording owner. An old `host/recordings/`
-directory moves intact on the next recording start, after its controller and
-case leases are idle; conflicting destinations are preserved and refused.
+It stays private to the unprivileged recording owner.
 Names are `category-ID-VMnames.webm`, for example
 `e2e-150-Ubuntu26.04-Fedora44.webm`. Names include the VMs actually visible in
 the clip, ordered by numeric IDs in `config/test-vm.json`, with the common
-`onpc-` prefix omitted. VM workers share one capture; concurrent executions of
-the same case merge into one clip. Different cases can overlap in time.
+`onpc-` prefix omitted. Each VM case attempt finishes and publishes independently,
+even if another VM is still running the same case. Integration qualifications
+use their stable check basename as the ID, including building-block qualifications
+started by `write-e2e`. Repeating that block replaces its previous recording;
+there is no separate recorder or task-specific video archive in `write-e2e`.
 
 `system --list` displays persistent numeric IDs; `system --id N[,N...]` selects
 them without changing existing `--area`/`--test` or checkpoint identities.
@@ -1932,12 +1942,24 @@ evidence, replaced files and corrupt recordings still refuse recovery.
 Publication is atomic and replaces the earlier owned clip
 even when its VM-name suffix changes. Encoder/validation failure preserves the
 previous file and reports an infrastructure error. Every candidate is decoded
-in full before publication. Temporary full-session media
+in full before publication. Completed cases publish before returning to repair
+or intervention, without waiting for the renderer or queue to exit. Temporary case media
 uses shared scratch; final recordings have no automatic age or size rotation.
 This explicit latest-only policy is separate from ordinary report retention.
-Publication displays one refreshing `Recording: x/y` progress line in the runner,
-counting completed clips out of the session's total.
+Publication logs a clickable recording path. Recording links in the Watch
+session and status views use GIO's system-default video handler on the extension
+host. The first observed error in each
+attempt logs `HH:MM:SS.mmm`, fractional playback seconds and its zero-based frame
+index relative to that file's encoder start, never the system clock. Host failure
+ledgers report before cleanup; streamed guest failures use host observation time,
+since guest and host monotonic clocks differ. Video resolution is 5 fps (200 ms);
+the precise observation offset identifies the corresponding frame rather than
+claiming subframe image resolution. The path, digest and offsets share the same
+latest-file manifest and appear in runner reports and intervention/handoff text.
 Individual recording paths remain in the session's `recordings.json` index.
+The index is updated on each publication. Superseded files are removed rather
+than archived; older report links refer to a mutable latest file and their
+offsets must not be used if its digest has changed.
 Controller reload and resume atomically replace that index with the latest
 capture's snapshot in the retained run directory. An index-save failure preserves
 the previous index and warns without changing test results or blocking reload;
@@ -1946,9 +1968,9 @@ capture and media-publication failures retain their infrastructure-failure behav
 The private session bus and renderer use host GTK libraries and schemas, excluding
 inherited editor/Snap loader and GTK module overrides.
 The private renderer requires the existing GTK/Mutter/VTE development stack and
-FFmpeg, installed only through `./setup.sh`. It records at 5 fps with one fast VP9
-encoder and bounded frame handoff. No audio is recorded. Keyframe-aligned clips
-can include a short prelude, whose visible VMs also appear in the filename.
+FFmpeg, installed only through `./setup.sh`. It records at 5 fps with fast VP9
+encoders and bounded frame handoff. No audio is recorded. Cases start their own
+file timeline without keyframe preludes or full-session slicing.
 Transient GTK paint gaps retain the last safe frame and are counted separately
 from encoder overload; a sustained rendering stall fails capture.
 Recording is an ordinary development aid: new unit tests require a specific
@@ -2085,7 +2107,12 @@ its latest owner.
 Host-only runs use `output/test-runs/host/state/retention-host/`; VM workers and
 snapshot preparation use `output/test-runs/host/state/retention-<canonical-target>/`.
 The queue summary uses `retention-batch/`; older single-target records remain in
-`retention/`. Each journal retains
+`retention/`. Queue startup reconciles its interrupted host-output journal under
+the existing storage owner lease; it does not recover a VM or replace the
+workers' separate VM recovery. Live owners and replaced allocations still refuse.
+Non-queue allocations refuse this host-only recovery and remain with their
+owning workflow.
+Each journal retains
 its own last three runs, so active host evidence cannot block VM preparation
 or be rotated by it. Existing records stay in their original journal.
 Privileged system/E2E
@@ -2963,7 +2990,7 @@ interruption before the parent charge exists; the saved context, consumers and
 dependencies supply the recovery inputs. A new attempt cannot replace that
 pending declaration. Lost acknowledgement replies retry the same receipt.
 Required-recording manifests use the shared evidence metadata bound so valid
-consumer and dependency records fit; legacy recording manifests keep their
+consumer and dependency records fit; ordinary recording manifests keep their
 existing smaller input bound.
 
 ### Handling test failures

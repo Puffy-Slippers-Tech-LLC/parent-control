@@ -940,31 +940,35 @@ def worktree_resolution_owner(root, session):
             yield
 
 
+def nested_runs(root, run):
+    """Resolve registered test runs with the shared path and identity guards."""
+    from test_storage import directory
+    record = run / 'nested.json'
+    entries = json.loads(record.read_text()) if record.exists() else []
+    allowed = (directory('sessions', root=root), directory('sessions-host', root=root))
+    for entry in entries:
+        child = Path(entry['path'])
+        vm_session = (child.parent.parent == allowed[0]
+                      and child.parent.name.startswith('vm-')
+                      and not child.parent.is_symlink())
+        if child.parent not in allowed and not vm_session or child.is_symlink():
+            raise ValueError('unsafe nested test record; preserve evidence')
+        try:
+            info = child.stat()
+        except FileNotFoundError:
+            continue
+        if (info.st_dev, info.st_ino) != (entry['device'], entry['inode']):
+            raise ValueError('nested test identity changed; preserve evidence')
+        yield child
+
+
 def finish_nested(root, run):
     """Cancel only registered live test owners and await their guarded cleanup."""
-    from test_storage import directory
     active = False
     with lock(run / 'nested-gate') as gate:
         fcntl.flock(gate, fcntl.LOCK_EX)
         (run / 'nested-closed').touch(mode=0o600)
-        record = run / 'nested.json'
-        entries = json.loads(record.read_text()) if record.exists() else []
-        allowed = (directory('sessions', root=root), directory('sessions-host', root=root))
-        for entry in entries:
-            child = Path(entry['path'])
-            vm_session = (child.parent.parent == allowed[0]
-                          and child.parent.name.startswith('vm-')
-                          and not child.parent.is_symlink())
-            if child.parent not in allowed and not vm_session or child.is_symlink():
-                raise ValueError('unsafe nested test record; preserve evidence')
-            try:
-                info = child.stat()
-            except FileNotFoundError:
-                # Completed sessions can expire under the runner's retention
-                # policy while a long agent session starts further tests.
-                continue
-            if (info.st_dev, info.st_ino) != (entry['device'], entry['inode']):
-                raise ValueError('nested test identity changed; preserve evidence')
+        for child in nested_runs(root, run):
             with lock(child / 'owner') as owner:
                 if busy(owner):
                     active = True

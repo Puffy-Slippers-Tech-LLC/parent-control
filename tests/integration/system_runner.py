@@ -334,6 +334,8 @@ class RunLedger:
             self.outcomes[name] = {'outcome': 'failed', 'category': category}
         if self.first_failure_category is None:
             self.first_failure_category = category
+            from tools.vm_recording import report_failure
+            report_failure()
         log(f'outcome:domain={name} outcome=failed category={category}')
 
     def data(self):

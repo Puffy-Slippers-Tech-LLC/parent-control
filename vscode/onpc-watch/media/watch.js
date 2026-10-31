@@ -88,6 +88,17 @@
         return node;
     }
 
+    function runSpan(parent, part) {
+        const linked = typeof part.link === 'string' && /(?:\.webm|\/errors\.md)$/.test(part.link);
+        const span = linked ? link(parent, part.text,
+            () => vscode.postMessage({ type: 'openRunFile', uri: part.link })) :
+            element('span', '', parent);
+        span.textContent = part.text;
+        if (part.color) span.style.color = part.color;
+        if (part.bold) span.style.fontWeight = 'bold';
+        return span;
+    }
+
     function sessionAction(section, kind) {
         if ((section.pending && kind !== 'extend') || !section.entry.session) return;
         if (kind === 'send' && (section.input.disabled || !section.input.value.trim())) return;
@@ -159,10 +170,7 @@
                 line.classList.toggle('session-activity', row.some(part => part.compact));
                 if (!row.length) line.textContent = '\u00a0';
                 for (const part of row) {
-                    const span = element('span', '', line);
-                    span.textContent = part.text;
-                    if (part.color) span.style.color = part.color;
-                    if (part.bold) span.style.fontWeight = 'bold';
+                    runSpan(line, part);
                 }
                 return line;
             }));
@@ -426,10 +434,7 @@
                     const line = document.createElement('div');
                     if (!row.length) line.textContent = '\u00a0';
                     for (const part of row) {
-                        const span = element('span', '', line);
-                        span.textContent = part.text;
-                        if (part.color) span.style.color = part.color;
-                        if (part.bold) span.style.fontWeight = 'bold';
+                        runSpan(line, part);
                     }
                     return line;
                 }));
@@ -449,19 +454,8 @@
                 const line = document.createElement('div');
                 if (!row.length) line.textContent = '\u00a0';
                 row.forEach(part => {
-                    const span = element(part.link ? 'a' : 'span', '', line);
-                    span.textContent = part.text;
+                    const span = runSpan(line, part);
                     span.classList.toggle('waiting-input', Boolean(part.waiting));
-                    if (part.link) {
-                        span.href = '#';
-                        span.style.textDecoration = 'underline';
-                        span.addEventListener('click', event => {
-                            event.preventDefault();
-                            vscode.postMessage({ type: 'openErrorLog', uri: part.link });
-                        });
-                    }
-                    if (part.color) span.style.color = part.color;
-                    if (part.bold) span.style.fontWeight = 'bold';
                     if (entry.session_waiting && part.waiting) {
                         if (Number.isFinite(entry.session_deadline)) {
                             line.append(' ');

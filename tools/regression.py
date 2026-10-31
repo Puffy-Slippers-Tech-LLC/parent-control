@@ -624,6 +624,8 @@ class Execution:
         self.command_recorded = False
         self.output_tail = ''
         self.output_error_summary = ''
+        self.recording_case = None
+        self.recording_failed = False
         run.sequence += 1
         self.sequence = run.sequence
         filename = f'category-{run.sequence:03d}.log'
@@ -637,9 +639,34 @@ class Execution:
                              + (f' — host branch {item.branch}' if item.branch is not None else '')
                              + '\n\nRaw output: [' + filename + '](' + filename + ')\n')
             run.dashboard.draw(force=True)
+            if not collect and not events:
+                from test_commands import CATEGORIES
+                spec = CATEGORIES.get(item.retry_category)
+                if spec is not None and spec.scope == 'vm':
+                    args = item.selection_args or []
+                    self.recording_case = args[0] if args else item.retry_category
+                    self.recording_event('started')
         except BaseException:
             self.close()
             raise
+
+    def recording_event(self, kind):
+        from vm_recording import report_event
+        record = report_event(self.run.root, self.item.retry_category,
+                              dict(kind=kind, nodeid=self.recording_case))
+        if kind == 'failure':
+            self.recording_failed = True
+        self.recording_result(record)
+
+    def recording_result(self, record):
+        from vm_recording import describe
+        if record:
+            text = describe(record)
+            self.run.report.write('\n' + text + '\n')
+            self.raw.write((text + '\n').encode())
+            self.raw.flush()
+            if record['failed']:
+                self.item.error_detail += '\n' + text
 
     def line(self, raw):
         line = raw.decode('utf-8', errors='replace')
@@ -673,14 +700,16 @@ class Execution:
                                         (f' ({code})' if code else ''))
                     if failures:
                         self.output_error_summary = '\n'.join(failures)[:2000]
+                        if self.recording_case and not self.recording_failed:
+                            self.recording_event('failure')
                 elif not isinstance(result, list):
                     self.output_tail = (self.output_tail + '\n' + text)[-8000:]
         if self.events and line.startswith(PREFIX):
             event = json.loads(line[len(PREFIX):])
             item = self.item
-            if not self.collect and item.retry_category in ('system', 'e2e'):
+            if not self.collect:
                 from vm_recording import report_event
-                report_event(self.run.root, item.retry_category, event)
+                self.recording_result(report_event(self.run.root, item.retry_category, event))
             if event['kind'] == 'collection':
                 if self.inventory_seen:
                     raise ValueError('duplicate test inventory event')
@@ -803,6 +832,11 @@ class Execution:
                 item.error_detail = (detail or f'Command exited with status {status}.')
             if item.state == 'Failed':
                 item.error_detail += '\nOutput: ' + str(self.raw.name)
+            if self.recording_case:
+                if item.state != 'Passed' and not self.recording_failed:
+                    self.recording_event('failure')
+                self.recording_event('finished')
+                self.recording_case = None
             self.result_closed = True
             run.report.snapshot(run.categories)
             run.dashboard.draw(force=True)

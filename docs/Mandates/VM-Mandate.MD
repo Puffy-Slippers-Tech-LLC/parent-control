@@ -40,6 +40,7 @@ and cleanup.
 | `tools/write-e2e` | One registered name or ID | Enabled queue | Registry concurrency cap |
 | `tools/cleanup-e2e` | Same queue selectors, or `--host-only` for no VM access | Enabled queue | Serial; stops on a cleanup failure |
 | `tools/test-vm` maintenance | One registered name or ID | Refuses maintenance without an explicit target | One owned target |
+| `tools/disable-extension` | One registered name or ID | Refuses without an explicit target | Existing owned running maintenance target; no restore |
 
 Duplicate aliases execute once, in first-selected order; invalid selectors fail
 before work starts. Every `--vm` and Make `VM=` name/ID resolves from the current

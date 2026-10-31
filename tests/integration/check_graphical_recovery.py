@@ -11,6 +11,9 @@ import threading
 import time
 import xml.etree.ElementTree as ET
 
+# The documented direct dispatcher runs in isolated Python, without PYTHONPATH.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
+
 import system_runner as runner
 from qualification_storage import allocate, recovery_session
 

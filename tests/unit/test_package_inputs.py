@@ -23,6 +23,7 @@ def test_real_source_and_binary_archives_exclude_internal_files(tmp_path):
     for name in (
         'README.md', 'AGENTS.md', '.envrc', '.codex/config.toml',
         'docs/internal.md', 'tests/test_internal.py', 'tools/internal.py',
+        'tools/disable-extension', 'tools/disable_extension.py', 'tools/development_broker.py',
         'parent/oh_no_parent_control_parent/preview_internal.py',
         'kiosk/oh_no_parent_control_kiosk/preview_internal.py',
         'common/oh_no_parent_control_ui/test_internal.py',
@@ -90,6 +91,8 @@ def test_product_only_source_can_check_and_stage_the_complete_payload(tmp_path):
     assert {p for p in selected if p.parts[0] == 'docs'} == {history}
     assert Path('tools/read-only') not in selected
     assert Path('tools/run-tests') not in selected
+    assert not {Path('tools/disable-extension'), Path('tools/disable_extension.py'),
+                Path('tools/development_broker.py')}.intersection(selected)
     assert Path('tools/pam_oh_no_parent_control.c') in selected
     assert Path('tools/provision.py') in selected
     for path in ('packaging/lifecycle_migration.py', 'packaging/distro_pam.py',

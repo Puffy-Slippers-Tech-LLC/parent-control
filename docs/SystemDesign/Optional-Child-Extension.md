@@ -98,6 +98,74 @@ that enforcement is progressing.
 
 ### Establish an honest native baseline
 
+#### Development-only recovery gate
+
+[tools/disable-extension](../../tools/disable-extension) accepts one registered
+VM name or ID:
+
+```sh
+tools/disable-extension --vm '10'
+```
+
+Run it in an existing owned, running app-snapshot maintenance VM, such as the
+instance left by `tools/prepare-appsnapshot`. It uses the shared VM reservation,
+guarded `test-vm exec` transport and watch infrastructure. It never adopts a
+manually started guest, boots or restores a VM. The command deploys the
+[development launcher](../../tools/development_broker.py) to the root-owned
+`/var/lib/oh-no-parent-control-development/` directory and an explicit root-owned
+service override under `/etc/systemd/system/oh-no-parent-control-broker.service.d/`.
+An exact size/hash trust entry under `/etc/fapolicyd/trust.d/` admits only the
+root-owned launcher, including on Fedora's trusted-language policy. The tool
+refreshes native trust and waits for that exact record through the package's
+bounded snapshot reader; it adds no permissive execution rule.
+It restarts the broker with `--disable-child-extension-recovery`, verifies the
+launcher process, and disables the extension for every currently eligible child
+using the installed extension manager. Administrators and the kiosk are excluded.
+Repeated calls accept identical deployed files; unknown files, links, unsafe
+ownership or differing versions refuse rather than overwrite. Failures may leave
+a partially modified investigation VM; normal snapshot recovery discards it.
+
+The tool, helper and launcher are excluded from both production source and
+payload manifests. Production broker code has no gate, environment variable or
+persistent preference. Only the VM root can deploy the override; a child cannot
+enable this mode in a released installation. The override retains the service's
+other settings and survives reboot within the development history.
+
+The launcher suppresses all extension enable requests at the
+shared `ExtensionManager.set_enabled` boundary, including startup, screen-limit
+toggles, kiosk approval, and PAM/Parent recovery. It also prevents those requests
+from clearing GNOME's global extension-disable switch. Disable and cleanup calls
+still run normally. Each suppressed call emits a fixed development warning to
+stderr/the service journal, without account identifiers. A successful caller
+result (including `RecoverChildExtension`) does not establish extension readiness
+under this intentional bypass. The ordinary launcher's migration and trust
+guards still run before service startup, but importing the patched manager
+precedes them and suppressed enables skip its per-activation payload validation.
+Timing queries, admission, session preparation, app policy and native enforcement
+are unchanged, so remaining extension dependencies can still fail. Disabling the
+extension also runs its ordinary teardown, including extension-owned windows.
+
+VM tests explicitly requiring this isolation use
+`tools.disable_extension.apply(transport)` with their existing owned, guarded
+transport. This uses the same deployment operation without acquiring another
+VM lease or restoring the current history. Broker restart and extension
+disablement are explicit engineering setup actions, not customer actions.
+Ordinary tests never invoke the tool or helper.
+
+The CLI releases its command reservation on exit. No manual gate release or
+undo is needed: the next VM `fix-tests`/`write-e2e` run recovers the recorded
+maintenance instance and restores a clean snapshot; `prepare-vm` auto mode
+likewise discards the modifications. An opting-in test retains its normal
+attempt cleanup. No baseline or product snapshot is changed by this tool.
+Verify the extension stays disabled throughout each relevant history; new child
+accounts created afterwards need another explicit disable operation. This mode
+is engineering isolation, not unmodified production acceptance. Retire the tool
+once essential capabilities and replacement readiness checks no longer require
+the bypass. Never add these development files to a production manifest or run
+this installed-product experiment on the development host.
+
+#### Native and product qualification
+
 Begin with the question: what does the supported GNOME and Malcontent stack
 already do correctly without our extension? Distinguish two kinds of observation.
 

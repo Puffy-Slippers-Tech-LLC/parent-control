@@ -141,6 +141,18 @@ msgstr "Leita að uppsettum forritum"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "Senda ábendingu nafnlaust?"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "Þú hefur ekki gefið upp netfang fyrir svar. Ábendingin verður send nafnlaust og við getum ekki haft samband við þig.\n\nVið mælum með að þú bætir við netfanginu þínu svo við getum upplýst þig um framvinduna og haft samband ef við höfum frekari spurningar."
+
+msgid "Send Anonymously"
+msgstr "Senda nafnlaust"
+
+msgid "Add Email Address"
+msgstr "Bæta við netfangi"
+
 msgid "Report an Error"
 msgstr "Tilkynna villu"
 
@@ -1235,9 +1247,9 @@ msgstr "Ábendingar mega innihalda mest 5.000 UTF-16 stafi (sum tjákn telja sem
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "Snið ábendinganna er of flókið. Fjarlægðu hluta sniðsins og reyndu aftur."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "Sláðu aðeins inn svarnetfang eða skildu eftir autt."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "Sláðu inn gilt netfang eða skildu eftir autt"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

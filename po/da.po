@@ -141,6 +141,18 @@ msgstr "Søg efter installerede apps"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "Send feedback anonymt?"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "Du har ikke angivet en e-mailadresse til svar. Din feedback sendes anonymt, og vi kan ikke kontakte dig.\n\nVi anbefaler at tilføje din e-mailadresse, så vi kan holde dig opdateret og kontakte dig, hvis vi har opfølgende spørgsmål."
+
+msgid "Send Anonymously"
+msgstr "Send anonymt"
+
+msgid "Add Email Address"
+msgstr "Tilføj e-mailadresse"
+
 msgid "Report an Error"
 msgstr "Rapportér en fejl"
 
@@ -1235,9 +1247,9 @@ msgstr "Feedback må højst indeholde 5 000 UTF-16-tegn (visse emoji tæller som
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "Den formaterede feedback er for kompleks. Fjern noget formatering, og prøv igen."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "Indtast kun en e-mailadresse til svar, eller lad feltet være tomt."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "Indtast en gyldig e-mailadresse, eller lad feltet være tomt"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

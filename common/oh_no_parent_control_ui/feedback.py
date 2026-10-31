@@ -91,6 +91,10 @@ class FeedbackDialog(Adw.Window):
         set_automation_id(self, "feedback-dialog")
         self._kiosk_session = kiosk_session
         self._report = report
+        self._parent_feedback = not kiosk_session and (
+            report is None or report.component == "Parent App"
+        )
+        self._anonymous_dialog = None
         self._on_close = on_close
         self._subject = report.subject if report else ""
         self._css_provider = Gtk.CssProvider()
@@ -178,9 +182,13 @@ class FeedbackDialog(Adw.Window):
         reply_header.append(anonymous)
         reply_group.append(reply_header)
         reply_field = Gtk.Box(spacing=16, css_classes=["feedback-reply-field"])
+        if self._parent_feedback:
+            reply_field.add_css_class("feedback-reply-highlight")
         reply_field.append(_feedback_icon("mail", 20))
         reply_field.append(reply)
         self._reply = reply
+        self._reply_field = reply_field
+        reply.connect("changed", self._reply_changed)
         reply.set_input_purpose(Gtk.InputPurpose.EMAIL)
         describe_control(reply, m.REPLY_EMAIL_OPTIONAL,
                          m.ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY,
@@ -386,10 +394,10 @@ class FeedbackDialog(Adw.Window):
         self._render_attachment()
         self._set_busy(self._busy)
         if data is None:
-            set_text(self._status, 'label', m.LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH,
-            )
+            self._set_status(m.LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH,
+                             error=True)
         else:
-            set_text(self._status, 'label', "")
+            self._set_status("")
             LOG.info("feedback.collection-ready", bytes=len(data))
         return GLib.SOURCE_REMOVE
 
@@ -441,6 +449,7 @@ class FeedbackDialog(Adw.Window):
         return True
 
     def _hide_draft(self, *_args):
+        self._clear_anonymous_dialog()
         self._clear_success_dialog()
         if self._busy and self._on_close is not None:
             # The button explicitly says Stop sending and close in this state.
@@ -454,6 +463,7 @@ class FeedbackDialog(Adw.Window):
 
     def _destroyed(self, *_args):
         self._disposed = True
+        self._clear_anonymous_dialog()
         self._clear_success_dialog()
         self._cancelled.set()
         Gtk.StyleContext.remove_provider_for_display(self.get_display(), self._css_provider)
@@ -481,18 +491,33 @@ class FeedbackDialog(Adw.Window):
             and (not self._include_logs or self._logs is not None),
         )
 
-    def _send(self, _button):
-        if (self._busy or self._collecting or not transport.SENDING_ENABLED
+    def _reply_changed(self, _entry):
+        if not transport.reply_email_error(self._reply.get_text().strip()):
+            self._reply_field.remove_css_class("feedback-reply-invalid")
+
+    def _send(self, _button, *, anonymous_confirmed=False):
+        if (self._disposed or self._busy or self._collecting or not transport.SENDING_ENABLED
                 or (self._include_logs and self._logs is None)):
             return
         message = self._message.plain_text
+        if self._report is None and not message.strip():
+            self._message.add_css_class("error")
+        else:
+            self._message.remove_css_class("error")
         message_html = self._message.html
         reply = self._reply.get_text().strip()
+        if transport.reply_email_error(reply):
+            self._reply_field.add_css_class("feedback-reply-invalid")
+        else:
+            self._reply_field.remove_css_class("feedback-reply-invalid")
         version = app_version()
         error = transport.validation_error(message, reply, version, message_html)
         error = error or transport.attachments_error(self._user_attachments)
         if error:
-            set_text(self._status, 'label', error)
+            self._set_status(error, error=True)
+            return
+        if self._parent_feedback and not reply and not anonymous_confirmed:
+            self._confirm_anonymous_send()
             return
         # A new key is generated only in response to this explicit Send action.
         self._submission = transport.Submission.create(
@@ -507,7 +532,7 @@ class FeedbackDialog(Adw.Window):
             self._send_button, send_label,
             m.SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS,
         )
-        set_text(self._status, 'label', m.PREPARING_FEEDBACK % {'hint': self._sending_hint()})
+        self._set_status(m.PREPARING_FEEDBACK % {'hint': self._sending_hint()})
         include_logs = self._include_logs
         submission = self._submission
         cached_logs = self._logs
@@ -524,13 +549,67 @@ class FeedbackDialog(Adw.Window):
 
         threading.Thread(target=work, daemon=True).start()
 
+    def _confirm_anonymous_send(self):
+        if self._anonymous_dialog is not None:
+            self._anonymous_dialog.present()
+            return
+        dialog = localized(
+            Gtk.Dialog, title=m.SEND_FEEDBACK_ANONYMOUSLY,
+            transient_for=self, modal=True, destroy_with_parent=True,
+        )
+        self._anonymous_dialog = dialog
+        set_automation_id(dialog, "feedback-anonymous-dialog")
+        header = Gtk.HeaderBar()
+        add_identified_window_controls(header, "feedback-anonymous-window-controls")
+        dialog.set_titlebar(header)
+        body = localized(
+            Gtk.Label, label=m.ANONYMOUS_FEEDBACK_EXPLANATION,
+            wrap=True, max_width_chars=60, xalign=0,
+            margin_top=18, margin_bottom=18, margin_start=18, margin_end=18,
+        )
+        set_automation_id(body, "feedback-anonymous-text")
+        dialog.get_content_area().append(body)
+        add_dialog_button(dialog, m.SEND_ANONYMOUSLY, Gtk.ResponseType.ACCEPT,
+                          "feedback-send-anonymously")
+        add_email = add_dialog_button(
+            dialog, m.ADD_EMAIL_ADDRESS, Gtk.ResponseType.CANCEL,
+            "feedback-add-email", css_class="suggested-action",
+        )
+        dialog.set_default_response(Gtk.ResponseType.CANCEL)
+        dialog.connect("response", self._anonymous_response)
+        dialog.present()
+        add_email.grab_focus()
+
+    def _anonymous_response(self, dialog, response):
+        if self._anonymous_dialog is not dialog:
+            return
+        self._clear_anonymous_dialog()
+        if self._disposed or not self.get_visible():
+            return
+        if response == Gtk.ResponseType.ACCEPT:
+            self._send(None, anonymous_confirmed=True)
+        else:
+            self._reply.grab_focus()
+
+    def _clear_anonymous_dialog(self):
+        if self._anonymous_dialog is not None:
+            dialog, self._anonymous_dialog = self._anonymous_dialog, None
+            dialog.destroy()
+
     def _sending_hint(self):
         if self._on_close is not None:
             return m.YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
         return m.YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
 
-    def _submission_progress(self, text):
+    def _set_status(self, text, *, error=False):
+        if error:
+            self._status.add_css_class("feedback-error-status")
+        else:
+            self._status.remove_css_class("feedback-error-status")
         set_text(self._status, 'label', text)
+
+    def _submission_progress(self, text):
+        self._set_status(text)
         return GLib.SOURCE_REMOVE
 
     def _submission_done(self, result, submission):
@@ -548,7 +627,7 @@ class FeedbackDialog(Adw.Window):
             "cancelled": m.SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT,
             "disabled": m.SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED,
         }
-        set_text(self._status, 'label', messages[result.kind])
+        self._set_status(messages[result.kind], error=result.kind != "success")
         self._without_logs.set_visible(result.kind in ("oversized", "logs_unavailable") and self._include_logs)
         if result.kind in ("expired", "cancelled"):
             set_text(self._send_button, 'label', m.SUBMIT_AGAIN_MAY_DUPLICATE)
@@ -667,17 +746,17 @@ class FeedbackDialog(Adw.Window):
         except GLib.Error as error:
             if not error.matches(Gtk.dialog_error_quark(), Gtk.DialogError.DISMISSED):
                 LOG.warning("feedback.003", error_type=error_code(error))
-                set_text(self._status, 'label', m.COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN)
+                self._set_status(m.COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN, error=True)
             return
         files = [selected.get_item(index) for index in range(selected.get_n_items())]
         if not files:
             return
         if len(self._user_attachments) + len(files) > transport.MAX_ATTACHMENT_COUNT:
-            set_text(self._status, 'label', m.ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES % {'transport_MAX_ATTACHMENT_COUNT': transport.MAX_ATTACHMENT_COUNT},
-            )
+            self._set_status(m.ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES % {'transport_MAX_ATTACHMENT_COUNT': transport.MAX_ATTACHMENT_COUNT},
+                             error=True)
             return
         self._set_busy(True)
-        set_text(self._status, 'label', m.READING_ATTACHMENTS)
+        self._set_status(m.READING_ATTACHMENTS)
         LOG.info("feedback.004", file_count=len(files))
 
         def load():
@@ -720,7 +799,7 @@ class FeedbackDialog(Adw.Window):
         self._set_busy(False)
         if error:
             LOG.warning("feedback.006")
-            set_text(self._status, 'label', error)
+            self._set_status(error, error=True)
             return GLib.SOURCE_REMOVE
         for attachment in attachments:
             self._user_attachments.append(attachment)
@@ -759,8 +838,7 @@ class FeedbackDialog(Adw.Window):
             added_count=len(attachments),
             total_count=len(self._user_attachments),
         )
-        set_text(self._status, 'label', m.attachments_ready(len(self._user_attachments)),
-        )
+        self._set_status(m.attachments_ready(len(self._user_attachments)))
         return GLib.SOURCE_REMOVE
 
     def _remove_user_attachment(self, _button, attachment, row):

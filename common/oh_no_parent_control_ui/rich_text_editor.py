@@ -139,6 +139,7 @@ class RichTextEditor(Gtk.Box):
         return self._delta
 
     def clear(self):
+        self.remove_css_class("error")
         self._plain_text = ""
         self._html = ""
         self._delta = '{"ops":[{"insert":"\\n"}]}'
@@ -149,6 +150,8 @@ class RichTextEditor(Gtk.Box):
 
     def set_text(self, text):
         """Seed a literal draft, including before the web process is ready."""
+        if text.strip():
+            self.remove_css_class("error")
         self._plain_text = text
         self._html = "<p>" + escape(text).replace("\n", "<br>") + "</p>"
         self._delta = json.dumps({"ops": [{"insert": text + "\n"}]})
@@ -218,6 +221,8 @@ class RichTextEditor(Gtk.Box):
             return
         # Contents are deliberately never logged: feedback may contain PII.
         self._plain_text = text
+        if text.strip():
+            self.remove_css_class("error")
         self._html = rich_html
         self._delta = delta
         if revision is not None:

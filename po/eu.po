@@ -141,6 +141,18 @@ msgstr "Bilatu instalatutako aplikazioak"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "Iruzkina anonimoki bidali?"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "Ez duzu erantzuteko helbide elektronikorik eman. Zure iruzkina anonimoki bidaliko da, eta ezingo gara zurekin harremanetan jarri.\n\nZure helbide elektronikoa gehitzea gomendatzen dizugu, berritasunen berri emateko eta galdera gehiago izanez gero zurekin harremanetan jartzeko."
+
+msgid "Send Anonymously"
+msgstr "Bidali anonimoki"
+
+msgid "Add Email Address"
+msgstr "Gehitu helbide elektronikoa"
+
 msgid "Report an Error"
 msgstr "Jakinarazi errore bat"
 
@@ -1235,9 +1247,9 @@ msgstr "Iritziak gehienez 5.000 UTF-16 karaktere izan behar ditu (emoji batzuk b
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "Formatudun iritzia konplexuegia da. Kendu formatuaren zati bat eta saiatu berriro."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "Sartu erantzuteko helbide elektronikoa soilik edo utzi hutsik."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "Sartu baliozko helbide elektronikoa edo utzi hutsik"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

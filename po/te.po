@@ -141,6 +141,18 @@ msgstr "ఇన్‌స్టాల్ చేసిన యాప్‌లను 
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "అభిప్రాయాన్ని అనామకంగా పంపాలా?"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "మీరు ప్రత్యుత్తరం కోసం ఇమెయిల్ చిరునామా ఇవ్వలేదు. మీ అభిప్రాయం అనామకంగా పంపబడుతుంది, మేము మిమ్మల్ని సంప్రదించలేము.\n\nమీకు తాజా సమాచారం అందించడానికి, మరిన్ని ప్రశ్నలు ఉంటే సంప్రదించడానికి మీ ఇమెయిల్‌ను జోడించమని సూచిస్తున్నాము."
+
+msgid "Send Anonymously"
+msgstr "అనామకంగా పంపండి"
+
+msgid "Add Email Address"
+msgstr "ఇమెయిల్ చిరునామాను జోడించండి"
+
 msgid "Report an Error"
 msgstr "లోపాన్ని నివేదించండి"
 
@@ -1235,9 +1247,9 @@ msgstr "అభిప్రాయంలో గరిష్ఠంగా 5,000 UTF-
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "ఆకృతీకరించిన అభిప్రాయం చాలా క్లిష్టంగా ఉంది. కొంత ఆకృతీకరణ తొలగించి మళ్లీ ప్రయత్నించండి."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "కేవలం ప్రత్యుత్తర ఇమెయిల్ చిరునామా నమోదు చేయండి లేదా ఖాళీగా వదలండి."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "చెల్లుబాటు అయ్యే ఇమెయిల్ చిరునామా నమోదు చేయండి లేదా ఖాళీగా వదలండి"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

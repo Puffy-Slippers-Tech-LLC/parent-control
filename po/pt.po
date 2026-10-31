@@ -142,6 +142,18 @@ msgstr "Pesquisar aplicações instaladas"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "Enviar comentários anonimamente?"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "Não indicou um endereço de e-mail para resposta. Os seus comentários serão enviados anonimamente e não poderemos entrar em contacto consigo.\n\nRecomendamos adicionar o seu e-mail para o manter a par das novidades e entrar em contacto se tivermos mais perguntas."
+
+msgid "Send Anonymously"
+msgstr "Enviar anonimamente"
+
+msgid "Add Email Address"
+msgstr "Adicionar endereço de e-mail"
+
 msgid "Report an Error"
 msgstr "Comunicar um erro"
 
@@ -1236,9 +1248,9 @@ msgstr "Os comentários devem ter no máximo 5.000 caracteres UTF-16 (alguns emo
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "A formatação dos comentários está muito complexa. Remova parte da formatação e tente novamente."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "Introduza apenas o endereço de correio eletrónico para resposta ou deixe em branco."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "Introduza um endereço de correio eletrónico válido ou deixe em branco"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

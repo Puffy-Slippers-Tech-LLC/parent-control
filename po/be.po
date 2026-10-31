@@ -141,6 +141,18 @@ msgstr "Пошук усталяваных праграм"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "Адправіць водгук ананімна?"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "Вы не пазначылі адрас электроннай пошты для адказу. Ваш водгук будзе адпраўлены ананімна, і мы не зможам звязацца з вамі.\n\nРэкамендуем дадаць электронны адрас, каб мы маглі паведамляць пра ход працы і звяртацца з дадатковымі пытаннямі."
+
+msgid "Send Anonymously"
+msgstr "Адправіць ананімна"
+
+msgid "Add Email Address"
+msgstr "Дадаць электронны адрас"
+
 msgid "Report an Error"
 msgstr "Паведаміць пра памылку"
 
@@ -1235,9 +1247,9 @@ msgstr "Водгук павінен змяшчаць не больш за 5 000 
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "Фарматаванне водгуку занадта складанае. Выдаліце частку фарматавання і паўтарыце спробу."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "Увядзіце толькі адрас электроннай пошты для адказу або пакіньце поле пустым."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "Увядзіце сапраўдны адрас электроннай пошты або пакіньце поле пустым"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

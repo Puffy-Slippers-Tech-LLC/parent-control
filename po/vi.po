@@ -141,6 +141,18 @@ msgstr "Tìm ứng dụng đã cài đặt"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "Gửi phản hồi ẩn danh?"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "Bạn chưa cung cấp địa chỉ email để nhận trả lời. Phản hồi sẽ được gửi ẩn danh và chúng tôi sẽ không thể liên hệ với bạn.\n\nChúng tôi khuyên bạn nên thêm email để chúng tôi có thể cập nhật tình hình và liên hệ nếu có câu hỏi tiếp theo."
+
+msgid "Send Anonymously"
+msgstr "Gửi ẩn danh"
+
+msgid "Add Email Address"
+msgstr "Thêm địa chỉ email"
+
 msgid "Report an Error"
 msgstr "Báo cáo lỗi"
 
@@ -1235,9 +1247,9 @@ msgstr "Phản hồi phải dài tối đa 5.000 ký tự UTF-16 (một số emo
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "Phản hồi đã định dạng quá phức tạp. Xóa bớt định dạng và thử lại."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "Chỉ nhập địa chỉ email nhận trả lời hoặc để trống."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "Nhập địa chỉ email hợp lệ hoặc để trống"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

@@ -141,6 +141,18 @@ msgstr "Cari aplikasi yang dipasang"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "Hantar Maklum Balas Secara Tanpa Nama?"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "Anda belum memberikan alamat e-mel untuk balasan. Maklum balas anda akan dihantar tanpa nama dan kami tidak dapat menghubungi anda.\n\nKami mengesyorkan agar anda menambah e-mel supaya kami dapat memaklumkan perkembangan terkini dan menghubungi anda jika ada soalan susulan."
+
+msgid "Send Anonymously"
+msgstr "Hantar Tanpa Nama"
+
+msgid "Add Email Address"
+msgstr "Tambah Alamat E-mel"
+
 msgid "Report an Error"
 msgstr "Laporkan Ralat"
 
@@ -1235,9 +1247,9 @@ msgstr "Maklum balas mestilah paling banyak 5,000 aksara UTF-16 (sesetengah emoj
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "Maklum balas berformat terlalu rumit. Alih keluar sedikit pemformatan dan cuba lagi."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "Masukkan alamat e-mel balasan sahaja, atau biarkan kosong."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "Masukkan alamat e-mel yang sah, atau biarkan kosong"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

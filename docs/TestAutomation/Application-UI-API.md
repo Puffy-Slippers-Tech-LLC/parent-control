@@ -292,6 +292,8 @@ Kiosk restrictions continue to remove unavailable external actions.
 | `feedback-privacy-link`, `feedback-privacy-text` | Open/read the in-app privacy disclosure |
 | `feedback-send`, `feedback-send-without-logs`, `feedback-close` | Actual submit/close handlers; input can submit externally when deliberately invoked |
 | `feedback-success-dialog`, `feedback-success-text` | Submission confirmation |
+| `feedback-anonymous-dialog`, `feedback-anonymous-text` | Parent-only anonymous submission warning |
+| `feedback-send-anonymously`, `feedback-add-email` | Confirm this anonymous send or return to the optional email field (default) |
 | `update-required-dialog`, `update-required-message`, `update-required-status`, `startup-error-window`, `startup-error-message`, `error-report-unavailable-dialog` | Shared startup/update/error surfaces and text; discover available response controls in inventory |
 
 The editor bridge accepts only the fixed IDs/operations above and JSON values.

@@ -17,6 +17,18 @@ msgstr ""
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "匿名发送反馈？"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "您尚未提供回复邮箱。您的反馈将匿名发送，我们将无法联系您。\n\n建议添加您的邮箱，以便我们向您提供最新进展，并在有后续问题时与您联系。"
+
+msgid "Send Anonymously"
+msgstr "匿名发送"
+
+msgid "Add Email Address"
+msgstr "添加邮箱地址"
+
 msgid "Report an Error"
 msgstr "报告错误"
 
@@ -1235,9 +1247,9 @@ msgstr "反馈最多可包含 5,000 个 UTF-16 字符（部分表情符号按两
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "反馈格式过于复杂，请移除部分格式后重试。"
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "请仅填写回复邮箱地址，或留空。"
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "请输入有效的邮箱地址，或留空"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

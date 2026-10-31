@@ -196,6 +196,9 @@ def test_parent_discovery_error_opens_prefilled_feedback(
     wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
                               "error report is ready")
     ui.activate("feedback-send")
+    wait_for_accessible_state(lambda: ui.showing("feedback-anonymous-dialog"),
+                              "Parent error report asks before anonymous submission")
+    ui.activate("feedback-send-anonymously")
     wait_for_accessible_state(lambda: ui.showing("feedback-success-dialog"),
                               "feedback confirmation opens")
 

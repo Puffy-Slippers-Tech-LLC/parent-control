@@ -141,6 +141,18 @@ msgstr "நிறுவப்பட்ட செயலிகளைத் தே�
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "கருத்தை அநாமதேயமாக அனுப்பவா?"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "பதிலளிப்பதற்கான மின்னஞ்சல் முகவரியை நீங்கள் வழங்கவில்லை. உங்கள் கருத்து அநாமதேயமாக அனுப்பப்படும், எங்களால் உங்களைத் தொடர்புகொள்ள முடியாது.\n\nபுதிய தகவல்களைத் தெரிவிக்கவும் கூடுதல் கேள்விகள் இருந்தால் தொடர்புகொள்ளவும் உங்கள் மின்னஞ்சலைச் சேர்க்குமாறு பரிந்துரைக்கிறோம்."
+
+msgid "Send Anonymously"
+msgstr "அநாமதேயமாக அனுப்பு"
+
+msgid "Add Email Address"
+msgstr "மின்னஞ்சல் முகவரியைச் சேர்"
+
 msgid "Report an Error"
 msgstr "பிழையைப் புகாரளி"
 
@@ -1235,9 +1247,9 @@ msgstr "கருத்தில் அதிகபட்சம் 5,000 UTF-16 
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "வடிவமைக்கப்பட்ட கருத்து மிகவும் சிக்கலானது. சில வடிவமைப்புகளை நீக்கி மீண்டும் முயற்சி செய்யவும்."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "பதிலுக்கான மின்னஞ்சல் முகவரியை மட்டும் உள்ளிடவும் அல்லது காலியாக விடவும்."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "செல்லுபடியாகும் மின்னஞ்சல் முகவரியை உள்ளிடவும் அல்லது காலியாக விடவும்"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

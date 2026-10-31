@@ -42,6 +42,12 @@ def title_error(title):
     return None
 
 
+def reply_email_error(reply_email):
+    if reply_email and ("\0" in reply_email or len(reply_email) > 254 or not re.fullmatch(r"[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+", reply_email)):
+        return m.ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+    return None
+
+
 def validation_error(message, reply_email, version, message_html=""):
     if not message.strip():
         return m.PLEASE_ENTER_YOUR_FEEDBACK
@@ -51,8 +57,9 @@ def validation_error(message, reply_email, version, message_html=""):
         return m.FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
     if "\0" in message_html or len(message_html.encode("utf-16-le", errors="surrogatepass")) // 2 > MAX_HTML_UTF16:
         return m.THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
-    if reply_email and ("\0" in reply_email or len(reply_email) > 254 or not re.fullmatch(r"[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+", reply_email)):
-        return m.ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+    email_error = reply_email_error(reply_email)
+    if email_error:
+        return email_error
     if len(version) > 64 or any(c in version for c in "\r\n\0"):
         return m.THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
     return None

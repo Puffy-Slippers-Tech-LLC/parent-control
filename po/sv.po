@@ -141,6 +141,18 @@ msgstr "Sök bland installerade appar"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "Skicka feedback anonymt?"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "Du har inte angett någon e-postadress för svar. Din feedback skickas anonymt och vi kan inte kontakta dig.\n\nVi rekommenderar att du lägger till din e-postadress så att vi kan hålla dig uppdaterad och kontakta dig om vi har följdfrågor."
+
+msgid "Send Anonymously"
+msgstr "Skicka anonymt"
+
+msgid "Add Email Address"
+msgstr "Lägg till e-postadress"
+
 msgid "Report an Error"
 msgstr "Rapportera ett fel"
 
@@ -1235,9 +1247,9 @@ msgstr "Återkopplingen får vara högst 5 000 UTF-16-tecken (vissa emoji räkna
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "Den formaterade återkopplingen är för komplex. Ta bort viss formatering och försök igen."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "Ange enbart en e-postadress för svar, eller lämna tomt."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "Ange en giltig e-postadress eller lämna tomt"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

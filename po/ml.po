@@ -141,6 +141,18 @@ msgstr "സ്ഥാപിച്ച ആപ്പുകൾ തിരയുക"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "അഭിപ്രായം അജ്ഞാതമായി അയയ്ക്കണോ?"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "മറുപടിക്കായി നിങ്ങൾ ഇമെയിൽ വിലാസം നൽകിയിട്ടില്ല. നിങ്ങളുടെ അഭിപ്രായം അജ്ഞാതമായി അയയ്ക്കും, ഞങ്ങൾക്ക് നിങ്ങളെ ബന്ധപ്പെടാൻ കഴിയില്ല.\n\nപുതിയ വിവരങ്ങൾ അറിയിക്കാനും തുടർചോദ്യങ്ങൾ ഉണ്ടെങ്കിൽ ബന്ധപ്പെടാനും നിങ്ങളുടെ ഇമെയിൽ ചേർക്കാൻ ഞങ്ങൾ ശുപാർശ ചെയ്യുന്നു."
+
+msgid "Send Anonymously"
+msgstr "അജ്ഞാതമായി അയയ്ക്കുക"
+
+msgid "Add Email Address"
+msgstr "ഇമെയിൽ വിലാസം ചേർക്കുക"
+
 msgid "Report an Error"
 msgstr "പിശക് റിപ്പോർട്ട് ചെയ്യുക"
 
@@ -1235,9 +1247,9 @@ msgstr "അഭിപ്രായത്തിൽ പരമാവധി 5,000 UTF-
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "ഫോർമാറ്റ് ചെയ്ത അഭിപ്രായം വളരെ സങ്കീർണമാണ്. കുറച്ച് ഫോർമാറ്റിംഗ് നീക്കിയ ശേഷം വീണ്ടും ശ്രമിക്കുക."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "മറുപടിക്കായി ഇമെയിൽ വിലാസം മാത്രം നൽകുക, അല്ലെങ്കിൽ ഒഴിച്ചിടുക."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "സാധുവായ ഇമെയിൽ വിലാസം നൽകുക, അല്ലെങ്കിൽ ഒഴിച്ചിടുക"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

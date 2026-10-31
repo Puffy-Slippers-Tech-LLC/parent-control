@@ -142,6 +142,18 @@ msgstr "搜尋已安裝的應用程式"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "匿名傳送意見回饋？"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "您尚未提供回覆電子郵件地址。您的意見回饋將匿名傳送，我們將無法聯絡您。\n\n建議新增您的電子郵件地址，以便我們提供最新進展，並在有後續問題時與您聯絡。"
+
+msgid "Send Anonymously"
+msgstr "匿名傳送"
+
+msgid "Add Email Address"
+msgstr "新增電子郵件地址"
+
 msgid "Report an Error"
 msgstr "回報錯誤"
 
@@ -1236,9 +1248,9 @@ msgstr "意見回饋最多可包含 5,000 個 UTF-16 字元（部分表情符號
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "意見回饋格式過於複雜，請移除部分格式後重試。"
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "請僅填寫回覆電子郵件地址，或留空。"
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "請輸入有效的電子郵件地址，或留空"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

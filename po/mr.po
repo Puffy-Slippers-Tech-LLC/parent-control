@@ -141,6 +141,18 @@ msgstr "स्थापित ॲप शोधा"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "अभिप्राय निनावी पाठवायचा?"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "तुम्ही उत्तरासाठी ईमेल पत्ता दिलेला नाही. तुमचा अभिप्राय निनावी पाठवला जाईल आणि आम्ही तुमच्याशी संपर्क साधू शकणार नाही.\n\nआम्ही तुमचा ईमेल जोडण्याची शिफारस करतो, जेणेकरून आम्ही तुम्हाला अद्ययावत माहिती देऊ शकू आणि पुढील प्रश्न असल्यास संपर्क साधू शकू."
+
+msgid "Send Anonymously"
+msgstr "निनावी पाठवा"
+
+msgid "Add Email Address"
+msgstr "ईमेल पत्ता जोडा"
+
 msgid "Report an Error"
 msgstr "त्रुटी नोंदवा"
 
@@ -1235,9 +1247,9 @@ msgstr "अभिप्राय जास्तीत जास्त 5,000 UTF
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "स्वरूपित अभिप्राय खूप गुंतागुंतीचा आहे. काही स्वरूपण काढा आणि पुन्हा प्रयत्न करा."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "फक्त उत्तराचा ईमेल पत्ता लिहा किंवा रिकामे ठेवा."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "वैध ईमेल पत्ता लिहा किंवा रिकामे ठेवा"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

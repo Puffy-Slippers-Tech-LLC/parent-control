@@ -141,6 +141,18 @@ msgstr "Cercar d'aplicacions installadas"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "Mandar los comentaris anonimament ?"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "Avètz pas indicat d’adreça de corrièl per la responsa. Vòstres comentaris seràn mandats anonimament e vos poirem pas contactar.\n\nVos recomandam d’apondre vòstre corrièl per vos téner al corrent e vos contactar se nos cal pausar de questions complementàrias."
+
+msgid "Send Anonymously"
+msgstr "Mandar anonimament"
+
+msgid "Add Email Address"
+msgstr "Apondre una adreça de corrièl"
+
 msgid "Report an Error"
 msgstr "Senhalar una error"
 
@@ -1235,9 +1247,9 @@ msgstr "Los comentaris devon aver al maximum 5 000 caractèrs UTF-16 (d'unes emo
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "Los comentaris formatats son tròp complèxes. Suprimissètz una partida de la mesa en forma e tornatz ensajar."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "Picatz solament l'adreça de corrièl per la responsa o daissatz lo camp void."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "Picatz una adreça de corrièl valida o daissatz lo camp void"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

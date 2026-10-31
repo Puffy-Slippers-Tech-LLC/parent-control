@@ -141,6 +141,18 @@ msgstr "Iskanje nameščenih aplikacij"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "Pošljem povratne informacije anonimno?"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "Niste navedli e-poštnega naslova za odgovor. Povratne informacije bodo poslane anonimno in ne bomo mogli stopiti v stik z vami.\n\nPriporočamo, da dodate svoj e-poštni naslov, da vas lahko obveščamo o napredku in stopimo v stik z vami, če bomo imeli dodatna vprašanja."
+
+msgid "Send Anonymously"
+msgstr "Pošlji anonimno"
+
+msgid "Add Email Address"
+msgstr "Dodaj e-poštni naslov"
+
 msgid "Report an Error"
 msgstr "Prijavi napako"
 
@@ -1235,9 +1247,9 @@ msgstr "Povratne informacije lahko vsebujejo največ 5.000 znakov UTF-16 (nekate
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "Oblikovane povratne informacije so prezapletene. Odstranite nekaj oblikovanja in poskusite znova."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "Vnesite samo e-poštni naslov za odgovor ali pustite prazno."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "Vnesite veljaven e-poštni naslov ali pustite prazno"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

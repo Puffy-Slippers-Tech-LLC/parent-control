@@ -141,6 +141,18 @@ msgstr "نصب شدہ ایپس تلاش کریں"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "رائے گمنام طور پر بھیجیں؟"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "آپ نے جواب کے لیے ای میل پتہ فراہم نہیں کیا۔ آپ کی رائے گمنام طور پر بھیجی جائے گی اور ہم آپ سے رابطہ نہیں کر سکیں گے۔\n\nہم آپ کی ای میل شامل کرنے کی تجویز دیتے ہیں تاکہ ہم آپ کو تازہ معلومات دے سکیں اور مزید سوالات ہونے پر رابطہ کر سکیں۔"
+
+msgid "Send Anonymously"
+msgstr "گمنام طور پر بھیجیں"
+
+msgid "Add Email Address"
+msgstr "ای میل پتہ شامل کریں"
+
 msgid "Report an Error"
 msgstr "خرابی کی اطلاع دیں"
 
@@ -1235,9 +1247,9 @@ msgstr "رائے زیادہ سے زیادہ 5,000 UTF-16 حروف کی ہونی 
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "وضع کردہ رائے بہت پیچیدہ ہے۔ کچھ وضع بندی ہٹائیں اور دوبارہ کوشش کریں۔"
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "جواب کے لیے صرف ای میل پتہ درج کریں، یا خالی چھوڑ دیں۔"
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "درست ای میل پتہ درج کریں، یا خالی چھوڑ دیں"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

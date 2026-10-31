@@ -372,12 +372,21 @@ def test_feedback_submission_outcomes(
         launch_ui, ui, wait_for_accessible_state, status=status,
     )
     type_feedback(ui, "A private feedback draft", wait_for_accessible_state)
-    if status == 202:
-        ui.setText("feedback-reply-email", "feedback@example.com")
     wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
                               "feedback send is ready")
     ui.activate("feedback-send")
+    if status == 202:
+        wait_for_accessible_state(lambda: ui.showing("feedback-anonymous-dialog"),
+                                  "blank email asks before sending")
+        assert ui.text("feedback-anonymous-dialog") == "Send Feedback Anonymously?"
+        ui.activate("feedback-add-email")
+        assert ui.content(editor).strip() == "A private feedback draft"
+        ui.setText("feedback-reply-email", "feedback@example.com")
+        ui.activate("feedback-send")
     if status == 409:
+        wait_for_accessible_state(lambda: ui.showing("feedback-anonymous-dialog"),
+                                  "anonymous send needs explicit approval")
+        ui.activate("feedback-send-anonymously")
         wait_for_accessible_state(
             lambda: ui.text("feedback-send") == "Submit again (may duplicate)",
             "duplicate-safe retry offered",
@@ -385,11 +394,17 @@ def test_feedback_submission_outcomes(
         assert ui.content(editor).strip() == "A private feedback draft"
         ui.activate("feedback-send")
     elif status == 413:
+        wait_for_accessible_state(lambda: ui.showing("feedback-anonymous-dialog"),
+                                  "anonymous send needs explicit approval")
+        ui.activate("feedback-send-anonymously")
         wait_for_accessible_state(lambda: ui.showing("feedback-send-without-logs"),
                                   "send without logs offered")
         assert ui.content(editor).strip() == "A private feedback draft"
         ui.activate("feedback-send-without-logs")
     elif status == 422:
+        wait_for_accessible_state(lambda: ui.showing("feedback-anonymous-dialog"),
+                                  "anonymous send needs explicit approval")
+        ui.activate("feedback-send-anonymously")
         expected = ("Feedback was not accepted. Your draft is preserved. Check your "
                     "feedback and reply address before sending again.")
         wait_for_accessible_state(lambda: ui.find("feedback-status") is not None
@@ -398,6 +413,10 @@ def test_feedback_submission_outcomes(
         assert ui.content(editor).strip() == "A private feedback draft"
         assert ui.state(editor, ui.api.StateType.SENSITIVE)
         ui.activate("feedback-send")
+    if status != 202:
+        wait_for_accessible_state(lambda: ui.showing("feedback-anonymous-dialog"),
+                                  "each explicit anonymous send needs approval")
+        ui.activate("feedback-send-anonymously")
     wait_for_accessible_state(lambda: ui.showing("feedback-success-dialog"),
                               "success confirmation opens")
     wait_for_accessible_state(lambda: ui.absent("feedback-dialog", within="parent-window"),

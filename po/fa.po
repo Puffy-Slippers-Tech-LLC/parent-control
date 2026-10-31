@@ -141,6 +141,18 @@ msgstr "جستجوی برنامه‌های نصب‌شده"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "ارسال بازخورد به‌صورت ناشناس؟"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "شما نشانی ایمیلی برای پاسخ ارائه نکرده‌اید. بازخورد شما به‌صورت ناشناس ارسال می‌شود و نمی‌توانیم با شما تماس بگیریم.\n\nتوصیه می‌کنیم ایمیل خود را اضافه کنید تا شما را در جریان پیشرفت‌ها بگذاریم و در صورت داشتن پرسش‌های تکمیلی با شما تماس بگیریم."
+
+msgid "Send Anonymously"
+msgstr "ارسال ناشناس"
+
+msgid "Add Email Address"
+msgstr "افزودن نشانی ایمیل"
+
 msgid "Report an Error"
 msgstr "گزارش خطا"
 
@@ -1235,9 +1247,9 @@ msgstr "بازخورد باید حداکثر 5,000 نویسهٔ UTF-16 باشد 
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "قالب‌بندی بازخورد بیش از حد پیچیده است. بخشی از قالب‌بندی را حذف کنید و دوباره تلاش کنید."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "یک نشانی ایمیلِ تنها برای پاسخ وارد کنید، یا خالی بگذارید."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "یک نشانی ایمیل معتبر وارد کنید، یا خالی بگذارید"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

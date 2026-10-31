@@ -272,7 +272,7 @@ FEEDBACK_VALIDATION = {
     'Feedback must be at most 5,000 UTF-16 characters (some emoji count as two).': 'length-invalid',
     '': 'none',
     'Please enter your feedback.': 'body-required',
-    'Enter a bare reply email address, or leave it blank.': 'reply-invalid',
+    'Enter a valid email address, or leave it blank': 'reply-invalid',
     'Your feedback contains an unsupported hidden character. Please retype it and try again.': 'hidden-invalid',
     'The formatted feedback is too complex. Remove some formatting and try again.': 'format-invalid',
 }
@@ -1511,6 +1511,8 @@ def owned_surface_id(identity):
             return None if identity == surface else surface
     if identity.startswith('child-'):
         return None if identity == 'child-screen-time-indicator' else 'child-screen-time-indicator'
+    if identity in ('feedback-send-anonymously', 'feedback-add-email'):
+        return 'feedback-anonymous-dialog'
     if identity in (
             'reminder-editor-dialog', 'reminder-editor-save', 'reminder-editor-cancel',
             'reminder-editor-close', 'reminder-editor-error', 'reminder-editor-preview', 'reminder-text',
@@ -1534,6 +1536,7 @@ def owned_surface_id(identity):
         ('feedback-full-privacy-', 'feedback-privacy-dialog'),
         ('feedback-privacy-', 'feedback-privacy-dialog'),
         ('feedback-success-', 'feedback-success-dialog'),
+        ('feedback-anonymous-', 'feedback-anonymous-dialog'),
         ('error-report-unavailable-', 'error-report-unavailable-dialog'),
         ('startup-error-', 'startup-error-window'),
         ('preview-screen-', 'preview-screen-dialog'),
@@ -2429,7 +2432,8 @@ class AccessibleUI:
         require(identity not in visited and len(visited) < 8, 'ui:surface-owner-cycle')
         if identity in primary:
             return
-        expected = (('feedback-dialog',) if identity == 'feedback-privacy-dialog' else
+        expected = (('feedback-dialog',) if identity in (
+                        'feedback-privacy-dialog', 'feedback-anonymous-dialog') else
                     ('parent-window', 'kiosk-request-window')
                     if identity == 'update-required-dialog' else
                     ('parent-window',) if identity in ('parent-revoke-dialog', 'parent-match-rule-dialog') else

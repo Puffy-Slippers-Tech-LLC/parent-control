@@ -141,6 +141,18 @@ msgstr "ئورنىتىلغان ئەپلەرنى ئىزدەش"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "پىكىرنى نامسىز ئەۋەتەمسىز؟"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "جاۋاب قايتۇرۇش ئۈچۈن ئېلېكتىرونلۇق خەت ئادرېسى بەرمىدىڭىز. پىكىرىڭىز نامسىز ئەۋەتىلىدۇ، بىز سىز بىلەن ئالاقىلىشالمايمىز.\n\nسىزنى يېڭى ئەھۋاللاردىن خەۋەردار قىلىش ۋە قوشۇمچە سوئاللىرىمىز بولسا ئالاقىلىشىش ئۈچۈن ئېلېكتىرونلۇق خەت ئادرېسىڭىزنى قوشۇشىڭىزنى تەۋسىيە قىلىمىز."
+
+msgid "Send Anonymously"
+msgstr "نامسىز ئەۋەتىش"
+
+msgid "Add Email Address"
+msgstr "ئېلېكتىرونلۇق خەت ئادرېسى قوشۇش"
+
 msgid "Report an Error"
 msgstr "خاتالىقنى مەلۇم قىلىش"
 
@@ -1235,9 +1247,9 @@ msgstr "پىكىر ئەڭ كۆپ 5,000 UTF-16 ھەرپى بولۇشى كېرەك
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "فورماتلانغان پىكىر بەك مۇرەككەپ. بەزى فورماتلارنى چىقىرىۋېتىپ قايتا سىناڭ."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "پەقەت جاۋاب ئېلېكترونلۇق خەت ئادرېسىنىلا كىرگۈزۈڭ ياكى بوش قالدۇرۇڭ."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "ئىناۋەتلىك ئېلېكتىرونلۇق خەت ئادرېسى كىرگۈزۈڭ ياكى بوش قالدۇرۇڭ"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

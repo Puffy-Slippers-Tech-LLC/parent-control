@@ -287,6 +287,20 @@ choosers and attachment shortcuts, including indirect entry points; overlay
 retains them. Footer Close/Send stay reachable outside scrolling content.
 User-file rows expose basename/size/Remove and explicitly have no preview.
 
+Parent feedback and Parent error reports highlight the optional reply-email
+border. A valid Send with a blank reply address requires explicit Send
+Anonymously confirmation; Add Email Address is the default and returns to the
+email field without sending. Cancellation preserves the draft. Child App and
+kiosk reports retain direct sending. Confirmation revalidates the current draft
+before creating a submission; it does not authorize later explicit sends.
+Footer validation, collection, attachment and submission errors use red,
+flashing text; normal progress and success messages clear the error styling.
+An invalid reply email also gives its field a red, flashing border after Send;
+correcting or clearing the address removes that error border.
+For ordinary feedback only, sending an empty message gives the editor the same
+red, flashing border until nonblank content is entered.
+Both fields share the same 3px error border, corner radius and flash animation.
+
 ### Error reports
 
 Fixed public titles/explanations and at most eight closed exception categories

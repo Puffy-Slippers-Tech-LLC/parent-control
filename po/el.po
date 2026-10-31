@@ -141,6 +141,18 @@ msgstr "Αναζήτηση εγκατεστημένων εφαρμογών"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "Αποστολή σχολίων ανώνυμα;"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "Δεν έχετε δώσει διεύθυνση email για απάντηση. Τα σχόλιά σας θα σταλούν ανώνυμα και δεν θα μπορούμε να επικοινωνήσουμε μαζί σας.\n\nΣυνιστούμε να προσθέσετε το email σας, ώστε να σας ενημερώνουμε και να επικοινωνήσουμε μαζί σας αν έχουμε συμπληρωματικές ερωτήσεις."
+
+msgid "Send Anonymously"
+msgstr "Αποστολή ανώνυμα"
+
+msgid "Add Email Address"
+msgstr "Προσθήκη διεύθυνσης email"
+
 msgid "Report an Error"
 msgstr "Αναφορά σφάλματος"
 
@@ -1235,9 +1247,9 @@ msgstr "Τα σχόλια πρέπει να έχουν έως 5 000 χαρακτ
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "Τα μορφοποιημένα σχόλια είναι πολύ σύνθετα. Αφαιρέστε μέρος της μορφοποίησης και δοκιμάστε ξανά."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "Εισαγάγετε μόνο μια διεύθυνση email απάντησης ή αφήστε το κενό."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "Εισαγάγετε μια έγκυρη διεύθυνση email ή αφήστε το κενό"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

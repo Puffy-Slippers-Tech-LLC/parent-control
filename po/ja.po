@@ -17,6 +17,18 @@ msgstr ""
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "フィードバックを匿名で送信しますか？"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "返信用メールアドレスが入力されていません。フィードバックは匿名で送信されるため、こちらから連絡することができません。\n\n進捗のお知らせや追加の質問がある場合に連絡できるよう、メールアドレスの追加をおすすめします。"
+
+msgid "Send Anonymously"
+msgstr "匿名で送信"
+
+msgid "Add Email Address"
+msgstr "メールアドレスを追加"
+
 msgid "Report an Error"
 msgstr "エラーを報告"
 
@@ -1235,9 +1247,9 @@ msgstr "フィードバックは UTF-16 で5,000文字以内にしてくださ�
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "フィードバックの書式が複雑すぎます。書式の一部を解除して、もう一度お試しください。"
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "返信先のメールアドレスだけを入力するか、空欄にしてください。"
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "有効なメールアドレスを入力するか、空欄にしてください"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

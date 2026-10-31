@@ -141,6 +141,18 @@ msgstr "ابحث عن التطبيقات المثبتة"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "إرسال الملاحظات دون الكشف عن الهوية؟"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "لم تُدخل عنوان بريد إلكتروني للرد. ستُرسل ملاحظاتك دون الكشف عن هويتك، ولن نتمكن من التواصل معك.\n\nنوصي بإضافة بريدك الإلكتروني حتى نتمكن من إطلاعك على المستجدات والتواصل معك إذا كانت لدينا أسئلة متابعة."
+
+msgid "Send Anonymously"
+msgstr "إرسال دون كشف الهوية"
+
+msgid "Add Email Address"
+msgstr "إضافة عنوان بريد إلكتروني"
+
 msgid "Report an Error"
 msgstr "الإبلاغ عن خطأ"
 
@@ -1235,9 +1247,9 @@ msgstr "يجب ألا تتجاوز الملاحظات 5,000 محرف UTF-16 (ت�
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "تنسيق الملاحظات معقد جدًا. أزل بعض التنسيق وأعد المحاولة."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "أدخل عنوان بريد إلكتروني مجردًا للرد، أو اتركه فارغًا."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "أدخل عنوان بريد إلكتروني صالحًا، أو اتركه فارغًا"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

@@ -26,13 +26,14 @@ def dialog(monkeypatch):
     monkeypatch.setattr(feedback.transport, "SENDING_ENABLED", True)
     instance = SimpleNamespace(
         _busy=False, _collecting=False, _collection_failed=False, _disposed=False,
+        _parent_feedback=False, _anonymous_dialog=None, _confirm_anonymous_send=Mock(),
         _include_logs=True, _logs=None, _kiosk_session=False, _on_close=None, _report=None,
         _attachment_rows=[], _user_attachments=[], _subject="", _cancelled=Mock(),
         get_visible=Mock(return_value=True), _choose_download=Mock(),
         _submission_progress=Mock(), _submission_done=Mock(),
         _update_attachment_accessibility=Mock(),
     )
-    for name in ("message", "reply", "collection_row", "collection_spinner", "attachment",
+    for name in ("message", "reply", "reply_field", "collection_row", "collection_spinner", "attachment",
                  "attachment_button", "download_button", "add_attachment_button",
                  "without_logs", "retry_logs", "send_button", "close_button", "status"):
         setattr(instance, "_" + name, Mock())
@@ -40,7 +41,8 @@ def dialog(monkeypatch):
     instance._message.html = "<p>My feedback draft</p>"
     instance._reply.get_text.return_value = ""
     for name in ("_visibility_changed", "_start_collection", "_collection_done", "_set_busy",
-                 "_render_attachment", "_toggle_attachment", "_send", "_sending_hint", "_download_logs"):
+                 "_render_attachment", "_toggle_attachment", "_send", "_sending_hint", "_download_logs",
+                 "_set_status"):
         method = getattr(feedback.FeedbackDialog, name)
         setattr(instance, name, method.__get__(instance))
     instance.jobs, instance.callbacks = jobs, callbacks
@@ -141,6 +143,59 @@ def test_download_and_send_use_the_reviewed_snapshot(dialog, monkeypatch):
     assert submitted[0].logs == b"validated snapshot"
     assert submitted[0].message == "My feedback draft"
     feedback.collect_logs.assert_called_once()
+
+
+def test_parent_blank_reply_requires_fresh_confirmation_before_submission(dialog):
+    dialog._parent_feedback = True
+    dialog._start_collection()
+    finish_collection(dialog)
+    dialog._reply.get_text.return_value = '   '
+    dialog._send(None)
+    dialog._confirm_anonymous_send.assert_called_once_with()
+    assert not dialog.jobs and not dialog._busy
+    dialog._send(None, anonymous_confirmed=True)
+    assert dialog._busy and len(dialog.jobs) == 1
+    assert dialog._submission.reply_email == ''
+    dialog._set_busy(False)
+    dialog._send(None)
+    assert dialog._confirm_anonymous_send.call_count == 2
+
+
+def test_parent_reply_bypasses_confirmation_but_invalid_draft_does_not_send(dialog):
+    dialog._parent_feedback = True
+    dialog._start_collection()
+    finish_collection(dialog)
+    dialog._reply.get_text.return_value = 'invalid'
+    dialog._send(None)
+    dialog._status.add_css_class.assert_called_with('feedback-error-status')
+    dialog._reply_field.add_css_class.assert_called_with('feedback-reply-invalid')
+    dialog._status.set_label.assert_called_with('Enter a valid email address, or leave it blank')
+    assert not dialog.jobs and not dialog._busy
+    dialog._confirm_anonymous_send.assert_not_called()
+    dialog._reply.get_text.return_value = 'reply@example.com'
+    feedback.FeedbackDialog._reply_changed(dialog, None)
+    dialog._reply_field.remove_css_class.assert_called_with('feedback-reply-invalid')
+    dialog._send(None)
+    assert dialog._busy and len(dialog.jobs) == 1
+    assert dialog._submission.reply_email == 'reply@example.com'
+    dialog._status.remove_css_class.assert_called_with('feedback-error-status')
+    dialog._reply_field.remove_css_class.assert_called_with('feedback-reply-invalid')
+    dialog._confirm_anonymous_send.assert_not_called()
+
+
+@pytest.mark.parametrize('error_report', (False, True))
+def test_empty_feedback_border_only_marks_ordinary_feedback(dialog, error_report):
+    dialog._include_logs = False
+    dialog._report = object() if error_report else None
+    dialog._message.plain_text = '  \n'
+    dialog._message.html = ''
+    dialog._send(None)
+    assert not dialog.jobs and not dialog._busy
+    dialog._status.set_label.assert_called_with('Please enter your feedback.')
+    if error_report:
+        dialog._message.add_css_class.assert_not_called()
+    else:
+        dialog._message.add_css_class.assert_called_once_with('error')
 
 
 @pytest.mark.parametrize('error_report', (False, True))

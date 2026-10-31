@@ -16,8 +16,23 @@ msgstr ""
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "Send Feedback Anonymously?"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+
+msgid "Send Anonymously"
+msgstr "Send Anonymously"
+
+msgid "Add Email Address"
+msgstr "Add Email Address"
+
 msgid "Report an Error"
 msgstr "Report an Error"
+
+msgid "Enter a valid email address, or leave it blank"
+msgstr "Enter a valid email address, or leave it blank"
 
 #. Error-report presentation in the shared feedback dialog.
 msgid "Sorry about the inconvenience"

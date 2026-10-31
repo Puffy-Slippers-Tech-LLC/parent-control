@@ -141,6 +141,18 @@ msgstr "Otsi paigaldatud rakendusi"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "Kas saata tagasiside anonüümselt?"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "Sa pole vastamiseks e-posti aadressi sisestanud. Sinu tagasiside saadetakse anonüümselt ja me ei saa sinuga ühendust võtta.\n\nSoovitame lisada e-posti aadressi, et saaksime sind arengutega kursis hoida ja lisaküsimuste korral ühendust võtta."
+
+msgid "Send Anonymously"
+msgstr "Saada anonüümselt"
+
+msgid "Add Email Address"
+msgstr "Lisa e-posti aadress"
+
 msgid "Report an Error"
 msgstr "Teata veast"
 
@@ -1235,9 +1247,9 @@ msgstr "Tagasiside võib sisaldada kõige rohkem 5000 UTF-16 märki (mõni emoti
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "Vormindatud tagasiside on liiga keerukas. Eemalda osa vormindusest ja proovi uuesti."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "Sisesta ainult vastuse e-posti aadress või jäta tühjaks."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "Sisesta kehtiv e-posti aadress või jäta tühjaks"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

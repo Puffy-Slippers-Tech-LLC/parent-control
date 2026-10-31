@@ -154,6 +154,29 @@
   border-color: #8866ff;
 }
 
+.feedback-reply-field.feedback-reply-highlight {
+  border-color: #8866ff;
+}
+
+.feedback-reply-field.feedback-reply-highlight:focus-within {
+  box-shadow: 0 0 0 1px #8866ff;
+}
+
+@keyframes feedback-border-error-flash {
+  0%, 100% { border-color: #c01c28; }
+  50% { border-color: alpha(#c01c28, 0.3); }
+}
+
+.feedback-reply-field.feedback-reply-invalid,
+.feedback-reply-field.feedback-reply-invalid:focus-within,
+.feedback-rich-editor.error,
+.feedback-rich-editor.error:focus-within {
+  border: 3px solid #c01c28;
+  border-radius: 10px;
+  box-shadow: none;
+  animation: feedback-border-error-flash 1.2s ease-in-out infinite;
+}
+
 .feedback-anonymous-badge {
   color: #8866ff;
   background: #eee8ff;
@@ -166,6 +189,17 @@
   color: #8c8c9b;
   font-size: 13px;
   font-style: italic;
+}
+
+@keyframes feedback-error-flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.feedback-error-status {
+  color: #c01c28;
+  font-weight: 600;
+  animation: feedback-error-flash 1.2s ease-in-out infinite;
 }
 
 .feedback-attachments .heading {

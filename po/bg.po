@@ -141,6 +141,18 @@ msgstr "Търсене на инсталирани приложения"
 
 
 #. Error-report presentation in the shared feedback dialog.
+msgid "Send Feedback Anonymously?"
+msgstr "Изпращане на отзив анонимно?"
+
+msgid "You haven't provided a reply-to email address. Your feedback will be sent anonymously, and we won't be able to contact you.\n\nWe recommend adding your email so we can keep you updated and reach out if we have follow-up questions."
+msgstr "Не сте посочили имейл адрес за отговор. Отзивът ви ще бъде изпратен анонимно и няма да можем да се свържем с вас.\n\nПрепоръчваме да добавите имейла си, за да ви информираме за напредъка и да се свържем с вас при допълнителни въпроси."
+
+msgid "Send Anonymously"
+msgstr "Изпрати анонимно"
+
+msgid "Add Email Address"
+msgstr "Добави имейл адрес"
+
 msgid "Report an Error"
 msgstr "Докладване на грешка"
 
@@ -1235,9 +1247,9 @@ msgstr "Обратната връзка трябва да е най-много 5
 msgid "The formatted feedback is too complex. Remove some formatting and try again."
 msgstr "Форматираната обратна връзка е твърде сложна. Премахнете част от форматирането и опитайте отново."
 
-#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
-msgid "Enter a bare reply email address, or leave it blank."
-msgstr "Въведете само имейл адрес за отговор или оставете празно."
+#. Shared message: ENTER_A_VALID_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a valid email address, or leave it blank"
+msgstr "Въведете валиден имейл адрес или оставете празно"
 
 #. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
 msgid "The app version is invalid. Please update the application."

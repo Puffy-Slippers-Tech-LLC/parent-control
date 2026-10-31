@@ -1,6 +1,9 @@
-## v1.5 - 2026-10-30
+## v1.5 - 2026-10-31
+### Kind Ask
+- **Word of Mouth**: Please help spread the word out, so we can help more families! Tell them Fedora WS 44 is on the way, Fedora 45 will follow soon.
+
 ### New Features
-- **Kiosk**: Improved Polkit auth dialog content layout to make it more explicit and easier to read.
+- **Kiosk**: Improved Polkit auth dialog prompt layout to make it more explicit to read.
 
 ### Bug Fixes
 - **Screen Time**: Fixed enabling screen-time control failing when GNOME has disabled user extensions globally. The extension recovery covers all entry points: parent app load, selected child changes in parent app, screen limit toggles on, kiosk grant approval, machine reboot, child logon
@@ -8,8 +11,6 @@
 - **Screen Time**: Fixed extra-time approvals sometimes adding more time than requested.
 - **Kiosk**: Fixed time requests failing before parent approval when system language discovery is unavailable.
 - **Kiosk**: Fixed sign-in being rejected when brief maintenance activity temporarily delays entry.
-
-### Non Product Changes
 
 
 ## v1.4 - 2026-10-26

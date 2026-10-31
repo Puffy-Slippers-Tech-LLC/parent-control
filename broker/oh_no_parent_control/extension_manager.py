@@ -588,6 +588,10 @@ class ExtensionManager:
                  recover_global_switch=recover_global_switch, switch_recovery_needed=bool(restore_switch))
         LOG.info("extension-manager.activation-step", stage="runtime")
         old_runtime = self._runtime_state(account) if shell_available else None
+        if (enabled and not restore_switch and UUID in old_enabled and
+                UUID not in old_disabled and
+                (not shell_available or old_runtime == (True, True))):
+            return None
 
         def restore():
             runtime = "not-observed"

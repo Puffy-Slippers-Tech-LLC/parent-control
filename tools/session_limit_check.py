@@ -24,6 +24,7 @@ SESSION_LIMITS_INTERFACE = "com.endlessm.ParentalControls.SessionLimits"
 CALL_TIMEOUT_MS = 3_000
 # The broker's existing usage helper has a 30-second deadline.
 TIME_STATUS_TIMEOUT_MS = 35_000
+EXTENSION_RECOVERY_TIMEOUT_MS = 120_000
 BROKER_NAME = "com.puffyslippers.OhNoParentControl1"
 BROKER_PATH = "/com/puffyslippers/OhNoParentControl1"
 UINT32_MAX = (1 << 32) - 1
@@ -175,44 +176,67 @@ def authentication_outcome(username: str, service: str, connection=None,
     try:
         if connection is None:
             connection = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+        outcome, enabled = _time_outcome(identity.pw_uid, connection, now)
+        if outcome != AuthenticationOutcome.ALLOWED or not enabled:
+            return outcome
+        connection.call_sync(
+            BROKER_NAME, BROKER_PATH, BROKER_NAME, "RecoverChildExtension",
+            GLib.Variant("(u)", (identity.pw_uid,)),
+            GLib.VariantType.new("(b)"), Gio.DBusCallFlags.NONE,
+            EXTENSION_RECOVERY_TIMEOUT_MS, None,
+        )
+        # Recovery can outlast a grant, especially on a retained-session unlock
+        # where PAM account management will not run again. Admit on fresh time.
+        return _time_outcome(identity.pw_uid, connection)[0]
+    except (GLib.Error, OSError, OverflowError, RuntimeError, TypeError, ValueError):
+        return AuthenticationOutcome.ERROR
+
+
+def _time_outcome(uid, connection, now=None):
+    """Read current admission time without changing extension state."""
+    try:
         manager = Malcontent.Manager.new(connection)
         limits = manager.get_session_limits(
-            identity.pw_uid, Malcontent.ManagerGetValueFlags.NONE, None,
+            uid, Malcontent.ManagerGetValueFlags.NONE, None,
         )
         if now is None:
             now = GLib.DateTime.new_now_local()
         result = limits.check_time_remaining(now, 0)
         allowed, remaining, enabled, extension_active = result
     except (GLib.Error, OSError, OverflowError, RuntimeError, TypeError, ValueError):
-        return AuthenticationOutcome.ERROR
+        return AuthenticationOutcome.ERROR, False
 
     if not (
             type(allowed) is bool and type(remaining) is int and
             type(enabled) is bool and type(extension_active) is bool and
             remaining >= 0):
-        return AuthenticationOutcome.ERROR
+        return AuthenticationOutcome.ERROR, False
     if allowed:
-        if not enabled or extension_active:
-            return AuthenticationOutcome.ALLOWED
+        if not enabled:
+            return AuthenticationOutcome.ALLOWED, False
         # Malcontent's check takes today's active use as an argument. Zero
         # checks the configured allowance, not whether it has been consumed.
         # Reuse the broker's recorded-use calculation and child-owned query.
         try:
-            daily, grant, additional, total = connection.call_sync(
-                BROKER_NAME, BROKER_PATH, BROKER_NAME, "GetTimeStatus",
-                GLib.Variant("(uu)", (identity.pw_uid, 0)),
-                GLib.VariantType.new("(uuuu)"), Gio.DBusCallFlags.NONE,
-                TIME_STATUS_TIMEOUT_MS, None,
-            ).unpack()
+            if extension_active:
+                total = remaining
+            else:
+                daily, grant, additional, total = connection.call_sync(
+                    BROKER_NAME, BROKER_PATH, BROKER_NAME, "GetTimeStatus",
+                    GLib.Variant("(uu)", (uid, 0)),
+                    GLib.VariantType.new("(uuuu)"), Gio.DBusCallFlags.NONE,
+                    TIME_STATUS_TIMEOUT_MS, None,
+                ).unpack()
+                if additional != 0 or total != max(daily, grant):
+                    return AuthenticationOutcome.ERROR, enabled
+            if total <= 0:
+                return AuthenticationOutcome.DENIED, enabled
         except (GLib.Error, OSError, RuntimeError, TypeError, ValueError):
-            return AuthenticationOutcome.ERROR
-        if additional != 0 or total != max(daily, grant):
-            return AuthenticationOutcome.ERROR
-        return (AuthenticationOutcome.ALLOWED if total > 0
-                else AuthenticationOutcome.DENIED)
+            return AuthenticationOutcome.ERROR, enabled
+        return AuthenticationOutcome.ALLOWED, enabled
     if enabled and remaining == 0:
-        return AuthenticationOutcome.DENIED
-    return AuthenticationOutcome.ERROR
+        return AuthenticationOutcome.DENIED, enabled
+    return AuthenticationOutcome.ERROR, enabled
 
 
 def _log_authentication_outcome(outcome: AuthenticationOutcome) -> None:

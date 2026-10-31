@@ -197,20 +197,46 @@ def test_gdm_nonzero_daily_allowance_counts_recorded_use(monkeypatch, status, ex
     if status is None:
         connection.call_sync.side_effect = GLib.Error("unavailable")
     else:
-        connection.call_sync.return_value = GLib.Variant("(uuuu)", status)
+        connection.call_sync.side_effect = [GLib.Variant("(uuuu)", status),
+                                            GLib.Variant("(b)", (True,)),
+                                            GLib.Variant("(uuuu)", status)]
 
     outcome = session_limit_check.authentication_outcome(
         "child", "gdm-password", connection, object())
 
     assert outcome == getattr(session_limit_check.AuthenticationOutcome, expected)
-    connection.call_sync.assert_called_once()
-    args = connection.call_sync.call_args.args
+    assert connection.call_sync.call_count == (3 if expected == "ALLOWED" else 1)
+    args = connection.call_sync.call_args_list[0].args
     assert args[:4] == (session_limit_check.BROKER_NAME,
                        session_limit_check.BROKER_PATH,
                        session_limit_check.BROKER_NAME, "GetTimeStatus")
     assert args[4].unpack() == (1002, 0)
     assert args[5].dup_string() == "(uuuu)"
     assert args[6:] == (session_limit_check.Gio.DBusCallFlags.NONE, 35000, None)
+    if expected == "ALLOWED":
+        recovery = connection.call_sync.call_args_list[1].args
+        assert recovery[3] == "RecoverChildExtension"
+        assert recovery[4].unpack() == (1002,)
+
+
+@pytest.mark.parametrize("recovery_fails", [False, True])
+def test_gdm_recovery_failure_or_expired_grant_refuses_login(monkeypatch, recovery_fails):
+    monkeypatch.setattr(session_limit_check.pwd, "getpwnam",
+                        lambda name: SimpleNamespace(pw_name=name, pw_uid=1002))
+    manager = mock.Mock()
+    manager.get_session_limits.return_value.check_time_remaining.side_effect = [
+        (True, 1, True, True), (False, 0, True, False)]
+    monkeypatch.setattr(session_limit_check.Malcontent.Manager, "new", lambda bus: manager)
+    connection = mock.Mock()
+    if recovery_fails:
+        connection.call_sync.side_effect = GLib.Error("recovery failed")
+    else:
+        connection.call_sync.return_value = GLib.Variant("(b)", (True,))
+    assert session_limit_check.authentication_outcome(
+        "child", "gdm-password", connection) == (
+            session_limit_check.AuthenticationOutcome.ERROR if recovery_fails else
+            session_limit_check.AuthenticationOutcome.DENIED)
+    assert connection.call_sync.call_args.args[3] == "RecoverChildExtension"
 
 
 class SessionLimitCheckTests(unittest.TestCase):
@@ -311,15 +337,18 @@ class SessionLimitCheckTests(unittest.TestCase):
         limits.check_time_remaining.return_value = (True, 300, True, True)
         manager = mock.Mock()
         manager.get_session_limits.return_value = limits
+        connection = mock.Mock()
+        connection.call_sync.return_value = GLib.Variant("(b)", (True,))
 
         with mock.patch.object(session_limit_check.Malcontent.Manager, "new",
                                return_value=manager):
             self.assertEqual(
                 session_limit_check.authentication_outcome(
-                    "child", "gdm-password", object(), object(),
+                    "child", "gdm-password", connection, object(),
                 ),
                 session_limit_check.AuthenticationOutcome.ALLOWED,
             )
+        self.assertEqual(connection.call_sync.call_args.args[3], "RecoverChildExtension")
 
     @mock.patch("tools.session_limit_check.pwd.getpwnam")
     def test_gdm_authentication_backend_failure_fails_closed(self, getpwnam):

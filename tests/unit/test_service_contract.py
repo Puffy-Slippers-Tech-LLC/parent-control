@@ -395,6 +395,31 @@ def test_reboot_mode_dispatches_only_role_checked_kiosk_presentation_reads(tmp_p
     service.close()
 
 
+def test_login_recovery_dispatch_uses_bus_identity_and_worker_errors():
+    from oh_no_parent_control.service import GLib
+    service = Service.__new__(Service)
+    service.credentials = mock.Mock()
+    service.credentials.uid.return_value = 0
+    service.broker = mock.Mock()
+    service.broker.recover_child_extension.return_value = True
+    invocation = mock.Mock()
+
+    def thread(*, target, args, daemon):
+        return mock.Mock(start=lambda: target(*args))
+
+    with (mock.patch("oh_no_parent_control.service.threading.Thread", side_effect=thread),
+          mock.patch("oh_no_parent_control.service.GLib.idle_add",
+                     side_effect=lambda callback, *args: callback(*args))):
+        service._method_call(None, ":1.42", None, None, "RecoverChildExtension",
+                             GLib.Variant("(u)", (1001,)), invocation)
+        service.broker.recover_child_extension.assert_called_once_with(0, 1001)
+        assert invocation.return_value.call_args.args[0].unpack() == (True,)
+        service.broker.recover_child_extension.side_effect = AccessDenied("root required")
+        service._method_call(None, ":1.42", None, None, "RecoverChildExtension",
+                             GLib.Variant("(u)", (1001,)), invocation)
+        assert invocation.return_dbus_error.call_args.args[0].endswith("AccessDenied")
+
+
 def signatures(xml):
     interface = ElementTree.fromstring(xml).find("interface")
     return {

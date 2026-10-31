@@ -472,6 +472,27 @@ class Broker:
         finally:
             self._request_lock.release()
 
+    def recover_child_extension(self, caller_uid: int, target_uid: int) -> bool:
+        """Reassert saved enforcement for the root PAM login helper."""
+        if caller_uid != 0:
+            raise AccessDenied("root access is required")
+        if not self._acquire_request_lock():
+            raise Busy("another request is already in progress")
+        try:
+            target = self._target(self._load_config(), target_uid)
+            preferences = self._load_request_preferences(target.uid)
+            if not preferences["parent_control_enabled"]:
+                return False
+            if self._extensions is None:
+                raise BackendFailure("extension management is unavailable")
+            try:
+                self._extensions.set_enabled(target.uid, True, recover_global_switch=True)
+            except Exception as error:
+                raise BackendFailure("could not recover the child extension") from error
+            return True
+        finally:
+            self._request_lock.release()
+
     def get_time_status(self, caller_uid: int, target_uid: int,
                         additional_seconds: int = 0) -> TimeStatus:
         config = self._load_config()

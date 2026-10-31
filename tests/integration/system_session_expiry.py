@@ -232,12 +232,15 @@ def pam_password_status(uid, password, *, account_only=False):
     guest.require(isinstance(password, FixturePassword)
                   and uid == identities()['child'], 'expiry:pam-password-fixture')
     phase = 'account' if account_only else 'authenticate'
+    # Authentication can use two 35-second time reads and 120-second recovery;
+    # retain a finite outer bound with room for the remaining PAM stack.
+    timeout = 30 if account_only else 210
     print('onpc-system: stage=pam-password-' + phase + ' outcome=started', flush=True)
     raw = guest.commands.run([
         '/usr/bin/python3', '-B', str(guest.PAYLOAD / 'system_session_expiry.py'),
         '--pam-password', phase],
         input=json.dumps({'uid': uid, 'password': password._value.decode('ascii')}).encode(),
-        timeout=30, merge_stderr=False)
+        timeout=timeout, merge_stderr=False)
     try:
         result = json.loads(raw)
     except (ValueError, UnicodeError):
@@ -342,6 +345,40 @@ def verify_zero_time_pam(record):
         }, sort_keys=True))
     finally:
         accepted(call(parent, 'RevokeOneTimeGrant', '(u)', (child,)))
+
+    # Daily allowance admits a child without a kiosk grant. Disable extensions
+    # after broker startup so only the installed GDM authentication path can
+    # recover enforcement; keep the current account policy and desktop intact.
+    accepted(call(parent, 'SetParentControl', '(ubu)', (child, True, 1440)))
+    manager = installed_manager()
+    account, _ = manager._account(child)
+    previous = (manager._list(account, 'enabled-extensions'),
+                manager._list(account, 'disabled-extensions'))
+    before, other = account_state(child), account_state(accounts['other'])
+    invocation = guest.run(['systemctl', 'show', guest.BROKER,
+                           '--property=InvocationID', '--value'])
+    try:
+        manager._set_boolean(account, 'disable-user-extensions', True)
+        deadline = time.monotonic() + 10
+        while manager._runtime_state(account)[1]:
+            guest.require(time.monotonic() < deadline, 'expiry:daily-disable-not-observed')
+            time.sleep(0.1)
+        status = pam_password_status(child, password)
+        guest.require(status == 0, 'expiry:daily-time-pam-denied')
+        guest.require(not manager._boolean(account, 'disable-user-extensions')
+                      and manager._runtime_state(account) == (True, True)
+                      and manager._list(account, 'enabled-extensions') == previous[0]
+                      and manager._list(account, 'disabled-extensions') == previous[1],
+                      'expiry:daily-pam-did-not-recover-extension')
+        guest.require(account_state(child) == before
+                      and account_state(accounts['other']) == other
+                      and guest.run(['systemctl', 'show', guest.BROKER,
+                                     '--property=InvocationID', '--value']) == invocation,
+                      'expiry:daily-recovery-changed-policy-or-restarted-broker')
+        record('onpc.expiry.daily-pam-recovery',
+               'authenticated; no-grant; configured-and-active; policy-and-selections-preserved')
+    finally:
+        accepted(call(parent, 'SetParentControl', '(ubu)', (child, True, 0)))
 
 
 def verify_request_extension(record):

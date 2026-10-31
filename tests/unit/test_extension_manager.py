@@ -925,12 +925,13 @@ class ExtensionManagerTests(unittest.TestCase):
                 state.values[ENABLED_KEY].append(UUID)
                 state.values[DISABLED_KEY].remove(UUID)
                 self._recover(state, live=live)
+                state.commands.clear()
                 self._recover(state, live=live)
                 self.assertFalse(state.values[DISABLE_ALL_KEY])
                 self.assertEqual(state.values[ENABLED_KEY].count(UUID), 1)
-                switches = [args for args in state.commands
-                            if args[:2] == ("gsettings", "set") and args[3] == DISABLE_ALL_KEY]
-                self.assertEqual(len(switches), 1)
+                self.assertFalse(any(args[:2] == ("gsettings", "set") or
+                                     args[:2] == ("gnome-extensions", "enable")
+                                     for args in state.commands))
 
     def test_failed_recovery_restores_switch_and_individual_extension_choices(self):
         state = GnomeRecoveryState(inactive=True)

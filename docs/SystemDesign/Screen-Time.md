@@ -189,12 +189,15 @@ performs activation and configured/active verification.
 
 GNOME may turn on `disable-user-extensions` after a session startup failure.
 Startup reassertion for a saved enabled child, kiosk approval for that child,
-and a parent's first enablement
+an accepted GDM time check at login/unlock, and a parent's first enablement
 restore that global switch to false and verify the write before proceeding.
 First enablement retains an undo action through the account and preference
 transaction; a later failure restores the original global switch, exact
 extension lists and observed product runtime state. Individual extension choices
 are preserved; this also resumes other individually enabled extensions. A
+healthy enabled extension needs only state checks: matching durable settings,
+an enabled global switch, and, when Shell is running, enabled and active runtime
+state cause activation to return without writes or an enable command. A
 failed activation restores the switch and original lists, verifies rollback,
 and remains an error. Startup isolates failed child account/home validation and
 retains its diagnostics without changing saved controls or live enforcement;

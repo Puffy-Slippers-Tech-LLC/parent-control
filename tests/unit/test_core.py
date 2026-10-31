@@ -25,6 +25,29 @@ from tests.support.broker import (
 )
 
 
+@pytest.mark.parametrize("caller", [1001, 991, 1003])
+def test_login_recovery_requires_root(caller):
+    extensions = Extensions()
+    with pytest.raises(AccessDenied):
+        make_broker(extensions=extensions).recover_child_extension(caller, 1001)
+    assert extensions.calls == []
+
+
+def test_login_recovery_respects_saved_control_and_preserves_account_state():
+    preferences, extensions, accounts = Preferences(), Extensions(), Accounts()
+    broker = make_broker(preferences=preferences, extensions=extensions, accounts=accounts)
+    assert not broker.recover_child_extension(0, 1001)
+    assert extensions.calls == []
+    preferences.values[1001]["parent_control_enabled"] = True
+    assert broker.recover_child_extension(0, 1001)
+    assert extensions.recoveries == [1001]
+    assert accounts.events == []
+    with mock.patch.object(extensions, "set_enabled", side_effect=RuntimeError("failure")):
+        with pytest.raises(BackendFailure):
+            broker.recover_child_extension(0, 1001)
+    assert broker.recover_child_extension(0, 1001)  # Failure released the transaction lock.
+
+
 class CoreTests(unittest.TestCase):
     def test_time_grant_presets_child_and_kiosk_crud_is_isolated_without_policy_effects(self):
         with tempfile.TemporaryDirectory() as directory:

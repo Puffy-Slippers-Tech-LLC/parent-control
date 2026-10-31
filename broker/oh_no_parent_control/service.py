@@ -189,6 +189,10 @@ INTROSPECTION_XML = f"""
       <arg name="daily_allowance_remaining_seconds" type="u" direction="in"/>
       <arg name="calculated_active_extension_seconds" type="u" direction="out"/>
     </method>
+    <method name="RecoverChildExtension">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="recovered" type="b" direction="out"/>
+    </method>
     <method name="PrepareOwnSession">
       <arg name="reconciled" type="b" direction="out"/>
     </method>
@@ -678,6 +682,14 @@ class Service:
                     caller_uid, daily,
                 )
                 invocation.return_value(GLib.Variant("(u)", (calculated,)))
+            elif method == "RecoverChildExtension":
+                target_uid, = parameters.unpack()
+                deferred_reply = True
+                threading.Thread(
+                    target=self._prepare_own_session_worker,
+                    args=(invocation, caller_uid, target_uid),
+                    daemon=True,
+                ).start()
             elif method == "PrepareOwnSession":
                 deferred_reply = True
                 threading.Thread(
@@ -858,21 +870,24 @@ class Service:
             )
 
     @operation_scope
-    def _prepare_own_session_worker(self, invocation, caller_uid):
+    def _prepare_own_session_worker(self, invocation, caller_uid, recovery_target=None):
+        method = "PrepareOwnSession" if recovery_target is None else "RecoverChildExtension"
         try:
-            reconciled = self.broker.prepare_own_session(caller_uid)
-            LOG.info("service.019")
+            reconciled = (self.broker.prepare_own_session(caller_uid)
+                          if recovery_target is None else
+                          self.broker.recover_child_extension(caller_uid, recovery_target))
+            LOG.info("service.008", method=method)
             GLib.idle_add(
                 self._return_value_variant, invocation,
                 GLib.Variant("(b)", (reconciled,)),
             )
         except BrokerError as error:
-            LOG.warning("service.020", error_type=error_code(error))
+            LOG.warning("service.009", method=method, error_type=error_code(error))
             if isinstance(error, (BackendFailure, RollbackFailure)):
                 record_exception(error)
             GLib.idle_add(self._return_error, invocation, error.dbus_name, str(error))
         except Exception as error:
-            LOG.error("service.021", error_type=error_code(error))
+            LOG.error("service.010", method=method, error_type=error_code(error))
             record_exception(error)
             GLib.idle_add(
                 self._return_error, invocation, f"{BUS_NAME}.Error.Failed", "service failure"

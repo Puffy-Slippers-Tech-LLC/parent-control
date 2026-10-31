@@ -21,7 +21,7 @@ def test_password_probe_is_bounded_and_secret_is_stdin_only(monkeypatch, account
     args, = invoke.call_args.args
     assert args[-2:] == ['--pam-password', 'account' if account_only else 'authenticate']
     assert password._value.decode() not in ' '.join(args)
-    assert invoke.call_args.kwargs['timeout'] == 30
+    assert invoke.call_args.kwargs['timeout'] == (30 if account_only else 210)
     assert invoke.call_args.kwargs['merge_stderr'] is False
     assert json.loads(invoke.call_args.kwargs['input']) == {
         'uid': 1004, 'password': password._value.decode()}

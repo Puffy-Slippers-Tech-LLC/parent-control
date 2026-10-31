@@ -140,6 +140,7 @@ the broker resolves and revalidates it.
 | `CalculateRemainingTime` | own | selected child | selected child |
 | `CalculateOwnRemainingTime` | own | - | - |
 | `PrepareOwnSession` | own | - | - |
+| `RecoverChildExtension` | - | - | root only |
 | `UpdateRequestPreferences` | own | selected child | selected child |
 | `UpdateRequestPreferencesWithUnit` | own | selected child | selected child |
 | `SetRequestMuted` | own | selected child | selected child |
@@ -271,6 +272,14 @@ transaction lock after the local wait finishes and remote cancellation completes
 or reaches its five-second cleanup deadline, allowing a new kiosk request.
 Account writes and the successful-request cooldown are not reached by a cancelled
 authorization. The implementation loads on broker process restart.
+
+The root PAM helper calls `RecoverChildExtension` after its GDM time check
+accepts a restricted child login or unlock, including daily-allowance entry
+without kiosk approval. The broker serializes recovery with policy transactions,
+validates the target child and reasserts activation only for a saved enabled
+control. Recovery failure refuses that authentication attempt; it creates no
+grant and changes no account policy or saved preference. PAM rechecks current
+remaining time after recovery before accepting admission.
 
 An approved request initializes `DailyLimit` from saved preferences and enables
 Malcontent limits if necessary before applying the filter and grant. Unlike the

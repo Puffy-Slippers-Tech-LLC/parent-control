@@ -121,6 +121,9 @@ class ScriptedParentBroker:
             self._record("get_preferences_ready", uid=uid)
         return copy.deepcopy(self._preferences[uid])
 
+    def recover_child_extension(self, uid):
+        return self._preferences[uid]["parent_control_enabled"]
+
     def list_apps(self, _uid):
         self._record("list_apps")
         if self._mode == "loading":

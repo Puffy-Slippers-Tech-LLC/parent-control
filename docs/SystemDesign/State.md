@@ -219,8 +219,9 @@ catalogue uses `version = 1` and `records = []`.
 Versions are numeric dotted product versions, independent of DEB/RPM revisions.
 Comparison is numeric (`1.10` follows `1.9`); trailing zero components normalize
 (`1.4.0` equals `1.4`). Duplicate versions within either source are rejected.
-The child catalogue may omit the installed version; this returns no child notes,
-without falling back to Parent notes or an older child release. Duplicate TOML
+The child catalogue may omit the installed version; only child releases within
+the latest upgrade range remain eligible, without falling back to Parent notes
+or releases outside that range. Duplicate TOML
 keys, missing required fields, unknown
 fields, empty content and unsafe SeeMore URLs are rejected. SeeMore accepts
 absolute ASCII HTTP(S) links without credentials, backslashes or percent-encoded
@@ -240,13 +241,18 @@ eligible children receive Child records. The kiosk uses
 child. Those two methods are kiosk-only. Kiosk and child overlay therefore share
 the child's acknowledgement; the approver's account is independent.
 
-All four methods return JSON with `product_version` and `records`. Each returned
+All four methods return JSON with `product_version`, `previous_version` and `records`. Each returned
 record includes the validated metadata, a derived `record_id` and `auto_show`.
-Only records matching the installed version and caller's component are returned.
-Users who skip a release never receive its old notes. Previously acknowledged
-current records remain in this result for manual menu access, with
+The caller's component receives one presentation record identified by the
+installed version. It includes releases in the numeric range
+`previous_version < release <= product_version`, oldest first. The current
+release remains manually available even on fresh installs or when the previous
+version is unknown. For multiple releases (or child notes only for an intermediate
+release), a `releases` array preserves each source record's metadata and identity
+for translation; the outer `Content` is the current release's content, or empty
+when absent. Previously acknowledged presentations remain available for manual menu access, with
 `auto_show = false`. A fresh installation also sets `auto_show = false`; an
-upgrade from a lower version sets it true for unseen current records. Installation
+upgrade from a lower version sets it true for an unseen presentation. Installation
 origin is recorded during [package configuration](Data-Migration.md#whats-new-installation-history),
 so this decision works even when a user never opened the old app.
 
@@ -256,13 +262,16 @@ version have independent acknowledgements, including if a UID's role changes.
 Editing content or SeeMore preserves identity. Former combined `Child,Parent`
 acknowledgements remain valid for both audiences and are retained while either
 source still contains that version. Acknowledge selects the unique current
-record for the caller's component and supplied version; past, future, unknown and
+presentation for the caller's component and supplied version; past, future, unknown and
 wrong-component records are refused. Frontends must acknowledge after successful
 display/close, including manual opening, and persist successfully before treating
-the record as seen. Querying alone does not consume eligibility.
+the presentation as seen. The installed version's acknowledgement covers the
+whole range. Each upgrade refreshes the range; unread notes do not accumulate
+across upgrades. Querying alone does not consume eligibility.
 
 `personal.whats_new_seen` is an optional compatible version-4 field; absent means
-no acknowledgements. It contains at most 256 unique record IDs. The store merges
+no acknowledgements. It contains at most 258 unique record IDs (the bounded
+source/legacy identities plus two current presentation identities). The store merges
 acknowledgements under its existing write lock and atomically writes the record.
 Every successful acknowledgement also removes IDs absent from the complete
 packaged metadata, retaining IDs for other components and older metadata that

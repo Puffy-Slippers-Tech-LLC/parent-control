@@ -27,7 +27,8 @@ visual comparison. Extend only missing content/readback operations.
 
 Prepare and capture the normal Riley/Jamie/75-second/soft-included request.
 Open What's New; independently read meaningful content matching the installed
-package's latest release; close normally and require the same usable request.
+package's latest upgrade range under the [backend contract](../../SystemDesign/State.md#whats-new-backend);
+close normally and require the same usable request.
 Grant no time and change no policy. About need not be reopened to consume its
 shared information/return mechanics.
 

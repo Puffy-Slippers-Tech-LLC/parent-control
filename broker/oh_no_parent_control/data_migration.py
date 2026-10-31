@@ -71,8 +71,16 @@ PREFERENCE_MIGRATIONS: dict[int, Migration] = {
     3: migrate_preferences_v3_to_v4,
 }
 
-# Independent data family; append forward steps here when its schema advances.
-WHATS_NEW_INSTALLATION_MIGRATIONS: dict[int, Migration] = {}
+def migrate_whats_new_v1_to_v2(raw: dict[str, Any]) -> dict[str, Any]:
+    """Old history cannot recover the last upgrade; do not guess its origin."""
+    if set(raw) != {"version", "first_version", "current_version"}:
+        raise MigrationError("version-1 installation history has invalid keys")
+    return {**raw, "version": 2, "previous_version": raw["current_version"]}
+
+
+WHATS_NEW_INSTALLATION_MIGRATIONS: dict[int, Migration] = {
+    1: migrate_whats_new_v1_to_v2,
+}
 
 
 class MigrationError(RuntimeError):
@@ -231,7 +239,7 @@ def migrate_preferences(directory: Path = PREFERENCES_DIRECTORY, *,
 
 
 def configure_whats_new(state_directory: Path, product_path: Path) -> int:
-    """Remember the installation origin once; retries never turn installs into upgrades."""
+    """Remember only the latest upgrade range; same-version retries preserve it."""
     from .whats_new import (
         INSTALLATION_FORMAT_VERSION, WhatsNewError, product_version, read_document,
         validate_installation, version_key,
@@ -257,12 +265,15 @@ def configure_whats_new(state_directory: Path, product_path: Path) -> int:
             if version_key(current) < version_key(history["current_version"]):
                 raise WhatsNewError("product downgrade is unsupported")
             first = history["first_version"]
+            previous = (history["current_version"] if current != history["current_version"]
+                        else history["previous_version"])
         else:
             file_stat = state_directory.stat()
             first = previous if previous is not None else current
+            previous = first
             raw = None
         result = validate_installation({"version": INSTALLATION_FORMAT_VERSION, "first_version": first,
-                                        "current_version": current})
+                                        "previous_version": previous, "current_version": current})
         changed = result != raw
         if changed:
             _atomic_write(history_path, result, file_stat)

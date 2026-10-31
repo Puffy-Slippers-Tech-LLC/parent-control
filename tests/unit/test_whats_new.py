@@ -25,13 +25,14 @@ def note(version="1.4", **extra):
             **extra}
 
 
-def catalog(current="1.5", first="1.3", records=None):
+def catalog(current="1.5", first="1.3", records=None, previous=None):
     # Test catalogues declare their source directly, without author-facing ShowIn.
     records = records if records is not None else [note("1.4"), note("1.5")]
     return WhatsNewCatalog(current, first, tuple(
         dict(record, record_id=record.get("record_id", record["ProductVersion"] + ":" + component))
         for record in records for component in ("Parent", "Child")
-        if "record_id" not in record or record["record_id"].endswith(":" + component)))
+        if "record_id" not in record or record["record_id"].endswith(":" + component)),
+        previous or current)
 
 
 def make_backend(tmp_path, notes=None):
@@ -74,7 +75,8 @@ code
     product = tmp_path / "app.json"
     installation = tmp_path / "installation.json"
     write_json(product, {"version": "1.4"})
-    write_json(installation, {"version": 1, "first_version": "1.3", "current_version": "1.4"})
+    write_json(installation, {"version": 2, "first_version": "1.3",
+                              "previous_version": "1.3", "current_version": "1.4"})
     history = tmp_path / "VersionHistory.md"
     history.write_text("## v1.4 -\n### Parent changes\n- Parent only.\n\n## v1.3 — 2026-10-03\nOld notes\n")
     loaded = WhatsNewCatalog.load(metadata, product, installation, history)
@@ -139,7 +141,8 @@ def test_current_child_entry_is_optional_and_never_falls_back_to_parent_or_old_c
     product, installation = tmp_path / "app.json", tmp_path / "installation.json"
     history.write_text("## v1.5 -\nParent notes\n")
     write_json(product, {"version": "1.5"})
-    write_json(installation, {"version": 1, "first_version": "1.3", "current_version": "1.5"})
+    write_json(installation, {"version": 2, "first_version": "1.3",
+                              "previous_version": "1.4", "current_version": "1.5"})
     for text in ("version = 1\nrecords = []\n",
                  "version = 1\n[[records]]\nProductVersion = '1.4'\nContent = 'Old child notes'\n"):
         metadata.write_text(text)
@@ -206,15 +209,47 @@ def test_record_identity_is_stable_when_content_changes():
     assert b.available("Child", list(a.retained_records))["records"][0]["auto_show"] is False
 
 
-def test_upgrade_only_returns_current_release_even_when_user_skips_versions():
-    notes = catalog(current="1.10", first="1.3", records=[
+def test_upgrade_combines_only_the_latest_upgrade_range():
+    notes = catalog(current="1.10", first="1.2", previous="1.3", records=[
         note("1.2"), note("1.3"), note("1.4"), note("1.9"), note("1.10"), note("2.0")])
     available = notes.available("Parent", ["1.4:Child,Parent"])["records"]
     assert [(record["ProductVersion"], record["auto_show"]) for record in available] == [
         ("1.10", True)]
+    assert [r["ProductVersion"] for r in available[0]["releases"]] == ["1.4", "1.9", "1.10"]
     assert notes.available("Parent", ["1.10:Child,Parent"])["records"][0]["auto_show"] is False
     fresh = catalog(current="1.5", first="1.5")
     assert all(not record["auto_show"] for record in fresh.available("Child", [])["records"])
+    assert "releases" not in fresh.available("Child", [])["records"][0]
+    next_upgrade = catalog(current="2.0", previous="1.10", records=[note("1.9"), note("2.0")])
+    assert "releases" not in next_upgrade.available("Parent", [])["records"][0]
+
+
+def test_skipped_child_release_without_current_notes_is_available_and_acknowledged(tmp_path):
+    notes = catalog(previous="1.3", records=[note("1.4", record_id="1.4:Child")])
+    broker, store, _ = make_backend(tmp_path, notes)
+    record, = broker.get_own_whats_new(1001)["records"]
+    assert record["ProductVersion"] == "1.5"
+    assert [r["ProductVersion"] for r in record["releases"]] == ["1.4"]
+    assert record["auto_show"] is True
+    broker.acknowledge_own_whats_new(1001, "1.5")
+    assert store.load(1001)["personal"]["whats_new_seen"] == ["1.5:Child"]
+    assert broker.get_child_whats_new(991, 1001)["records"][0]["auto_show"] is False
+
+
+def test_full_catalogues_can_acknowledge_an_intermediate_only_presentation(tmp_path):
+    notes = catalog(current="2.63", first="1.0", previous="1.0", records=[
+        note(f"{major}.{minor}", record_id=f"{major}.{minor}:{component}")
+        for major, component in ((1, "Child"), (2, "Parent")) for minor in range(64)])
+    broker, store, _ = make_backend(tmp_path, notes)
+    store.update_language(1001, "en")
+    path = store.directory / "1001.json"
+    saved = json.loads(path.read_text())
+    saved["personal"]["whats_new_seen"] = sorted(notes.retained_records - {"2.63:Child"})
+    assert len(saved["personal"]["whats_new_seen"]) == 256
+    write_json(path, saved)
+    broker.acknowledge_own_whats_new(1001, "2.63")
+    assert len(store.load(1001)["personal"]["whats_new_seen"]) == 257
+    assert broker.get_own_whats_new(1001)["records"][0]["auto_show"] is False
 
 
 def test_independent_users_and_versions_survive_broker_restart(tmp_path):
@@ -321,7 +356,7 @@ def test_component_mismatch_metadata_failure_and_root_identity(tmp_path):
 
 
 @pytest.mark.parametrize("seen", [None, {}, ["1.4"], ["1.4:Kiosk"],
-                                     ["1.4:Parent", "1.4.0:Parent"], ["1.4:Parent"] * 257])
+                                     ["1.4:Parent", "1.4.0:Parent"], ["1.4:Parent"] * 259])
 def test_invalid_saved_acknowledgements_are_preserved(tmp_path, seen):
     broker, store, _ = make_backend(tmp_path)
     store.update_language(1001, "fr")
@@ -367,9 +402,16 @@ def test_package_configuration_tracks_origin_upgrade_and_idempotent_retry(tmp_pa
     before = path.read_bytes()
     assert migrate_all_state(state, product_path=product) == 0
     assert path.read_bytes() == before
+    write_json(product, {"version": "1.5"})
+    assert migrate_all_state(state, product_path=product) == 1
+    assert json.loads(path.read_text())["previous_version"] == "1.3"
+    upgraded = path.read_bytes()
+    assert migrate_all_state(state, product_path=product) == 0
+    assert path.read_bytes() == upgraded
     write_json(product, {"version": "2.0"})
     assert migrate_all_state(state, product_path=product) == 1
-    assert json.loads(path.read_text()) == {"version": 1, "first_version": "1.3", "current_version": "2.0"}
+    assert json.loads(path.read_text()) == {"version": 2, "first_version": "1.3",
+                                          "previous_version": "1.5", "current_version": "2.0"}
     write_json(product, {"version": "1.5"})
     upgraded = path.read_bytes()
     with pytest.raises(MigrationError):
@@ -394,9 +436,41 @@ def test_upgrade_from_payload_without_feature_and_catalog_loading(tmp_path):
     assert loaded.available("Parent", [])["records"][0]["auto_show"] is True
     migrate_all_state(state, product_path=product)
     assert json.loads((state / "whats-new-installation.json").read_text())["first_version"] == "1.3"
+    assert loaded.previous_version == "1.3"
     write_json(product, {"version": "1.6"})
     with pytest.raises(WhatsNewError):
         WhatsNewCatalog.load(metadata, product, state / "whats-new-installation.json", history)
+
+
+@pytest.mark.parametrize("current,previous", [("1.4", "1.4"), ("1.5", "1.4")])
+def test_legacy_history_migrates_without_guessing_the_previous_upgrade(tmp_path, current, previous):
+    state = tmp_path / "state"
+    state.mkdir(mode=0o700)
+    product = tmp_path / "app.json"
+    write_json(product, {"version": current})
+    path = state / "whats-new-installation.json"
+    write_json(path, {"version": 1, "first_version": "1.3", "current_version": "1.4"})
+    assert migrate_all_state(state, product_path=product) == 1
+    assert json.loads(path.read_text()) == {"version": 2, "first_version": "1.3",
+                                          "previous_version": previous, "current_version": current}
+    before = path.read_bytes()
+    assert migrate_all_state(state, product_path=product) == 0
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("previous", ["1.2", "1.6", "invalid", None])
+def test_invalid_upgrade_range_is_preserved(tmp_path, previous):
+    state = tmp_path / "state"
+    state.mkdir(mode=0o700)
+    product = tmp_path / "app.json"
+    write_json(product, {"version": "1.5"})
+    path = state / "whats-new-installation.json"
+    write_json(path, {"version": 2, "first_version": "1.3",
+                      "previous_version": previous, "current_version": "1.5"})
+    before = path.read_bytes()
+    with pytest.raises(MigrationError):
+        migrate_all_state(state, product_path=product)
+    assert path.read_bytes() == before
 
 
 @pytest.mark.parametrize("failure", ["future", "permissions", "symlink", "interruption"])
@@ -415,7 +489,7 @@ def test_installation_history_refuses_unsafe_state_and_retries_atomic_failure(tm
         migrate_all_state(state, product_path=product)
         assert json.loads(history.read_text())["first_version"] == "1.3"
     else:
-        value = {"version": 2 if failure == "future" else 1, "first_version": "1.3", "current_version": "1.4"}
+        value = {"version": 3 if failure == "future" else 1, "first_version": "1.3", "current_version": "1.4"}
         write_json(history, value, mode=0o644 if failure == "permissions" else 0o600)
         if failure == "symlink":
             target = state / "foreign.json"

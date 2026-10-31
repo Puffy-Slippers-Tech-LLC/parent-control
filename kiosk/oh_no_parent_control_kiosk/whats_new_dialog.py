@@ -8,11 +8,11 @@ from gi.repository import Gdk, Gio, Gtk, Pango
 from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.about import app_name, branding_asset_path
 from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
-from common.oh_no_parent_control_ui.release_markdown import markdown_blocks, safe_link
+from common.oh_no_parent_control_ui.release_markdown import safe_link
 from common.oh_no_parent_control_ui.translation_widgets import (
     localized, set_text, accessible_text, context_for, register_retranslation,
 )
-from common.oh_no_parent_control_ui.whats_new import load_whats_new_translations, translate_content
+from common.oh_no_parent_control_ui.whats_new import translated_release_blocks
 from .chrome import ArmoredButton, MetalBoard
 
 
@@ -100,15 +100,13 @@ class WhatsNewDialog(Gtk.Window):
         register_retranslation(self, self._render)
 
     def _render(self, _translations):
-        translations = load_whats_new_translations(
-            self._record['ProductVersion'], context_for(self).language)
-        source = translate_content(self._record, translations)
+        blocks = translated_release_blocks(self._record, context_for(self).language,
+                                           links_enabled=self._links_enabled)
         child = self._blocks.get_first_child()
         while child is not None:
             self._blocks.remove(child)
             child = self._blocks.get_first_child()
-        for index, (kind, markup) in enumerate(markdown_blocks(
-                source, links_enabled=self._links_enabled)):
+        for index, (kind, markup) in enumerate(blocks):
             if kind == 'rule':
                 widget = Gtk.Separator(margin_top=12, margin_bottom=12)
             else:

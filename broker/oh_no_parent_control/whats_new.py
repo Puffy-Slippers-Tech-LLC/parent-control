@@ -13,7 +13,7 @@ PRODUCT_PATH = Path("/usr/share/oh-no-parent-control/app.json")
 METADATA_PATH = Path("/usr/share/oh-no-parent-control/whats-new-child.toml")
 HISTORY_PATH = Path("/usr/share/oh-no-parent-control/VersionHistory.md")
 INSTALLATION_PATH = Path("/var/lib/oh-no-parent-control/whats-new-installation.json")
-INSTALLATION_FORMAT_VERSION = 1
+INSTALLATION_FORMAT_VERSION = 2
 MAX_RECORDS = 64
 MAX_DOCUMENT_BYTES = 512 * 1024
 VERSION_RE = re.compile(r"(?:0|[1-9][0-9]{0,8})(?:\.(?:0|[1-9][0-9]{0,8})){1,3}")
@@ -39,7 +39,8 @@ def version_key(value: str) -> tuple[int, ...]:
 
 
 def validate_seen(raw: object) -> list[str]:
-    if not isinstance(raw, list) or len(raw) > 256:
+    # Two 64-record sources, legacy shared IDs, and two presentation IDs.
+    if not isinstance(raw, list) or len(raw) > 258:
         raise WhatsNewError("invalid release acknowledgements")
     identifiers = []
     for value in raw:
@@ -180,14 +181,17 @@ def _validate_records(raw_records: list, component: str) -> tuple[dict, ...]:
 
 
 def validate_installation(raw: object) -> dict:
-    if (not isinstance(raw, dict) or set(raw) != {"version", "first_version", "current_version"} or
+    if (not isinstance(raw, dict) or set(raw) != {
+            "version", "first_version", "previous_version", "current_version"} or
             type(raw["version"]) is not int or raw["version"] != INSTALLATION_FORMAT_VERSION):
         raise WhatsNewError("invalid installation history")
     first = product_version(raw["first_version"])
     current = product_version(raw["current_version"])
-    if version_key(first) > version_key(current):
+    previous = product_version(raw["previous_version"])
+    if not version_key(first) <= version_key(previous) <= version_key(current):
         raise WhatsNewError("installation history moves backwards")
-    return {"version": INSTALLATION_FORMAT_VERSION, "first_version": first, "current_version": current}
+    return {"version": INSTALLATION_FORMAT_VERSION, "first_version": first,
+            "previous_version": previous, "current_version": current}
 
 
 @dataclass(frozen=True)
@@ -195,6 +199,7 @@ class WhatsNewCatalog:
     current_version: str
     first_version: str
     records: tuple[dict, ...]
+    previous_version: str
 
     @classmethod
     def load(cls, metadata_path: Path = METADATA_PATH, product_path: Path = PRODUCT_PATH,
@@ -208,7 +213,8 @@ class WhatsNewCatalog:
         if current != installation["current_version"]:
             raise WhatsNewError("installation history is not configured for this release")
         return cls(current, installation["first_version"],
-                   read_history(history_path) + validate_metadata(read_metadata(metadata_path)))
+                   read_history(history_path) + validate_metadata(read_metadata(metadata_path)),
+                   installation["previous_version"])
 
     @property
     def retained_records(self) -> set[str]:
@@ -216,18 +222,34 @@ class WhatsNewCatalog:
         identities = {record["record_id"] for record in self.records}
         # Preserve acknowledgements from the former shared-audience catalogue.
         identities.update(f"{record['ProductVersion']}:Child,Parent" for record in self.records)
+        # A child upgrade can have notes only for an intermediate release.
+        for component in ("Parent", "Child"):
+            if self.available(component, [])["records"]:
+                identities.add(f"{self.current_version}:{component}")
         return identities
 
     def available(self, component: str, seen: list[str]) -> dict:
+        releases = sorted((record for record in self.records
+                           if record["record_id"] == f"{record['ProductVersion']}:{component}"
+                           and (version_key(record["ProductVersion"]) == version_key(self.current_version)
+                                or version_key(self.previous_version) <
+                                version_key(record["ProductVersion"]) < version_key(self.current_version))),
+                          key=lambda record: version_key(record["ProductVersion"]))
         records = []
-        for record in self.records:
-            version = record["ProductVersion"]
-            if (record["record_id"] == f"{version}:{component}" and
-                    version_key(version) == version_key(self.current_version)):
-                records.append({**record, "auto_show": record["record_id"] not in seen and
-                                f"{version}:Child,Parent" not in seen and
-                                version_key(self.first_version) < version_key(version)})
-        return {"product_version": self.current_version, "records": records}
+        if releases:
+            identity = f"{self.current_version}:{component}"
+            current = next((r for r in releases if r["ProductVersion"] == self.current_version), None)
+            record = {**(current or {}), "ProductVersion": self.current_version,
+                      "record_id": identity,
+                      "Content": current["Content"] if current else "",
+                      "auto_show": identity not in seen and
+                      f"{self.current_version}:Child,Parent" not in seen and
+                      version_key(self.first_version) < version_key(self.current_version)}
+            if len(releases) > 1 or current is None:
+                record["releases"] = releases
+            records.append(record)
+        return {"product_version": self.current_version,
+                "previous_version": self.previous_version, "records": records}
 
     def acknowledgement(self, component: str, version: object) -> str:
         version = product_version(version)

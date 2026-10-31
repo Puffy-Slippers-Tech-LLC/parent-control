@@ -35,3 +35,27 @@ def load_whats_new_translations(version, saved_language='', language_names=(), *
 def translate_content(record, translations):
     """Translate before Markdown rendering; exact source edits invalidate lookup."""
     return translations.pgettext(content_context(record), record['Content'])
+
+
+def translated_release_blocks(record, saved_language='', language_names=(), *,
+                              localedir=LOCALE_DIR, links_enabled=True):
+    """Translate and parse each release independently before combining blocks."""
+    from .release_markdown import markdown_blocks
+    releases = record.get('releases', [record])
+    blocks = []
+    for release in releases:
+        translations = load_whats_new_translations(
+            release['ProductVersion'], saved_language, language_names, localedir=localedir)
+        content = translate_content(release, translations)
+        if 'releases' in record:
+            if blocks:
+                blocks.append(('rule', ''))
+            blocks.append(('heading', 'v' + release['ProductVersion']))
+        blocks.extend(markdown_blocks(content, links_enabled=links_enabled))
+        if 'releases' in record:
+            # The current release's link remains in the dialog footer.
+            if release.get('SeeMore') and release['ProductVersion'] != record['ProductVersion']:
+                link = release['SeeMore'].replace('(', '%28').replace(')', '%29')
+                blocks.extend(markdown_blocks(
+                    f"[v{release['ProductVersion']}]({link})", links_enabled=links_enabled))
+    return blocks

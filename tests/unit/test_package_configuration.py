@@ -1618,7 +1618,7 @@ def test_v1_4_configuration_upgrades_legacy_policy_without_losing_choices(packag
         assert record.read_bytes() == before, 'compatible additions need no on-disk rewrite'
     assert record.stat().st_mode & 0o777 == 0o600
     assert json.loads((state / 'whats-new-installation.json').read_text()) == {
-        'version': 1, 'first_version': '1.3', 'current_version': '1.4',
+        'version': 2, 'first_version': '1.3', 'previous_version': '1.3', 'current_version': '1.4',
     }
     assert not (state / 'previous-product.json').exists()
     commands = (root / 'commands').read_text().splitlines()

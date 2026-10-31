@@ -50,13 +50,15 @@ resolving the cause. Fedora installed lifecycle qualification remains pending.
 ## What's New installation history
 
 `/var/lib/oh-no-parent-control/whats-new-installation.json` is a root-private,
-mode-0600 schema-1 record with `version`, `first_version` and `current_version`.
+mode-0600 schema-2 record with `version`, `first_version`, `previous_version`
+and `current_version`.
 The migration command configures it under the same process lock and package
 exclusion as preferences, using the shared validated reader and atomic/fsynced
 writer. Its schema is independent of preference format 4. Malformed, unsafe,
 future-schema and downgrade histories are refused and preserved.
 
-A fresh installation records the current product version as its origin. Before
+A fresh installation records the current product version in all three version
+fields. Before
 the first upgrade to a payload with this feature, shared Debian/RPM pre-install
 code saves the old installed `app.json` as mode-0600 `previous-product.json`.
 It captures only on upgrade when neither history nor a pending bootstrap input
@@ -65,8 +67,14 @@ history writer and interrupted unpack/configuration retries. Capture writes and
 flushes a private temporary file before atomic publication and a directory flush;
 a failed copy never becomes the bootstrap input retained by the next attempt. Configuration uses
 that input once, then removes it only after the history write succeeds.
-Subsequent upgrades advance the current version without changing origin;
-same-version configuration is idempotent. Removal retains this saved family and
+Subsequent upgrades copy the old current version into `previous_version` and
+advance `current_version` without changing origin. The range is replaced on each
+upgrade, regardless of whether users read the earlier notes. Same-version
+configuration preserves the range and is idempotent, including retries after an
+interruption. The `1 -> 2` migration initializes the unknown previous version to
+the saved current version; it never guesses from the installation origin. When
+that migration accompanies an upgrade, the old current version supplies the
+new range normally. Removal retains this saved family and
 purge deletes it with the product state directory.
 
 The optional per-user `whats_new_seen` field uses compatible normalization,

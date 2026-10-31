@@ -165,15 +165,17 @@ the user's time at the request station, not a private session protocol.
 - [ONPC-CORE-WHATSNEW-001] Parent release notes use the matching version's Markdown
   body in VersionHistory.md. Kiosk and child overlay use whats-new-child.toml,
   whose records require Product Version and Markdown Content, with optional See
-  More link. Child notes may omit the installed version, in which case no child
-  notes are available. Each source permits one record per version; the source
+  More link. Child notes may omit releases; only child notes in the latest
+  upgrade range are shown. Each source permits one record per version; the source
   determines the audience, without a ShowIn field.
 - [ONPC-CORE-WHATSNEW-002] After upgrading from a lower product version, unseen
-  records for the installed version display once per user on their matching
-  component. Skipped releases never display old notes; fresh installations do
+  notes newer than the immediately previous installed version through the current
+  version display together once per user on their matching component, with
+  version headings when combining releases. Every upgrade replaces this range,
+  even if the previous notes were unread. Fresh installations do
   not automatically display upgrade notes. Kiosk and child overlay share the
   selected child's acknowledgement. Future versions have new eligibility.
-- [ONPC-CORE-WHATSNEW-003] Matching current notes can be reopened from a menu item
+- [ONPC-CORE-WHATSNEW-003] The latest upgrade's notes can be reopened from a menu item
   before About. Parent uses “What's New” for the menu item and
   “What's New in v[version]” for the dialog title.
   Content honors Markdown formatting; See More is present only when supplied and

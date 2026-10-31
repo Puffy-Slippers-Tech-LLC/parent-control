@@ -16,7 +16,7 @@ from tests.support.paths import ROOT
 from tools import whats_new_catalogs as catalogs
 from tools import sync_whatsnew as sync
 from common.oh_no_parent_control_ui.whats_new import (
-    load_whats_new_translations, release_domain, translate_content,
+    load_whats_new_translations, release_domain, translate_content, translated_release_blocks,
 )
 
 
@@ -136,6 +136,29 @@ def test_compiled_catalogues_use_personal_language_and_exact_english_source(repo
     assert (tmp_path / 'locale/fr/LC_MESSAGES' / (release_domain('1.10.0') + '.mo')).exists()
     with pytest.raises(ValueError):
         release_domain('../../fr')
+
+
+def test_upgrade_content_uses_each_release_translation_and_version_heading(repository, tmp_path):
+    old = finish(repository).records[0]
+    source(repository, [('1.10', 'Parent,Child', old['Content']),
+                        ('1.11', 'Parent,Child', '## New features\n\n- Find a language.\n')])
+    current = finish(repository).records[0]
+    catalogs.compile_catalogs(repository, tmp_path / 'locale')
+    record = dict(current, releases=[dict(old, SeeMore='https://example.com/old'), current])
+    blocks = translated_release_blocks(record, 'fr', localedir=tmp_path / 'locale')
+    assert blocks.index(('heading', 'v1.10')) < blocks.index(('heading', 'v1.11'))
+    content = '\n'.join(markup for _, markup in blocks)
+    assert content.count('Nouveautés') == 2
+    assert content.count('Trouvez une langue.') == 2
+    assert any('href="https://example.com/old"' in markup
+               for _, markup in blocks)
+    assert all('href=' not in markup for _, markup in translated_release_blocks(
+        record, 'fr', localedir=tmp_path / 'locale', links_enabled=False))
+    record['releases'][0]['Content'] = '```text\nUnclosed code fence'
+    blocks = translated_release_blocks(record, 'fr', localedir=tmp_path / 'locale')
+    assert ('heading', 'v1.11') in blocks
+    assert any('Nouveautés' in markup for kind, markup in blocks if kind == 'heading')
+    assert any('href="https://example.com/old"' in markup for _, markup in blocks)
 
 
 def test_symlink_catalogues_are_refused(repository, tmp_path):

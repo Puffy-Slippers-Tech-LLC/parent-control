@@ -135,7 +135,7 @@ lifecycle belong to [Localization](Localization.md).
 
 ## Parent release notes
 
-Parent queries current-version notes asynchronously. The
+Parent queries the latest upgrade's notes asynchronously. The
 [backend](State.md#whats-new-backend) owns audience, installation eligibility and
 acknowledgement. Matching notes remain manually available before About even
 after acknowledgement; no match hides the menu item.
@@ -149,7 +149,9 @@ Querying or attempting presentation alone never consumes eligibility.
 The native Markdown renderer supports headings, paragraphs, lists, quotes,
 separators, fenced code, inline emphasis/code and HTTP(S) links. Raw HTML and
 images remain literal and load no resources. Notes inherit the Parent context,
-with versioned catalogue translation. Supplied See More links use the system
+with each release translated through its own versioned catalogue before combining
+content under version headings. One installed-version acknowledgement covers the
+combined dialog. Supplied See More links use the system
 URI handler.
 
 ### Kiosk and child overlay release notes

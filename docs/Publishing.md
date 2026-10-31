@@ -25,6 +25,9 @@ notes, and do not duplicate unchanged changelog entries. An already prepared
 official version keeps its existing Debian revision. Older history versions
 are refused. `make build` rebuilds the current metadata without selecting a
 version; `make build PACKAGE_FORMAT=deb` selects only Debian.
+These local package Make targets are human entry points and skip host disk
+admission. Agents and automation use `tools/build_package.py` directly in its
+default queued mode; see the [build entry-point contract](Approval-Tools.md).
 
 On a supported **test computer** with official 1.2 installed, retain its settings
 and install the private 1.3 candidate from this checkout with its build output:

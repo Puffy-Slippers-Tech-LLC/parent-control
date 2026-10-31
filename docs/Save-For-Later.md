@@ -704,7 +704,7 @@ report, not an expectation to adjust automatically.
 Discover exact suites using `tools/run-tests --list` and `--help`; select affected
 unit, component, UI and child scopes. Review added/resource-changing host tests
 for parallel scheduling and use shared storage allocation. Read the UI/VM/storage
-mandates when those activities begin. Run `make build` after implementation
+mandates when those activities begin. Run `tools/build_package.py` after implementation
 changes affecting shipped sources, APIs, assets or packaging. This documentation
 and its reference images alone do not require a package build.
 

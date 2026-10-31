@@ -197,6 +197,14 @@ reservations remain independent; other work on a reserved VM can proceed while
 another VM owns the disk slot. Manual virt-manager actions remain outside this
 advisory coordination.
 
+The local package Make targets (`build`, `updateversion`, `build-rpm`, `srpm`,
+`rpm-source`) are reserved for humans and explicitly skip disk admission.
+Agents and automation invoke `tools/build_package.py` directly in its default
+queued mode, or use existing queued build APIs/test launchers. Terminal
+availability does not identify a human caller; this is an entry-point contract.
+The human route does not release an inherited slot or bypass VM ownership,
+storage or package validation guards.
+
 Root-owned tickets under `/run/onpc-vm-pool/disk/` establish strict FIFO order at
 admission. Pending operations wait without expiring or stealing a live ticket.
 Kernel locks and inherited command descriptors retain the slot until its last

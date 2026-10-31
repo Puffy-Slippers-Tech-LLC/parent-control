@@ -18,6 +18,8 @@ def test_default_builds_both_formats_on_every_host_and_can_be_overridden(tmp_pat
                             cwd=ROOT, capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stderr
     assert f'--format "{override or "both"}"' in result.stdout
+    assert '--disk-queue never' in result.stdout
+    assert len(result.stdout.splitlines()) == 1
 
 
 @pytest.mark.parametrize('status', [0, 7])

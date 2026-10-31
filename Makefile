@@ -214,18 +214,19 @@ endif
 RPM := rpm
 
 build: export DEB_BUILD_OPTIONS := $(DEB_BUILD_OPTIONS)
-build: check-release-version
-	@$(PYTHON) -B tools/build_package.py --architecture "$(DEB_HOST_ARCH)" --format "$(PACKAGE_FORMAT)" --rpm-release "$(RPM_RELEASE)"
+# Human entry points. Agents/automation call tools/build_package.py directly.
+build:
+	@$(PYTHON) -B tools/build_package.py --architecture "$(DEB_HOST_ARCH)" --format "$(PACKAGE_FORMAT)" --rpm-release "$(RPM_RELEASE)" --disk-queue never
 
 .PHONY: build-rpm srpm rpm-source
 build-rpm:
-	@$(PYTHON) -B tools/build_package.py --architecture "$(DEB_HOST_ARCH)" --format rpm --rpm-release "$(RPM_RELEASE)"
+	@$(PYTHON) -B tools/build_package.py --architecture "$(DEB_HOST_ARCH)" --format rpm --rpm-release "$(RPM_RELEASE)" --disk-queue never
 
 srpm:
-	@$(PYTHON) -B tools/build_package.py --architecture "$(DEB_HOST_ARCH)" --format srpm --rpm-release "$(RPM_RELEASE)"
+	@$(PYTHON) -B tools/build_package.py --architecture "$(DEB_HOST_ARCH)" --format srpm --rpm-release "$(RPM_RELEASE)" --disk-queue never
 
 rpm-source:
-	@$(PYTHON) -B tools/build_package.py --architecture "$(DEB_HOST_ARCH)" --format rpm-source --rpm-release "$(RPM_RELEASE)"
+	@$(PYTHON) -B tools/build_package.py --architecture "$(DEB_HOST_ARCH)" --format rpm-source --rpm-release "$(RPM_RELEASE)" --disk-queue never
 
 # Called in a private manifest-selected source copy by build_package.py.
 .PHONY: _build-package

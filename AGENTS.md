@@ -116,11 +116,15 @@
 - Review new host modules and resource-affecting test changes under the
   [parallelism contract](tests/README.md#host-test-parallelism-review), including
   every applicable inventory; runtime fallback is not completed review.
-- Run `make build` for changes that can affect building/packaging, after the final
+- Run `tools/build_package.py` for changes that can affect building/packaging, after the final
   such edit. Use `PACKAGE_SOURCE_FILES` and build-tool dependencies in `Makefile`
   to assess scope. Tests do not replace this check. Documentation/test-only work
   that cannot affect the build needs no build; report missing prerequisites or a
   failed build as unresolved validation.
+  `make build` and the other local package Make targets are reserved for human
+  invocation and skip host disk admission. Agents and automation must use the
+  script's default queued mode or the existing queued build APIs/test launchers;
+  never pass `--disk-queue never` for automated work.
 
 ## Conditional mandates
 

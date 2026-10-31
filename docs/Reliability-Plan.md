@@ -198,7 +198,7 @@ exit or painted frames.
 
 Review added host resources under the
 [parallelism contract](../tests/README.md#host-test-parallelism-review), run
-affected host checks and `make build` after the final product/build-input edit.
+affected host checks and `tools/build_package.py` after the final product/build-input edit.
 Update all supported languages if product strings change. Apply
 [bounded supporting work](TestAutomation/E2E-Building-Blocks.md#keep-supporting-work-bounded)
 before inserting prerequisites; preserve the incident's result and avoid

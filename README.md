@@ -127,6 +127,15 @@ the other format in a prepared container. Outputs are under
 `output/deb/` and `output/rpm/`. Use `PACKAGE_FORMAT=deb|rpm|both` to select a
 different scope with its prerequisites installed. `make build` rebuilds the
 current version using the same selection.
+`make build` is a one-line human wrapper around `tools/build_package.py`, with
+host disk admission disabled. The local `updateversion`, `build-rpm`, `srpm`
+and `rpm-source` Make targets are also for humans and skip that queue.
+Agents and automation invoke `tools/build_package.py` directly (default: both
+formats, amd64 DEB, RPM release `0.1.dev`), or use the existing build APIs/test
+launchers, which retain disk admission. The script accepts `--format`,
+`--architecture` and `--rpm-release` for explicit selections. Both routes check
+version consistency, prerequisites and private source staging; an inherited
+disk slot is preserved. This is an entry-point convention, not caller detection.
 Run tests separately. See [Publishing](docs/Publishing.md) for private upgrade
 testing and publication without another product-version bump, and
 [Fedora packaging](docs/Fedora-Packaging.md) for prerequisites, focused commands,

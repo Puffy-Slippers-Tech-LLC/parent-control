@@ -58,7 +58,7 @@ unchecked with its concrete return condition.
 
 Run the maintained inventory/documentation/traceability checks applicable to the
 actual edits, regenerate coverage where needed and check all changed Markdown
-links. Confirm any product/build changes received `make build` after their final
+links. Confirm any product/build changes received `tools/build_package.py` after their final
 edit. No blanket `host`/`all` rerun is required solely for reconciliation.
 
 Update actual qualified limitations and selector bindings in their existing

@@ -539,7 +539,19 @@ validated legacy `/tmp/onpc-*` bundles remain accepted inputs, not output exampl
 | Local publishing checks | `tools/run-tests publish` | Independently scheduled `publish-deb` and `publish-rpm` jobs, also selectable alone and included in host/test-all/test-all-verify; no publication |
 | Future fast suite | `tools/run-tests fast --component broker --type contract` | Fixed `test-fast` target; refuses while unfinished |
 
-Routine `make check`, `make build`, `make check-release-version`, `make check-unit`,
+For package builds, agents and automation use `tools/build_package.py` directly
+(queued by default), or existing queued build APIs/test launchers. The local
+package Make targets are human-only wrappers that skip disk admission; do not
+invoke them from tools. The script performs the same version consistency check
+and accepts `--format`, `--architecture` and `--rpm-release` selections.
+Its executable grant is rendered by the normal tools inventory at the next
+`./setup.sh --codex-rules-only` refresh and Codex restart.
+The maintained rules forbid direct `make build`, `make updateversion`,
+`make build-rpm`, `make srpm` and `make rpm-source` requests, overriding older
+allows. These prefix rules protect those command shapes, not arbitrary Make
+options or commands hidden inside programs; agents must not route around them.
+
+Routine `make check`, `make check-release-version`, `make check-unit`,
 `make check-component`, `make check-test-fixtures`, `make check-child-node`,
 `make check-child-gjs`, `make check-child-shell`, `make check-shell`,
 `make check-gjs` and `make check-static` also have maintained auto-approval rules

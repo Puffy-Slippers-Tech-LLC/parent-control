@@ -58,6 +58,8 @@ prefix_rule(
     pattern = [[
         "tools/backupvm",
         "./tools/backupvm",
+        "tools/build_package.py",
+        "./tools/build_package.py",
         "tools/cleanup-e2e",
         "./tools/cleanup-e2e",
         "tools/cleanup-screenshots",
@@ -189,14 +191,24 @@ prefix_rule(
 # selection/options need validation; do not add a generic make or shell allow.
 prefix_rule(
     pattern = [["make", "/usr/bin/make"],
-               ["build", "check", "check-release-version", "check-unit",
+               ["check", "check-release-version", "check-unit",
                 "check-component", "check-test-fixtures", "check-child-node",
                 "check-child-gjs", "check-child-shell", "check-shell",
                 "check-gjs", "check-static", "test-all", "test-all-verify"]],
     decision = "allow",
-    justification = "Run the trusted checkout's routine build and check targets without repeated approval.",
-    match = ["make check", "/usr/bin/make check", "make build", "make check-component"],
-    not_match = ["make", "make check-system", "make install", "make -f /tmp/Makefile check", "bash -lc 'make check'"],
+    justification = "Run the trusted checkout's routine check targets without repeated approval.",
+    match = ["make check", "/usr/bin/make check", "make check-component"],
+    not_match = ["make", "make build", "make check-system", "make install", "make -f /tmp/Makefile check", "bash -lc 'make check'"],
+)
+# Human package wrappers intentionally skip disk admission. Never use them from
+# an agent; the default queued script is also covered by the tools inventory.
+prefix_rule(
+    pattern = [["make", "/usr/bin/make"],
+               ["build", "updateversion", "build-rpm", "srpm", "rpm-source"]],
+    decision = "forbidden",
+    justification = "These package Make targets are human-only and skip disk admission. Use tools/build_package.py in its default queued mode.",
+    match = ["make build", "/usr/bin/make build", "make updateversion", "make build-rpm", "make srpm", "make rpm-source"],
+    not_match = ["make check", "make check-release-version", "tools/build_package.py", "make _build-package"],
 )
 prefix_rule(
     pattern = [["make", "/usr/bin/make"],

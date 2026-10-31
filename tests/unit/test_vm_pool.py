@@ -23,13 +23,13 @@ def pool(tmp_path, monkeypatch):
     return vm_pool.RUNTIME
 
 
-def launch(pool, vm=A, *, keeper=False, cwd=None, hold_fds=()):
+def launch(pool, vm=A, *, keeper=False, cwd=None, hold_fds=(), wait=True):
     code = '''import os,sys,pathlib
 sys.path.insert(0,sys.argv[1])
 import vm_pool
 vm_pool.RUNTIME=pathlib.Path(sys.argv[2])
 if sys.argv[4]=='keep':
-    sys.exit(vm_pool.keep(sys.argv[3]))
+    sys.exit(vm_pool.keep(sys.argv[3],wait=sys.argv[5]=='wait'))
 if sys.argv[4]=='hold':
     print('retaining',flush=True)
     sys.stdin.buffer.read(1)
@@ -41,7 +41,7 @@ os.close(fd)
 '''
     return subprocess.Popen([sys.executable, '-B', '-c', code,
         str(Path(vm_pool.__file__).parent), str(pool), vm,
-        'hold' if hold_fds else 'keep' if keeper else 'take'],
+        'hold' if hold_fds else 'keep' if keeper else 'take', 'wait' if wait else 'no-wait'],
         cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         pass_fds=hold_fds,
         env={key: value for key, value in os.environ.items() if key != vm_pool.VARIABLE})
@@ -80,11 +80,22 @@ def test_same_vm_queues_across_checkout_paths_and_other_vm_proceeds(pool, tmp_pa
         assert select.select([second.stderr], [], [], 5)[0]
         assert b'queued for VM' in second.stderr.readline()
         assert not select.select([second.stdout], [], [], 0.1)[0]
+        # The queued waiter holds admission. Shutdown recovery must decline
+        # atomically, leaving both the owner and queued driver untouched.
+        refused = launch(pool, keeper=True, wait=False)
+        stdout, stderr = refused.communicate(timeout=5)
+        assert refused.returncode == vm_pool.Busy.status and not stdout
+        assert b'VM busy' in stderr
         third = launch(pool, B, cwd=second_root)
         assert ready(third) == b'acquired\n'
         finish(first)
         first = None
         assert ready(second) == b'acquired\n'
+        # Admission is now free, but the lifetime lock is still occupied.
+        refused = launch(pool, keeper=True, wait=False)
+        stdout, stderr = refused.communicate(timeout=5)
+        assert refused.returncode == vm_pool.Busy.status and not stdout
+        assert b'VM busy' in stderr
     finally:
         for child in (first, third, second):
             if child is not None:
@@ -93,13 +104,13 @@ def test_same_vm_queues_across_checkout_paths_and_other_vm_proceeds(pool, tmp_pa
 
 @pytest.mark.parametrize('crash', [False, True])
 def test_reservation_survives_commands_and_keeper_exit_until_last_borrower(pool, monkeypatch, crash):
-    keeper = launch(pool, keeper=True)
+    keeper = launch(pool, keeper=True, wait=False)
     waiter = None
     borrowed = None
     try:
         receipt = json.loads(ready(keeper))['checkout']
         monkeypatch.setenv(vm_pool.VARIABLE, receipt)
-        borrowed = vm_pool.acquire(A)
+        borrowed = vm_pool.acquire(A, wait=False)
         # Finishing a command checks in only its borrowed description.
         os.close(borrowed)
         borrowed = None
@@ -208,7 +219,14 @@ def test_owned_host_command_retains_checkout_after_controller_exit(pool, tmp_pat
 
 
 def test_receipt_crosses_dispatch_prefix_and_host_work_keeps_it(monkeypatch):
+    import runpy
     from vm_selection import BATCH
+    from tests.support.vm_registry import vm_name
+    from tests.support.paths import ROOT
+    dispatch = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))['selection']
+    command = dispatch(ROOT, ['pool', '--no-wait', '--vm', vm_name()])
+    assert command[:3] == ['/usr/bin/python3', '-B', str(ROOT / 'tools/vm_pool.py')]
+    assert '--no-wait' in command and vm_name() in command
     receipt = A + ':' + 'a' * 32
     monkeypatch.setenv(vm_pool.VARIABLE, receipt)
     assert vm_pool.arguments() == [vm_pool.OPTION + receipt]
@@ -271,7 +289,7 @@ def test_repair_worker_retains_reservation_and_finishes_queued_cancellation(
         os.fstat(owner)
 
 
-@pytest.mark.parametrize('at_grant', [None, False, True])
+@pytest.mark.parametrize('at_grant', [None, False, True, 'busy'])
 @pytest.mark.parametrize('bind', [False, True])
 def test_cancelled_reservation_never_enters_work_even_when_grant_is_ready(monkeypatch, at_grant, bind):
     import io
@@ -282,14 +300,20 @@ def test_cancelled_reservation_never_enters_work_even_when_grant_is_ready(monkey
     monkeypatch.setattr(vm_config, 'current_branch', lambda: branch)
     receipt = A + ':' + 'a' * 32
     process = SimpleNamespace(pid=42, stdin=io.BytesIO(), stdout=io.BytesIO(
-        json.dumps({'checkout': receipt}).encode() + b'\n'), wait=lambda: 0)
+        b'' if at_grant == 'busy' else json.dumps({'checkout': receipt}).encode() + b'\n'),
+        wait=lambda: vm_pool.Busy.status if at_grant == 'busy' else 0)
     process.stdin.fileno = lambda: 101
     process.stdout.fileno = lambda: 102
     spawns = []
     monkeypatch.setattr(dev_privileges, 'check', lambda _: None)
     monkeypatch.setattr(vm_pool.subprocess, 'Popen', lambda *a, **k: spawns.append(a) or process)
     monkeypatch.setattr(vm_pool.select, 'select', lambda readers, *args: (readers, [], []))
-    if at_grant is None:
+    if at_grant == 'busy':
+        with pytest.raises(vm_pool.Busy):
+            with vm_pool.reservation(selected().name, bind=bind, wait=False):
+                pytest.fail('busy VM entered recovery')
+        assert '--no-wait' in spawns[0][0]
+    elif at_grant is None:
         with vm_pool.reservation(selected().name, bind=bind) as granted:
             assert granted == receipt
             assert os.environ.get(vm_pool.VARIABLE) == (receipt if bind else None)
@@ -298,7 +322,7 @@ def test_cancelled_reservation_never_enters_work_even_when_grant_is_ready(monkey
         with pytest.raises(KeyboardInterrupt):
             with vm_pool.reservation(selected().name, stopped=lambda: next(cancellations), bind=bind):
                 pytest.fail('cancelled request entered the driver workflow')
-    assert len(spawns) == (1 if at_grant is None else int(at_grant))
+    assert len(spawns) == (1 if at_grant in (None, 'busy') else int(at_grant))
     assert vm_pool.VARIABLE not in os.environ
     if at_grant is None or at_grant:
         assert process.stdin.closed and process.stdout.closed

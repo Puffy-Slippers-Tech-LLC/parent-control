@@ -998,17 +998,22 @@ def finish_shutdown(root, run, *, restore_vms=True):
             or any(not isinstance(name, str) or not name for name in names)):
         raise ValueError('invalid shutdown VM selection; preserve recovery records')
     # Cleanup is serial and uses the existing snapshot/instance ownership guards.
-    # The recovery route borrows an enclosing checkout, or acquires each VM's,
+    # The recovery route borrows an enclosing checkout, or tries each VM's,
     # and waits for baseline restoration before checkin. Do not inherit the stop request
     # as cancellation of this recovery or register it as new agent-owned work.
     selection = ','.join(dict.fromkeys(names))
     print(f'launcher: restoring VMs to baseline before shutdown: {selection}.', flush=True)
-    status = subprocess.run([str(root / 'tools/cleanup-e2e'), '--vm', selection],
-                            cwd=root, env=environment(), stdin=subprocess.DEVNULL,
-                            pass_fds=scratch_descriptors(), check=False).returncode
-    if status:
-        raise ValueError(f'launcher: baseline cleanup failed (status={status}); '
-                         'preserve recovery records and resume cleanup')
+    from vm_pool import Busy
+    for name in dict.fromkeys(names):
+        status = subprocess.run([str(root / 'tools/cleanup-e2e'), '--vm', name, '--if-available'],
+                                cwd=root, env=environment(), stdin=subprocess.DEVNULL,
+                                pass_fds=scratch_descriptors(), check=False).returncode
+        if status == Busy.status:
+            print(f'launcher: {name} is busy; recovery deferred to the next run. '
+                  'Leaving the current VM owner untouched.', flush=True)
+        elif status:
+            raise ValueError(f'launcher: baseline cleanup failed (status={status}); '
+                             'preserve recovery records and resume cleanup')
 
 
 def follow(run, stream=None, *, label='launcher', view=None, display=None):

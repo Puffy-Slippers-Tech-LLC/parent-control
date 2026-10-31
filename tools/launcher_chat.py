@@ -150,8 +150,10 @@ def send_input(run, kind, text='', *, cancel_waiting=True, expected_session=None
         if expected_session is not None and state.get('session') != expected_session:
             raise ValueError('Session changed; review the current session before sending.')
         if kind == 'interrupt' and state['status'] in ('interrupting', 'cleaning'):
-            # Repeated Escape/Ctrl+C during the same interruption must not
-            # become a fresh interrupt after cleanup has reopened the session.
+            # A second Ctrl+C cancels the workflow, even before turn cleanup
+            # finishes. Repeated Escape only interrupts the current turn.
+            if cancel_waiting:
+                (run / 'cancel').touch(mode=0o600)
             return
         if kind == 'interrupt' and state['status'] in ('waiting', 'blocked', 'finished'):
             if cancel_waiting:
@@ -159,7 +161,13 @@ def send_input(run, kind, text='', *, cancel_waiting=True, expected_session=None
             return
         path = run / 'chat-inbox.json'
         entries = json.loads(path.read_text()) if path.exists() else []
-        entries.append({'kind': kind, 'text': text, 'session': state['session']})
+        if kind == 'interrupt' and any(entry['kind'] == 'interrupt'
+                and entry['session'] == state['session'] for entry in entries):
+            if cancel_waiting:
+                (run / 'cancel').touch(mode=0o600)
+            return
+        entries.append({'kind': kind, 'text': text, 'session': state['session'],
+                        'cancel_waiting': cancel_waiting})
         if len(json.dumps(entries).encode('utf-8')) > MAX_QUEUE:
             raise ValueError('chat queue is full; wait for the agent to read it')
         launcher.atomic(path, entries)
@@ -269,7 +277,12 @@ class AppSession:
             if entry['kind'] == 'message':
                 self.messages.append(entry['text'])
                 self.capacity_inputs.append(entry['text'])
-            elif not self.interrupting:
+            elif self.interrupt_requested or self.interrupting:
+                # The next key can arrive after take_input drains the inbox
+                # but before the first interruption is published.
+                if entry.get('cancel_waiting', True):
+                    (self.run / 'cancel').touch(mode=0o600)
+            else:
                 self.interrupt_requested = True
         if self.interrupt_requested and self.turn and not self.interrupting:
             self.request('turn/interrupt', {'threadId': self.thread, 'turnId': self.turn})

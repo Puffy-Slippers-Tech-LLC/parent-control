@@ -969,7 +969,13 @@ task close-out, then starts no further session. In the interactive chat composer
 Cancel, Escape or Ctrl+C interrupts the active turn and waits for owned cleanup, leaving
 the same session open for further instructions. Escape preserves the session when
 already waiting. Ctrl+C again while waiting for
-input cancels the entire launcher. Piped observers retain signal cancellation.
+input cancels the entire launcher. A second Ctrl+C also cancels while the first
+interruption is still being processed; repeated Escape preserves the session.
+Owned tests finish their guarded cleanup before the controller exits. Shutdown
+recovery tries each selected VM without queuing behind another workflow's
+reservation. A busy VM is left untouched, with recovery explicitly deferred to
+the next run; once recovery has acquired a VM, restoration finishes before exit.
+Piped observers retain signal cancellation.
 
 After each completed task, the launcher stages its owned paths and commits them
 as `TA: Completed task ID`, then runs `git push` and completes

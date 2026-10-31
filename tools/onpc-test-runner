@@ -86,9 +86,10 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                           path=root / 'config/test-vm.json')
     identity = VM_UUIDS.get(configured.name) if configured is not None else None
     vm_args = ['--vm', configured.name] if configured is not None else []
-    if argv == ['pool']:
+    if argv in (['pool'], ['pool', '--no-wait']):
         target = confined_file(root, 'tools/vm_pool.py')
         return ['/usr/bin/python3', '-B', str(target), *vm_args,
+                *argv[1:],
                 *(['--expected-uuid', identity] if identity is not None else [])]
     if argv[:2] == ['vm', 'exec']:
         timeout, command, input_stream = vm_config.guest_command_arguments(argv[2:])

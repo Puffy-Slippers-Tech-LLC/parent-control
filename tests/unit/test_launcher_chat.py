@@ -108,13 +108,38 @@ def test_failed_turn_retains_provider_reason_without_acceptance_or_retry(convers
 
 
 @pytest.mark.parametrize('interrupted', [False, True])
-def test_interrupt_cleanup_waits_for_ack_and_keeps_queued_continuation(conversation, interrupted):
+@pytest.mark.parametrize('repeat', [None, 'escape', 'ctrl-c', 'queued-ctrl-c',
+                                   'cleaning-ctrl-c', 'drained-ctrl-c', 'drained-escape'])
+def test_interrupt_cleanup_waits_for_ack_and_keeps_queued_continuation(
+        conversation, interrupted, repeat, monkeypatch):
     session, _, cleanups = conversation
     ready(session)
     send_input(session.run, 'interrupt')
+    if repeat == 'queued-ctrl-c':
+        send_input(session.run, 'interrupt')
+        assert (session.run / 'cancel').exists()
+        return
     send_input(session.run, 'message', 'Continue after cleanup.')
+    if repeat in ('drained-ctrl-c', 'drained-escape'):
+        import launcher_chat
+        original = launcher_chat.take_input
+        def drain(run):
+            entries = original(run)
+            monkeypatch.setattr(launcher_chat, 'take_input', original)
+            send_input(run, 'interrupt', cancel_waiting=repeat == 'drained-ctrl-c')
+            return entries
+        monkeypatch.setattr(launcher_chat, 'take_input', drain)
     session.poll()
     interrupt, = packets(session)
+    if repeat in ('escape', 'ctrl-c'):
+        send_input(session.run, 'interrupt', cancel_waiting=repeat == 'ctrl-c')
+        assert (session.run / 'cancel').exists() == (repeat == 'ctrl-c')
+    elif repeat == 'cleaning-ctrl-c':
+        def cleanup():
+            cleanups.append(True)
+            send_input(session.run, 'interrupt')
+            assert (session.run / 'cancel').exists()
+        session.on_interrupted = cleanup
     final(session)
     notify(session, 'turn/completed', turn={
         'id': 'turn', 'status': 'interrupted' if interrupted else 'completed'})
@@ -128,6 +153,8 @@ def test_interrupt_cleanup_waits_for_ack_and_keeps_queued_continuation(conversat
     assert cleanups == [True] and not session.done
     assert request['method'] == 'turn/start'
     assert request['params']['input'][0]['text'] == 'Continue after cleanup.'
+    if repeat in ('drained-ctrl-c', 'drained-escape'):
+        assert (session.run / 'cancel').exists() == (repeat == 'drained-ctrl-c')
 
 
 def test_adviser_completion_cannot_finish_coordinator(conversation):

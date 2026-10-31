@@ -1,5 +1,10 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Launcher double-interrupt and busy-checkout checks reuse private mailboxes,
+lock roots and bounded, waited synthetic children. No live VM, shared checkout,
+display, bus, socket, cache or external service is accessed; existing compatible
+unit scheduling remains appropriate, including the launcher cleanup module.
+
 The baseline busy check uses its existing private managed lock instead of a raw
 self-held flock. Snapshot enumeration uses its existing in-memory domain double.
 No shared resource or new owner is added; compatible overlap is unchanged.

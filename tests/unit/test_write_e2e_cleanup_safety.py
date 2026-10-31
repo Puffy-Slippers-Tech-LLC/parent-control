@@ -271,21 +271,31 @@ def test_chat_steers_interrupts_and_continues_without_new_session(checkout):
     assert json.loads((run / 'result.json').read_text())['sessions'] == 1
 
 
-def test_chat_second_interrupt_exits_entire_launcher(checkout):
+@pytest.mark.parametrize('timing', ['queued', 'waiting'])
+@pytest.mark.parametrize('cleanup_status', [0, 75])
+def test_chat_second_interrupt_exits_entire_launcher(checkout, timing, cleanup_status):
     from launcher_chat import read_state, send_input
     root, spawned = checkout
+    (root / 'tools/cleanup-e2e').write_text(
+        '#!/bin/sh\n[ "$3" = "--if-available" ] || exit 9\n'
+        f'exit {cleanup_status}\n')
     script(root, {'result': reply(), 'interactive': True})
     run, _ = select_vm(root, [])
     wait_for(root / 'agent-ready-1')
+    assert select_vm(root, []) == (run, False)
     send_input(run, 'interrupt')
-    deadline = time.monotonic() + 15
-    while read_state(run)['status'] != 'waiting':
-        assert time.monotonic() < deadline
-        time.sleep(.02)
+    if timing == 'waiting':
+        deadline = time.monotonic() + 15
+        while read_state(run)['status'] != 'waiting':
+            assert time.monotonic() < deadline
+            time.sleep(.02)
     send_input(run, 'interrupt')
     spawned[-1].wait(timeout=20)
     assert launcher.follow(run, io.StringIO()) == 130
     assert json.loads((run / 'checkpoint.json').read_text())['in_flight'] is True
+    assert ('recovery deferred' in (run / 'output').read_text()) == (cleanup_status == 75)
+    with launcher.lock(run.parent / 'owner') as owner:
+        assert not launcher.busy(owner)
 
 
 def test_chat_interrupt_cleans_owned_tests_before_continuing(checkout):
@@ -1127,7 +1137,7 @@ def test_cumulative_sessions_restart_only_for_a_new_task(checkout, tmp_path_fact
         if state['phase'] == 'complete':
             assert line.startswith('✓ Task ') and line.endswith('m)')
         else:
-            assert f'Session [{expected}]' in line
+            assert f'Session {expected}:' in line
     assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
         workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
@@ -1280,8 +1290,8 @@ def test_completed_task_is_compacted_while_next_task_keeps_live_updates(
     assert not title_style.bold and not title_style.link
     assert title_style.color.number == 2
     lines = [Text.from_ansi(line).plain for step in steps[1:] for line in step['lines']]
-    assert 'Session [1]: Writing task code + host validation + first live VM test; close on success, hand off on failure (gpt-6.1-sol high)' in lines
-    assert 'Session [2]: Investigate/fix previous failure + host validation + live VM test 2; close on success, hand off on failure (gpt-6.1-sol high)' in lines
+    assert 'Session 1: Writing task code + host validation + first live VM test; close on success, hand off on failure (gpt-6.1-sol high)' in lines
+    assert 'Session 2: Investigate/fix previous failure + host validation + live VM test 2; close on success, hand off on failure (gpt-6.1-sol high)' in lines
     (root / 'release').touch()
     output = io.StringIO()
     assert launcher.follow(run, output) == 0, output.getvalue()

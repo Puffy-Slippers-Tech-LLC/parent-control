@@ -1392,6 +1392,7 @@ def test_privileged_discard_preserves_evidence_when_recovery_fails(tmp_path, mon
 def test_host_discard_leaves_vm_and_workflow_stores_untouched(tmp_path, monkeypatch):
     import cleanup_e2e
     import test_retention
+    from types import SimpleNamespace
     from contextlib import contextmanager
     host = test_retention.Store(tmp_path / 'host')
     workflow = test_retention.Store(tmp_path / 'workflow')
@@ -1409,6 +1410,20 @@ def test_host_discard_leaves_vm_and_workflow_stores_untouched(tmp_path, monkeypa
     monkeypatch.setattr(cleanup_e2e, 'cleanup', lambda root: pytest.fail('host touched VM'))
     assert cleanup_e2e.main(['--host-only', '--discard-completed']) == 0
     assert not (tmp_path / 'host-result').exists()
+    assert (tmp_path / 'workflow-result').exists() and (tmp_path / 'vm-result').exists()
+    assert cleanup_e2e.main(['--host-only', '--if-available']) == 2
+    # Busy shutdown cleanup must return before activity/recovery or any journal
+    # mutation, retaining both the foreign VM and this checkout's leftovers.
+    monkeypatch.setattr(cleanup_e2e.vm_config, 'execution', lambda name:
+                        (None, [SimpleNamespace(name='selected')]))
+    monkeypatch.setattr(cleanup_e2e, 'select', lambda name: None)
+    @contextmanager
+    def busy(name, *, wait):
+        assert name == 'selected' and wait is False
+        raise cleanup_e2e.Busy('occupied by another checkout')
+        yield
+    monkeypatch.setattr(cleanup_e2e, 'reservation', busy)
+    assert cleanup_e2e.main(['--vm', 'selected', '--if-available']) == 75
     assert (tmp_path / 'workflow-result').exists() and (tmp_path / 'vm-result').exists()
 
 

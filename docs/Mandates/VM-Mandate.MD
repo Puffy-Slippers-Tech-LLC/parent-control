@@ -146,6 +146,9 @@ An occupied VM queues requests automatically until checkin. Other VM UUIDs
 remain independent. The manager never expires or steals an occupied checkout.
 Existing identity, provenance, unfinished-journal and recovery checks still run
 after acquisition; waiting does not authorize taking over an unfinished guest.
+Launcher shutdown uses a nonwaiting checkout for final recovery: an occupied
+VM is left with its current owner and recovery is deferred to the next run.
+Already owned nested work still finishes cleanup before the launcher exits.
 Read-only watch observation remains independent and never holds a checkout.
 
 A reservation covers a sequence of commands, including builds and investigation

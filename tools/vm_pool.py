@@ -27,6 +27,12 @@ _keeper = ContextVar('vm_checkout_keeper', default=None)
 RELOAD_KEEPER = 'ONPC_VM_RELOAD_KEEPER'
 
 
+class Busy(ValueError):
+    """A nonwaiting checkout found an occupied VM or admission gate."""
+
+    status = 75
+
+
 def reload_keeper():
     """The current owner can exec while its existing checkout helper stays alive."""
     return _keeper.get()
@@ -90,10 +96,12 @@ def _open(vm, suffix='.lock'):
                    os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
 
 
-def _wait(fd, vm, incoming=None):
+def _wait(fd, vm, incoming=None, *, wait=True):
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
+        if not wait:
+            raise Busy('vm-pool: VM busy: ' + vm)
         print('vm-pool: queued for VM ' + vm, file=sys.stderr, flush=True)
         if incoming is None:
             fcntl.flock(fd, fcntl.LOCK_EX)
@@ -108,14 +116,14 @@ def _wait(fd, vm, incoming=None):
                 pass
 
 
-def _take(vm, incoming=None, token=None):
+def _take(vm, incoming=None, token=None, *, wait=True):
     """New checkouts take gate then lifetime; borrowers take lifetime only."""
     gate = _open(vm, '.gate')
     fd = None
     try:
-        _wait(gate, vm, incoming)
+        _wait(gate, vm, incoming, wait=wait)
         fd = _open(vm)
-        _wait(fd, vm, incoming)
+        _wait(fd, vm, incoming, wait=wait)
         os.ftruncate(fd, 0)
         if token is not None:
             os.pwrite(fd, token.encode('ascii'), 0)
@@ -131,7 +139,7 @@ def _take(vm, incoming=None, token=None):
         os.close(gate)
 
 
-def acquire(vm):
+def acquire(vm, *, wait=True):
     """Checkout one VM, or borrow this driver's existing reservation.
 
     A request hierarchy may reserve exactly one VM. Refusing a cross-VM nested
@@ -150,14 +158,17 @@ def acquire(vm):
             raise ValueError('vm-pool: check in the reserved VM before requesting another VM')
         fd = _open(vm)
         try:
-            fcntl.flock(fd, fcntl.LOCK_SH)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_SH | (0 if wait else fcntl.LOCK_NB))
+            except BlockingIOError:
+                raise Busy('vm-pool: VM busy: ' + vm)
             if os.pread(fd, 33, 0) == held[1].encode('ascii'):
                 return fd
             raise ValueError('vm-pool: reservation is no longer available')
         except BaseException:
             os.close(fd)
             raise
-    return _take(vm)
+    return _take(vm, wait=wait)
 
 
 @contextmanager
@@ -172,17 +183,20 @@ def checkout(vm):
         os.close(fd)
 
 
-def keep(vm, *, incoming=0, output=sys.stdout):
+def keep(vm, *, incoming=0, output=sys.stdout, wait=True):
     """Privileged keeper. EOF checks in; active commands retain their locks."""
     fd = None
     try:
         held = binding()
         token = held[1] if held else uuid.uuid4().hex
-        fd = acquire(vm) if held else _take(vm, incoming, token)
+        fd = acquire(vm, wait=wait) if held else _take(vm, incoming, token, wait=wait)
         print(json.dumps({'checkout': vm + ':' + token}), file=output, flush=True)
         while os.read(incoming, 1):
             pass
         return 0
+    except Busy as error:
+        print(str(error), file=sys.stderr, flush=True)
+        return Busy.status
     except KeyboardInterrupt:
         return 130
     finally:
@@ -191,7 +205,7 @@ def keep(vm, *, incoming=0, output=sys.stdout):
 
 
 @contextmanager
-def reservation(name, *, stopped=None, bind=True):
+def reservation(name, *, stopped=None, bind=True, wait=True):
     """Caller-side lifetime: keep checkout across builds, failures and probing."""
     from vm_selection import vm_config
     configured = vm_config.load(name)
@@ -208,7 +222,7 @@ def reservation(name, *, stopped=None, bind=True):
     from dev_privileges import check
     check(helper)
     command = ['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,
-               *arguments(), 'pool', '--vm', configured.name]
+               *arguments(), 'pool', *([] if wait else ['--no-wait']), '--vm', configured.name]
     inherited = os.environ.pop(RELOAD_KEEPER, None)
     if inherited is not None:
         saved = json.loads(inherited)
@@ -230,7 +244,10 @@ def reservation(name, *, stopped=None, bind=True):
                 raise KeyboardInterrupt
         line = process.stdout.readline(1024)
         if not line:
-            raise ValueError('vm-pool: checkout failed (status ' + str(process.wait()) + ')')
+            status = process.wait()
+            if status == Busy.status:
+                raise Busy('vm-pool: VM busy: ' + configured.name)
+            raise ValueError('vm-pool: checkout failed (status ' + str(status) + ')')
         receipt = json.loads(line)['checkout']
         binding(receipt)
         if held is not None and receipt != previous:
@@ -287,6 +304,7 @@ def host_main(argv=None):
     argv, vm = vm_config.extract(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--expected-uuid')
+    parser.add_argument('--no-wait', action='store_true')
     args = parser.parse_args(argv)
     import libvirt
     connection = libvirt.open(vm_config.URI)
@@ -296,7 +314,7 @@ def host_main(argv=None):
             raise ValueError('vm-pool: configured VM identity changed')
     finally:
         connection.close()
-    return keep(vm_uuid)
+    return keep(vm_uuid, wait=not args.no_wait)
 
 
 if __name__ == '__main__':

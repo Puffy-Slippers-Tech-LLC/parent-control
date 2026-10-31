@@ -10,7 +10,7 @@ import test_activity
 import test_retention
 from test_recovery import cleanup, cleanup_host
 from vm_selection import select, vm_config, BATCH
-from vm_pool import reservation, check_queue
+from vm_pool import Busy, reservation, check_queue
 
 
 def main(argv=None):
@@ -20,6 +20,8 @@ def main(argv=None):
     scope.add_argument('--host-only', action='store_true', help='host retention only; no VM access')
     parser.add_argument('--discard-completed', action='store_true',
                         help='explicitly remove all completed execution-retention results; not workflow/session logs')
+    parser.add_argument('--if-available', action='store_true',
+                        help='return status 75 if VM checkout is busy; preserve recovery for a later run')
     recovery = parser.add_mutually_exclusive_group()
     recovery.add_argument('--discard-unpublished-input', metavar='CHECK',
                         help='recover one evidenced interrupted qualification build; requires one explicit VM')
@@ -31,6 +33,10 @@ def main(argv=None):
     try:
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
+        if args.if_available and (args.host_only or args.discard_completed
+                or args.discard_unpublished_input or args.transfer_batch_input
+                or args.transfer_batch_appsnapshot):
+            raise ValueError('--if-available requires ordinary VM cleanup')
         root = Path(__file__).resolve().parents[1]
         snapshot = args.transfer_batch_appsnapshot
         transferring = bool(args.transfer_batch_input or snapshot)
@@ -85,7 +91,7 @@ def main(argv=None):
         os.environ.pop(BATCH, None)
         for vm in vms:
             select(vm.name)
-            with reservation(vm.name), test_activity.activity(root):
+            with reservation(vm.name, wait=not args.if_available), test_activity.activity(root):
                 if args.discard_completed:
                     from regression_process import category_run
                     from vm_selection import arguments
@@ -103,6 +109,9 @@ def main(argv=None):
             if status:
                 return status
         return cleanup_host(root)
+    except Busy as error:
+        print('cleanup-e2e: ' + str(error), file=sys.stderr)
+        return Busy.status
     except (ValueError, OSError) as error:
         print('cleanup-e2e: ' + str(error), file=sys.stderr)
         return 2

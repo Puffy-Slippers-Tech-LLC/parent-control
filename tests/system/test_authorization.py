@@ -514,7 +514,7 @@ def test_administrator_eligibility_predicates(accounts, callers, record_testsuit
                 # The supported useradd accepts this name. Avoid renaming a cached
                 # account: AccountsService can leave a duplicate exported object.
                 guest.run(['useradd', '--create-home', '--shell', '/bin/bash',
-                           '--groups', 'wheel' if guest.package_path().suffix == '.rpm' else 'sudo', name])
+                           name])
             else:
                 guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
                            '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
@@ -525,6 +525,11 @@ def test_administrator_eligibility_predicates(accounts, callers, record_testsuit
             guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
                        '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
                        'FindUserById', 'x', str(uid)])
+            if predicate == 'unsafe-name':
+                # Establish the role through the authority the broker reads;
+                # useradd group membership alone did not set AccountType to 1.
+                guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts', path,
+                           interface, 'SetAccountType', 'i', '1'])
 
             def observe(stage):
                 # Exercise the same public resolution route as the broker, not

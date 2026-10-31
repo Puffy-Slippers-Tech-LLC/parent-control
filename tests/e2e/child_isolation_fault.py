@@ -101,12 +101,18 @@ def guest_operation(action, token, receipt):
             and info.st_uid == account.pw_uid and not hidden.is_symlink()
             and receipt['home'] == [info.st_dev, info.st_ino], 'hidden-home-changed')
     if action == 'verify-refusal':
-        # Submitting a request intentionally saves its duration/app choices;
-        # those UI preferences are independent of authoritative parent policy.
+        # Request preparation completes first-run language setup, and submitting
+        # saves duration/app choices. Neither is authoritative parent policy.
         current = preferences()
-        require({key: value for key, value in current.items() if key != 'request'} ==
-                {key: value for key, value in receipt['policy'].items() if key != 'request'},
+        require({key: value for key, value in current.items() if key not in ('request', 'personal')} ==
+                {key: value for key, value in receipt['policy'].items() if key not in ('request', 'personal')},
                 'refusal-parent-policy-changed')
+        # The shared first-run Continue accepts the fixture's English default.
+        # Keep all other personal state covered rather than ignoring the record.
+        personal = dict(receipt['policy']['personal'])
+        if not personal['language']:
+            personal['language'] = 'en'
+        require(current['personal'] == personal, 'refusal-personal-settings-changed')
         require(enforcement() == receipt['live'], 'refusal-enforcement-or-grant-changed')
         return {'no_new_grant': True, 'authoritative_policy_preserved': True,
                 'native_enforcement_preserved': True}

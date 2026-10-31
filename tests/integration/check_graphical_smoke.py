@@ -25,6 +25,7 @@ import graphical_backend
 from owned_commands import Commands, require
 import system_runner as runner
 from vm_transport import Transport
+from watch_activity import operation as watch_operation
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -43,12 +44,14 @@ from graphical_serial import provision_getty
 from ui_observations import UiObservations
 from installation_boundary import InstallationBoundary
 import installation_observations
-from vt6_authentication import (Authentication as VT6Authentication, STAGES as VT6_LOGIN_STAGES,
+from vt6_authentication import (Authentication as VT6Authentication, TEXT_STAGES as VT6_LOGIN_STAGES,
                                 REFUSALS as VT6_AUTH_REFUSALS)
 sys.path.pop(0)
 STAGES = ('ready', 'gdm', 'selected', 'dismissed')
 VT6_PROMPT_STAGES = (*STAGES, 'vt6-ready', 'vt6-login-screen', 'vt6-prompt-ready', 'vt6-prompt-screen')
-VT6_AUTH_STAGES = (*STAGES, *VT6_LOGIN_STAGES)
+# The console authentication check observes its own login/password prompts.
+# GDM image-selection stages belong to the separate graphical login modes.
+VT6_AUTH_STAGES = (STAGES[0], 'vt6-provider-inspected', *VT6_LOGIN_STAGES)
 AUTH_STAGES = (*STAGES, 'authenticated')
 SERIAL_STAGES = (*STAGES, 'serial-password', 'serial-authenticated', 'serial-command', 'serial-logout',
                  'gdm-return')
@@ -275,11 +278,18 @@ class Smoke:
             reply['vt6_auth'] = self.vt6_auth
             if self.vt6_auth:
                 self._vt6_authentication = VT6Authentication(self.directory, self.vm, self.verified,
-                    on_diagnostic=lambda name, report: self.progress(name, {'vt6_diagnostic': report}))
+                    on_diagnostic=lambda name, report: self.progress(name, {'vt6_diagnostic': report}),
+                    logical_text=True)
             if reply['vt6_prompt']:
                 self._vt6_boot = self.vm.read('boot')['boot_sha256']
             if self.transfer is not None:
                 reply['assets'] = self.transfer.observe(self.vm)
+        elif self.vt6_auth and stage == 'vt6-provider-inspected':
+            require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
+            # An advisory observation after one nonsecret console switch. It
+            # grants no account/password input and cannot satisfy a login stage.
+            with watch_operation('Inspecting the selected terminal without entering an account or password'):
+                reply = {'vt6_provider_diagnostic': self.vm.read('vt6-selected-provider-diagnostic')}
         elif self.vt6_auth and stage in VT6_LOGIN_STAGES:
             try:
                 reply = self._vt6_authentication.observe(stage, request['screenshot'], self._worker_guard)
@@ -384,6 +394,11 @@ class Smoke:
         # Corroborate each captured stage, not just SSH availability at boot.
         if stage not in ('authenticated', 'gdm-return') and not stage.startswith(('serial-', 'install-', 'reboot-', 'vt6-')):
             harness_observation(self.vm, 'greeter')
+        if stage == 'ready' and self.vt6_auth:
+            # Advisory availability only; the ordered recipient gate below
+            # still has to prove each prompt before releasing any input.
+            with watch_operation('Inspecting the terminal text interface without entering input'):
+                reply['vt6_provider_diagnostic'] = self.vm.read('vt6-provider-diagnostic')
         self.steps.append({'stage': stage, **reply})
         if self.vt6_auth:
             self.steps[-1]['input_provenance'] = {

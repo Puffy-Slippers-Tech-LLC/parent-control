@@ -238,7 +238,7 @@ while True:
 proc = pathlib.Path('/proc') / str(pid)
 def identity():
     check_active_terminal()
-    assert (proc/'exe').resolve() == pathlib.Path('/usr/sbin/agetty')
+    assert (proc/'exe').resolve() == pathlib.Path('/usr/sbin/agetty').resolve(strict=True)
     fields = (proc/'stat').read_text().rpartition(') ')[2].split()
     assert len(fields) >= 20
     assert [int(value) for value in fields[2:6]] == [pid,pid,terminal_device,pid]
@@ -264,6 +264,74 @@ finally:
 
 VT6_GETTY = VT6 + _GETTY + "print('vt6-getty-ready')\n"
 
+# Advisory feasibility probes, before and after one console selection. Linux's
+# public VC devices expose logical text independently of framebuffer pixels:
+# https://docs.kernel.org/admin-guide/devices.html (character major 7).
+# Never export text, cursor positions or account names, and never use this
+# observation as a recipient proof or authorization to enter credentials.
+_VT6_PROVIDER_DIAGNOSTIC = '''import errno,json,os,pathlib,re,stat,sys
+active_path = pathlib.Path('/sys/class/tty/tty0/active')
+
+def inspect(path, minor, unicode):
+    fd = None
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC)
+        before = os.fstat(fd)
+        if not (stat.S_ISCHR(before.st_mode) and before.st_uid == 0
+                and before.st_rdev == os.makedev(7, minor)):
+            return 'invalid', 'unavailable'
+        raw = os.pread(fd, 65540 if unicode else 4, 0)
+        after = os.fstat(fd)
+        current = os.stat(path, follow_symlinks=False)
+        fields = ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_rdev')
+        if any(getattr(info, key) != getattr(before, key)
+               for info in (after, current) for key in fields):
+            return 'invalid', 'unavailable'
+        if unicode:
+            if not raw or len(raw) > 65536 or len(raw) % 4:
+                return 'invalid', 'unavailable'
+            text = raw.decode('utf-32-le' if sys.byteorder == 'little' else 'utf-32-be')
+            kind = 'login' if text.rstrip().endswith('login:') else 'other' if text.strip() else 'blank'
+            return 'readable', kind
+        return ('readable' if len(raw) == 4 else 'invalid'), 'unavailable'
+    except UnicodeError:
+        return 'invalid', 'unavailable'
+    except OSError as error:
+        return {errno.ENOENT: 'missing', errno.ENXIO: 'unallocated',
+                errno.EACCES: 'denied', errno.EPERM: 'denied',
+                errno.EOPNOTSUPP: 'unsupported', errno.ENODATA: 'unsupported',
+                errno.ELOOP: 'invalid'}.get(error.errno, 'error'), 'unavailable'
+    finally:
+        if fd is not None:
+            os.close(fd)
+
+def snapshot():
+    active_before = active_path.read_text().strip()
+    assert re.fullmatch(r'tty[1-9][0-9]?', active_before)
+    unicode_status, text_state = inspect('/dev/vcsu6', 70, True)
+    attribute_status, _ = inspect('/dev/vcsa6', 134, False)
+    return {'active_vt6': active_before == 'tty6',
+        'active_unchanged': active_path.read_text().strip() == active_before,
+        'unicode_status': unicode_status, 'attribute_status': attribute_status,
+        'login_prompt_present': text_state == 'login', 'text_state': text_state}
+'''
+
+VT6_PROVIDER_DIAGNOSTIC = _VT6_PROVIDER_DIAGNOSTIC + '''print(json.dumps(snapshot(), sort_keys=True))
+'''
+
+# Selecting an unused virtual console can start its getty asynchronously.
+# Wait only for public logical text; never send a key again or enter a name.
+VT6_SELECTED_PROVIDER_DIAGNOSTIC = _VT6_PROVIDER_DIAGNOSTIC + '''import time
+deadline = time.monotonic() + 10
+while True:
+    result = snapshot()
+    if (result['active_vt6'] and result['active_unchanged']
+            and result['login_prompt_present']) or time.monotonic() >= deadline:
+        break
+    time.sleep(0.2)
+print(json.dumps(result, sort_keys=True))
+'''
+
 # The legacy fixed-token probes intentionally remain observation-local. These
 # separate programs retain the same predicates but export bounded digests for
 # the controller's ordered, cross-observation recipient gate. agetty execs
@@ -285,7 +353,7 @@ check_active_terminal()
 assert int(subprocess.run(['systemctl','show',terminal_unit,
     '--property=MainPID','--value'],capture_output=True,text=True,
     check=True,timeout=10).stdout.strip()) == pid
-assert (proc/'exe').resolve() == pathlib.Path(recipient_executable)
+assert (proc/'exe').resolve() == pathlib.Path(recipient_executable).resolve(strict=True)
 credentials = dict(line.split(':',1) for line in (proc/'status').read_text().splitlines())
 assert [int(value) for value in credentials['Uid'].split()] == [0]*4
 assert identity() == starttime
@@ -294,14 +362,66 @@ assert read_boot() == recipient_boot
 check_active_terminal()
 encoded = json.dumps([recipient_boot, terminal_unit, pid, starttime],
                      separators=(',', ':')).encode('ascii')
-print(json.dumps({'probe': recipient_probe, 'boot_sha256': recipient_boot,
-                  'recipient_sha256': hashlib.sha256(encoded).hexdigest()}, sort_keys=True))
+result = {'probe': recipient_probe, 'boot_sha256': recipient_boot,
+          'recipient_sha256': hashlib.sha256(encoded).hexdigest()}
+if 'logical_prompt' in globals():
+    result['logical_prompt'] = logical_prompt
+print(json.dumps(result, sort_keys=True))
 '''
 
 VT6_GETTY_IDENTITY = (VT6 + _RECIPIENT_BOOT + _GETTY +
     "recipient_probe = 'vt6-getty-identity'\nrecipient_executable = '/usr/sbin/agetty'\n" +
     _RECIPIENT_RESULT)
 VT6_PASSWORD_IDENTITY = (VT6 + _RECIPIENT_BOOT + _LOGIN_PASSWORD +
+    "recipient_probe = 'vt6-password-identity'\nrecipient_executable = '/usr/bin/login'\n" +
+    _RECIPIENT_RESULT)
+
+# External Linux console adapter. Read logical Unicode cells, never pixels or
+# cursor coordinates. Exact prompt/fixture echo and unchanged device identity
+# supplement the same process, foreground, boot and no-echo checks above.
+# Only safe prompt tags and recipient digests leave the guest.
+_VT6_LOGICAL_TEXT = '''import stat,sys,time
+def console_text():
+    check_active_terminal()
+    path = '/dev/vcsu6'
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        before = os.fstat(fd)
+        assert stat.S_ISCHR(before.st_mode) and before.st_uid == 0
+        assert before.st_rdev == os.makedev(7, 70)
+        raw = os.pread(fd, 65540, 0)
+        assert 0 < len(raw) <= 65536 and len(raw) % 4 == 0
+        text = raw.decode('utf-32-le' if sys.byteorder == 'little' else 'utf-32-be')
+        fields = ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_rdev')
+        for current in (os.fstat(fd), os.stat(path, follow_symlinks=False)):
+            assert all(getattr(current, key) == getattr(before, key) for key in fields)
+        check_active_terminal()
+        return ' '.join(text.split())
+    finally:
+        os.close(fd)
+
+def verify_console_prompt(kind):
+    assert kind in ('login', 'password')
+    suffix = ' login:' if kind == 'login' else ' login: onpc-parent-jamie Password:'
+    deadline = time.monotonic() + 10
+    while True:
+        text = console_text()
+        if text.endswith(suffix):
+            # A second complete fresh read rejects a changing console. No
+            # input, focus change or recipient replacement occurs in this wait.
+            assert console_text() == text
+            return
+        assert time.monotonic() < deadline
+        time.sleep(0.2)
+'''
+
+VT6_GETTY_TEXT_IDENTITY = (VT6 + _RECIPIENT_BOOT + _GETTY + _VT6_LOGICAL_TEXT +
+    "logical_prompt = 'login'\nverify_console_prompt(logical_prompt)\n"
+    "recipient_probe = 'vt6-getty-identity'\nrecipient_executable = '/usr/sbin/agetty'\n" +
+    _RECIPIENT_RESULT)
+VT6_PASSWORD_TEXT_IDENTITY = (VT6 + _RECIPIENT_BOOT + _VT6_LOGICAL_TEXT +
+    "logical_prompt = 'password'\nverify_console_prompt(logical_prompt)\n" + _LOGIN_PASSWORD +
+    "verify_console_prompt(logical_prompt)\n"
     "recipient_probe = 'vt6-password-identity'\nrecipient_executable = '/usr/bin/login'\n" +
     _RECIPIENT_RESULT)
 

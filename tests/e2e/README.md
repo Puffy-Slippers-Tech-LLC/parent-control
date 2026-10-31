@@ -1154,6 +1154,61 @@ necessary privacy boundaries, not missing calls to `assert_screen`.
 
 ### Visible VT6 installation terminal
 
+The VT6 authentication qualification now uses the Linux external-provider
+adapter `onpc_vt6::authenticate_text`, with public VNC keyboard input and the
+kernel's [logical console text interface](https://docs.kernel.org/admin-guide/devices.html).
+The focused `check_graphical_vt6_authentication` check requires real fixture
+authentication, an independently verified command, normal worker shutdown and
+final preservation checks. A readable prompt or a retained maintenance scene
+alone supplies no complete qualification. This is authentication-harness
+qualification, separate from customer product acceptance.
+
+The adapter reconnects the existing `sut` console after controller readiness,
+before its first input or recipient proof, then sends Ctrl+Alt+F6 once. A live
+Fedora probe reproduced lost keyboard delivery with a VNC connection held across
+boot; a fresh connection delivered the same chord. This rebind is separate from
+HAR01's ordinary selection and never retries uncertain input. Getty executable
+checks resolve both the running and expected paths, preserving exact identity
+on Fedora's merged `/usr/sbin` layout. Advisory `ready` and
+`vt6-provider-inspected` observations remain separate from input authority.
+Before entering the fixed fixture name, the ordered recipient gate requires
+the login prompt with no entered name, the foreground getty and its boot/process
+identity. Two subsequent observations require the exact `onpc-parent-jamie`
+login echo and `Password:` prompt, canonical no-echo input and the same root
+login recipient. Each logical read checks the active VT and stable root-owned
+Unicode device, takes two matching text snapshots and waits at most ten seconds
+without input. Raw console text and cursor coordinates never leave the guest;
+no pixels, geometry or cursor position identify a recipient.
+
+The five receipts are `vt6-login-ready`, `vt6-password-ready`,
+`vt6-password-text`, `vt6-shell` and `vt6-authenticated`. The first three add
+`vt6_prompt_text_verified` to the existing process/continuity proofs;
+`vt6-password-text` also requires `vt6_password_input_authorized`. All requests
+refuse screenshots. The final recipient read follows the potentially slow
+source/baseline recheck. The controller persists each proof and rechecks its
+current owned worker before publication. Exact true booleans, same boot,
+one-use stages and the shared attempt/failure latches remain mandatory.
+`onpc_password::enter_vt6_password` consumes the final receipt before accessing
+the private parent credential and types once; submission remains separate.
+Recording seals and private automatic capture handling remain in force.
+Session, shell-lineage and challenge-bound command completion use the unchanged
+independent observers. GDM selection/dismissal image stages belong to separate
+graphical-login modes and are not console authentication evidence.
+
+For bounded diagnosis on an owned running maintenance guest, use
+`tools/test-vm --vm NAME probe-vt6-input` for one nonsecret VNC chord,
+`probe-vt6-reboot-input` to hold the worker connection across one guarded guest
+reboot before the same probe, or `probe-vt6-authentication` for all five normal
+authentication receipts and the independent command result. These routes reuse
+the shared worker, watch, credential verification, provenance and retention.
+They retain the live scene without granting customer acceptance; finish with
+`tools/test-vm --vm NAME stop`. Start from the greeter for authentication, with
+no existing fixture login on VT6. No probe retries uncertain input.
+
+The image-based protocol below is historical. Its `authenticate`,
+`inspect_prompt` and explicit capture entry points remain retired; the current
+qualification does not use them or their pixel receipts.
+
 Reuse the public os-autoinst VNC `sut` console and `send_key('ctrl-alt-f6')`,
 then reviewed terminal-specific screen assertions and `type_password`. Keep
 `NOVIDEO=1`, capture sealing and private automatic screenshots. `wait_serial`

@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use onpc_progress ();
 use testapi ();
+use JSON::PP ();
 
 # Only public testapi entry points. The controller pins this source and keeps
 # ALL automatic backend screenshots/logs private. NOVIDEO is not a screenshot
@@ -355,6 +356,46 @@ sub enter_password {
     $authentication_started = 1;
     $failed = 1;
     die "secret:public-recipient-id-required\n";
+}
+
+# Fixed external Linux-console binding. The controller has freshly checked the
+# exact fixture echo, password prompt, no-echo login process and pinned recipient
+# twice. Consume the durable final receipt before reading the private secret.
+# This leaf types once; the caller submits and independently observes the result.
+sub enter_vt6_password {
+    onpc_progress::operation('Entering the protected terminal credential');
+    if ($failed || $functional_input_started) {
+        $failed = 1;
+        die "secret:input-refused\n";
+    }
+    $authentication_started = $functional_started = $functional_input_started = 1;
+    my ($proof, $boot) = @_;
+    my $ok = eval {
+        my @checks = qw(vt6_login_process_verified terminal_echo_disabled
+            active_vt6_verified vt6_recipient_continuity_verified
+            vt6_prompt_text_verified vt6_password_input_authorized);
+        die 'secret:recipient' unless @_ == 2 && ref($proof) eq 'HASH'
+            && keys(%$proof) == 8 && ($proof->{stage} // '') eq 'vt6-password-text'
+            && defined($boot) && !ref($boot) && $boot =~ /\A[0-9a-f]{64}\z/
+            && ($proof->{boot_sha256} // '') eq $boot;
+        for my $key (@checks) {
+            die 'secret:recipient' unless JSON::PP::is_bool($proof->{$key}) && $proof->{$key};
+        }
+        die 'secret:console' unless testapi::current_console() eq 'sut';
+        die 'secret:video-policy' unless testapi::get_var('NOVIDEO', 0) eq '1';
+        my $password = testapi::get_required_var($variables{parent});
+        die 'secret:value' unless defined($password) && !ref($password)
+            && $password =~ /\A[\x20-\x7e]{1,256}\z/;
+        die 'secret:console' unless testapi::current_console() eq 'sut';
+        die 'secret:video-policy' unless testapi::get_var('NOVIDEO', 0) eq '1';
+        testapi::type_password($password);
+        1;
+    };
+    unless ($ok) {
+        $failed = 1;
+        die "secret:input-failed\n";
+    }
+    return 1;
 }
 
 sub capture_before_authentication {

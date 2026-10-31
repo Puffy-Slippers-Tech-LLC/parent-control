@@ -1279,6 +1279,82 @@ def validate_boundary(journey, directory, boundary):
         {'stage': boundary, 'screenshot': None}, 'diagnosis:boundary-request')
 
 
+def probe_vt6_input(lease, *, reboot=False, authenticate=False):
+    """Probe the fixed VT6 route on the current guest; retain its scene."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    import e2e_worker
+    from fixture_credentials import FixtureCredentials
+    from observation_transport import ReadOnlyObservations
+    from qualification_storage import recovery_session, allocate
+    with operation('Probing one VNC Ctrl+Alt+F6 chord on the live VM'), recovery_session(
+            check='probe_vt6_input', inputs={'reboot': reboot, 'authenticate': authenticate},
+            lease=lease, live=True):
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-vt6-input-diagnosis-'))
+        (directory / 'private').mkdir(mode=0o700)
+        lease.commands.directory = directory / 'private'
+        transport = connect(lease)
+        credentials = FixtureCredentials()
+        credentials.provision_online(lease, transport)
+        observer = ReadOnlyObservations(transport)
+        stages = ('ready', 'vt6-input-observed')
+        authentication = verified = None
+        if authenticate:
+            from provenance import VerifiedInputs
+            from vt6_authentication import Authentication, TEXT_STAGES
+            verified = VerifiedInputs(lease=lease)
+            authentication = Authentication(directory, observer, verified, logical_text=True)
+            stages = ('ready', 'vt6-provider-inspected', *TEXT_STAGES)
+        observations = []
+
+        def observe(guard):
+            stage = stages[len(observations)]
+            request = directory / (stage + '.request.json')
+            if not request.exists():
+                return False
+            guard()
+            system.require(not request.is_symlink() and request.stat().st_size <= 1024
+                and json.loads(request.read_bytes()) == {'stage': stage, 'screenshot': None},
+                'vt6-input:request')
+            if stage == 'ready' and reboot:
+                transport.reboot()
+                observer.read('greeter')
+                guard()
+            if authentication is not None and stage in TEXT_STAGES:
+                result = authentication.observe(stage, None, guard)
+            else:
+                result = observer.read('vt6-selected-provider-diagnostic' if observations
+                                       else 'vt6-provider-diagnostic')
+            observations.append({'stage': stage, **result})
+            (directory / 'observations.json').write_text(json.dumps(observations, indent=2))
+            print('vt6-input-diagnosis: ' + json.dumps(observations[-1]), flush=True)
+            guard()
+            if stage == stages[-1]:
+                return True
+            pending = directory / (stage + '.reply.tmp')
+            with pending.open('x') as stream:
+                json.dump(({'vt6_auth': True} if authenticate else {'vt6_input_probe': True})
+                          if stage == 'ready' else result, stream)
+            pending.rename(directory / (stage + '.reply.json'))
+            return False
+
+        def validate():
+            system.require([item['stage'] for item in observations] == list(stages),
+                           'vt6-input:missing-observations')
+
+        try:
+            result = e2e_worker.run_distribution(directory, lease, system.RunLedger(),
+                expected_inputs=verified.source_files if verified is not None else {},
+                observe=lambda: None, validate=validate, guarded_observe=observe,
+                credentials=credentials, maintenance=True, timeout=180)
+        finally:
+            if authentication is not None:
+                authentication.fail_capture(sys.exc_info())
+        system.require(result['worker_stopped'] and result['callback_closed'],
+                       'vt6-input:cleanup-incomplete')
+        lease.guard()
+        print('vt6-input-diagnosis: scene retained; evidence=' + str(directory), flush=True)
+
+
 def prepare_maintenance_transport(lease):
     """Reuse offline SSH bootstrap without installing a product or fixture."""
     from qualification_storage import recovery_session, allocate

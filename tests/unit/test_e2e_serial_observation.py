@@ -47,12 +47,17 @@ def test_guest_password_probe_refuses_wrong_process_or_echo(fault, capsys, termi
         def __eq__(self, other):
             return isinstance(other, GuestPath) and self.value == other.value
 
-        def resolve(self):
+        def resolve(self, *, strict=False):
+            if self.value in ('/usr/sbin/agetty', '/usr/bin/login'):
+                assert strict
+                # Model Fedora's merged /usr/sbin alias on the expected path
+                # as well as the executable reported by the running process.
+                return GuestPath('/usr/bin/agetty' if getty else '/usr/bin/login')
             assert self.value == '/proc/42/exe'
             counts['exe'] = counts.get('exe', 0) + 1
             return GuestPath('/usr/bin/sh' if fault == 'exe' or (
                 fault == 'late-exe' and identity_probe and counts['exe'] == 3) else
-                             '/usr/sbin/agetty' if getty else '/usr/bin/login')
+                             '/usr/bin/agetty' if getty else '/usr/bin/login')
 
         def read_bytes(self):
             assert self.value == '/proc/42/cmdline'

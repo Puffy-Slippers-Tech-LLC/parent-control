@@ -415,7 +415,7 @@ def main(argv=None):
     parser.add_argument('action', choices=('status', 'xml', 'snapshots', 'start', 'stop', 'reset',
                                           'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk', 'exec', 'sync-fixtures',
                                           'reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
-                                          'reproduce-kiosk-preferences',
+                                          'reproduce-kiosk-preferences', 'probe-vt6-input', 'probe-vt6-reboot-input', 'probe-vt6-authentication',
                                           'reproduce-station-shortcuts',
                                           'reproduce-baseline-app-effects',
                                           'reproduce-baseline-auth-pause',
@@ -600,6 +600,11 @@ def main(argv=None):
             resume(lease, fixture_maintenance=True)
             receipt = synchronize(lease, fixture_selection)
             print(json.dumps({'fixture_readiness': receipt.binding}, sort_keys=True))
+        elif args.action in ('probe-vt6-input', 'probe-vt6-reboot-input', 'probe-vt6-authentication'):
+            from vm_probe import probe_vt6_input
+            resume(lease)
+            probe_vt6_input(lease, reboot=args.action == 'probe-vt6-reboot-input',
+                           authenticate=args.action == 'probe-vt6-authentication')
         elif args.action == 'exec':
             from vm_probe import execute
             with operation('Probing the owned guest as root'):

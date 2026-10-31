@@ -65,15 +65,13 @@ require shift;
     };
     *exchange = sub {
         push @events, $_[0];
-        die 'private-canary' if $mode eq 'step-error' && $_[0] eq 'gdm';
-        return {functional_smoke => 1} if $_[0] eq 'ready';
-        return {ui_focused => 1} if $_[0] eq 'gdm';
-        return {ui => {operation => 'gdm-product-free-select-parent', outcome => 'passed',
-                       interface => 'ApplicationUI+external-provider'}} if $_[0] eq 'selected';
+        return {vt6_auth => 1} if $_[0] eq 'ready';
         return {};
     };
-    *onpc_flow00::serial = sub { push @events, 'serial-complete'; };
-    *onpc_password::enter_password = sub { push @events, 'authentication-input'; };
+    *onpc_vt6::authenticate_text = sub {
+        push @events, 'authentication';
+        die 'private-canary' if $mode eq 'step-error';
+    };
 }
 my $ok = eval { run(); 1; };
 # Never propagate raw error text or fixture values into reviewed test evidence.
@@ -94,9 +92,8 @@ def test_complete_attempt_powers_off_and_verifies_before_success(mode):
     events = data['events']
     assert bool(data['ok']) == (mode == 'success')
     if data['ok']:
-        assert events.index('select-graphics') < events.index('gdm') < events.index('selected')
         assert events[-4:] == ['disable-vnc', 'poweroff', 'verify-off', 'record:shutdown']
-        assert events.index('dismissed') < events.index('serial-complete') < events.index('disable-vnc')
+        assert events.index('authentication') < events.index('disable-vnc')
     elif mode == 'power-error':
         assert events[-1] == 'poweroff' and 'verify-off' not in events
     elif mode == 'status-error':

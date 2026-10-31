@@ -126,6 +126,14 @@ sub capture {
 
 sub run {
     my $ready = exchange('ready', undef);
+    if ($ready->{vt6_input_probe}) {
+        onpc_password::seal_capture();
+        onpc_vt6::select_boot_console();
+        onpc_progress::operation('Sending one nonsecret Ctrl+Alt+F6 chord');
+        send_key('ctrl-alt-f6');
+        exchange('vt6-input-observed', undef);
+        die 'vt6-input:controller-must-retain-scene';
+    }
     if ($ready->{gdm_credentials}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
@@ -1411,6 +1419,14 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_parent_discovery::run_none(\&exchange);
+        return;
+    }
+    if ($ready->{vt6_auth}) {
+        onpc_vt6::authenticate_text(\&exchange);
+        console('sut')->disable();
+        power('off');
+        die 'smoke:shutdown-unverified' unless check_shutdown(0);
+        record_info('shutdown', 'Owned VM shutdown verified');
         return;
     }
     # Remaining modes use retired image, pointer, VT or unqualified graphical

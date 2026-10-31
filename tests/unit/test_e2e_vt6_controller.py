@@ -13,7 +13,7 @@ import pytest
 import check_graphical_smoke as smoke
 from private_artifacts import EvidenceError
 import vt6_authentication
-from vt6_authentication import Authentication, CAPTURE_FIELDS, REFERENCE, STAGES
+from vt6_authentication import Authentication, CAPTURE_FIELDS, REFERENCE, STAGES, TEXT_STAGES
 from tests.support.perl import run_perl
 
 
@@ -38,7 +38,7 @@ def gate(tmp_path):
         'vt6_command_input_authorized': True, 'command_challenge': 'd' * 64}
     command.complete.return_value = {**boot, **active, 'vt6_login_continuity_verified': True,
                                      'vt6_shell_ready_verified': True}
-    observer = Mock(read=Mock(side_effect=lambda name: dict(replies[name])),
+    observer = Mock(read=Mock(side_effect=lambda name, **kwargs: dict(replies[name])),
                     vt6_command_boundary=Mock(return_value=command))
     return Authentication(tmp_path, observer, verified), Mock(), source, replies
 
@@ -266,36 +266,41 @@ def test_repeated_stage_never_issues_another_receipt(gate, stage):
         auth.observe(stage, 'smoke-9.png' if stage.endswith('-screen') else None, guard)
 
 
-@pytest.mark.parametrize('fault', [None, 'checkpoint', 'late-worker', 'existing-reply', 'capture-refusal'])
+@pytest.mark.parametrize('fault', [None, 'checkpoint', 'late-worker', 'existing-reply', 'text-refusal'])
 def test_smoke_persists_authorization_before_publication(gate, fault):
-    auth, guard, source, _ = gate
-    advance(gate, 2)
-    (auth.directory / 'testresults/smoke-9.png').write_bytes(source.read_bytes())
-    stage = 'vt6-password-screen'
+    auth, guard, _, replies = gate
+    auth.logical_text = True
+    auth.stages = TEXT_STAGES
+    auth.stage = TEXT_STAGES.index('vt6-password-text')
+    replies['vt6-password-recheck']['vt6_prompt_text_verified'] = True
+    stage = 'vt6-password-text'
     reply = auth.directory / (stage + '.reply.json')
     def progress(name, observed):
         assert name == stage
         if observed is not None:
             assert not reply.exists()
-            if fault == 'capture-refusal':
-                assert observed == {'vt6_refusal': 'vt6-auth:capture-mtime-refused'}
+            if fault == 'text-refusal':
+                assert observed == {'vt6_refusal': 'vt6-auth:password-recheck-refused'}
                 return
             assert observed['vt6_password_input_authorized'] is True
             if fault == 'checkpoint':
                 raise RuntimeError('checkpoint')
     controller = smoke.Smoke(auth.directory, Mock(state={'run': 'f' * 32}), Mock(), 'host-key',
         authenticate=True, vt6_auth=True, verified=auth.verified, progress=progress)
-    controller.steps = [{'stage': s} for s in smoke.VT6_AUTH_STAGES[:6]]
+    controller.steps = [{'stage': s} for s in smoke.VT6_AUTH_STAGES[:smoke.VT6_AUTH_STAGES.index(stage)]]
     controller._vt6_authentication = auth
     (auth.directory / (stage + '.request.json')).write_text(json.dumps(
-        {'stage': stage, 'screenshot': 'smoke-9.png'}))
+        {'stage': stage, 'screenshot': None}))
     if fault == 'late-worker':
         guard.side_effect = [None, None, None, RuntimeError('worker stopped')]
     if fault == 'existing-reply':
         reply.write_text('sentinel')
-    if fault == 'capture-refusal':
-        import os
-        os.utime(auth.directory / 'testresults/smoke-9.png', ns=(1, 1))
+    if fault == 'text-refusal':
+        def refuse_text(name, **kwargs):
+            if name == 'vt6-password-recheck':
+                raise EvidenceError('observation:rejected')
+            return dict(replies[name])
+        auth.observer.read.side_effect = refuse_text
     if fault:
         with pytest.raises((RuntimeError, AssertionError, EvidenceError)):
             controller.guarded_step(guard)

@@ -1566,12 +1566,16 @@ def test_reproduction_retains_only_complete_declared_history(tmp_path, fault, sc
 
 def test_public_probe_launcher_keeps_host_selector_before_guest_arguments(monkeypatch):
     import dev_privileges
+    import vm_selection
+    from tests.support.vm_registry import vm_entry
     import sys
     root = Path(__file__).resolve().parents[2]
     guest = ['printf', '--vm', 'unknown-vm', '--help', '--list']
     launch = Mock()
     monkeypatch.setattr(dev_privileges, 'launch', launch)
     monkeypatch.setattr(os, 'geteuid', lambda: 1000)
+    monkeypatch.setattr(vm_selection.vm_config, 'current_branch',
+                        lambda: vm_entry().get('owning_branch') or 'test-branch')
     monkeypatch.setattr(sys, 'argv', [str(root / 'tools/test-vm'), *VM_ARGS, 'exec', '--', *guest])
     runpy.run_path(str(root / 'tools/test-vm'), run_name='__main__')
     launch.assert_called_once_with('/usr/local/libexec/onpc-test-runner',

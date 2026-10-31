@@ -21,9 +21,11 @@ ROOT = Path(__file__).resolve().parents[2]
 
 STAGES = ('vt6-login-ready', 'vt6-password-ready', 'vt6-password-screen',
           'vt6-shell', 'vt6-authenticated')
+TEXT_STAGES = ('vt6-login-ready', 'vt6-password-ready', 'vt6-password-text',
+               'vt6-shell', 'vt6-authenticated')
 REFERENCE = 'tests/integration/graphical_smoke/needles/onpc-vt6-parent-password.png'
 BOUNDARIES = ('protocol', 'worker-before', 'diagnostic-before', 'inputs-before',
-    'diagnostic-after', 'boot-before', 'getty', 'password', 'pixels', 'password-recheck',
+    'diagnostic-after', 'boot-before', 'getty', 'password', 'pixels', 'text', 'password-recheck',
     'session', 'lineage', 'command-prepare', 'command-complete', 'session-after',
     'boot-after', 'inputs-after', 'worker-after')
 # Same stable metadata as provenance.identity, plus explicit owner/group checks.
@@ -40,7 +42,10 @@ REFUSALS = frozenset('vt6-auth:' + code + '-refused'
 
 
 class Authentication:
-    def __init__(self, directory, observer, verified, *, on_diagnostic=None):
+    def __init__(self, directory, observer, verified, *, on_diagnostic=None, logical_text=False):
+        require(type(logical_text) is bool, 'vt6-auth:protocol')
+        self.logical_text = logical_text
+        self.stages = TEXT_STAGES if logical_text else STAGES
         self.directory, self.observer, self.verified = directory, observer, verified
         self.stage = 0
         self.failed = False
@@ -62,7 +67,7 @@ class Authentication:
         require(not self.failed, 'vt6-auth:previous-failure')
         boundary = 'protocol'
         try:
-            require(self.stage < len(STAGES) and stage == STAGES[self.stage], 'vt6-auth:order')
+            require(self.stage < len(self.stages) and stage == self.stages[self.stage], 'vt6-auth:order')
             require((shot is not None) == (stage == 'vt6-password-screen'), 'vt6-auth:capture-stage')
             self.stage += 1  # A failed or interrupted observation cannot be repeated.
             boundary = 'worker-before'
@@ -88,25 +93,35 @@ class Authentication:
             self.boot = boot
             if stage == 'vt6-login-ready':
                 boundary = 'getty'
-                self.reference = (self.verified.root / REFERENCE).read_bytes()
-                reply = self.observer.read('vt6-getty-identity')
+                if self.logical_text:
+                    reply = self.observer.read('vt6-getty-identity', vt6_text=True)
+                    require(reply.get('vt6_prompt_text_verified') is True, 'vt6-auth:text')
+                else:
+                    self.reference = (self.verified.root / REFERENCE).read_bytes()
+                    reply = self.observer.read('vt6-getty-identity')
             elif stage == 'vt6-password-ready':
                 boundary = 'password'
-                reply = self.observer.read('vt6-password-identity')
-                self.screen_directory_identity = self._screen_directory()
-                self.existing_screens = set((self.directory / 'testresults').iterdir())
-                self.existing_inodes = {(info.st_dev, info.st_ino) for path in self.existing_screens
-                                        for info in (path.stat(follow_symlinks=False),)}
-                # Filesystem timestamp granularity can lag Python's wall clock.
-                # Use a same-filesystem creation barrier plus absent path/inode;
-                # the trusted current worker captures only after this receipt.
-                fd = os.open(self.directory / 'testresults/vt6-capture-barrier',
-                             os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-                try:
-                    os.fsync(fd)
-                    self.capture_after = os.fstat(fd).st_ctime_ns
-                finally:
-                    os.close(fd)
+                if self.logical_text:
+                    reply = self.observer.read('vt6-password-identity', vt6_text=True)
+                    require(reply.get('vt6_prompt_text_verified') is True, 'vt6-auth:text')
+                else:
+                    reply = self.observer.read('vt6-password-identity')
+                    self.screen_directory_identity = self._screen_directory()
+                    self.existing_screens = set((self.directory / 'testresults').iterdir())
+                    self.existing_inodes = {(info.st_dev, info.st_ino) for path in self.existing_screens
+                                            for info in (path.stat(follow_symlinks=False),)}
+                    # A same-filesystem creation barrier avoids timestamp granularity races.
+                    fd = os.open(self.directory / 'testresults/vt6-capture-barrier',
+                                 os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                    try:
+                        os.fsync(fd)
+                        self.capture_after = os.fstat(fd).st_ctime_ns
+                    finally:
+                        os.close(fd)
+            elif stage == 'vt6-password-text':
+                # Defer the final recipient read until after the potentially
+                # slow provenance recheck below, immediately before the ACK.
+                reply = {}
             elif stage == 'vt6-password-screen':
                 boundary = 'pixels'
                 reply = self._pixels(shot)
@@ -138,9 +153,15 @@ class Authentication:
                 if self.on_diagnostic is not None:
                     self.on_diagnostic(stage, {'phase': 'inputs-after',
                         'recipient': {}, 'recheck_ms': dict(self.verified.recheck_milliseconds)})
+            if stage == 'vt6-password-text':
+                boundary = 'password-recheck'
+                reply = self.observer.read('vt6-password-recheck', vt6_text=True)
+                boundary = 'text'
+                require(reply.get('vt6_prompt_text_verified') is True, 'vt6-auth:text')
+                reply['vt6_password_input_authorized'] = True
             boundary = 'worker-after'
             guard()
-            if stage == 'vt6-password-screen':
+            if stage in ('vt6-password-screen', 'vt6-password-text'):
                 manager = protect_capture(root=ROOT)
                 manager.__enter__()
                 self._capture_protection = manager

@@ -149,7 +149,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     vm.add_argument('action', choices=('status', 'xml', 'snapshots', 'start', 'stop', 'reboot',
                                       'reset', 'screenshot', 'send-key', 'recover-online', 'rename', 'rename-disk', 'exec', 'sync-fixtures',
                                       'reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
-                                      'reproduce-kiosk-preferences',
+                                      'reproduce-kiosk-preferences', 'probe-vt6-input', 'probe-vt6-reboot-input', 'probe-vt6-authentication',
                                       'reproduce-station-shortcuts',
                                       'reproduce-baseline-app-effects', 'reproduce-baseline-auth-pause',
                                       'reproduce-baseline-restoration',

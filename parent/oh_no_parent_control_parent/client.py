@@ -65,6 +65,12 @@ class BrokerClient:
         encoded, = self._call("GetPreferences", GLib.Variant("(u)", (uid,)), "(s)")
         return json.loads(encoded)
 
+    def recover_child_extension(self, uid):
+        recovered, = self._call(
+            "RecoverChildExtension", GLib.Variant("(u)", (uid,)), "(b)",
+        )
+        return recovered
+
     def get_policy_warnings(self, uid):
         affected, = self._call("GetPolicyWarnings", GLib.Variant("(u)", (uid,)), "(as)")
         return affected

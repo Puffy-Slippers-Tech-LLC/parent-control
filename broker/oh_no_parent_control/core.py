@@ -473,9 +473,9 @@ class Broker:
             self._request_lock.release()
 
     def recover_child_extension(self, caller_uid: int, target_uid: int) -> bool:
-        """Reassert saved enforcement for the root PAM login helper."""
-        if caller_uid != 0:
-            raise AccessDenied("root access is required")
+        """Reassert saved enforcement for PAM and administrator management."""
+        if not self._is_admin(caller_uid):
+            raise AccessDenied("administrator access is required")
         if not self._acquire_request_lock():
             raise Busy("another request is already in progress")
         try:

@@ -189,7 +189,8 @@ performs activation and configured/active verification.
 
 GNOME may turn on `disable-user-extensions` after a session startup failure.
 Startup reassertion for a saved enabled child, kiosk approval for that child,
-an accepted GDM time check at login/unlock, and a parent's first enablement
+an accepted GDM time check at login/unlock, Parent's initial child selection or
+later child changes, and a parent's first enablement
 restore that global switch to false and verify the write before proceeding.
 First enablement retains an undo action through the account and preference
 transaction; a later failure restores the original global switch, exact

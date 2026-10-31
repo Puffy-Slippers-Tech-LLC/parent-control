@@ -1317,9 +1317,11 @@ class ParentWindowTests(unittest.TestCase):
 
     def test_loading_users_loads_initial_selection_once(self):
         window = ParentWindowHarness()
+        window._account_changed = mock.Mock(wraps=window._account_changed)
 
         window._users_loaded([(1001, "Child")])
 
+        window._account_changed.assert_called_once_with()
         self.assertEqual(window.load_count, 1)
         self.assertEqual(window.apps_load_uids, [1001])
         self.assertFalse(window._users_loading)
@@ -1582,6 +1584,43 @@ class ParentWindowTests(unittest.TestCase):
             source.index("self._client.get_preferences(uid)"),
         )
         self.assertEqual(CATALOG_ROW_BATCH_SIZE, 8)
+
+    def test_selection_load_recovers_enabled_child_before_revealing_settings(self):
+        window = mock.Mock()
+        window._selection_generation = 0
+        window._users = [(1001, "Child", ""), (1002, "Other child", "")]
+        window._account.get_selected.return_value = 0
+        window._selected_uid.return_value = 1001
+        preferences = {"parent_control_enabled": True}
+        window._client.get_preferences.return_value = preferences
+
+        ParentWindow._load_selected(window)
+        load, loaded = window._run.call_args.args
+        window._preferences_for.assert_not_called()
+        result = load()
+        window._client.recover_child_extension.assert_called_once_with(1001)
+        loaded(result)
+        window._preferences_for.assert_called_once_with(1001, preferences)
+
+        # A failed recovery still loads management and reports the error.
+        window._client.recover_child_extension.side_effect = RuntimeError("failed")
+        ParentWindow._load_selected(window)
+        load, loaded = window._run.call_args.args
+        result = load()
+        loaded(result)
+        window._show_error.assert_called_once_with(result[1])
+
+        # Returning to the same child must not accept a superseded load.
+        window._preferences_for.reset_mock()
+        ParentWindow._load_selected(window)
+        loaded(result)
+        window._preferences_for.assert_not_called()
+
+        window._client.recover_child_extension.reset_mock()
+        window._client.get_preferences.return_value = {"parent_control_enabled": False}
+        load, loaded = window._run.call_args.args
+        loaded(load())
+        window._client.recover_child_extension.assert_not_called()
 
     def app_catalog_window(self):
         window = type("WindowHarness", (), {

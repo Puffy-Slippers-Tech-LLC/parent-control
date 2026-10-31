@@ -15,7 +15,10 @@ Implementation: [Parent](../../parent/oh_no_parent_control_parent/main.py),
 ## Main flows
 
 - **Manage:** Parent selects a child, loads preferences, applications and time
-  status, and serializes automatic saves in interaction order. App-policy saves
+  status, and serializes automatic saves in interaction order. Initial selector
+  loading and later child changes share one handler, recovering the extension
+  for a saved enabled screen-time control before settings become editable.
+  Recovery failures report an error and leave management available. App-policy saves
   can close that child's newly blocked applications across retained sessions.
   Screen-time changes use `SetParentControl`. Revocation confirms that blocked
   apps will close, lists running soft-blocked apps using catalogue names/icons,

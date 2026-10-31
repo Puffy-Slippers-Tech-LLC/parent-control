@@ -1872,7 +1872,7 @@ class ParentWindow(Adw.ApplicationWindow):
 
         self._no_users_message.set_visible(not self._users)
         if self._users and selection_changed:
-            self._load_selected()
+            self._account_changed()
         else:
             if not self._users:
                 self._toast(m.NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND)
@@ -1915,9 +1915,32 @@ class ParentWindow(Adw.ApplicationWindow):
         # Screen Limits is not blocked, and App Limits can paint as soon as
         # the tab is opened.
         self._ensure_apps_load(uid)
+        # Initial selection and later child changes share this loading path.
+        # Finish recovery before exposing editable settings, so this window
+        # cannot race its own recovery with a policy save.
+        generation = getattr(self, "_selection_generation", 0) + 1
+        self._selection_generation = generation
+
+        def load():
+            preferences = self._client.get_preferences(uid)
+            recovery_error = None
+            if preferences["parent_control_enabled"]:
+                try:
+                    self._client.recover_child_extension(uid)
+                except Exception as error:
+                    recovery_error = error
+            return preferences, recovery_error
+
+        def loaded(result):
+            if generation != self._selection_generation or uid != self._selected_uid():
+                return
+            preferences, recovery_error = result
+            self._preferences_for(uid, preferences)
+            if recovery_error is not None:
+                self._show_error(recovery_error)
+
         self._run(
-            lambda: self._client.get_preferences(uid),
-            lambda preferences: self._preferences_for(uid, preferences),
+            load, loaded,
         )
 
     def _ensure_apps_load(self, uid):

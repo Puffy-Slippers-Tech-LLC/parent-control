@@ -3,7 +3,7 @@
 - **Kiosk**: Improved Polkit auth dialog content layout to make it more explicit and easier to read.
 
 ### Bug Fixes
-- **Screen Time**: Fixed enabling screen-time control failing when GNOME has disabled user extensions.
+- **Screen Time**: Fixed enabling screen-time control failing when GNOME has disabled user extensions globally. The extension recovery covers all entry points: parent app load, selected child changes in parent app, screen limit toggles on, kiosk grant approval, machine reboot, child logon
 - **Diagnostics**: Added privacy-safe logging for disabled GNOME extensions, Shell crashes, possible extension errors, and screen-time recovery and rollback failures.
 - **Screen Time**: Fixed extra-time approvals sometimes adding more time than requested.
 - **Kiosk**: Fixed time requests failing before parent approval when system language discovery is unavailable.

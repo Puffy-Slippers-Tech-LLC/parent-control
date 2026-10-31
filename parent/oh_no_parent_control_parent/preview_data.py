@@ -115,6 +115,9 @@ class PreviewBrokerClient:
     def get_preferences(self, uid):
         return copy.deepcopy(self._preferences[uid])
 
+    def recover_child_extension(self, uid):
+        return self._preferences[uid]["parent_control_enabled"]
+
     def get_policy_warnings(self, _uid):
         return []
 

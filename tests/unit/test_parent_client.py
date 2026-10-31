@@ -36,6 +36,8 @@ class FakeConnection:
             return GLib.Variant("(s)", (
                 '{"parent_control_enabled": true, "daily_time_limit_minutes": 30}',
             ))
+        if name == BUS_NAME and method == "RecoverChildExtension":
+            return GLib.Variant("(b)", (True,))
         if name == BUS_NAME and method == "GetPolicyWarnings":
             return GLib.Variant("(as)", (["game.desktop"],))
         if name == BUS_NAME and method == "GetOwnLanguage":
@@ -56,6 +58,12 @@ class FakeConnection:
 
 
 class ParentClientTests(unittest.TestCase):
+    def test_recovery_targets_selected_child_through_broker(self):
+        connection = FakeConnection()
+        self.assertTrue(BrokerClient(connection).recover_child_extension(1001))
+        self.assertEqual(connection.calls[0][3:6],
+                         ("RecoverChildExtension", (1001,), "(b)"))
+
     def test_release_notes_use_caller_scoped_json_api(self):
         connection = FakeConnection()
         client = BrokerClient(connection)

@@ -140,7 +140,7 @@ the broker resolves and revalidates it.
 | `CalculateRemainingTime` | own | selected child | selected child |
 | `CalculateOwnRemainingTime` | own | - | - |
 | `PrepareOwnSession` | own | - | - |
-| `RecoverChildExtension` | - | - | root only |
+| `RecoverChildExtension` | - | - | selected child (including root PAM helper) |
 | `UpdateRequestPreferences` | own | selected child | selected child |
 | `UpdateRequestPreferencesWithUnit` | own | selected child | selected child |
 | `SetRequestMuted` | own | selected child | selected child |
@@ -280,6 +280,13 @@ validates the target child and reasserts activation only for a saved enabled
 control. Recovery failure refuses that authentication attempt; it creates no
 grant and changes no account policy or saved preference. PAM rechecks current
 remaining time after recovery before accepting admission.
+
+The Parent App uses the same recovery method while loading the selected child's
+settings. Initial child-selector loading enters the same selection-change
+handler as later child changes. Recovery runs only for saved enabled controls
+and finishes before settings become editable. Failure reports an error while
+leaving management available; recovery changes no grant, account policy or
+saved preference. The broker rechecks saved enablement under its transaction lock.
 
 An approved request initializes `DailyLimit` from saved preferences and enables
 Malcontent limits if necessary before applying the filter and grant. Unlike the

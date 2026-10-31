@@ -1,3 +1,9 @@
+## v2.0
+### New Features
+
+### Bug Fixes
+
+
 ## v1.5 - 2026-10-31
 ### Kind Ask
 - **Word of Mouth**: Please help spread the word out, so we can help more families! Tell them Fedora WS 44 is on the way, Fedora 45 will follow soon.

@@ -1,6 +1,7 @@
 ## v2.0
 ### New Features
-
+- **Parent App**: Feedback and error reporting prompts for reply email but still does not require it
+  
 ### Bug Fixes
 
 

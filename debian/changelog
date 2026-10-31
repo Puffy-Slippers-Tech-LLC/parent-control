@@ -1,3 +1,13 @@
+oh-no-parent-control (2.0+local1~ubuntu26.04.1) resolute; urgency=medium
+
+  New Features
+  * Parent App: Feedback and error reporting prompts for reply email but still
+    does not require it
+
+  Bug Fixes
+
+ -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Sat, 31 Oct 2026 19:34:34 +0000
+
 oh-no-parent-control (1.5+ppa1~ubuntu26.04.1) resolute; urgency=medium
 
   Kind Ask

@@ -990,6 +990,8 @@ JORDAN_MATE_ORDER = tuple('jordan-mate-' + suffix for suffix in
 JORDAN_MATE_REQUEST = dict(child='existing-fixture-child', approver='fixture-parent',
                           duration_seconds=75, allow_soft=True)
 MATE_APPROVAL_OPERATIONS |= frozenset(JORDAN_MATE_ORDER)
+JORDAN_MATE_REFUSAL = 'jordan-mate-submit-unavailable'
+MATE_APPROVAL_OPERATIONS |= frozenset({JORDAN_MATE_REFUSAL})
 CHINESE_MATE_ORDER = tuple('chinese-mate-' + suffix for suffix in
                            ('open', 'qualified', 'rechecked', 'submit-success'))
 MATE_APPROVAL_OPERATIONS |= frozenset(CHINESE_MATE_ORDER)
@@ -10497,9 +10499,15 @@ class AccessibleUI:
         request = self.wait(lambda: self.kiosk_valid_target('kiosk-request-submit'),
                             'kiosk-diagnostic-request-ready')
         self._invoke_target(request)
+        return self.kiosk_unavailable_result()
 
+    def kiosk_unavailable_result(self):
+        """Read the explicit public failure after an already submitted request."""
         def ready():
-            observation, root, source = self.kiosk_diagnostic_surface()
+            surface = self.kiosk_diagnostic_surface()
+            if surface is None:
+                return None
+            observation, root, source = surface
             def target(identity):
                 return self.snapshot_owned_target(identity, root=root, observation=observation)
             title, detail, toggle, action = (target(identity) for identity in
@@ -10517,10 +10525,10 @@ class AccessibleUI:
         self.kiosk_diagnostic_source = value['source']
         return value
 
-    def kiosk_diagnostic_exit(self):
+    def kiosk_diagnostic_exit(self, *, expected_source=None):
         """Dismiss one known unavailable result through its normal safe exit."""
         observation, root, source = self.kiosk_diagnostic_surface()
-        require(source == getattr(self, 'expected_kiosk_diagnostic_source', None),
+        require(source == (expected_source or getattr(self, 'expected_kiosk_diagnostic_source', None)),
                 'ui:kiosk-diagnostic-owner')
         title = self.snapshot_owned_target('kiosk-result-title', root=root, observation=observation)
         require(title is not None and title.get_name() == 'Request unavailable',
@@ -11202,7 +11210,7 @@ class AccessibleUI:
         chinese = operation in CHINESE_MATE_ORDER
         long_request = operation in LONG_MATE_ORDER
         profile_request = PROFILE_MATE_REQUESTS.get(operation)
-        jordan = operation in JORDAN_MATE_ORDER
+        jordan = operation in JORDAN_MATE_ORDER or operation == JORDAN_MATE_REFUSAL
         paused = operation in PAUSE_MATE_ORDER
         bound = operation in BOUND_MATE_ORDER
         bound_request = kiosk_request_facts(self.kiosk_request) if bound else None
@@ -11220,7 +11228,7 @@ class AccessibleUI:
         pid = self.mate_agent_pid()
         opening = action in ('kiosk-mate-open', 'kiosk-mate-rejection-open')
         submitting = action in ('kiosk-mate-submit-success', 'kiosk-mate-submit-rejection',
-                                   'kiosk-mate-submit-immediate')
+                                   'kiosk-mate-submit-immediate', 'kiosk-mate-submit-unavailable')
         try:
             if opening:
                 self.kiosk_valid_choice('kiosk-request-estimate' if bound else
@@ -11258,6 +11266,13 @@ class AccessibleUI:
                     result = self.kiosk_mate_rejected(pid, challenge)
                     self.input_uncertain = True
                     return result
+                if operation == JORDAN_MATE_REFUSAL:
+                    self.wait(lambda: self.system_prompt_kind() is None,
+                              'kiosk-refusal-prompt', prompt_in_predicate=True)
+                    result = self.kiosk_unavailable_result()
+                    self.kiosk_diagnostic_exit(expected_source=result['source'])
+                    self.input_uncertain = True
+                    return {'refused': True, 'error_shown': True, 'exit_initiated': True}
                 result = self.kiosk_approval_success(immediate=operation == 'kiosk-mate-submit-immediate',
                     **({'language': language} if chinese else {}))
                 self.input_uncertain = True  # This one submission is consumed even on success.

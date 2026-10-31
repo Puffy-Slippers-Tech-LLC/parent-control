@@ -573,6 +573,8 @@ class ChildIsolationQualification(KioskEntryQualification):
             check_settings(stage, observed)
             if stage == 'setup-greeter':
                 observed['child_isolation'] = self.fault.install()
+            elif stage == 'unavailable-balance':
+                observed['child_isolation'] = self.fault.call('verify-refusal')
             elif stage == 'unavailable-greeter':
                 observed['child_isolation'] = self.fault.restore()
             elif stage in ('restored-new-estimate', 'reentry-usable'):

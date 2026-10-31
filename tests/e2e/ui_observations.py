@@ -1325,6 +1325,8 @@ class UiObservations:
                         order = accessible_ui.PROFILE_MATE_ORDERS[self.mate_profile['duration_seconds']]
                     if getattr(self, 'mate_jordan', False):
                         order = accessible_ui.JORDAN_MATE_ORDER
+                        if operation == accessible_ui.JORDAN_MATE_REFUSAL:
+                            order = (*order[:3], operation)
                     if getattr(self, 'mate_paused', False):
                         order = accessible_ui.PAUSE_MATE_ORDER
                     if self.mate_rejection:
@@ -2150,6 +2152,9 @@ class UiObservations:
             value = result['approval']
             if operation == 'kiosk-mate-submit-rejection':
                 require(value == {'rejected': True, 'cancelled': True, 'no_error': True}
+                        and all(type(item) is bool for item in value.values()), 'ui:mate-result')
+            elif operation == accessible_ui.JORDAN_MATE_REFUSAL:
+                require(value == {'refused': True, 'error_shown': True, 'exit_initiated': True}
                         and all(type(item) is bool for item in value.values()), 'ui:mate-result')
             elif operation in ('kiosk-mate-submit-success', 'kiosk-mate-submit-immediate',
                                'chinese-mate-submit-success', 'kiosk-long-mate-submit-success',

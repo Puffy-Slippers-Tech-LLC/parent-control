@@ -1090,12 +1090,17 @@ This is installed engineering qualification, with no complete E2E-case credit.
 Its finite engineering history temporarily moves inactive Jordan's exact owned
 home aside, restarts the broker, checks retained identity and enforcement plus
 refusal of the integration-dependent control change, and uses genuine kiosk
-approvals with independent Parent time readback for healthy Riley and Jordan.
+approval with independent Parent time readback for healthy Riley. Jordan's
+authenticated request while the home is unavailable must show the explicit
+unavailable result and allow safe exit, with no new grant, unchanged saved
+parent policy and unchanged native enforcement. Saved request choices may change.
 Restoring the same home and restarting the broker retries activation, followed
 by Jordan's fresh genuine request. It reuses the guarded approval, account
 selection and public UI operations under the existing 1800-second worker bound.
-Qualified on `onpc-Ubuntu26.04` and `onpc-Fedora44`, including fresh usable
-reentry and owned cleanup. The restored request refreshes its estimate through
+The corrected refusal branch awaits launcher verification on `onpc-Ubuntu26.04`;
+the changed history also needs renewed `onpc-Fedora44` qualification before
+claiming both-target coverage. It retains fresh usable reentry and owned cleanup.
+The restored request refreshes its estimate through
 equivalent custom values and dates the grant comparison with the captured
 calculation interval. No complete customer-case credit is supplied.
 

@@ -32,9 +32,10 @@ for phase, child in (('healthy', 'child'), ('unavailable', 'existing'), ('restor
     else:
         request['new-estimate'] = 'ui:jordan-fraction-estimate-refresh'
     mate = 'kiosk' if phase == 'healthy' else 'jordan'
+    result = ('refused', 'submit-unavailable') if phase == 'unavailable' else ('success', 'submit-success')
     request.update({'approval-' + stage: f'ui:{mate}-mate-' + operation
                     for stage, operation in (('open', 'open'), ('qualified', 'qualified'),
-                                             ('rechecked', 'rechecked'), ('success', 'submit-success'))})
+                                             ('rechecked', 'rechecked'), result)})
     request['new-returned'] = 'ui:gdm-station-returned'
     SCREENS.update(prefixed_stages(phase, request))
     entry = prefixed_stages(phase + '-parent', desktop_entry('parent', source='gdm', entry='retained'))
@@ -62,7 +63,7 @@ PLAN = JourneyPlan(prefix='child-isolation', worker_mode='child_isolation', scre
     child_bindings={'unavailable-allowance': 'existing',
                     'unavailable-balance': 'existing', 'restored-balance': 'existing'},
     assertions_after={'healthy-balance': 'healthy-child-genuine-time-access',
-                      'unavailable-balance': 'unavailable-integration-does-not-block-request',
+                      'unavailable-balance': 'unavailable-child-safe-refusal-without-new-grant',
                       'restored-balance': 'restored-child-genuine-time-access',
                       'reentry-usable': 'fresh-passwordless-usable-request'})
 
@@ -74,6 +75,9 @@ class ChildIsolationJourney(InstalledJourney):
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
+        if stage == 'unavailable-allowance':
+            require(observed['ui']['time_explanation']['one_time']['seconds'] == 0,
+                    'child-isolation:initial-grant-not-empty')
         for phase, child in (('healthy', 'fixture-child'),
                              ('unavailable', 'existing-fixture-child'),
                              ('restored', 'existing-fixture-child')):
@@ -90,6 +94,14 @@ class ChildIsolationJourney(InstalledJourney):
                 value = observed['ui']['time_explanation']
                 require(value['child'] == child and phase in self.estimates, 'child-isolation:balance-child')
                 estimate = self.estimates[phase]
+                if phase == 'unavailable':
+                    require(value['one_time']['seconds'] == 0
+                            and abs(value['daily']['seconds'] - 900) < value['daily']['precision_seconds']
+                            and abs(value['total']['seconds'] - value['daily']['seconds'])
+                            < max(value[key]['precision_seconds'] for key in ('total', 'daily')),
+                            'child-isolation:refusal-changed-time-access')
+                    observed.setdefault('comparison', {})['no_new_grant'] = True
+                    continue
                 elapsed = (value['observed_monotonic_ns'] - estimate['observed_monotonic_ns']) / 1e9
                 if phase == 'restored':
                     start, end = _estimate_read_bounds(estimate, 'child-isolation:estimate-read-bounds')

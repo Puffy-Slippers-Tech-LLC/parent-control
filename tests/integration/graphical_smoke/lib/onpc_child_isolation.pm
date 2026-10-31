@@ -40,7 +40,8 @@ sub run {
         }
         $request->seen('approval-open');
         onpc_password::enter_kiosk_mate_password($request);
-        $request->seen($_) for qw(approval-success new-returned);
+        $request->seen($phase eq 'unavailable' ? 'approval-refused' : 'approval-success');
+        $request->seen('new-returned');
         onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', "$phase-parent");
         onpc_allowance_boundaries::select_child($journey, 'restored-selected-away') if $phase eq 'restored';
         onpc_allowance_boundaries::select_child($journey, "$phase-selected");

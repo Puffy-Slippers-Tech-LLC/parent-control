@@ -100,6 +100,16 @@ def guest_operation(action, token, receipt):
     require(not os.path.lexists(home) and stat.S_ISDIR(info.st_mode)
             and info.st_uid == account.pw_uid and not hidden.is_symlink()
             and receipt['home'] == [info.st_dev, info.st_ino], 'hidden-home-changed')
+    if action == 'verify-refusal':
+        # Submitting a request intentionally saves its duration/app choices;
+        # those UI preferences are independent of authoritative parent policy.
+        current = preferences()
+        require({key: value for key, value in current.items() if key != 'request'} ==
+                {key: value for key, value in receipt['policy'].items() if key != 'request'},
+                'refusal-parent-policy-changed')
+        require(enforcement() == receipt['live'], 'refusal-enforcement-or-grant-changed')
+        return {'no_new_grant': True, 'authoritative_policy_preserved': True,
+                'native_enforcement_preserved': True}
     if action == 'restore':
         inactive()
         hidden.rename(home)
@@ -159,6 +169,7 @@ class ChildIsolationFault:
         with watch_activity.operation({
                 'install': 'Making the inactive fixture child home unavailable',
                 'startup': 'Checking isolated broker startup and unchanged child policy',
+                'verify-refusal': 'Checking refused approval preserved child policy and native enforcement',
                 'restore': 'Restoring the exact fixture home and retrying broker startup'}[action]):
             raw = self.journey.transport.call([
                 'env', 'ONPC_EXPECTED_RUN=' + self.lease.state['run'],
@@ -181,5 +192,5 @@ class ChildIsolationFault:
 
 
 if __name__ == '__main__':
-    require(len(sys.argv) == 4 and sys.argv[1] in ('install', 'startup', 'restore'), 'arguments')
+    require(len(sys.argv) == 4 and sys.argv[1] in ('install', 'startup', 'verify-refusal', 'restore'), 'arguments')
     print(json.dumps(guest_operation(sys.argv[1], sys.argv[2], json.loads(sys.argv[3])), sort_keys=True))

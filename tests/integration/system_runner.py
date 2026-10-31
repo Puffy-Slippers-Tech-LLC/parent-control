@@ -1257,9 +1257,10 @@ class Lease:
                 log('recovery:restored-interrupted-off')
                 return
             self.mutated = True
-            if saved_memory_identity:
-                # Saved SSH credentials/markers may not have been rebound when
-                # startup failed. Restore the exact guarded instance directly;
+            if self.view.graphics_type == 'vnc' and not off:
+                # Recovery has no attempt-owned SSH transport, even when the
+                # fresh run tag was recorded successfully. Use the graphical
+                # worker's guarded outer restoration for this exact instance;
                 # never send guest input or try to start it again.
                 self.state['domain_id'] = self.view.domain_id
                 self.stop_by_restore()

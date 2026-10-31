@@ -641,6 +641,7 @@ def test_reconstructed_outer_recovery_removes_canonical_owned_resources(
     recovered.save = Mock(side_effect=lambda phase: journal.write_text(json.dumps(
         {**recovered.state, 'phase': phase})))
     recovered.finish = Mock()
+    recovered.stop_by_restore = Mock()
     with patch.object(runner.baseline, 'open_controller_lock', return_value=42), \
             patch.object(runner.baseline, 'close_controller_lock'), \
             patch.object(runner.baseline, 'compatibility_lock', return_value=None), \

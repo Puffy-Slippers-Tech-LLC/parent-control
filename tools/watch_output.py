@@ -104,6 +104,10 @@ def active_launchers(root, reader):
         try:
             base = directory(kind, root=root, create=False)
             bases = sorted(base.iterdir()) if kind == 'plans' else [base]
+            if kind == 'sessions':
+                # Explicit VM selections publish in independent session scopes,
+                # including while their owners wait for a host-wide VM checkout.
+                bases.extend(sorted(base.glob('vm-*')))
             for item in bases:
                 try:
                     run = active_run(item, workflow=kind not in ('sessions-host', 'sessions'),

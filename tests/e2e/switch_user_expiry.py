@@ -15,8 +15,8 @@ from private_artifacts import require
 from real_interval import interval_action
 
 
-GRANT_SECONDS = 240
-WORK_INTERVAL_SECONDS = 60
+GRANT_SECONDS = 600
+WORK_INTERVAL_SECONDS = 150
 
 PREPARATION = {
     **grant_only_time_profile(source='gdm', entry='fresh', window='new',
@@ -28,8 +28,8 @@ PREPARATION = {
         entry='retained', source_account='child')),
     **native_activity_entry('parent-activity', child='parent'),
 }
-# Four finite periods of normal app use and sixty real seconds. The original
-# grant is at most four minutes; no approval or policy write occurs in this loop.
+# Four finite periods of normal app use and 150 real seconds. The original
+# grant is at most ten minutes; no approval or policy write occurs in this loop.
 WORK = {
     stage: tag
     for number in range(1, 5)

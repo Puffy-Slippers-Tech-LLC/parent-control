@@ -16,8 +16,10 @@ Estimate: 20–30 minutes. First planned consumer:
 ## Scope and acceptance
 
 Publicly save one Riley reminder at 30 seconds with literal `Save your game now`
-and fullscreen enabled. Prepare a declared short positive usable interval above
-30 seconds and perform real native activity until it naturally crosses that
+and fullscreen enabled. Use the [finite reminder preparation](../E2E-Scenario-Recipes.md#explicit-time-preparation):
+prepare assets and the public observer before the 10-minute real grant, then
+require at least 300 seconds when arming the original countdown approach.
+Perform real native activity until it naturally crosses that
 threshold. Independently observe the owned ChildUI notification's exact literal
 body, `critical` urgency and the canonical seconds required by the API contract,
 using elapsed bounds. Bind the saved row's trigger independently from the public

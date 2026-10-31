@@ -29,6 +29,13 @@ from tests.support.vm_runner import RECOVERY_INVENTORIES
 import system_case_ids
 
 
+@pytest.fixture(autouse=True)
+def isolate_live_recording(monkeypatch):
+    # These tests simulate root and VM identities. Failure reporting must stay
+    # in memory rather than reaching an actual runner's recording endpoint.
+    monkeypatch.setattr('tools.vm_recording.report_failure', Mock())
+
+
 def test_numeric_system_registry_covers_current_parameter_variants_without_vm_operations():
     inventories = {area: runner.collect_area_cases(area) for area in runner.AREA_SOURCES}
     system_case_ids.validate_inventory(inventories)

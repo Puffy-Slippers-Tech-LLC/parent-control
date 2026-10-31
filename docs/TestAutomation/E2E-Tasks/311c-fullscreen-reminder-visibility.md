@@ -14,7 +14,9 @@ Estimate: 20–30 minutes. First planned consumer:
 ## Scope and acceptance
 
 Use the qualified real fullscreen game, with Riley's fixed literal 30-second
-reminder and a short publicly prepared balance above that threshold. With the
+reminder and the [finite prearmed reminder profile](../E2E-Scenario-Recipes.md#explicit-time-preparation).
+Prepare the game mode, supported single fullscreen transition and observer
+before the timed approach; retain the real warning's original lifetime. With the
 saved fullscreen preference enabled, naturally cross the threshold and require
 the owned banner's logical visibility independently of its `critical` urgency.
 In a second independently entered interval, save fullscreen disabled, naturally
@@ -30,6 +32,9 @@ identity across the one fullscreen transition. Await its owned surface flags
 within the original warning lifetime; no screenshot, desktop notification
 settings tour or exact-second snapshot is needed. Expiry or observer loss
 cannot pass fullscreen suppression.
+If the supported single transition and visibility read cannot complete within
+the real 30-second warning lifetime, retain the gate; do not add an approval,
+change the threshold or treat a missing/replaced warning as hidden.
 
 ## Shared implementation
 

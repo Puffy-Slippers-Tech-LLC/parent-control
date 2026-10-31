@@ -2131,7 +2131,7 @@ def run_pytest(vm, run, phase, selection):
         with package_operation(vm, 'Guest package lifecycle: ' + phase) if package_history else nullcontext():
             return vm.call(pytest_command(run, phase, selection),
                            timeout=2400 if phase in (*FIRST_CONFIGURE_PHASES, *PAM_PHASES, 'previous-policy', TRUSTED_FIXTURES_PHASE) or any(phase in history.phases
-                                               for history in REMOVAL_HISTORIES) else 900)
+                                               for history in REMOVAL_HISTORIES) else 1800 if phase == 'session' else 900)
     finally:
         vm.commands.progress.close()
         vm.commands.progress = previous

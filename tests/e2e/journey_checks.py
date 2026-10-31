@@ -97,20 +97,21 @@ class CountdownActivityJourney:
             require(self.balance is not None, 'countdown:missing-balance')
             observed['comparison'] = check_countdown_balance(current.countdown,
                 seconds=self.balance[0], precision_seconds=self.balance[1],
-                observed_monotonic_ns=self.balance[2])
+                observed_monotonic_ns=self.balance[2], max_elapsed_seconds=300)
         elif stage == 'returned-countdown':
             previous = self.samples['initial-countdown']
-            current.elapsed_since(previous, max_elapsed_seconds=180)
+            current.elapsed_since(previous, max_elapsed_seconds=300)
             require(countdown_seconds(current.countdown.text)[0]
                     <= countdown_seconds(previous.countdown.text)[0], 'countdown-daily:return-reset')
             observed['comparison'] = check_countdown_balance(current.countdown,
                 seconds=countdown_seconds(previous.countdown.text)[0],
                 precision_seconds=previous.precision_seconds,
-                observed_monotonic_ns=previous.countdown.observed_monotonic_ns)
+                observed_monotonic_ns=previous.countdown.observed_monotonic_ns,
+                max_elapsed_seconds=300)
         else:
             previous = self.last_progress or self.samples['returned-countdown']
-            current.elapsed_since(previous, max_elapsed_seconds=90 if stage in (
-                'minute-progression', 'final-second-transition') else 15)
+            current.elapsed_since(previous, max_elapsed_seconds=(300 if stage == 'minute-progression'
+                else 90 if stage == 'final-second-transition' else 15))
             require(countdown_seconds(current.countdown.text)[0]
                     <= countdown_seconds(previous.countdown.text)[0], 'countdown:no-progress')
             if stage == 'natural-expiry' and current.countdown.text != previous.countdown.text:

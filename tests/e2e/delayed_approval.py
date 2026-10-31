@@ -1,11 +1,13 @@
-"""Case 223: daily time keeps running while the parent decides, then adds twice."""
+"""Cases 223/225: time keeps running while the parent decides, then adds twice."""
 from copy import deepcopy
+from dataclasses import replace
 import time
 
 from countdown import CountdownObservation
+from grant_only_profile import GrantOnlyProfileJourney
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (daily_time_profile, desktop_entry, fresh_desktop,
-                            prefixed_stages, retained_parent_entry)
+                            grant_only_time_profile, prefixed_stages, retained_parent_entry)
 from journey_checks import DailyTimeProfileJourney
 from private_artifacts import require
 from real_interval import interval_action
@@ -16,10 +18,14 @@ from ui_observations import SettingsObservation
 CHOICES = dict(child='fixture-child', approver='fixture-parent',
                duration_seconds=30, allow_soft=False)
 PROMPT_WAIT_SECONDS = 45
+# Grant time also runs during Parent visits and provider observations. Leave
+# ample headroom for slow machines without extending the deliberate wait.
+INITIAL_GRANT_SECONDS = 1200
+MIN_APPROVAL_REMAINING_SECONDS = 300
 SCREENS = {
     **fresh_desktop('parent'),
     **daily_time_profile(source='desktop', entry='same-user', window='new',
-                         initial_enabled=False, minutes=6),
+                         initial_enabled=False, minutes=10),
     **prefixed_stages('child-entry', desktop_entry('child', source='gdm', entry='fresh')),
 }
 for request in ('first', 'second'):
@@ -56,8 +62,8 @@ PLAN = JourneyPlan(
     invocations=tuple(stage for stage in SCREENS if stage in LOGIN_STAGES),
     challenges=CHALLENGES,
     settings_checks={'same-parent-selected': SettingsObservation('fixture-child', False, ('0 minutes',)),
-                     'profile-settings': SettingsObservation('fixture-child', True, ('6 minutes',))},
-    balance_checks={'profile-configured': 360},
+                     'profile-settings': SettingsObservation('fixture-child', True, ('10 minutes',))},
+    balance_checks={'profile-configured': 600},
     overlay_request=('child', 'parent', 30, False),
     stage_actions={'first-approval-open': 'real-interval', 'cooldown': 'cooldown'},
     assertions_after={'first-countdown': 'delayed-current-balance-increment',
@@ -65,13 +71,32 @@ PLAN = JourneyPlan(
 )
 
 
-class DelayedApprovalJourney(DailyTimeProfileJourney):
+GRANT_SCREENS = {
+    **grant_only_time_profile(source='gdm', entry='fresh', window='new',
+        initial_enabled=False, revoke_first=False, duration_seconds=INITIAL_GRANT_SECONDS,
+        request_initial='default', balance_readback=False),
+    **dict(list(SCREENS.items())[tuple(SCREENS).index('child-entry-entry-guard'):]),
+}
+GRANT_PLAN = replace(PLAN, worker_mode='delayed_grant_approval', screen_tags=GRANT_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: PLAN.phases.get(stage, 'step-1') for stage in GRANT_SCREENS},
+            'installed-greeter': 'start'},
+    invocations=tuple(stage for stage in GRANT_SCREENS if stage in LOGIN_STAGES),
+    challenges={('parent-login' if name == 'initial' else name): binding
+                for name, binding in CHALLENGES.items()},
+    settings_checks={'parent-selected': SettingsObservation('fixture-child', False, ('0 minutes',))},
+    balance_checks={})
+
+
+class DelayedApprovalChecks:
     # Exact canonical seconds have one-second precision. Include read latency
     # in each interval, plus two seconds for the native/public refresh boundary.
     tolerance = 2
 
-    def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan, no_grant_checks=('profile-before',),
+    balance_profile = 'daily-only'
+
+    def __init__(self, context, progress, plan, *, actions=None, **kwargs):
+        super().__init__(context, progress, plan, **kwargs,
             actions=actions if actions is not None else {
                 'real-interval': interval_action(PROMPT_WAIT_SECONDS), 'cooldown': self.cooldown})
         self.samples = {}
@@ -97,9 +122,18 @@ class DelayedApprovalJourney(DailyTimeProfileJourney):
             bounds = tuple(value['countdown_read_bounds'])
             require(bounds[1] - bounds[0] <= 10e9, 'delayed-approval:read-precision')
             self.samples[stage] = (countdown.seconds, bounds)
-            if stage.endswith('-before'):
-                require(countdown.seconds >= 120, 'delayed-approval:usable-margin')
-            else:
+            if stage in ('first-before', 'second-before'):
+                require(countdown.seconds >= MIN_APPROVAL_REMAINING_SECONDS,
+                        'delayed-approval:usable-margin')
+            if stage == 'second-before' and self.balance_profile == 'grant-only':
+                # Grant-only time also elapses while visiting Parent.
+                seconds, earlier = self.samples['first-countdown']
+                low, high = self.elapsed(earlier, bounds)
+                require(seconds - high - self.tolerance <= countdown.seconds
+                        <= seconds - low + self.tolerance
+                        and countdown.seconds > 0,
+                        'delayed-approval:second-current-balance')
+            elif stage in ('first-countdown', 'second-countdown'):
                 request = stage.split('-')[0]
                 seconds, earlier = self.samples[request + '-before']
                 low, high = self.elapsed(earlier, bounds)
@@ -118,9 +152,9 @@ class DelayedApprovalJourney(DailyTimeProfileJourney):
                 observed.setdefault('comparison', {}).update(
                     current_balance_increment=True, elapsed_interval_seconds=[low, high],
                     tolerance_seconds=self.tolerance)
-        if stage.endswith('-new-choices'):
+        if stage in ('first-new-choices', 'second-new-choices'):
             self.choice_bounds = tuple(self.ui.read_bounds)
-        if stage.endswith('-new-estimate'):
+        if stage in ('first-new-estimate', 'second-new-estimate'):
             request = stage.split('-')[0]
             choice = deepcopy(value['valid_choice'])
             require(choice['request']['child'] == 'fixture-child'
@@ -143,10 +177,11 @@ class DelayedApprovalJourney(DailyTimeProfileJourney):
                     <= seconds + 30 - low + self.tolerance,
                     'delayed-approval:estimate-arithmetic')
             self.estimates[request] = (choice, bounds)
-        if stage == 'first-approval-open':
-            estimate, earlier = self.estimates['first']
+        if stage in ('first-approval-open', 'second-approval-open'):
+            estimate, earlier = self.estimates[stage.split('-')[0]]
             _, elapsed = self.elapsed(earlier, tuple(self.ui.read_bounds))
-            require(estimate['estimate']['seconds'] - 30 - elapsed - self.tolerance >= 120,
+            require(estimate['estimate']['seconds'] - 30 - elapsed - self.tolerance
+                    >= MIN_APPROVAL_REMAINING_SECONDS,
                     'delayed-approval:prompt-usable-margin')
         if stage == 'first-approval-submit-ready':
             self.submit_bounds = tuple(self.ui.read_bounds)
@@ -162,15 +197,56 @@ class DelayedApprovalJourney(DailyTimeProfileJourney):
             precision = grant['precision_seconds'] + self.tolerance
             require(seconds - high - precision <= grant['seconds']
                     <= seconds - low + precision
-                    and grant['seconds'] > 0 and balances['daily']['seconds'] > 0
+                    and grant['seconds'] > 0
+                    and (balances['daily']['seconds'] == 0 if self.balance_profile == 'grant-only'
+                         else balances['daily']['seconds'] > 0)
                     and abs(balances['total']['seconds'] - max(
                         balances['daily']['seconds'], grant['seconds'])) <= precision,
                     'delayed-approval:parent-balances')
             observed.setdefault('comparison', {})['independent_parent_balances'] = True
 
 
+class DelayedApprovalJourney(DelayedApprovalChecks, DailyTimeProfileJourney):
+    def __init__(self, context, progress, plan=PLAN, *, actions=None):
+        super().__init__(context, progress, plan, no_grant_checks=('profile-before',), actions=actions)
+
+
+class GrantDelayedApprovalJourney(DelayedApprovalChecks, GrantOnlyProfileJourney):
+    balance_profile = 'grant-only'
+
+    def __init__(self, context, progress, plan=GRANT_PLAN, *, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
+        self.initial_grant_bounds = None
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage == 'profile-request-new-estimate':
+            choice = observed['ui']['valid_choice']
+            require(choice['request']['duration_seconds'] == INITIAL_GRANT_SECONDS
+                    and choice['estimate']['kind'] == 'fixed'
+                    and choice['estimate']['seconds'] == INITIAL_GRANT_SECONDS,
+                    'delayed-approval:initial-grant-estimate')
+        if stage == 'profile-request-approval-success':
+            self.initial_grant_bounds = (self.approval_started, self.ui.read_bounds[1])
+        if stage == 'first-before':
+            require(self.initial_grant_bounds is not None, 'delayed-approval:missing-initial-grant')
+            seconds, bounds = self.samples[stage]
+            low, high = self.elapsed(self.initial_grant_bounds, bounds)
+            require(INITIAL_GRANT_SECONDS - high - self.tolerance <= seconds
+                    <= INITIAL_GRANT_SECONDS - low + self.tolerance,
+                    'delayed-approval:initial-grant-countdown')
+        if stage.endswith('-balances'):
+            require(observed['ui']['revoke_cancel']['settings'] == {
+                'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['0 minutes']},
+                'delayed-approval:saved-zero-daily')
+
+
 def execute(recorder, context):
     record_installed_journey(recorder, context, PLAN, journey_type=DelayedApprovalJourney)
 
 
-E2E_CASES = {'daily-only-child-overlay': execute}
+def execute_grant(recorder, context):
+    record_installed_journey(recorder, context, GRANT_PLAN, journey_type=GrantDelayedApprovalJourney)
+
+
+E2E_CASES = {'daily-only-child-overlay': execute, 'grant-only-child-overlay': execute_grant}

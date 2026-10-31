@@ -1,4 +1,4 @@
-"""Case 28: real two-minute approval, retained work and natural exhaustion."""
+"""Case 28: real approval, retained work and natural exhaustion."""
 
 from accessible_ui import countdown_seconds
 from grant_only_profile import GrantOnlyProfileJourney
@@ -8,11 +8,11 @@ from journey_checks import CountdownActivityJourney
 from private_artifacts import require
 
 
-TIME_STAGES = ('initial-countdown', 'returned-countdown', 'final-second-transition',
+TIME_STAGES = ('initial-countdown', 'returned-countdown', 'minute-progression', 'final-second-transition',
                'second-progression', 'independent-second-progression', 'natural-expiry')
 SCREENS = {
     **grant_only_time_profile(source='gdm', entry='fresh', window='new',
-        initial_enabled=False, revoke_first=False, duration_seconds=120,
+        initial_enabled=False, revoke_first=False, duration_seconds=600,
         request_initial='default', balance_readback=False),
     'profile-balance': 'ui:revoke-balances',
     **{stage: ('ui:overlay-native-activity' if stage in ('lock-ready', 'unlock-desktop') else tag)
@@ -27,7 +27,7 @@ PLAN = JourneyPlan(
     phases={'ready': 'setup', 'setup-detached': 'setup',
             **{stage: 'step-1' for stage in SCREENS}, 'installed-greeter': 'start',
             **{stage: 'step-2' for stage in tuple(SCREENS)[tuple(SCREENS).index('lock-ready'):]},
-            **{stage: 'step-3' for stage in tuple(SCREENS)[tuple(SCREENS).index('final-second-transition'):]}},
+            **{stage: 'step-3' for stage in tuple(SCREENS)[tuple(SCREENS).index('minute-progression'):]}},
     advance_after={'activity-capture': 'step-2', 'usable-activity': 'step-3'},
     invocations=tuple(stage for stage in SCREENS
                       if stage in LOGIN_STAGES or stage in TIME_STAGES
@@ -36,7 +36,8 @@ PLAN = JourneyPlan(
         prefix + ('child-' if prefix == 'fresh-' else '') + 'recipient-qualified',
         prefix + ('child-' if prefix == 'fresh-' else '') + 'recipient-rechecked')
         for prefix, identity in LOGIN_PREFIXES.items()},
-    stage_actions={'desktop': 'native-verify', 'final-second-transition': 'final-transition',
+    stage_actions={'desktop': 'native-verify', 'minute-progression': 'minute-progress',
+                   'final-second-transition': 'final-transition',
                    'second-progression': 'second-progress',
                    'independent-second-progression': 'second-progress',
                    'natural-expiry': 'natural-expiry'},
@@ -46,13 +47,16 @@ PLAN = JourneyPlan(
     assertions_after={'activity-capture': 'usable-child-activity',
                       'returned-countdown': 'resumed-time', 'usable-activity': 'retained-work',
                       'independent-second-progression': 'second-progression',
-                      'lock-result': 'visible-result', 'final-second-transition': 'minute-progression'},
+                      'lock-result': 'visible-result', 'minute-progression': 'minute-progression'},
 )
 
 
 class CountdownGrantJourney(CountdownActivityJourney, GrantOnlyProfileJourney):
+    minute_edge_limit = 9
+
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan, time_stages=TIME_STAGES, actions=actions)
+        super().__init__(context, progress, plan, time_stages=TIME_STAGES,
+                         grant_seconds=600, actions=actions)
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
@@ -62,17 +66,14 @@ class CountdownGrantJourney(CountdownActivityJourney, GrantOnlyProfileJourney):
                             value['observed_monotonic_ns'])
         if stage == 'initial-countdown':
             current = self.samples[stage]
-            require(current.precision_seconds == 60 and current.countdown.text == '00:01',
+            require(current.precision_seconds == 60
+                    and countdown_seconds(current.countdown.text)[0] >= 180,
                     'countdown-grant:minute-margin')
         if stage == 'returned-countdown':
             current = self.samples[stage]
-            require(countdown_seconds(current.countdown.text)[0] >= 30,
+            require(current.precision_seconds == 60
+                    and countdown_seconds(current.countdown.text)[0] >= 120,
                     'countdown-grant:remaining-activity-margin')
-            # The real grant also runs during activity and unlock. Preserve the
-            # original minute endpoint if that history crossed into seconds;
-            # the same 90-second comparison still owns the whole transition.
-            self.last_progress = (current if current.precision_seconds == 60 else
-                                  self.samples['initial-countdown'])
 
 
 def execute(recorder, context):

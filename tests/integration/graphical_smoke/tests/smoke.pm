@@ -89,6 +89,7 @@ sub exchange {
     close($request) or die 'smoke:request-close';
     rename("$stage.request.tmp", "$stage.request.json") or die 'smoke:request-publish';
     my $deadline = time + ($stage =~ /\Apublic-/ ? 120 : $stage eq 'setup-detached' ? 1500
+        : $stage eq 'minute-progression' ? 900
         : $stage eq 'package-submitted' || $stage eq 'upgrade-submitted' ? 780
         : $stage eq 'reboot-installed-greeter' || $stage eq 'second-reboot-greeter'
             || $stage eq 'reboot-greeter' ? 780 : 420);
@@ -367,10 +368,11 @@ sub run {
         onpc_request_flow::overlay_prompt(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, 'approval');
         return;
     }
-    if ($ready->{delayed_approval}) {
+    if ($ready->{delayed_approval} || $ready->{delayed_grant_approval}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
-        onpc_request_flow::delayed_approval(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        onpc_request_flow::delayed_approval(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
+            $ready->{delayed_grant_approval} ? 'grant-only' : 'daily-only');
         return;
     }
     for my $entry ('new', 'open') {

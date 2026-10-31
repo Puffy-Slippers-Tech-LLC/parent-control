@@ -34,7 +34,16 @@ restoration branches while preparing this profile.
 
 ## Live VM acceptance
 
-On the live VM, approve the prescribed small addition with soft apps, open S, switch away and wait while daily use pauses. Read G in the 60–90-second window and D at least 120 seconds, then return while G remains positive. Wrong inequalities fail preparation; no relabeling or top-up.
+On the live VM follow the recipe's [finite FLOW18 profile and prearmed return](../E2E-Scenario-Recipes.md#expired-grant-with-daily-time-remaining).
+Approve the prescribed small addition with soft apps, open S and switch away
+while ample grant time remains. Arm the public deadline observer and guarded
+return before the final G=60–90-second/D≥120-second Parent witness. Return
+directly and independently require D>G>0; FLOW18 must return at that positive
+child witness. Qualification may subsequently observe the original grant expiry
+on the child desktop; consuming cases own expiry and their post-expiry actions.
+Defer settings/form/other-child tours until their owning
+post-expiry action. Wrong inequalities fail preparation; no relabeling, top-up
+or policy edit after approval. An unreachable real return window stays gated.
 
 Planned qualification selector (not registered; implement before use):
 

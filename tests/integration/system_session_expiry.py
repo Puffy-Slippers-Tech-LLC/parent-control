@@ -20,6 +20,9 @@ from system_assertions import accepted, account_property, account_state, call
 
 LIMITS = 'com.endlessm.ParentalControls.SessionLimits'
 SERVICES = ('gdm-password', 'gdm-autologin', 'login', 'sshd')
+# Cover both reply/readback pairs and the next authentication (505 seconds at
+# their individual bounds), with room left before the original grant expires.
+REQUEST_EXTENSION_SECONDS = 600
 
 
 class PamScopeObserver:
@@ -328,7 +331,7 @@ def verify_zero_time_pam(record):
     # pam_malcontent account hook returns PAM_AUTH_ERR (7) for exhausted time;
     # preserve that authoritative denial rather than demanding another code.
     guest.require(denied == (13, 7), 'expiry:zero-time-pam-not-expired')
-    grant(child, 45)
+    grant(child, 600)
     try:
         allowed = (pam_password_status(child, password),
                    pam_password_status(child, password, account_only=True))
@@ -355,8 +358,13 @@ def verify_request_extension(record):
     password.install(parent)
     before_other = account_state(accounts['other'])
     deadline = None
-    for surface, uid, seconds in (('child', child, 15), ('kiosk', kiosk, 60)):
-        with PersistentCaller(uid) as caller, TextAgent(caller) as agent:
+    # Create both callers and register their agents before the first timed
+    # grant starts. Process/bus startup must not consume its extension window.
+    with PersistentCaller(child) as child_caller, TextAgent(child_caller) as child_agent, \
+            PersistentCaller(kiosk) as kiosk_caller, TextAgent(kiosk_caller) as kiosk_agent:
+        for surface, caller, agent, seconds in (
+                ('child', child_caller, child_agent, REQUEST_EXTENSION_SECONDS),
+                ('kiosk', kiosk_caller, kiosk_agent, 600)):
             caller.send({
                 'kind': 'call', 'method': 'RequestOwnAccess' if surface == 'child' else 'RequestAccess',
                 'signature': '(uub)' if surface == 'child' else '(uuub)',
@@ -367,16 +375,16 @@ def verify_request_extension(record):
             agent.authenticate(password)
             result = accepted(caller.receive())
             guest.require(result[1] == 'approved', 'expiry:request-not-approved:' + surface)
-        extension = account_property(child, LIMITS, 'ActiveExtension')
-        guest.require(extension[0] > 0 and extension[1] >= seconds,
-                      'expiry:request-grant-missing:' + surface)
-        if deadline is None:
-            guest.require(extension[1] == seconds, 'expiry:unexpected-initial-approved-duration')
-            deadline = sum(extension)
-        else:
-            guest.require(time.time() < deadline and sum(extension) > deadline,
-                          'expiry:extension-not-before-original-deadline')
-        record('onpc.expiry.request.' + surface, 'polkit-authenticated; approved; grant-readback')
+            extension = account_property(child, LIMITS, 'ActiveExtension')
+            guest.require(extension[0] > 0 and extension[1] >= seconds,
+                          'expiry:request-grant-missing:' + surface)
+            if deadline is None:
+                guest.require(extension[1] == seconds, 'expiry:unexpected-initial-approved-duration')
+                deadline = sum(extension)
+            else:
+                guest.require(time.time() < deadline and sum(extension) > deadline,
+                              'expiry:extension-not-before-original-deadline')
+            record('onpc.expiry.request.' + surface, 'polkit-authenticated; approved; grant-readback')
     guest.require(account_state(accounts['other']) == before_other, 'expiry:request-other-account-changed')
     return deadline
 

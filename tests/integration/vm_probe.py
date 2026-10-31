@@ -650,6 +650,15 @@ def reproduce_revoke_cancel(lease):
                             boundary_operation='revoke-balances')
 
 
+def reproduce_delayed_approval(lease):
+    """Retain the second prompt and recheck it without releasing any password."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from delayed_approval import GrantDelayedApprovalJourney, GRANT_PLAN
+    return reproduce_denial(lease, GrantDelayedApprovalJourney, GRANT_PLAN,
+                            'second-approval-rechecked', 'delayed-approval',
+                            boundary_operation='overlay-shell-rechecked')
+
+
 def reproduce_countdown_minutes(lease):
     """Retain the real daily-only child desktop before minute sampling."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1221,7 +1230,11 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                             from session_control import observe as observe_session
                             observed = observe_session(transport, boundary_operation.removeprefix('system:'))
                         else:
-                            observed = UiObservations(transport).observe(boundary_operation)
+                            # This diagnostic must retain the already qualified
+                            # prompt identity and normal fresh-proof deadline.
+                            observer = (journey.ui if surface == 'delayed-approval'
+                                        else UiObservations(transport))
+                            observed = observer.observe(boundary_operation)
                     except Exception as error:
                         observed = {'outcome': 'refused', 'error_type': type(error).__name__}
                         # Capture before guard probes can replace the SSH status.

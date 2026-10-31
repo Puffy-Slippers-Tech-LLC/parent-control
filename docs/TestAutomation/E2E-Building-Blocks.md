@@ -1034,7 +1034,8 @@ substitute for a usable public form, grant read or app result.
 
 A 600-second approval does not qualify a different account, natural grant
 expiry, parameterized approval matrix or broader complete scenario. The distinct
-[120-second profile](#grant-only-time-profile-qualification) has its own qualification.
+[FLOW13 profile](#grant-only-time-profile-qualification) records its historical
+120-second qualification and current twenty-minute Ubuntu qualification.
 Daily-only natural-lock qualification does not prove grant-only expiry.
 Unknown, ambiguous, replaced or stale recipients and uncertain input refuse
 without a replay. Neither timeout nor a missing window proves denial.
@@ -1661,6 +1662,17 @@ regressions passed in `20261030T211604Z-975223cd`. Collection, worker shutdown,
 owned cleanup and baseline restoration passed throughout; the VM was observed
 off. This supplies neither another balance profile nor a kiosk binding.
 
+The timing correction passed complete grant-only case **225** in
+`20261030T235858Z-1bb2127b` and affected daily-only case **223** in
+`20261031T000950Z-1107bc49` on Ubuntu 26.04. The current declarations use a
+real twenty-minute grant or ten-minute daily allowance, with five-minute
+request-start/open-prompt margins. Both keep the real 45-second wait, two
+30-second additions, elapsed-time/frozen-estimate distinction and independent
+Parent balances. Product, collection, owned cleanup and baseline restoration
+passed. These qualify only the fresh grant-only preparation and same-user
+daily preparation consumed by these child-overlay cases; kiosk and dominant
+profiles remain pending.
+
 #### Overlay immediate exit and approval compositions
 
 `overlay_approved_exit.IMMEDIATE_PLAN/FLOW_REJECTION_PLAN/FLOW_CANCEL_PLAN`
@@ -2159,10 +2171,10 @@ and enforcement results.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
-| TIME01 | C | Read the child's remaining usable time during activity or session return. Retain stable absence on the limits-off desktop as a qualified supporting observation; local lock/greeter visibility belongs to UI obligation 052b. | UI01 → UI03, or UI11 with the destination positively identified. `AccessibleUI.child_countdown(present)` / `countdown.CountdownObservation` and `check_countdown_balance`; [child-desktop qualification](#child-desktop-countdown-qualification). | child-desktop horizontal presence and limits-off absence ready; E2E-011 daily-only/grant-only/combined ready on Ubuntu 26.04; other new customer time/session bindings need qualification, local visibility is UI scope |
-| TIME02 | C | Compare displayed remaining time across real activity with public starting balances, elapsed intervals and explicit precision/tolerances. This supports actual time-use and expiry outcomes; tick formatting belongs in UI tests. | `countdown.CountdownSample`, `check_countdown_progress` and `await_countdown_progress` compare immutable minute or exact-second endpoints bracketed by controller monotonic reads, including an explicitly declared minute-to-seconds transition. TIME03 `interval_action` retains the original bound and attempt guard. `countdown_qualification.MINUTE_PLAN` / `CountdownMinutesJourney` and `TICK_PLAN` / `CountdownTicksJourney` share `onpc_challenges` daily-only preparation and independent child reads, qualified by `check_e2e_countdown_minutes` / `check_e2e_countdown_ticks`. No guest clock/usage manipulation. [Minute qualification](#minute-countdown-progression-qualification) and [final-second qualification](#final-second-countdown-progression-qualification). | minute and final-second progression ready on Ubuntu 26.04 and Fedora 44; E2E-011 daily-only/grant-only/combined ready on Ubuntu 26.04; other customer bindings pending |
+| TIME01 | C | Read the child's remaining usable time during activity or session return. Retain stable absence on the limits-off desktop as a qualified supporting observation; local lock/greeter visibility belongs to UI obligation 052b. | UI01 → UI03, or UI11 with the destination positively identified. `AccessibleUI.child_countdown(present)` / `countdown.CountdownObservation` and `check_countdown_balance`; [child-desktop qualification](#child-desktop-countdown-qualification). | child-desktop horizontal presence and limits-off absence ready; current E2E-011 grant-only/combined and representative changed shared mechanics passed on Ubuntu 26.04; daily-only retains earlier complete acceptance; other new customer time/session bindings need qualification, local visibility is UI scope |
+| TIME02 | C | Compare displayed remaining time across real activity with public starting balances, elapsed intervals and explicit precision/tolerances. This supports actual time-use and expiry outcomes; tick formatting belongs in UI tests. | `countdown.CountdownSample`, `check_countdown_progress` and `await_countdown_progress` compare immutable minute or exact-second endpoints bracketed by controller monotonic reads, including an explicitly declared minute-to-seconds transition. TIME03 `interval_action` retains the original bound and attempt guard. `countdown_qualification.MINUTE_PLAN` / `CountdownMinutesJourney` and `TICK_PLAN` / `CountdownTicksJourney` share `onpc_challenges` daily-only preparation and independent child reads, qualified by `check_e2e_countdown_minutes` / `check_e2e_countdown_ticks`. No guest clock/usage manipulation. [Minute qualification](#minute-countdown-progression-qualification) and [final-second qualification](#final-second-countdown-progression-qualification). | minute progression ready on Ubuntu 26.04/Fedora 44; current four-minute final-second fixture and E2E-011 grant-only/combined passed on Ubuntu; daily-only retains earlier complete acceptance plus affected shared-mechanic coverage; Fedora final-second acceptance remains historical two-minute scope; other customer bindings pending |
 | TIME03 | A | Let a declared bounded real interval elapse while retaining the runner guard and deadline. Return elapsed time only; this does not prove a lock or grant expiry. | `real_interval.wait_real_interval(duration, deadline=absolute_monotonic, guard=attempt_guard, progress=callback)` accepts finite durations through 300 seconds, checks ownership/deadline between sleeps of at most 250 ms and publishes five checkpoints. `interval_action(duration)` binds it to an `InstalledJourney` stage action using the guard's attempt deadline. `real_interval_qualification.PLAN` / `onpc_parent_about::run_interval` passed `check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard`: five real seconds between independent unchanged About endpoint/PID/product/version reads, valid entry and wrong-entry refusal, collection, owned cleanup and baseline restoration. Host safety checks cover lost ownership, deadline, cancellation, recorder failure and durable reply refusal. No product state follows from elapsed time. | guarded elapsed-time helper ready; five-second About slice qualified; complete consumers remain separate |
-| TIME04 | C | Use the selected app/game until natural expiry, then observe the lock owning normal input and loss of desktop access. Earlier visible time and the timeout are explicit inputs. | `natural_expiry_observation.await_natural_expiry` consumes an immutable countdown and original activity under the original display upper bound plus 15 seconds and attempt deadline. `AccessibleUI.natural_expiry` binds the child session/window before ordinary Submit input, stops input near zero or Lock, and reuses the qualified curtain/restriction reader without inspecting the app underneath. `NaturalExpiryJourney` / `onpc_challenges::natural_expiry` add fresh lock-ready → harmless Shift → independent same-lock read through `check_e2e_natural_expiry`; [installed qualification](#natural-enforced-lock-qualification). A native time restriction needs no password field; input ownership alone supplies no authenticated-denial result. | Riley/native two-minute daily-only binding ready on Ubuntu 26.04 and Fedora 44; E2E-011 daily-only/grant-only/combined ready on Ubuntu 26.04; other app/game/fullscreen and customer bindings pending |
+| TIME04 | C | Use the selected app/game until natural expiry, then observe the lock owning normal input and loss of desktop access. Earlier visible time and the timeout are explicit inputs. | `natural_expiry_observation.await_natural_expiry` consumes an immutable countdown and original activity under the original display upper bound plus 15 seconds and attempt deadline. `AccessibleUI.natural_expiry` binds the child session/window before ordinary Submit input, stops input near zero or Lock, and reuses the qualified curtain/restriction reader without inspecting the app underneath. `NaturalExpiryJourney` / `onpc_challenges::natural_expiry` add fresh lock-ready → harmless Shift → independent same-lock read through `check_e2e_natural_expiry`; [installed qualification](#natural-enforced-lock-qualification). A native time restriction needs no password field; input ownership alone supplies no authenticated-denial result. | current E2E-011 grant-only/combined and representative changed shared expiry mechanics passed on Ubuntu; daily-only retains earlier complete acceptance; standalone four-minute fixture qualified on Ubuntu; Fedora retains historical two-minute scope; other app/game/fullscreen and customer bindings pending |
 | LIFE01 | C | Close and reopen one named ordinary app through a shared direct command, unless the case explicitly tests its graphical launch route; observe its opening window. Do not reselect a child or restore settings before reading them. | `onpc_lifecycle::reopen(journey, 'parent', prior_window, 'management')` consumes `prior-window`, independently guards the active owned window, composes UI18 → PARENT01, then reads the initial child selection before edits. `app_restart.PLAN` / `onpc_app_restart::run` passed `check_e2e_app_restart`: fresh entry, already-closed and wrong named-window refusal without repair, complete old-window absence, new management window, initial selection, collection, owned cleanup and baseline restoration. Shared launch/close helpers are unchanged. Other ordinary apps use APP01 with the declared route; overlay/kiosk reopening uses their explicit exit/entry blocks. | Parent→management ready with the baseline eligible children; other apps/bindings pending |
 | LIFE02 | C | Reboot through a fixed supported system command in the owned guest, then observe a new boot and fresh GDM in the same attempt. | `JourneyPlan.reboot_transition`, `InstalledJourney.submit_reboot` and `Transport.request_customer_reboot`; independent `ReadOnlyObservations.wait_boot_change` then fresh GDM. [Qualified install/reboot composition](#customer-reboot-continuity). No Shell power menu; product persistence and activation notices remain required. | fresh install/reboot/administrator return ready; other bindings pending |
 | LIFE03 | C | Suspend through a fixed supported system command, wait the real interval, wake through the owned VM's supported input and observe the return. | Shared lifecycle harness → TIME03 → bound wake input → public result; unlock remains DESK08. No Shell menus. | pending |
@@ -2178,11 +2190,16 @@ reset or child-persistence assertions; it never repairs the selected child.
 
 #### Natural enforced lock qualification
 
-`check_e2e_natural_expiry` qualifies the fixed two-minute daily-only Riley
-binding on Ubuntu 26.04 and Fedora 44. Public Parent controls prepare zero grant,
-then fresh child entry opens the actual native fixture app. An immutable initial
-`00:01` observation supplies the 61–119-second display interval and original
-upper bound plus 15 seconds. Ordinary Submit actions demonstrate activity until
+The historical `check_e2e_natural_expiry` qualification passed the two-minute
+daily-only Riley binding on Ubuntu 26.04 and Fedora 44. Its current declaration
+prepares four daily minutes with zero grant before fresh child entry opens the
+actual native fixture app. Compare the immutable initial public countdown with
+the earlier Parent balance, retaining its actual display interval and original
+upper bound plus 15 seconds. The current four-minute fixture passed on Ubuntu
+26.04 in `20261031T011829Z-582da384`, including natural lock, same-lock input
+ownership, worker/collection completion, owned cleanup and baseline restoration.
+Fedora retains its historical two-minute scope.
+Ordinary Submit actions demonstrate activity until
 near zero; independently observe the owned curtain within elapsed bounds.
 Fresh lock-ready and post-Shift reads must prove the same session/surface with
 desktop input unavailable, without inspecting the app underneath.
@@ -2199,11 +2216,11 @@ complete customer histories remain separate.
 Complete E2E-011 cases 27 and 28 compose TIME01/02/04 with the qualified direct
 child lock/unlock and original native activity operations. Daily-only case 27 uses
 [`countdown_daily.PLAN` / `CountdownDailyJourney`](../../tests/e2e/countdown_daily.py)
-and `onpc_challenges::countdown_daily`; its affected Ubuntu 26.04 regression passed
+and `onpc_challenges::countdown_daily`; its historical Ubuntu 26.04 regression passed
 in `20261030T092025Z-90141f75` with public four-minute/no-grant preparation.
 Grant-only case 28 uses
 [`countdown_grant.PLAN` / `CountdownGrantJourney`](../../tests/e2e/countdown_grant.py)
-and `onpc_challenges::countdown_grant`; it passed in `20261030T090926Z-dabc2614`
+and `onpc_challenges::countdown_grant`; it historically passed in `20261030T090926Z-dabc2614`
 with zero daily time and one real two-minute approval. Both passed retained
 original usable work and resumed time, minute/final-second progression, natural
 lock and same-lock input ownership, collection, worker shutdown, recording,
@@ -2211,14 +2228,26 @@ owned cleanup and baseline restoration. This qualifies those complete bindings
 on Ubuntu; Fedora acceptance remains separate.
 Combined case 29 uses
 [`countdown_combined.PLAN` / `CountdownCombinedJourney`](../../tests/e2e/countdown_combined.py)
-and `onpc_challenges::countdown_combined`. It passed on Ubuntu 26.04 in
+and `onpc_challenges::countdown_combined`. It historically passed on Ubuntu 26.04 in
 `scenario-55432f8076bd426581bd5feff022816d`: public four-minute daily allowance,
 real two-minute addition, Parent G>D>0/total=max(D,G), preserved usable work and
 resumed time, minute/final-second progression, natural lock and same-lock input
 ownership. Collection, worker shutdown, recording, owned cleanup and baseline
-restoration passed. The shared minute-edge comparison retains three edges for
-daily-only and permits five for combined; affected case 27 passed separately in
+restoration passed. That historical minute-edge comparison retained three edges
+for daily-only and permitted five for combined; affected case 27 passed separately in
 `scenario-39dd5708640a446588ceea8730b0ddb1` with the same complete cleanup.
+The current declarations use six daily minutes for case 27, a 600-second
+grant for case 28, and four daily minutes plus a 240-second addition for case 29.
+Their minute progression allows at most five, nine and seven real minute edges
+respectively, each within 90 seconds, before the unchanged final-second checks
+and actual natural lock. Current grant-only case 28 passed on Ubuntu 26.04 in
+`20261031T004013Z-a591c42a`; combined case 29 passed in
+`20261031T005631Z-daaae707`. Both preserved original work, refreshed countdown
+arithmetic, minute progression, the final transition, two exact-second decreases
+and natural lock. Collection, owned cleanup, baseline restoration and recording
+finalization passed. These representative affected checks cover the shared
+minute/activity/expiry mechanics; case 27 retains its earlier complete daily-only
+acceptance and the reports above retain their original historical scope.
 The [recipe](E2E-Scenario-Recipes.md#e2e-011) owns its finite margins and endpoints.
 
 #### Installed restart notice qualification
@@ -2363,12 +2392,18 @@ suspend/resume remains pending LIFE03. This supplies no complete-scenario credit
 
 #### Final-second countdown progression qualification
 
-`check_e2e_countdown_ticks` qualifies Ubuntu 26.04 and Fedora 44.
+`check_e2e_countdown_ticks` retains historical two-minute qualification on
+Ubuntu 26.04 and Fedora 44; its current four-minute fixture passed on Ubuntu.
 `countdown_qualification.TICK_PLAN` / `CountdownTicksJourney` reuse the minute
 sampler; `onpc_challenges::countdown_ticks` shares its guarded daily setup and
-fresh-entry worker. Parent publicly saves two daily minutes with zero grant.
-The child independently supplies `00:01`, transitions into positive exact seconds
-and supplies two successive positive exact decreases within one session.
+fresh-entry worker. The current declaration uses four daily minutes with zero
+grant and passed in `20261031T011111Z-4348ce5e`, including all three progression
+results, collection, owned cleanup and baseline restoration. Fedora's accepted
+two-minute history supplies no four-minute result.
+The child supplies an independent positive minute sample, observes at most
+three real minute edges with 90-second bounds until `00:01`, transitions into
+positive exact seconds and supplies two successive positive exact decreases
+within one session.
 
 Transition retains its original 90-second bound. Each exact progression has
 15 seconds from the previous immutable endpoint; independent stage reads may
@@ -2720,8 +2755,9 @@ accept the finite explicit choices qualified under
 `onpc_request_flow::prepare` / `approve` retain Riley/Jamie and soft apps included.
 The shared kiosk leaves accept caller-owned finite 75/120/180/240/600/1200-second
 durations. The 75/600-second leaves retain their existing scope; the distinct
-[120-second FLOW13 profile](#grant-only-time-profile-qualification) is qualified
-on Ubuntu 26.04. Later cases bind their other finite durations and own their
+[FLOW13 qualification](#grant-only-time-profile-qualification) records historical
+120-second and current standalone 1200-second Ubuntu acceptance. Later cases
+bind their other finite durations and own their
 elapsed-time, arithmetic, app-effect and lifecycle results without replaying
 this qualifier. Other kiosk identities and soft-choice inputs remain planned
 extensions.
@@ -2777,7 +2813,7 @@ of additional named app arguments.
 | FLOW10 | C | Launch the prepared real game with its declared mode/level and play to natural lock. | FLOW08(game, usable, registered launch options) → APP05 → APP04(record activity) → TIME04. | pending |
 | FLOW11 | C | After a displayed lock, obtain legitimate replacement time, unlock and observe the expected retained app or closed blocked app. | Case-level DESK11 → FLOW20(kiosk, retained) → APP02 → APP04(compare) → APP03 when preservation is expected. Closed-app branch ends at APP02. Reuse the case's original captures; no standalone qualifier. Tasks 197k and the app/game owners retain missing bindings. | pending complete customer histories; no separate qualification task |
 | FLOW12 | C | From an open request form, visit the other surface for that child and compare duration/custom/soft-app choices before editing. Compare the independently remembered parent for each requesting OS user, not parent equality across surfaces. Interactive mute is separate deferred scope. Finish with the second form open. | Overlay→kiosk: `request_flow.overlay_to_kiosk` / `onpc_request_flow::overlay_to_kiosk` compose REQUEST12(cancel) → DESK03 → REQUEST01 → REQUEST03. `KioskRequestJourney` compares immutable endpoints declared in `request_transfer_checks`; `choices_overlay_to_kiosk.PLAN` binds both children and same-kiosk persistence/isolation readbacks. The [both-child qualification](#overlay-choices-transferred-to-kiosk) passed the shortened scope on Ubuntu 26.04 and Fedora 44; its historical independent retained entry is no longer a prerequisite. Kiosk→overlay: `request_flow.kiosk_to_overlay` / `onpc_request_flow::kiosk_to_overlay` compose REQUEST12(cancel) → FLOW15(child, declared fresh/retained entry) → REQUEST02 → REQUEST03 → UI12(shared values and user-local selectors); `cross_surface.PLAN` binds both children through fresh entry. See [reverse qualification](#kiosk-choices-transferred-to-overlays). Interactive mute remains deferred outside this current-choice composite. | both directions ready for both children; overlay-to-kiosk same-kiosk persistence/isolation ready; kiosk-to-overlay fresh entry and complete cases 60–61 passed; retained reverse entry pending |
-| FLOW13 | C | Establish a named time profile entirely through customer controls and finish at GDM. Entry/window arguments are explicit. Verify no grant or revoke it first; use the profile table below. | `journey_blocks.daily_time_profile` / `DailyTimeProfileJourney` / `onpc_parent::daily_time_profile` compose FLOW01 → PARENT09 → UI12(G=0 on that initial observation, no unchanged reread) → FLOW02(short custom allowance) → independent saved settings and UI12(D>0/G=0) → DESK03. [Qualified daily-only bindings and selector](#daily-only-time-profile-qualification); six-minute same-user binding passed in [case 223](#explicit-overlay-choices-and-countdown-return-qualification). `journey_blocks.grant_only_time_profile` / `GrantOnlyProfileJourney` / `onpc_parent::grant_only_time_profile` add explicit optional PARENT17 → PARENT18(confirm) → fresh PARENT09(G=0), FLOW02(declared daily allowance), FLOW06 and retained Parent result before DESK03. [Qualified grant-only bindings and selector](#grant-only-time-profile-qualification); [combined binding and selector](#combined-time-profile-qualification). Daily-dominant remains separate and adds PARENT06(larger allowance, still enabled) → PARENT08. | daily-only fresh 2-minute/same-user 4-minute bindings and case 223's six-minute same-user binding ready; grant-only fresh and retained/revoke-first 2-minute bindings and combined fresh 4-minute daily/2-minute addition ready on Ubuntu 26.04; other profiles/bindings pending |
+| FLOW13 | C | Establish a named time profile entirely through customer controls and finish at GDM. Entry/window arguments are explicit. Verify no grant or revoke it first; use the profile table below. | `journey_blocks.daily_time_profile` / `DailyTimeProfileJourney` / `onpc_parent::daily_time_profile` compose FLOW01 → PARENT09 → UI12(G=0 on that initial observation, no unchanged reread) → FLOW02(short custom allowance) → independent saved settings and UI12(D>0/G=0) → DESK03. [Qualified daily-only bindings and selector](#daily-only-time-profile-qualification); six/ten-minute same-user bindings passed in [case 223](#explicit-overlay-choices-and-countdown-return-qualification). `journey_blocks.grant_only_time_profile` / `GrantOnlyProfileJourney` / `onpc_parent::grant_only_time_profile` add explicit optional PARENT17 → PARENT18(confirm) → fresh PARENT09(G=0), FLOW02(declared daily allowance), FLOW06 and retained Parent result before DESK03. [Qualified grant-only bindings and selector](#grant-only-time-profile-qualification); [combined binding and selector](#combined-time-profile-qualification); fresh twenty-minute preparation with direct GDM finish passed in [case 225](#explicit-overlay-choices-and-countdown-return-qualification). Daily-dominant remains separate and adds PARENT06(larger allowance, still enabled) → PARENT08. | daily-only fresh 2-minute/same-user 4-minute and case 223's six/ten-minute same-user bindings ready; historical grant-only fresh/retained 2-minute and combined 4-minute daily/2-minute bindings passed on Ubuntu 26.04; current standalone twenty-minute fresh/revoke-first readback and combined four-minute daily/twenty-minute addition bindings qualified on Ubuntu 26.04; case 225's fresh twenty-minute/direct-GDM binding ready; other profiles/bindings pending |
 | FLOW14 | C | Open apps/recognizable activities for a finite declared user list, retaining each desktop through Switch User. Inputs state each user's fresh/retained entry and usable-time/policy prerequisites. Start and finish at GDM. | `journey_blocks.retained_app_activities` / `onpc_app_rows::retained_app_activities`: for each distinct user, FLOW15 → FLOW08(command) → APP04(capture) → desktop identity → DESK03. Earlier retained desktops must be revisited, not recreated. Parent native operations bind Jamie's active session explicitly. Duplicate users refuse; same-child multiple desktops retain a separate same-child customer-route gate. [Distinct-user qualification](#distinct-user-retained-app-qualification). | stated Jamie/Parent retained and Riley fresh preparation ready; other bindings pending |
 | FLOW16 | C | As the named parent, reach Parent for the named child and set a daily allowance and final limit state. This is the reusable “Set Jordan's daily allowance to zero” recipe; zero is an allowance, not an approval. | `onpc_parent::set_allowance` composes FLOW01→FLOW02. Qualified `gdm/parent/fresh/new/child/0/0/1`, `desktop/parent/same-user/new/child/1/15/1` and `gdm/parent/fresh/new/child/0/30/1` bind explicit saved settings and independent zero/positive/1800-0-1800 balances through `set_allowance.PLAN/fresh_thirty_allowance.PLAN`. Wrong child/state/window refuses before reply. Finish in Parent without implicit logout. Other allowances/parents/retained windows need qualification; local case 161 has no E2E executable. | pending; fresh-zero, fresh-thirty and same-user-positive bindings ready |
 | FLOW17 | C | Leave a request with authentication pending by one declared supported action, observe its destination, then return and read cancellation before a new request. | Lock: shared DESK05 shortcut/command → DESK06 → DESK08; switch: DESK03 → FLOW15(return retained); sign-out: DESK04 → FLOW15(fresh); close: UI18(API surface close) → UI11(app), followed by REQUEST01/02 as declared. REQUEST03 → UI11(old prompt). E2E-039; system commands work independently of modal menu access. An unavailable tested app-close control remains gated. | pending |
@@ -2814,18 +2850,24 @@ remain separate. Grant-only qualification is scoped below.
 #### Grant-only time profile qualification
 
 `grant_only_profile.PLAN/REVOKE_PLAN`, `onpc_set_allowance::qualify_grant`
-and `check_e2e_grant_only_profile` qualify Riley/Jamie on Ubuntu 26.04 through
-two independently restored attempts. Fresh `gdm/fresh/new` entry reuses the
+and `check_e2e_grant_only_profile` declare Riley/Jamie qualification through
+two independently restored attempts. Their current 1200-second fixture passed
+both histories on Ubuntu 26.04 in `20261031T012835Z-415e8c84`, including retained
+Parent readback, worker/collection completion, owned cleanup and baseline
+restoration. The earlier 120-second qualification remains historical.
+Fresh `gdm/fresh/new` entry reuses the
 initial public G=0 read. Retained `desktop/same-user/retained` entry obtains a
 real existing grant through the unchanged 75-second approval leaves, verifies
 G>0 and the undeclared-grant refusal, explicitly confirms Revoke, then reads
 G=0 afresh before editing policy. Neither branch silently clears a grant.
 
-Both save enabled zero daily minutes, approve a real 120-second soft-included
-kiosk request, independently return to the same Parent window and require
+Both currently save enabled zero daily minutes, approve a real 1200-second
+soft-included kiosk request, independently return to the same Parent window and require
 saved D=0/G>0/total=G within elapsed-time and display-precision bounds. Both
-finish at usable GDM. Worker/callback shutdown, collection, owned baseline
-restoration and finalization passed. The shared request leaves accept finite
+finish at usable GDM after readback without waiting for grant expiry.
+The historical 120-second attempts passed worker/callback
+shutdown, collection, owned baseline restoration and finalization. The shared
+request leaves accept finite
 120/180/240/600/1200-second caller arguments; later recipes retain their own
 duration, arithmetic, deadline, recovery and child-effect assertions. This
 qualification supplies no complete-scenario credit or other-family result.
@@ -2833,7 +2875,7 @@ qualification supplies no complete-scenario credit or other-family result.
 The shared declaration/worker accepts `balance_readback=False` / final argument
 `0` to finish at GDM directly after approval. The caller must independently read
 saved zero daily time before approval, then the public estimate, success and
-positive child countdown. Case 25 passed this route with a four-minute request
+positive child countdown. Case 25 historically passed this route with a four-minute request
 on Ubuntu 26.04 in `20261030T054552Z-161dd5f4`, including initial countdown,
 foreground activity before expiry, four real one-minute intervals, retained-child
 denial and continued use of the original Parent activity. Collection, owned
@@ -2844,42 +2886,57 @@ by a later observation. Other bindings remain outside this acceptance.
 Case 28 uses the same direct GDM finish, then independently calls the shared
 `revoke-balances` Application UI reader on the retained Parent window before
 fresh child entry. This keeps the public D=0/G>0/total=G result without spending
-the two-minute wall-clock grant on another Parent login. The unchanged reader
+the current ten-minute wall-clock grant on another Parent login. The unchanged reader
 retains owner/child bindings and fresh status reload. Its complete customer
 history is recorded under [natural enforced lock](#natural-enforced-lock-qualification).
 
-Case 26 passed the same four-minute preparation on Ubuntu 26.04 in
+Case 26 historically passed the same four-minute preparation on Ubuntu 26.04 in
 `20261030T063013Z-c491dbd2`, with the other child's limits-off activity captured
 before approval. Its exact scoped kiosk credential binding retains the two fresh
 recipient proofs and single-use input. The other child resumed the original
 window/draft before expiry and across four measured one-minute intervals;
 retained-child time denial and final use of that same activity passed, with
 collection, owned cleanup, baseline restoration and recording finalization.
+The current cases 25/26 use ten-minute grants and four 150-second work intervals;
+case 25 passed the changed preparation and shared expiry history on Ubuntu 26.04
+in `20261031T002044Z-e5874f56`, including the original grant deadline, retained
+child denial and continued use of the same Parent activity. Collection, owned
+cleanup, baseline restoration and recording finalization passed. Case 26 shares
+that preparation and interval driver; its distinct other-child history retains
+the earlier qualification above.
 
 #### Combined time profile qualification
 
 `grant_only_profile.COMBINED_PLAN`, `GrantOnlyProfileJourney(daily_minutes=4)`,
-`CombinedTimeProfileQualification` and `check_e2e_time_profiles_grant` qualify
-fresh `gdm/fresh/new` Riley/Jamie preparation on Ubuntu 26.04. The shared
+`CombinedTimeProfileQualification` and `check_e2e_time_profiles_grant` currently
+qualify fresh `gdm/fresh/new` Riley/Jamie preparation with a twenty-minute
+addition on Ubuntu 26.04. The shared
 declaration and `onpc_parent::grant_only_time_profile` accept `daily_minutes=4`
 (the worker's final argument); their default remains zero.
 
 The journey observes G=0 before edits, saves an enabled four-minute daily
-allowance, retains actual observed D, and approves two additional minutes through
+allowance, retains actual observed D, and approves twenty additional minutes through
 the real kiosk prompt. Fresh recipient proofs and single-use password input bind
-this exact scoped 120-second request. Retained Parent readback requires G>D>0
+this exact scoped 1200-second request. Retained Parent readback requires G>D>0
 by more than display precision, total=max(D,G), unchanged daily time within
-rounding tolerance, and G bounded by the earlier D+120, measured elapsed time,
+rounding tolerance, and G bounded by the earlier D+1200, measured elapsed time,
 both display precisions and two seconds of tolerance. No clock change or grant
 clearing occurs after approval.
 
-Passed in `20261030T095545Z-d1f77e61`: D=240 seconds, G=314 seconds and
+The current four-minute daily/twenty-minute addition binding passed in
+`20261031T014208Z-de102d73`, including retained Parent readback,
+worker/collection completion, owned cleanup and baseline restoration. It finishes
+at usable GDM after readback; no twenty-minute expiry wait is required.
+
+The historical two-minute addition passed in `20261030T095545Z-d1f77e61`:
+D=240 seconds, G=314 seconds and
 total=314 seconds, followed by usable GDM. Collection, worker/callback shutdown,
 owned cleanup, baseline restoration and finalization passed. The exact credential
 binding was added after its initial refusal; 208 affected host checks plus source
 and traceability passed. Unchanged grant-only/revoke-first entry and refusal
 coverage remains qualified above. This slice supplies no complete-case credit.
-Complete case 29 uses this preparation as recorded under
+Complete case 29 explicitly requests 240 seconds rather than the standalone
+1200-second default, as recorded under
 [natural enforced lock](#natural-enforced-lock-qualification); other families
 remain pending.
 

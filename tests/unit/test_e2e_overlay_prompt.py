@@ -298,6 +298,43 @@ def test_approval_filled_submit_guard_never_delivers_input(monkeypatch, fault):
     field.get_child_count.assert_not_called()
 
 
+@pytest.mark.parametrize('result', ['same-recipient', 'wrong-recipient', 'unavailable'])
+def test_shell_recheck_reacquires_complete_read_before_credential_authority(monkeypatch, result):
+    from gi.repository import GLib
+    ui, _, _, _, field, cancel, recipient, _ = prompt(monkeypatch)
+    ui.expected_mate_challenge = 'a' * 64
+    ui.mate_challenge_identity = Mock(return_value='a' * 64)
+    ui.query_errors = (GLib.Error,)
+    ui.timeout = 0 if result == 'unavailable' else 1
+    snapshot = ui.read_snapshot
+    reads = []
+
+    def changing_tree(*args, **kwargs):
+        reads.append(True)
+        if len(reads) == 1 or result == 'unavailable':
+            raise GLib.Error('provider exited during observation')
+        if result == 'wrong-recipient':
+            recipient.name = a.OTHER_PARENT
+        return snapshot(*args, **kwargs)
+
+    ui.read_snapshot = changing_tree
+    ui._invoke_target = Mock(side_effect=AssertionError('recheck released input'))
+    monkeypatch.setattr(a.time, 'sleep', Mock())
+    if result == 'same-recipient':
+        assert ui.run('overlay-shell-rechecked', '')['approval'] == {'challenge_id': 'a' * 64}
+        assert len(reads) == 2
+    else:
+        with pytest.raises(a.UiError, match='shell-recipient-context-missing' if result ==
+                           'wrong-recipient' else 'timeout:shell-tree'):
+            ui.run('overlay-shell-rechecked', '')
+        assert ui.input_uncertain
+        field.get_text_iface.assert_not_called()
+    ui._invoke_target.assert_not_called()
+    cancel.get_action_iface.assert_not_called()
+    field.get_description.assert_not_called()
+    field.get_child_count.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', [None, 'boot', 'challenge', 'duplicate', 'missing',
                                   'stale', 'recording', 'input', 'extra'])
 def test_live_observer_readiness_is_durable_bound_and_single_use(monkeypatch, fault):

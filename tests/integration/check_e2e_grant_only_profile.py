@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify two-minute grant-only time and explicit revoke-first in separate attempts."""
+"""Qualify grant-only preparation and explicit revoke-first in separate attempts."""
 
 import sys
 from check_graphical_smoke import main as smoke

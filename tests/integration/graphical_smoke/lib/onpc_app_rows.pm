@@ -563,7 +563,7 @@ sub switch_user_expiry_parent {
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
-    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 240, 'default', 0);
+    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 600, 'default', 0);
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'child-start');
     $journey->seen('initial-countdown');
     onpc_desktop_session::enter_desktop($journey, 'desktop', 'parent', 'retained', 'success',
@@ -592,7 +592,7 @@ sub switch_user_expiry_other_child {
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
     retained_app_activities($journey, [['other-setup', 'other-child', 'fresh']]);
-    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 240, 'default', 0);
+    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 600, 'default', 0);
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'child-start');
     $journey->seen('initial-countdown');
     retained_app_visit($journey, 'other-work', 'other-child', 'desktop', 'child');

@@ -23,7 +23,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **267 — [Check that extra time keeps running while a parent approves more time](E2E-Tasks/267-case-225.md)**.
+Next task: **197a — [Compose kiosk approval and fresh child entry](E2E-Tasks/197a-kiosk-fresh-return.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

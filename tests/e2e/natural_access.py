@@ -17,7 +17,7 @@ from ui_observations import SettingsObservation
 
 
 PROFILE = daily_time_profile(source='desktop', entry='same-user', window='new',
-                             initial_enabled=False, minutes=2)
+                             initial_enabled=False, minutes=4)
 _switch = tuple(PROFILE).index('repeat-desktop')
 PREPARATION = {
     **fresh_desktop('parent'),
@@ -97,8 +97,8 @@ PLAN = JourneyPlan(
         'denied': ('child', 'denied-child-recipient-qualified', 'denied-child-recipient-rechecked'),
     },
     settings_checks={'same-parent-selected': SettingsObservation('fixture-child', False, ('0 minutes',)),
-                     'profile-settings': SettingsObservation('fixture-child', True, ('2 minutes',))},
-    balance_checks={'profile-configured': 120},
+                     'profile-settings': SettingsObservation('fixture-child', True, ('4 minutes',))},
+    balance_checks={'profile-configured': 240},
     stage_actions={'desktop': 'native-verify', 'natural-expiry': 'natural-expiry'},
     activity_entries={'natural-expiry': 'activity-capture'},
     activity_checks={stage: ('activity-capture', 'same') for stage in
@@ -158,7 +158,7 @@ class NaturalAccessJourney(NaturalExpiryJourney):
             return
         value = ui['revoke_cancel']
         require(value['settings'] == {'child': 'fixture-child', 'limit_enabled': True,
-                                      'allowance': ['2 minutes']}, 'natural-access:allowance-changed')
+                                      'allowance': ['4 minutes']}, 'natural-access:allowance-changed')
         if stage == 'policy-before':
             self.policy = deepcopy(value)
             return

@@ -209,15 +209,21 @@ sub approval_return {
 
 sub delayed_approval {
     onpc_progress::operation('Checking delayed approval and a second addition for [Child user]');
-    my ($exchange, $declared, $challenges) = @_;
-    die 'delayed-approval:arguments' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my ($exchange, $declared, $challenges, $balance) = @_;
+    $balance //= 'daily-only';
+    die 'delayed-approval:arguments' unless (@_ == 3 || @_ == 4) && ref($exchange) eq 'CODE'
+        && ($balance eq 'daily-only' || $balance eq 'grant-only');
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'delayed-approval', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
-    onpc_gdm::sign_in_challenge($journey, 'initial',
-        'installed-greeter', 'parent-focused', 'desktop');
-    onpc_parent::daily_time_profile($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0, 6);
+    if ($balance eq 'grant-only') {
+        onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 1200, 'default', 0);
+    } else {
+        onpc_gdm::sign_in_challenge($journey, 'initial',
+            'installed-greeter', 'parent-focused', 'desktop');
+        onpc_parent::daily_time_profile($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0, 10);
+    }
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'child-entry');
     for my $request ('first', 'second') {
         $journey->seen("$request-before");

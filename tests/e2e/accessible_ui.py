@@ -11459,7 +11459,11 @@ class AccessibleUI:
                                         else 'overlay-hebrew-fraction-soft-read' if language == 'he'
                                         else 'overlay-valid-fraction-soft-read')
             self.invalidate_observation()
-            observation = self.read_snapshot(protect_text=True)
+            # An unrelated provider may exit between registry enumeration and
+            # its cache read. Reacquire the whole tree before qualifying this
+            # prompt; never omit a subtree or replay approval/password input.
+            observation = self.wait(lambda: self.read_snapshot(protect_text=True),
+                                    'shell-tree', prompt_in_predicate=True)
             owner = self.shell_prompt_owner(observation)
             pid, uid = owner.get_process_id(), os.getuid()
             if opening:

@@ -16,7 +16,7 @@ def plan(*, revoke_first, daily_minutes=0):
         **grant_only_time_profile(source='desktop' if revoke_first else 'gdm',
             entry='same-user' if revoke_first else 'fresh',
             window='retained' if revoke_first else 'new', initial_enabled=revoke_first,
-            revoke_first=revoke_first, duration_seconds=120,
+            revoke_first=revoke_first, duration_seconds=1200,
             request_initial='selected' if revoke_first else 'default', daily_minutes=daily_minutes),
     }
     logins = {'': 'parent-login', 'profile-return-': 'profile-return'}
@@ -33,7 +33,7 @@ def plan(*, revoke_first, daily_minutes=0):
         challenges={identity: ('parent', prefix + 'recipient-qualified', prefix + 'recipient-rechecked')
                     for prefix, identity in logins.items()},
         assertions_after={'profile-balance': 'positive-daily-grant-dominant' if daily_minutes else
-                          'zero-daily-positive-two-minute-grant'},
+                          'zero-daily-positive-grant'},
     )
 
 
@@ -43,12 +43,16 @@ COMBINED_PLAN = plan(revoke_first=False, daily_minutes=4)
 
 
 class GrantOnlyProfileJourney(InstalledJourney):
-    def __init__(self, context, progress, plan=None, *, revoke_first=False, daily_minutes=0, actions=None):
+    def __init__(self, context, progress, plan=None, *, revoke_first=False, daily_minutes=0,
+                 grant_seconds=1200, actions=None):
         super().__init__(context, progress, plan if plan is not None else
                          COMBINED_PLAN if daily_minutes else REVOKE_PLAN if revoke_first else PLAN,
                          actions=actions)
         self.revoke_first = revoke_first
         self.daily_minutes = daily_minutes
+        require(type(grant_seconds) is int and grant_seconds in (120, 180, 240, 600, 1200),
+                'time-profile:grant-duration')
+        self.grant_seconds = grant_seconds
         self.daily_before_approval = None
         self.windows = {}
         self.approval_started = None
@@ -114,16 +118,18 @@ class GrantOnlyProfileJourney(InstalledJourney):
                 margin = precision + baseline['precision_seconds'] + 2
                 # G replaces max(D,G) plus the addition and keeps elapsing while
                 # the parent returns. Total is max(D,G), never their sum.
-                expected = baseline['seconds'] + 120
+                expected = baseline['seconds'] + self.grant_seconds
                 require(grant > daily > 0 and grant - daily > precision
                         and abs(daily - baseline['seconds']) < margin
                         and expected - elapsed - margin < grant <= expected + margin
                         and abs(total - grant) < precision, 'time-profile:combined-balances')
                 observed['comparison'] = {'positive_daily_grant_dominant': True,
                     'daily_before_approval_seconds': baseline['seconds'],
-                    'additional_seconds': 120, 'elapsed_seconds': elapsed,
+                    'additional_seconds': self.grant_seconds, 'elapsed_seconds': elapsed,
                     'rounding_margin_seconds': margin}
             else:
-                require(daily == 0 and 0 < grant <= 120 and grant > 120 - elapsed - precision - 2
+                require(daily == 0 and 0 < grant <= self.grant_seconds
+                        and grant > self.grant_seconds - elapsed - precision - 2
                         and abs(total - grant) < precision, 'time-profile:grant-only-balances')
-                observed['comparison'] = {'zero_daily_positive_grant': True, 'duration_seconds': 120}
+                observed['comparison'] = {'zero_daily_positive_grant': True,
+                                          'duration_seconds': self.grant_seconds}

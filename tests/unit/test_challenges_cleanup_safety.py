@@ -252,15 +252,26 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, events => \@events,
     ('', 'rejection', 'fixture-only-canary', 'natural-access'),
     ('', 'approval', 'fixture-only-canary', 'grant-only-profile'),
     ('', 'request-120', 'fixture-only-canary', 'profile-request'),
+    ('', 'request-1200', 'fixture-only-canary', 'profile-request'),
     ('', 'request-120', 'fixture-only-canary', 'switch-user-expiry-parent-profile-request'),
     ('', 'request-240', 'fixture-only-canary', 'switch-user-expiry-other-child-profile-request'),
+    ('', 'long-request', 'fixture-only-canary', 'switch-user-expiry-parent-profile-request'),
+    ('', 'long-request', 'fixture-only-canary', 'switch-user-expiry-other-child-profile-request'),
     ('', 'request-120', 'fixture-only-canary', 'switch-user-expiry-parent'),
     ('', 'request-120', 'fixture-only-canary', 'time-profiles-grant-profile-request'),
     ('', 'request-240', 'fixture-only-canary', 'time-profiles-grant-profile-request'),
+    ('', 'request-1200', 'fixture-only-canary', 'time-profiles-grant-profile-request'),
     ('', 'request-120', 'fixture-only-canary', 'time-profiles-grant'),
     ('', 'request-120', 'fixture-only-canary', 'countdown-combined-profile-request'),
     ('', 'request-240', 'fixture-only-canary', 'countdown-combined-profile-request'),
     ('', 'request-120', 'fixture-only-canary', 'countdown-combined'),
+    ('', 'long-request', 'fixture-only-canary', 'countdown-grant-profile-request'),
+    ('', 'request-120', 'fixture-only-canary', 'countdown-grant-profile-request'),
+    ('', 'request-240', 'fixture-only-canary', 'countdown-grant-profile-request'),
+    ('', 'request-240', 'fixture-only-canary', 'delayed-approval-profile-request'),
+    ('', 'request-1200', 'fixture-only-canary', 'delayed-approval-profile-request'),
+    ('', 'request-120', 'fixture-only-canary', 'delayed-approval-profile-request'),
+    ('', 'request-240', 'fixture-only-canary', 'delayed-approval'),
     ('', 'request-120', 'fixture-only-canary', 'unknown'),
     ('', 'request-120', 'fixture-only-canary', 'grant-only-profile'),
 ])
@@ -283,7 +294,7 @@ sub type_password {
 }
 package main;
 require onpc_journey; require onpc_password;
-my $profile_scope = $scope =~ /\A(?:switch-user-expiry-(?:parent|other-child)|time-profiles-grant|countdown-combined)-profile-request\z/;
+my $profile_scope = $scope =~ /\A(?:switch-user-expiry-(?:parent|other-child)|time-profiles-grant|countdown-(?:grant|combined)|delayed-approval)-profile-request\z/;
 my $journey = onpc_journey->new(prefix => $scope eq 'profile-request' ? 'grant-only-profile' : $profile_scope ? substr($scope, 0, -length('-profile-request')) : $scope eq 'flow' ? 'kiosk-approval-flow' : $scope eq 'base' ? 'kiosk-' . $binding : $scope eq 'confinement-usability-rejection' ? 'confinement-usability' : $scope, review => ($fault eq 'review' ? 1 : 0),
     exchange => sub {
         my ($stage) = @_;
@@ -296,7 +307,7 @@ $journey = $journey->scope('rejection') if $scope eq 'confinement-usability-reje
 $journey = $journey->scope('profile-request')
     if $scope eq 'profile-request' || $profile_scope;
 my @args = $binding eq 'rejection' ? ($journey, 'wrong') :
-    $binding =~ /\A(?:long-request|request-120|request-240)\z/ ? ($journey, $binding) : ($journey);
+    $binding =~ /\A(?:long-request|request-120|request-240|request-1200)\z/ ? ($journey, $binding) : ($journey);
 my $ok = eval { onpc_password::enter_kiosk_mate_password(@args); 1 };
 my $error = "$@"; my $before = scalar @events;
 my $retry = eval { onpc_password::enter_kiosk_mate_password(@args); 1 };
@@ -312,11 +323,18 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
                          'kiosk-service-recovery')
                and binding == 'approval' or
                scope == 'natural-access' and binding == 'long-request' or
-               scope in ('profile-request', 'switch-user-expiry-parent-profile-request',
-                         'time-profiles-grant-profile-request', 'countdown-combined-profile-request')
+               scope == 'profile-request' and binding == 'request-1200' or
+               scope in ('switch-user-expiry-parent-profile-request',
+                         'switch-user-expiry-other-child-profile-request')
+               and binding == 'long-request' or
+               scope in ('profile-request', 'switch-user-expiry-parent-profile-request')
                and binding == 'request-120' or
+               scope == 'time-profiles-grant-profile-request' and binding == 'request-1200' or
+               scope == 'countdown-combined-profile-request' and binding == 'request-240' or
+               scope == 'countdown-grant-profile-request' and binding == 'long-request' or
                scope == 'switch-user-expiry-other-child-profile-request'
                and binding == 'request-240' or
+               scope == 'delayed-approval-profile-request' and binding == 'request-1200' or
                scope == 'grant-only-profile' and binding == 'approval' or
                scope == 'confinement-usability-rejection' and binding == 'rejection')
     assert bool(value['ok']) == (allowed and not fault), value
@@ -330,8 +348,10 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
                   'profile-request-' if scope in ('profile-request', 'switch-user-expiry-parent-profile-request',
                                                   'switch-user-expiry-other-child-profile-request',
                                                   'time-profiles-grant-profile-request',
+                                                  'delayed-approval-profile-request',
+                                                  'countdown-grant-profile-request',
                                                   'countdown-combined-profile-request') else '')
-        binding = 'approval' if binding in ('long-request', 'request-120', 'request-240') else binding
+        binding = 'approval' if binding in ('long-request', 'request-120', 'request-240', 'request-1200') else binding
         assert value['events'] == [prefix + binding + '-qualified', prefix + binding + '-rechecked', 'read', 'type']
 
 

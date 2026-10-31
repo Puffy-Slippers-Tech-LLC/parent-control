@@ -163,6 +163,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reproduce-overlay-activity', 'probe-overlay-activity',
                                       'reproduce-overlay-return',
                                       'reproduce-revoke-cancel', 'probe-revoke-balances',
+                                      'reproduce-delayed-approval',
                                       'reproduce-countdown-minutes',
                                       'reproduce-natural-expiry',
                                       'reproduce-natural-access',

@@ -424,6 +424,7 @@ def main(argv=None):
                                           'reproduce-lock-denial',
                                           'reproduce-retained-entry', 'probe-lock-curtain',
                                           'reproduce-revoke-cancel', 'probe-revoke-balances',
+                                          'reproduce-delayed-approval',
                                           'reproduce-countdown-minutes',
                                           'reproduce-natural-expiry',
                                           'reproduce-natural-access',
@@ -545,6 +546,7 @@ def main(argv=None):
                              'reproduce-baseline-auth-pause',
                              'reproduce-lock-denial', 'reproduce-retained-entry',
                              'reproduce-revoke-cancel',
+                             'reproduce-delayed-approval',
                              'reproduce-countdown-minutes',
                              'reproduce-natural-expiry',
                              'reproduce-countdown-resume',
@@ -559,6 +561,7 @@ def main(argv=None):
                                   enter_remembered_return, reproduce_riley_native_grid)
             from vm_probe import reproduce_retained_app_visits
             from vm_probe import reproduce_revoke_cancel
+            from vm_probe import reproduce_delayed_approval
             from vm_probe import reproduce_countdown_minutes, reproduce_countdown_resume
             from vm_probe import reproduce_panel_language
             from vm_probe import reproduce_retained_unlock
@@ -580,6 +583,7 @@ def main(argv=None):
              'reproduce-lock-denial': reproduce_lock_denial,
              'reproduce-retained-entry': reproduce_retained_entry,
              'reproduce-revoke-cancel': reproduce_revoke_cancel,
+             'reproduce-delayed-approval': reproduce_delayed_approval,
              'reproduce-countdown-minutes': reproduce_countdown_minutes,
              'reproduce-natural-expiry': reproduce_natural_expiry,
              'reproduce-countdown-resume': reproduce_countdown_resume,

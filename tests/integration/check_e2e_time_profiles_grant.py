@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify positive daily time combined with a real two-minute addition."""
+"""Qualify positive daily time combined with a real preparation grant."""
 
 import sys
 from check_graphical_smoke import main as smoke

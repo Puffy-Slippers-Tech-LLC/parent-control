@@ -37,7 +37,12 @@ Extend 197a's kiosk FLOW04/FLOW05 composition with explicit retained-child FLOW1
 
 Qualify new-form Riley/Jamie/30-second/soft-excluded and independently supplied
 open-form Jordan/Casey/75-second/soft-included requests with retained-child
-destinations in fresh guarded VM attempts. Approve once per
+destinations in fresh guarded VM attempts. Publicly prepare 30 daily minutes and read at least
+900 seconds of actual daily remaining for the selected child; keep its
+recognizable retained activity ready before approval. Preserve the exact small
+addition and max(D,G)+R elapsed-time comparison. Zero-daily expiry consumers
+retain their own [finite profiles](../E2E-Scenario-Recipes.md#explicit-time-preparation).
+Approve once per
 invocation; require success, automatic station exit, legitimate return to the
 same child activity and countdown within prebound public/elapsed-time intervals.
 Reuse unchanged exact fresh-child qualification from 197a, rerunning it only when

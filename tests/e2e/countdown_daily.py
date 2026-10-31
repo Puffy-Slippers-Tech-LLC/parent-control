@@ -12,7 +12,7 @@ TIME_STAGES = ('initial-countdown', 'returned-countdown', 'minute-progression',
 SCREENS = {
     **fresh_desktop('parent'),
     **daily_time_profile(source='desktop', entry='same-user', window='new',
-                         initial_enabled=False, minutes=4),
+                         initial_enabled=False, minutes=6),
     **countdown_activity(TIME_STAGES[2:]),
 }
 PLAN = JourneyPlan(
@@ -30,8 +30,8 @@ PLAN = JourneyPlan(
         'child-login': ('child', 'fresh-child-recipient-qualified', 'fresh-child-recipient-rechecked'),
     },
     settings_checks={'same-parent-selected': SettingsObservation('fixture-child', False, ('0 minutes',)),
-                     'profile-settings': SettingsObservation('fixture-child', True, ('4 minutes',))},
-    balance_checks={'profile-configured': 240},
+                     'profile-settings': SettingsObservation('fixture-child', True, ('6 minutes',))},
+    balance_checks={'profile-configured': 360},
     stage_actions={'desktop': 'native-verify', 'minute-progression': 'minute-progress',
                    'final-second-transition': 'final-transition',
                    'second-progression': 'second-progress',
@@ -49,7 +49,7 @@ PLAN = JourneyPlan(
 
 
 class CountdownDailyJourney(CountdownActivityJourney, DailyTimeProfileJourney):
-    minute_edge_limit = 3
+    minute_edge_limit = 5
 
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan, time_stages=TIME_STAGES,

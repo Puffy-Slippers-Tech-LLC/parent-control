@@ -26,6 +26,11 @@ game kind alone supplies no fullscreen proof. Reuse 126's unchanged windowed
 launch/activity and TIME04 guards; qualify only fullscreen gameplay and its
 natural-lock composition, without rerunning the full windowed history.
 
+Use the recipe's finite natural-expiry profile and prepare the supported mode
+transition and expiry observer before grant issuance. Keep actual fullscreen
+gameplay before the original deadline; no setup tour or grant replacement may
+hide an insufficient interval.
+
 ## Live VM acceptance
 
 On the live VM, prepare fullscreen and the declared level through the shared command/shortcut route, then observe actual gameplay input/effects. Play to natural lock and prove normal input belongs to the lock. Do not require a Shell panel or visible countdown while the game hides them.

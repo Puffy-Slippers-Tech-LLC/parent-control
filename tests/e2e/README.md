@@ -1642,6 +1642,15 @@ read bracket. `probe-revoke-balances` uses the same maintained reader on that
 Parent scene. Inspect the grant and session with guarded `exec`, then finish
 with `tools/test-vm stop`; neither route supplies acceptance credit.
 
+`tools/test-vm --vm NAME reproduce-delayed-approval` reuses case 225's
+`GrantDelayedApprovalJourney` / `GRANT_PLAN` through the delayed first approval,
+Parent balances and second prompt qualification. It stops before replying to
+`second-approval-rechecked`, retaining that prompt and a read-only recheck with
+the original challenge identity and fresh-proof deadline in
+`boundary-observation.json`. It releases no second password and supplies no
+acceptance credit. Inspect the child's live session with guarded `exec`, then
+finish with `tools/test-vm stop`.
+
 `tools/test-vm --vm NAME reproduce-panel-language` reuses `PanelLanguageJourney`
 and retains the child's desktop after Hebrew Save and normal overlay Cancel,
 before `panel-after` assertions. Its public countdown is recorded in
@@ -1663,14 +1672,16 @@ supplies diagnostic evidence only.
 `tools/test-vm --vm NAME reproduce-natural-access` retains case 22's prepared
 Parent history at `switch-user`, immediately after the independently observed
 usable Parent desktop and before switching to sign-in.
-It reuses `NaturalAccessJourney`
-and the same selected activity fixtures, sealed worker and maintenance envelope.
+It reuses `NaturalAccessJourney` with four daily minutes and ten-minute
+approved recovery, and the same selected activity fixtures, sealed worker and
+maintenance envelope.
 Inspect that live guest through guarded `exec`, then finish with `stop`;
 the retained scene supplies diagnostic evidence only.
 
 `tools/test-vm --vm NAME reproduce-countdown-grant` retains case 28's original
-two-minute station approval, fresh child entry, original work, legitimate
-unlock, minute-to-seconds comparison and both exact-second decreases at
+ten-minute station approval, fresh child entry, original work, legitimate
+unlock, bounded minute-edge progression, minute-to-seconds comparison and both
+exact-second decreases at
 `natural-expiry`, before natural lock.
 It uses `CountdownGrantJourney` / `PLAN`,
 the same VM-bound activity fixtures and the existing maintenance envelope, and

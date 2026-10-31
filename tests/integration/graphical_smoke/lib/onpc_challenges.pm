@@ -143,7 +143,7 @@ sub countdown_minutes {
 sub countdown_ticks {
     onpc_progress::operation('Qualifying displayed final-second countdown progression');
     die 'countdown:tick-plan' unless @_ == 3;
-    return _countdown_progression('countdown-ticks', 2,
+    return _countdown_progression('countdown-ticks', 4,
         [qw(final-second-transition second-progression independent-second-progression)], @_);
 }
 
@@ -198,7 +198,7 @@ sub natural_expiry {
     onpc_gdm::sign_in_challenge($journey, 'parent-login',
         'installed-greeter', 'parent-focused', 'desktop');
     $journey->invoke('wrong-account-refused');
-    onpc_parent::daily_time_profile($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0, 2);
+    onpc_parent::daily_time_profile($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0, 4);
     onpc_gdm::sign_in_challenge($journey, 'child-login',
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
     onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
@@ -219,7 +219,7 @@ sub countdown_daily {
     onpc_gdm::reattach_functional();
     onpc_gdm::sign_in_challenge($journey, 'parent-login',
         'installed-greeter', 'parent-focused', 'desktop');
-    onpc_parent::daily_time_profile($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0, 4);
+    onpc_parent::daily_time_profile($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0, 6);
     countdown_activity($journey, 1);
 }
 
@@ -231,11 +231,11 @@ sub countdown_grant {
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
-    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 120, 'default', 0);
+    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 600, 'default', 0);
     # Read the retained Parent window through its public API while GDM stays
     # active. An extra Parent login would spend the child's wall-clock grant.
     $journey->seen('profile-balance');
-    countdown_activity($journey, 0, 0);
+    countdown_activity($journey, 1, 0);
 }
 
 sub countdown_combined {
@@ -246,7 +246,7 @@ sub countdown_combined {
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
-    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 120, 'default', 0, 4);
+    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 240, 'default', 0, 4);
     $journey->seen('profile-balance');
     countdown_activity($journey, 1, 0);
 }

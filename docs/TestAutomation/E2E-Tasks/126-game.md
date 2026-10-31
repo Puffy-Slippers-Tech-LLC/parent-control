@@ -28,6 +28,11 @@ must bind the one declared starting level and independently observable windowed
 mode before composing TIME04. Reuse unchanged launch/activity evidence and
 qualify only the new mode/expiry composition.
 
+Use the recipe's finite natural-expiry grant, resolving assets, launch options,
+mode observation and the shared TIME04 observer before issuance. Actual game
+input/progress must precede the original natural deadline; setup alone cannot
+supply gameplay acceptance.
+
 ## Live VM acceptance
 
 On the VM actually play the declared real windowed level, observe input effects and a recognizable activity, then play a short grant to natural lock. Missing public locators remain a named prerequisite.

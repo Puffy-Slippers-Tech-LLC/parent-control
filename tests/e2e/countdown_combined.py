@@ -13,7 +13,7 @@ TIME_STAGES = ('initial-countdown', 'returned-countdown', 'minute-progression',
                'independent-second-progression', 'natural-expiry')
 SCREENS = {
     **grant_only_time_profile(source='gdm', entry='fresh', window='new',
-        initial_enabled=False, revoke_first=False, duration_seconds=120,
+        initial_enabled=False, revoke_first=False, duration_seconds=240,
         request_initial='default', balance_readback=False, daily_minutes=4),
     'profile-balance': 'ui:revoke-balances',
     **{stage: ('ui:overlay-native-activity' if stage in ('lock-ready', 'unlock-desktop') else tag)
@@ -51,12 +51,12 @@ PLAN = JourneyPlan(
 
 
 class CountdownCombinedJourney(CountdownActivityJourney, GrantOnlyProfileJourney):
-    # Four daily minutes plus two approved minutes permit at most five edges.
-    minute_edge_limit = 5
+    # Four daily minutes plus four approved minutes permit at most seven edges.
+    minute_edge_limit = 7
 
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan, time_stages=TIME_STAGES,
-                         daily_minutes=4, actions=actions)
+                         daily_minutes=4, grant_seconds=240, actions=actions)
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)

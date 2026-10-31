@@ -210,7 +210,7 @@ TICK_SCREENS = {
     **fresh_desktop('parent'),
     'wrong-account-refused': 'ui:child-countdown-wrong-account-refused',
     **daily_time_profile(source='desktop', entry='same-user', window='new',
-                         initial_enabled=False, minutes=2),
+                         initial_enabled=False, minutes=4),
     **{'fresh-' + stage: operation for stage, operation in fresh_desktop('child').items()},
     **{stage: 'ui:child-countdown-present' for stage in TICK_STAGES},
 }
@@ -224,8 +224,8 @@ TICK_PLAN = replace(MINUTE_PLAN,
                       if stage in fresh_desktop('parent') or stage.startswith('fresh-')
                       or stage == 'wrong-account-refused' or stage in TICK_STAGES),
     settings_checks={'same-parent-selected': SettingsObservation('fixture-child', False, ('0 minutes',)),
-                     'profile-settings': SettingsObservation('fixture-child', True, ('2 minutes',))},
-    balance_checks={'profile-configured': 120},
+                     'profile-settings': SettingsObservation('fixture-child', True, ('4 minutes',))},
+    balance_checks={'profile-configured': 240},
     stage_actions={TICK_STAGES[0]: 'final-transition',
                    **{stage: 'second-progress' for stage in TICK_STAGES[1:]}},
     assertions_after={'wrong-account-refused': 'wrong-account-refused',
@@ -236,7 +236,7 @@ TICK_PLAN = replace(MINUTE_PLAN,
 
 
 class CountdownTicksJourney(CountdownMinutesJourney):
-    """One 90-second transition, then two exact decreases within 15 seconds each.
+    """Arm before the final minute, then observe its transition and two decreases.
 
     Initial stage reads never replace a completed endpoint or extend its bound.
     All reads and waits use TIME01/TIME03 and the same immutable TIME02 comparison.
@@ -250,7 +250,7 @@ class CountdownTicksJourney(CountdownMinutesJourney):
 
     def check_progress_entry(self, current):
         if self.last_countdown is None:
-            require(current.countdown.text == '00:01', 'countdown:transition-window')
+            require(current.precision_seconds == 60, 'countdown:transition-window')
         else:
             require(current.precision_seconds == 1, 'countdown:seconds-required')
         require(countdown_seconds(current.countdown.text)[0] > 0,
@@ -258,6 +258,15 @@ class CountdownTicksJourney(CountdownMinutesJourney):
 
     def await_tick(self, guard, *, transition):
         previous = self.current_countdown if transition else self.last_countdown
+        minute_progressions = []
+        if transition:
+            # Fresh login need not land in one particular minute. Observe each
+            # real minute edge before the final transition, with its own bound.
+            while previous.countdown.text != '00:01':
+                require(len(minute_progressions) < 3, 'countdown:minute-bound')
+                previous, comparison = await_countdown_progress(self, guard, previous,
+                    precision_seconds=60, tolerance_seconds=2, max_elapsed_seconds=90)
+                minute_progressions.append(comparison)
         current, result = await_countdown_progress(self, guard, previous,
             precision_seconds=1, previous_precision_seconds=60 if transition else 1,
             tolerance_seconds=2, max_elapsed_seconds=90 if transition else 15,
@@ -265,6 +274,8 @@ class CountdownTicksJourney(CountdownMinutesJourney):
         require(countdown_seconds(current.countdown.text)[0] > 0,
                 'countdown:final-window-missed')
         self.last_countdown = current
+        if transition:
+            result['minute_progressions'] = minute_progressions
         return result
 
     @staticmethod

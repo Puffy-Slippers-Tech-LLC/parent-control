@@ -32,7 +32,7 @@ Reuse `request_flow.prepared_request`, `kiosk_approved_flow.approved_request`,
 explicitly implement the remaining shared
 FLOW20 caller-owned child, eligible-parent, duration and soft-choice arguments.
 Bound them to Jordan/Riley, Jamie/Casey (the recipe's Sam), soft excluded/included
-and the consuming recipes' finite 30/60/75/120/150/180/900-second requests.
+and the consuming recipes' finite 30/60/75/120/150/180/600/900/1200/7200-second requests.
 Carry the selected child through real authentication, fresh destination identity
 and public arithmetic comparisons. TIME01's
 existing fresh-child entry supplies the necessary destination; no retained child
@@ -42,7 +42,12 @@ or Parent desktop is required for this slice.
 
 Qualify new-form Riley/Jamie/30-second/soft-excluded and independently open-form
 Jordan/Casey/75-second/soft-included requests with fresh-child destinations in
-fresh guarded attempts. Approve once per invocation, read success and automatic
+fresh guarded attempts. Publicly prepare 30 daily minutes for that child and
+read at least 900 seconds of actual daily remaining before each approval;
+these small additions test arguments and arithmetic, not short access lifetimes.
+Keep zero-daily natural-expiry consumers on their own recipe profiles under
+[explicit time preparation](../E2E-Scenario-Recipes.md#explicit-time-preparation).
+Approve once per invocation, read success and automatic
 exit, then perform the selected child's fresh entry and compare countdown with
 elapsed-time bounds. These representative argument bindings qualify the shared
 finite API; later cases own their exact values and histories, with no Cartesian

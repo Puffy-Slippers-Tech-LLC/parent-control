@@ -43,7 +43,7 @@ sub qualify_daily {
     $journey->finish();
 }
 sub qualify_grant {
-    onpc_progress::operation('Checking a parent giving a child two additional minutes');
+    onpc_progress::operation('Checking a parent giving a child twenty additional minutes');
     my ($exchange, $invocations, $challenges, $revoke, $daily_minutes) = @_;
     $daily_minutes = 0 if @_ == 4;
     die 'time-profile:arguments' unless (@_ == 4 || @_ == 5) && ref($exchange) eq 'CODE'
@@ -62,7 +62,7 @@ sub qualify_grant {
         onpc_gdm::reattach_functional();
     }
     onpc_parent::grant_only_time_profile($journey, $revoke ? 'desktop' : 'gdm',
-        $revoke ? 'same-user' : 'fresh', $revoke ? 'retained' : 'new', $revoke, $revoke, 120,
+        $revoke ? 'same-user' : 'fresh', $revoke ? 'retained' : 'new', $revoke, $revoke, 1200,
         $revoke ? 'selected' : 'default', 1, $daily_minutes);
     $journey->finish();
 }

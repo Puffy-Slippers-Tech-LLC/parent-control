@@ -276,11 +276,14 @@ profile with independently supplied child entry and two progression invocations.
 The [minute progression slice](../../docs/TestAutomation/E2E-Building-Blocks.md#minute-countdown-progression-qualification)
 is qualified on Ubuntu 26.04 and Fedora 44.
 `CountdownTicksJourney` / `TICK_PLAN` share that machinery and the worker's
-daily-profile/entry composition: two daily minutes, one 90-second transition
-from `00:01` into positive exact seconds, then two successive exact decreases
+daily-profile/entry composition: four daily minutes, at most three observed
+minute edges of 90 seconds each until `00:01`, one 90-second transition
+into positive exact seconds, then two successive exact decreases
 within 15 seconds of each prior endpoint, always with two-second tolerance.
 The [final-second slice](../../docs/TestAutomation/E2E-Building-Blocks.md#final-second-countdown-progression-qualification)
-is qualified on Ubuntu 26.04 and Fedora 44; complete consumers keep their own
+records current four-minute qualification on Ubuntu 26.04 and historical
+two-minute qualification on Fedora 44. All three current progressions and owned
+cleanup passed; complete consumers keep their own
 allowance, time bounds and independent results.
 
 `tools/test-vm --vm NAME reproduce-countdown-minutes` reuses that same journey
@@ -336,13 +339,20 @@ FLOW13 grant-only uses `journey_blocks.grant_only_time_profile` and
 `grant_only_profile.GrantOnlyProfileJourney`. Reuse the initial zero-grant
 read; only explicit `revoke_first=True` permits Confirm, followed by a fresh
 zero-grant read before policy edits. The shared request leaves accept finite
-120/180/240/600/1200-second arguments. The installed qualification covers the
-120-second fresh and retained/revoke-first bindings on Ubuntu 26.04; later
-recipes own their finite duration and independent outcomes.
+120/180/240/600/1200-second arguments. The current standalone declaration and
+`GrantOnlyProfileJourney` default use a 1200-second request for both fresh and
+retained/revoke-first qualification; both independently restored histories passed
+on Ubuntu 26.04, including retained Parent readback and owned cleanup.
+The historical 120-second bindings retain their original scope;
+later recipes own their finite duration and independent outcomes.
 The same declaration/worker accepts `daily_minutes=4` (the worker's final
 argument), with zero retained as the default. `grant_only_profile.COMBINED_PLAN`
-qualifies fresh four-minute daily/two-minute addition preparation and retained
-Parent G>D>0 readback on Ubuntu 26.04. Comparisons carry the actual earlier D,
+currently declares fresh four-minute daily/twenty-minute addition preparation
+and retained Parent G>D>0 readback, qualified on Ubuntu 26.04. These preparations
+finish after readback without waiting for the twenty-minute grant to expire. The historical
+four-minute daily/two-minute addition binding passed on Ubuntu 26.04.
+Countdown cases 28 and 29 explicitly override the standalone duration with
+600 and 240 seconds respectively. Comparisons carry the actual earlier D,
 elapsed time and display precision; the configured allowance is not a fresh bank.
 `request_initial='selected'` requires a saved 75-second, soft-included request,
 as supplied by `revocation_entry`; it does not accept arbitrary remembered choices.

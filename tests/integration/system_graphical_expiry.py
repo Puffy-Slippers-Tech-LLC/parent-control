@@ -18,7 +18,7 @@ import time
 import system_guest as guest
 from system_assertions import accepted, account_property, account_state, call
 from system_session_expiry import (
-    identities, installed_manager, grant, verify_zero_time_pam,
+    REQUEST_EXTENSION_SECONDS, identities, installed_manager, grant, verify_zero_time_pam,
     verify_request_extension, verify_runtime_rollback,
 )
 
@@ -284,7 +284,7 @@ def verify_other_foreground(child, session, record):
                '--unit=onpc-expiry-foreground-' + marker['run'], '--uid=' + str(other),
                '--property=PAMName=login', '--property=TTYPath=/dev/tty7',
                '--property=StandardInput=tty', '--property=StandardOutput=null',
-               '--property=StandardError=null', '/usr/bin/sleep', '90'])
+               '--property=StandardError=null', '/usr/bin/sleep', '1800'])
     def created():
         matches = [(ident, props) for ident, props in inventory()
                    if props.get('User') == str(other) and props.get('Class') == 'user']
@@ -297,20 +297,25 @@ def verify_other_foreground(child, session, record):
     guest.require(props.get('Type') == 'tty' and props.get('Seat') == 'seat0'
                   and props.get('TTY') == 'tty7' and props.get('Service') == 'login',
                   'expiry:foreground-session-properties')
-    deadline = grant(child, 6)
     guest.run(['loginctl', 'activate', other_session])
     def foreground():
         current = dict(inventory()).get(other_session)
         guest.require(current is not None, 'expiry:other-session-ended')
         return current if current.get('Active') == 'yes' else None
     before = wait_for(foreground, 'expiry:other-session-not-foreground', 10)
-    guest.require(before.get('LockedHint') == 'no' and time.time() < deadline,
+    guest.require(before.get('LockedHint') == 'no',
                   'expiry:other-session-not-ready-before-expiry')
+    # Establish the foreground before starting the deliberately short expiry
+    # window. Slow activation/inventory must not consume the child's six seconds.
+    deadline = grant(child, 6)
     observation_deadline = time.monotonic() + 10
     while time.time() <= deadline + 1:
         guest.require(time.monotonic() < observation_deadline, 'expiry:foreground-clock-discontinuity')
         guest.require(child_session(child)[0] == session, 'expiry:background-child-ended')
         time.sleep(0.25)
+    # A slow grant readback may cross the deadline before the loop starts.
+    # Always check the retained child after expiry, even in that case.
+    guest.require(child_session(child)[0] == session, 'expiry:background-child-ended')
     after = foreground()
     guest.require(after is not None and after.get('LockedHint') == 'no'
                   and after['Scope'] == before['Scope']
@@ -392,7 +397,7 @@ def verify(record):
     verify_zero_time_pam(record)
     verify_runtime_rollback(record)
     old_deadline = verify_request_extension(record)
-    observation_deadline = time.monotonic() + 20
+    observation_deadline = time.monotonic() + REQUEST_EXTENSION_SECONDS + 20
     while time.time() <= old_deadline + 0.5:
         guest.require(time.monotonic() < observation_deadline, 'expiry:extension-clock-discontinuity')
         guest.require(child_session(child)[0] == session, 'expiry:extended-session-ended')

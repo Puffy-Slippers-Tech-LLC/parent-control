@@ -276,7 +276,8 @@ Run `make publish` from the dedicated `releases/vX.Y` checkout to invoke the
 single [publisher](../tools/publish.py).
 On main, or alongside a running publisher in the same release checkout,
 `make publish` connects to read-only publication monitoring instead.
-It validates `docs/VersionHistory.md`, commits pending release-checkout changes,
+It validates `docs/VersionHistory.md`, prepares the latest version and builds
+local packages through queued disk admission for a fresh release, commits pending release-checkout changes,
 signs, pushes
 the source to that release branch and tags, submits missing DEB releases to
 Launchpad through product-version gates, and verifies binary

@@ -81,11 +81,13 @@ From the release checkout, run:
 make publish
 ```
 
-It takes no parameters and publishes the **already prepared product version** in
-[`VersionHistory.md`](VersionHistory.md) end to end. It commits pending changes
-in the release checkout and requires its `releases/vX.Y` branch to match that
-entry and `data/app.json`. It does not bump
-the product version: private 1.3 is published as official 1.3. It allocates only
+It takes no parameters and publishes the latest dated product version in
+[`VersionHistory.md`](VersionHistory.md) end to end. Before a fresh release, it
+incorporates `make updateversion`: prepares `data/app.json` and the private Debian
+changelog, then builds both local package formats through queued disk admission.
+It commits those updates with pending release-checkout changes and requires its
+`releases/vX.Y` branch to match the history entry. Private 1.3 is published as
+official 1.3. It allocates only
 the unused Debian/PPA revision, ordinarily `1.3+ppa1~ubuntu26.04.1`, which sorts
 above `1.3+local1~ubuntu26.04.1`. The DEB channel uploads signed source to the
 Launchpad PPA; the RPM channel submits the shared signed product commit to
@@ -240,8 +242,8 @@ Use this format, with at least two entries:
 - Initial release.
 ```
 
-The newest version must exactly equal `data/app.json` when publishing; run
-`make updateversion` before committing the candidate. The second entry is the
+The publisher updates `data/app.json` to the newest history version before
+committing a fresh candidate. The second entry is the
 preceding product release. All history versions must be
 unique and descend in `x.y` order. Dates must be valid `YYYY-MM-DD` dates and the
 new entry must contain a change bullet. Section headings and the newest entry's
@@ -250,7 +252,9 @@ notes become the Debian/PPA changelog, with Markdown styling removed.
 `make updateversion` sets the app version to the newest history version, accepting
 an undated top heading such as `## v1.3 -` for private builds. All older headings
 must be dated; the newest notes must contain a change bullet. Publication requires
-every heading to be dated and does not change the prepared app version.
+every heading to be dated. Fresh publication performs the same version preparation
+and local builds automatically; unchanged interrupted attempts resume without
+rebuilding, and monitoring remains read-only.
 The official Debian version adds
 the next unused PPA suffix: product `1.1` ordinarily becomes
 `1.1+ppa1~ubuntu26.04.1`. The publisher checks Launchpad history, including deleted
@@ -525,8 +529,9 @@ than treating historical rehearsal results as acceptance.
 ## Upgrade acceptance
 
 `make updateversion` prepares the product version for private upgrade testing
-before publication. `make publish` requires that version to match the latest
-dated history entry and changes only the Debian/PPA revision. Every release, including a
+before publication. `make publish` incorporates that preparation and local build
+for the latest dated history entry, then selects the official Debian/PPA revision.
+Every release, including a
 packaging correction, needs a newer product entry in `VersionHistory.md`.
 The publisher chooses an unused PPA revision and creates both signed tags.
 Published tags and accepted upload versions are never reused or replaced.

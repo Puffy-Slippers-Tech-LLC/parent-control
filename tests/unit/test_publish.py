@@ -17,6 +17,7 @@ from urllib.error import HTTPError, URLError
 import pytest
 
 from tools import publish
+from tools.publish import update_version
 from tools.publishing import channels
 from tests.support.paths import ROOT
 
@@ -27,6 +28,8 @@ def isolated_polling_clock(monkeypatch):
     # which can consume a polling fixture's clock or publication transition.
     monkeypatch.setattr(publish, 'time', SimpleNamespace(
         monotonic=publish.time.monotonic, sleep=publish.time.sleep))
+    # Local package builds are outside these Git/state-machine fixtures.
+    monkeypatch.setattr(publish, 'update_version', lambda root: None)
 
 
 NOTES = ('## v1.1 — 2026-09-11\n### Bug Fixes\n'
@@ -61,14 +64,43 @@ def test_numeric_order_and_changelog_preserve_only_latest_notes(tmp_path):
     assert result.stdout.strip() == '1.10+ppa1~ubuntu26.04.1'
 
 
-def test_publish_refuses_an_unprepared_product_before_external_work(repository, monkeypatch):
+def test_publish_prepares_an_unprepared_product_before_external_work(repository, monkeypatch, unsigned_publisher):
+    (repository / 'debian').mkdir()
+    (repository / 'debian/changelog').write_text(publish.changelog_entry('1.0', 'Initial release.'))
+    git(repository, 'add', 'debian/changelog')
     git(repository, 'add', publish.HISTORY)
     git(repository, 'commit', '-m', 'unprepared candidate')
     git(repository, 'switch', '-c', 'releases/v1.1')
-    monkeypatch.setattr(publish, 'confirm_main_update', lambda *args: pytest.fail('main pause started'))
+    original = publish.command
+    builds = []
+
+    def command(*args, **kwargs):
+        if args[0] == str(repository / 'tools/build_package.py'):
+            assert json.loads((repository / 'data/app.json').read_text())['version'] == '1.1'
+            assert '1.1+local1~ubuntu26.04.1' in (repository / 'debian/changelog').read_text()
+            builds.append(args)
+            return 'local packages built'
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(publish, 'command', command)
+    monkeypatch.setattr(publish, 'update_version', update_version)
+    def pause(*args):
+        raise ValueError('stop before external work')
+    monkeypatch.setattr(publish, 'confirm_main_update', pause)
     monkeypatch.setattr(publish, 'prepare', lambda *args: pytest.fail('external work started'))
-    with pytest.raises(ValueError, match='updateversion'):
+    with pytest.raises(ValueError, match='stop before external work'):
         publish.publish(repository)
+    assert len(builds) == 1 and len(builds[0]) == 1  # Default queued build, both formats.
+    assert git(repository, 'status', '--porcelain') == ''
+    assert json.loads(git(repository, 'show', 'HEAD:data/app.json'))['version'] == '1.1'
+    before = (repository / 'debian/changelog').read_bytes()
+    head = git(repository, 'rev-parse', 'HEAD')
+    with pytest.raises(ValueError, match='stop before external work'):
+        publish.publish(repository)
+    assert len(builds) == 2
+    assert (repository / 'debian/changelog').read_bytes() == before
+    assert git(repository, 'rev-parse', 'HEAD') == head
+    assert git(repository, 'status', '--porcelain') == ''
 
 
 def test_environment_and_noninteractive_subprocess_do_not_leak_secrets(monkeypatch, tmp_path):
@@ -288,7 +320,8 @@ def test_full_workflow_publishes_without_local_tests(execution, tmp_path, monkey
     state['checkout'] = str(root)
     (root / 'data').mkdir(parents=True)
     (root / 'docs').mkdir()
-    (root / 'data/app.json').write_text('{"version": "1.1"}')
+    # Channel gates select the history product before metadata preparation.
+    (root / 'data/app.json').write_text('{"version": "1.0"}')
     (root / publish.HISTORY).write_text(NOTES)
     monkeypatch.setattr(publish, 'journal_directory', lambda root: path.parent)
     original = publish.command

@@ -25,7 +25,7 @@ from urllib.request import Request, urlopen
 # Direct execution uses isolated Python; import only this maintained checkout.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tools.publishing import source as release
-from tools.bump_version import parse_product_version, history_notes, format_changelog
+from tools.bump_version import parse_product_version, history_notes, format_changelog, update_from_history
 
 ROOT = Path(__file__).resolve().parents[1]
 HISTORY = 'docs/VersionHistory.md'
@@ -370,6 +370,19 @@ def commit_release_inputs(root, state=None):
     say('committing pending release checkout changes')
     command('git', 'add', '--all', cwd=root)
     signed_git(root, 'commit', '-m', f'Prepare release inputs for {product}', cwd=root)
+
+
+def update_version(root):
+    """Run updateversion's preparation and build with automated disk admission."""
+    require_idle_git(root, 'release checkout')
+    if (root / HISTORY).is_symlink():
+        raise ValueError('VersionHistory.md must be a regular file')
+    history = (root / HISTORY).read_text(encoding='utf-8')
+    product, _ = history_notes(history)  # Publication requires dated entries.
+    publishing_branch(root, product)
+    update_from_history(root, history)
+    say('building local packages for the updated release version')
+    print(command(str(root / 'tools/build_package.py'), cwd=root, timeout=7200), flush=True)
 
 
 def main_head(root, *, clean=True):
@@ -910,6 +923,13 @@ def publish(root=ROOT, *, wait=True):
                 raise ValueError('unfinished release belongs to a different checkout or has an invalid journal')
             if state['branch'] != branch:
                 raise ValueError('unfinished release belongs to a different publishing branch')
+        if state is None or state['phase'] == 'complete':
+            update_version(root)
+        elif state['phase'] in ('prepared', 'signed', 'built'):
+            pending = command('git', 'status', '--porcelain=v1', '-z', '--untracked-files=all', cwd=root)
+            head = command('git', 'rev-parse', 'HEAD', cwd=root)
+            if pending or head not in (state['base'], state['revision']):
+                update_version(root)
         commit_release_inputs(root, state)
         base, history, current = source_state(root)
         if state is not None and state['phase'] != 'complete':

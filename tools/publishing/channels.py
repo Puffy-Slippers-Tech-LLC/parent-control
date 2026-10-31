@@ -182,8 +182,7 @@ def run(root, p, *, status=False):
     with p.locked(root, attach=True, name='channels.lock') as legacy_path:
         if legacy_path is None:
             return monitor_status(root, p)
-        current = json.loads((root / 'data/app.json').read_text())['version']
-        product, _ = p.history_entry((root / p.HISTORY).read_text(), current)
+        product, _ = p.history_notes((root / p.HISTORY).read_text())
         p.publishing_branch(root, product)
         path = legacy_path.with_name('channels.json')
         state = load(path)

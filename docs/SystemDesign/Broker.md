@@ -275,7 +275,12 @@ authorization. The implementation loads on broker process restart.
 An approved request initializes `DailyLimit` from saved preferences and enables
 Malcontent limits if necessary before applying the filter and grant. Unlike the
 child request, the kiosk request does not require `parent_control_enabled` to
-be true. It does not change that saved toggle or activate the child extension.
+be true. It does not change that saved toggle. When the saved toggle is on,
+the kiosk approval reasserts child-extension activation after verifying the
+grant, recovering GNOME's global extension switch if needed. Activation failure
+restores the prior extension settings and rolls back the account transaction;
+the existing post-termination strict-filter rule still applies. A saved-off
+control does not activate the extension.
 Both installed request forms nevertheless disable submission when that toggle
 is false. This UI guard is narrower than the kiosk D-Bus method's authorization.
 

@@ -2004,7 +2004,9 @@ def test_departure_before_admission_has_no_effect_and_requires_fresh_authenticat
     accounts, preferences, auth = Accounts(), Preferences(), Authorizer()
     preferences.values[1001]["parent_control_enabled"] = True
     usage, apps = TimerUsage(), RunningApps()
-    broker = make_broker(auth, accounts, preferences, timer_usage=usage, running_apps=apps)
+    extensions = Extensions()
+    broker = make_broker(auth, accounts, preferences, extensions=extensions,
+                         timer_usage=usage, running_apps=apps)
     operation = usage if stage == "usage" else apps if stage == "preflight" else accounts
     method = "query_usage_as" if stage == "usage" else stage
     original = getattr(operation, method)
@@ -2027,12 +2029,14 @@ def test_departure_before_admission_has_no_effect_and_requires_fresh_authenticat
     assert auth.pending.closed
     assert not any(event[0].startswith("set_") for event in accounts.events)
     assert not any(call[0] == "terminate" for call in apps.calls)
+    assert extensions.calls == []
     assert broker._last_request == {}
     second = submit_request(broker, surface, duration)
     assert second[1] == "approved"
     assert first[0] != second[0]
     assert len(auth.calls) == 2
     assert sum(event[0] == "set_extension" for event in accounts.events) == 1
+    assert extensions.calls == ([(1001, True)] if surface == "kiosk" else [])
 
 
 @pytest.mark.parametrize("stage", ("preflight", "snapshots"))
@@ -2108,6 +2112,15 @@ def test_departure_after_admission_finishes_original_transaction_or_rollback(
             submit_request(broker, surface)
     assert auth.pending.outcome == "approved"
     assert auth.pending.closed
+
+
+@pytest.mark.parametrize("surface", ("child", "kiosk"))
+def test_grant_preserves_extension_choices_outside_enabled_kiosk(surface):
+    preferences, extensions = Preferences(), Extensions()
+    preferences.values[1001]["parent_control_enabled"] = surface == "child"
+    broker = make_broker(preferences=preferences, extensions=extensions)
+    assert submit_request(broker, surface)[1] == "approved"
+    assert extensions.calls == []
 
 
 if __name__ == "__main__":

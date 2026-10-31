@@ -188,7 +188,8 @@ not select offline activation for a running desktop. The supported CLI still
 performs activation and configured/active verification.
 
 GNOME may turn on `disable-user-extensions` after a session startup failure.
-Startup reassertion for a saved enabled child and a parent's first enablement
+Startup reassertion for a saved enabled child, kiosk approval for that child,
+and a parent's first enablement
 restore that global switch to false and verify the write before proceeding.
 First enablement retains an undo action through the account and preference
 transaction; a later failure restores the original global switch, exact

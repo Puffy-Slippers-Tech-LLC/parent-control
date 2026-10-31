@@ -183,7 +183,9 @@ around authentication and
 usage queries. The installed request forms disable requests for a child whose
 control is off; the broker enforces that condition for `RequestOwnAccess`, but
 its kiosk-only `RequestAccess` can initialize live time limits without changing
-the saved toggle or enabling the child extension. UI availability and D-Bus
+the saved toggle or enabling the child extension. For a saved enabled child,
+kiosk approval reasserts extension activation and recovers GNOME's global
+extension switch after verifying the grant. UI availability and D-Bus
 authorization are therefore separate contracts.
 
 Request-form readiness also differs from duration validity: an invalid custom

@@ -1635,6 +1635,8 @@ class Broker:
                 (issued_at, duration), correlation_id,
                 termination_patterns if terminate_blocked_apps else None,
                 admit=admit_effect,
+                activate_child_extension=(request_kind == "kiosk" and
+                                          preferences["parent_control_enabled"]),
             )
             if not applied:
                 LOG.info("core.027", request=correlation_id, outcome="cancelled")
@@ -1680,11 +1682,14 @@ class Broker:
                preferences: dict, desired_filter: tuple[bool, tuple[str, ...]],
                extension: tuple[int, int], correlation_id: str,
                termination_patterns: tuple[str, ...] | None = None,
-               *, admit: Callable[[], bool]) -> bool:
+               *, admit: Callable[[], bool],
+               activate_child_extension: bool = False) -> bool:
         old_limit_type = old_daily_limit = old_daily_schedule = old_filter = old_extension = None
         snapshot_complete = False
         termination_may_have_changed_processes = False
         try:
+            if activate_child_extension and self._extensions is None:
+                raise BackendFailure("extension management is unavailable")
             # Capture every reversible value before the first write. A read
             # failure here has made no state change, so it needs public error
             # translation but must not attempt a partial rollback.
@@ -1728,6 +1733,12 @@ class Broker:
                 self._write_extension(target_uid, extension)
             if self._accounts.get_extension(target_uid) != extension:
                 raise BackendFailure("extension verification failed")
+            # Reassert enforcement after the verified grant, so activation
+            # cannot lock the child against an old exhausted balance. Keep this
+            # as the final commit effect: activation rolls itself back on
+            # failure, and the account rollback below then removes the grant.
+            if activate_child_extension:
+                self._extensions.set_enabled(target_uid, True, recover_global_switch=True)
             self._observe_grant(target_uid, *extension)
             return True
         except Exception as error:

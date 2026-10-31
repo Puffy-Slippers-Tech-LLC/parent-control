@@ -12,7 +12,7 @@
           "name": "onpc-Ubuntu26.04",
           "enabled": "true",
           "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04.qcow2",
-          "owning_branch": "worktree"
+          "owning_branch": ""
         }
       ]
     },
@@ -26,7 +26,7 @@
           "name": "onpc-Fedora44",
           "enabled": "true",
           "disk_anchor": "/Data/virt-manager/onpc-Fedora44.qcow2",
-          "owning_branch": "main"
+          "owning_branch": ""
         }
       ]
     }

@@ -396,7 +396,18 @@ def verify(record):
     record('onpc.expiry.live-recovery', 'configured-and-active; switch-and-selections-verified')
     verify_zero_time_pam(record)
     verify_runtime_rollback(record)
+    # Disable after startup recovery, then let the authenticated kiosk grant
+    # recover enforcement without restarting the broker or changing saved policy.
+    manager._set_boolean(account, 'disable-user-extensions', True)
+    wait_for(lambda: not manager._runtime_state(account)[1], 'expiry:grant-disable-not-active')
     old_deadline = verify_request_extension(record)
+    guest.require(not manager._boolean(account, 'disable-user-extensions')
+                  and manager._runtime_state(account) == (True, True)
+                  and manager._list(account, 'enabled-extensions') == enabled
+                  and manager._list(account, 'disabled-extensions') == disabled,
+                  'expiry:kiosk-grant-did-not-recover-extension')
+    record('onpc.expiry.kiosk-grant-recovery',
+           'polkit-authenticated; configured-and-active; switch-and-selections-verified')
     observation_deadline = time.monotonic() + REQUEST_EXTENSION_SECONDS + 20
     while time.time() <= old_deadline + 0.5:
         guest.require(time.monotonic() < observation_deadline, 'expiry:extension-clock-discontinuity')

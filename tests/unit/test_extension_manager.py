@@ -751,6 +751,74 @@ class ExtensionManagerTests(unittest.TestCase):
                 self.assertIn(UUID, state.values[ENABLED_KEY])
                 self.assertNotIn(UUID, state.values[DISABLED_KEY])
 
+    def test_kiosk_grant_recovers_child_extension_live_and_offline(self):
+        from tests.support.broker import make_broker, Accounts, Preferences
+
+        for live in (False, True):
+            with self.subTest(live=live):
+                state, accounts, preferences = GnomeRecoveryState(), Accounts(), Preferences()
+                preferences.values[1001]["parent_control_enabled"] = True
+                original = preferences.load(1001)
+
+                def grant(manager):
+                    # Shell must see the new time balance when activation starts.
+                    activate = manager.set_enabled
+
+                    def enable(uid, enabled, **kwargs):
+                        self.assertEqual(accounts.extension[1], 900)
+                        return activate(uid, enabled, **kwargs)
+
+                    with mock.patch.object(manager, "set_enabled", side_effect=enable):
+                        return make_broker(accounts=accounts, preferences=preferences,
+                                           extensions=manager).request_access(
+                            991, ":1.2", 1001, 1003, 900, True)
+
+                result = self._recover(state, live=live, transaction=grant)
+                self.assertEqual(result[1], "approved")
+                self.assertFalse(state.values[DISABLE_ALL_KEY])
+                self.assertIn(UUID, state.values[ENABLED_KEY])
+                self.assertNotIn(UUID, state.values[DISABLED_KEY])
+                self.assertEqual(preferences.load(1001), original)
+
+    def test_kiosk_failed_activation_restores_settings_and_grant(self):
+        from tests.support.broker import make_broker, Accounts, Preferences
+        from oh_no_parent_control.core import BackendFailure
+
+        state, accounts, preferences = GnomeRecoveryState(inactive=True), Accounts(), Preferences()
+        preferences.values[1001]["parent_control_enabled"] = True
+        before = {key: value[:] if isinstance(value, list) else value
+                  for key, value in state.values.items()}
+        with self.assertRaises(BackendFailure):
+            self._recover(state, live=True, transaction=lambda manager:
+                make_broker(accounts=accounts, preferences=preferences, extensions=manager)
+                .request_access(991, ":1.2", 1001, 1003, 900, True))
+        self.assertEqual(state.values, before)
+        self.assertEqual(accounts.extension, (1, 2))
+        self.assertEqual(accounts.filter, (False, ("old.App",)))
+        self.assertEqual(accounts.daily_limit, 3600)
+        self.assertEqual(accounts.limit_type, 2)
+
+    def test_kiosk_failed_activation_after_termination_keeps_strict_filter(self):
+        from tests.support.broker import make_broker, Accounts, Preferences, RunningApps
+        from oh_no_parent_control.core import BackendFailure
+
+        state, accounts, preferences = GnomeRecoveryState(inactive=True), Accounts(), Preferences()
+        preferences.values[1001]["parent_control_enabled"] = True
+        broker = None
+
+        def grant(manager):
+            nonlocal broker
+            broker = make_broker(accounts=accounts, preferences=preferences, extensions=manager,
+                                 running_apps=RunningApps(terminated=1))
+            return broker.request_access(991, ":1.2", 1001, 1003, 900, False)
+
+        with self.assertRaises(BackendFailure):
+            self._recover(state, live=True, transaction=grant)
+        self.assertTrue(state.values[DISABLE_ALL_KEY])
+        self.assertEqual(accounts.extension, (1, 2))
+        self.assertEqual(accounts.filter, (False, ("/usr/bin/game", "org.example.Game")))
+        self.assertEqual(broker._last_request, {})
+
     def test_parent_failure_restores_global_switch_and_exact_extension_lists(self):
         from tests.support.broker import make_broker, Accounts, Preferences
         from oh_no_parent_control.core import BackendFailure

@@ -245,7 +245,7 @@ def make_broker(authorizer=None, accounts=None, preferences=None, extensions=Non
                 application_catalog=None, running_apps=None):
     config = validate(valid_config())
     return Broker(lambda: config, authorizer or Authorizer(), accounts or Accounts(),
-                  preferences or Preferences(), extensions, timer_usage or TimerUsage(),
+                  preferences or Preferences(), extensions or Extensions(), timer_usage or TimerUsage(),
                   application_catalog,
                   running_apps or RunningApps(),
                   monotonic=clock or (lambda: 100),

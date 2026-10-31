@@ -278,8 +278,8 @@ On main, or alongside a running publisher in the same release checkout,
 `make publish` connects to read-only publication monitoring instead.
 It validates `docs/VersionHistory.md`, commits pending release-checkout changes,
 signs, pushes
-the source to that release branch and tags, submits missing DEB/RPM releases to
-Launchpad/COPR through independent product-version gates, and verifies binary
+the source to that release branch and tags, submits missing DEB releases to
+Launchpad through product-version gates, and verifies binary
 repository publication. Pending or uncertain submissions are monitored without
 resubmission. It asks for confirmation of a development pause before
 directly merging committed release changes into main, then automatically
@@ -288,7 +288,8 @@ checkout-local publishing lock does not participate in development/build/test
 activity locking. After the highlighted main-update handoff, development
 continues independently of publication monitoring.
 Its supporting modules are under `tools/publishing/`; they are not separate
-release commands.
+release commands. RPM/COPR publication remains implemented but disconnected;
+see [the channel wiring](Publishing.md#independent-channel-gates).
 
 Local publishing checks run through the aggregate's `tools/run-tests publish` category
 and the same module in `make test-all VM=NAME`. They create a private unsigned source

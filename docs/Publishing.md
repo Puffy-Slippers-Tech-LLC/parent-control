@@ -96,6 +96,11 @@ testing the publishing tool does not authorize a live release.
 
 ### Independent channel gates
 
+Currently only DEB is connected to `make publish` and `--status`. RPM/COPR
+checks, submission and monitoring are disconnected until RPM is ready.
+The dual-channel mechanism described below is retained; reconnect it by adding
+`'rpm'` to `ACTIVE_CHANNELS` in `tools/publishing/channels.py`.
+
 Before committing, building, signing or submitting, the publisher checks each
 service for the prepared **product version**, for example `v1.4`. Packaging
 revisions do not permit publishing that product again. Each channel decides

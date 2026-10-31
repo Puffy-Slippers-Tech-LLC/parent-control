@@ -11,6 +11,10 @@ from xml.etree.ElementTree import ParseError
 from . import copr
 
 
+# Reconnect RPM here once it is ready for publication.
+ACTIVE_CHANNELS = ('deb',)
+
+
 def load(path):
     try:
         result = json.loads(path.read_text(encoding='utf-8'))
@@ -127,7 +131,7 @@ def monitor(product, records, p, *, persist=None):
     finished, failures = set(), {}
     previous = {}
     while True:
-        for channel in ('deb', 'rpm'):
+        for channel in ACTIVE_CHANNELS:
             if channel in finished:
                 continue
             state, detail = check(channel, product, records[channel], p)
@@ -144,7 +148,7 @@ def monitor(product, records, p, *, persist=None):
                     records[channel]['phase'] = 'published'
             if persist:
                 persist()
-        if len(finished) == 2:
+        if len(finished) == len(ACTIVE_CHANNELS):
             break
         if time.monotonic() >= deadline:
             raise ValueError('channel publication not confirmed within 24 hours; rerun to monitor without resubmitting')
@@ -166,10 +170,12 @@ def monitor_status(root, p):
         product = '.'.join(str(part) for part in p.publication_version_key(version)[:2])
         state = {'product': product, 'deb': {'version': version, 'phase': 'upload-started'}, 'rpm': {}}
     p.parse_product_version(state['product'])
-    monitor(state['product'], {key: dict(state[key]) for key in ('deb', 'rpm')}, p)
+    monitor(state['product'], {key: dict(state[key]) for key in ACTIVE_CHANNELS}, p)
 
 
 def run(root, p, *, status=False):
+    if 'rpm' not in ACTIVE_CHANNELS:
+        p.say('rpm / COPR publishing is disabled')
     if status or p.command('git', 'branch', '--show-current', cwd=root) == 'main':
         return monitor_status(root, p)
     branch = p.publishing_branch(root)
@@ -182,7 +188,7 @@ def run(root, p, *, status=False):
         path = legacy_path.with_name('channels.json')
         state = load(path)
         if state and state.get('product') != product:
-            if any(state[key].get('phase') != 'published' for key in ('deb', 'rpm')):
+            if any(state[key].get('phase') != 'published' for key in ACTIVE_CHANNELS):
                 raise ValueError('unfinished channel publication belongs to a different version; preserve its journal')
             state = None
         if state is None:
@@ -195,7 +201,7 @@ def run(root, p, *, status=False):
 
         merge_deb_journal(root, state['deb'], p, product)
         # Both gates run before any commit, signing, build, push or upload.
-        gates = {channel: check(channel, product, state[channel], p) for channel in ('deb', 'rpm')}
+        gates = {channel: check(channel, product, state[channel], p) for channel in ACTIVE_CHANNELS}
         for channel, (outcome, detail) in gates.items():
             announce(product, channel, outcome, detail, p)
         persist()
@@ -228,7 +234,7 @@ def run(root, p, *, status=False):
                     raise
                 recovery_errors['deb'] = str(error)
                 p.say(f'local DEB release recovery incomplete: {error}', error=True)
-        if gates['rpm'][0] == 'absent':
+        if 'rpm' in gates and gates['rpm'][0] == 'absent':
             try:
                 revision = pin_source(root, path.parent, product, p)
                 authorization = copr.credentials()

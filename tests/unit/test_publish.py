@@ -281,6 +281,8 @@ def execution(tmp_path, monkeypatch):
 
 
 def test_full_workflow_publishes_without_local_tests(execution, tmp_path, monkeypatch):
+    # Keep exercising the retained dual-channel mechanism while RPM is unhooked.
+    monkeypatch.setattr(channels, 'ACTIVE_CHANNELS', ('deb', 'rpm'))
     state, path, calls = execution
     root = tmp_path / 'checkout'
     state['checkout'] = str(root)
@@ -371,7 +373,7 @@ def test_resume_never_reuploads_or_rebuilds_an_attempted_upload(execution, phase
         return {'version': version}
 
     monkeypatch.setattr(publish, 'published_binary', check)
-    monkeypatch.setattr(channels.copr, 'status', lambda *a: ('published', 'verified'))
+    monkeypatch.setattr(channels.copr, 'status', lambda *a: pytest.fail('RPM publishing is unhooked'))
     monkeypatch.setattr(publish, 'publish', lambda *a, **k: pytest.fail('re-entered full publisher'))
     monkeypatch.setattr(publish, 'verify_frozen', lambda *a: pytest.fail('required old upload archives'))
     if main_phase == 'complete':
@@ -853,8 +855,10 @@ def test_status_cli_never_dispatches_publisher(monkeypatch, capsys, interrupted)
     monkeypatch.setattr(publish, 'publish', lambda: pytest.fail('publisher called'))
     assert publish.main(['--status']) == (130 if interrupted else 0)
     assert calls == ['status']
+    output = capsys.readouterr()
+    assert output.out.splitlines()[0] == 'publish: rpm / COPR publishing is disabled'
     if interrupted:
-        assert 'rerun the same command' in capsys.readouterr().err
+        assert 'rerun the same command' in output.err
 
 
 def test_source_history_follows_all_publication_states_and_pagination(monkeypatch):

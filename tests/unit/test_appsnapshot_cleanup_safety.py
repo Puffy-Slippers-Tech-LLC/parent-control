@@ -546,13 +546,18 @@ def test_reuse_or_probe_failure_never_builds_or_cleans(launch, status):
     allocation.assert_not_called()
 
 
-def test_fresh_online_snapshot_resumes_without_cleanup_or_build(launch):
+def test_fresh_online_snapshot_resumes_without_cleanup_or_build(launch, monkeypatch):
     control, cleanup, allocation = launch
+    monkeypatch.setenv(vm_selection.BATCH, 'inherited-queue')
+    monkeypatch.setenv('ONPC_WORKFLOW_DIRECTORY', '/preserved-workflow')
     control.run.side_effect = [4, 0]
     assert launcher.main(['--overwrite', 'false', *VM_ARGS, '--y']) == 0
     assert control.run.call_args.args[0][-7:] == [
         '/usr/local/libexec/onpc-test-runner',
         'appsnapshot', '--resume', '--overwrite', 'false', *VM_ARGS]
+    for call in control.run.call_args_list:
+        assert vm_selection.BATCH not in call.kwargs['env']
+        assert call.kwargs['env']['ONPC_WORKFLOW_DIRECTORY'] == '/preserved-workflow'
     cleanup.assert_not_called()
     allocation.assert_not_called()
 

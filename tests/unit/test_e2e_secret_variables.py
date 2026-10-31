@@ -15,6 +15,41 @@ from private_artifacts import EvidenceError, PrivateCollector
 CANARY = 'fixture-only-credential-9!'
 
 
+@pytest.mark.parametrize('fault', ['', 'prefix', 'binding', 'proof'])
+def test_composed_kiosk_secret_requires_owned_binding_and_fresh_proofs(fault):
+    program = r'''
+use strict; use warnings; use JSON::PP;
+our $fault = shift @ARGV; our @events;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub current_console { 'sut' }
+sub get_var { 1 }
+sub get_required_var { push @main::events, $_[0]; 'synthetic-fixture-only' }
+sub type_password { push @main::events, 'password'; }
+package main;
+require onpc_journey; require onpc_password;
+my $journey = onpc_journey->new(prefix => $fault eq 'prefix' ? 'unowned' : 'kiosk-fresh-return',
+    review => 0, exchange => sub {
+        my ($stage) = @_; push @events, $stage;
+        return {observed => $fault eq 'proof' ? 'wrong' : $stage};
+    });
+$journey->{kiosk_request} = ['other-child', 'other-parent', $fault eq 'binding' ? 999 : 75, 1];
+my $ok = eval { onpc_password::enter_kiosk_mate_password($journey, 'bound-request'); 1 };
+my $before = scalar @events;
+my $retry = eval { onpc_password::enter_kiosk_mate_password($journey, 'bound-request'); 1 };
+print encode_json({ok => $ok ? 1 : 0, retry => $retry ? 1 : 0, before => $before, events => \@events});
+'''
+    result = json.loads(run_perl(program, fault).stdout)
+    assert bool(result['ok']) == (not fault)
+    assert not result['retry'] and result['before'] == len(result['events'])
+    if result['ok']:
+        assert result['events'] == ['approval-qualified', 'approval-rechecked',
+                                    '_SECRET_ONPC_OTHER_PARENT_PASSWORD', 'password']
+    else:
+        assert 'password' not in result['events']
+
+
 def test_frozen_registry_stages_private_variables_and_rejects_secret_evidence(tmp_path):
     supplied = {'parent': CANARY, 'child': 'second-fixture-credential-8!'}
     variables = secret.SecretVariables(supplied)

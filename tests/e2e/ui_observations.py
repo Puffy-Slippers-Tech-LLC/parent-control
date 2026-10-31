@@ -37,6 +37,10 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Checking approval for the chosen child and parent'
+       for operation in accessible_ui.BOUND_MATE_ORDER},
+    'kiosk-request-select': 'Choosing the child, parent and requested time at the station',
+    'kiosk-request-estimate': 'Reading the chosen request and estimated remaining time',
     **{operation: 'Observing the bound desktop shortcut and its public result'
        for operation in accessible_ui.SHORTCUT_OPERATIONS},
     'gdm-standard-session-open': 'Opening the ordinary account desktop chooser',
@@ -585,13 +589,16 @@ class RequestObservation:
         fields = tuple(cls.__dataclass_fields__)
         require(type(value) is dict and set(value) == set(fields), 'ui:request')
         observation = cls(**value)
-        if operation == 'overlay-request-estimate':
-            child, parent, seconds, soft = accessible_ui.overlay_request_values(binding)
-            require(observation == cls(surface='child-overlay', form_count=1,
+        if operation in ('overlay-request-estimate', 'kiosk-request-estimate'):
+            overlay = operation == 'overlay-request-estimate'
+            child, parent, seconds, soft = (accessible_ui.overlay_request_values(binding) if overlay else
+                                            accessible_ui.kiosk_request_values(binding))
+            require(observation == cls(surface='child-overlay' if overlay else 'kiosk', form_count=1,
                 child=accessible_ui.CHILD_IDENTITIES[child],
                 approver=accessible_ui.APPROVER_IDENTITIES[parent], duration_seconds=seconds,
-                custom_text=accessible_ui.OVERLAY_REQUEST_MINUTES[seconds], allow_soft=soft,
-                child_selector_enabled=False, approver_selector_enabled=True, duration_enabled=True,
+                custom_text=(accessible_ui.OVERLAY_REQUEST_MINUTES if overlay else
+                             accessible_ui.KIOSK_REQUEST_MINUTES)[seconds], allow_soft=soft,
+                child_selector_enabled=not overlay, approver_selector_enabled=True, duration_enabled=True,
                 soft_choice_enabled=True, request_enabled=True, cancel_enabled=True, message='', mute=None)
                 and all(type(getattr(observation, field)) is bool for field in (
                     'allow_soft', 'child_selector_enabled', 'approver_selector_enabled',
@@ -725,6 +732,7 @@ class UiObservations:
     def __init__(self, transport, *, system_prompt=None, progress=None):
         self.transport = transport
         self.overlay_request = None
+        self.kiosk_request = None
         self.shell_request_binding = None
         self.progress = progress
         self.last_operation = None
@@ -1297,12 +1305,18 @@ class UiObservations:
                                                        'jordan-fraction-estimate-refresh'))):
                         index = 0
                     if index == 0:
+                        self.mate_request_binding = self.kiosk_request
                         self.mate_rejection = operation == accessible_ui.MATE_REJECTION_ORDER[0]
                         self.mate_chinese = operation == accessible_ui.CHINESE_MATE_ORDER[0]
                         self.mate_long_request = operation == accessible_ui.LONG_MATE_ORDER[0]
                         self.mate_jordan = operation == accessible_ui.JORDAN_MATE_ORDER[0]
                         self.mate_paused = operation == accessible_ui.PAUSE_MATE_ORDER[0]
                         self.mate_profile = accessible_ui.PROFILE_MATE_REQUESTS.get(operation)
+                        self.mate_bound = operation in accessible_ui.BOUND_MATE_ORDER
+                    require(self.kiosk_request == self.mate_request_binding, 'ui:mate-request-replaced')
+                    if self.mate_bound:
+                        accessible_ui.validate_kiosk_request(self.kiosk_request)
+                        order = accessible_ui.BOUND_MATE_ORDER
                     if getattr(self, 'mate_chinese', False):
                         order = accessible_ui.CHINESE_MATE_ORDER
                     if getattr(self, 'mate_long_request', False):
@@ -1482,7 +1496,7 @@ class UiObservations:
             binding = [self.boot_guard]
         if operation in accessible_ui.MATE_APPROVAL_OPERATIONS and operation not in (
                 'kiosk-mate-open', 'kiosk-mate-rejection-open', 'chinese-mate-open', 'kiosk-long-mate-open',
-                'kiosk-pause-mate-open', 'jordan-mate-open') and not (
+                'kiosk-pause-mate-open', 'jordan-mate-open', 'kiosk-bound-mate-open') and not (
                     operation in accessible_ui.PROFILE_MATE_REQUESTS and operation.endswith('-mate-open')):
             binding = [self.boot_guard or '', self.mate_approval_identity]
         if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS and operation not in accessible_ui.SHELL_OPEN_OPERATIONS:
@@ -1548,6 +1562,9 @@ class UiObservations:
         if self.overlay_request is not None and operation in accessible_ui.OVERLAY_BOUND_OPERATIONS:
             binding += ['--overlay-request', json.dumps(
                 accessible_ui.validate_overlay_request(self.overlay_request))]
+        if self.kiosk_request is not None and operation in accessible_ui.KIOSK_BOUND_OPERATIONS:
+            binding += ['--kiosk-request', json.dumps(
+                accessible_ui.validate_kiosk_request(self.kiosk_request))]
         try:
             raw, prompts = self.call(['/usr/bin/python3', '-I', '-', operation, version, *binding],
                                      operation, input=program.encode())
@@ -1972,7 +1989,9 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'countdown'}, 'ui:response')
             expected['countdown'] = accessible_ui.validate_countdown(
                 result['countdown'], operation == 'child-countdown-present',
-                child=accessible_ui.CHILD_IDENTITIES[accessible_ui.overlay_request_values(
+                child=accessible_ui.CHILD_IDENTITIES[accessible_ui.kiosk_request_values(
+                    self.kiosk_request)[0]] if self.kiosk_request is not None else
+                    accessible_ui.CHILD_IDENTITIES[accessible_ui.overlay_request_values(
                     self.overlay_request)[0]] if self.overlay_request is not None else 'fixture-child')
         if operation in accessible_ui.PANEL_ANIMATION_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'panel_animation'}, 'ui:response')
@@ -2134,7 +2153,7 @@ class UiObservations:
                         and all(type(item) is bool for item in value.values()), 'ui:mate-result')
             elif operation in ('kiosk-mate-submit-success', 'kiosk-mate-submit-immediate',
                                'chinese-mate-submit-success', 'kiosk-long-mate-submit-success',
-                               'jordan-mate-submit-success',
+                               'jordan-mate-submit-success', 'kiosk-bound-mate-submit-success',
                                'kiosk-pause-mate-submit-success') or (
                                    operation in accessible_ui.PROFILE_MATE_REQUESTS
                                    and operation.endswith('-submit-success')):
@@ -2147,9 +2166,10 @@ class UiObservations:
                 profile_request = accessible_ui.PROFILE_MATE_REQUESTS.get(operation)
                 jordan = operation in accessible_ui.JORDAN_MATE_ORDER
                 paused = operation in accessible_ui.PAUSE_MATE_ORDER
+                bound = operation in accessible_ui.BOUND_MATE_ORDER
                 fields = {'challenge_id'} | ({'provider', 'texts', 'child', 'approver', 'agent_id',
                     'duration_seconds', 'allow_soft', 'rejected_proofs'} if chinese else set()) | (
-                    {'request'} if long_request or jordan or profile_request else set()) | ({'provider'} if paused else set())
+                    {'request'} if bound or long_request or jordan or profile_request else set()) | ({'provider'} if paused else set())
                 require(type(value) is dict and set(value) == fields and
                         type(value['challenge_id']) is str and
                         re.fullmatch(r'[0-9a-f]{64}', value['challenge_id']), 'ui:mate-identity')
@@ -2159,12 +2179,14 @@ class UiObservations:
                         self.mate_pause_provider = dict(value['provider'])
                     else:
                         require(value['provider'] == self.mate_pause_provider, 'ui:mate-provider-changed')
-                if long_request or jordan or profile_request:
+                if bound or long_request or jordan or profile_request:
                     request = value['request']
                     require(type(request) is dict and request == (
+                            accessible_ui.kiosk_request_facts(self.kiosk_request) if bound else
                             profile_request or (accessible_ui.JORDAN_MATE_REQUEST if jordan else accessible_ui.LONG_MATE_REQUEST))
                             and type(request.get('duration_seconds')) is int
-                            and request.get('allow_soft') is True, 'ui:mate-request-binding')
+                            and type(request.get('allow_soft')) is bool
+                            and (bound or request['allow_soft'] is True), 'ui:mate-request-binding')
                 if chinese:
                     accessible_ui.validate_shell_metadata(value['provider'])
                     require(value['provider']['locale'] in ('zh_CN.UTF-8', 'zh_CN.utf8', 'zh_CN')
@@ -2176,7 +2198,8 @@ class UiObservations:
                                 list(accessible_ui.CHINESE_MATE_REFUSALS) if operation == 'chinese-mate-open' else []),
                             'ui:mate-native-response')
                 if operation in ('kiosk-mate-open', 'kiosk-mate-rejection-open', 'chinese-mate-open',
-                                 'kiosk-long-mate-open', 'kiosk-pause-mate-open', 'jordan-mate-open') or (
+                                 'kiosk-long-mate-open', 'kiosk-pause-mate-open', 'jordan-mate-open',
+                                 'kiosk-bound-mate-open') or (
                                      profile_request and operation.endswith('-mate-open')):
                     require(value['challenge_id'] not in self.challenges, 'ui:challenge-replay')
                     self.challenges.add(value['challenge_id'])
@@ -2722,6 +2745,10 @@ class UiObservations:
             _child, _parent, seconds, soft = accessible_ui.overlay_request_values(self.overlay_request)
             valid_requests['overlay-request-estimate'] = (
                 seconds, accessible_ui.OVERLAY_REQUEST_MINUTES[seconds], soft)
+        if self.kiosk_request is not None:
+            _child, _parent, seconds, soft = accessible_ui.kiosk_request_values(self.kiosk_request)
+            valid_requests['kiosk-request-estimate'] = (
+                seconds, accessible_ui.KIOSK_REQUEST_MINUTES[seconds], soft)
         if operation in valid_requests:
             require(type(result) is dict and set(result) == {*expected, 'valid_choice'}, 'ui:response')
             value = result['valid_choice']
@@ -2738,7 +2765,8 @@ class UiObservations:
                         and 0 < bounds[0] <= bounds[1] == value['observed_monotonic_ns']
                         and bounds[1] - bounds[0] <= 45_000_000_000,
                         'ui:overlay-refresh-bounds')
-            RequestObservation.from_request(value['request'], operation=operation, binding=self.overlay_request)
+            RequestObservation.from_request(value['request'], operation=operation,
+                binding=self.kiosk_request if operation == 'kiosk-request-estimate' else self.overlay_request)
             estimate = value['estimate']
             if valid_requests[operation][0] == 0:
                 require(estimate == {'kind': 'midnight'}, 'ui:kiosk-valid-response')

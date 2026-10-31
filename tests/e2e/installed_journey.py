@@ -94,8 +94,16 @@ class JourneyPlan:
     activity_checks: dict = field(default_factory=dict)
     activity_entries: dict = field(default_factory=dict)
     overlay_request: tuple | None = None
+    kiosk_request: tuple | None = None
 
     def __post_init__(self):
+        if self.kiosk_request is not None:
+            accessible_ui.validate_kiosk_request(self.kiosk_request)
+        require(self.kiosk_request is None or self.overlay_request is None,
+                self.prefix + ':request-surface-binding')
+        require(not any(type(tag) is str and tag.removeprefix('ui:') in accessible_ui.KIOSK_BOUND_OPERATIONS -
+                        {'child-countdown-present'} for tag in self.screen_tags.values())
+                or self.kiosk_request is not None, self.prefix + ':kiosk-request-required')
         if self.overlay_request is not None:
             accessible_ui.validate_overlay_request(self.overlay_request)
         require(not any(tag in ('ui:overlay-request-select', 'ui:overlay-request-estimate')
@@ -144,12 +152,13 @@ class JourneyPlan:
                         'ui:kiosk-valid-fraction-soft-read', 'ui:overlay-valid-fraction-soft-read',
                         'ui:overlay-hebrew-fraction-soft-read',
                         'ui:kiosk-long-request-soft-read', 'ui:overlay-fraction-estimate-refresh',
-                        'ui:overlay-request-estimate')
+                        'ui:overlay-request-estimate', 'ui:kiosk-request-estimate')
                     and (type(binding[1]) is int and 0 < binding[1] < 86400
                          or binding[1] == 'estimate'
                          and self.screen_tags[binding[0]] in (
                              'ui:overlay-valid-fraction-soft-read', 'ui:overlay-fraction-estimate-refresh',
-                             'ui:overlay-hebrew-fraction-soft-read', 'ui:overlay-request-estimate'))
+                             'ui:overlay-hebrew-fraction-soft-read', 'ui:overlay-request-estimate',
+                             'ui:kiosk-request-estimate'))
                     and type(binding[2]) is int and 1 <= binding[2] <= 60
                     and type(binding[3]) is int and 0 < binding[3] <= 300
                     for stage, binding in self.countdown_checks.items()),
@@ -665,6 +674,8 @@ class InstalledJourney:
             reply = {plan.worker_mode: True}
             if plan.overlay_request is not None:
                 reply['overlay_request'] = list(plan.overlay_request)
+            if plan.kiosk_request is not None:
+                reply['kiosk_request'] = list(plan.kiosk_request)
             if plan.invocations:
                 reply['invocations'] = list(plan.invocations)
             if plan.challenges:
@@ -756,6 +767,7 @@ class InstalledJourney:
                 # a separate observer process added a round trip to every step.
                 self.ui.boot_guard = self.boot or ''
                 self.ui.overlay_request = plan.overlay_request
+                self.ui.kiosk_request = plan.kiosk_request
                 challenge = plan.challenge_at(stage)
                 if tag.removeprefix('ui:') in accessible_ui.SHELL_SUCCESS_OPERATIONS:
                     def worker_input(token, source):

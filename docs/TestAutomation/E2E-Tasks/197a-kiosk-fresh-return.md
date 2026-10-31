@@ -1,4 +1,4 @@
-# 197a — Compose kiosk approval and fresh child entry
+# 197a — Approve a request and sign in as the chosen child
 
 Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
@@ -53,8 +53,36 @@ elapsed-time bounds. These representative argument bindings qualify the shared
 finite API; later cases own their exact values and histories, with no Cartesian
 qualification matrix.
 
-Planned qualification selector (implement and register before use):
+Implementation uses `kiosk_fresh_return.NEW_PLAN` / `OPEN_PLAN` and
+`KioskFreshReturnJourney`, dispatched by `onpc_request_flow::kiosk_fresh_return`.
+The shared `request_flow.approval_and_return(surface='kiosk', child_entry='fresh')`
+composes caller-bound preparation and `kiosk_approved_flow.approved_request(explicit=True)`.
+`JourneyPlan.kiosk_request` carries the same finite binding through the public
+form, MATE recipient checks, credential owner and child countdown.
+
+Focused qualification selector (not a standalone integration registration):
 
 ```sh
 tools/run-tests integration check_e2e_kiosk_fresh_return
 ```
+
+## Current blocker
+
+Implementation and affected host validation pass. The developer authorized a
+one-time preparation-tool repair in this session: single-VM preparation now
+clears the inherited batch marker and preserves workflow context. Guarded,
+nondeleting recovery verified and transferred the recorded standalone package
+bundle; app-snapshot preparation and maintenance cleanup passed.
+
+The next Ubuntu live attempt passed the earlier queue refusal, acquired and
+isolated the VM, then stopped at
+`fixtures:runner-not-qualified-for-clean-snapshot` before any parent/child
+action. Both representative profiles remain unqualified. The retained runner
+report is `output/test-runs/host/reports/20261031T040247Z-124beb24`;
+owned cleanup and baseline restoration passed. Secondary final-provenance and
+uncaptured-input failures are retained in that report.
+
+Resume with GPT-6.1 Sol High. Investigate this newly retained failure in the next
+session under the shared failure/diagnosis contract; preserve the fixture guard,
+public assertions and current task order. No repair or live retry of this new
+failure was attempted in this session.

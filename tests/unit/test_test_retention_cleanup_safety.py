@@ -1552,32 +1552,37 @@ def test_recovery_safety_uses_shared_parallel_cleanup_coordinator():
                        '--cleanup-prerequisites']
 
 
-def input_transfer_scene(tmp_path):
+def input_transfer_scene(tmp_path, *, standalone=False):
     from tools import test_input_transfer
     source = retention.Store(tmp_path / 'retention-batch')
     destination = retention.Store(tmp_path / 'retention-selected')
     with destination.session():
-        path = allocated(tmp_path, 'input')
+        if not standalone:
+            path = allocated(tmp_path, 'onpc-test-artifacts-fixture')
         destination_report = allocated(tmp_path, 'destination-report')
     # Keep the unlinked inode pinned so the new allocation has a distinct
     # identity even on filesystems which aggressively reuse directory inodes.
-    old = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    old = None if standalone else os.open(path, os.O_RDONLY | os.O_DIRECTORY)
     try:
-        destination.discard_unpublished_input(path)
+        if not standalone:
+            destination.discard_unpublished_input(path)
         with source.session():
-            path = allocated(tmp_path, 'input')
+            path = allocated(tmp_path, 'onpc-test-artifacts-fixture')
             (path / 'artifact-manifest.json').write_text('published')
             source_report = allocated(tmp_path, 'source-report')
     finally:
-        os.close(old)
+        if old is not None:
+            os.close(old)
     def perform(verify=lambda path: 0):
         return test_input_transfer.transfer(source, destination, path,
-            selector='check_e2e_countdown', vm='selected', verify=verify)
+            selector='prepare_appsnapshot' if standalone else 'check_e2e_countdown',
+            vm='selected', verify=verify)
     return source, destination, path, source_report, destination_report, perform
 
 
-def test_input_transfer_preserves_evidence_and_changes_only_cleanup_owner(tmp_path):
-    source, destination, path, sr, dr, perform = input_transfer_scene(tmp_path)
+@pytest.mark.parametrize('standalone', [False, True])
+def test_input_transfer_preserves_evidence_and_changes_only_cleanup_owner(tmp_path, standalone):
+    source, destination, path, sr, dr, perform = input_transfer_scene(tmp_path, standalone=standalone)
     original = [json.loads((store.path / 'current.json').read_text()) for store in (source, destination)]
     calls = []
     assert perform(lambda candidate: calls.append(candidate) or 0)
@@ -1600,10 +1605,11 @@ def test_input_transfer_preserves_evidence_and_changes_only_cleanup_owner(tmp_pa
     assert not path.exists()  # Its recipient owns normal eventual expiration.
 
 
-@pytest.mark.parametrize('step', range(1, 9))
-def test_input_transfer_recovers_each_durable_boundary(tmp_path, monkeypatch, step):
+@pytest.mark.parametrize('step,standalone', [*((step, False) for step in range(1, 9)),
+                                          (1, True), (3, True)])
+def test_input_transfer_recovers_each_durable_boundary(tmp_path, monkeypatch, step, standalone):
     from tools import test_input_transfer
-    source, destination, path, sr, dr, perform = input_transfer_scene(tmp_path)
+    source, destination, path, sr, dr, perform = input_transfer_scene(tmp_path, standalone=standalone)
     save, unlink = retention.Store.save, test_input_transfer.os.unlink
     writes = 0
     def boundary():
@@ -1626,9 +1632,13 @@ def test_input_transfer_recovers_each_durable_boundary(tmp_path, monkeypatch, st
     monkeypatch.setattr(test_input_transfer.os, 'unlink', unlink)
     if step <= 5:
         for store in (source, destination):
+            before = (store.path / 'current.json').read_bytes()
             with pytest.raises(ValueError):
                 with store.session():
                     pytest.fail('incomplete transfer allowed execution')
+            with pytest.raises(ValueError):
+                store.discard_completed(lambda paths: None)
+            assert (store.path / 'current.json').read_bytes() == before
     perform()
     assert not perform()
     assert sr.exists() and dr.exists() and path.exists()
@@ -1638,12 +1648,18 @@ def test_input_transfer_recovers_each_durable_boundary(tmp_path, monkeypatch, st
         pass
 
 
-@pytest.mark.parametrize('fault', ['active-source', 'active-destination', 'unfinished', 'marked',
+@pytest.mark.parametrize('fault,standalone', [(fault, False) for fault in (
+                                  'active-source', 'active-destination', 'unfinished', 'marked',
                                   'unregistered', 'replacement', 'symlink', 'mount',
-                                  'bad-bundle', 'budget', 'other-replacement'])
-def test_input_transfer_refuses_without_mutation(tmp_path, monkeypatch, fault):
+                                  'bad-bundle', 'budget', 'other-replacement')] +
+                                  [(fault, True) for fault in ('active-source', 'active-destination',
+                                      'replacement', 'other-replacement', 'destination-claim')])
+def test_input_transfer_refuses_without_mutation(tmp_path, monkeypatch, fault, standalone):
     from tools import test_input_transfer
-    source, destination, path, sr, dr, perform = input_transfer_scene(tmp_path)
+    source, destination, path, sr, dr, perform = input_transfer_scene(tmp_path, standalone=standalone)
+    if fault == 'destination-claim':
+        with destination.session():
+            retention.retain(path)
     if fault == 'unfinished':
         state = json.loads((source.path / 'current.json').read_text())
         state['finished'] = False
@@ -1682,6 +1698,29 @@ def test_input_transfer_refuses_without_mutation(tmp_path, monkeypatch, fault):
     assert sr.exists() and dr.exists()
     assert not (source.path / test_input_transfer.MARKER).exists()
     assert not (destination.path / test_input_transfer.MARKER).exists()
+
+
+def test_source_only_transfer_intent_guards_only_its_recipient_and_refuses_corruption(tmp_path, monkeypatch):
+    from tools import test_input_transfer
+    source, destination, path, sr, dr, perform = input_transfer_scene(tmp_path, standalone=True)
+    save = destination.save
+    monkeypatch.setattr(destination, 'save', lambda *a, **kw: (_ for _ in ()).throw(
+        OSError('second intent interrupted')))
+    with pytest.raises(OSError):
+        perform()
+    monkeypatch.setattr(destination, 'save', save)
+    unrelated = retention.Store(tmp_path / 'retention-other')
+    with unrelated.session():
+        unrelated_file = allocated(tmp_path, 'unrelated')
+    marker = source.path / test_input_transfer.MARKER
+    original = marker.read_bytes()
+    marker.write_text('{}')
+    with pytest.raises(ValueError, match='invalid input transfer intent'):
+        with destination.session():
+            pytest.fail('corrupt source intent allowed recipient mutation')
+    marker.write_bytes(original)
+    assert perform()
+    assert path.exists() and sr.exists() and dr.exists() and unrelated_file.exists()
 
 
 def test_retirement_never_resurrects_an_older_claim_and_invalid_receipts_refuse(tmp_path):
@@ -1747,7 +1786,9 @@ def test_pending_transfer_blocks_all_ordinary_retention_writers(tmp_path, monkey
     assert not (source.path / 'recovery-required').exists()
 
 
-def test_batch_input_cli_derives_journals_and_runs_normal_verification_under_ownership(tmp_path, monkeypatch):
+@pytest.mark.parametrize('standalone', [False, True])
+def test_batch_input_cli_derives_journals_and_runs_normal_verification_under_ownership(
+        tmp_path, monkeypatch, standalone):
     import cleanup_e2e
     monkeypatch.setattr(cleanup_e2e, 'reservation', lambda *a, **kw: nullcontext())
     import test_commands
@@ -1757,7 +1798,8 @@ def test_batch_input_cli_derives_journals_and_runs_normal_verification_under_own
     import regression_process
     from contextlib import contextmanager
     calls = []
-    path = tmp_path / 'input'
+    path = test_storage.directory('allocations', root=tmp_path) / 'onpc-test-artifacts-fixture'
+    monkeypatch.setattr(cleanup_e2e, '__file__', str(tmp_path / 'tools/cleanup_e2e.py'))
     @contextmanager
     def activity(root, **kwargs):
         assert kwargs == {'includes_host': True}
@@ -1782,17 +1824,21 @@ def test_batch_input_cli_derives_journals_and_runs_normal_verification_under_own
     def transfer(source, destination, selected, **kwargs):
         assert selected == path and source.path == tmp_path / 'retention-batch'
         assert destination.path == tmp_path / 'retention-selected'
-        assert kwargs['vm'] == 'selected' and kwargs['selector'] == 'check_e2e_countdown'
+        assert kwargs['vm'] == 'selected'
+        assert kwargs['selector'] == ('prepare_appsnapshot' if standalone else 'check_e2e_countdown')
         assert kwargs['verify'](selected) == 0
         return True
     monkeypatch.setattr(test_input_transfer, 'transfer', transfer)
     monkeypatch.setattr(cleanup_e2e, 'cleanup', lambda root: pytest.fail('transfer started ordinary VM cleanup'))
-    assert cleanup_e2e.main(['--vm', 'selected', '--transfer-batch-input', 'check_e2e_countdown']) == 0
+    option, selected = (('--transfer-batch-appsnapshot', path.name) if standalone else
+                        ('--transfer-batch-input', 'check_e2e_countdown'))
+    assert cleanup_e2e.main(['--vm', 'selected', option, selected]) == 0
     assert calls == ['selected', 'owned', 'verified', 'released']
-    for args in (['--transfer-batch-input', 'check_e2e_countdown'],
-                 ['--vm', 'all-enabled', '--transfer-batch-input', 'check_e2e_countdown'],
-                 ['--vm', 'selected', '--discard-completed', '--transfer-batch-input', 'check_e2e_countdown'],
-                 ['--vm', 'selected', '--transfer-batch-input', '../check_e2e_countdown']):
+    for args in ([option, selected],
+                 ['--vm', 'all-enabled', option, selected],
+                 ['--vm', 'selected', '--discard-completed', option, selected],
+                 ['--vm', 'selected', option, '../' + selected],
+                 ['--vm', 'selected', option, str(path)]):
         assert cleanup_e2e.main(args) == 2
     assert calls == ['selected', 'owned', 'verified', 'released']
 

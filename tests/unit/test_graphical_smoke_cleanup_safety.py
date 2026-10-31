@@ -10,6 +10,7 @@ import check_graphical_smoke as smoke
 import check_graphical_recovery as recovery
 import check_system_recovery as system_recovery
 import fixture_credentials
+from tools import vm_recording
 from tests.support.vm_baseline import local_preparation_source
 from tests.support.vm_baseline import rig
 from tests.support.vm_runner import lease_rig
@@ -195,8 +196,10 @@ def test_input_guard_binds_live_worker_and_staged_bytes_and_always_cleans(tmp_pa
     server.close.assert_called_once()
 
 
-def test_stale_artifacts_refuse_before_connection_or_lease(tmp_path):
+def test_stale_artifacts_refuse_before_connection_or_lease(tmp_path, monkeypatch):
     from contextlib import nullcontext
+    # This simulated root controller owns no live recording service.
+    monkeypatch.setattr(vm_recording, 'report_failure', Mock())
     def stage(_source, destination, _commands):
         destination.mkdir()
     with patch.object(smoke.os, 'geteuid', return_value=0), \
@@ -230,6 +233,7 @@ def test_stale_artifacts_refuse_before_connection_or_lease(tmp_path):
                                  'kiosk_language', 'overlay_language', 'kiosk_language_restoration'])
 def test_native_approval_stages_complete_installed_payload_before_vm(tmp_path, monkeypatch, mode):
     from contextlib import nullcontext
+    monkeypatch.setattr(vm_recording, 'report_failure', Mock())
 
     # The maintained bundle owns the transitive guest import closure. Freeze
     # expected bytes before staging; a fixed helper list becomes stale whenever
@@ -698,20 +702,20 @@ def test_install_recipient_refusal_is_durable_without_completed_step(qualificati
         'recipient_refusal': 'foreground-distinct'}
 
 
-@pytest.mark.parametrize('code', [*sorted(smoke.VT6_AUTH_REFUSALS), 'private-canary',
+@pytest.mark.parametrize('code', ['vt6-auth:password-refused', 'private-canary',
                                   'vt6-auth:capture-owner-refused private-canary', None])
 def test_vt6_refusal_checkpoint_retains_only_fixed_codes_without_authorization(qualification, code):
     controller, _ = qualification
     controller.vt6_auth = True
     if code not in smoke.VT6_AUTH_REFUSALS:
         with pytest.raises(RuntimeError, match='diagnostic-condition'):
-            controller.progress('vt6-password-screen', {'vt6_refusal': code})
+            controller.progress('vt6-password-text', {'vt6_refusal': code})
         assert not reports(controller)
     else:
-        controller.progress('vt6-password-screen', {'vt6_refusal': code})
+        controller.progress('vt6-password-text', {'vt6_refusal': code})
         saved = reports(controller)[-1]
         assert saved['event'] == 'stage-rejected'
-        assert saved['result']['vt6_refusal'] == {'stage': 'vt6-password-screen', 'code': code}
+        assert saved['result']['vt6_refusal'] == {'stage': 'vt6-password-text', 'code': code}
         assert saved['result']['steps'] == []
 
 

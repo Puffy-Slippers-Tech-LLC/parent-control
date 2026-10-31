@@ -41,7 +41,8 @@ def validate_intent(store, value):
             'transaction', 'source_run', 'destination_run'))
             or value['phase'] not in ('pending', 'complete')
             or not isinstance(value['selector'], str)
-            or re.fullmatch(r'check_[a-z][a-z0-9_]*', value['selector']) is None
+            or (value['selector'] != 'prepare_appsnapshot'
+                and re.fullmatch(r'check_[a-z][a-z0-9_]*', value['selector']) is None)
             or not isinstance(value['vm'], str)
             or re.fullmatch(r'[A-Za-z0-9_.-]+', value['vm']) is None
             or not all(retention.journal_path(value[key]) for key in ('source', 'destination'))):
@@ -53,19 +54,38 @@ def validate_intent(store, value):
         raise ValueError('retention: foreign input transfer intent')
     for key in ('live', 'stale'):
         record = value[key]
+        if key == 'stale' and record is None and value['selector'] == 'prepare_appsnapshot':
+            continue
         if (not isinstance(record, dict) or set(record) != {'path', 'device', 'inode', 'mode'}
                 or not isinstance(record['path'], str)
                 or not Path(record['path']).is_absolute() or '..' in Path(record['path']).parts
                 or any(type(record[field]) is not int or record[field] <= 0
                        for field in ('device', 'inode')) or record['mode'] != 0o700):
             raise ValueError('retention: invalid input transfer identity')
-    if value['live']['path'] != value['stale']['path'] or value['live'] == value['stale']:
+    if value['selector'] == 'prepare_appsnapshot':
+        if (value['stale'] is not None
+                or re.fullmatch(r'onpc-test-artifacts-[A-Za-z0-9_-]+',
+                                Path(value['live']['path']).name) is None):
+            raise ValueError('retention: invalid standalone snapshot input transfer')
+    elif value['live']['path'] != value['stale']['path'] or value['live'] == value['stale']:
         raise ValueError('retention: input transfer requires a stale claim')
 
 
 def mutation_guard(store, fd):
     intent = read_intent(store, fd)
     if intent is None:
+        # The source intent is published first while both writers are locked.
+        # An interrupted first write must also guard an absent-claim recipient.
+        if store.path.name.startswith('retention-') and store.path.name != 'retention-batch':
+            source = retention.Store(store.path.with_name('retention-batch'))
+            try:
+                with source.opened() as other:
+                    pending = read_intent(source, other)
+            except FileNotFoundError:
+                pending = None
+            if (pending is not None and pending['phase'] == 'pending'
+                    and pending['destination'] == str(store.path)):
+                raise ValueError('retention: input ownership transfer pending; resume its guarded recovery')
         return
     if intent['phase'] == 'complete':
         peer = retention.Store(intent['destination'] if str(store.path) == intent['source'] else intent['source'])
@@ -77,10 +97,12 @@ def mutation_guard(store, fd):
     raise ValueError('retention: input ownership transfer pending; resume its guarded recovery')
 
 
-def latest(state, path):
+def latest(state, path, *, required=True):
     records = [record for entry in [*state['history'], state]
                for record in entry['paths'] if record['path'] == str(path)]
     if not records:
+        if not required:
+            return None
         raise ValueError('retention: input transfer requires both registered owners')
     return records[-1]
 
@@ -95,10 +117,11 @@ def audit(state):
 
 
 def transfer(source, destination, path, *, selector, vm, verify):
-    """Transfer only the exact recorded live bundle over an exact stale claim.
+    """Transfer a recorded bundle over a stale claim, or a standalone input.
 
     `verify` is the existing manifest/baseline verifier, not a recovery override.
     Its success supplies no customer acceptance. Retries use the pinned intent.
+    Standalone snapshot inputs require an absent destination claim instead.
     """
     path = Path(path)
     if (source.path.name != 'retention-batch'
@@ -134,7 +157,7 @@ def transfer(source, destination, path, *, selector, vm, verify):
                     os.unlink(MARKER, dir_fd=fd)
                     os.fsync(fd)
             return False
-        live, stale = latest(ss, path), latest(ds, path)
+        live, stale = latest(ss, path), latest(ds, path, required=selector != 'prepare_appsnapshot')
         if existing is None and 'retired' in live:
             receipt = live['retired']
             retention.latest_allocations([*ss['history'], ss])  # Validate receipt.
@@ -154,7 +177,12 @@ def transfer(source, destination, path, *, selector, vm, verify):
             intent['phase'] = 'pending'
             original_live, original_stale = intent['live'], intent['stale']
         else:
-            if 'retired' in stale or set(live) != {'path', 'device', 'inode', 'mode'} or set(stale) != set(live) or live == stale:
+            if set(live) != {'path', 'device', 'inode', 'mode'}:
+                raise ValueError('retention: input transfer requires a registered live allocation')
+            if selector == 'prepare_appsnapshot':
+                if stale is not None:
+                    raise ValueError('retention: standalone input already has a destination claim')
+            elif stale is None or set(stale) != set(live) or live == stale:
                 raise ValueError('retention: input transfer requires a stale registered claim')
             original_live, original_stale = copy.deepcopy(live), copy.deepcopy(stale)
             intent = dict(transaction=uuid.uuid4().hex, phase='pending', selector=selector, vm=vm,
@@ -166,7 +194,7 @@ def transfer(source, destination, path, *, selector, vm, verify):
                        destination=str(destination.path), run=ds['run']))
         if live not in (original_live, retired) or stale not in (original_stale, original_live):
             raise ValueError('retention: input transfer records changed')
-        # Only the destination claim may be stale. Audit projected states before
+        # Only the destination claim may be stale or absent. Audit projected states before
         # writing anything, including the live root and all unrelated allocations.
         projected_source, projected_destination = copy.deepcopy(ss), copy.deepcopy(ds)
         for entry in reversed([*projected_source['history'], projected_source]):
@@ -185,7 +213,7 @@ def transfer(source, destination, path, *, selector, vm, verify):
         audit(projected_source)
         audit(projected_destination)
         # Guard both writers before either ownership mutation. Destination's
-        # stale identity still refuses ordinary entry if the second intent fails.
+        # journal cannot change until its durable intent is in place.
         if si is None:
             source.save(sf, intent, name=MARKER)
         if di is None:

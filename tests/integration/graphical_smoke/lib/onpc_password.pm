@@ -117,6 +117,19 @@ sub enter_kiosk_mate_password {
         my $long_request = @_ == 2 && defined($wrong) && $wrong eq 'long-request';
         my $profile_request = @_ == 2 && defined($wrong)
             && $wrong =~ /\Arequest-(?:120|180|240|1200)\z/;
+        my $composed = @_ == 2 && defined($wrong) && $wrong eq 'bound-request';
+        my $role = 'parent';
+        if ($composed) {
+            my $request = $journey->{kiosk_request};
+            die 'secret:challenge' unless ($journey->{prefix} // '') eq 'kiosk-fresh-return'
+                && ($journey->{stage_prefix} // '') eq ''
+                && ref($request) eq 'ARRAY' && @$request == 4
+                && $request->[0] =~ /\A(?:child|other-child)\z/
+                && $request->[1] =~ /\A(?:parent|other-parent)\z/
+                && $request->[2] =~ /\A(?:30|60|75|120|150|180|240|600|900|1200|7200)\z/
+                && ($request->[3] == 0 || $request->[3] == 1);
+            $role = $request->[1];
+        }
         my $usability = !$chinese && !$long_request && (
             $reject && ($journey->{prefix} // '') eq 'confinement-usability-rejection'
                 && ($journey->{stage_prefix} // '') eq 'rejection-'
@@ -151,10 +164,10 @@ sub enter_kiosk_mate_password {
                 && defined($wrong) && $wrong eq 'request-1200');
         my $id = ($baseline || $isolation || $profile ? ($journey->{stage_prefix} // '') : '')
             . 'kiosk-mate-' . ($chinese || $long_request || $profile_request ? $wrong : $binding);
-        die 'secret:challenge' unless (@_ == 1 || $reject || $chinese || $long_request || $profile_request)
+        die 'secret:challenge' unless (@_ == 1 || $reject || $chinese || $long_request || $profile_request || $composed)
             && ref($journey) eq 'onpc_journey'
             && (!$profile_request || $profile)
-            && ($profile || $baseline || $isolation || $usability || ($long_request ? (($journey->{prefix} // '') eq 'baseline-app-effects'
+            && ($composed || $profile || $baseline || $isolation || $usability || ($long_request ? (($journey->{prefix} // '') eq 'baseline-app-effects'
                 || ($journey->{prefix} // '') eq 'active-grant-disable-engineering'
                 || ($journey->{prefix} // '') eq 'active-grant-disable-public'
                 || (($journey->{prefix} // '') eq 'natural-access'
@@ -181,9 +194,9 @@ sub enter_kiosk_mate_password {
             die 'secret:recipient' unless ref($proof) eq 'HASH' && keys(%$proof) == 1
                 && ($proof->{observed} // '') eq ($journey->{stage_prefix} // '') . $stage;
         }
-        $active_challenge = {journey => $journey, id => $id, role => 'parent',
+        $active_challenge = {journey => $journey, id => $id, role => $role,
                              stage => $binding . '-rechecked', proof => $proof, wrong => $reject};
-        type_fixture_secret('parent', $journey, $proof, $id);
+        type_fixture_secret($role, $journey, $proof, $id);
         1;
     };
     unless ($ok) {

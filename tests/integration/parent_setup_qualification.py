@@ -1351,6 +1351,26 @@ class ApprovalReturnOpenQualification(ApprovalReturnNewQualification):
         return ApprovalReturnJourney(context, progress, OPEN_PLAN)
 
 
+class KioskFreshReturnNewQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from kiosk_fresh_return import KioskFreshReturnJourney, NEW_PLAN
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return KioskFreshReturnJourney(context, progress, NEW_PLAN)
+
+
+class KioskFreshReturnOpenQualification(KioskFreshReturnNewQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from kiosk_fresh_return import KioskFreshReturnJourney, OPEN_PLAN
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return KioskFreshReturnJourney(context, progress, OPEN_PLAN)
+
+
 class OverlayRejectionQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):

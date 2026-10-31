@@ -25,32 +25,41 @@ def main(argv=None):
                         help='recover one evidenced interrupted qualification build; requires one explicit VM')
     recovery.add_argument('--transfer-batch-input', metavar='CHECK',
                           help='preserve and transfer one published batch-owned input to its explicit VM')
+    recovery.add_argument('--transfer-batch-appsnapshot', metavar='ALLOCATION',
+                          help='transfer one evidenced standalone snapshot package allocation by basename')
     args = parser.parse_args(argv)
     try:
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
         root = Path(__file__).resolve().parents[1]
-        if args.discard_unpublished_input or args.transfer_batch_input:
+        snapshot = args.transfer_batch_appsnapshot
+        transferring = bool(args.transfer_batch_input or snapshot)
+        if args.discard_unpublished_input or transferring:
             if args.host_only or args.discard_completed or not args.vm:
-                raise ValueError('unpublished input recovery requires only one explicit VM and check selector')
+                raise ValueError('input recovery requires only one explicit VM and input selector')
             _, vms = vm_config.execution(args.vm)
             if len(vms) != 1 or args.vm in ('all', 'all-enabled'):
                 raise ValueError('unpublished input recovery requires one explicit VM')
-            selector = (args.discard_unpublished_input or args.transfer_batch_input).removesuffix('.py')
-            if not re.fullmatch(r'check_[a-z][a-z0-9_]*', selector):
-                raise ValueError('invalid qualification selector')
-            from test_commands import qualification_input_options
-            from test_storage import named_input
-            options = qualification_input_options(root, selector)
-            if options is None or options.get('upgrade_source'):
-                raise ValueError('qualification has no ordinary artifact input declaration')
+            if snapshot:
+                if not re.fullmatch(r'onpc-test-artifacts-[A-Za-z0-9_-]+', snapshot):
+                    raise ValueError('invalid standalone snapshot allocation basename')
+                selector = 'prepare_appsnapshot'
+            else:
+                selector = (args.discard_unpublished_input or args.transfer_batch_input).removesuffix('.py')
+                if not re.fullmatch(r'check_[a-z][a-z0-9_]*', selector):
+                    raise ValueError('invalid qualification selector')
+                from test_commands import qualification_input_options
+                options = qualification_input_options(root, selector)
+                if options is None or options.get('upgrade_source'):
+                    raise ValueError('qualification has no ordinary artifact input declaration')
             os.environ.pop(BATCH, None)
             select(vms[0].name)
-            with (reservation(vms[0].name) if args.transfer_batch_input else nullcontext()), \
+            with (reservation(vms[0].name) if transferring else nullcontext()), \
                     test_activity.activity(root, includes_host=True):
-                path = named_input(**options)
+                from test_storage import named_input, directory
+                path = directory('allocations', root=root) / snapshot if snapshot else named_input(**options)
                 destination = test_retention.Store(test_activity.retention_path(root))
-                if args.transfer_batch_input:
+                if transferring:
                     from test_input_transfer import transfer
                     from vm_artifacts import prepare
                     from regression_process import Control

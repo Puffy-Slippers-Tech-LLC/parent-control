@@ -2067,6 +2067,9 @@ Inputs normally prepare inside their VM worker's retention session. This route
 preserves reports and original records; it neither rotates evidence nor supplies
 acceptance. Pending transfers refuse ordinary retention writes until recovery
 finishes with the original selector.
+Standalone snapshot package allocations use the same recovery through
+`tools/cleanup-e2e --vm NAME --transfer-batch-appsnapshot ALLOCATION`; see the
+storage mandate for its absent-destination-claim and exact-basename guards.
 
 When the developer explicitly authorizes discarding saved results, use
 `tools/cleanup-e2e --vm NAME --discard-completed` for all completed registered

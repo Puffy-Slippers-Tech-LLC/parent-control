@@ -5,8 +5,17 @@ from private_artifacts import require
 from request_flow import CHOICES, RequestFlowJourney, prepared_request
 
 
-def approved_request(*, child, approver, duration_seconds, allow_soft, exit):
+def approved_request(*, child, approver, duration_seconds, allow_soft, exit, explicit=False):
     """FLOW05 from the independently prepared form; one invocation per attempt."""
+    require(type(explicit) is bool, 'approved-flow:binding')
+    if explicit:
+        from request_flow import kiosk_choices
+        kiosk_choices(child, approver, duration_seconds, allow_soft)
+        require(exit == 'automatic', 'approved-flow:exit')
+        return {**{'approval-' + suffix: 'ui:kiosk-bound-mate-' + operation
+                   for suffix, operation in (('open', 'open'), ('qualified', 'qualified'),
+                                             ('rechecked', 'rechecked'), ('success', 'submit-success'))},
+                'new-returned': 'ui:gdm-station-returned'}
     require(dict(child=child, approver=approver, duration_seconds=duration_seconds,
                  allow_soft=allow_soft) == {**CHOICES, 'duration_seconds': duration_seconds}
             and duration_seconds in (75, 120, 180, 240, 600, 1200)

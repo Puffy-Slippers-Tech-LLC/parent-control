@@ -88,6 +88,28 @@ def mate_form():
     return ui, desktop, agent, dialog, field, cancel, submit, message, recipient
 
 
+@pytest.mark.parametrize('binding,message_text,recipient_text', [
+    (('child', 'parent', 30, False), 'Grant access to Riley (Child)\nfor 30 seconds\n\n✗ Soft-blocked not allowed',
+     'Password for onpc-parent-jamie:'),
+    (('other-child', 'other-parent', 75, True), 'Grant access to Jordan (Child)\nfor 1 minute, 15 seconds\n\n✓ Soft-blocked apps allowed',
+     'Password for onpc-parent-casey:'),
+])
+def test_bound_mate_context_checks_selected_parent_child_time_and_apps(binding, message_text, recipient_text):
+    ui, desktop, agent, dialog, field, cancel, submit, message, recipient = mate_form()
+    ui.kiosk_request = binding
+    desktop.children.append(agent)
+    message.name, recipient.name = message_text, recipient_text
+    with pytest.raises(UiError, match='mate-recipient-context-missing|mate-request-context-missing'):
+        ui.mate_prompt(100)  # Binding alone grants no relaxed default context.
+    facts = accessible_ui.kiosk_request_facts(binding)
+    assert ui.mate_prompt(100, request=facts) is not None
+    message.name += '\nConflicting request'
+    with pytest.raises(UiError, match='mate-request-context-missing'):
+        ui.mate_prompt(100, request=facts)
+    submit.action.do_action.assert_not_called()
+    cancel.action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('fault,seconds', [
     *[(fault, 75) for fault in (None, 'child', 'duration', 'soft', 'missing-time',
                                'duplicate', 'hidden', 'legacy')],

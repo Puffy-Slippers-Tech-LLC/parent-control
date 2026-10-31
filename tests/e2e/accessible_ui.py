@@ -1075,6 +1075,40 @@ def overlay_request_values(value):
             PARENT if parent == 'parent' else OTHER_PARENT, seconds, soft)
 
 
+KIOSK_REQUEST_MINUTES = {**OVERLAY_REQUEST_MINUTES, 240: '4', 600: '10',
+                         1200: '20', 7200: '120'}
+KIOSK_REQUEST_DURATIONS = {**OVERLAY_REQUEST_DURATIONS, 240: '4 minutes',
+                          600: '10 minutes', 1200: '20 minutes', 7200: '2 hours'}
+BOUND_MATE_ORDER = tuple('kiosk-bound-mate-' + suffix for suffix in
+                        ('open', 'qualified', 'rechecked', 'submit-success'))
+KIOSK_BOUND_OPERATIONS = frozenset({*BOUND_MATE_ORDER, 'kiosk-request-select',
+                                  'kiosk-request-estimate', 'child-countdown-present'})
+MATE_APPROVAL_OPERATIONS |= frozenset(BOUND_MATE_ORDER)
+KIOSK_VALID_OPERATIONS |= {'kiosk-request-estimate'}
+OPERATIONS |= KIOSK_BOUND_OPERATIONS
+
+
+def validate_kiosk_request(value):
+    require(type(value) in (tuple, list) and len(value) == 4
+            and value[0] in ('child', 'other-child')
+            and value[1] in ('parent', 'other-parent')
+            and type(value[2]) is int and value[2] in KIOSK_REQUEST_MINUTES
+            and type(value[3]) is bool, 'ui:kiosk-request-binding')
+    return tuple(value)
+
+
+def kiosk_request_values(value):
+    child, parent, seconds, soft = validate_kiosk_request(value)
+    return (CHILD if child == 'child' else EXISTING_CHILD,
+            PARENT if parent == 'parent' else OTHER_PARENT, seconds, soft)
+
+
+def kiosk_request_facts(value):
+    child, parent, seconds, soft = kiosk_request_values(value)
+    return dict(child=CHILD_IDENTITIES[child], approver=APPROVER_IDENTITIES[parent],
+                duration_seconds=seconds, allow_soft=soft)
+
+
 def normalize_shell_request(text):
     text = unicodedata.normalize('NFKC', text).casefold()
     return ' '.join(''.join(c for c in text if unicodedata.category(c) != 'Cf').split())
@@ -1148,6 +1182,7 @@ KIOSK_SESSION_OPERATIONS |= {op for op, (surface, _) in RESTART_OPERATIONS.items
 CHILD_DESKTOP_OPERATIONS |= {op for op, (surface, _) in RESTART_OPERATIONS.items()
                             if surface == 'overlay'}
 KIOSK_SESSION_OPERATIONS |= MATE_OPERATIONS | MATE_APPROVAL_OPERATIONS
+KIOSK_SESSION_OPERATIONS |= {'kiosk-request-select', 'kiosk-request-estimate'}
 CHINESE_LANGUAGE_OPERATIONS = frozenset({'chinese-language-save', 'chinese-persisted-form'})
 OPERATIONS |= CHINESE_LANGUAGE_OPERATIONS | CHINESE_VALID_BINDINGS.keys()
 KIOSK_SESSION_OPERATIONS |= CHINESE_LANGUAGE_OPERATIONS | CHINESE_VALID_BINDINGS.keys()
@@ -4944,7 +4979,8 @@ class AccessibleUI:
                     'ui:app-row-page')
         if identity == 'kiosk-custom-duration':
             self.kiosk_valid_target(identity, child=child,
-                                    approver=self.overlay_bound_values()[1] if getattr(self, 'overlay_request', None) else PARENT,
+                                    approver=self.kiosk_bound_values()[1] if getattr(self, 'kiosk_request', None) else
+                                    self.overlay_bound_values()[1] if getattr(self, 'overlay_request', None) else PARENT,
                                     overlay=getattr(self, 'text_overlay', False))
         if identity == 'parent-match-rule-entry':
             self.match_entry(child, getattr(self, 'text_match_app', MATCH_APP), editor=True)
@@ -9734,6 +9770,25 @@ class AccessibleUI:
         return ((CHILD, PARENT, 75, True) if binding is None
                 else overlay_request_values(binding))
 
+    def kiosk_bound_values(self):
+        return kiosk_request_values(self.kiosk_request)
+
+    def select_kiosk_request(self):
+        """FLOW04: choose the caller's child, approver and finite request once."""
+        child, approver, seconds, soft = self.kiosk_bound_values()
+        self.complete_request_language_setup()
+        self.set_value('kiosk-child-selector', str(pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid))
+        self.wait(lambda: self.kiosk_account_snapshot('child')[0].getValue() ==
+                  str(pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid), 'kiosk-request-child')
+        self.complete_request_language_setup()
+        self.set_value('kiosk-approver-selector', str(pwd.getpwnam(APPROVER_ACCOUNTS[approver]).pw_uid))
+        self.wait(lambda: self.kiosk_valid_target('kiosk-duration-custom', child=child,
+            approver=approver), 'kiosk-request-ready')
+        self.set_value('kiosk-duration-choices', 'custom')
+        self.set_value('kiosk-custom-duration-units', 'minutes')
+        self.set_text('kiosk-custom-duration', KIOSK_REQUEST_MINUTES[seconds], child=child)
+        self.set_value('kiosk-soft-apps-toggle', soft)
+
     def overlay_message_matches(self, text, language):
         child, _parent, seconds, soft = self.overlay_bound_values()
         return shell_request_matches(text, child, seconds, soft, language)
@@ -10648,8 +10703,9 @@ class AccessibleUI:
         chinese = operation in CHINESE_VALID_BINDINGS
         jordan = operation in JORDAN_VALID_BINDINGS
         require(operation in KIOSK_VALID_OPERATIONS or overlay or chinese, 'ui:kiosk-valid-binding')
-        bound = operation == 'overlay-request-estimate'
-        child, approver = (self.overlay_bound_values()[:2] if bound else
+        bound = operation in ('overlay-request-estimate', 'kiosk-request-estimate')
+        bound_values = (self.overlay_bound_values() if overlay else self.kiosk_bound_values()) if bound else None
+        child, approver = (bound_values[:2] if bound else
                            (EXISTING_CHILD if chinese or jordan else CHILD, PARENT))
         language = ('he' if operation == 'overlay-hebrew-fraction-soft-read' else
                     'zh-Hans' if chinese else 'en')
@@ -10667,9 +10723,9 @@ class AccessibleUI:
                                                      child=child, overlay=overlay),
                       'kiosk-custom-open')
             return None
-        seconds, custom, soft = ((self.overlay_bound_values()[2],
-                                OVERLAY_REQUEST_MINUTES[self.overlay_bound_values()[2]],
-                                self.overlay_bound_values()[3]) if bound else
+        seconds, custom, soft = ((bound_values[2],
+                                (OVERLAY_REQUEST_MINUTES if overlay else KIOSK_REQUEST_MINUTES)[bound_values[2]],
+                                bound_values[3]) if bound else
                                 (JORDAN_VALID_REQUESTS if jordan else
                                 CHINESE_VALID_REQUESTS if chinese else
                                 OVERLAY_VALID_REQUESTS if overlay else KIOSK_VALID_REQUESTS)[operation])
@@ -10903,13 +10959,18 @@ class AccessibleUI:
         require(binding is None or binding in MULTIPLE_MATE_BINDINGS, 'ui:mate-binding')
         require(language in ('en', 'zh-Hans') and (language == 'en' or binding is None),
                 'ui:mate-language-binding')
+        bound_request = (kiosk_request_facts(self.kiosk_request)
+                         if getattr(self, 'kiosk_request', None) is not None else None)
         require(request is None or (binding is None and language == 'en'
-                and type(request) is dict and request in (
+                and type(request) is dict and (request == bound_request or request in (
                     LONG_MATE_REQUEST, JORDAN_MATE_REQUEST, *PROFILE_MATE_REQUESTS.values())
+                and request.get('allow_soft') is True)
                 and type(request.get('duration_seconds')) is int
-                and request.get('allow_soft') is True), 'ui:mate-request-binding')
+                and type(request.get('allow_soft')) is bool), 'ui:mate-request-binding')
         child, approver = MULTIPLE_MATE_BINDINGS[binding] if binding else (CHILD, PARENT)
-        if request == JORDAN_MATE_REQUEST:
+        if request is not None and request == bound_request:
+            child, approver = self.kiosk_bound_values()[:2]
+        elif request == JORDAN_MATE_REQUEST:
             child = EXISTING_CHILD
         if observation is None:
             self.invalidate_observation()
@@ -10959,6 +11020,10 @@ class AccessibleUI:
                    f'Grant access to {child}\nfor 30 minutes\n\n✗ Soft-blocked not allowed' if binding else
                    f'Grant access to {CHILD}\nfor 1 minute, 15 seconds\n\n'
                    '✓ Soft-blocked apps allowed')
+        if request is not None and request == bound_request:
+            message = (f'Grant access to {child}\nfor {KIOSK_REQUEST_DURATIONS[request["duration_seconds"]]}\n\n'
+                       + ('✓ Soft-blocked apps allowed' if request['allow_soft'] else
+                          '✗ Soft-blocked not allowed'))
         require(labels.count(texts['message'] if texts else message) == 1, 'ui:mate-request-context-missing')
         if texts:
             require(labels.count(texts['explanation']) == 1, 'ui:mate-native-explanation')
@@ -11139,13 +11204,16 @@ class AccessibleUI:
         profile_request = PROFILE_MATE_REQUESTS.get(operation)
         jordan = operation in JORDAN_MATE_ORDER
         paused = operation in PAUSE_MATE_ORDER
+        bound = operation in BOUND_MATE_ORDER
+        bound_request = kiosk_request_facts(self.kiosk_request) if bound else None
         language = 'zh-Hans' if chinese else 'en'
-        action = ('kiosk-mate-' + operation.split('-mate-', 1)[1] if profile_request else
+        action = ('kiosk-mate-' + operation.split('-mate-', 1)[1] if profile_request or bound else
                   operation.replace('jordan-mate-', 'kiosk-mate-', 1) if jordan else
                   operation.replace('chinese-mate-', 'kiosk-mate-', 1) if chinese else
                   operation.replace('kiosk-long-mate-', 'kiosk-mate-', 1) if long_request else
                   operation.replace('kiosk-pause-mate-', 'kiosk-mate-', 1) if paused else operation)
-        options = ({'request': dict(profile_request)} if profile_request else
+        options = ({'request': bound_request} if bound else
+                   {'request': dict(profile_request)} if profile_request else
                    {'request': dict(JORDAN_MATE_REQUEST)} if jordan else
                    {'language': language} if chinese else
                    {'request': dict(LONG_MATE_REQUEST)} if long_request else {})
@@ -11155,13 +11223,15 @@ class AccessibleUI:
                                    'kiosk-mate-submit-immediate')
         try:
             if opening:
-                self.kiosk_valid_choice('jordan-fraction-soft-read' if jordan else
+                self.kiosk_valid_choice('kiosk-request-estimate' if bound else
+                    'jordan-fraction-soft-read' if jordan else
                     'chinese-fraction-soft-read' if chinese else
                     f'kiosk-request-{profile_request["duration_seconds"]}-soft-read' if profile_request else
                     'kiosk-long-request-soft-read' if long_request else 'kiosk-valid-fraction-soft-read')
                 require(self.mate_prompt(pid, **options) is None, 'ui:mate-already-open')
                 self._invoke_target(self.kiosk_valid_target('kiosk-request-submit',
-                    **({'child': EXISTING_CHILD} if chinese or jordan else {})))
+                    **({'child': self.kiosk_bound_values()[0], 'approver': self.kiosk_bound_values()[1]} if bound else
+                       {'child': EXISTING_CHILD} if chinese or jordan else {})))
                 pid, challenge = self.wait_mate_prompt(**options)
             else:
                 challenge = (self.wait_filled_mate_prompt(pid, **options) if submitting else
@@ -11207,8 +11277,8 @@ class AccessibleUI:
                         'duration_seconds': 75, 'allow_soft': True, 'rejected_proofs': rejected}
             return {'challenge_id': identity,
                     **({'provider': self.mate_provider_metadata(pid)} if paused else {}),
-                    **({'request': dict(profile_request or (JORDAN_MATE_REQUEST if jordan else LONG_MATE_REQUEST))}
-                       if long_request or jordan or profile_request else {})}
+                    **({'request': dict(bound_request or profile_request or (JORDAN_MATE_REQUEST if jordan else LONG_MATE_REQUEST))}
+                       if bound or long_request or jordan or profile_request else {})}
         except BaseException:
             self.input_uncertain = True
             raise
@@ -13431,7 +13501,8 @@ class AccessibleUI:
 
     def _run(self, operation, version, *, child=CHILD):
         require(operation in OPERATIONS, 'ui:operation')
-        bound_child = self.overlay_bound_values()[0]
+        bound_child = (self.kiosk_bound_values()[0] if getattr(self, 'kiosk_request', None) is not None
+                       else self.overlay_bound_values()[0])
         self.text_overlay = (operation.startswith('text-overlay-')
                              or operation in ('overlay-fraction-estimate-refresh', 'overlay-request-select'))
         if self.text_overlay:
@@ -13660,6 +13731,8 @@ class AccessibleUI:
             self.launch_child_command(child=bound_child)
         elif operation == 'overlay-request-select':
             self.select_overlay_request()
+        elif operation == 'kiosk-request-select':
+            self.select_kiosk_request()
         elif operation == 'overlay-panel-ready':
             if self.snapshot_owned_target('kiosk-request-window') is None:
                 self.overlay_panel_target()
@@ -14935,6 +15008,11 @@ def crash_report_diagnostic(directory='/var/crash'):
 
 
 def main():
+    kiosk_request = None
+    if len(sys.argv) >= 5 and sys.argv[-2] == '--kiosk-request':
+        kiosk_request = validate_kiosk_request(json.loads(sys.argv[-1]))
+        del sys.argv[-2:]
+        require(sys.argv[1] in KIOSK_BOUND_OPERATIONS, 'ui:kiosk-request-operation')
     overlay_request = None
     if len(sys.argv) >= 5 and sys.argv[-2] == '--overlay-request':
         overlay_request = validate_overlay_request(json.loads(sys.argv[-1]))
@@ -14981,6 +15059,7 @@ def main():
     else:
         account = greeter_account(timeout=120 if sys.argv[1] in GDM_SESSION_OPERATIONS else None) if greeter else pwd.getpwnam(
             'oh-no-parent-control' if kiosk else
+            CHILD_ACCOUNTS[kiosk_request_values(kiosk_request)[0]] if kiosk_request is not None else
             CHILD_ACCOUNTS[overlay_request_values(overlay_request)[0]] if overlay_request is not None else
             CHILD_ACCOUNTS[TRANSFER_OPERATIONS[sys.argv[1]][1]] if sys.argv[1] in TRANSFER_OPERATIONS else
             (CHILD_ACCOUNTS[CHILD] if sys.argv[1] in CHILD_DESKTOP_OPERATIONS else
@@ -15020,6 +15099,7 @@ def main():
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     ui.branch_owner = branch_owner
     ui.overlay_request = overlay_request
+    ui.kiosk_request = kiosk_request
     if sys.argv[1] == 'overlay-native-opened':
         ui.native_open_diagnostic = {'event': 'ui-native-public-observation', 'complete_reads': 0}
     trace_argument = (sys.argv[1] in ACCESSIBILITY_TRACE_OPERATIONS or

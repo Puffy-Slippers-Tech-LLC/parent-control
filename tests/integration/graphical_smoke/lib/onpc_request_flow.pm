@@ -207,6 +207,41 @@ sub approval_return {
     $journey->finish();
 }
 
+sub kiosk_fresh_return {
+    onpc_progress::operation('Approving a station request and signing in as the chosen child');
+    my ($exchange, $declared, $challenges, $binding, $entry) = @_;
+    die 'kiosk-fresh-return:binding' unless @_ == 5 && ref($binding) eq 'ARRAY'
+        && @$binding == 4 && ($entry eq 'new' || $entry eq 'open')
+        && $binding->[0] =~ /\A(?:child|other-child)\z/
+        && $binding->[1] =~ /\A(?:parent|other-parent)\z/
+        && $binding->[2] =~ /\A(?:30|60|75|120|150|180|240|600|900|1200|7200)\z/
+        && ($binding->[3] == 0 || $binding->[3] == 1);
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'kiosk-fresh-return', review => 0);
+    $journey->{kiosk_request} = $binding;
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, $binding->[0] eq 'child' ? 'child' : 'existing',
+        $journey->seen('child-picker-opened'), 'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen('allowance-configured');
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    onpc_gdm::enter_station($journey, '') if $entry eq 'open';
+    prepare($journey, $entry, $entry, 'observed',
+        $binding->[0] eq 'child' ? 'fixture-child' : 'existing-fixture-child',
+        $binding->[1] eq 'parent' ? 'fixture-parent' : 'other-fixture-parent',
+        $binding->[2], $binding->[3], 'kiosk');
+    approve($journey, $binding->[0] eq 'child' ? 'fixture-child' : 'existing-fixture-child',
+        $binding->[1] eq 'parent' ? 'fixture-parent' : 'other-fixture-parent',
+        $binding->[2], $binding->[3], 'automatic');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', $binding->[0], 'fresh', 'success', 'fresh');
+    $journey->seen('countdown');
+    $journey->finish();
+}
+
 sub delayed_approval {
     onpc_progress::operation('Checking delayed approval and a second addition for [Child user]');
     my ($exchange, $declared, $challenges, $balance) = @_;
@@ -542,6 +577,21 @@ sub qualify_cross_surface {
 sub prepare {
     onpc_progress::operation('Preparing the declared kiosk request without submitting');
     my ($journey, $prefix, $entry, $initial, $child, $approver, $seconds, $soft, $invalid) = @_;
+    if (@_ == 9 && $initial eq 'observed' && $invalid eq 'kiosk') {
+        die 'request-flow:binding' unless ref($journey) eq 'onpc_journey'
+            && ($prefix eq 'open' || $prefix eq 'new') && ($entry eq 'open' || $entry eq 'new')
+            && ref($journey->{kiosk_request}) eq 'ARRAY'
+            && ($child eq 'fixture-child' || $child eq 'existing-fixture-child')
+            && ($approver eq 'fixture-parent' || $approver eq 'other-fixture-parent')
+            && $seconds =~ /\A(?:30|60|75|120|150|180|240|600|900|1200|7200)\z/
+            && ($soft == 0 || $soft == 1)
+            && join(',', @{$journey->{kiosk_request}}) eq join(',',
+                $child eq 'fixture-child' ? 'child' : 'other-child',
+                $approver eq 'fixture-parent' ? 'parent' : 'other-parent', $seconds, $soft);
+        onpc_gdm::enter_station($journey, 'cancel-') if $entry eq 'new';
+        $journey->seen("$prefix-choices");
+        return $journey->seen("$prefix-estimate");
+    }
     if (@_ == 9 && $initial eq 'observed' && $invalid eq 'overlay') {
         die 'request-flow:binding' unless ref($journey) eq 'onpc_journey'
             && ($prefix eq 'open' || $prefix eq 'new') && ($entry eq 'open' || $entry eq 'new')
@@ -681,6 +731,18 @@ sub overlay_choices {
 sub approve {
     onpc_progress::operation('Approving the prepared kiosk request and observing return');
     my ($journey, $child, $approver, $seconds, $soft, $exit) = @_;
+    if (@_ == 6 && ref($journey) eq 'onpc_journey' && ref($journey->{kiosk_request}) eq 'ARRAY') {
+        die 'approved-flow:binding' unless $exit eq 'automatic'
+            && ($child eq 'fixture-child' || $child eq 'existing-fixture-child')
+            && ($approver eq 'fixture-parent' || $approver eq 'other-fixture-parent')
+            && join(',', @{$journey->{kiosk_request}}) eq join(',',
+                $child eq 'fixture-child' ? 'child' : 'other-child',
+                $approver eq 'fixture-parent' ? 'parent' : 'other-parent', $seconds, $soft);
+        $journey->consume_observation('approval-open', $journey->seen('approval-open'));
+        onpc_password::enter_kiosk_mate_password($journey, 'bound-request');
+        $journey->consume_observation('approval-success', $journey->seen('approval-success'));
+        return $journey->consume_observation('new-returned', $journey->seen('new-returned'));
+    }
     die 'approved-flow:binding' unless @_ == 6 && ref($journey) eq 'onpc_journey'
         && $child eq 'fixture-child' && $approver eq 'fixture-parent'
         && ($seconds eq '75' || $seconds =~ /\A(?:120|180|240|600|1200)\z/ && $exit eq 'automatic')

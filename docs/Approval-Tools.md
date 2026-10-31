@@ -66,6 +66,9 @@ For an evidenced input wrongly registered to the batch rather than its VM,
 bundle and transfers its cleanup ownership under that same storage contract.
 Its baseline probe is read-only; it does not start or restore a VM. Pending
 transfers require the identical guarded recovery, never manual journal edits.
+Standalone snapshot package bundles use
+`tools/cleanup-e2e --vm NAME --transfer-batch-appsnapshot ALLOCATION` with the
+exact recorded allocation basename and the same nondeleting ownership guards.
 Prerequisites that cannot be repaired within that scope, and missing grants, are
 blockers, not invitations to bypass controls or retry authentication. Report the
 exact blocker and required external action; continue independent authorized work.

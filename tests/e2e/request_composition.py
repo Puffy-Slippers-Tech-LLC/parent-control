@@ -67,8 +67,8 @@ class KioskRequestJourney(InstalledJourney):
             estimated, timestamp = self.countdown_baselines[before]
             require(seconds == 'estimate' or estimated == seconds, 'countdown:expected-estimate')
             current = CountdownObservation.from_value(observed['ui']['countdown'], present=True,
-                child='existing-fixture-child' if self.plan.overlay_request is not None
-                    and self.plan.overlay_request[0] == 'other-child' else 'fixture-child')
+                child='existing-fixture-child' if (self.plan.overlay_request or self.plan.kiosk_request
+                    or ('child',))[0] == 'other-child' else 'fixture-child')
             comparison = check_countdown_balance(current,
                 seconds=estimated, precision_seconds=precision,
                 observed_monotonic_ns=timestamp, max_elapsed_seconds=elapsed)
@@ -80,6 +80,7 @@ class KioskRequestJourney(InstalledJourney):
         if choice is None:
             return
         require(self.balance is not None, 'kiosk-valid:missing-balance')
+        require(choice['request']['child'] == self.balance['child'], 'kiosk-valid:wrong-child-balance')
         elapsed = (choice['observed_monotonic_ns'] - self.balance['observed_monotonic_ns']) / 1e9
         require(0 <= elapsed <= 600, 'kiosk-valid:elapsed-bound')
         if choice['estimate']['kind'] == 'fixed':

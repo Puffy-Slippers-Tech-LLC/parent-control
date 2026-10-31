@@ -11,7 +11,7 @@ import test_retention
 from dev_privileges import check
 from regression_process import Control
 from test_recovery import cleanup
-from vm_selection import select, arguments as vm_arguments, vm_config, SELECTOR_HELP, confirm_queue
+from vm_selection import select, arguments as vm_arguments, vm_config, SELECTOR_HELP, confirm_queue, BATCH
 from vm_queue import preparation
 
 
@@ -65,12 +65,15 @@ def main(argv=None):
             check(helper)
             _, status = preparation(root, 'prepare-appsnapshot', args, concurrency, vms)
             return status
+        os.environ.pop(BATCH, None)
         select(args.vm)
         from vm_pool import reservation
         with Control().installed() as control, reservation(args.vm, stopped=control.stopped), \
                 test_activity.activity(root, named_vm=True):
             check(helper)
             environment = test_launcher.environment(root)
+            if 'ONPC_WORKFLOW_DIRECTORY' in os.environ:
+                environment['ONPC_WORKFLOW_DIRECTORY'] = os.environ['ONPC_WORKFLOW_DIRECTORY']
             if args.overwrite == 'true':
                 cleanup(root)
                 if control.stopped.is_set():

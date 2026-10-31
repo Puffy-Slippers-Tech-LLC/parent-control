@@ -95,6 +95,16 @@ changed owners, roots or competing intents. It opens no session, rotates no
 evidence and supplies no acceptance. Do not use a transfer to adopt an
 unregistered or invalid input or to bypass a refusal.
 
+For a standalone app-snapshot package bundle wrongly registered to the batch,
+use `tools/cleanup-e2e --vm NAME --transfer-batch-appsnapshot ALLOCATION`.
+`ALLOCATION` is the exact recorded `onpc-test-artifacts-...` basename under the
+shared allocations directory, never a caller-supplied path. This uses the same
+nondeleting two-owner transaction and existing package/baseline verifier, but
+requires no destination claim. Both journals must already have finished,
+unmarked owners. A source-only pending intent also guards its named recipient
+before the recipient intent is published; retry the identical command after an
+interruption. Unrelated allocations and reports remain intact.
+
 ## Prohibited storage choices
 
 - Test producers must not choose `/tmp`, `/var/tmp`, a caller-supplied `TMPDIR`

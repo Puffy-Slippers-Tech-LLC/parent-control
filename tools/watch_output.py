@@ -78,7 +78,7 @@ def snapshot(path, *, steps=False, reader=None):
     return value
 
 
-def active_run(base, *, workflow=False, reader=None):
+def active_run(base, *, workflow=False, reader=None, include_idle=False):
     name = (reader.read(base / 'current.json', 4096) if reader is not None
             else read_json(base / 'current.json', 4096))['run']
     if not isinstance(name, str) or not re.fullmatch('[0-9a-f]{32}', name):
@@ -94,11 +94,11 @@ def active_run(base, *, workflow=False, reader=None):
         except BlockingIOError:
             return run
         fcntl.flock(owner, fcntl.LOCK_UN)
-    return None
+    return run if include_idle else None
 
 
-def active_launchers(root, reader):
-    """Discover owner-locked publications; names belong to their launchers."""
+def active_launchers(root, reader, *, include_idle=False):
+    """Discover live publications, optionally including retained idle runs."""
     for kind in ('fix-tests', 'fix-tests-host', 'write-e2e', 'sync-whatsnew',
                  'plans', 'sessions-host', 'sessions'):
         try:
@@ -111,7 +111,7 @@ def active_launchers(root, reader):
             for item in bases:
                 try:
                     run = active_run(item, workflow=kind not in ('sessions-host', 'sessions'),
-                                     reader=reader)
+                                     reader=reader, include_idle=include_idle)
                     if run is not None:
                         record = reader.read(item / 'current.json', 4096)
                         if record.get('run') != run.name:
@@ -216,8 +216,8 @@ class Output:
         if self.repair:
             steps = repair_progress(self.run, steps,
                 child_steps=snapshot(self.run / 'test-controller.json', steps=True, reader=self.reader))
-        details = snapshot(self.run / 'frame.json', reader=self.reader) if active else []
-        if self.repair and active and not details:
+        details = snapshot(self.run / 'frame.json', reader=self.reader)
+        if self.repair and not details:
             details = snapshot(self.run / 'test-frame.json', reader=self.reader)
         if steps:
             details = [line for line in details if not clean(line).startswith('Overall - ')]
@@ -312,6 +312,17 @@ class Output:
         # Drain the final bytes after owner exit and keep the last transcript.
         if run is None:
             run, label = self.run, self.label
+            if run is None:
+                # Reconnect can happen after owner exit. Reuse the latest safe
+                # current publication without treating it as live authority.
+                latest = -1
+                for candidate, name in active_launchers(self.root, self.reader, include_idle=True):
+                    try:
+                        modified = candidate.lstat().st_mtime_ns
+                    except OSError:
+                        continue
+                    if modified > latest:
+                        run, label, latest = candidate, name, modified
         reset, data = False, b''
         if run is not None:
             try:
@@ -374,6 +385,10 @@ class SessionOutput:
             owners = [owner] if owner == self.owner_run else []
             return self.discover_sessions(owners)
         owners = [run for run, _name in active_launchers(self.output.root, self.reader)]
+        if not owners and self.run is None and self.output.run is not None:
+            # Restore a retained transcript read-only after Watch reconnects.
+            _, run, state, source = self.discover_sessions([self.output.run])
+            return None, run, dict(state, status='finished'), source
         return self.discover_sessions(owners)
 
     def discover_sessions(self, owners):

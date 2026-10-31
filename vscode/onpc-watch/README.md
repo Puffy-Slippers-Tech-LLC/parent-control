@@ -21,8 +21,9 @@ The left panel shows **Run Status** across related Git worktrees, using shared
 runner discovery and the pipeline dashboard. Active worktrees
 share the panel in equal sections. When a launcher exits for any reason, its
 section and all four tabs retain their contents, including while other worktrees
-remain active. Session input is disabled once its owner exits. Retention uses
-existing run files and reader memory; it adds no disk persistence.
+remain active. Reconnecting restores the latest retained run in each idle
+worktree from its existing run files. Session input is disabled once its owner
+exits. Retention uses existing run files and reader memory; it adds no disk persistence.
 Each title, e.g. `[main] fix-tests`, keeps **Status**, **Launcher**, **Error** and **Session**
 links at its right end. The name comes from the launcher's `current.json`
 publication, including custom plan launcher names. Older runs without a published

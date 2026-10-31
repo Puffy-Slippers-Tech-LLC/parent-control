@@ -581,6 +581,10 @@ For each round-1 category, the launcher highlights
 `Running category [category] (x/y)` beneath the test dashboard's `Overall` row,
 then retains it after the completed test output with its position in the discovered list.
 The exact argument arrays from that inventory are forwarded to the test runner.
+When both publishing leaves are unfinished, the repair launcher runs them through
+`run-tests publish`, using its resource-aware parallel DEB/RPM schedule. Failures
+retain separate leaf repairs; interrupted companions resume after repair close-out.
+Completed leaves and retained unfinished repairs keep their existing resume scope.
 
 Optional categories restrict both repair and verification: `tools/fix-tests host`,
 `tools/fix-tests vm`,

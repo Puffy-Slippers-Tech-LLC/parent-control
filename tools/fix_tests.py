@@ -383,12 +383,46 @@ def category_status(category, categories):
             f'({index + 1}/{len(categories)})\033[0m')
 
 
+def category_pass(categories, test, *, completed=(), resume_test=None, continuation=None,
+                  starting=lambda: None, publish_ready=lambda: True):
+    """Use the runner's parallel publishing schedule, retaining leaf repairs."""
+    from test_commands import PUBLISH_CATEGORIES
+    publishing = set(PUBLISH_CATEGORIES)
+    batch = (publishing <= set(categories) - set(completed)
+             and not (continuation and continuation.get('category') in publishing))
+    handled = set(completed)
+    for category in categories:
+        if category in handled:
+            continue
+        starting()
+        if batch and category in publishing and not publishing & handled and publish_ready():
+            failure = test('publish')
+            # A failure cancels companions. Reuse its first leaf's evidence;
+            # then resume each other leaf for fresh evidence or unfinished work.
+            first = next((kind for kind in failure['categories'] if kind in publishing), None) if failure else None
+            if failure is not None and first is None:
+                raise ValueError('publishing failure has no runnable retry category')
+            order = ([first] + [kind for kind in PUBLISH_CATEGORIES if kind != first]
+                     if first else PUBLISH_CATEGORIES)
+            for index, kind in enumerate(order):
+                if index:
+                    starting()
+                handled.add(kind)
+                result = failure if kind == first else None
+                if failure is not None and kind != first:
+                    result = resume_test(kind) if resume_test else test(kind)
+                yield kind, result
+        else:
+            handled.add(category)
+            yield category, test(category)
+
+
 def run_loop(categories, test, repair, check_stop, *, selected=False, round_changed=lambda _: None,
              verified=lambda _repair, _passed: None, rounds=1, resume_test=None, completed=(), start_round=1,
              verification_started=lambda _completed: None,
              task_started=lambda: None, task_completed=lambda: None, outcome=verification_outcome,
              continuation=None, refresh_failure=lambda _category, failure: failure,
-             terminal_failure=lambda: False):
+             terminal_failure=lambda: False, publish_ready=lambda: True):
     """Keep each case's latest repair handoff until its category passes."""
     case_failed = False
     def finish_category(category, failure):
@@ -470,14 +504,16 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
             return dict(continuation['trigger'], categories=[continuation['category']])
         return test(category)
 
+    def starting():
+        check_stop()
+        task_started()
+
     if start_round == 1:
         round_changed(1)
-        for category in categories:
-            if category in completed:
-                continue
-            check_stop()
-            task_started()
-            finish_category(category, initial_test(category))
+        for category, failure in category_pass(categories, initial_test, completed=completed,
+                                               resume_test=resume_test, continuation=continuation,
+                                               starting=starting, publish_ready=publish_ready):
+            finish_category(category, failure)
             task_completed()
     for number in range(max(2, start_round), rounds + 1):
         round_changed(number)
@@ -485,13 +521,13 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
                      completed=completed if number == start_round else (),
                      resume_test=resume_test, verification_started=verification_started,
                      task_started=task_started, task_completed=task_completed,
-                     terminal_failure=lambda: case_failed or terminal_failure())
+                     terminal_failure=lambda: case_failed or terminal_failure(), publish_ready=publish_ready)
 
 
 def verify_round(categories, test, finish_category, check_stop, *, selected, completed=(),
                  resume_test=None, verification_started=lambda _completed: None,
                  task_started=lambda: None, task_completed=lambda: None,
-                 terminal_failure=lambda: False):
+                 terminal_failure=lambda: False, publish_ready=lambda: True):
     """Repeat verification and repairs until this round has a clean pass."""
     if not selected and all(category in completed for category in categories):
         return
@@ -501,12 +537,12 @@ def verify_round(categories, test, finish_category, check_stop, *, selected, com
         while True:
             verification_started(completed)
             clean = True
-            for category in categories:
-                if category in completed:
-                    continue
+            def starting():
                 check_stop()
                 task_started()
-                failure = test(category)
+            for category, failure in category_pass(categories, test, completed=completed,
+                                                   resume_test=resume_test, starting=starting,
+                                                   publish_ready=publish_ready):
                 if failure is not None:
                     clean = False
                     finish_category(category, failure)
@@ -520,7 +556,7 @@ def verify_round(categories, test, finish_category, check_stop, *, selected, com
             # Visit remaining leaves rather than replaying that blocker forever.
             return verify_round(categories, test, finish_category, check_stop, selected=True,
                 resume_test=resume_test, verification_started=verification_started,
-                task_started=task_started, task_completed=task_completed)
+                task_started=task_started, task_completed=task_completed, publish_ready=publish_ready)
         verification_started(completed)
         completed = ()
         check_stop()
@@ -900,6 +936,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
 
     def test(category, *, resume=False, retry_case='', retry_vm='', fresh=False, probe=False):
         nonlocal pending, verifying_fix, retained_failure
+        from test_commands import PUBLISH_CATEGORIES
+        selected_categories = (categories if category == 'all' else
+                               PUBLISH_CATEGORIES if category == 'publish' else (category,))
         if any(item['failure'][0] == category and not item['failure'][1]
                for item in commits.state.get('failed_cases', [])):
             return None  # Unidentified infrastructure failed; independent categories still run.
@@ -968,13 +1007,14 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         verification_vm = (retry_vm or None) if focused or probe else None
         checking_fix = checking_fix or focused
         resume = not fresh and (resume or (resuming and (category == pending or
+                            (category == 'publish' and pending in PUBLISH_CATEGORIES) or
                             (category == 'all' and pending is not None and round_number > 1))))
         pending = category
         if checkpoint is not None:
-            for kind in categories if category == 'all' else (category,):
+            for kind in selected_categories:
                 if checkpoint.entry(kind) is not None:
                     checkpoint.entry(kind)['complete'] = False
-            checkpoint.state['pending'] = category
+            checkpoint.state['pending'] = selected_categories[0] if category == 'publish' else category
             checkpoint.save()
         def run_requested(requested, options, description, *, vm=None):
             display_cases = None
@@ -1103,7 +1143,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                     print('fix-tests: repair close-out complete; resuming remaining cases.', flush=True)
                     continue
                 if checkpoint is not None:
-                    for kind in categories if category == 'all' else (category,):
+                    for kind in selected_categories:
                         if checkpoint.entry(kind) is not None:
                             checkpoint.entry(kind)['complete'] = True
                     checkpoint.state['pending'] = None
@@ -1668,7 +1708,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             completed.remove(loop_state['category'])
         if task_inflight and active_task is not None:
             task_category = active_task.partition(':')[2]
-            if task_category in completed or task_category == 'all' and len(completed) == len(categories):
+            from test_commands import PUBLISH_CATEGORIES
+            if (task_category in completed or task_category == 'all' and len(completed) == len(categories)
+                    or task_category == 'publish' and set(PUBLISH_CATEGORIES) <= set(completed)):
                 task_completed()
         remaining_current = len(categories) - len(completed)
         if start_round > 1 and not requested:
@@ -1698,6 +1740,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                          task_started=task_started, task_completed=task_completed,
                          verified=verified, outcome=outcome, continuation=loop_state,
                          refresh_failure=refresh_failure,
+                         publish_ready=lambda: not (retained_failure or loop_state or
+                             commits.state['repairs'] or commits.state.get('queued_failure') or
+                             commits.state.get('failed_cases')),
                          terminal_failure=lambda: bool(commits.state.get('failed_cases')))
                 break
             except RecoveryComplete:

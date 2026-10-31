@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import ast
-from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, record_exception
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, record_exception, operation
 import os
 import pwd
 import re
@@ -11,6 +11,7 @@ import stat
 import subprocess
 import time
 from pathlib import Path
+from typing import Callable
 
 UUID = "oh-no-parent-control@tech.puffyslippers.com"
 SCHEMA = "org.gnome.shell"
@@ -179,60 +180,100 @@ class ExtensionManager:
         LOG.info("extension-manager.003", operation=operation, transport=transport)
         return result
 
-    def collect_diagnostics(self, uids):
+    def collect_diagnostics(self, uids, *, saved_states=None, operation_ids=None):
         """Read failed imports outside the extension, including before enable().
 
         One shared eight-second budget bounds the whole export observation.
         Nothing here enables extensions, writes settings, or changes policy.
         """
-        from gi.repository import GLib
-
         deadline = time.monotonic() + 8
         observed_assets = set()
         for uid in uids:
-            try:
-                account, _home = self._account(uid)
-                if self._session_transport(account) != "live-session":
-                    continue
+            if time.monotonic() >= deadline:
+                LOG.warning("extension-manager.diagnostic-probe", stage="account", outcome="budget-exhausted")
+                break
+            with operation(reuse=(operation_ids or {}).get(uid)):
+                self._collect_account_diagnostics(uid, deadline, observed_assets, saved_states)
+
+    def _collect_account_diagnostics(self, uid, deadline, observed_assets, saved_states):
+        from gi.repository import GLib
+
+        snapshot = dict(saved_control=(saved_states or {}).get(uid, "unknown"),
+                        session_bus="unknown", global_disabled="unknown",
+                        enabled_entry="unknown", disabled_entry="unknown")
+        stage = "account"
+        try:
+            account, _home = self._account(uid)
+            snapshot["session_bus"] = self._session_transport(account)
+            # A failed key must not hide the other settings or Shell evidence.
+            for key, field in ((ENABLED_KEY, "enabled_entry"),
+                               (DISABLED_KEY, "disabled_entry"),
+                               (DISABLE_ALL_KEY, "global_disabled")):
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    LOG.warning("extension-manager.load-observation", outcome="budget-exhausted")
-                    break
-                # NameHasOwner prevents activating Shell for an offline user bus.
-                result = self._run_command(account, (
-                    "gdbus", "call", "--session", "--dest", "org.freedesktop.DBus",
-                    "--object-path", "/org/freedesktop/DBus", "--method",
-                    "org.freedesktop.DBus.NameHasOwner", "org.gnome.Shell"),
-                    require_live=True, timeout=remaining)
-                if result.stdout.strip() == "(false,)":
+                    LOG.warning("extension-manager.diagnostic-probe", stage=key, outcome="budget-exhausted")
                     continue
-                if result.stdout.strip() != "(true,)":
-                    raise ValueError("invalid Shell availability")
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError()
-                result = self._run_command(account, (
-                    "gdbus", "call", "--session", "--dest", "org.gnome.Shell.Extensions",
-                    "--object-path", "/org/gnome/Shell/Extensions", "--method",
-                    "org.gnome.Shell.Extensions.GetExtensionInfo", UUID),
-                    require_live=True, timeout=remaining)
-                if len(result.stdout) > 65536:
-                    raise ValueError("oversized extension info")
-                info, = GLib.Variant.parse(GLib.VariantType.new("(a{sv})"),
-                                          result.stdout, None, None).unpack()
-                fields = _load_error_fields(info)
-                if fields["state"] == "error":
-                    LOG.error("extension-manager.load-state", state=fields["state"],
-                              asset=fields["asset"], reason=fields["reason"])
-                else:
-                    LOG.info("extension-manager.load-state", state=fields["state"],
-                             asset=fields["asset"], reason=fields["reason"])
-                if fields["asset"] != "other" and fields["asset"] not in observed_assets:
-                    observed_assets.add(fields["asset"])
-                    self._payload_diagnostics(fields["asset"], deadline)
-            except Exception:
-                # Availability is evidence, never a reason to discard the report.
-                LOG.warning("extension-manager.load-observation", outcome="unavailable")
+                try:
+                    if key == DISABLE_ALL_KEY:
+                        value = self._boolean(account, key, timeout=remaining)
+                        snapshot[field] = "true" if value else "false"
+                    else:
+                        value = self._list(account, key, timeout=remaining, require_live=False)
+                        snapshot[field] = "present" if UUID in value else "absent"
+                    LOG.info("extension-manager.diagnostic-probe", stage=key, outcome="complete")
+                except Exception as error:
+                    LOG.warning("extension-manager.diagnostic-probe", stage=key, outcome="unavailable")
+                    record_exception(error)
+            stage = "shell"
+            if snapshot["session_bus"] != "live-session":
+                LOG.info("extension-manager.diagnostic-probe", stage=stage, outcome="offline")
+                return
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                LOG.warning("extension-manager.diagnostic-probe", stage=stage, outcome="budget-exhausted")
+                return
+            result = self._run_command(account, (
+                "gdbus", "call", "--session", "--dest", "org.freedesktop.DBus",
+                "--object-path", "/org/freedesktop/DBus", "--method",
+                "org.freedesktop.DBus.NameHasOwner", "org.gnome.Shell"),
+                require_live=True, timeout=remaining)
+            if result.stdout.strip() == "(false,)":
+                LOG.info("extension-manager.diagnostic-probe", stage=stage, outcome="no-shell")
+                return
+            if result.stdout.strip() != "(true,)":
+                raise ValueError("invalid Shell availability")
+            LOG.info("extension-manager.diagnostic-probe", stage=stage, outcome="complete")
+            stage = "extension-info"
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                LOG.warning("extension-manager.diagnostic-probe", stage=stage, outcome="budget-exhausted")
+                return
+            result = self._run_command(account, (
+                "gdbus", "call", "--session", "--dest", "org.gnome.Shell.Extensions",
+                "--object-path", "/org/gnome/Shell/Extensions", "--method",
+                "org.gnome.Shell.Extensions.GetExtensionInfo", UUID),
+                require_live=True, timeout=remaining)
+            if len(result.stdout) > 65536:
+                raise ValueError("oversized extension info")
+            info, = GLib.Variant.parse(GLib.VariantType.new("(a{sv})"),
+                                      result.stdout, None, None).unpack()
+            fields = _load_error_fields(info)
+            if fields["state"] == "error":
+                LOG.error("extension-manager.load-state", state=fields["state"], asset=fields["asset"], reason=fields["reason"])
+            else:
+                LOG.info("extension-manager.load-state", state=fields["state"], asset=fields["asset"], reason=fields["reason"])
+            LOG.info("extension-manager.diagnostic-probe", stage=stage, outcome="complete")
+            if fields["asset"] != "other" and fields["asset"] not in observed_assets:
+                observed_assets.add(fields["asset"])
+                self._payload_diagnostics(fields["asset"], deadline)
+        except Exception as error:
+            LOG.warning("extension-manager.diagnostic-probe", stage=stage, outcome="unavailable")
+            LOG.warning("extension-manager.load-observation", outcome="unavailable")
+            record_exception(error)
+        finally:
+            LOG.info("extension-manager.diagnostic-snapshot", saved_control=snapshot["saved_control"],
+                     session_bus=snapshot["session_bus"], global_disabled=snapshot["global_disabled"],
+                     enabled_entry=snapshot["enabled_entry"], disabled_entry=snapshot["disabled_entry"])
 
     def _payload_diagnostics(self, asset, deadline):
         name = next(name for name, category in LOAD_ASSETS.items() if category == asset)
@@ -349,10 +390,10 @@ class ExtensionManager:
         LOG.info("extension-manager.004", available=value == "(true,)")
         return value == "(true,)"
 
-    def _list(self, account, key, *, timeout=None):
+    def _list(self, account, key, *, timeout=None, require_live=True):
         arguments = ("gsettings", "get", SCHEMA, key)
         result = (self._run_as(account, *arguments) if timeout is None else
-                  self._run_command(account, arguments, require_live=True, timeout=timeout))
+                  self._run_command(account, arguments, require_live=require_live, timeout=timeout))
         try:
             value = ast.literal_eval(result.stdout.strip().removeprefix("@as "))
         except (SyntaxError, ValueError) as error:
@@ -361,14 +402,19 @@ class ExtensionManager:
         if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
             LOG.error("extension-manager.invalid-state", source=key)
             raise RuntimeError("GNOME returned an invalid extension list")
+        LOG.info("extension-manager.list-read", key=key, present=UUID in value,
+                 other_count=min(65535, sum(item != UUID for item in value)))
         return value
 
-    def _boolean(self, account, key):
-        result = self._run_as(account, "gsettings", "get", SCHEMA, key)
+    def _boolean(self, account, key, *, timeout=None):
+        arguments = ("gsettings", "get", SCHEMA, key)
+        result = (self._run_as(account, *arguments) if timeout is None else
+                  self._run_command(account, arguments, timeout=timeout))
         value = result.stdout.strip()
         if value not in {"true", "false"}:
             LOG.error("extension-manager.invalid-state", source=key)
             raise RuntimeError("GNOME returned an invalid extension switch")
+        LOG.info("extension-manager.switch-read", disabled=value == "true")
         return value == "true"
 
     def _set_list(self, account, key, values):
@@ -393,6 +439,7 @@ class ExtensionManager:
     def _runtime_state(self, account):
         configured = UUID in self._runtime_uuids(account, "enabled")
         active = UUID in self._runtime_uuids(account, "active")
+        LOG.info("extension-manager.runtime-observed", configured=configured, active=active)
         return configured, active
 
     def _set_offline(self, account, enabled, old_enabled, old_disabled):
@@ -508,11 +555,18 @@ class ExtensionManager:
                 raise RuntimeError("installed extension payload is unsafe")
 
     def set_enabled(self, uid: int, enabled: bool, *,
-                    recover_global_switch: bool = False) -> None:
+                    recover_global_switch: bool = False) -> Callable[[], None] | None:
+        """Activate the extension; return recovery undo for an enclosing transaction.
+
+        Callers allowing global-switch recovery must invoke the returned undo if
+        their later writes fail. Successful startup reassertion needs no undo.
+        """
         LOG.info("extension-manager.006", enabled=enabled)
         # Shared payload failure must not be hidden by a child's unavailable home.
         if enabled:
+            LOG.info("extension-manager.activation-step", stage="payload")
             self._verify_installation()
+        LOG.info("extension-manager.activation-step", stage="account")
         try:
             account, home = self._account(uid)
             if home.is_symlink() or not home.is_dir() or home.stat().st_uid != uid:
@@ -520,6 +574,7 @@ class ExtensionManager:
         except (OSError, RuntimeError) as error:
             raise ChildExtensionUnavailable("child home directory is unavailable") from error
 
+        LOG.info("extension-manager.activation-step", stage="settings")
         old_enabled = self._list(account, ENABLED_KEY)
         old_disabled = self._list(account, DISABLED_KEY)
         restore_switch = enabled and self._boolean(account, DISABLE_ALL_KEY)
@@ -527,26 +582,61 @@ class ExtensionManager:
             LOG.error("extension-manager.007")
             raise RuntimeError("GNOME user extensions are disabled")
 
+        LOG.info("extension-manager.activation-step", stage="shell")
         shell_available = self._shell_is_available(account)
         LOG.info("extension-manager.activation-context", shell_available=shell_available,
                  recover_global_switch=recover_global_switch, switch_recovery_needed=bool(restore_switch))
+        LOG.info("extension-manager.activation-step", stage="runtime")
         old_runtime = self._runtime_state(account) if shell_available else None
+
+        def restore():
+            runtime = "not-observed"
+            LOG.info("extension-manager.rollback-result", outcome="started", restore_switch=bool(restore_switch), runtime=runtime)
+            try:
+                try:
+                    if restore_switch:
+                        LOG.info("extension-manager.activation-step", stage="rollback-switch")
+                        self._set_boolean(account, DISABLE_ALL_KEY, True)
+                finally:
+                    LOG.info("extension-manager.activation-step", stage="rollback-lists")
+                    self._set_list(account, ENABLED_KEY, old_enabled)
+                    self._set_list(account, DISABLED_KEY, old_disabled)
+                LOG.info("extension-manager.activation-step", stage="rollback-verification")
+                if (not self._verify_setting(
+                        ENABLED_KEY, self._list(account, ENABLED_KEY) == old_enabled, "rollback") or
+                        not self._verify_setting(
+                            DISABLED_KEY, self._list(account, DISABLED_KEY) == old_disabled, "rollback")):
+                    raise RuntimeError("GNOME extension rollback verification failed")
+                if shell_available and self._shell_is_available(account):
+                    if self._runtime_state(account) != old_runtime:
+                        raise RuntimeError("GNOME extension runtime rollback verification failed")
+                    runtime = "matched"
+            except Exception as rollback_error:
+                LOG.error("extension-manager.rollback-result", outcome="failed", restore_switch=bool(restore_switch), runtime=runtime)
+                record_exception(rollback_error)
+                LOG.critical("extension-manager.010", enabled=enabled,
+                             error_type=error_code(rollback_error))
+                raise RuntimeError(
+                    "child GNOME extension rollback could not be verified"
+                ) from rollback_error
+            LOG.info("extension-manager.rollback-result", outcome="accepted", restore_switch=bool(restore_switch), runtime=runtime)
 
         try:
             if restore_switch:
                 # GNOME can set this switch after a failed session startup.
-                # Startup reasserts an already saved enablement, without an
-                # outer preference transaction that could subsequently fail.
-                # The parent-enabled enforcement extension requires it off;
-                # preserve individual extension choices and verify recovery.
+                # Preserve the original state until the caller commits its
+                # preference transaction, as well as during activation itself.
                 LOG.info("extension-manager.008")
+                LOG.info("extension-manager.activation-step", stage="recover-switch")
                 self._set_boolean(account, DISABLE_ALL_KEY, False)
             if shell_available:
+                LOG.info("extension-manager.activation-step", stage="live")
                 # Use GNOME's supported extension-management interface when a
                 # Shell owns it, and confirm that Shell actually activated or
                 # deactivated the extension rather than trusting settings only.
                 self._set_live(account, enabled)
             else:
+                LOG.info("extension-manager.activation-step", stage="offline")
                 # Persist the desired state for Shell to consume at next login.
                 self._set_offline(account, enabled, old_enabled, old_disabled)
         except Exception as error:
@@ -559,37 +649,12 @@ class ExtensionManager:
                 except Exception:
                     LOG.warning("extension-manager.load-observation", outcome="unavailable")
             LOG.warning("extension-manager.009", enabled=enabled, error_type=error_code(error))
-            try:
-                try:
-                    if restore_switch:
-                        self._set_boolean(account, DISABLE_ALL_KEY, True)
-                finally:
-                    self._set_list(account, ENABLED_KEY, old_enabled)
-                    self._set_list(account, DISABLED_KEY, old_disabled)
-                if (not self._verify_setting(
-                        ENABLED_KEY, self._list(account, ENABLED_KEY) == old_enabled, "rollback") or
-                        not self._verify_setting(
-                            DISABLED_KEY, self._list(account, DISABLED_KEY) == old_disabled, "rollback")):
-                    raise RuntimeError("GNOME extension rollback verification failed")
-                if (shell_available and self._shell_is_available(account) and
-                        self._runtime_state(account) != old_runtime):
-                    raise RuntimeError(
-                        "GNOME extension runtime rollback verification failed"
-                    )
-            except Exception as rollback_error:
-                record_exception(rollback_error)
-                LOG.critical(
-                    "extension-manager.010",
-                    enabled=enabled,
-                    error_type=error_code(rollback_error),
-                )
-                raise RuntimeError(
-                    "child GNOME extension rollback could not be verified"
-                ) from rollback_error
+            restore()
             raise
         if restore_switch:
             LOG.info("extension-manager.011")
         LOG.info("extension-manager.012", enabled=enabled)
+        return restore if restore_switch else None
 
     def remove(self, uid: int) -> None:
         """Disable the product extension and remove its per-user list entries."""

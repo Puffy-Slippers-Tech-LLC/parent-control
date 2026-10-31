@@ -171,6 +171,35 @@ budget and catch import failures before extension logging exists.
 Unknown tools/results stay unknown. Database/rule observations never acknowledge
 the active daemon generation.
 
+Extension diagnostics retain product membership and aggregate other-entry counts
+from GNOME's enabled/disabled lists, the global disable switch, and observed
+configured/active product state. Activation and parent-control events identify
+preflight, native writes, persistence and rollback stages. Startup records saved-off
+skips separately from child-local unavailable integrations and shared failures.
+Local operation references group child observations without account identifiers.
+Late transaction undo records its result; absent Shell runtime verification remains
+explicitly unobserved rather than a verified runtime restoration.
+
+Every feedback export observes all eligible children, including saved-off controls
+and offline sessions. Independent settings probes share eight seconds; an unreadable
+key remains unknown while other probes continue. Saved-toggle and GNOME reads are
+non-atomic observations and can span an in-progress transaction. Export is read-only;
+it does not activate Shell, enable an extension or repair settings.
+
+An independent five-second journal read preserves GNOME Shell exits, its
+[global-disable service](https://github.com/GNOME/gnome-shell/blob/50.0/data/org.gnome.Shell-disable-extensions.service)
+start/completion and Shell-reported extension errors even when Shell no longer
+runs. Queries cover the last 24 hours across retained boots, up to 200 entries
+and 20 markers per child; crash/recovery markers have priority over repeated
+extension errors. Trusted executable/account/manager provenance and reviewed
+GNOME 50 `@ubuntu`/`@user` instances constrain projection; older `@wayland`/`@x11`
+records remain readable. Source times, exit kind/status and our-extension versus
+other-extension categories exclude raw identifiers, error text and stacks.
+A service start alone does not attest a committed switch change. Extension error
+witnesses are possible contributors, not proof that an extension crashed Shell;
+an external actor and the historical cause of a disabled switch can remain unknown.
+Missing/partial journal history is explicit and never establishes no crash.
+
 Dependency collection queries fixed systemd services and reviewed fapolicyd
 journal markers under one five-second budget and 256 KiB pipe bound. Timeout/
 overflow reaps only its owned command. Reads are independent within the budget,

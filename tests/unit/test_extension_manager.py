@@ -15,6 +15,35 @@ from oh_no_parent_control.extension_manager import (
 
 
 class LoadDiagnosticsTests(unittest.TestCase):
+    def test_failed_settings_probe_preserves_other_keys_and_live_shell_evidence(self):
+        from gi.repository import GLib
+
+        manager = ExtensionManager()
+        state = GnomeRecoveryState()
+        reply = GLib.Variant("(a{sv})", ({"state": GLib.Variant("d", 2),
+                                       "error": GLib.Variant("s", "")},)).print_(True)
+
+        def run(account, args, **kwargs):
+            if args[:2] == ("gsettings", "get") and args[3] == ENABLED_KEY:
+                raise RuntimeError("private@example.test /home/private-child")
+            if args[0] == "gdbus":
+                return SimpleNamespace(stdout=reply if args[-1] == UUID else "(true,)")
+            return state.run(account, args, **kwargs)
+
+        with (mock.patch.object(manager, "_account", return_value=(object(), None)),
+              mock.patch.object(manager, "_session_transport", return_value="live-session"),
+              mock.patch.object(manager, "_run_command", side_effect=run),
+              self.assertLogs("onpc", "INFO") as logs):
+            manager.collect_diagnostics([987654], saved_states={987654: "off"})
+        decoded = [decode(row.onpc_payload) for row in logs.records]
+        snapshot = next(row for row in decoded if row["event"] == "extension-manager.diagnostic-snapshot")
+        self.assertEqual(snapshot["fields"], dict(saved_control="off", session_bus="live-session",
+                         global_disabled="true", enabled_entry="unknown", disabled_entry="present"))
+        self.assertTrue(any(row["event"] == "extension-manager.load-state" for row in decoded))
+        self.assertTrue(all(row["operation"] == snapshot["operation"] != 0 for row in decoded))
+        self.assertNotIn("private", "\n".join(logs.output))
+        self.assertNotIn("987654", "\n".join(logs.output))
+
     def test_shell_import_projection_excludes_private_details_and_unknown_assets(self):
         prefix = f"file:///usr/share/gnome-shell/extensions/{UUID}/"
         secret = "private@example.test /home/private-child"
@@ -72,13 +101,16 @@ class LoadDiagnosticsTests(unittest.TestCase):
         with (mock.patch.object(manager, "_account", return_value=(account, None)),
               mock.patch.object(manager, "_session_transport", return_value="live-session"),
               mock.patch.object(manager, "_run_command", side_effect=[
-                  SimpleNamespace(stdout="(true,)"), SimpleNamespace(stdout=reply)]) as run,
+                  SimpleNamespace(stdout="[]"), SimpleNamespace(stdout="[]"),
+                  SimpleNamespace(stdout="true"), SimpleNamespace(stdout="(true,)"),
+                  SimpleNamespace(stdout=reply)]) as run,
               mock.patch.object(manager, "_payload_diagnostics") as policy,
               self.assertLogs("onpc", "INFO") as logs):
             manager.collect_diagnostics([123456])
-        self.assertEqual(len(run.call_args_list), 2)
-        self.assertTrue(all(call.args[1][:2] == ("gdbus", "call") for call in run.call_args_list))
-        event = decode(logs.records[-1].onpc_payload)
+        self.assertEqual(len(run.call_args_list), 5)
+        self.assertTrue(all(call.args[1][:2] == ("gsettings", "get") for call in run.call_args_list[:3]))
+        event = next(decode(row.onpc_payload) for row in logs.records
+                     if decode(row.onpc_payload)["event"] == "extension-manager.load-state")
         self.assertEqual(event["fields"]["reason"], "import-operation-not-permitted")
         policy.assert_called_once()
         self.assertNotIn("private", "\n".join(logs.output))
@@ -88,10 +120,13 @@ class LoadDiagnosticsTests(unittest.TestCase):
         manager = ExtensionManager()
         with (mock.patch.object(manager, "_account", return_value=(object(), None)),
               mock.patch.object(manager, "_session_transport", side_effect=["offline", "live-session"]),
-              mock.patch.object(manager, "_run_command", return_value=SimpleNamespace(stdout="(false,)")) as run):
+              mock.patch.object(manager, "_run_command", side_effect=lambda _account, args, **_kw:
+                  SimpleNamespace(stdout="(false,)" if args[0] == "gdbus" else
+                                  "false" if args[3] == DISABLE_ALL_KEY else "[]")) as run):
             manager.collect_diagnostics([1, 2])
-        self.assertEqual(len(run.call_args_list), 1)
+        self.assertEqual(len(run.call_args_list), 7)
         self.assertIn("org.freedesktop.DBus.NameHasOwner", run.call_args.args[1])
+        self.assertFalse(any("GetExtensionInfo" in str(call.args) for call in run.call_args_list))
 
     def test_budget_exhaustion_refuses_commands_and_malformed_reply_is_safe(self):
         manager = ExtensionManager()
@@ -109,7 +144,9 @@ class LoadDiagnosticsTests(unittest.TestCase):
                   SimpleNamespace(stdout="/home/private-child private@example.test")]),
               self.assertLogs("onpc", "WARNING") as logs):
             manager.collect_diagnostics([123456])
-        self.assertEqual(decode(logs.records[-1].onpc_payload)["fields"]["outcome"], "unavailable")
+        probes = [decode(row.onpc_payload) for row in logs.records
+                  if decode(row.onpc_payload)["event"] == "extension-manager.diagnostic-probe"]
+        self.assertEqual(probes[-1]["fields"]["outcome"], "unavailable")
         self.assertNotIn("private", "\n".join(logs.output))
 
 
@@ -674,25 +711,124 @@ class ExtensionManagerTests(unittest.TestCase):
             "gnome-extensions", "list", "--active", "--quiet",
         ])
 
-    def _recover(self, state, *, live, recover_global_switch=True):
+    def _recover(self, state, *, live, recover_global_switch=True, transaction=None):
         account = SimpleNamespace(
             pw_uid=os.getuid(), pw_gid=os.getgid(), pw_name="child",
             pw_dir="unused",
         )
         with tempfile.TemporaryDirectory() as directory:
+            home = mock.Mock(wraps=Path(directory))
+            home.stat.return_value = SimpleNamespace(
+                st_uid=1001 if transaction is not None else account.pw_uid,
+            )
             manager = ExtensionManager(
                 runtime_root=Path(directory) / "missing-runtime"
             )
             with (
                 mock.patch.object(
-                    manager, "_account", return_value=(account, Path(directory))
+                    manager, "_account", return_value=(account, home)
                 ),
                 mock.patch.object(manager, "_verify_installation"),
                 mock.patch.object(manager, "_shell_is_available", return_value=live),
                 mock.patch.object(manager, "_run_command", side_effect=state.run),
             ):
-                manager.set_enabled(account.pw_uid, True,
-                                    recover_global_switch=recover_global_switch)
+                if transaction is not None:
+                    return transaction(manager)
+                return manager.set_enabled(account.pw_uid, True,
+                                           recover_global_switch=recover_global_switch)
+
+    def test_parent_first_enablement_recovers_global_switch(self):
+        from tests.support.broker import make_broker, Preferences
+
+        for live in (False, True):
+            with self.subTest(live=live):
+                state, preferences = GnomeRecoveryState(), Preferences()
+                saved = self._recover(state, live=live, transaction=lambda manager:
+                    make_broker(preferences=preferences, extensions=manager)
+                    .set_parent_control(1003, 1001, True, 0))
+                self.assertTrue(saved["parent_control_enabled"])
+                self.assertFalse(state.values[DISABLE_ALL_KEY])
+                self.assertIn(UUID, state.values[ENABLED_KEY])
+                self.assertNotIn(UUID, state.values[DISABLED_KEY])
+
+    def test_parent_failure_restores_global_switch_and_exact_extension_lists(self):
+        from tests.support.broker import make_broker, Accounts, Preferences
+        from oh_no_parent_control.core import BackendFailure
+
+        for live in (False, True):
+            for failure in ("account", "preferences"):
+                with self.subTest(live=live, failure=failure):
+                    state = GnomeRecoveryState()
+                    before = {key: value[:] if isinstance(value, list) else value
+                              for key, value in state.values.items()}
+                    accounts, preferences = Accounts(), Preferences()
+                    original = preferences.load(1001)
+                    if failure == "account":
+                        set_limit_type = accounts.set_limit_type
+
+                        def fail_once(uid, value):
+                            accounts.set_limit_type = set_limit_type
+                            raise RuntimeError("injected account write failure")
+
+                        accounts.set_limit_type = fail_once
+                    else:
+                        save = preferences.save
+
+                        def fail_after_save(uid, value):
+                            result = save(uid, value)
+                            if value["parent_control_enabled"]:
+                                raise RuntimeError("injected post-save failure")
+                            return result
+
+                        preferences.save = fail_after_save
+                    with self.assertRaises(BackendFailure):
+                        self._recover(state, live=live, transaction=lambda manager:
+                            make_broker(accounts=accounts, preferences=preferences,
+                                        extensions=manager)
+                            .set_parent_control(1003, 1001, True, 0))
+                    self.assertEqual(state.values, before)
+                    self.assertEqual(preferences.load(1001), original)
+                    self.assertEqual(accounts.extension, (1, 2))
+                    self.assertEqual(accounts.filter, (False, ("old.App",)))
+                    self.assertEqual(accounts.daily_limit, 3600)
+                    self.assertEqual(accounts.limit_type, 2)
+
+    def test_parent_recovery_undo_failure_remains_rollback_failure(self):
+        from tests.support.broker import make_broker, Accounts
+        from oh_no_parent_control.core import RollbackFailure
+
+        state, accounts = GnomeRecoveryState(rollback_failure=True), Accounts()
+        set_daily_limit = accounts.set_daily_limit
+
+        def fail_once(uid, value):
+            accounts.set_daily_limit = set_daily_limit
+            raise RuntimeError("injected write failure")
+
+        accounts.set_daily_limit = fail_once
+        with self.assertRaises(RollbackFailure) as raised:
+            self._recover(state, live=False, transaction=lambda manager:
+                make_broker(accounts=accounts, extensions=manager)
+                .set_parent_control(1003, 1001, True, 0))
+        self.assertEqual(str(raised.exception.__cause__),
+                         "child GNOME extension rollback could not be verified")
+        self.assertEqual(accounts.daily_limit, 3600)
+        self.assertEqual(accounts.limit_type, 2)
+        self.assertEqual(state.values[ENABLED_KEY], ["other-enabled@example.com"])
+        self.assertEqual(state.values[DISABLED_KEY], [UUID, "other-disabled@example.com"])
+
+    def test_parent_recovery_undo_runs_after_account_rollback_failure(self):
+        from tests.support.broker import make_broker, Accounts
+        from oh_no_parent_control.core import RollbackFailure
+
+        state, accounts = GnomeRecoveryState(), Accounts()
+        before = {key: value[:] if isinstance(value, list) else value
+                  for key, value in state.values.items()}
+        accounts.set_daily_limit = mock.Mock(side_effect=RuntimeError("injected write failure"))
+        with self.assertRaises(RollbackFailure):
+            self._recover(state, live=False, transaction=lambda manager:
+                make_broker(accounts=accounts, extensions=manager)
+                .set_parent_control(1003, 1001, True, 0))
+        self.assertEqual(state.values, before)
 
     def test_disabled_global_switch_recovers_live_and_offline(self):
         for live in (False, True):

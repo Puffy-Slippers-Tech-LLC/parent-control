@@ -31,6 +31,97 @@ from tests.support.broker import make_broker
 SECRET = "Child Name /home/private-user/private-file private@example.test secret-token"
 
 
+def test_shell_crash_and_extension_candidates_survive_export_without_identifiers(tmp_path, caplog, monkeypatch):
+    from oh_no_parent_control import dependency_diagnostics as dependency
+    from oh_no_parent_control.extension_manager import UUID
+
+    uid = 987654
+    base = {"_UID": str(uid), "_TRANSPORT": "journal", "__REALTIME_TIMESTAMP": "1793400000000000"}
+    shell = {**base, "_EXE": "/usr/bin/gnome-shell", "_SYSTEMD_USER_UNIT": "org.gnome.Shell@ubuntu.service"}
+    manager = {**base, "_EXE": "/usr/lib/systemd/systemd", "_COMM": "systemd"}
+    # Equal timestamp precision must not reorder errors after the crash. Error
+    # volume must not evict the actual crash/recovery witnesses either.
+    rows = [{**shell, "_SYSTEMD_USER_UNIT": "org.gnome.Shell@user.service",
+             "MESSAGE": "JS ERROR: Extension private@example.test: " + SECRET}] * 24 + [
+        {**shell, "MESSAGE": "JS ERROR: Extension " + UUID + ": " + SECRET},
+        {**manager, "MESSAGE": "org.gnome.Shell@ubuntu.service: Main process exited, code=dumped, status=11/SEGV"},
+        {**manager, "MESSAGE": "Started org.gnome.Shell-disable-extensions.service - Disable GNOME Shell extensions after failure."},
+        {**manager, "MESSAGE": "org.gnome.Shell-disable-extensions.service: Deactivated successfully."},
+        {**shell, "_EXE": "/home/private-child/fake", "MESSAGE": "JS ERROR: Extension " + UUID + ": " + SECRET},
+    ]
+    query = Mock(return_value="\n".join(json.dumps(row) for row in rows))
+    monkeypatch.setattr(dependency, "_query", query)
+    with caplog.at_level("INFO"):
+        dependency.collect_gnome_shell_diagnostics([uid])
+    decoded = [events.decode(record.onpc_payload) for record in caplog.records]
+    markers = [row["fields"] for row in decoded if row["event"] == "extension-manager.shell-journal"]
+    assert len(markers) == 20
+    assert {row["candidate"] for row in markers} == {"our-extension", "other-extension", "none"}
+    assert any(row["reason"] == "shell-exited" and row["exit_kind"] == "dumped" and row["exit_status"] == 11 for row in markers)
+    assert [row["reason"] for row in markers] == ["extension-error"] * 17 + [
+        "shell-exited", "disable-service-started", "disable-service-completed"]
+    assert decoded[-1]["fields"] == {"count": 20, "outcome": "partial"}
+    writer = DailyLogWriter(tmp_path / "logs")
+    handler = BrokerFileHandler(writer)
+    for record in caplog.records:
+        handler.emit(record)
+    with ZipFile(BytesIO(validate_bundle(writer.snapshot()))) as archive:
+        exported = "".join(archive.read(name).decode() for name in archive.namelist())
+    for forbidden in (SECRET, UUID, "private@example.test", str(uid), "/home/private-child/fake"):
+        assert forbidden not in exported and forbidden not in caplog.text
+    assert "disable-service-started" in exported
+
+
+def test_shell_history_budget_and_unavailable_are_explicit(caplog, monkeypatch):
+    from oh_no_parent_control import dependency_diagnostics as dependency
+
+    query = Mock(side_effect=TimeoutError(SECRET))
+    monkeypatch.setattr(dependency, "_query", query)
+    monkeypatch.setattr(dependency.time, "monotonic", Mock(side_effect=[0, 0, 6]))
+    with caplog.at_level("INFO"):
+        dependency.collect_gnome_shell_diagnostics([1001, 1002])
+    rows = [events.decode(record.onpc_payload)["fields"] for record in caplog.records]
+    assert rows == [{"outcome": "unavailable", "count": 0}, {"outcome": "budget-exhausted", "count": 0}]
+    assert query.call_count == 1
+    assert SECRET not in caplog.text
+
+
+def test_each_child_history_links_to_its_settings_snapshot(caplog, monkeypatch):
+    from oh_no_parent_control import dependency_diagnostics as dependency
+    from tests.support.broker import Preferences
+
+    preferences, manager = Preferences(), ExtensionManager()
+    preferences.save(1001, {**preferences.load(1001), "parent_control_enabled": True})
+    preferences.save(1002, {**preferences.load(1002), "parent_control_enabled": False})
+    monkeypatch.setattr(manager, "_account", lambda uid: (SimpleNamespace(pw_uid=uid), None))
+    monkeypatch.setattr(manager, "_session_transport", lambda _account: "offline")
+
+    def read_setting(account, args, **_kwargs):
+        return SimpleNamespace(stdout=("true" if account.pw_uid == 1001 else "false")
+                               if args[3] == "disable-user-extensions" else "[]")
+
+    def journal(command, *_args, **_kwargs):
+        if "_UID=1002" in command:
+            return ""
+        return json.dumps({"_UID": "1001", "_TRANSPORT": "journal", "_EXE": "/usr/lib/systemd/systemd",
+                           "_COMM": "systemd", "__REALTIME_TIMESTAMP": "1793400000000000",
+                           "MESSAGE": "org.gnome.Shell@ubuntu.service: Main process exited, code=dumped, status=11/SEGV"})
+
+    monkeypatch.setattr(manager, "_run_command", read_setting)
+    monkeypatch.setattr(dependency, "_query", journal)
+    with caplog.at_level("INFO"):
+        make_broker(preferences=preferences, extensions=manager).collect_extension_diagnostics()
+    decoded = [events.decode(record.onpc_payload) for record in caplog.records]
+    snapshots = {row["fields"]["saved_control"]: row for row in decoded
+                 if row["event"] == "extension-manager.diagnostic-snapshot"}
+    crash = next(row for row in decoded if row["event"] == "extension-manager.shell-journal")
+    assert crash["operation"] == snapshots["on"]["operation"] != snapshots["off"]["operation"]
+    assert snapshots["on"]["fields"]["global_disabled"] == "true"
+    assert snapshots["off"]["fields"]["global_disabled"] == "false"
+    assert {row["operation"] for row in decoded if row["event"] == "extension-manager.shell-history"} == {
+        snapshots["on"]["operation"], snapshots["off"]["operation"]}
+
+
 class PrivateError(Exception):
     def __str__(self):
         raise AssertionError("Exception text must not be inspected")

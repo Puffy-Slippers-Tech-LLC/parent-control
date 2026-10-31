@@ -188,16 +188,19 @@ not select offline activation for a running desktop. The supported CLI still
 performs activation and configured/active verification.
 
 GNOME may turn on `disable-user-extensions` after a session startup failure.
-Startup reassertion for a saved enabled child restores that global switch to
-false and verifies the write before proceeding. Ordinary preference transitions
-retain their refusal while the global switch is disabled, so a later failed
-preference transaction cannot leave a global switch change behind. Individual extension choices
+Startup reassertion for a saved enabled child and a parent's first enablement
+restore that global switch to false and verify the write before proceeding.
+First enablement retains an undo action through the account and preference
+transaction; a later failure restores the original global switch, exact
+extension lists and observed product runtime state. Individual extension choices
 are preserved; this also resumes other individually enabled extensions. A
 failed activation restores the switch and original lists, verifies rollback,
 and remains an error. Startup isolates failed child account/home validation and
 retains its diagnostics without changing saved controls or live enforcement;
 shared extension dependencies still gate readiness. A broker restart retries
 enabled children after the unavailable integration is restored.
+An upgrade preserves a saved disabled control; its next parent enablement can
+recover the global switch without manual GNOME settings changes.
 
 ## Grant arithmetic and usage identities
 

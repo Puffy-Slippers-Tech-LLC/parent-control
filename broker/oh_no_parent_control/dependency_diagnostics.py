@@ -14,7 +14,7 @@ import selectors
 import subprocess
 import time
 
-from common.oh_no_parent_control_ui.diagnostic_events import get_logger
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, operation
 from . import config
 
 LOG = get_logger("execution-policy")
@@ -92,6 +92,91 @@ def _query(command, deadline, *, empty_match=False):
 
 def _category(value, choices):
     return value if value in choices else "unknown"
+
+
+def _gnome_shell_event(item, uid):
+    """Project reviewed Shell/manager witnesses; never return raw identifiers."""
+    if (item.get("_UID") != str(uid) or
+            item.get("_TRANSPORT") not in {"journal", "stdout", "syslog"}):
+        return None
+    message = item.get("MESSAGE")
+    if type(message) is not str:
+        return None
+    if (item.get("_EXE") in {"/usr/lib/systemd/systemd", "/usr/lib64/systemd/systemd"}
+            and item.get("_COMM") == "systemd"):
+        if message == ("Started org.gnome.Shell-disable-extensions.service - "
+                       "Disable GNOME Shell extensions after failure."):
+            return "disable-service-started", "none", "none", 256
+        if message == "org.gnome.Shell-disable-extensions.service: Deactivated successfully.":
+            return "disable-service-completed", "none", "none", 0
+        match = re.fullmatch(
+            r"org\.gnome\.Shell@(?:ubuntu|user|wayland|x11)\.service: Main process exited, "
+            r"code=(exited|killed|dumped), status=([0-9]{1,3})(?:/[A-Z0-9_-]+)?", message)
+        if match and int(match[2]) <= 255:
+            return "shell-exited", "none", match[1], int(match[2])
+    if (item.get("_EXE") == "/usr/bin/gnome-shell" and
+            item.get("_SYSTEMD_USER_UNIT") in {
+                "org.gnome.Shell@ubuntu.service", "org.gnome.Shell@user.service",
+                "org.gnome.Shell@wayland.service", "org.gnome.Shell@x11.service"}):
+        match = re.match(r"^(?:JS ERROR: )?(?:Extension |Could not load extension )"
+                         r"([A-Za-z0-9@._+-]{1,255}): ", message)
+        if match:
+            from .extension_manager import UUID
+            return "extension-error", "our-extension" if match[1] == UUID else "other-extension", "none", 256
+    return None
+
+
+def collect_gnome_shell_diagnostics(uids, *, operation_ids=None):
+    """Independent of a surviving Shell; reuse the bounded journal reader."""
+    logger = get_logger("extension-manager")
+    deadline = time.monotonic() + 5
+    for uid in uids:
+        with operation(reuse=(operation_ids or {}).get(uid)):
+            if time.monotonic() >= deadline:
+                logger.warning("extension-manager.shell-history", outcome="budget-exhausted", count=0)
+                break
+            try:
+                output = _query([
+                    "/usr/bin/journalctl", "--no-pager", "--quiet", "--output=json",
+                    "--lines=200", "--since=-24hours",
+                    "--grep=^(org\\.gnome\\.Shell.*: (Main process exited|Deactivated successfully)|"
+                    "Started org\\.gnome\\.Shell-disable-extensions|"
+                    "(JS ERROR: )?(Extension |Could not load extension ))",
+                    "--output-fields=MESSAGE,__REALTIME_TIMESTAMP,_UID,_TRANSPORT,_EXE,_COMM,_SYSTEMD_USER_UNIT",
+                    "_UID=" + str(uid), "_COMM=systemd", "+",
+                    "_UID=" + str(uid), "_EXE=/usr/bin/gnome-shell",
+                ], deadline, empty_match=True)
+                lines = output.splitlines()
+                selected, partial = [], len(lines) >= 200
+                for line in lines:
+                    try:
+                        item = json.loads(line)
+                        if type(item) is not dict:
+                            raise ValueError()
+                        marker = _gnome_shell_event(item, uid)
+                        if marker is None:
+                            partial = True
+                            continue
+                        stamp = item.get("__REALTIME_TIMESTAMP")
+                        if type(stamp) is not str or not re.fullmatch(r"[0-9]{1,17}", stamp):
+                            raise ValueError()
+                        occurred = datetime.fromtimestamp(int(stamp) / 1000000, timezone.utc)
+                        selected.append((marker, occurred.isoformat(timespec="milliseconds")))
+                    except (ValueError, TypeError, OverflowError, OSError):
+                        partial = True
+                # Keep crash/recovery witnesses when repeated extension errors
+                # would otherwise push them out of the retained tail.
+                indexed = list(enumerate(selected))
+                witnesses = [row for row in indexed if row[1][0][0] != "extension-error"][-20:]
+                errors = [row for row in indexed if row[1][0][0] == "extension-error"]
+                retained = witnesses + (errors[-(20 - len(witnesses)):] if len(witnesses) < 20 else [])
+                for _index, ((reason, candidate, exit_kind, exit_status), occurred) in sorted(retained):
+                    logger.warning("extension-manager.shell-journal", reason=reason, candidate=candidate,
+                                   exit_kind=exit_kind, exit_status=exit_status, occurred_at=occurred)
+                logger.info("extension-manager.shell-history", count=min(20, len(selected)),
+                            outcome="partial" if partial or len(selected) > 20 else "complete")
+            except Exception:
+                logger.warning("extension-manager.shell-history", outcome="unavailable", count=0)
 
 
 def _number(value, maximum):

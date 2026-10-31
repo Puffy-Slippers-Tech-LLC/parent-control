@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, record_exception
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, record_exception, operation
 from common.oh_no_parent_control_ui.app_policy import replacement_policy_ids
 from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.localization import load_translations
@@ -136,7 +136,7 @@ class Preferences(Protocol):
 
 class Extensions(Protocol):
     def set_enabled(self, uid: int, enabled: bool, *,
-                    recover_global_switch: bool = False) -> None: ...
+                    recover_global_switch: bool = False) -> Callable[[], None] | None: ...
 
 
 class TimerUsage(Protocol):
@@ -291,8 +291,23 @@ class Broker:
         if self._extensions is None:
             return
         config = self._load_config()
-        self._extensions.collect_diagnostics(
-            user.uid for user in self._accounts.list_users() if self._eligible(config, user))
+        users = [user for user in self._accounts.list_users() if self._eligible(config, user)]
+        states, references = {}, {}
+        for user in users:
+            with operation() as reference:
+                references[user.uid] = reference
+                try:
+                    states[user.uid] = "on" if self._preferences.load(user.uid)["parent_control_enabled"] else "off"
+                except Exception as error:
+                    states[user.uid] = "unknown"
+                    record_exception(error)
+        from .dependency_diagnostics import collect_gnome_shell_diagnostics
+        try:
+            collect_gnome_shell_diagnostics((user.uid for user in users), operation_ids=references)
+        except Exception:
+            get_logger("extension-manager").warning("extension-manager.shell-history", outcome="unavailable", count=0)
+        self._extensions.collect_diagnostics((user.uid for user in users), saved_states=states,
+                                             operation_ids=references)
 
     def refresh_enabled_extensions(self) -> tuple[int, ...]:
         """Reassert enabled children; retry unavailable child integrations at startup."""
@@ -308,24 +323,26 @@ class Broker:
         for user in users:
             if not self._eligible(config, user):
                 continue
-            try:
-                preferences = self._preferences.load(user.uid)
-                if preferences["parent_control_enabled"]:
-                    # A live user bus notifies an existing Shell immediately;
-                    # otherwise the setting is durable for the next session.
-                    try:
-                        self._extensions.set_enabled(user.uid, True, recover_global_switch=True)
-                    except ChildExtensionUnavailable as error:
-                        # This failure cannot replace saved policy or affect a
-                        # different child's request. Shared failures still stop
-                        # readiness, and direct activation still refuses.
-                        LOG.error("core.001", error_type=error_code(error.__cause__ or error))
-                        record_exception(error)
-                        continue
-                    refreshed.append(user.uid)
-            except Exception as error:
-                LOG.error("core.001", error_type=error_code(error))
-                raise BackendFailure("could not refresh the child extension") from error
+            with operation():
+                try:
+                    preferences = self._preferences.load(user.uid)
+                    if preferences["parent_control_enabled"]:
+                        LOG.info("core.extension-startup", outcome="started")
+                        try:
+                            self._extensions.set_enabled(user.uid, True, recover_global_switch=True)
+                        except ChildExtensionUnavailable as error:
+                            LOG.warning("core.extension-startup", outcome="child-unavailable")
+                            LOG.error("core.001", error_type=error_code(error.__cause__ or error))
+                            record_exception(error)
+                            continue
+                        refreshed.append(user.uid)
+                        LOG.info("core.extension-startup", outcome="accepted")
+                    else:
+                        LOG.info("core.extension-startup", outcome="saved-off")
+                except Exception as error:
+                    LOG.error("core.extension-startup", outcome="failed")
+                    LOG.error("core.001", error_type=error_code(error))
+                    raise BackendFailure("could not refresh the child extension") from error
         return tuple(refreshed)
 
     def calculate_remaining_time(
@@ -1214,6 +1231,11 @@ class Broker:
         LOG.info("core.016", enabled=enabled, daily_limit_minutes=daily_limit_minutes)
         if self._preferences is None or self._extensions is None:
             raise BackendFailure("extension management is unavailable")
+        def entering(value):
+            LOG.info("core.parent-control-stage", stage=value, outcome="started")
+            return value
+
+        stage = entering("snapshot")
         try:
             current = self._preferences.load(target.uid)
             previous = current["parent_control_enabled"]
@@ -1228,6 +1250,7 @@ class Broker:
             old_filter = self._accounts.get_filter(target.uid)
             old_extension = self._accounts.get_extension(target.uid)
             extension_changed = enabled != previous
+            LOG.info("core.parent-control-state", previous=previous, requested=enabled, changed=extension_changed)
             if not enabled and not extension_changed:
                 issued, duration = old_extension
                 if issued <= int(self._now().timestamp()) < issued + duration:
@@ -1235,8 +1258,12 @@ class Broker:
                     # toggle stays off. Preserve its retained-grant policy,
                     # rather than clearing it or disabling limits underneath it.
                     raise BackendFailure("cannot disable native limits while retaining a current grant")
+            undo_switch_recovery = None
             if extension_changed:
-                self._extensions.set_enabled(target.uid, enabled)
+                stage = entering("extension")
+                undo_switch_recovery = self._extensions.set_enabled(
+                    target.uid, enabled, recover_global_switch=True,
+                )
             preferences_save_started = False
             try:
                 desired_limit_type = DAILY_LIMIT_FLAG if enabled else 0
@@ -1245,21 +1272,27 @@ class Broker:
                 # saved blocklist so a toggle cannot retain a temporary
                 # soft-block exception (or another stale live filter).
                 if not enabled:
+                    stage = entering("time-state")
                     self._write_time_state(
                         target.uid, desired_limit_type, desired_daily_limit,
                         old_daily_schedule, (0, 0) if extension_changed else old_extension,
                     )
                 else:
+                    stage = entering("daily-limit")
                     self._accounts.set_daily_limit(target.uid, desired_daily_limit)
                     if self._accounts.get_daily_limit(target.uid) != desired_daily_limit:
                         raise BackendFailure("daily-limit verification failed")
                     if extension_changed:
+                        stage = entering("grant")
                         self._write_extension(target.uid, (0, 0))
+                    stage = entering("limit-type")
                     self._accounts.set_limit_type(target.uid, desired_limit_type)
                     if self._accounts.get_limit_type(target.uid) != desired_limit_type:
                         raise BackendFailure("limit-type verification failed")
+                stage = entering("app-filter")
                 self._accounts.set_filter(target.uid, desired_filter)
 
+                stage = entering("verify")
                 if (self._accounts.get_limit_type(target.uid) != desired_limit_type or
                         self._accounts.get_daily_limit(target.uid) != desired_daily_limit or
                         self._accounts.get_daily_schedule(target.uid) != old_daily_schedule):
@@ -1273,33 +1306,48 @@ class Broker:
                 requested = {**current, "parent_control_enabled": enabled,
                              "daily_time_limit_minutes": daily_limit_minutes}
                 preferences_save_started = True
+                stage = entering("preferences")
                 saved = self._preferences.save(target.uid, requested)
                 LOG.info("core.017", enabled=enabled)
+                LOG.info("core.parent-control-stage", stage="commit", outcome="accepted")
                 return saved
             except Exception as error:
+                LOG.warning("core.parent-control-stage", stage=stage, outcome="failed")
                 LOG.warning("core.018", error_type=error_code(error))
                 record_exception(error)
                 rollback_error = None
                 try:
+                    entering("rollback-account")
                     self._restore(
                         target.uid, old_limit_type, old_daily_limit, old_filter,
                         old_extension, old_daily_schedule, None,
                     )
+                    LOG.info("core.parent-control-stage", stage="rollback-account", outcome="accepted")
                 except Exception as caught:
+                    LOG.error("core.parent-control-stage", stage="rollback-account", outcome="failed")
                     record_exception(caught)
                     rollback_error = caught
                 try:
                     if preferences_save_started:
+                        entering("rollback-preferences")
                         self._preferences.save(target.uid, current)
                         if self._preferences.load(target.uid) != current:
                             raise RuntimeError("preference rollback read-back mismatch")
+                        LOG.info("core.parent-control-stage", stage="rollback-preferences", outcome="accepted")
                 except Exception as caught:
+                    LOG.error("core.parent-control-stage", stage="rollback-preferences", outcome="failed")
                     record_exception(caught)
                     rollback_error = rollback_error or caught
                 try:
                     if extension_changed:
-                        self._extensions.set_enabled(target.uid, previous)
+                        entering("rollback-extension")
+                        if undo_switch_recovery is not None:
+                            undo_switch_recovery()
+                        else:
+                            self._extensions.set_enabled(target.uid, previous)
+                        LOG.info("core.parent-control-stage", stage="rollback-extension", outcome="accepted")
                 except Exception as caught:
+                    LOG.error("core.parent-control-stage", stage="rollback-extension", outcome="failed")
                     record_exception(caught)
                     rollback_error = rollback_error or caught
                 if rollback_error is not None:
@@ -1309,12 +1357,14 @@ class Broker:
                     ) from rollback_error
                 raise error
         except ExecutionPolicyError as error:
+            LOG.warning("core.parent-control-stage", stage=stage, outcome="failed")
             raise BackendFailure(
                 "Could not prepare application blocking rules. Review App Limits: "
                 "a wildcard folder may contain an unsupported file or folder name "
                 "(such as spaces or commas)."
             ) from error
         except (OSError, RuntimeError, PreferencesError) as error:
+            LOG.warning("core.parent-control-stage", stage=stage, outcome="failed")
             if isinstance(error, RollbackFailure):
                 raise
             raise BackendFailure("could not change parent-control state") from error

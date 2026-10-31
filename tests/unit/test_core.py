@@ -481,10 +481,12 @@ class CoreTests(unittest.TestCase):
         extensions = mock.Mock()
         broker = make_broker(extensions=extensions)
         observed = []
-        extensions.collect_diagnostics.side_effect = lambda uids: observed.extend(uids)
-        broker.collect_extension_diagnostics()
+        extensions.collect_diagnostics.side_effect = lambda uids, **_kwargs: observed.extend(uids)
+        with mock.patch("oh_no_parent_control.dependency_diagnostics.collect_gnome_shell_diagnostics"):
+            broker.collect_extension_diagnostics()
         self.assertEqual(set(observed), {user.uid for user in broker.list_managed_users(1003)})
         extensions.set_enabled.assert_not_called()
+        self.assertEqual(set(extensions.collect_diagnostics.call_args.kwargs["saved_states"]), set(observed))
 
     def test_management_revalidates_administrator_locality_before_read_or_write(self):
         accounts, preferences = Accounts(), Preferences()
@@ -581,11 +583,11 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(extensions.calls[len(calls):], [(1001, True), (1002, True)])
         self.assertEqual(preferences.load(1001), saved[1001])
 
-    def test_preference_transition_does_not_request_startup_switch_recovery(self):
+    def test_first_enablement_requests_transactional_switch_recovery(self):
         extensions = Extensions()
         make_broker(extensions=extensions).set_parent_control(1003, 1001, True, 60)
         self.assertEqual(extensions.calls, [(1001, True)])
-        self.assertEqual(extensions.recoveries, [])
+        self.assertEqual(extensions.recoveries, [1001])
 
     def test_application_catalog_is_scoped_to_the_selected_managed_user(self):
         observed = []

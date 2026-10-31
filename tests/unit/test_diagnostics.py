@@ -1012,7 +1012,7 @@ def test_pre_enable_import_failure_and_policy_cause_survive_report_privately(tmp
     manager = ExtensionManager()
     monkeypatch.setattr(manager, "_account", lambda _uid: (object(), None))
     monkeypatch.setattr(manager, "_session_transport", lambda _account: "live-session")
-    replies = iter(["(true,)", info])
+    replies = iter(["[]", "[]", "false", "(true,)", info])
     monkeypatch.setattr(manager, "_run_command", lambda *_args, **_kwargs:
                         SimpleNamespace(stdout=next(replies)))
     policy = iter(["application/javascript", "rpmdb /home/private-child/private app.js 1 " + "a" * 64,

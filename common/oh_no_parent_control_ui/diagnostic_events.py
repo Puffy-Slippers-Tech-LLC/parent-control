@@ -131,11 +131,20 @@ def describe(value):
 
 
 @contextmanager
-def operation():
+def operation(*, reuse=None):
+    """Group events; reuse only an allocated reference from this observation pass.
+
+    References must never be derived from account, process or device identities.
+    """
     global _operation_counter
-    with _operation_lock:
-        _operation_counter = _operation_counter % (2**31 - 1) + 1
-        number = _operation_counter
+    if reuse is None:
+        with _operation_lock:
+            _operation_counter = _operation_counter % (2**31 - 1) + 1
+            number = _operation_counter
+    else:
+        if type(reuse) is not int or not 0 < reuse <= 2**31 - 1:
+            raise ValueError("Invalid diagnostic operation reference")
+        number = reuse
     token = _operation.set(number)
     try:
         yield number

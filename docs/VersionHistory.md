@@ -1,8 +1,10 @@
-## v2.0 -
+## v1.5 - 2026-10-30
 ### New Features
 - **Kiosk**: Improved Polkit auth dialog content layout to make it more explicit and easier to read.
 
 ### Bug Fixes
+- **Screen Time**: Fixed enabling screen-time control failing when GNOME has disabled user extensions.
+- **Diagnostics**: Added privacy-safe logging for disabled GNOME extensions, Shell crashes, possible extension errors, and screen-time recovery and rollback failures.
 - **Screen Time**: Fixed extra-time approvals sometimes adding more time than requested.
 - **Kiosk**: Fixed time requests failing before parent approval when system language discovery is unavailable.
 - **Kiosk**: Fixed sign-in being rejected when brief maintenance activity temporarily delays entry.

@@ -47,12 +47,30 @@
     function sessionHeading(section) {
         const entry = section.entry;
         const signature = JSON.stringify([entry.label, entry.session, entry.session_active,
-            entry.session_number, entry.session_inactive, section.view]);
+            entry.session_number, entry.session_inactive, section.view, section.collapsed]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
         section.heading.replaceChildren();
         element('span', 'run-label', section.heading).textContent = entry.label;
         const links = element('span', 'run-links', section.heading);
+        const collapse = element('button', 'run-copy', links);
+        collapse.type = 'button';
+        const collapseIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        collapseIcon.setAttribute('viewBox', '0 0 20 20');
+        collapseIcon.setAttribute('aria-hidden', 'true');
+        const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        collapseIcon.append(chevron);
+        collapse.append(collapseIcon);
+        section.body.classList.toggle('collapsed', Boolean(section.collapsed));
+        collapse.title = section.collapsed ? 'Expand' : 'Collapse';
+        collapse.setAttribute('aria-label', collapse.title);
+        collapse.setAttribute('aria-expanded', String(!section.collapsed));
+        chevron.setAttribute('d', section.collapsed ? 'M5 7l5 5 5-5' : 'M5 12l5-5 5 5');
+        collapse.addEventListener('click', () => {
+            section.collapsed = !section.collapsed;
+            sessionHeading(section);
+            runDividers();
+        });
         const copy = element('button', 'run-copy', links);
         copy.type = 'button';
         copy.title = 'Copy current tab content';
@@ -375,12 +393,79 @@
         grid.replaceChildren(empty);
     }
 
+    function runDividers() {
+        let previous;
+        for (const body of runs.querySelectorAll('.run')) {
+            const section = sections.get(body.dataset.root);
+            section.previous = previous;
+            section.divider.hidden = !previous;
+            const enabled = Boolean(previous);
+            section.divider.setAttribute('aria-disabled', String(!enabled));
+            section.divider.tabIndex = enabled ? 0 : -1;
+            previous = section;
+        }
+    }
+
+    function runDivider(section) {
+        const handle = section.divider;
+        handle.setAttribute('role', 'separator');
+        handle.setAttribute('aria-orientation', 'horizontal');
+        handle.setAttribute('aria-label', 'Resize launcher panels');
+        let drag;
+        const resizePair = (previous, top, delta) => {
+            if (!delta) return;
+            for (const panel of [previous, section]) {
+                if (!panel.collapsed) continue;
+                panel.collapsed = false;
+                sessionHeading(panel);
+            }
+            const total = previous.body.getBoundingClientRect().height + section.body.getBoundingClientRect().height;
+            if (total < 200) return;
+            const height = Math.max(100, Math.min(total - 100, top + delta));
+            const weight = previous.weight + section.weight;
+            previous.weight = weight * height / total;
+            section.weight = weight - previous.weight;
+            previous.body.style.flexGrow = previous.weight;
+            section.body.style.flexGrow = section.weight;
+        };
+        handle.addEventListener('pointerdown', event => {
+            if (event.button !== 0 || handle.getAttribute('aria-disabled') === 'true') return;
+            event.preventDefault();
+            handle.focus();
+            drag = { previous: section.previous, y: event.clientY,
+                top: section.previous.body.getBoundingClientRect().height };
+            handle.setPointerCapture(event.pointerId);
+            document.body.classList.add('resizing-runs');
+        });
+        handle.addEventListener('pointermove', event => {
+            if (!drag || !handle.hasPointerCapture(event.pointerId)) return;
+            if (drag.previous !== section.previous) return;
+            resizePair(drag.previous, drag.top, event.clientY - drag.y);
+        });
+        handle.addEventListener('pointerup', event => {
+            if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+        });
+        handle.addEventListener('lostpointercapture', () => {
+            drag = undefined;
+            document.body.classList.remove('resizing-runs');
+        });
+        handle.addEventListener('keydown', event => {
+            if (handle.getAttribute('aria-disabled') === 'true') return;
+            const delta = { ArrowUp: -20, ArrowDown: 20 }[event.key];
+            if (delta === undefined) return;
+            event.preventDefault();
+            resizePair(section.previous, section.previous.body.getBoundingClientRect().height,
+                delta);
+        });
+    }
+
     function runStatus(entries) {
         const ids = new Set(entries.map(entry => entry.id));
         for (const [id, section] of sections) {
             if (!ids.has(id)) {
                 section.inputObserver.disconnect();
                 section.body.remove();
+                section.divider.remove();
                 sections.delete(id);
             }
         }
@@ -389,16 +474,26 @@
             let section = sections.get(entry.id);
             if (!section) {
                 const body = element('section', 'run', runs);
+                body.dataset.root = entry.id;
+                const divider = element('div', 'run-divider', runs);
                 const heading = element('h2', 'run-heading', body);
                 const content = element('pre', 'run-status', body);
                 const launcher = element('pre', 'run-status', body);
                 launcher.setAttribute('aria-label', 'Launcher terminal output');
                 const errorStatus = element('pre', 'run-status', body);
                 errorStatus.setAttribute('aria-label', 'Last Error and Status');
-                section = Object.assign(sessionPanel(body), { body, heading, content, launcher, errorStatus, view: 'status' });
+                section = Object.assign(sessionPanel(body), { body, divider, heading, content, launcher, errorStatus,
+                    view: 'status', weight: 1 });
                 sections.set(entry.id, section);
+                runDivider(section);
             }
-            if (runs.children[index] !== section.body) runs.insertBefore(section.body, runs.children[index] || null);
+            if (runs.children[index * 2] !== section.divider) runs.insertBefore(section.divider, runs.children[index * 2] || null);
+            if (runs.children[index * 2 + 1] !== section.body) runs.insertBefore(section.body, runs.children[index * 2 + 1] || null);
+            // Apply lifecycle defaults once; live refreshes preserve manual resizing/toggles.
+            if (!section.entry || section.entry.run !== entry.run
+                    || Boolean(section.entry.active) !== Boolean(entry.active)) {
+                section.collapsed = !entry.active;
+            }
             section.entry = entry;
             sessionHeading(section);
             section.heading.classList.toggle('failed', entry.status === 'failed');
@@ -483,6 +578,7 @@
             section.content.replaceChildren(...rows);
             if (follow) section.content.scrollTop = section.content.scrollHeight;
         });
+        runDividers();
     }
 
     function resourceCharts(snapshot) {

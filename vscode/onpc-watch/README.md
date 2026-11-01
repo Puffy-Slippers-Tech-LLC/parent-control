@@ -19,7 +19,18 @@ with the keyboard, or double-click it to restore 30:70.
 
 The left panel shows **Run Status** across related Git worktrees, using shared
 runner discovery and the pipeline dashboard. Active worktrees
-share the panel in equal sections. When a launcher exits for any reason, its
+share the panel in equal sections initially. The horizontal dividers can be
+dragged to resize adjacent sections, or focused
+and adjusted with Up/Down. The icon immediately before each copy button toggles
+**Collapse** / **Expand**. Collapsing leaves only that launcher's title bar, tabs
+and buttons; expanded sections fill the remaining height. Expanding restores the
+selected tab. Inactive launchers (finished, failed or stopped) collapse by default,
+including when a running launcher exits. A new active run expands by default.
+Manual expansion, collapse and resizing survive live refreshes until the next
+run or activity transition. Sizes last while Watch is open.
+Dividers remain active beside collapsed sections; resizing expands them and
+restores their selected tabs.
+When a launcher exits for any reason, its
 section and all four tabs retain their contents, including while other worktrees
 remain active. Reconnecting restores the latest retained run in each idle
 worktree from its existing run files. Session input is disabled once its owner

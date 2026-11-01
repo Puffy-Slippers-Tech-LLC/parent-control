@@ -23,7 +23,12 @@ nav button[aria-pressed="true"] {
 }
 #runs { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; }
 .run { display: flex; flex: 1 1 0; flex-direction: column; min-height: 100px; overflow: hidden; }
-.run + .run { border-top: 1px solid var(--vscode-panel-border); }
+.run.collapsed { flex: 0 0 auto !important; min-height: 0; }
+.run.collapsed > :not(.run-heading) { display: none !important; }
+.run-divider { flex: 0 0 6px; background: var(--vscode-panel-border); cursor: ns-resize; touch-action: none; }
+.run-divider[aria-disabled="true"] { cursor: default; }
+.run-divider[aria-disabled="false"]:hover, .run-divider:focus-visible { background: var(--vscode-focusBorder); }
+.resizing-runs, .resizing-runs * { cursor: ns-resize !important; user-select: none; }
 .run-heading {
     display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
     margin: 0; padding: 8px; flex-shrink: 0; font-size: 1em;

@@ -269,7 +269,7 @@ def test_overall_excludes_cleanup_counts_but_preserves_failure_status(name, tota
     dashboard = regression.Dashboard([cleanup, suite], io.StringIO())
     frame = dashboard.render(dashboard.started)
     overall = frame[-1]
-    assert dashboard.ANSI.sub('', overall) == 'Overall - 42% (87/205) - 0.0m'
+    assert dashboard.ANSI.sub('', overall) == 'Overall - 42% (87/205) - 00:00'
     assert overall.startswith('\033[31m' if failures else '\033[97;1m')
     assert 'Cleanup safety prerequisites' in dashboard.ANSI.sub('', '\n'.join(frame))
 

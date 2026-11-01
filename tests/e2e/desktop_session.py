@@ -1,5 +1,8 @@
 """DESK03/04 qualification: shared system switching and logout commands."""
 
+from pathlib import Path
+from types import SimpleNamespace
+
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import (fresh_desktop, lock_challenge, lock_recipient,
                             parent_management, native_activity_entry, rejected_gdm_return)
@@ -176,12 +179,82 @@ class RetainedDenialJourney(RetainedSessionJourney):
 
 
 class RetainedUnlockJourney(AllowanceJourney):
-    def __init__(self, context, progress, plan=RETAINED_UNLOCK_PLAN, *, actions=None):
-        super().__init__(context, progress, plan, actions=actions)
+    def __init__(self, context, progress, plan=RETAINED_UNLOCK_PLAN, *, actions=None, transport=None):
+        super().__init__(context, progress, plan, actions=actions, transport=transport)
 
 
 class DesktopSessionJourney(InstalledJourney):
     """Installed envelope for one session-control attempt; review cannot pass it."""
 
-    def __init__(self, context, progress, plan):
-        super().__init__(context, progress, plan)
+    def __init__(self, context, progress, plan, *, actions=None, transport=None):
+        super().__init__(context, progress, plan, actions=actions, transport=transport)
+
+
+def run_attached(directory, lease, transport, ledger, plan, *, expected_inputs,
+                 progress, actions=None, journey_type=InstalledJourney,
+                 credentials=None, context=None, verified=None, timeout=600):
+    """Use shared guarded input while the installed owner keeps its live guest.
+
+    This completes controller stages and closes its worker. The caller retains
+    the session, transport, VM watch and restoration authority; no completed
+    worker module or customer acceptance result is claimed.
+    """
+    from private_artifacts import require
+    from fixture_credentials import FixtureCredentials
+    from check_graphical_smoke import inputs
+    import e2e_worker
+
+    directory = Path(directory)
+    require(context is None or context.lease is lease, plan.prefix + ':attached-context')
+    values = {} if context is None else vars(context).copy()
+    values.update(directory=directory, lease=lease, commands=transport.commands)
+    if verified is not None:
+        values['verified'] = verified
+    context = SimpleNamespace(**values)
+    expected_inputs = dict(expected_inputs)
+
+    def check_sources():
+        require(all(expected_inputs.get(path) == digest
+                    for path, digest in inputs().items()),
+                plan.prefix + ':attached-source-changed')
+
+    check_sources()
+    journey = journey_type(context, progress, plan, actions=actions, transport=transport)
+    credentials = FixtureCredentials() if credentials is None else credentials
+    require(type(credentials) is FixtureCredentials, plan.prefix + ':attached-credentials')
+    credentials.provision_online(lease, transport)
+
+    def step(guard):
+        def guarded(**options):
+            guard(**options)
+            check_sources()
+            return guard()
+        journey.step(guarded)
+        return len(journey.steps) == len(plan.stages)
+
+    def validate():
+        check_sources()
+        require(not journey.failed and journey.trace_token is None,
+                plan.prefix + ':attached-incomplete')
+        require([item['stage'] for item in journey.steps] == list(plan.stages)
+                and all(item.get('outcome') == 'passed' for item in journey.steps),
+                plan.prefix + ':missing-stages')
+        for observed in journey.steps[2:]:
+            stage = observed['stage']
+            kind, operation = plan.screen_tags[stage].split(':', 1)
+            require(observed.get(kind, {}).get('operation') == operation
+                    and observed[kind].get('outcome') == 'passed',
+                    plan.prefix + ':' + kind + '-evidence')
+            if plan.challenge_at(stage):
+                require(observed.get('challenge') == plan.challenge_at(stage),
+                        plan.prefix + ':challenge-evidence')
+
+    worker = e2e_worker.run_distribution(
+        directory, lease, ledger, expected_inputs=expected_inputs,
+        observe=lambda: None, guarded_observe=step, validate=validate,
+        credentials=credentials, attached=True, timeout=timeout)
+    require(worker['outcome'] == 'passed' and worker['scene_retained'] is True
+            and worker['worker_stopped'] is True and worker['callback_closed'] is True,
+            plan.prefix + ':attached-cleanup')
+    worker['controller_observations'] = list(journey.steps)
+    return worker

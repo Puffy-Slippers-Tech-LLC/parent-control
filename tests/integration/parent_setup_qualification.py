@@ -1561,7 +1561,55 @@ class GdmProductFreeQualification(ParentJourneyQualification):
 
 
 class GdmCredentialQualification(GdmProductFreeQualification):
-    """Exercise real fixture login without the retired image-input route."""
+    """Qualify desktop input attached to the installed owner's running lease."""
+
+    def execute(self, lease, guestfs):
+        from desktop_session import run_attached
+        from gdm_product_free import CREDENTIAL_PLAN
+        self.checkpoint('attempt-started')
+        try:
+            with self.ledger.measure('preparation'):
+                lease.prepare()
+                host_key = smoke.runner.bootstrap(
+                    self.commands, lease, self.directory, guestfs,
+                    observation_only=True, e2e_product_free=True)
+                lease.guard(off=True)
+                lease.save('isolated')
+                self.verified = smoke.VerifiedInputs(lease=lease, assets=None)
+                self.result['provenance'] = self.verified.inputs
+                lease.start()
+                hostname = smoke.runner.address(lease.source, timeout=90)
+                (self.directory / 'known-hosts').write_text(f'{hostname} {host_key}\n')
+                transport = smoke.Transport({
+                    'directory': str(self.directory), 'hostname': hostname,
+                    'domain_uuid': lease.source.uuid, 'domain_id': lease.view.domain_id,
+                    'run': lease.state['run'],
+                }, self.commands, guard=lambda _: lease.guard(), lease=lease)
+                transport.probe_ready(timeout=180)
+            def progress(stage, observed):
+                self.active_stage = stage
+                self.result.setdefault('steps', []).append(observed)
+                self.checkpoint('stage-observed')
+            with self.ledger.measure('test'):
+                attached = self.directory / 'attached-input'
+                attached.mkdir(mode=0o700)
+                self.result['worker_evidence'] = run_attached(
+                    attached, lease, transport, self.ledger, CREDENTIAL_PLAN,
+                    expected_inputs=self.verified.source_files, progress=progress,
+                    credentials=self.credentials, timeout=600)
+                lease.guard()
+                self.result['outer_owner_retained'] = (
+                    lease.state['phase'] == 'running' and lease.fd is not None)
+                smoke.require(self.result['outer_owner_retained'],
+                              'credential:outer-owner-not-retained')
+        except BaseException as error:
+            code = (str(error) if isinstance(error, smoke.EvidenceError)
+                    else smoke.runner.error_category(error))
+            if not any(value['outcome'] == 'failed' for value in self.ledger.outcomes.values()):
+                self.ledger.fail_outcome('infrastructure', code)
+            raise
+        finally:
+            self.checkpoint('before-cleanup')
 
     @staticmethod
     def journey(context, progress):

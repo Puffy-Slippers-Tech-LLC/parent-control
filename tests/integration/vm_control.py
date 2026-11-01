@@ -302,6 +302,7 @@ def operate(lease, action, keys, *, fixture_maintenance=False):
 
 def _operate(lease, action, keys, *, fixture_maintenance=False):
     runner.require(not fixture_maintenance or action == 'start', 'vm-control:arguments')
+    recorded_recovery = False
     if action == 'recover-online':
         # This is an explicit caller-observed instance, not ordinary startup
         # recovery. Route non-maintenance test attempts to their own controller;
@@ -320,6 +321,15 @@ def _operate(lease, action, keys, *, fixture_maintenance=False):
         if owner is None or stale_owner:
             lease.recover_graphical_cleanup(recovery_instance=keys[0])
             return
+        # Explicit recovery may also retire a fully recorded maintenance
+        # instance whose SSH credentials are no longer available. Its original
+        # run/instance proof remains mandatory; ordinary stop still uses SSH.
+        recorded_recovery = (isinstance(attempt, dict) and
+                             attempt.get('phase') in ('running', 'cleanup-requested'))
+        if recorded_recovery:
+            runner.require(attempt.get('domain_id') == keys[0] and
+                           lease.source.domain.ID() == keys[0],
+                           'vm-control:instance-replaced-or-off')
     if action in ('start', 'reset'):
         lease.__enter__()
         # Don't shut down an existing manually started VM to claim ownership.
@@ -339,11 +349,16 @@ def _operate(lease, action, keys, *, fixture_maintenance=False):
         else:
             lease.finish()
         return
-    restored_off = resume(lease, stopping=action == 'stop',
-                          recovery_instance=keys[0] if action == 'recover-online' else None,
+    restored_off = resume(lease, stopping=action == 'stop' or recorded_recovery,
+                          recovery_instance=keys[0] if action == 'recover-online' and
+                          not recorded_recovery else None,
                           fixture_maintenance=action == 'screenshot')
     lease.guard(off=restored_off)
     if action == 'recover-online':
+        if recorded_recovery:
+            runner.require(lease.view.run == lease.state['run'] and
+                           lease.source.domain.ID() == keys[0],
+                           'vm-control:instance-replaced-or-off')
         lease.stop_by_restore()
         lease.finish()
     elif action == 'stop':

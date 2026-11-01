@@ -418,10 +418,22 @@ def prepare_product_free_setup(context, transport, guard, *, observer=None):
 class InstalledJourney:
     """One guarded stage rendezvous, with durable observations before replies."""
 
-    def __init__(self, context, progress, plan, *, review=False, actions=None):
+    def __init__(self, context, progress, plan, *, review=False, actions=None, transport=None):
         require(type(review) is bool and (not review or plan.review_mode is not None),
                 plan.prefix + ':review-mode')
+        if transport is not None:
+            require(not review and isinstance(transport, Transport)
+                    and transport.lease is context.lease
+                    and context.lease.fd is not None
+                    and context.lease.state['phase'] == 'running'
+                    and context.lease.state['domain_id'] is not None
+                    and transport.config['run'] == context.lease.state['run']
+                    and transport.config['domain_uuid'] == context.lease.source.uuid
+                    and transport.config['domain_id'] == context.lease.state['domain_id'],
+                    plan.prefix + ':attached-transport')
+            context.lease.guard()
         self.context, self.progress, self.plan = context, progress, plan
+        self.attached_transport = transport
         self.watch_progress = getattr(getattr(context, 'recorder', None), 'progress', None)
         self.review = review
         self.actions = actions or {}
@@ -682,6 +694,21 @@ class InstalledJourney:
                 reply['challenge_bindings'] = {key: list(value) for key, value in plan.challenges.items()}
             if self.review:
                 reply[plan.review_mode] = True
+        elif stage == 'setup-detached' and self.attached_transport is not None:
+            # The installed owner already prepared this running guest and its
+            # guarded connection. Attachment must not reinstall or repair it.
+            context.lease.guard()
+            require(self.attached_transport.lease is context.lease
+                    and context.lease.fd is not None
+                    and context.lease.state['phase'] == 'running'
+                    and self.attached_transport.config['run'] == context.lease.state['run']
+                    and self.attached_transport.config['domain_uuid'] == context.lease.source.uuid
+                    and self.attached_transport.config['domain_id'] == context.lease.state['domain_id'],
+                    plan.prefix + ':attached-transport')
+            self.transport = self.attached_transport
+            self.vm = ReadOnlyObservations(self.transport)
+            observed['setup'] = {'attached_running_guest': True}
+            reply = {'setup_complete': True}
         elif stage == 'setup-detached':
             install_current = getattr(context, 'install_current_package', False)
             product_free = getattr(context, 'product_free', False)
@@ -880,7 +907,7 @@ class InstalledJourney:
         print(plan.prefix + ':stage-observed=' + stage, file=sys.stderr, flush=True)
         guard()
         if stage == 'setup-detached':
-            prepared = getattr(context.verified, 'fixture_prepared', None)
+            prepared = getattr(getattr(context, 'verified', None), 'fixture_prepared', None)
             if prepared is not None:
                 with timed_stage('setup-reply-readiness'):
                     prepared['controller'].require_ready(prepared['receipt'])

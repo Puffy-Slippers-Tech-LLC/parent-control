@@ -204,8 +204,8 @@ def variables(directory, server, run, *, serial=False):
 
 def run_distribution(directory, lease, ledger, *, expected_inputs, observe, validate,
                      timeout=600, on_failure=None, credentials=None, serial=False,
-                     guarded_observe=None, maintenance=False):
-    """Run fixed trusted code against an existing isolated lease, then retain reports.
+                     guarded_observe=None, maintenance=False, attached=False):
+    """Run fixed trusted code against a prepared lease, then retain reports.
 
     observe/validate are controller functions, never supplied by the guest or
     CLI. Validation must reconcile actual module results and completed stages.
@@ -213,12 +213,20 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
     full inventory EvidenceContract acceptance remain the outer owner's job.
     on_failure is a trusted controller hook for durable scenario checkpoints;
     a broken hook cannot prevent either resource's cleanup or replace the error.
+    attached reuses an already running lease without owning its VM lifecycle.
+    Its guarded observer must return exactly True at the completed stage boundary;
+    validate checks those stages before the worker detaches. The enclosing owner
+    still validates its installed result, original session and restoration.
     """
     require(type(timeout) in (int, float) and 0 < timeout <= MAX_TIMEOUT_SECONDS, 'e2e:timeout')
     require(type(serial) is bool and (not serial or credentials is not None), 'e2e:serial-credentials')
     require(type(maintenance) is bool and (not maintenance or
             (not serial and credentials is not None and guarded_observe is not None)),
             'e2e:maintenance-binding')
+    require(type(attached) is bool and (not attached or
+            (not maintenance and not serial and credentials is not None
+             and callable(guarded_observe))), 'e2e:attachment-binding')
+    running_attachment = maintenance or attached
     require(isinstance(lease.state['run'], str)
             and re.fullmatch(r'[0-9a-f]{32}', lease.state['run']), 'e2e:run')
     directory = Path(directory)
@@ -226,9 +234,10 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
     require(directory.is_absolute() and directory.resolve() == directory
             and stat.S_ISDIR(metadata.st_mode) and metadata.st_uid == os.geteuid()
             and stat.S_IMODE(metadata.st_mode) == 0o700, 'e2e:private-directory')
-    # Adapter validates the held lease, its instance, graphics and off state
-    # before storage, callbacks or worker construction.
-    adapter = (Adapter(lease, running=True, maintenance=True) if maintenance else Adapter(lease))
+    # Adapter validates the held lease, its instance, graphics and required
+    # power state before storage, callbacks or worker construction.
+    adapter = (Adapter(lease, running=True, maintenance=True)
+               if running_attachment else Adapter(lease))
     run_id = 'worker-' + lease.state['run']
     started = time.monotonic()
     failures = FailureLedger()
@@ -239,19 +248,21 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
               'outcome': 'failed', 'distribution_sha256': None,
               'raw_capture': 'private-not-approved-for-export',
               'backend_exit_status': None, 'backend_failure_artifact': None,
-              'lifecycle': [], 'shutdown_verified': False,
+              'lifecycle': [], 'shutdown_verified': False, 'scene_retained': False,
               'worker_stopped': False, 'callback_closed': False}
     # Credentials may come only from completed, same-lease provisioning. The
     # credential qualification performs GDM input; all raw output stays private.
     if credentials is not None:
         from fixture_credentials import FixtureCredentials
         require(type(credentials) is FixtureCredentials, 'e2e:fixture-credentials')
-    secrets = (credentials.worker_secrets(lease, online=True) if maintenance else
+    secrets = (credentials.worker_secrets(lease, online=True) if running_attachment else
                credentials.worker_secrets(lease) if credentials is not None else SecretVariables())
     if credentials is not None:
         result['scope'] = 'fixture-secret-worker'
     if maintenance:
         result['scope'] = 'maintenance-diagnostic-not-acceptance'
+    elif attached:
+        result['scope'] = 'attached-worker'
     collector = PrivateCollector(run_id=run_id, secrets=secrets.registered_secrets)
     try:
         result['evidence_directory'] = str(collector.path)
@@ -325,6 +336,7 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
                 status = worker.poll()
                 if status is not None:
                     require(not maintenance, 'e2e:diagnostic-ended-before-boundary')
+                    require(not attached, 'e2e:attachment-ended-before-boundary')
                     result['backend_exit_status'] = status
                     # This upstream termination artifact is evidence of a fatal
                     # backend/isotovideo error even when the process exits zero.
@@ -351,10 +363,19 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
                 if guarded_observe is not None:
                     require(not serial, 'e2e:guarded-observer-surface')
                     stopped = guarded_observe(guard_current_worker)
-                    if maintenance and stopped is True:
+                    if running_attachment and stopped is True:
                         guard_current_worker()
                         validate()
-                        result['outcome'] = 'scene-retained'
+                        if attached:
+                            # A completed stage boundary cannot conceal a fatal
+                            # backend artifact or a worker lost during validation.
+                            result['backend_failure_artifact'] = os.path.lexists(
+                                directory / 'base_state.json')
+                            require(not result['backend_failure_artifact'],
+                                    'e2e:backend-failure-artifact')
+                            guard_current_worker()
+                        result['scene_retained'] = True
+                        result['outcome'] = 'passed' if attached else 'scene-retained'
                         break
                 elif serial:
                     adapter.serial.step()

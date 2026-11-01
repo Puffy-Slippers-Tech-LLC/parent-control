@@ -57,8 +57,13 @@ def report(attempt, name='worker-result'):
     return json.loads((attempt.collector.path / (name + '.json')).read_text())
 
 
-@pytest.mark.parametrize('boundary', ['retained', 'refused', 'early-exit'])
-def test_maintenance_worker_retains_only_verified_boundary_and_closes_owners(attempt, monkeypatch, boundary):
+@pytest.mark.parametrize('mode,boundary', [
+    ('maintenance', 'retained'), ('attached', 'retained'),
+    ('attached', 'refused'), ('attached', 'early-exit'),
+    ('attached', 'validation-exit'), ('attached', 'backend-failure'),
+])
+def test_running_worker_retains_only_verified_boundary_and_closes_owners(
+        attempt, monkeypatch, mode, boundary):
     from fixture_credentials import FixtureCredentials
     from secret_variables import SecretVariables
     credentials = object.__new__(FixtureCredentials)
@@ -67,24 +72,53 @@ def test_maintenance_worker_retains_only_verified_boundary_and_closes_owners(att
     attempt.worker.poll.return_value = 0 if boundary == 'early-exit' else None
     attempt.worker.ready, attempt.worker.result = True, None
     observer = Mock(return_value=True)
+    close_collector = Mock(wraps=attempt.collector.close)
+    monkeypatch.setattr(attempt.collector, 'close', close_collector)
+    options = dict(credentials=credentials, guarded_observe=observer, **{mode: True})
     if boundary == 'refused':
         observer.side_effect = RuntimeError('recipient-refused')
+    elif boundary == 'validation-exit':
+        attempt.options['validate'].side_effect = lambda: setattr(
+            attempt.worker.poll, 'return_value', 0)
+    elif boundary == 'backend-failure':
+        (attempt.directory / 'base_state.json').write_text('private-canary')
     if boundary == 'retained':
-        result = attempt.run(credentials=credentials, maintenance=True, guarded_observe=observer)
-        assert result['outcome'] == 'scene-retained'
-        assert result['scope'] == 'maintenance-diagnostic-not-acceptance'
+        result = attempt.run(**options)
+        assert result['outcome'] == ('passed' if mode == 'attached' else 'scene-retained')
+        assert result['scope'] == ('attached-worker' if mode == 'attached'
+                                   else 'maintenance-diagnostic-not-acceptance')
+        assert result['scene_retained'] is True
         assert not result['shutdown_verified']
         attempt.options['validate'].assert_called_once_with()
     else:
-        with pytest.raises(RuntimeError, match='recipient-refused|diagnostic-ended-before-boundary'):
-            attempt.run(credentials=credentials, maintenance=True, guarded_observe=observer)
-        attempt.options['validate'].assert_not_called()
+        with pytest.raises(RuntimeError, match='recipient-refused|attachment-ended-before-boundary|'
+                           'input-worker-not-running|backend-failure-artifact'):
+            attempt.run(**options)
+        assert attempt.options['validate'].call_count == (
+            1 if boundary in ('validation-exit', 'backend-failure') else 0)
+        assert report(attempt)['outcome'] == 'failed'
     secrets.assert_called_once_with(attempt.lease, online=True)
     runtime.Adapter.assert_called_once_with(attempt.lease, running=True, maintenance=True)
     attempt.worker.close.assert_called_once()
     attempt.server.close.assert_called_once()
+    close_collector.assert_called_once()
     attempt.lease.finish.assert_not_called()
     attempt.lease.stop_by_restore.assert_not_called()
+    attempt.lease.start.assert_not_called()
+    attempt.lease.close_watch.assert_not_called()
+
+
+@pytest.mark.parametrize('changes', [
+    {'credentials': None}, {'guarded_observe': None}, {'maintenance': True}, {'serial': True},
+])
+def test_attachment_requires_exclusive_guarded_credential_binding(attempt, changes):
+    options = dict(attached=True, credentials=object(), guarded_observe=Mock())
+    options.update(changes)
+    with pytest.raises(RuntimeError, match='attachment-binding'):
+        attempt.run(**options)
+    runtime.Adapter.assert_not_called()
+    runtime.CallbackServer.assert_not_called()
+    runtime.Worker.assert_not_called()
 
 
 def test_completed_worker_requires_controller_validation_and_owned_cleanup(attempt):

@@ -2174,6 +2174,40 @@ def test_explicit_interrupted_online_recovery_is_bound_and_cleanup_only(
         resumed.release()
 
 
+@pytest.mark.parametrize('fault', [None, 'instance', 'owner', 'run'])
+def test_explicit_recorded_recovery_needs_exact_owner_without_ssh(
+        lease_rig, monkeypatch, fault):
+    import vm_probe
+    lease, current = lease_rig
+    original = current['xml']
+    start(lease)
+    instance = current['id']
+    if fault == 'owner':
+        (lease.directory / 'vm-control.json').write_text('{}')
+    elif fault == 'run':
+        current['xml'] = current['xml'].replace(lease.state['run'], 'f' * 32)
+    connect = Mock(side_effect=AssertionError('recovery must not need SSH'))
+    monkeypatch.setattr(vm_probe, 'connect', connect)
+    held = reopened(lease)
+    before = lease.source.domain.revertToSnapshot.call_count
+    try:
+        if fault:
+            with pytest.raises(RuntimeError):
+                control.operate(held, 'recover-online',
+                                [instance + 1 if fault == 'instance' else instance])
+            assert lease.source.domain.revertToSnapshot.call_count == before
+            assert current['id'] == instance
+        else:
+            control.operate(held, 'recover-online', [instance])
+            assert held.state['phase'] == 'complete'
+            assert current['id'] == -1 and current['xml'] == original
+            assert lease.source.domain.revertToSnapshot.call_count == before + 1
+        connect.assert_not_called()
+        lease.source.domain.create.assert_called_once()
+    finally:
+        held.release()
+
+
 @pytest.mark.parametrize('owner_kind', ['absent', 'stale', 'current', 'malformed'])
 def test_explicit_online_recovery_routes_without_adopting_maintenance(
         lease_rig, monkeypatch, owner_kind):

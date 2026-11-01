@@ -3,7 +3,7 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
-Required tasks: Baseline.
+Required tasks: 000a.
 Estimate: 30–60 minutes; shared observation plus both-target qualification.
 
 Read the [master](../Broker-Expiry-Plan.md), canonical allocation and
@@ -29,3 +29,11 @@ Qualify only changed bindings through the maintained installed owner on both
 targets. Do not rerun unchanged cases 22/25–29 as prerequisite proof. Missing
 graphical-peer/input routes block their consumers; TTY activity is insufficient.
 Restore owned fixture/session state and follow master close-out.
+
+Current handoff: shared panel-independent observation and finite budgets are
+implemented in `natural_expiry_observation.py`, `accessible_ui.py` and
+`ui_observations.py`. The existing focused natural-expiry unit selection passed
+27 checks; this supplies no installed acceptance. Guarded installed desktop input
+is qualified by completed task 000a. Integrate these
+observations into system-282, including original work and real graphical peer
+activity, then run both declared targets. No VM was started for this handoff.

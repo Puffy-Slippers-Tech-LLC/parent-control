@@ -55,8 +55,8 @@ def package(destination):
         archive.writestr('extension.vsixmanifest', metadata)
         archive.writestr('[Content_Types].xml', types)
         # A finite payload avoids bundling workspace files or generated artifacts.
-        for name in ('package.json', 'extension.js', 'screenshot.py', 'media/watch.js', 'media/watch.css',
-                     'media/app-logo.png', 'README.md'):
+        for name in ('package.json', 'extension.js', 'bridge.js', 'screenshot.py', 'media/watch.js', 'media/watch.css',
+                     'media/app-logo.png', 'README.md', 'BRIDGE.md'):
             archive.write(source / name, 'extension/' + name)
         archive.write(ROOT / 'LICENSE', 'extension/LICENSE')
 

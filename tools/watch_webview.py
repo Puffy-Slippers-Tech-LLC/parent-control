@@ -13,6 +13,7 @@ from pathlib import Path
 import struct
 import sys
 import time
+from urllib.parse import unquote, urlsplit
 import zlib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -130,6 +131,40 @@ class Viewer:
         self.sessions = {}
         self.resources = ResourceUsage()
         self.vm_memory = {}
+        self.artifact_links = set()
+
+    def artifact(self, request):
+        """Serve only artifacts published by this reader, never arbitrary paths."""
+        from watch_output import open_private
+        uri = request['uri']
+        try:
+            if uri not in self.artifact_links:
+                raise ValueError('Artifact is no longer published by this reader.')
+            parsed = urlsplit(uri)
+            if parsed.scheme not in ('', 'file') or parsed.netloc or parsed.query or parsed.fragment:
+                raise ValueError('Invalid artifact URI.')
+            path = Path(unquote(parsed.path))
+            if not path.is_absolute() or '..' in path.parts:
+                raise ValueError('Invalid artifact path.')
+            video = path.suffix == '.webm' and any(
+                path.parent == root / 'output/test-runs/recordings' for root in self.roots)
+            error_log = any(output.repair and output.run is not None
+                            and path == output.run.parent / 'errors.md'
+                            for output in self.outputs.values())
+            if not video and not error_log:
+                raise ValueError('Unsupported artifact.')
+            with open_private(path) as stream:
+                if not request['inline']:
+                    return dict(kind='file', uri=path.as_uri(),
+                                media_type='video/webm' if video else 'text/markdown')
+                limit = 64 * 1024 * 1024 if video else 2 * 1024 * 1024
+                data = stream.read(limit + 1)
+                if len(data) > limit:
+                    raise ValueError('Artifact exceeds the inline transfer limit; open it on the source host.')
+            return (dict(kind='video', data=base64.b64encode(data).decode('ascii')) if video else
+                    dict(kind='text', text=data.decode('utf-8', errors='replace')))
+        except (OSError, ValueError) as error:
+            return dict(error=str(error))
 
     def run_status(self, session_root=None):
         from launcher_render import clean
@@ -308,6 +343,10 @@ class Viewer:
                 if (session is None or session.panel is None
                         or session.identity != action['session']):
                     raise ValueError('Session changed; review the current session before sending.')
+                question = session.panel.question
+                if (action['kind'] != 'simplified' and action['question'] !=
+                        (question.question['id'] if question else '')):
+                    raise ValueError('Question changed; review the current session before sending.')
                 if action['kind'] == 'simplified':
                     # This changes only the observer's presentation, including
                     # the retained transcript after its launcher has exited.
@@ -392,6 +431,8 @@ class Viewer:
                     ('VM running · Waiting for the next operation' if meta.get('state') == 'live' else
                      CONNECTED if meta.get('lease_locked') else WAITING),
                 activity=(activity or {}).get('text', ''))
+            view['status'] = re.sub(r' - (\([^()]+\))$', r' \1',
+                                   re.sub(r'\bsnapshot "([^"]+)"', r'snapshot \1', view['status']))
             frames_by_entry[entry] = frame
             entries[entry] = view, name, active, locked
             ids[entry] = self.configured[root][name].id
@@ -420,7 +461,12 @@ class Viewer:
             values.append(dict(view, id=identifier, source=identity(Path(root)),
                 label=f'[{self.roots[Path(root)]}] {name}', active=active, locked=locked))
         self.images = {entry: value for entry, value in self.images.items() if entry in shown}
-        return dict(scope=scope, selected=selected, entries=values,
+        self.artifact_links = {part['link'] for run in runs
+            for row in [*run['rows'], *run['error_rows'],
+                        *((run.get('session_view') or {}).get('rows', []))]
+            for part in row if part.get('link')}
+        return dict(protocol=1, capabilities=dict(sessions=True, artifacts=True),
+                    scope=scope, selected=selected, entries=values,
                     runs=runs, session_result=result,
                     checkouts=[dict(id=str(root), label=branch) for root, branch in self.roots.items()],
                     resources=self.resources.text(), resource_sample=self.resources.last,
@@ -442,15 +488,27 @@ def main():
             if len(line) > 512 * 1024:
                 raise ValueError('watch: request too large')
             request = json.loads(line)
-            if (type(request) is not dict or set(request) - {'scope', 'selected', 'reset', 'session_root', 'session_action'} or
+            if type(request) is not dict or request.get('protocol', 1) != 1:
+                raise ValueError('watch: incompatible bridge protocol')
+            if 'artifact' in request:
+                artifact = request['artifact']
+                if (set(request) - {'protocol', 'artifact'} or type(artifact) is not dict
+                        or set(artifact) != {'uri', 'inline'} or type(artifact['uri']) is not str
+                        or len(artifact['uri']) > 8192 or type(artifact['inline']) is not bool):
+                    raise ValueError('watch: invalid artifact request')
+                print(json.dumps(dict(protocol=1, artifact_result=viewer.artifact(artifact)),
+                                 separators=(',', ':')), flush=True)
+                continue
+            if (set(request) - {'protocol', 'scope', 'selected', 'reset', 'session_root', 'session_action'} or
                     any(type(request.get(key, 'all')) is not str for key in ('scope', 'selected')) or
                     type(request.get('session_root', '')) is not str or
                     type(request.get('reset', False)) is not bool):
                 raise ValueError('watch: invalid request')
             action = request.get('session_action')
             if action is not None and (type(action) is not dict
-                    or set(action) != {'root', 'session', 'kind', 'text', 'id'}
+                    or set(action) != {'root', 'session', 'question', 'kind', 'text', 'id'}
                     or any(type(value) is not str for value in action.values())
+                    or not 0 < len(action['id']) <= 128
                     or action['kind'] not in ('send', 'simplified', 'extend')
                     or len(action['text'].encode('utf-8')) > 65536):
                 raise ValueError('watch: invalid session action')

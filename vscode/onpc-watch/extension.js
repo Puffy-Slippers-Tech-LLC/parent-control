@@ -4,8 +4,9 @@ const vscode = require('vscode');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
-const { createInterface } = require('node:readline');
 const { randomBytes } = require('node:crypto');
+const { fileURLToPath } = require('node:url');
+const { Bridge, configuration } = require('./bridge');
 
 function checkout(folder) {
     if (folder.uri.scheme !== 'file') return undefined;
@@ -92,11 +93,10 @@ function activate(context) {
                 localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')]
             });
         panels.set(root, panel);
-        let child, lines, timer, ready = false, busy = false, rendering = false;
-        let runLinks = new Set();
+        let bridge, timer, ready = false, rendering = false, renderedRevision = -1;
+        let renderNumber = 0;
         let selection = { scope: 'all', selected: 'all' }, reset = true, disposed = false;
         let sessionRoot = '';
-        const sessionActions = [];
         let sessions = new Map();
         let runRoots = new Set();
         const notifications = new Set();
@@ -119,14 +119,9 @@ function activate(context) {
         }
         function stop() {
             clearInterval(timer);
-            lines?.close();
-            if (child) {
-                const owned = child;
-                child = undefined;
-                owned.stdin.end();
-                owned.kill();
-            }
-            busy = rendering = false;
+            bridge?.close();
+            bridge = undefined;
+            rendering = false;
         }
         function failure(message) {
             stop();
@@ -134,49 +129,40 @@ function activate(context) {
             if (!disposed) void panel.webview.postMessage({ type: 'error', message });
         }
         function poll() {
-            if (!child || !ready || busy || rendering || !panel.visible) return;
-            busy = true;
-            const sessionAction = sessionActions.shift();
-            child.stdin.write(JSON.stringify({ ...selection, reset, session_root: sessionRoot,
-                ...(sessionAction ? { session_action: sessionAction } : {}) }) + '\n');
-            reset = false;
+            if (!bridge || !ready || !panel.visible || rendering) return;
+            // Sources advance independently, with the existing render backpressure.
+            bridge.tick({ ...selection, session_root: sessionRoot });
+            void publish();
+        }
+        async function publish() {
+            if (!bridge || !ready || !panel.visible || disposed) return;
+            if (rendering || (!reset && renderedRevision === bridge.revision)) return;
+            try {
+                const current = bridge;
+                const snapshot = current.snapshot({ ...selection, reset });
+                selection = { scope: snapshot.scope, selected: snapshot.selected };
+                reset = false;
+                renderedRevision = current.revision;
+                runRoots = new Set(snapshot.runs.map(entry => entry.id));
+                sessions = new Map(snapshot.runs.filter(entry => entry.session)
+                    .map(entry => [entry.id, entry.session]));
+                const id = ++renderNumber;
+                rendering = id;
+                const delivered = await panel.webview.postMessage({ type: 'snapshot', id, ...snapshot });
+                if (!delivered && bridge === current && rendering === id) {
+                    current.results.unshift(...snapshot.session_results);
+                    rendering = false;
+                    reset = true;
+                }
+            } catch (error) { failure(`Watch bridge: ${error.message}`); }
         }
         function start() {
             stop();
             reset = true;
-            const owned = spawn('/usr/bin/python3', ['-B', path.join(root, 'tools', 'watch_webview.py'),
-                '--root', root], { cwd: root, stdio: ['pipe', 'pipe', 'pipe'] });
-            child = owned;
-            owned.on('error', error => {
-                if (child === owned) failure(`Cannot start watch: ${error.message}`);
-            });
-            owned.stdin.on('error', error => {
-                if (child === owned) failure(`Watch connection closed: ${error.message}`);
-            });
-            owned.stderr.on('data', data => output.append(data.toString()));
-            owned.on('exit', (code, signal) => {
-                if (child === owned) failure(`Watch backend stopped (${signal || code}). See ONPC Watch output; click Reconnect to retry.`);
-            });
-            lines = createInterface({ input: owned.stdout });
-            lines.on('line', async line => {
-                if (child !== owned || disposed) return;
-                try {
-                    const snapshot = JSON.parse(line);
-                    runRoots = new Set((snapshot.runs || []).map(entry => entry.id));
-                    sessions = new Map((snapshot.runs || []).filter(entry => entry.session)
-                        .map(entry => [entry.id, entry.session]));
-                    runLinks = new Set((snapshot.runs || []).flatMap(entry =>
-                        [...(entry.rows || []), ...(entry.error_rows || []),
-                            ...(entry.session_view?.rows || [])]
-                            .flatMap(row => row.map(part => part.link).filter(Boolean))));
-                    busy = false;
-                    rendering = true;
-                    const delivered = await panel.webview.postMessage({ type: 'snapshot', ...snapshot });
-                    if (!delivered) { rendering = false; reset = true; }
-                } catch (error) {
-                    failure(`Invalid watch response: ${error.message}`);
-                }
-            });
+            try {
+                const values = vscode.workspace.getConfiguration('onpc.watch', vscode.Uri.file(root)).get('sources', []);
+                bridge = new Bridge(configuration(values, root), message => output.appendLine(message), publish);
+            } catch (error) { failure(error.message); return; }
             timer = setInterval(poll, 200);
             poll();
         }
@@ -186,15 +172,17 @@ function activate(context) {
                 rendering = false;
                 reset = true;
                 poll();
-            } else if (message?.type === 'rendered') {
+            } else if (message?.type === 'rendered' && message.id === rendering) {
                 rendering = false;
+                void publish();
             } else if (message?.type === 'select' &&
-                       typeof message.scope === 'string' && message.scope.length <= 4096 &&
-                       typeof message.selected === 'string' && message.selected.length <= 256) {
+                       typeof message.scope === 'string' && message.scope.length <= 32768 &&
+                       typeof message.selected === 'string' && message.selected.length <= 32768) {
                 selection = { scope: message.scope, selected: message.selected };
                 reset = true;
                 poll();
             } else if (message?.type === 'restart') {
+                void panel.webview.postMessage({ type: 'error', message: 'Reconnecting. Unacknowledged input will not be resent; review the session before sending again.' });
                 start();
             } else if (message?.type === 'screenshot' && typeof message.png === 'string' &&
                        message.png.length <= 45 * 1024 * 1024 &&
@@ -213,41 +201,51 @@ function activate(context) {
                 sessionRoot = message.root;
                 poll();
             } else if (message?.type === 'sessionAction' &&
+                       typeof message.id === 'string' && message.id.length > 0 && message.id.length <= 128) {
+                const oversized = typeof message.text === 'string' && Buffer.byteLength(message.text) > 65536;
+                if (bridge &&
+                       typeof message.question === 'string' && message.question.length <= 4096 &&
+                       typeof message.text === 'string' && !oversized &&
+                       ['send', 'simplified', 'extend'].includes(message.kind) &&
                        typeof message.session === 'string' &&
                        sessions.get(message.root) === message.session &&
-                       (message.root === sessionRoot || message.kind === 'extend') &&
-                       ['send', 'simplified', 'extend'].includes(message.kind) &&
-                       typeof message.text === 'string' && Buffer.byteLength(message.text) <= 65536 &&
-                       typeof message.id === 'string') {
-                sessionActions.push({ root: message.root, session: message.session,
-                    kind: message.kind, text: message.text, id: message.id });
+                       (message.root === sessionRoot || message.kind === 'extend')) {
+                    bridge.action({ root: message.root, session: message.session, question: message.question,
+                        kind: message.kind, text: message.text, id: message.id });
+                } else if (bridge) {
+                    bridge.results.push({ id: message.id, ok: false,
+                        error: oversized ? 'Session input exceeds 64 KiB.' :
+                            'Session changed; review the current session before sending.' });
+                    bridge.revision++;
+                }
                 poll();
             } else if (message?.type === 'openRunFile' && typeof message.uri === 'string') {
-                if (!runLinks.has(message.uri)) return;
-                const uri = path.isAbsolute(message.uri) ? vscode.Uri.file(message.uri) :
-                    vscode.Uri.parse(message.uri);
-                if (uri.scheme !== 'file' || uri.authority || uri.query || uri.fragment) return;
-                // Only links supplied by the trusted backend for visible worktrees.
-                if (path.extname(uri.fsPath) === '.webm' && [...runRoots].some(checkout =>
-                        path.dirname(uri.fsPath) === path.join(checkout, 'output', 'test-runs', 'recordings'))) {
-                    // GIO dispatches by the desktop's MIME association on this host,
-                    // including Remote SSH. VS Code's file opener targets the editor.
-                    try {
-                        if (fs.realpathSync(uri.fsPath) !== uri.fsPath || !fs.lstatSync(uri.fsPath).isFile()) {
-                            throw new Error('Recording is no longer a regular file at the published path.');
-                        }
-                        desktopCommand('gio', ['open', uri.fsPath], 'Cannot open recording');
-                    } catch (error) {
-                        void vscode.window.showErrorMessage(`Cannot open recording: ${error.message}`);
-                    }
-                } else if (path.basename(uri.fsPath) === 'errors.md') {
-                    void vscode.window.showTextDocument(uri, { preview: false }).then(undefined,
-                        error => vscode.window.showErrorMessage(`Cannot open repair log: ${error.message}`));
-                }
+                void openArtifact(message.uri);
             }
         });
+        async function openArtifact(token) {
+            try {
+                const { result, remote } = await bridge.artifact(token);
+                if (result.error) throw new Error(result.error);
+                if (result.kind === 'file' && !remote) {
+                    if (!['video/webm', 'text/markdown'].includes(result.media_type)) throw new Error('Unsupported artifact media type.');
+                    const uri = new URL(result.uri);
+                    if (uri.protocol !== 'file:' || uri.host || uri.search || uri.hash) throw new Error('Invalid artifact URI.');
+                    const filename = fileURLToPath(uri);
+                    if (fs.realpathSync(filename) !== filename || !fs.lstatSync(filename).isFile()) throw new Error('Artifact is no longer a regular file.');
+                    if (result.media_type === 'video/webm') desktopCommand('gio', ['open', filename], 'Cannot open recording');
+                    else if (result.media_type === 'text/markdown') await vscode.window.showTextDocument(vscode.Uri.file(filename), { preview: false });
+                } else if (result.kind === 'text' && typeof result.text === 'string') {
+                    const document = await vscode.workspace.openTextDocument({ content: result.text, language: 'markdown' });
+                    await vscode.window.showTextDocument(document, { preview: false });
+                } else if (result.kind === 'video' && typeof result.data === 'string' && /^[A-Za-z0-9+/]*={0,2}$/.test(result.data)) {
+                    const video = vscode.window.createWebviewPanel('onpc.watch.recording', 'Watch recording', vscode.ViewColumn.Active, {});
+                    video.webview.html = `<!DOCTYPE html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src data:; style-src 'unsafe-inline';"></head><body style="margin:0;background:#111"><video controls autoplay style="width:100%;height:100vh" src="data:video/webm;base64,${result.data}"></video></body></html>`;
+                } else throw new Error('Adapter returned an unsupported artifact.');
+            } catch (error) { void vscode.window.showErrorMessage(`Cannot open Watch artifact: ${error.message}`); }
+        }
         const visibility = panel.onDidChangeViewState(() => {
-            if (panel.visible) { rendering = false; reset = true; poll(); }
+            if (panel.visible) { reset = true; poll(); }
         });
         panel.onDidDispose(() => {
             disposed = true;

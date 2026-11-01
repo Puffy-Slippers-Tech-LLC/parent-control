@@ -101,8 +101,11 @@ enabled. Enter sends chat directly; there is no Send button. Shift+Enter or
 Alt+Enter inserts a new line. Input is
 routed only to the displayed, still-current launcher session.
 Recording links in **Session**, **Status** and **Error** open through GIO using
-the desktop's default video application. They open on the extension host, also
-with Remote SSH, like opening the file in its file manager.
+the desktop's default video application for local sources. SSH sources transfer
+the selected recording on demand and play it in a VS Code video tab. Inline
+remote videos are limited to 64 MiB; larger recordings remain available on the
+source host. Remote error logs open as text in the editor (up to 2 MiB).
+Artifact transfer does not create local test-output copies.
 Repair case totals show green completed, red failed and total counts. The failed
 count is underlined; click it to open the cumulative `errors.md` in the editor.
 
@@ -111,7 +114,7 @@ VM progress, filtered command output and host resource usage. Screens are view
 only. Tiles and viewer tabs group by worktree in the left panel's current order,
 following changes on each refresh. Worktrees without a displayed run follow those
 shown on the left. Start tests through the usual launchers. Select an idle VM tab to wait for
-its next run. The Reconnect button restarts only this tab's reader.
+its next run. The Reconnect button restarts this tab's source connections.
 
 Each VM footer has an **SSH** toggle at the right, off by default. Turn it on
 to show the filtered command output above the footer. The choice is retained
@@ -154,13 +157,64 @@ reconnecting its reader starts fresh; pauses leave gaps rather than joined curve
 activity rather than maximum throughput; 100% busy does not necessarily mean an
 NVMe drive is saturated.
 
-The extension runs the selected trusted checkout's `tools/watch_webview.py` with
-system Python. That adapter uses shared checkout discovery,
-authenticated feeds and scope selection. Frames travel over private stdio,
-with one snapshot in flight and no listener port. Hidden tabs stop requesting
-snapshots; closing a tab stops its reader. Nothing is installed in the product
-or in a guest VM. No npm packages or compilation step are needed.
+Every source uses the same [versioned bridge protocol](BRIDGE.md), including the
+default local controller. The UI receives display snapshots and opaque IDs; it
+does not read controller files, VM sockets or session mailboxes. The local adapter
+is `tools/watch_webview.py`; it owns checkout discovery, authenticated local feeds,
+run/session state and artifact validation.
+
+Frames travel over private stdio, directly or over SSH, with one request in flight
+per source and no listener port. The bridge forwards existing PNGs without
+re-encoding, requests snapshots at the existing 200 ms interval, and renders
+responses on arrival. Unchanged images are omitted. A slow source cannot block
+another source. Hidden tabs stop requesting snapshots; closing Watch stops only
+its readers/connections. Nothing is installed in the product or in a guest VM.
+No npm packages or compilation step are needed.
+
+## Local and SSH sources
+
+With no configuration, Watch uses this checkout's local adapter as before. Set
+`onpc.watch.sources` in VS Code user or workspace settings to replace that default
+or combine sources. Source IDs must be unique and stable; labels identify hosts
+in run sections, viewer tabs and resource readings. Click Reconnect after editing.
+
+```json
+"onpc.watch.sources": [
+  { "id": "local", "label": "This computer", "transport": "local" },
+  {
+    "id": "garage",
+    "label": "Garage",
+    "transport": "ssh",
+    "host": "garage",
+    "root": "/srv/onpc/parent-control"
+  }
+]
+```
+
+Use an existing SSH config alias with key/agent access and an already verified
+host key. Watch uses noninteractive SSH without a PTY; it never installs remote
+software, changes host keys or starts test execution. The remote checkout must
+contain a compatible adapter and its prerequisites. Authentication/host-key
+refusals require fixing access and clicking Reconnect; transient disconnections
+retry automatically with a 1–15 second backoff.
+
+Each source can optionally specify a `command` argv array instead of the default
+Python reader. A future Kubernetes adapter can run on the SSH host and implement
+the same protocol, without changes to the bridge or UI. That backend is outside
+this implementation. Configured commands execute as the extension/SSH user in a
+trusted workspace; store connection credentials in SSH configuration, not settings.
+
+Remote controllers own execution and durable run state independently of Watch.
+Closing Watch, losing Wi-Fi or rebooting this computer does not cancel remote
+work. Reopening Watch reads saved source settings, reconnects and reloads retained
+remote run status, logs, transcripts and recordings. Normal source retention
+still applies. Chart history, undelivered text and other presentation-only state
+are not durable execution data. An interrupted input acknowledgement is reported
+as unknown delivery and is never automatically replayed; review the transcript
+before sending again.
 
 This is a Linux workspace extension. With Remote SSH, install it and open the
-checkout on the development host where the watch publications live. VS Code
-Workspace Trust is required.
+checkout on the extension host; SSH source connections originate there. A source
+configured as local always means that extension host. VS Code Workspace Trust is
+required. Activate extension changes with `./setup.sh --watch` and reload VS Code;
+no product installation or restart is involved.

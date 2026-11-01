@@ -17,9 +17,8 @@
     let tileLayout = ['auto', 'vertical', 'horizontal'].includes(saved?.tileLayout) ? saved.tileLayout : 'auto';
     let split = Number.isFinite(saved?.split) ? saved.split : 30;
     let pending = Promise.resolve();
-    let resourceSample;
+    const resourceSamples = new Map();
     let sessionRoot = '';
-    let actionNumber = 0;
     const actions = new Map();
 
     function countdown(node) {
@@ -123,7 +122,7 @@
     }
 
     function runSpan(parent, part) {
-        const linked = typeof part.link === 'string' && /(?:\.webm|\/errors\.md)$/.test(part.link);
+        const linked = typeof part.link === 'string';
         const span = linked ? link(parent, part.text,
             () => vscode.postMessage({ type: 'openRunFile', uri: part.link })) :
             element('span', '', parent);
@@ -134,16 +133,16 @@
     }
 
     function sessionAction(section, kind) {
-        if ((section.pending && kind !== 'extend') || !section.entry.session) return;
+        if ((section.pending && kind !== 'extend') || !section.entry.session || actions.size >= 16) return;
         if (kind === 'send' && (section.input.disabled || !section.input.value.trim())) return;
-        const id = String(++actionNumber);
+        const id = crypto.randomUUID();
         const text = kind === 'send' ? section.input.value :
             kind === 'extend' ? section.entry.session_question : '';
         if (kind !== 'extend') section.pending = id;
         actions.set(id, { section, kind, text });
         section.error.textContent = '';
         vscode.postMessage({ type: 'sessionAction', id, kind, root: section.entry.id,
-            session: section.entry.session, text });
+            session: section.entry.session, question: section.entry.session_question || '', text });
     }
 
     function sessionPanel(body) {
@@ -215,8 +214,8 @@
         section.working.hidden = !view.working;
         section.model.textContent = view.model;
         section.toggle.setAttribute('aria-checked', String(view.simplified));
-        section.toggle.disabled = !section.entry.session;
-        section.input.disabled = !view.input_enabled;
+        section.toggle.disabled = !section.entry.session || !section.entry.connected;
+        section.input.disabled = !view.input_enabled || !section.entry.connected;
     }
 
     function persist() {
@@ -377,20 +376,30 @@
         if (data === undefined) return;
         view.canvas.hidden = !data;
         view.waiting.hidden = Boolean(data);
+        view.waiting.textContent = 'Waiting for display';
         if (!data) {
             view.canvas.width = view.canvas.height = 0;
             view.screenshot.disabled = true;
             return;
         }
-        const [frame, cursor] = await Promise.all([
-            image(data.image), data.cursor ? image(data.cursor.image) : undefined
-        ]);
-        view.canvas.width = data.width;
-        view.canvas.height = data.height;
-        const context = view.canvas.getContext('2d', { alpha: false });
-        context.drawImage(frame, 0, 0);
-        if (cursor) context.drawImage(cursor, data.cursor.x, data.cursor.y);
-        view.screenshot.disabled = !view.canvas.width || !view.canvas.height;
+        try {
+            const [frame, cursor] = await Promise.all([
+                image(data.image), data.cursor ? image(data.cursor.image) : undefined
+            ]);
+            view.canvas.width = data.width;
+            view.canvas.height = data.height;
+            const context = view.canvas.getContext('2d', { alpha: false });
+            context.drawImage(frame, 0, 0);
+            if (cursor) context.drawImage(cursor, data.cursor.x, data.cursor.y);
+            view.screenshot.disabled = !view.canvas.width || !view.canvas.height;
+        } catch (error) {
+            // A corrupt source frame must not discard healthy viewers or run state.
+            view.canvas.width = view.canvas.height = 0;
+            view.canvas.hidden = true;
+            view.screenshot.disabled = true;
+            view.waiting.hidden = false;
+            view.waiting.textContent = error.message;
+        }
     }
 
     function terminal(text) {
@@ -512,6 +521,10 @@
                 section.collapsed = !entry.active;
             }
             section.entry = entry;
+            if (!entry.connected) {
+                section.input.disabled = true;
+                section.toggle.disabled = true;
+            }
             sessionHeading(section);
             section.heading.classList.toggle('failed', entry.status === 'failed');
             section.content.hidden = section.view !== 'status';
@@ -532,15 +545,7 @@
                 section.launcher.textContent = terminal(entry.launcher_output || 'Waiting for launcher output…');
                 if (follow) section.launcher.scrollTop = section.launcher.scrollHeight;
             }
-            // Keep the displayed status/error bodies when their owner exits.
-            // Session input still follows live ownership, and final log bytes drain above.
-            // Clear a pending question's controls before retaining the finished view.
-            if (!entry.active && entry.run && section.retainedRun === entry.run
-                    && section.retainedActive === false
-                    && !entry.session_waiting && !section.retainedWaiting) return;
-            section.retainedRun = entry.run;
-            section.retainedActive = Boolean(entry.active);
-            section.retainedWaiting = Boolean(entry.session_waiting);
+            // The adapter owns retained state, including late final status updates.
             const errorSignature = JSON.stringify(entry.error_rows);
             if (section.errorSignature !== errorSignature) {
                 section.errorSignature = errorSignature;
@@ -599,28 +604,47 @@
     }
 
     function resourceCharts(snapshot) {
-        if (resourceSample === snapshot.resource_sample) return;
-        resourceSample = snapshot.resource_sample;
-        resources.setAttribute('aria-label', snapshot.resources);
-        if (!resources.children.length) {
-            for (const name of ['CPU', 'Memory', 'Disk']) {
-                const group = element('span', 'resource', resources);
+        const ids = new Set(snapshot.hosts.map(host => host.id));
+        for (const node of Array.from(resources.children)) {
+            if (!ids.has(node.dataset.source)) { node.remove(); resourceSamples.delete(node.dataset.source); }
+        }
+        for (const host of snapshot.hosts) {
+            let row = Array.from(resources.children).find(node => node.dataset.source === host.id);
+            if (!row) {
+                row = element('span', 'host-resources', resources);
+                row.dataset.source = host.id;
+                element('span', 'host-status', row);
+            }
+            const signature = JSON.stringify([host.sample, host.status]);
+            if (resourceSamples.get(host.id) === signature) continue;
+            resourceSamples.set(host.id, signature);
+            const status = row.querySelector('.host-status');
+            status.textContent = host.show_label || !host.connected ? `${host.label}: ${host.status}` : '';
+            status.title = `${host.label}: ${host.status}`;
+            status.classList.toggle('disconnected', !host.connected);
+            row.setAttribute('aria-label', `${host.label}: ${host.status}. ${host.resources}`);
+            const groups = Array.from(row.querySelectorAll('.resource'));
+            const colors = ['52, 140, 230', '153, 102, 217', '255, 128, 26'];
+            host.charts.forEach((data, index) => {
+                const name = data.label;
+                let group = groups[index];
+                if (!group) {
+                    group = element('span', 'resource', row);
+                    element('strong', '', group);
+                    element('span', 'percentage', group);
+                    const canvas = element('canvas', 'resource-chart', group);
+                    canvas.width = 140;
+                    canvas.height = 44;
+                    canvas.setAttribute('aria-hidden', 'true');
+                }
                 group.title = `${name}: last minute, fixed 0–100% scale. History stays in memory only.` +
                     (name === 'Disk' ? ' Busiest physical disk (iostat %util); NVMe busy time is not throughput saturation.' : '');
-                element('strong', '', group).textContent = `${name}:`;
-                element('span', 'percentage', group);
-                const canvas = element('canvas', 'resource-chart', group);
-                canvas.width = 140;
-                canvas.height = 44;
-                canvas.setAttribute('aria-hidden', 'true');
-            }
+                group.querySelector('strong').textContent = `${name}:`;
+                group.querySelector('.percentage').textContent = data.text;
+                drawChart(group.querySelector('canvas'), data.segments, colors[index % colors.length]);
+            });
+            for (const group of groups.slice(host.charts.length)) group.remove();
         }
-        const colors = ['52, 140, 230', '153, 102, 217', '255, 128, 26'];
-        snapshot.resource_charts.forEach((data, index) => {
-            const group = resources.children[index];
-            group.querySelector('.percentage').textContent = data.text;
-            drawChart(group.querySelector('canvas'), data.segments, colors[index]);
-        });
     }
 
     function drawChart(canvas, segments, color) {
@@ -648,8 +672,8 @@
     }
 
     async function render(snapshot) {
-        const result = snapshot.session_result;
-        if (result && actions.has(result.id)) {
+        for (const result of snapshot.session_results || []) {
+            if (!actions.has(result.id)) continue;
             const { section, kind, text } = actions.get(result.id);
             actions.delete(result.id);
             if (kind !== 'extend') section.pending = undefined;
@@ -694,9 +718,7 @@
                 view.memory.querySelector('.memory-value').textContent = entry.memory?.text || '—';
                 drawChart(view.memory.querySelector('canvas'), entry.memory?.segments || [], '153, 102, 217');
             }
-            view.status.textContent = entry.kind === 'vm'
-                ? entry.status.replace(/\bsnapshot "([^"]+)"/g, 'snapshot $1').replace(/ - (\([^()]+\))$/, ' $1')
-                : entry.status;
+            view.status.textContent = entry.status;
             const text = terminal(entry.activity);
             if (view.activity.textContent !== text) {
                 const follow = view.activity.scrollHeight - view.activity.clientHeight - view.activity.scrollTop < 24;
@@ -711,7 +733,7 @@
     window.addEventListener('message', event => {
         if (event.data.type === 'snapshot') {
             pending = pending.then(() => render(event.data)).catch(error => message(error.message))
-                .finally(() => vscode.postMessage({ type: 'rendered' }));
+                .finally(() => vscode.postMessage({ type: 'rendered', id: event.data.id }));
         } else if (event.data.type === 'error') {
             for (const { section } of actions.values()) {
                 section.pending = undefined;

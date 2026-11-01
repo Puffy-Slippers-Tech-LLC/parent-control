@@ -884,8 +884,16 @@ launchers, and its `ExecutionPlanView` specialization owns all plan panel wiring
 Every execution-plan launcher, including `write-e2e`, supplies its checkout and
 master plan to that specialization. It inherits the same layout, queue totals,
 task/session labels, live timing, suspension display, completion overview and
-observer reload identity. The shared progress infrastructure publishes compact
-completion rows for both normal and recovered close-out. Individual plan engines
+observer reload identity. Watch's Status tab uses the same plan totals and
+duration above the task/session rows for every plan launcher. The shared Session
+link shows the current task's session number until completion. Pending questions
+inherit flashing status, countdowns and the `+10m` action for timed questions,
+including when a fresh run resumes directly into an unanswered blocker.
+Shared presentation metadata records the master path and optional explicit queue
+in the owned run;
+older ordinary-plan runs use their retained queue totals until reattached.
+The shared progress infrastructure publishes compact completion
+rows for both normal and recovered close-out. Individual plan engines
 own task data, session descriptions and accepted completion boundaries; they do
 not implement panel formatting or wiring. Thin plan entry points supply only
 `PlanWorkflow` configuration. Non-plan launchers such as `fix-tests` use the base

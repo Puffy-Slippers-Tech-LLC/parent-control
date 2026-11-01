@@ -147,12 +147,12 @@ class Output:
         self.summary_clock = {}
 
     def task_summary(self, active):
-        """Use the write-e2e observer's accepted counters and shared rendering."""
+        """Use every execution plan's accepted counters and shared rendering."""
         from launcher_display import task_summary_lines
         from launcher_runtime import task_counters
         from launcher_session import clock_duration
-        from launcher_view import plan_totals
-        if self.run is None or self.run.parent.name != 'write-e2e':
+        from launcher_view import observed_plan_totals
+        if self.run is None or not self.execution_plan:
             return []
         if self.summary_run != self.run:
             self.summary_run = self.run
@@ -160,8 +160,7 @@ class Output:
             self.summary_clock = {}
         try:
             _, totals, baseline = task_counters(self.run,
-                plan_totals(self.root, 'docs/TestAutomation/E2E-Execution-Plan.md',
-                            queue='docs/TestAutomation/E2E-Task-Queue.md'),
+                observed_plan_totals(self.root, self.run, self.reader),
                 completed_before=self.completed_before)
             self.task_totals, self.completed_before = totals, baseline
         except (OSError, ValueError, KeyError, TypeError):
@@ -179,6 +178,12 @@ class Output:
                                    else time.monotonic()) - origin)
                     if origin is not None else '—')
         return task_summary_lines(self.task_totals, duration)
+
+    @property
+    def execution_plan(self):
+        return self.run is not None and (self.run.parent.name == 'write-e2e'
+                                        or self.run.parent.parent.name == 'plans'
+                                        or (self.run / 'plan-view.json').exists())
 
     @property
     def repair(self):
@@ -210,7 +215,7 @@ class Output:
         from launcher_progress import repair_progress
         from launcher_render import clean
         steps = snapshot(self.run / 'controller.json', steps=True, reader=self.reader)
-        if self.run.parent.name == 'write-e2e' or self.run.parent.parent.name == 'plans':
+        if self.execution_plan:
             from launcher_progress import plan_status
             steps = plan_status(self.run, steps, reader=self.reader, active=active)
         if self.repair:

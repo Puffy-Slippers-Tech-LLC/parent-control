@@ -59,12 +59,17 @@ changes with `tools/fix-tests --reload`; `./setup.sh --watch` updates the extens
 The links remain available in every view, including while idle. The copy icon
 before **Status** copies the current tab's body as plain text to the clipboard;
 in **Session**, it copies the displayed transcript.
-For `write-e2e`, **Status** starts with **Total Tasks: completed/unfinished/total**
+For every execution-plan launcher, including `write-e2e` and `broker`, **Status**
+starts with **Total Tasks: completed/unfinished/total**
 and **Total Duration**, using the shared launcher counters and colors. A divider
 spans the panel above the completed task recaps and current task/session rows.
 For every execution-plan launcher, completed and current task headings end with
 ` | <duration>` from the retained task clock across sessions. The session summary
 ends with ` | <duration>` from its owner session clock.
+The **Session** link shows **Session N** for the current task, including between
+sessions and while awaiting an answer; it resets when that task completes.
+Every execution-plan launcher inherits the shared pending-input controls,
+including after restarting into an unanswered question.
 While waiting for input, the Status body shows
 `Paused - waiting for your answer (mm:ss +10m)` for timed questions.
 The waiting text flashes in the same red as stopped/blocked statuses; the deadline

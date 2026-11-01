@@ -118,8 +118,10 @@ def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
         elif timeout is not None and 'deadline' not in previous:
             launcher.atomic(path, dict(previous, deadline=time.time() + timeout))
     fresh = False
-    if intervention:
-        view_path = run / 'session-view.json'
+    view_path = run / 'session-view.json'
+    # A resumed plan may reach its unanswered blocker before any agent starts.
+    # Publish the same session surface so every observer can route the answer.
+    if intervention or not view_path.exists():
         view = json.loads(view_path.read_text()) if view_path.exists() else {}
         fresh = view.get('session') != identity
         if fresh:

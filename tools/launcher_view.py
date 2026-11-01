@@ -25,6 +25,25 @@ def plan_totals(root, path, *, queue=None):
     return completed, len(tasks) - completed, len(tasks)
 
 
+def observed_plan_totals(root, run, reader):
+    """Resolve plan counters from shared presentation metadata, including old runs."""
+    try:
+        projection = reader.read(run / 'plan-view.json')
+    except FileNotFoundError:
+        if run.parent.name == 'write-e2e':
+            return plan_totals(root, 'docs/TestAutomation/E2E-Execution-Plan.md',
+                               queue='docs/TestAutomation/E2E-Task-Queue.md')
+        elif run.parent.parent.name == 'plans':
+            # Older ordinary-plan runs did not publish their master path.
+            # Their retained queue still supplies totals until reattachment.
+            tasks = reader.read(run / 'checkpoint.json')['queue_before']
+            completed = sum(tasks.values())
+            return completed, len(tasks) - completed, len(tasks)
+        else:
+            return None
+    return plan_totals(root, projection['plan'], queue=projection.get('queue'))
+
+
 def whatsnew_totals(root=None):
     """Count complete languages across all records of the latest release."""
     from tools import whats_new_catalogs as catalogs
@@ -50,6 +69,12 @@ class WorkflowView:
     cancel_on_ctrl_c: bool = False
     plan: tuple | None = None
     execution_tabs: bool = False
+    plan_queue: str | None = None
+
+    def publish(self, run):
+        if self.plan is not None:
+            from detached_launcher import atomic
+            atomic(run / 'plan-view.json', {'plan': self.plan[1], 'queue': self.plan_queue})
 
     def display(self, stream, run):
         from launcher_display import TaskDisplay
@@ -68,7 +93,8 @@ class ExecutionPlanView(WorkflowView):
         super().__init__('chat', True,
             lambda run, steps, child_steps: plan_progress(run, steps, child_steps,
                 remaining=lambda: plan_totals(root, path, queue=queue)[1]),
-            lambda: plan_totals(root, path, queue=queue), plan=(str(root), path))
+            lambda: plan_totals(root, path, queue=queue), plan=(str(root), path),
+            plan_queue=queue)
 
 
 def plan_view(root, path, *, queue=None):

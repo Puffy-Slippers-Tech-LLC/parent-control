@@ -15,7 +15,7 @@ def reload_if_requested(request, run, label, view, display, *, test_session=Fals
         # contexts unwind. It resumes this exact run, never the original CLI.
         display.reloading = True
         raise launcher_bootstrap.ReloadObserver(json.dumps({
-            'run': str(run), 'label': label, 'plan': view.plan,
+            'run': str(run), 'label': label, 'plan': view.plan, 'queue': view.plan_queue,
             'test_session': test_session}))
 
 
@@ -29,7 +29,8 @@ def main():
         if not run.is_dir():
             raise ValueError('retained run is unavailable')
         launcher.private_directory(run)
-        view = plan_view(*request['plan']) if request['plan'] else view_for(label)
+        view = (plan_view(*request['plan'], queue=request.get('queue'))
+                if request['plan'] else view_for(label))
         previous = signal.getsignal(signal.SIGINT)
         if label != 'sync-whatsnew':
             signal.signal(signal.SIGINT, lambda *_: (run / 'cancel').touch(mode=0o600))

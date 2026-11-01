@@ -191,7 +191,16 @@ class Viewer:
             session_run = session.run if session.active else None
             session_number = None
             session_inactive = not session.active
-            if output.repair and session.run is not None:
+            if output.execution_plan:
+                try:
+                    state = output.reader.read(output.run / 'checkpoint.json', limit=2 * 1024 * 1024)
+                    number = state.get('task_sessions')
+                    if state.get('phase') != 'complete' and type(number) is int and number > 0:
+                        session_number = number
+                    session_inactive = session_number is None
+                except (OSError, ValueError, KeyError, TypeError):
+                    pass
+            elif output.repair and session.run is not None:
                 # The case remains unfinished during verification and between
                 # agent attempts. Only accepted repair close-out removes it.
                 try:

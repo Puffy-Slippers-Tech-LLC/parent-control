@@ -1037,6 +1037,7 @@ def follow_output(run, stream, display, *, label='launcher', test_session=False,
     from watch_output import JsonReader, snapshot
     reader = JsonReader()
     view = view or view_for(label)
+    view.publish(run)
     decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
     forwarded = None
     # Internal test-output forwarding remains in its owning process. Public

@@ -284,7 +284,9 @@ def test_malformed_inventory_is_refused_without_echoing_contents(checkout):
 def test_ready_declaration_still_requires_valid_artifacts(checkout, artifact, code):
     path = checkout / 'tests/e2e/scenarios.json'
     document = json.loads(path.read_text())
-    document['scenarios'] = document['scenarios'][:1]
+    # Keep the smoke fixture independent of customer-journey ordering and inputs.
+    document['scenarios'] = [scenario for scenario in document['scenarios']
+                             if scenario['id'] == 'E2E-001']
     executable = checkout / 'tests/e2e/synthetic.py'
     executable.write_text('raise AssertionError("must not execute")\n')
     document['scenarios'][0]['variants'][0].update(

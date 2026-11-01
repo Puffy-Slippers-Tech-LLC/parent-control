@@ -1,16 +1,39 @@
 # Replace the extension's access to Main.timeLimitsManager
 
-Status: row 4 exploration; no replacement source or installed acceptance is
+Status: row 4 exploration; phase 1 is bounded research and a proof of concept
+(POC), not production delivery. No replacement source or installed acceptance is
 delivered. This document owns the timing-input investigation, not an accounting
 replacement or expiry implementation. The [broker queue](../Broker-Expiry-Task-Queue.md)
-schedules the bounded exploration and contract review.
+schedules the exploration and contract review; its current review-only briefs
+must be revised to the finite POC scope below before prototype execution.
+
+## Priorities and adoption rule
+
+Reliability, robustness and usability are the highest priorities. Removing the
+extension dependency is valuable only if the resulting product is better on
+those terms. The candidate removes a known failure mode but introduces tracking,
+reconciliation and recovery risks; lower overall risk is not established yet.
+There is no current guarantee that its worst case is no worse than today's.
+
+Keep the current production timing path throughout phase 1. A prototype must
+not supply product timing decisions, approvals or enforcement. A negative or
+inconclusive result is a valid outcome: retain the current implementation rather
+than adopt an unproven replacement.
+
+Adoption requires evidence of improvement when the extension is disabled and
+preserved behavior in normal use and supported recovery. Assess unavailable
+status, failed approvals, recovery time and required user intervention alongside
+accounting correctness. Refusing an uncertain read can be correct yet make the
+product less usable; more frequent or prolonged unavailability is not an
+automatic reliability improvement. Unresolved material regressions block adoption.
 
 ## Problem and boundaries
 
 An unrelated extension can crash GNOME Shell, after which GNOME may disable
 extensions globally. Our extension then loses its timing bridge even when the
-native desktop has recovered. Essential timing must eventually stop depending
-on our extension being enabled. Surviving extension disablement is distinct from
+native desktop has recovered. The goal is to remove essential timing's dependency
+on our extension being enabled, subject to the adoption rule above.
+Surviving extension disablement is distinct from
 providing secure locking while Shell itself is crashed or hung.
 
 The current extension reads `Main.timeLimitsManager.dailyLimitTime` inside the
@@ -113,6 +136,80 @@ framework or promise perfect crash recovery:
   consumers and their failure paths. Do not silently migrate Parent/kiosk/PAM
   or claim that a timing observer fixes Shell resume/unlock compatibility bugs.
 
+## Phase 1: bounded research and proof of concept
+
+Allow 1–2 sessions for research and, only if the candidate remains viable,
+1–2 sessions for a POC: at most four sessions before a decision. These are
+planning limits, not a promise of feasibility. Stop earlier on a decisive
+blocker. At the limit, report unresolved questions and a recommendation; do not
+automatically extend the investigation or begin production implementation.
+
+### Research gate
+
+Review only the relevant public interfaces, native recording behavior and
+existing consumer call chain. Answer the feasibility questions above with a
+small observation contract: subscription/read ordering, identity, interval
+union and precision, clock handling, invalidation, and startup/recovery rules.
+Prioritize whether missing activity can be reconstructed without persistence.
+For any unknowable interval, identify when reads become unavailable, what
+restores trustworthy state, and the resulting user impact. An indefinite wait
+for an unspecified future event is not a resolved recovery policy.
+
+Proceed to the POC only with a concrete candidate and finite checks. If required
+history is unavailable and no acceptable recovery policy fits the constraints,
+return blocked rather than build around guessed usage. Use the existing queue;
+revise its review-only briefs and acceptance before running a prototype. Do not
+create a parallel execution plan or activate deferred delivery rows.
+
+### POC boundary
+
+Use a small, disposable observer in a maintained engineering route, with
+in-memory state only. It reads public inputs and calculates candidate results
+without feeding them into production consumers. No packaged production change,
+new daemon, durable ledger, usage write, scheduler or enforcement handover is
+part of phase 1. Any test setup changes use existing owners and are restored.
+
+Start on one declared target; proceed to the other only if no decisive blocker
+remains. Bound live checks to Ubuntu 26.04 and Fedora 44, using one controlled
+child account and a second session only for the identity/overlap check:
+
+1. Observe uninterrupted activity and a native save: repeated reads must not
+   move expiry forward or double count the saved interval.
+2. Start the observer midway through activity, then restart it. Establish the
+   missing beginning or demonstrate the exact unavailable and recovery path.
+3. Observe idle/return, lock/unlock, user switching and sleep/resume. Check native
+   activity semantics and account/session identity, including overlapping sessions.
+4. Check daily-only, grant-only and shorter-grant controls, plus local-day and
+   clock changes. Use existing focused engineering checks where appropriate;
+   do not build a new lifecycle test framework.
+5. Disable the extension in the controlled session and compare candidate
+   progress with the preceding native comparison and subsequent saved usage.
+   Do not claim the saved records alone prove live accuracy. Exercise observer
+   restart and bounded loss of the timer/logind/Shell owner through existing
+   engineering routes; record which gaps remain unrecoverable.
+
+Compare with the current native timing path while it is available, without
+treating it as an oracle during its known failure conditions. Define precision
+tolerances and bounded read/recovery expectations before the checks. Keep
+results and limitations in the normal task result; restore owned state and
+finish cleanup. This is a feasibility POC, not full customer acceptance or
+proof of secure locking during a Shell outage.
+
+### Phase 1 result
+
+Return one recommendation: feasible, feasible within an explicit scope, or
+blocked. Include the observed benefit, correctness/availability differences,
+remaining risks, recovery limits and a revised work estimate. An incomplete POC
+cannot support adoption. A scoped result must say which consumers and lifecycle
+conditions it covers; it cannot silently narrow existing product guarantees.
+
+Only a promising result justifies revising the existing execution plan into
+finite implementation, integration, independent review and validation tasks.
+Keep delivery deferred until that scope is explicitly activated. Production
+adoption additionally requires all affected consumers to pass their checks,
+both target results, and a concrete way to return to the current path if a
+regression appears. Phase 1 alone establishes none of those delivery gates.
+
 ## Decision and delivery gate
 
 Read [Screen time](Screen-Time.md#grant-arithmetic-and-usage-identities),
@@ -120,8 +217,10 @@ Read [Screen time](Screen-Time.md#grant-arithmetic-and-usage-identities),
 [Broker](Broker.md#runtime-hierarchy-and-trust-boundaries). Follow the existing
 native reader call chain through core, adapter, helper and extension export;
 the task briefs own exact reading routes. Use public research and only necessary
-bounded read-only inspection. Read the VM mandate before guest work; this
-document neither selects/prepares a VM nor authorizes installation or a prototype.
+bounded read-only inspection. Read the VM mandate before guest work. This
+document defines the proposed POC boundary; it does not select/prepare a VM,
+authorize installation, or make the current review-only briefs executable POC
+instructions. Revising this design does not itself execute phase 1.
 
 The result must say feasible, feasible only within an explicitly stated scope,
 or blocked, with the exact unresolved boundary. A negative finding is useful;

@@ -424,8 +424,10 @@
             // Session input still follows live ownership, and final log bytes drain above.
             // Clear a pending question's controls before retaining the finished view.
             if (!entry.active && entry.run && section.retainedRun === entry.run
+                    && section.retainedActive === false
                     && !entry.session_waiting && !section.retainedWaiting) return;
             section.retainedRun = entry.run;
+            section.retainedActive = Boolean(entry.active);
             section.retainedWaiting = Boolean(entry.session_waiting);
             const errorSignature = JSON.stringify(entry.error_rows);
             if (section.errorSignature !== errorSignature) {

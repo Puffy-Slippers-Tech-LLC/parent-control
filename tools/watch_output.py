@@ -235,6 +235,10 @@ class Output:
                     seen_vm = True
                 spaced.append(line)
             details = spaced
+        if not active and self.completion_status() == 'stopped':
+            details = [line for line in details
+                       if not clean(line).startswith('Tests interrupted.')]
+            details.append('\033[32mLauncher has stopped.\033[0m')
         return steps, details
 
     def progress(self, active, data=b''):

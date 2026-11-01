@@ -1796,6 +1796,10 @@ down safely; please wait for cleanup to finish.” Repeated interrupts keep the
 same cooperative cleanup behavior. After owned commands exit, the notice changes
 to “Tests interrupted. Shutdown finished; see cleanup results above.” This applies
 to host-only runs and every stage of both complete aggregates.
+Once the launcher owner exits and its interrupted result is available, the
+shared observer prints “Launcher has stopped.” in green, and Watch replaces
+its stale interruption notice with the same green text. This final notice
+appears after owned cleanup, including launcher-level VM recovery, finishes.
 
 The maintained launchers hold a checkout activity lock for the full command,
 including cleanup. Aggregate children join through an inherited locked file

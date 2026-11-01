@@ -1106,10 +1106,15 @@ def follow_output(run, stream, display, *, label='launcher', test_session=False,
                     if not result.exists():
                         display.write('\nTest owner stopped without a final result; run is incomplete.\n', saved=False)
                     (run / 'delivered').touch(mode=0o600)
+                    if status == 130 and destination is None:
+                        display.write('\n\033[32mLauncher has stopped.\033[0m\n', saved=False)
                     return status
                 result = run / 'result.json'
                 if not result.exists():
                     display.write(f'\n{label}: worker ended without a result; inspect the saved handoff before restarting.\n', saved=False)
                     return 1
-                return json.loads(result.read_text())['status']
+                status = json.loads(result.read_text())['status']
+                if status == 130 and destination is None:
+                    display.write('\n\033[32mLauncher has stopped.\033[0m\n', saved=False)
+                return status
             time.sleep(.1)

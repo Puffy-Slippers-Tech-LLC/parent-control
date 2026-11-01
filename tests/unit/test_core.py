@@ -1320,7 +1320,7 @@ class CoreTests(unittest.TestCase):
         self.assertIn(("set_extension", 1001, accounts.extension), accounts.events)
 
     def test_child_estimate_and_approval_include_ongoing_use_without_increasing_authority(self):
-        for native, grant, expected in ((1699, 0, 1729), (9999, 0, 1830), (0, 600, 630)):
+        for native, grant, expected in ((1699, 600, 1729), (9999, 0, 1830), (0, 600, 630)):
             with self.subTest(native=native, grant=grant):
                 accounts, preferences, usage = Accounts(), Preferences(), TimerUsage()
                 preferences.values[1001].update(parent_control_enabled=True,
@@ -1335,6 +1335,37 @@ class CoreTests(unittest.TestCase):
                 self.assertEqual(usage.as_calls, [(1001, 1003, "admin")])
                 self.assertEqual(usage.query_native_deadline.call_args_list,
                                  [mock.call(1001), mock.call(1001)])
+
+    def test_fresh_native_status_reads_consume_one_deadline_without_writes(self):
+        accounts, preferences, usage = Accounts(), Preferences(), TimerUsage()
+        preferences.values[1001].update(parent_control_enabled=True,
+                                       daily_time_limit_minutes=30)
+        usage.query_native_deadline = mock.Mock(return_value=200_500_000)
+        clock = mock.Mock(return_value=100)
+        broker = make_broker(accounts=accounts, preferences=preferences,
+                             timer_usage=usage, clock=clock)
+        accounts.extension = (int(broker._now().timestamp()), 60)
+        for elapsed, daily in ((100, 101), (140, 61), (180, 21)):
+            with self.subTest(elapsed=elapsed):
+                clock.return_value = elapsed
+                status = broker.get_time_status(1001, 1001, 30)
+                self.assertEqual(status.daily_allowance_remaining_seconds, daily)
+                self.assertEqual(status.one_time_grant_remaining_seconds, 60)
+                self.assertEqual(status.calculated_active_extension_seconds, max(daily, 60) + 30)
+        self.assertEqual(usage.query_native_deadline.call_args_list, [mock.call(1001)] * 3)
+        self.assertEqual(usage.calls, [1001] * 3)
+        self.assertFalse(any(event[0].startswith("set_") for event in accounts.events))
+
+    def test_unavailable_native_status_refuses_instead_of_using_recorded_balance(self):
+        accounts, preferences, usage = Accounts(), Preferences(), TimerUsage()
+        preferences.values[1001].update(parent_control_enabled=True,
+                                       daily_time_limit_minutes=30)
+        usage.query_native_deadline = mock.Mock(side_effect=RuntimeError("unavailable"))
+        broker = make_broker(accounts=accounts, preferences=preferences, timer_usage=usage)
+        with self.assertRaises(BackendFailure):
+            broker.get_time_status(1001, 1001, 30)
+        usage.query_native_deadline.assert_called_once_with(1001)
+        self.assertEqual(accounts.events, [])
 
     def test_native_balance_failure_or_identity_change_cannot_write_a_grant(self):
         for invalidation in ("unavailable", "approver-changed"):
@@ -1493,23 +1524,44 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(accounts.events, [])
 
     def test_rest_of_day_is_calculated_after_approval(self):
-        accounts = Accounts()
-        make_broker(accounts=accounts).request_access(991, ":1.2", 1001, 1003, 0, False)
-        self.assertEqual(accounts.extension[1], 14 * 60 * 60)
+        for surface in ("child", "kiosk"):
+            with self.subTest(surface=surface):
+                accounts, preferences, usage = Accounts(), Preferences(), TimerUsage()
+                preferences.values[1001].update(parent_control_enabled=True,
+                                               daily_time_limit_minutes=30)
+                usage.query_native_deadline = mock.Mock(side_effect=RuntimeError("unavailable"))
+                usage.query_usage_as = mock.Mock(side_effect=RuntimeError("unavailable"))
+                broker = make_broker(accounts=accounts, preferences=preferences, timer_usage=usage)
+                accounts.extension = (int(broker._now().timestamp()), 24 * 60 * 60)
+                if surface == "child":
+                    result = broker.request_own_access(1001, ":1.child", 1003, 0, False)
+                else:
+                    result = broker.request_access(991, ":1.kiosk", 1001, 1003, 0, False)
+                self.assertEqual(result[1], "approved")
+                self.assertEqual(accounts.extension[1], 14 * 60 * 60)
+                usage.query_native_deadline.assert_not_called()
+                usage.query_usage_as.assert_not_called()
 
     def test_denial_makes_no_writes_and_one_check(self):
-        auth, accounts, timer_usage = Authorizer("denied"), Accounts(), TimerUsage()
-        running_apps = RunningApps()
-        result = make_broker(
-            auth, accounts, timer_usage=timer_usage, running_apps=running_apps,
-        ).request_access(
-            991, ":1.2", 1001, 1003, 900, False,
-        )
-        self.assertEqual(result[1], "denied")
-        self.assertEqual(len(auth.calls), 1)
-        self.assertEqual(timer_usage.as_calls, [])
-        self.assertEqual(accounts.events, [])
-        self.assertEqual(running_apps.calls, [])
+        for surface in ("child", "kiosk"):
+            with self.subTest(surface=surface):
+                auth, accounts, timer_usage = Authorizer("denied"), Accounts(), TimerUsage()
+                preferences, running_apps = Preferences(), RunningApps()
+                preferences.values[1001].update(parent_control_enabled=True,
+                                               daily_time_limit_minutes=30)
+                timer_usage.query_native_deadline = mock.Mock(side_effect=RuntimeError("unavailable"))
+                broker = make_broker(auth, accounts, preferences=preferences,
+                                     timer_usage=timer_usage, running_apps=running_apps)
+                if surface == "child":
+                    result = broker.request_own_access(1001, ":1.child", 1003, 900, False)
+                else:
+                    result = broker.request_access(991, ":1.kiosk", 1001, 1003, 900, False)
+                self.assertEqual(result[1], "denied")
+                self.assertEqual(len(auth.calls), 1)
+                self.assertEqual(timer_usage.as_calls, [])
+                timer_usage.query_native_deadline.assert_not_called()
+                self.assertEqual(accounts.events, [])
+                self.assertEqual(running_apps.calls, [])
 
     def test_kiosk_usage_query_runs_as_authenticated_approver(self):
         timer_usage = TimerUsage()
@@ -1615,14 +1667,21 @@ class CoreTests(unittest.TestCase):
         preferences.values[1001]["daily_time_limit_minutes"] = 32
         accounts.extension = (int(now.timestamp()), 10 * 60)
         start = int(datetime(2026, 8, 30, tzinfo=now.tzinfo).timestamp())
+        usage = TimerUsage(((start, start + 60),))
+        usage.query_native_deadline = mock.Mock(side_effect=RuntimeError("unavailable"))
 
-        make_broker(
+        broker = make_broker(
             accounts=accounts,
             preferences=preferences,
-            timer_usage=TimerUsage(((start, start + 60),)),
-        ).request_access(991, ":1.2", 1001, 1003, 5 * 60, False)
+            timer_usage=usage,
+        )
+        status = broker.get_time_status(991, 1001, 5 * 60)
+        self.assertEqual(status.daily_allowance_remaining_seconds, 31 * 60)
+        self.assertEqual(status.calculated_active_extension_seconds, 36 * 60)
+        broker.request_access(991, ":1.2", 1001, 1003, 5 * 60, False)
 
         self.assertEqual(accounts.extension[1], 36 * 60)
+        usage.query_native_deadline.assert_not_called()
 
     def test_request_restores_configured_daily_allowance(self):
         accounts = Accounts()

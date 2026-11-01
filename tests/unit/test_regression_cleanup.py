@@ -249,8 +249,8 @@ def test_phase_joins_preserve_counts_times_and_vertical_spacers():
     dashboard.cleanup_started, dashboard.cleanup_elapsed = 110, 20
     dashboard.host_started = 130
     frame = dashboard.ANSI.sub('', '\n'.join(dashboard.render(190)))
-    assert '\n│\n└─ Join cleanup prerequisites — passed — 0.5m wall time' in frame
-    assert '\n│\n└─ Join host branches — waiting for host work — 1.5m wall time' in frame
+    assert '\n│\n└─ Join cleanup prerequisites — passed — 00:30 wall time' in frame
+    assert '\n│\n└─ Join host branches — waiting for host work — 01:30 wall time' in frame
     assert frame.index('Join cleanup prerequisites') < frame.index('[Running] Unit')
     assert 'Overall - 33% (1/3)' in frame
 

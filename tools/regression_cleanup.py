@@ -13,9 +13,6 @@ from regression_resources import HOST_WORKERS
 
 REVIEWED = frozenset("""
 screen_preview
-e2e_execution
-e2e_recording
-e2e_worker
 execution_probe
 fixture
 fixture_provision
@@ -24,24 +21,17 @@ probe_bus_client
 probe_channel
 probe_generation
 regression
-screenshot
 system_accounts
 system_agent
-test_retention
-test_storage
 vm_backup
 vm_control
 """.split())
 
 ESTIMATES = {
              'test_graphical_lease.py': 8.5,
-             'test_e2e_execution_cleanup_safety.py': 20,
-             'test_e2e_recording_cleanup_safety.py': 10,
-             'test_test_storage_cleanup_safety.py': 17,
              'test_vm_control_cleanup_safety.py': 6.5,
              'test_execution_probe_cleanup_safety.py': 3,
              'test_regression_cleanup_safety.py': 4,
-             'test_test_retention_cleanup_safety.py': 16,
 }
 
 

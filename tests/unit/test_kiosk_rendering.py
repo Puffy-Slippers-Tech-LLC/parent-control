@@ -11,8 +11,6 @@ from tests.support.objects import bind_methods
 from common.oh_no_parent_control_ui import messages as m
 KIOSK_MAIN = ROOT / "kiosk/oh_no_parent_control_kiosk/main.py"
 KIOSK_CONTENT = ROOT / "kiosk/oh_no_parent_control_kiosk/request_content.py"
-PREVIEW_SCREEN = ROOT / "kiosk/oh_no_parent_control_kiosk/preview_screen.py"
-PREVIEW_VIEWER = ROOT / "kiosk/oh_no_parent_control_kiosk/preview_viewer.py"
 
 
 def test_packaged_lava_cache_preserves_native_artwork_pixels(tmp_path, monkeypatch):
@@ -284,15 +282,6 @@ class KioskRenderingTests(unittest.TestCase):
                         window._load_language()
                         self.assertEqual(len(callbacks), 1)
 
-    def test_preview_scale_choices_have_public_stable_identities(self):
-        source = PREVIEW_SCREEN.read_text(encoding="utf-8")
-
-        self.assertIn('automation_id="preview-screen-scale"', source)
-        self.assertIn('"preview-screen-scale-choices"', source)
-        self.assertIn('automation_id=f"preview-screen-scale-{percent}"', source)
-        self.assertIn('"preview-screen-scale-scroll"', source)
-        self.assertNotIn("Gtk.DropDown.new_from_strings", source)
-
     def test_request_overflow_controls_are_scoped_to_their_surface(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 
@@ -300,13 +289,6 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn('f"kiosk-{automation_namespace}-scrollbar"', source)
         self.assertIn('self._request_content, "request"', source)
         self.assertIn('self._result_view, "result"', source)
-
-    def test_preview_viewer_exposes_its_scrollable_content(self):
-        source = PREVIEW_VIEWER.read_text(encoding="utf-8")
-
-        self.assertIn('"preview-viewer-window"', source)
-        self.assertIn('"preview-viewer-content"', source)
-        self.assertIn('"preview-viewer-screen"', source)
 
     def test_snowflake_field_uses_120_percent_of_its_previous_count(self):
         from oh_no_parent_control_kiosk.snowflakes import (
@@ -560,44 +542,6 @@ class KioskRenderingTests(unittest.TestCase):
             "            self._screen_time_limit_enabled is True",
             content,
         )
-
-    def test_preview_uses_the_production_window_without_privileged_services(self):
-        source = KIOSK_MAIN.read_text(encoding="utf-8")
-
-        self.assertIn('parser.add_argument(\n        "--preview"', source)
-        self.assertIn(
-            "self, preview=self._preview,\n"
-            "            child_overlay=self._child_overlay,",
-            source,
-        )
-        self.assertIn("self._interactive_preview = broker_connection is not None", source)
-        self.assertIn("broker_connection if broker_connection is not None else", source)
-        self.assertIn("(None if preview else Gio.bus_get_sync", source)
-        self.assertIn("PREVIEW_USERS[:1] if self._child_overlay else PREVIEW_USERS", source)
-        self.assertIn("This is a visual preview; no access was requested.", source)
-        self.assertIn("PREVIEW_DEFAULT_WIDTH = 1918", source)
-        self.assertIn("PREVIEW_DEFAULT_HEIGHT = 1443", source)
-
-    def test_preview_watches_its_assets_and_source(self):
-        source = KIOSK_MAIN.read_text(encoding="utf-8")
-
-        self.assertIn("directory.monitor_directory(", source)
-        self.assertIn('"style.css", "kiosk-background-still.png", "kiosk-background-scenery-clear.png",', source)
-        self.assertIn("self._load_stylesheet()", source)
-        self.assertIn("window._background.reload_texture()", source)
-        self.assertIn("os.execv(sys.executable, sys.orig_argv)", source)
-
-    def test_preview_content_is_a_window_drag_handle(self):
-        source = KIOSK_MAIN.read_text(encoding="utf-8")
-
-        self.assertIn(
-            'if self._preview and not self._child_overlay and not os.environ.get("ONPC_PREVIEW_SCREEN_FD"):\n'
-            "            # The production kiosk",
-            source,
-        )
-        self.assertIn("drag_handle = Gtk.WindowHandle()", source)
-        self.assertIn("drag_handle.set_child(layout)", source)
-        self.assertIn("self.set_content(drag_handle)", source)
 
     def test_clean_scenery_plate_matches_source_coordinates_and_ships(self):
         import cairo

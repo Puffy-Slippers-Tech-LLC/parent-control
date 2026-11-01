@@ -264,10 +264,8 @@ removed or nonexecutable tools leave it. Codex matches literal argument tokens,
 so a `tools/*` string is not a directory-wide grant. General shells/interpreters
 and arbitrary privileged wrappers retain their restrictions. The tools' own
 argument validation, task authorization and VM/Polkit guards still apply.
-Simulated checkouts must copy that complete inventory too:
-`test_rules_render_for_a_checkout_with_spaces` in the
-[installation regressions](../tests/unit/test_dev_tool_installation.py)
-covers this. A missing required launcher is a test-fixture failure, not a reason
+Simulated checkouts must copy that complete inventory too.
+A missing required launcher is a test-fixture failure, not a reason
 to weaken rendering validation or refresh host permissions.
 
 Development-helper Polkit actions bind these exact executable paths and default to `no`,

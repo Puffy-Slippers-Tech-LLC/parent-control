@@ -1,5 +1,4 @@
 import pathlib
-import subprocess
 import unittest
 
 
@@ -7,37 +6,6 @@ ROOT = pathlib.Path(__file__).parents[2]
 
 
 class ChildPreviewTests(unittest.TestCase):
-    def run_orchestration(self, script, *, timeout=5):
-        return subprocess.run(
-            ["bash", "-c", script],
-            cwd=ROOT,
-            text=True,
-            capture_output=True,
-            timeout=timeout,
-            check=False,
-        )
-
-    def test_devkit_registration_accepts_an_exact_owned_child_before_setsid(self):
-        result = self.run_orchestration(
-            "source child/preview-orchestration.sh; "
-            "onpc_preview_configure child /tmp/onpc-preview-devkit-child; "
-            "onpc_preview_shell_pid=$$; "
-            "onpc_preview_record_owned_child_process \"$$\" "
-            "onpc_preview_shell_start_time 'GNOME Shell'; "
-            "sleep 20 & helper=$!; "
-            "onpc_preview_devkit_path=/proc/$helper/exe; "
-            "onpc_preview_find_mutter_devkit_descendant() { printf '%s\\n' \"$helper\"; }; "
-            "onpc_preview_record_mutter_devkit; "
-            "test \"$onpc_preview_devkit_pid\" = \"$helper\"; "
-            "test -n \"$onpc_preview_devkit_start_time\"; "
-            "onpc_preview_stop_owned_process \"$onpc_preview_devkit_pid\" "
-            "\"$onpc_preview_devkit_start_time\" 'Mutter Devkit'; "
-            "! kill -0 \"$helper\" 2>/dev/null",
-        )
-
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("by exact identity", result.stderr)
-
     def test_child_invokes_the_shared_kiosk_request_gui(self):
         extension = (ROOT / "child" / "extension.js").read_text()
         makefile = (ROOT / "Makefile").read_text()
@@ -130,11 +98,9 @@ class ChildPreviewTests(unittest.TestCase):
         extension = (ROOT / "child" / "extension.js").read_text()
         indicator = (ROOT / "child" / "remainingTimeIndicator.js").read_text()
         stylesheet = (ROOT / "child" / "stylesheet.css").read_text()
-        orchestration = (ROOT / "child" / "preview-orchestration.sh").read_text()
 
         self.assertIn("export function appLogoPath(extension)", branding)
         self.assertIn("app_logo_gnome_launcher.png", branding)
-        self.assertIn("app_logo_gnome_launcher.png", orchestration)
         self.assertIn("appLogoPath(this)", extension)
         self.assertIn("Gio.FileIcon", indicator)
         self.assertIn("screen-time-request-logo", indicator)

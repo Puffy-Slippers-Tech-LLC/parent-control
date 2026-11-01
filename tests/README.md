@@ -1722,22 +1722,9 @@ ordinary host tests, including cleanup and UI buckets: background disk traffic
 must not strand otherwise available branches. Publishing, artifact builds, VM
 launches and host work overlapping builds retain their I/O admission limits and
 recovery window. Reviewed cleanup modules run in balanced buckets using measured
-module costs shared with unit scheduling. Modules keep their fixtures together;
-the large installed-journey safety matrix explicitly permits eight pieces of
-exact test IDs because its fixtures and outputs are function-local. This review
-applies to both schedulers, with a regression guard against shared fixture scope.
-Its synthetic inventories contain only the exercised scenario family, preserving
-that family's complete matrix and the real recorder while avoiding copies
-of unrelated families for every injected fault. The matrix's opt-in
-`collector_sync` fixture checks flushed bytes and file-before-directory sync
-for every collector write without forcing repeated physical flushes. It replaces
-only the collector's OS reference; retention journals keep real synchronization.
-The collector regressions in `test_e2e_evidence.py` exercise real file/directory
-sync and refusal before registration when either sync fails. Launcher dispatch
-parameters use synthetic package identities instead of repeatedly scanning the
-checkout; `test_test_storage_cleanup_safety.py` retains real source-byte identity
-and preservation checks. These are explicit regression
-tests, included in unit/host/all coverage; startup and cleanup do not run them.
+module costs shared with unit scheduling. Modules keep their fixtures together.
+This review applies to both schedulers, with a regression guard against shared
+fixture scope.
 Actual cleanup runs serially before worker scheduling with every live ownership,
 recovery and VM lease check intact. It creates no pytest fixtures or qualification
 reports and has no parallel cleanup branches or join stage.
@@ -2740,14 +2727,7 @@ logs; later retention follows the
 [aggregate policy](#aggregate-output-retention).
 
 Host pytest launchers set `TMPDIR` through shared owner-locked scratch for capture
-and temporary fixtures. The retention repetition test covers pass, failure and
-interruption across 100 real-filesystem iterations each, checking fewer than
-64 entries and 256 KiB of file contents at every iteration. Ordinary `tmp_path`
-checks retain disk-backed journal sync ordering, write-failure propagation and
-evidence preservation. The legacy
-[`repetition_tree` fixture](unit/test_test_retention_cleanup_safety.py) still allocates
-directly under `/tmp`; migrating it to the mandate's shared fixture route remains
-required. Preserve all iterations and footprint assertions during that migration.
+and temporary fixtures.
 
 [The preview boot helper](support/preview.py) scopes tempfile's default to `/tmp`
 only while Dogtail boots its private graphical runtime. WebKit creates

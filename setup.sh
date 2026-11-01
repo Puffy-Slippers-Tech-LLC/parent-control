@@ -9,6 +9,7 @@ usage() {
     cat <<'USAGE'
 Usage: ./setup.sh [MODE] [--vm NAME]
   (no mode)             Set up/refresh an Ubuntu or Fedora 44 development machine (no VMs needed)
+  --headless            Set up an Ubuntu 26.04+ automation server (no VM hosting or Codex CLI)
   --dependencies-only   Install development, build and UI/GUI-fixture dependencies
   --vm-host-only        Add VM host dependencies and refresh development helpers/policies
   --ppa-build-tools     Install clean local PPA build prerequisites
@@ -36,7 +37,7 @@ fi
 readonly mode="${1-}"
 readonly vm_name="${3-}"
 case "$mode" in
-    ''|--dependencies-only|--vm-host-only|--ppa-build-tools|--rpm-build-tools|--test-tools-only|--ui-tests-only|--watch|--codex-rules-only|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
+    ''|--headless|--dependencies-only|--vm-host-only|--ppa-build-tools|--rpm-build-tools|--test-tools-only|--ui-tests-only|--watch|--codex-rules-only|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -49,6 +50,14 @@ if [[ ! -f Makefile || ! -f child/preview ]]; then
     exit 1
 fi
 source "$script_dir/tools/setup_platform.sh"
+
+if [[ $mode == --headless ]]; then
+    require_headless_platform
+    if (( EUID == 0 )); then
+        echo 'setup: run --headless as the checkout-owning administrator, without sudo; setup requests sudo only for initial bootstrap' >&2
+        exit 1
+    fi
+fi
 
 if [[ $mode == --ppa-build-tools && $setup_platform == fedora ]]; then
     echo 'setup: PPA build tools require an Ubuntu/Debian host; use --rpm-build-tools on Fedora' >&2
@@ -119,6 +128,24 @@ install_watch_extension() {
 }
 
 case "$mode" in
+    --headless)
+        # Opt-in authorization is established before routine privileged stages.
+        # An existing grant must succeed; never retry authentication on denial.
+        if [[ -e '/usr/local/libexec/onpc-headless-account' || -L '/usr/local/libexec/onpc-headless-account' ]]; then
+            run_root headless-tools /usr/bin/python3 -IB "$script_dir/tools/install_test_runner.py" --headless
+        else
+            echo 'setup: [stage:headless-bootstrap] administrator authorization required once for this automation account'
+            sudo -- /usr/bin/python3 -IB "$script_dir/tools/install_test_runner.py" --headless
+        fi
+        echo 'setup: [stage:dependencies]'
+        run_root headless-dependencies /bin/bash "$script_dir/tools/setup_dependencies.sh" --headless
+        prepare_package_builders
+        echo 'setup: [stage:checkout]'
+        /bin/bash "$script_dir/tools/setup_checkout.sh" --headless
+        # Do not run the VM-host AppArmor policy installer or desktop extension.
+        install_codex_rules
+        echo 'setup: headless environment installed; Git credentials, Codex CLI and VM hosting are managed separately'
+        ;;
     --watch) install_watch_extension ;;
     --ui-tests-only)
         /bin/bash "$script_dir/tools/setup_checkout.sh" --ui-tests-only

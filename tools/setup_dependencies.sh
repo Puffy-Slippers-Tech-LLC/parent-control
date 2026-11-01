@@ -4,11 +4,14 @@ set -euo pipefail
 # Host package module; setup.sh supplies the scoped privilege authorization.
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly apt_lock_timeout_seconds=300
-if (( EUID != 0 || $# > 1 )) || { (( $# == 1 )) && [[ "$1" != '--ppa-build-tools' && "$1" != '--rpm-build-tools' && "$1" != '--vm-host-only' ]]; }; then
+if (( EUID != 0 || $# > 1 )) || { (( $# == 1 )) && [[ "$1" != '--headless' && "$1" != '--ppa-build-tools' && "$1" != '--rpm-build-tools' && "$1" != '--vm-host-only' ]]; }; then
     echo 'setup-dependencies: use ./setup.sh with installed setup authorization' >&2
     exit 2
 fi
 source "$script_dir/tools/setup_platform.sh"
+if [[ ${1-} == --headless ]]; then
+    require_headless_platform
+fi
 
 if [[ $setup_platform == fedora ]]; then
     if [[ ${1-} == --ppa-build-tools ]]; then
@@ -50,6 +53,10 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 apt_get=(apt-get -o "DPkg::Lock::Timeout=$apt_lock_timeout_seconds")
+if [[ ${1-} == --headless ]]; then
+    # Retain GUI test libraries without pulling in a desktop through recommends.
+    apt_get+=(--no-install-recommends)
+fi
 
 install_ppa_build_tools() {
     "${apt_get[@]}" install -y --no-install-recommends sbuild mmdebstrap uidmap ubuntu-keyring

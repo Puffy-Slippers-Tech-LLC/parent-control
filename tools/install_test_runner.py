@@ -7,6 +7,8 @@ import importlib.util
 import os
 from pathlib import Path
 import platform
+import pwd
+import grp
 import stat
 import subprocess
 import sys
@@ -16,6 +18,62 @@ import xml.etree.ElementTree as ET
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests/integration'))
 import vm_config
+
+
+HEADLESS_RULE = Path('/etc/polkit-1/rules.d/49-onpc-headless.rules')
+HEADLESS_ACCOUNT = Path('/usr/local/libexec/onpc-headless-account')
+
+
+def headless_rule(root):
+    """Opt in one administrator account, without granting generic pkexec access."""
+    release = platform.freedesktop_os_release()
+    try:
+        version = tuple(int(part) for part in release.get('VERSION_ID', '').split('.'))
+    except ValueError as error:
+        raise ValueError('headless setup requires Ubuntu 26.04 or newer') from error
+    if release.get('ID') != 'ubuntu' or len(version) < 2 or version[:2] < (26, 4):
+        raise ValueError('headless setup requires Ubuntu 26.04 or newer')
+    uid = int(os.environ.get('PKEXEC_UID', os.environ.get('SUDO_UID', '0')))
+    if uid <= 0:
+        raise ValueError('headless setup requires an attributed unprivileged administrator')
+    account = pwd.getpwuid(uid)
+    if grp.getgrnam('sudo').gr_gid not in os.getgrouplist(account.pw_name, account.pw_gid):
+        raise ValueError('headless automation account must belong to sudo')
+    # Use the same ownership/path boundary as the installed helpers, including
+    # during first installation through sudo rather than pkexec.
+    os.environ['PKEXEC_UID'] = str(uid)
+    sys.path.insert(0, str(root / 'tools'))
+    from dev_checkout import checkout_root
+    if checkout_root() != root or root.stat().st_uid != uid:
+        raise ValueError('run headless setup from the administrator-owned checkout')
+    programs = {'com.puffyslippers.onpc.development.' + name: '/usr/local/libexec/onpc-' + name
+                for name in ('test-runner', 'diagnostics', 'test-artifacts', 'export-screenshot', 'setup')}
+    account_data = (json.dumps({'uid': uid, 'user': account.pw_name}, sort_keys=True) + '\n').encode()
+    data = ('''// Explicit headless opt-in; managed by ./setup.sh --headless.
+// Desktop refreshes preserve this grant. Administrator removal revokes it.
+polkit.addRule(function(action, subject) {
+    var programs = ''' + json.dumps(programs, sort_keys=True) + ''';
+    if (!Object.prototype.hasOwnProperty.call(programs, action.id)) {
+        return;
+    }
+    if (subject.user === ''' + json.dumps(account.pw_name) + ''' && subject.isInGroup("sudo")) {
+        if ((!action.lookup("user") && !action.lookup("program")) ||
+            (action.lookup("user") === "root" && action.lookup("program") === programs[action.id])) {
+            return polkit.Result.YES;
+        }
+        return polkit.Result.NO;
+    }
+    // Other accounts continue through the ordinary active/local administrator rules.
+});
+''').encode()
+    for path in (HEADLESS_ACCOUNT, HEADLESS_RULE):
+        if path.exists() or path.is_symlink():
+            info = path.lstat()
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1
+                    or info.st_mode & 0o022
+                    or (path == HEADLESS_ACCOUNT and path.read_bytes() != account_data)):
+                raise ValueError('existing headless grant differs or is unsafe; administrator repair required')
+    return data, account_data
 
 
 def host_distribution():
@@ -47,7 +105,7 @@ def watch_terminal_available():
         return False
 
 
-def install_missing_dependencies():
+def install_missing_dependencies(*, headless=False):
     """Fill missing launcher prerequisites with no requested upgrades or removals."""
     fedora = host_distribution() == 'fedora'
     packages = [package for executable, package in
@@ -60,8 +118,18 @@ def install_missing_dependencies():
         packages.append('python3-gobject' if fedora else 'python3-gi')
     if not watch_terminal_available():
         packages.append('vte291-gtk4' if fedora else 'gir1.2-vte-3.91')
+    if headless:
+        # Bootstrap precedes full dependencies on a clean Ubuntu Server.
+        if not os.access('/usr/bin/pkcheck', os.X_OK):
+            packages.append('polkitd')
+        if not os.access('/usr/bin/pkexec', os.X_OK):
+            packages.append('pkexec')
     if packages:
         print('test-runner-install: installing missing launcher dependencies', flush=True)
+        if headless:
+            subprocess.run(['/usr/bin/apt-get', '-o', 'DPkg::Lock::Timeout=300', 'update'],
+                           env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
+                                'DEBIAN_FRONTEND': 'noninteractive'}, check=True)
         command = (['/usr/bin/dnf', '-y', '--setopt=install_weak_deps=False', 'install']
                    if fedora else
                    ['/usr/bin/apt-get', '-o', 'DPkg::Lock::Timeout=300', 'install',
@@ -186,9 +254,11 @@ def repair_checkout_bytecode(root):
 
 
 def main():
-    if len(sys.argv) != 1 or os.geteuid() != 0:
-        raise SystemExit('test-runner-install: run as root without arguments')
+    if sys.argv[1:] not in ([], ['--headless']) or os.geteuid() != 0:
+        raise SystemExit('test-runner-install: invoke through ./setup.sh')
     root = Path(__file__).resolve().parents[1]
+    headless = sys.argv[1:] == ['--headless']
+    headless_data = headless_rule(root) if headless else None
     identity = {name: pinned_vm_uuid(name=name) for name in vm_config.registry()}
     pins = [value for value in identity.values() if value is not None]
     if len(pins) != len(set(pins)):
@@ -202,7 +272,10 @@ def main():
     rendered = {name: render_helper(root, name, identity).encode() for name in names}
     for name, data in rendered.items():
         compile(data, name, 'exec')
-    install_missing_dependencies()
+    if headless:
+        install_missing_dependencies(headless=True)
+    else:
+        install_missing_dependencies()
     for name, data in rendered.items():
         install_file(Path('/usr/local/libexec') / name, data, 0o755)
     policy = 'com.puffyslippers.onpc.development.policy'
@@ -221,6 +294,13 @@ def main():
     for name, data in policy_rules.items():
         destination = Path('/etc/polkit-1/rules.d') / name
         install_file(destination, data, 0o644)
+    if headless_data is not None:
+        # Publish the SSH/background grant only after all scoped helpers exist.
+        install_file(HEADLESS_RULE, headless_data[0], 0o644)
+        # A public, root-owned marker permits noninteractive refresh without
+        # requiring the caller to traverse Polkit's potentially private directory.
+        install_file(HEADLESS_ACCOUNT, headless_data[1], 0o644)
+        print('test-runner-install: enabled scoped headless access for the invoking administrator')
     repair_checkout_bytecode(root)
     print('test-runner-install: installed root-owned development tools and scoped authorizations')
     print('test-runner-install: VM identities pinned only for finalized configured baselines')
@@ -229,5 +309,5 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except (ValueError, KeyError, OSError, ET.ParseError, subprocess.CalledProcessError):
-        sys.exit('test-runner-install: refused invalid provenance or unsafe installation state')
+    except (ValueError, KeyError, OSError, ET.ParseError, subprocess.CalledProcessError) as error:
+        sys.exit(f'test-runner-install: refused installation: {error}')

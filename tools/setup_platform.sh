@@ -17,3 +17,11 @@ case "${ID-}" in
         exit 1
         ;;
 esac
+
+require_headless_platform() {
+    if [[ ${ID-} != ubuntu || ! ${VERSION_ID-} =~ ^([0-9]+)\.([0-9]+)(\.[0-9]+)?$ ]] ||
+       (( 10#${BASH_REMATCH[1]:-0} < 26 || (10#${BASH_REMATCH[1]:-0} == 26 && 10#${BASH_REMATCH[2]:-0} < 4) )); then
+        echo 'setup: --headless requires Ubuntu 26.04 or newer' >&2
+        exit 1
+    fi
+}

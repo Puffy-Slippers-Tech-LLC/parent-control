@@ -120,7 +120,8 @@ guest to inspect it or adopt another controller's running instance.
 Probing every registered VM has standing authorization, including entries disabled
 for test scheduling. Direct `tools/test-vm` guest commands, including guest shells
 and interpreters, require no additional command approval or developer confirmation.
-The installed helper's Polkit grant is automatic for the active local administrator;
+The installed helper's Polkit grant is automatic for the active local administrator
+or the explicitly configured [headless automation account](../Approval-Tools.md#one-time-setup);
 unavailable authorization fails without an authentication dialog. Retain all
 identity, ownership, lease and observation checks.
 

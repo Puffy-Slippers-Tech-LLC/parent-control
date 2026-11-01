@@ -32,7 +32,7 @@ def check(program):
         detail = result.stderr[:2048].decode('utf-8', errors='replace').strip()
         raise ValueError(f'noninteractive authorization unavailable (status={result.returncode}); '
                          f'{detail or "no error detail"}; refresh ./setup.sh --test-tools-only '
-                         'from an active local administrator session')
+                         'from an active local administrator session or the configured headless account')
 
 
 def launch(program, argv):

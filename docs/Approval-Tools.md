@@ -119,6 +119,49 @@ checkout or changing installed helpers; adding tests within a supported category
 does not require new approvals. A clean machine uses full `./setup.sh` for
 dependencies and host policies on Ubuntu or Fedora Workstation 44, from a host
 terminal rather than a Flatpak runtime. Ordinary setup does not require VMs.
+
+For an Ubuntu Server 26.04 or newer automation host, run `./setup.sh --headless`
+as the administrator account that owns the checkout, without prefixing the
+command with `sudo`. On first headless setup only, it requests terminal-based
+`sudo` authorization to install the fixed helpers and opt that account into
+SSH/background execution. Subsequent runs reuse the installed noninteractive
+grant and stop on denial, without retrying authentication. The account must
+remain in `sudo`; setup refuses root-owned checkouts and direct root invocation
+of this mode so builder images, the UI environment and checkout rules stay
+user-owned. An existing desktop installation can opt in through the same first
+headless bootstrap.
+
+Headless setup shares the development/build/UI-test dependencies and prepares
+the caller-owned Fedora RPM builder. It disables APT recommendations to avoid
+pulling in a desktop through optional dependencies; GNOME/Mutter/GTK libraries
+needed by isolated UI tests are still installed. It preserves Git identity,
+signing configuration, remotes and credentials, reporting missing identity or
+branch upstream as actions needed. It does not test remote authentication or
+push access. Configure those separately before using committing launchers.
+Headless setup renders the existing Codex command rules but does not install or
+authenticate the Codex CLI. It installs neither VS Code nor its Watch extension.
+An editor connection, SSH server provisioning and account credential management
+remain administrator responsibilities.
+
+This mode does not install VM hosting, virt-manager or libvirt/QEMU, change VM
+networking/storage or graphical-host AppArmor policy, or create/prepare VMs and
+baselines. Shared helper refresh preserves the existing finalized VM identity
+checks; it does not operate a VM. Successful headless setup establishes the
+non-VM development environment, not installed VM acceptance. The ordinary
+terminal launcher interfaces, detachment and reconnection remain unchanged.
+
+The opt-in grant is root-owned `/etc/polkit-1/rules.d/49-onpc-headless.rules`,
+with a public root-owned account marker at
+`/usr/local/libexec/onpc-headless-account`. It authorizes only the selected
+administrator account and the five fixed development-helper actions/programs,
+including their detail-free authorization prechecks. Other users retain the
+desktop rules. Both desktop and test-tools refreshes preserve the opt-in grant;
+they do not silently enable or revoke headless access. A different account or an
+unsafe marker/grant requires administrator repair. Headless setup refreshes
+the managed rule from current source while preserving the designated account.
+To revoke headless access and permit a later explicit bootstrap, an administrator
+removes both managed files. Their absence restores the ordinary desktop policy.
+
 `--vm-host-only` adds libvirt/QEMU and installed-test host prerequisites and
 refreshes helpers/policies without preparing or starting a VM. On Ubuntu, full
 setup and `--dependencies-only` also prepare the caller-owned Fedora 44 RPM build
@@ -151,6 +194,14 @@ For an additional worktree on a configured host, `./setup.sh --ui-tests-only`
 creates its checkout-local UI environment from the pinned requirements. This
 unprivileged mode changes neither host package versions nor Git configuration;
 missing system prerequisites still require the normal dependency setup route.
+For two server worktrees, reserve different branches/checkouts for `fix-tests`
+and other task launchers. Run full `--headless` setup once; in the second
+user-owned worktree run `./setup.sh --ui-tests-only` and
+`./setup.sh --codex-rules-only`. The account grant and builder images are shared;
+checkout environments, rules and launcher state are separate. Completed commits
+still follow [configured branch propagation](Execution-Plans.md#shared-worktree-propagation),
+which can merge into the other checkout. Worktrees do not reserve independent
+VMs; existing host-wide VM leases remain authoritative.
 `./setup.sh --watch` installs or updates only the caller's VS Code watch
 extension through the available `code`, `code-insiders` or `codium` CLI, without
 administrator privileges or dependency setup. Full setup and tools refresh also
@@ -182,7 +233,9 @@ so missing authorization rules cannot trigger an authentication dialog. The
 wrappers query their own process identity without action details, which Polkit
 reserves for trusted callers. Polkit authorizes these programs for an active, local member of
 the host's administrator group (`sudo` on Ubuntu, `wheel` on Fedora). The installer
-renders only that group's check into each development rule. Other callers receive a denial, without an authentication
+renders only that group's check into each desktop development rule. The explicit
+headless grant above additionally permits its designated administrator account
+without an active local session. Other callers receive a denial, without an authentication
 dialog. The checkout launchers check that authorization noninteractively before
 using `pkexec`, so a missing installation or unavailable grant fails with setup
 guidance. They do not enable password caching, authorize general privileged
@@ -455,7 +508,9 @@ acceptance. See [E2E resumption](TestAutomation/E2E-Execution-Plan.md#resume-aft
 Setup authorization is separate from runtime test authorization. The installed
 `/usr/local/libexec/onpc-setup` accepts exactly one of `dependencies`,
 `codex-rules`, `test-tools`, `graphical-policy`, `ppa-build-tools`, `rpm-build-tools`, `vm-host`,
-`replace-missing-baseline`, `prepare-vm`, `backupvm` or `restorevm`.
+`headless-dependencies`, `headless-tools`, `replace-missing-baseline`, `prepare-vm`,
+`backupvm` or `restorevm`. The two headless operations select only the existing
+dependency/helper installers with the fixed `--headless` argument.
 The disaster recovery operations accept only a registered `--vm` queue selector
 (default `all`), never caller-supplied archive, domain XML or disk paths. They
 use `backup_root` from the trusted registry and the existing setup authorization;
@@ -464,8 +519,10 @@ Only `prepare-vm`
 requires the fixed arguments `--mode auto` or `--mode manual`, optionally
 followed by `--y`; arbitrary paths
 and other arguments are refused. Its
-dedicated Polkit action defaults to denial and grants only active local members
-of the host administrator group (`sudo` on Ubuntu, `wheel` on Fedora). `setup.sh` and `tools/prepare-vm` check this authorization without
+dedicated Polkit action defaults to denial and grants active local members
+of the host administrator group (`sudo` on Ubuntu, `wheel` on Fedora), or the
+explicitly configured headless administrator described in [one-time setup](#one-time-setup).
+`setup.sh` and `tools/prepare-vm` check this authorization without
 requesting interaction before invoking the helper, and never fall back to generic
 `pkexec` on denial. The public baseline-replacement entry is
 `tools/prepare-vm --vm NAME --mode auto|manual [--y]`; the
@@ -734,7 +791,8 @@ current configured IDs and names. Probing any entry in `config/test-vm.json`
 has standing user authorization, including entries disabled for test scheduling;
 do not request command approval or developer confirmation. The installed
 test-runner Polkit rule grants the active local administrator automatically,
-and unavailable authorization fails noninteractively without a dialog.
+with the designated headless account additionally permitted by the explicit
+[headless grant](#one-time-setup). Unavailable authorization fails noninteractively without a dialog.
 Do not add selector-specific or host-shell
 grants. Keep the host invocation a simple literal command: complex embedded
 quoting can prevent Codex's shell parser from extracting the launcher prefix.
@@ -996,8 +1054,8 @@ new names within the documented contracts need no individual approval; new
 privileged capabilities need validation and regression coverage in a maintained
 helper, not a broad shell/interpreter grant.
 
-Absolute guarantees of no prompt are not possible: missing setup, inactive or
-remote callers, sandbox denials, organization-managed rules and runtime policy
+Absolute guarantees of no prompt are not possible: missing setup, callers outside
+the configured desktop/headless grant, sandbox denials, organization-managed rules and runtime policy
 changes can override local grants. The goal is repeatable noninteractive
 execution within the installed, validated scope, with explicit refusal outside
 it. Codex and Polkit are separate controls. See the

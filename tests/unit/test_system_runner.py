@@ -1847,6 +1847,10 @@ def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path, update
     lease.state = {'run': RUN}
     capture = Mock()
     monkeypatch.setattr(runner, 'capture_session_screen', capture)
+    # Reconciliation uses synthetic JUnit results, without prepared VM inputs
+    # or a graphical desktop. Keep the live observation at that boundary.
+    expiry = Mock()
+    monkeypatch.setattr(runner, 'observe_graphical_expiry', expiry)
     selection = runner.resolve_selection(inventories=INVENTORIES)
     if update:
         (tmp_path / 'input').mkdir()
@@ -1879,6 +1883,7 @@ def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path, update
         runner.pytest_command(RUN, phase, selection) for phase in selection.phases]
     assert ledger.outcomes['product'] == {'outcome': 'passed', 'category': None}
     assert ledger.outcomes['collection'] == {'outcome': 'passed', 'category': None}
+    expiry.assert_called_once_with(vm, lease, tmp_path, ledger, None, None)
     capture.assert_called_once_with(lease, tmp_path / 'guest-results')
 
 

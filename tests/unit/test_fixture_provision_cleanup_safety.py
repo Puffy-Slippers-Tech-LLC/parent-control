@@ -1358,7 +1358,16 @@ def test_ssh_wire_embedded_modules_execute_only_over_private_guest(real_guest, t
     assert provision.SSHBoundary(transport).call('stage', r.request, r.payloads) == {'ok': True}
     transport.call.assert_called_once()
     sent = transport.call.call_args
-    assert sent.args[0][:3] == ['/usr/bin/python3', '-I', '-c']
+    # The fixed shell emits a private diagnostic before replacing itself with
+    # isolated Python. Code stays positional; the request stays on stdin.
+    argv = sent.args[0]
+    assert len(argv) == 5
+    assert argv[:4] == [
+        '/bin/sh', '-c',
+        'printf "%s\\n" "fixture-provision:guarded-shell" >&2 && '
+        'exec /usr/bin/python3 -I -c "$1"',
+        'fixture-provision']
+    compile(argv[4], '<shipped-entry-point>', 'exec')
     assert sent.kwargs['attempts'] == 1 and sent.kwargs['timeout'] == 300
     wire = json.loads(sent.kwargs['input'])
     assert wire['action'] == 'stage' and wire['request'] == r.request

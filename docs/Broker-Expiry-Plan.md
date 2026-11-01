@@ -1,22 +1,73 @@
-# Broker expiry test automation execution plan
+# Broker timing and expiry exploration plan
 
 Task queue: [Ordered task queue](Broker-Expiry-Task-Queue.md).
-Next task: **002 — [Check native time without the extension](Broker-Expiry-Tasks/002-native-time.md)**.
+Next task: **001c — [Explore expiry coordination in the broker](Broker-Expiry-Tasks/001c-expiry-exploration.md)**.
 
 ## Outcome and boundary
 
-Deliver the missing automation defense for the proposed
-[broker expiry handover](SystemDesign/Broker-Expiry-Locking.md), before changing
-production enforcement. This plan implements tests and their shared mechanics;
-it does not implement the broker scheduler, change native accounting, remove
-extension behavior or authorize the whole optional-extension migration.
-No row is completed by this extraction.
+Resolve the two separately bounded explorations:
+[row 3 expiry coordination](SystemDesign/Broker-Expiry-Locking.md) and
+[row 4 timing inputs](SystemDesign/Replace-Main.timeLimitsManager.md).
+Active tasks are source/design reviews, not product implementation, VM fault
+campaigns or a full optional-extension migration. Existing completed automation
+stays done; this reconciliation completes no unchecked row.
+
+The [rows 1/2 countdown handoff](SystemDesign/Broker-Countdown.md) is a separate
+implementation session. Do not import it into this launcher. Upstream changes,
+native package patches/replacements and replacing Malcontent accounting are
+forbidden. Keep native recording and Malcontent storage. A proposed transient
+live observer is not permission for a second durable ledger or usage writes.
 
 The design owns product invariants and reliability decisions. The
 [coverage allocation](TestAutomation/UI-and-E2E-Coverage.md#expiry-locking-migration-allocation)
 owns cross-plan delivery; the E2E queue remains the sole customer-task queue.
-This queue selects only missing expiry engineering work. Extend the canonical
-owners rather than adding another suite, worker framework or alias selector.
+This queue owns the explorations and retains missing expiry engineering work
+deferred. Extend canonical owners rather than adding a suite, worker framework
+or alias selector. Moving a row into deferred work does not drop its acceptance
+or resolve the associated release blocker.
+
+## Native-time prerequisite plan
+
+Task 002 found that its reader reaches the extension's `NativeTime1.GetDeadline`;
+completed records omit uninterrupted activity. The earlier direct-reader review
+remains a valid finding, but the [upstream support proposal](Live-Time-Support-Plan.md)
+is superseded and forbidden as a delivery route. Do not wait for a new native
+API or restart the rejected saved-history-only approach.
+
+The active reviews use the same queue, without another launcher:
+
+1. **001c — [Explore expiry coordination in the broker](Broker-Expiry-Tasks/001c-expiry-exploration.md).**
+   Resolve effect ownership, invalidation, completion and recovery with the
+   current timing input. It depends on completed observation task 001, not row 4.
+2. **001a0 — [Explore timing without the extension](Broker-Expiry-Tasks/001a0-live-time-support.md).**
+   Evaluate existing logind observations plus native recorded usage and a
+   transient unfinished interval. Identify synchronization/recovery gaps and
+   a bounded recommendation; no prototype or accounting replacement.
+3. **001a — [Confirm the live-time observation contract](Broker-Expiry-Tasks/001a-live-time-source.md).**
+   Pin a supportable existing-input composition on both targets. A missing
+   initial/recovery interval is a blocker, not permission to guess usage.
+
+001c is first so a timing-source blocker cannot prevent row 3 exploration.
+Rows 3 and 4 can be explored separately; final extension-independent expiry
+requires both deliveries. Review completion grants no source, timing or lock pass.
+
+## Deferred delivery and activation gate
+
+The queue's `Deferred future work` section retains 001b and installed/host TA
+tasks 002–013, including suffixed IDs and all existing assertions. They do not
+run automatically after the active reviews. Preserve 002's pending host changes
+and lack of installed results. No consumer acceptance is weakened to fit an
+unproven live observer.
+
+After exploration, explicitly scope/reactivate only a finite delivery increment.
+The old 001b helper-only brief cannot silently authorize an activity observer;
+revise it with precise source, startup/reconciliation/recovery, consumer and
+validation boundaries before activation. A future scheduler needs its own
+implementation brief; none is authorized by the current TA tasks. Select current
+path TA independently where it is genuinely source-independent, preserving
+each task's scope/acceptance and backward dependencies rather than activating
+the entire deferred tail. No upstream work or full accounting migration may be
+introduced as an automatic prerequisite.
 
 ## Coverage review and exclusions
 
@@ -52,6 +103,12 @@ or a second implementation. Partial engineering work closes no customer row.
 
 ## Acceptance contract for this queue
 
+Active review tasks own their bounded recommendations, document checks and any
+explicitly necessary read-only inspection cleanup. The requirements below remain
+the deferred installed/TA and final handover contract; they do not turn a review
+into a mandatory live campaign. Existing unchecked briefs retain their installed
+assertions even while deferred.
+
 Read [execution plans](Execution-Plans.md), the
 [test documentation map](TestAutomation/README.md) and selected brief. Installed
 tasks require `onpc-Ubuntu26.04` and `onpc-Fedora44`; a narrowed diagnostic run
@@ -83,11 +140,14 @@ only native timing; positive-entitlement controls require continued usable
 input/work and no stale lock. Fault cases exercise one fault
 and its recovery per attempt, with identity-recorded injection/restoration and
 owned cleanup. Account/grant/usage edits cannot repair the observed history.
-No second usage ledger, synthetic accounting, top-up, logout fallback or
+No second durable usage ledger, synthetic accounting, top-up, logout fallback or
 extension reactivation may manufacture a pass.
+The proposed row 4 transient observation must be qualified on its own merits;
+it is not an alternate history store or permission to fabricate missing use.
 
-First qualify added assertions on the current production path. Tasks 002/003
-also isolate the extension endpoint/request to establish native limits. Later
+First qualify added assertions on the current production path. Task 002 isolates
+the timing endpoint to qualify the delivered row 4 composition; task 003 isolates
+the extension lock request to establish native limits. Later
 replacement implementation must run only affected histories with the old expiry
 request unable to mask the result, including whole-extension-disabled checks
 once timing is independent. TA completion grants neither replacement acceptance
@@ -140,6 +200,7 @@ Each row owns its affected checks and cleanup. Record a short result, check only
 that row and advance the pointer. Trust checked prerequisites; never rerun them
 to renew evidence. Maintain inventories and generated coverage when bindings
 change, check Markdown links, and run the queued package builder only if packaged
-inputs/build dependencies changed. Core backend edits are outside this plan;
-any separately authorized such change retains its model and independent Astra
-xHigh review requirements.
+inputs/build dependencies changed. Core backend edits are confined to the
+explicitly reactivated, bounded reader/observer delivery in 001b; active reviews
+authorize no backend edits. Such later work retains the model and
+independent Astra xHigh review requirements in [AGENTS.md](../AGENTS.md).

@@ -1,21 +1,68 @@
-# Broker-owned expiry locking migration
+# Explore broker-owned expiry locking
 
-Status: proposed; implementation and installed qualification are pending.
-**Test automation is the first deliverable, before enforcement changes.**
+Status: row 3 exploration; scheduler implementation and installed replacement
+qualification are pending. Existing accepted automation remains accepted;
+this document schedules no enforcement change.
 
-This is the first essential capability slice of the
-[optional child extension design](Optional-Child-Extension.md). It transfers
-the product's additional exhaustion/revocation lock coordination from the
-extension to the existing broker, retaining native GNOME accounting and secure
-locking. It does not make the whole extension optional.
+Explore moving the product's additional exhaustion/revocation lock coordination
+from the extension to the existing broker, retaining native GNOME/Malcontent
+accounting and secure locking. The reason is resilience when an unrelated
+extension crashes Shell and extensions are globally disabled after recovery.
+This is one slice of the [optional-extension design](Optional-Child-Extension.md),
+not authorization to make the whole extension optional.
 
 The [specification](../Specification.md) owns required customer behavior.
 [Screen time](Screen-Time.md#countdown-and-expiry-enforcement),
 [Broker](Broker.md), [State](State.md) and [Lifecycle](Lifecycle.md)
-own current implementation boundaries. This document owns the proposed expiry
-handover and its product invariants. The [TA execution plan](../Broker-Expiry-Plan.md)
-owns the extracted automation work, delivered by `tools/broker` through the
-shared launcher. Customer scenarios keep their existing E2E owners.
+own current implementation boundaries. This document owns row 3 questions and
+the eventual effect-handover gates. The [execution plan](../Broker-Expiry-Plan.md)
+and `tools/broker` schedule exploration first and retain delivery/TA work deferred
+until bounded implementation scope exists. Customer scenarios keep their E2E owners.
+
+## Relationship to the other increments
+
+The [countdown handoff](Broker-Countdown.md) implements rows 1 and 2 separately:
+broker deadline arithmetic and extension rendering, using the current timing
+input and current lock owners. It introduces no continuous broker expiry timer.
+
+[Replacing Main.timeLimitsManager](Replace-Main.timeLimitsManager.md) explores
+row 4: supported timing observations without the extension. Row 3 can be designed
+and characterized with the existing extension-backed input; its exploration does
+not depend on row 4 being solved. Row 4 can deliver timing without moving locks.
+Extension-independent broker expiry ultimately requires both deliveries. Do not
+let a timing blocker prevent a bounded effect-owner design, or call an
+extension-backed scheduler extension-independent.
+
+Upstream/native package changes and replacing Malcontent accounting are forbidden.
+Row 3 may consume a validated deadline; it must not implement a second timing
+observer or solve row 4 inside a scheduler task.
+
+## Bounded exploration and result
+
+Read the existing current-path code and historical rationale below, then propose
+the smallest effect owner within the existing broker. Answer:
+
+1. Which exhaustion/revocation obligations need broker coordination beyond
+   native GNOME locking? Preserve known product requirements while distinguishing
+   source inspection, characterized native gaps and passing installed behavior.
+2. How does one per-child/session deadline get armed, invalidated after a live
+   policy change, and revalidated immediately before a lock request or retry?
+   Cover renewal/disablement, ended/replaced sessions and stale callbacks without
+   inventing another policy store or activity accountant.
+3. How will expiry progress independently of authentication/management work,
+   observe bounded completion, and recover after broker/provider owner loss?
+   State existing native protection and any unprotected outage interval honestly.
+4. What is the finite implementation/acceptance slice, what existing tests are
+   reused, and which remaining timing/compatibility gates prevent an independent
+   release? Separate a scheduler using the current source from the final
+   extension-disabled claim.
+
+This is source/design review, not a live fault campaign, scheduler prototype,
+service policy change or enforcement handover. A useful result names the selected
+design and exact remaining gates; it supplies no installed pass. If a supported
+lock/recovery boundary is inadequate, retain the blocker rather than adding
+logout, native patches or another daemon. The existing task queue owns later
+finite characterizations and must not execute them merely to complete this review.
 
 ## Scope and invariants
 
@@ -44,10 +91,11 @@ capabilities migrated.
    implement missing observations and cases there, and obtain installed results
    on Ubuntu 26.04 and Fedora 44. The baseline must distinguish real lock/input,
    retained work and peer continuity from timer values or service-state hints.
-2. Resolve the independent live-time source and the native-versus-broker
-   coordination boundary. Qualify what native GNOME already enforces; add
-   broker behavior only for the demonstrated product obligations. Repeated
-   timer queries must not move the deadline forward or checkpoint invented use.
+2. Resolve the native-versus-broker effect boundary independently of the row 4
+   exploration. Qualify what native GNOME already enforces; add broker behavior
+   only for demonstrated product obligations. Before an extension-independent
+   handover, row 4 must separately supply qualified live timing. Repeated reads
+   must not move the deadline forward or checkpoint invented use.
 3. Implement the bounded broker lifecycle and effect ownership alongside the
    established production path. Observation/shadow work must not write usage,
    award time, relax policy or compete to mutate state. Define stale-work
@@ -136,11 +184,15 @@ canonical customer owners. Its [ordered queue](../Broker-Expiry-Task-Queue.md)
 implements the missing defense before enforcement changes. No automation or
 production behavior is implemented by this document refactor.
 
-An extension-independent current native-time source remains a prerequisite:
+An extension-independent current timing source remains a final handover prerequisite,
+not a prerequisite for this row 3 exploration:
 `TimerUsage.query_native_deadline` currently calls the extension's
 `NativeTime1.GetDeadline`; recorded use omits uninterrupted activity. Repeated
-reads must not extend time or checkpoint invented use. Resolve this dependency
-without a second ledger before assigning independent expiry authority.
+reads must not extend time or checkpoint invented use. The
+[row 4 exploration](Replace-Main.timeLimitsManager.md) owns resolving this
+dependency through existing public inputs without a second durable ledger,
+native changes or a replacement accountant. An in-memory live observer remains
+unproven until its startup/reconciliation/recovery contract is resolved.
 
 ## Locking and service reliability decisions
 

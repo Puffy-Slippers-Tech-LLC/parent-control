@@ -1,10 +1,10 @@
 # Optional child extension design draft
 
-Status: draft for design review. The journey starts by qualifying native GNOME
-and Malcontent behavior with our extension disabled, then gradually removes
-essential responsibilities from the extension. Each migration increment must
-leave a healthy product that is ready to publish. A new daemon or independent
-accounting engine is not a starting assumption.
+Status: draft for design review. The first implementation increment is the
+bounded [broker countdown/display handoff](Broker-Countdown.md) with the current
+timing source and lock owners. Separate explorations cover broker expiry and
+replacing the Shell-local timing dependency. Each delivered increment must leave
+a healthy publishable product; exploration alone earns no migration acceptance.
 
 This is a design and migration journey, not an execution plan. It defines the
 questions, architectural boundaries and release conditions for future work; it
@@ -13,6 +13,12 @@ publication. The [specification](../Specification.md) and
 [current system design](../System-Design.md) continue to own released behavior.
 
 ## Destination and release boundaries
+
+The motivating failure is collateral extension disablement: an unrelated
+extension can crash Shell, and GNOME can disable extensions globally after
+recovery. Essential product behavior should survive that disablement without
+reenabling extensions. This is distinct from providing graphical secure locking
+while the compositor itself is crashed or hung.
 
 The destination is a product whose policy, time accounting, approvals, expiry
 locking, login/unlock admission and application restrictions work with the
@@ -39,6 +45,31 @@ existing semantics. Application-policy transitions retain their own running-app
 effects. Parent authentication, other-user isolation and recovery access remain
 subject to the [threat model](../Threat-Model.md) and existing component contracts.
 This work does not add support for other desktop environments.
+
+Upstream changes, native package patches/replacements and replacing Malcontent's
+accounting are forbidden. Use existing supported GNOME/system interfaces; keep
+native usage recording and Malcontent's durable store. A bounded in-memory live
+observer is a candidate to investigate, not a delivered source or permission to
+add a second ledger. If existing interfaces cannot preserve the required behavior,
+retain the working extension path and the concrete blocker.
+
+## Scoped increments and dependencies
+
+| Row | Owning design | Boundary |
+| --- | --- | --- |
+| 1 and 2 | [Broker countdown and extension display](Broker-Countdown.md) | One implementation increment: broker-calculated absolute deadline and local display ticks, with current native inputs and lock ownership retained. No per-second broker polling. |
+| 3 | [Explore broker expiry locking](Broker-Expiry-Locking.md) | Design effect scheduling, policy invalidation, lock completion and bounded recovery in the existing broker; no timing-source replacement. |
+| 4 | [Replace Main.timeLimitsManager](Replace-Main.timeLimitsManager.md) | Explore existing logind observations combined with Malcontent records, preserving native recording and storage; no expiry handover. |
+
+Rows 3 and 4 can be explored separately. Row 3 may initially consume the existing
+extension-backed timing input; row 4 may deliver timing without moving locks.
+Both are needed for an extension-independent broker expiry claim. Neither blocks
+the rows 1/2 refactor or justifies expanding it into a full migration.
+
+The [broker execution plan](../Broker-Expiry-Plan.md) schedules the two
+explorations and timing-contract review, retaining implementation/TA tasks
+deferred. Rows 1/2 remain a separate-session handoff, not an extra task silently
+imported into that launcher. This document supplies no second next-task pointer.
 
 ## Existing responsibilities to preserve
 
@@ -75,11 +106,12 @@ Details and current limitations remain in [Screen time](Screen-Time.md).
 
 | Responsibility in the extension | Consequence of removing it today | Discovery needed before migration |
 | --- | --- | --- |
-| Verified total-time calculation and expiry lock requests in [the indicator](../../child/remainingTimeIndicator.js) | Loses the product's additional expiry path; native locking still exists. | [Expiry migration](Broker-Expiry-Locking.md): TA-first qualification, independent timing and complete product enforcement across session transitions. |
-| [Native deadline endpoint](../../child/applicationUi.js) | Positive-daily-allowance child status reads and fixed approvals can fail without fresh timing data. | A supported source for ongoing usage or an equivalent live balance, without depending on the UI transport. |
+| Product countdown calculation in [the indicator](../../child/remainingTimeIndicator.js) | Countdown selection/reconstruction still depends on the extension. | [Rows 1/2 handoff](Broker-Countdown.md): move deadline arithmetic into broker while retaining the native source and existing effects. |
+| Additional expiry lock requests in the indicator | Loses the product's additional expiry path; native locking still exists. | [Row 3 exploration](Broker-Expiry-Locking.md): effect ownership, invalidation, completion and recovery, independently of replacing the timing source. |
+| [Native deadline endpoint](../../child/applicationUi.js) | Positive-daily-allowance child status reads and fixed approvals can fail without fresh timing data. | [Row 4 exploration](Replace-Main.timeLimitsManager.md): existing public observations plus native recorded usage, with startup/reconciliation/recovery gaps explicit. |
 | Login/unlock trigger for `PrepareOwnSession` | Expired soft-app exceptions may miss their required restoration transition. | A reliable independent trigger with the correct authentication and policy ordering. |
-| [Resume estimate refresh](../../child/resumeEstimateRefresh.js) | Loses a workaround for stale native deadlines during inactivity/resume. | Which packaged versions need the workaround and whether a native fix or public external integration resolves it. |
-| [Authenticated unlock continuation](../../child/sessionUnlock.js) | Loses recovery from a native exhausted-session admission race. | A native correction or supported replacement that preserves authentication and one-time request lifetime. |
+| [Resume estimate refresh](../../child/resumeEstimateRefresh.js) | Loses a workaround for stale native deadlines during inactivity/resume. | Which supported packages need it and whether an existing public integration can replace it; no native patches. |
+| [Authenticated unlock continuation](../../child/sessionUnlock.js) | Loses recovery from a native exhausted-session admission race. | An existing supported replacement preserving authentication and one-time request lifetime, or an explicit unresolved dependency. |
 | [Locked keyboard focus repair](../../child/lockedSessionFocus.js) | Loses a native device-reactivation compatibility hook. | Whether supported native packages provide correct locked input behavior without the hook. |
 
 There are also integration dependencies: broker startup reassertion, transactional
@@ -231,29 +263,33 @@ not choose a VM, prepare a baseline or add test registrations.
 
 ### First expiry migration
 
-The [broker-owned expiry locking migration](Broker-Expiry-Locking.md) owns the
-first slice's context, historical rationale, native investigation, TA-first
-handover, timing prerequisites and reliability/acceptance gates. Its
+The [broker expiry exploration](Broker-Expiry-Locking.md) owns row 3's context,
+historical rationale, effect-owner questions and eventual TA/handover gates. The
+[timing exploration](Replace-Main.timeLimitsManager.md) separately owns row 4.
+Neither changes the current product or depends on the other exploration passing.
+The existing
 [test allocation](../TestAutomation/UI-and-E2E-Coverage.md#expiry-locking-migration-allocation)
 reuses canonical E2E tasks and prevents duplicate expiry qualification.
-The migration is pending; this draft claims no completed handover.
+Rows 1/2 are the first implementation handoff; expiry migration remains pending.
 
 ## Journey through gradual migration
 
 ### Choose a complete capability slice
 
-The selected first slice is [expiry locking](Broker-Expiry-Locking.md), starting
-with its regression defense and resolving its timing and native-lock dependencies
-before handover. Application-policy reconciliation remains a separate slice:
+The selected first implementation slice is [broker countdown/display](Broker-Countdown.md).
+It can ship with the extension still required. Subsequent expiry and timing-source
+delivery need separate bounded scope after their explorations; neither exploration
+is authority to remove extension code. Application-policy reconciliation is another slice:
 its privileged implementation is already in the broker and its missing piece is
 the lifecycle trigger. Fresh timing information also serves status and fixed
 approvals. Removing activation gates depends on qualifying all their essential
 consumers; this expiry slice alone does not authorize that final handover.
 
-For each slice, prefer qualified native behavior first, then a native fix or
-supported interface improvement, then the smallest broker or session adapter
-needed for product behavior. Move product authority to the broker while leaving
-native mechanisms with their existing owners. In-process Shell compatibility
+For each slice, reuse qualified native behavior and existing public interfaces,
+then assess the smallest broker/session integration needed for product behavior.
+Do not make upstream fixes or new native exports a delivery dependency. Move
+product coordination to the broker while leaving native mechanisms with their
+existing owners. In-process Shell compatibility
 hooks cannot simply be copied into a daemon; an unresolved native dependency
 can prevent that slice from being migrated.
 
@@ -269,10 +305,11 @@ extension-free product before the final handover.
 
 | Migration landmark | Responsibility after handover | Healthy intermediate release |
 | --- | --- | --- |
+| Broker-calculated countdown | Broker selects/computes the deadline; extension renders it locally. | Existing native timing bridge, expiry locks and compatibility hooks remain required; no extension-independence claim. |
 | Independent session preparation | Broker reconciliation has a qualified admission/lifecycle trigger. | Required app-policy restoration no longer relies on the panel; remaining timing and lock functions still use the extension. |
-| Independent live time information | Broker consumers obtain qualified native timing without the extension endpoint. | Both request surfaces and approvals work with the new data path; expiry still uses its established owner. |
+| Independent live time information | Broker consumers obtain qualified timing from existing supported observations and native history without the extension endpoint. | Migrated consumers work with the new data path; expiry still uses its established owner. Consumer scope must be explicit. |
 | Qualified expiry ownership | Native GNOME supplies the verified behavior, with broker coordination only for demonstrated gaps. | The extension's additional expiry path can be retired without losing locking, completion observation or recovery. |
-| Native compatibility dependencies resolved | Qualified native fixes or supported replacements cover resume, authenticated unlock and locked input. | Each corresponding extension workaround can be removed independently once its complete behavior is preserved. |
+| Native compatibility dependencies resolved | Already available supported behavior or product integration covers resume, authenticated unlock and locked input. | Each corresponding extension workaround can be removed only once its complete behavior is preserved without native changes. |
 | Optional extension handover | Broker and native services supply every essential capability; extension lifecycle controls presentation only. | Activation gates are decoupled, independent request windows survive disablement, and extension-on/off core journeys both work. |
 
 ### Introduce the replacement while preserving the working product

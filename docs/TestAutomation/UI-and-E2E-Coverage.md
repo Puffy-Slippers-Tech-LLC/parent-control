@@ -139,10 +139,12 @@ No earlier qualification or lower-suite pass supplies those complete results.
 
 ## Expiry locking migration allocation
 
-The [broker expiry migration](../SystemDesign/Broker-Expiry-Locking.md)
-starts with the [TA execution plan](../Broker-Expiry-Plan.md), run by
-`tools/broker`. Its queue selects only the missing engineering extensions below;
-customer scenarios retain their existing canonical tasks. It creates no
+The [broker expiry exploration](../SystemDesign/Broker-Expiry-Locking.md) and
+[timing-input exploration](../SystemDesign/Replace-Main.timeLimitsManager.md)
+are scheduled by the [execution plan](../Broker-Expiry-Plan.md), run by
+`tools/broker`. Its active queue owns bounded reviews; the missing engineering
+extensions below remain deferred until their delivery scope is ready.
+Customer scenarios retain their existing canonical tasks. This creates no
 parallel expiry scenario suite, duplicate qualification workers or second
 customer queue.
 This allocation owns cross-plan overlap; recipes still own finite data and

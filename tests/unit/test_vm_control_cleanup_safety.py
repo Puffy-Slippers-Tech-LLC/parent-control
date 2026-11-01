@@ -723,6 +723,10 @@ def test_automatic_preparation_recovery_stops_only_proven_maintenance(
 @pytest.mark.parametrize('fault', [None, 'owner', 'snapshot', 'busy', 'interrupted'])
 def test_auto_baseline_recovers_off_maintenance_and_preserves_refused_attempts(
         lease_rig, monkeypatch, phase, fault):
+    # Cleanup imports SuiteLease, which must inherit the real runner.Lease
+    # before this test replaces its constructor with a finite lease factory.
+    import fixture_live_refresh_qualification  # noqa: F401
+
     lease, current = lease_rig
     lease.view.graphics_type = 'vnc'
     lease.__enter__()

@@ -21,9 +21,10 @@ until bounded implementation scope exists. Customer scenarios keep their E2E own
 
 ## Relationship to the other increments
 
-The [countdown handoff](Broker-Countdown.md) implements rows 1 and 2 separately:
-broker deadline arithmetic and extension rendering, using the current timing
-input and current lock owners. It introduces no continuous broker expiry timer.
+Rows 1/2 are complete in the
+[current countdown design](Screen-Time.md#countdown-and-expiry-enforcement).
+They introduce no continuous broker expiry timer or lock-owner handover; row 3
+remains a separate exploration.
 
 [Replacing Main.timeLimitsManager](Replace-Main.timeLimitsManager.md) explores
 row 4: supported timing observations without the extension. Row 3 can be designed

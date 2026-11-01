@@ -12,8 +12,8 @@ Active tasks are source/design reviews, not product implementation, VM fault
 campaigns or a full optional-extension migration. Existing completed automation
 stays done; this reconciliation completes no unchecked row.
 
-The [rows 1/2 countdown handoff](SystemDesign/Broker-Countdown.md) is a separate
-implementation session. Do not import it into this launcher. Upstream changes,
+The completed [rows 1/2 countdown design](SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement)
+is outside this launcher. Upstream changes,
 native package patches/replacements and replacing Malcontent accounting are
 forbidden. Keep native recording and Malcontent storage. A proposed transient
 live observer is not permission for a second durable ledger or usage writes.

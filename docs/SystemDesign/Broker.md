@@ -200,10 +200,15 @@ authorize or write a grant.
 `CalculateOwnDeadline(native_deadline_realtime_usec, timer_deadline_realtime_usec)`
 derives the eligible child from bus credentials and returns absolute monotonic
 microseconds. Both inputs are absolute realtime microseconds; zero means no
-endpoint. The broker prefers a positive native endpoint, even after expiry,
-otherwise uses the timer endpoint, then takes the maximum with its live
+endpoint. Inputs and the result must be safe integers for GJS. No caller-selected
+target or grant is accepted. The broker prefers a positive native endpoint,
+even after expiry, otherwise uses the timer endpoint, then takes the maximum with its live
 AccountsService grant. Inputs retain the existing child-observation trust and
 authorize no writes. The older calculation methods remain compatible.
+Clock mapping, refresh and failure behavior belong to
+[countdown and expiry](Screen-Time.md#countdown-and-expiry-enforcement).
+This calculation adds no background worker, timing observer, subscription or
+persistent state to the broker; the extension pushes its timing observations.
 
 ## Authorization and grant transactions
 

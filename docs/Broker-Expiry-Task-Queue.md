@@ -18,8 +18,9 @@ all unresolved release gates. They do not run automatically after the reviews.
 Explicitly reactivate only a bounded delivery/TA increment under the
 [master's activation gate](Broker-Expiry-Plan.md#deferred-delivery-and-activation-gate).
 001b needs a revised implementation brief if the confirmed contract requires
-live observation beyond its old helper-only boundary. Rows 1/2 remain the separate
-[countdown handoff](SystemDesign/Broker-Countdown.md); no scheduler task is added here.
+live observation beyond its old helper-only boundary. Completed rows 1/2 belong to
+the [current countdown design](SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement);
+no scheduler task is added here.
 
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |

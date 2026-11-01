@@ -32,8 +32,10 @@ Hard constraints:
 - No scheduler, lock-owner handover, PAM/admission rewrite, new daemon or removal
   of compatibility hooks in this exploration.
 
-The [countdown handoff](Broker-Countdown.md) separately implements rows 1 and 2
-with the current source. It does not wait for this investigation. The
+Rows 1/2 are complete in the
+[current countdown design](Screen-Time.md#countdown-and-expiry-enforcement),
+which retains the extension-backed timing source. Moving deadline arithmetic
+did not resolve this investigation's source dependency. The
 [expiry exploration](Broker-Expiry-Locking.md) separately owns row 3. It can
 explore broker effects with extension-backed timing; extension-independent
 broker expiry eventually needs both row 3 and row 4 delivery.

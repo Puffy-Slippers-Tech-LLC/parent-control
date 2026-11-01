@@ -295,6 +295,15 @@ Parent retains the `GetTimeStatus(uu) -> (uuuu)` status contract.
 
 ## Countdown and expiry enforcement
 
+The broker owns product deadline arithmetic; the extension owns timing
+observations and countdown presentation. The extension is still required for
+the native timing bridge, existing product lock requests, session preparation
+and compatibility hooks. Broker calculation does not establish independent
+timing or broker-owned expiry scheduling. The separate
+[expiry](Broker-Expiry-Locking.md) and
+[timing-source](Replace-Main.timeLimitsManager.md) explorations own those proposed
+changes; neither is part of the current countdown path.
+
 The child extension uses GNOME Shell's supported time-limit manager and the
 public Malcontent estimate signal/query for timing observations. It passes both
 absolute realtime endpoints to `CalculateOwnDeadline`; the broker derives the
@@ -324,6 +333,11 @@ realtime samples bracketed by monotonic reads surround the grant read. Samples
 wider than 1 ms or clock-offset intervals inconsistent beyond 1 ms fail through
 normal read-error handling. The earlier sampled offset converts the original
 endpoint conservatively; calculation and reply latency never restart time.
+The extension subtracts its current monotonic time and rounds once for display;
+it does not reconstruct entitlement from a returned duration. The native timing
+export described above continues reading GNOME directly, independently of the
+broker result and panel cache. This calculation is distinct from Parent's
+`GetTimeStatus` and approval-time arithmetic.
 
 Initial load, native state/deadline/enabled notifications, the timer's estimate
 signal, session-mode transitions, overlay completion and broker-owner changes
@@ -334,13 +348,13 @@ newer invalidation or disposal rejects obsolete replies. Requests pin the known
 broker owner. Failures retain the last verified deadline without extending it,
 with at most three recovery retries after 1, 3 and 10 seconds; a new invalidation
 rearms recovery. A failed first load stays unavailable and cannot trigger the
-product's zero-time lock. Grant confirmation requests a fresh calculation.
+product's zero-time lock. Broker-owner replacement invalidates outstanding work
+and requires a fresh read. Grant confirmation requests a fresh calculation
+rather than awarding the original duration again at receipt time.
 
 The `child.countdown-deadline` diagnostic records bounded operand durations and
 the broker result, never raw deadlines or identities. The older
 `child.countdown-sample` catalogue entry remains readable for historical logs.
-This refactor's installed countdown/expiry and upgrade acceptance remains
-pending under [Session 2](Broker-Countdown.md#session-2--verify-the-installed-product-and-finish-release-readiness).
 
 GNOME Shell 50.1 and 50.5 do not refresh their cached parental-controls deadline
 on resume, and the native dispatcher can lock using that stale deadline. The

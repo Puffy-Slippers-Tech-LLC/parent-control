@@ -1,10 +1,11 @@
 # Optional child extension design draft
 
-Status: draft for design review. The first implementation increment is the
-bounded [broker countdown/display handoff](Broker-Countdown.md) with the current
-timing source and lock owners. Separate explorations cover broker expiry and
-replacing the Shell-local timing dependency. Each delivered increment must leave
-a healthy publishable product; exploration alone earns no migration acceptance.
+Status: optional-extension migration design. Rows 1/2 are complete; their current
+design belongs to [Screen time](Screen-Time.md#countdown-and-expiry-enforcement)
+and the [broker API](Broker.md#broker-interface-and-roles). The extension remains
+required. Separate explorations cover broker expiry and replacing the Shell-local
+timing dependency. Each delivered increment must leave a healthy publishable
+product; exploration alone earns no migration acceptance.
 
 This is a design and migration journey, not an execution plan. It defines the
 questions, architectural boundaries and release conditions for future work; it
@@ -57,19 +58,19 @@ retain the working extension path and the concrete blocker.
 
 | Row | Owning design | Boundary |
 | --- | --- | --- |
-| 1 and 2 | [Broker countdown and extension display](Broker-Countdown.md) | One implementation increment: broker-calculated absolute deadline and local display ticks, with current native inputs and lock ownership retained. No per-second broker polling. |
+| 1 and 2 | [Countdown and expiry](Screen-Time.md#countdown-and-expiry-enforcement) | Complete; current countdown design. Extension independence remains outside this increment. |
 | 3 | [Explore broker expiry locking](Broker-Expiry-Locking.md) | Design effect scheduling, policy invalidation, lock completion and bounded recovery in the existing broker; no timing-source replacement. |
 | 4 | [Replace Main.timeLimitsManager](Replace-Main.timeLimitsManager.md) | Explore existing logind observations combined with Malcontent records, preserving native recording and storage; no expiry handover. |
 
 Rows 3 and 4 can be explored separately. Row 3 may initially consume the existing
 extension-backed timing input; row 4 may deliver timing without moving locks.
-Both are needed for an extension-independent broker expiry claim. Neither blocks
-the rows 1/2 refactor or justifies expanding it into a full migration.
+Both are needed for an extension-independent broker expiry claim. Completion of
+rows 1/2 supplies neither delivery.
 
 The [broker execution plan](../Broker-Expiry-Plan.md) schedules the two
 explorations and timing-contract review, retaining implementation/TA tasks
-deferred. Rows 1/2 remain a separate-session handoff, not an extra task silently
-imported into that launcher. This document supplies no second next-task pointer.
+deferred. Completed rows 1/2 are outside that launcher. This document supplies
+no second next-task pointer.
 
 ## Existing responsibilities to preserve
 
@@ -99,16 +100,15 @@ rules or an independent grant lifecycle merely to remove the extension. A missin
 public interface is a design gap to resolve, not permission to duplicate the
 whole backend. The [state owner](State.md) defines existing authorities.
 
-## Starting dependency map
+## Remaining dependency map
 
-These are the initial subjects for investigation, not completed migrations.
+These are the remaining subjects for investigation, not completed migrations.
 Details and current limitations remain in [Screen time](Screen-Time.md).
 
 | Responsibility in the extension | Consequence of removing it today | Discovery needed before migration |
 | --- | --- | --- |
-| Product countdown calculation in [the indicator](../../child/remainingTimeIndicator.js) | Countdown selection/reconstruction still depends on the extension. | [Rows 1/2 handoff](Broker-Countdown.md): move deadline arithmetic into broker while retaining the native source and existing effects. |
 | Additional expiry lock requests in the indicator | Loses the product's additional expiry path; native locking still exists. | [Row 3 exploration](Broker-Expiry-Locking.md): effect ownership, invalidation, completion and recovery, independently of replacing the timing source. |
-| [Native deadline endpoint](../../child/applicationUi.js) | Positive-daily-allowance child status reads and fixed approvals can fail without fresh timing data. | [Row 4 exploration](Replace-Main.timeLimitsManager.md): existing public observations plus native recorded usage, with startup/reconciliation/recovery gaps explicit. |
+| Native countdown observations and [deadline endpoint](../../child/applicationUi.js) | The panel loses fresh timing observations; positive-daily-allowance child status reads and fixed approvals can fail without fresh timing data. | [Row 4 exploration](Replace-Main.timeLimitsManager.md): existing public observations plus native recorded usage, with startup/reconciliation/recovery gaps explicit. |
 | Login/unlock trigger for `PrepareOwnSession` | Expired soft-app exceptions may miss their required restoration transition. | A reliable independent trigger with the correct authentication and policy ordering. |
 | [Resume estimate refresh](../../child/resumeEstimateRefresh.js) | Loses a workaround for stale native deadlines during inactivity/resume. | Which supported packages need it and whether an existing public integration can replace it; no native patches. |
 | [Authenticated unlock continuation](../../child/sessionUnlock.js) | Loses recovery from a native exhausted-session admission race. | An existing supported replacement preserving authentication and one-time request lifetime, or an explicit unresolved dependency. |
@@ -270,15 +270,15 @@ Neither changes the current product or depends on the other exploration passing.
 The existing
 [test allocation](../TestAutomation/UI-and-E2E-Coverage.md#expiry-locking-migration-allocation)
 reuses canonical E2E tasks and prevents duplicate expiry qualification.
-Rows 1/2 are the first implementation handoff; expiry migration remains pending.
+Expiry migration remains pending independently of completed rows 1/2.
 
 ## Journey through gradual migration
 
 ### Choose a complete capability slice
 
-The selected first implementation slice is [broker countdown/display](Broker-Countdown.md).
-It can ship with the extension still required. Subsequent expiry and timing-source
-delivery need separate bounded scope after their explorations; neither exploration
+The completed first slice is [broker countdown/display](Screen-Time.md#countdown-and-expiry-enforcement).
+Subsequent expiry and timing-source delivery need separate bounded scope after
+their explorations; neither exploration
 is authority to remove extension code. Application-policy reconciliation is another slice:
 its privileged implementation is already in the broker and its missing piece is
 the lifecycle trigger. Fresh timing information also serves status and fixed
@@ -305,7 +305,7 @@ extension-free product before the final handover.
 
 | Migration landmark | Responsibility after handover | Healthy intermediate release |
 | --- | --- | --- |
-| Broker-calculated countdown | Broker selects/computes the deadline; extension renders it locally. | Existing native timing bridge, expiry locks and compatibility hooks remain required; no extension-independence claim. |
+| [Broker-calculated countdown](Screen-Time.md#countdown-and-expiry-enforcement) (complete) | Current design in Screen time. | Extension remains required. |
 | Independent session preparation | Broker reconciliation has a qualified admission/lifecycle trigger. | Required app-policy restoration no longer relies on the panel; remaining timing and lock functions still use the extension. |
 | Independent live time information | Broker consumers obtain qualified timing from existing supported observations and native history without the extension endpoint. | Migrated consumers work with the new data path; expiry still uses its established owner. Consumer scope must be explicit. |
 | Qualified expiry ownership | Native GNOME supplies the verified behavior, with broker coordination only for demonstrated gaps. | The extension's additional expiry path can be retired without losing locking, completion observation or recovery. |

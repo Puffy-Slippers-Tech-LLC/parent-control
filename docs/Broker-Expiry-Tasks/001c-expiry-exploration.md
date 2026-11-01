@@ -16,8 +16,8 @@ Read the [master](../Broker-Expiry-Plan.md), expiry design and affected
 Screen-Time/Broker/Lifecycle sections linked there. Discover and read the current
 extension expiry callbacks, broker transaction/dispatch owners and service unit.
 Reuse completed task 001 without inspecting old reports or rerunning its checks.
-The separate [countdown handoff](../SystemDesign/Broker-Countdown.md) stays out of
-this launcher task.
+The completed [countdown design](../SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement)
+is the current baseline, not implementation work in this launcher task.
 
 ## Required result
 

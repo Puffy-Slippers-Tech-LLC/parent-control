@@ -189,6 +189,11 @@ INTROSPECTION_XML = f"""
       <arg name="daily_allowance_remaining_seconds" type="u" direction="in"/>
       <arg name="calculated_active_extension_seconds" type="u" direction="out"/>
     </method>
+    <method name="CalculateOwnDeadline">
+      <arg name="native_deadline_realtime_usec" type="t" direction="in"/>
+      <arg name="timer_deadline_realtime_usec" type="t" direction="in"/>
+      <arg name="deadline_monotonic_usec" type="t" direction="out"/>
+    </method>
     <method name="RecoverChildExtension">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="recovered" type="b" direction="out"/>
@@ -503,7 +508,7 @@ class Service:
         try:
             caller_uid = self.credentials.uid(sender)
             deferred_reply = False
-            if method not in ("LogEvent", "CalculateOwnRemainingTime"):
+            if method not in ("LogEvent", "CalculateOwnRemainingTime", "CalculateOwnDeadline"):
                 LOG.info("service.006", method=method)
             if self.diagnostics_only and method not in (
                     "LogEvent", "ExportDiagnosticLogs", "ListKioskUsers",
@@ -682,6 +687,10 @@ class Service:
                     caller_uid, daily,
                 )
                 invocation.return_value(GLib.Variant("(u)", (calculated,)))
+            elif method == "CalculateOwnDeadline":
+                native, timer = parameters.unpack()
+                deadline = self.broker.calculate_own_deadline(caller_uid, native, timer)
+                invocation.return_value(GLib.Variant("(t)", (deadline,)))
             elif method == "RecoverChildExtension":
                 target_uid, = parameters.unpack()
                 deferred_reply = True
@@ -758,7 +767,7 @@ class Service:
                 invocation.return_dbus_error(
                     f"{BUS_NAME}.Error.InvalidRequest", "unknown method"
                 )
-            if method not in ("LogEvent", "CalculateOwnRemainingTime") and not deferred_reply:
+            if method not in ("LogEvent", "CalculateOwnRemainingTime", "CalculateOwnDeadline") and not deferred_reply:
                 LOG.info("service.008", method=method)
         except BrokerError as error:
             LOG.warning("service.009", method=method, error_type=error_code(error))

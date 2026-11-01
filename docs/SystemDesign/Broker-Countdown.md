@@ -1,9 +1,8 @@
 # Broker countdown and extension display
 
-Status: implementation handoff for a separate session; no implementation or
-acceptance is delivered by this document. Implement rows 1 and 2 together as
-one bounded increment. This is not a full optional-extension migration or a
-new execution queue.
+Status: Session 1 complete; Session 2 installed acceptance and release readiness
+pending. Rows 1 and 2 are implemented together; the increment is not yet accepted
+as shippable. This is a bounded migration step, with the extension still required.
 
 ## Outcome and release boundary
 
@@ -16,10 +15,18 @@ This increment can ship with the extension still required. Global extension
 disablement remains an unresolved product dependency. Do not claim that timing
 or enforcement works independently of the extension after this change.
 
+The endpoint is a working, validated product with this migration step complete,
+not a partially connected broker API or an extension awaiting integration.
+Rows 3 and 4 are not release prerequisites for this increment. Shippable means
+the acceptance below and the applicable [release preparation](../Publishing.md)
+and [upgrade acceptance](../Publishing.md#upgrade-acceptance) are complete, with
+no unresolved release blockers. Documentation completion alone establishes none
+of those results. Actual publication remains a separate authorized action.
+
 | Row | Responsibility | Scope of this increment |
 | --- | --- | --- |
-| 1 | Move countdown arithmetic into broker | Implement |
-| 2 | Make extension display broker results | Implement with row 1 |
+| 1 | Move countdown arithmetic into broker | Implemented; installed acceptance pending |
+| 2 | Make extension display broker results | Implemented with row 1; installed acceptance pending |
 | 3 | Schedule broker expiry and invalidate it after policy changes | Excluded; retain existing expiry owners |
 | 4 | Replace access to `Main.timeLimitsManager` | Excluded; retain existing native timing inputs |
 
@@ -36,6 +43,50 @@ owns the separate row 4 exploration. The superseded upstream/package
 a prerequisite for this increment. Do not implement the timing exploration,
 change its queue, or mark its source/reader tasks complete through this work.
 
+## Two-session boundary
+
+These are session boundaries within one increment, not separate deliverables or
+a formal execution plan. Keep the broker and extension changes together. Do not
+add a task queue or launcher. Two sessions are the intended allocation, not
+permission to omit checks or declare unfinished work shippable.
+
+### Session 1 — Implement the complete change and verify locally
+
+Implement rows 1 and 2 together, including refresh, failure and grant-confirmation
+behavior specified below. Complete the host tests, independent backend review,
+package build and documentation checks in [close-out](#acceptance-and-implementation-close-out).
+Update current design descriptions, leaving installed acceptance pending.
+
+Stop before installed VM acceptance and release preparation. The boundary is
+complete only when the broker and extension work together, affected host checks,
+review and package build pass, and changed Markdown links pass. Leave a short
+handoff in this document identifying changed behavior, completed checks, the
+candidate packages and exact remaining installed/release checks or blockers.
+Do not describe the increment as accepted or shippable at this boundary.
+
+### Session 2 — Verify the installed product and finish release readiness
+
+Resume the handoff without rerunning unchanged completed checks just to prove
+them again. Finalize release inputs through the existing release-preparation
+workflow before validating the final candidate. Complete the required local
+release checks, affected installed acceptance below on both named VMs, and the
+supported previous-release upgrade under the existing upgrade contract,
+including retained settings, broker restart and child-session renewal. Scoped
+countdown checks alone do not establish whole-product release readiness.
+
+Fix only issues within this increment. Later source or release-input changes
+receive the affected review, build and validation under the existing contracts,
+so the candidate intended to ship is the candidate tested. Preserve completed
+unchanged checks. Apply the stopping rule below to excluded dependencies and
+report unrelated release failures without broadening this assignment.
+
+Complete [close-out](#acceptance-and-implementation-close-out) and record a short
+final result here: both VM outcomes,
+upgrade/activation and release-readiness results, and any precise remaining
+blocker. Mark the increment complete and shippable only when all required checks
+pass and no release blocker remains. The release description must state that
+the extension is still required. Do not publish or implement rows 3 and 4.
+
 ## Existing code and reading route
 
 Read [Screen time](Screen-Time.md#grant-arithmetic-and-usage-identities),
@@ -50,21 +101,23 @@ Read complete affected functions and their necessary callers before editing:
 - [remainingTimeIndicator.js](../../child/remainingTimeIndicator.js):
   `_refreshEstimate`, `_schedule`, `_sync`, `showGrantedTime` and disposal.
 - [indicatorLogic.mjs](../../child/indicatorLogic.mjs):
-  `effectiveAllowanceRemaining`, `nextEstimateState` and display helpers.
+  local subtraction, formatting and display helpers; source selection and
+  duration-to-deadline reconstruction have been removed.
 - [timeCalculationClient.js](../../child/timeCalculationClient.js) and
   [timerQuery.js](../../child/timerQuery.js): existing asynchronous transport,
   native estimate acquisition and bounded error handling.
 - [core.py](../../broker/oh_no_parent_control/core.py):
-  `calculate_own_remaining_time` and its shared formula; distinguish these from
-  `get_time_status` and approval-time calculations.
+  `calculate_own_deadline`, its clock samples and the compatible
+  `calculate_own_remaining_time` formula; distinguish these from `get_time_status`
+  and approval-time calculations.
 - [service.py](../../broker/oh_no_parent_control/service.py) and the
   [published D-Bus contract](../../data/dbus-1/com.puffyslippers.OhNoParentControl1.xml):
   method declarations, caller identity, dispatch and errors.
 
-The broker already combines a caller-supplied remaining operand with its live
-AccountsService grant. The extension currently chooses the native/fallback
-operand, reconstructs an endpoint and refreshes the broker from its display
-timer. Consolidate that narrow path; do not redesign the rest of time management.
+The broker now selects the native/fallback endpoint and combines it with its
+live AccountsService grant. The extension consumes the absolute monotonic
+deadline and refreshes on existing notifications rather than display ticks.
+Keep this path narrow; do not redesign the rest of time management.
 Preserve all pre-existing checkout changes, including pending native-time tests.
 
 ## Bounded implementation
@@ -74,13 +127,12 @@ calls the broker, and consumes its result. No new broker-side helper reads,
 activity observers, background workers, subscriptions or persistent state are
 needed for the calculation itself.
 
-Add the smallest child-scoped deadline calculation method alongside the current
-API. It takes raw native and timer-fallback endpoints with explicit units and
-clock domain, rather than an extension-calculated remaining duration. The broker
-selects the operand using the current rule, reads the caller's live grant, and
-returns an absolute monotonic-microsecond deadline. The exact method name and
-minimal tuple are implementation choices; this is a planned interface, not an
-existing callable. Keep existing methods compatible for unaffected callers.
+`CalculateOwnDeadline(native_deadline_realtime_usec, timer_deadline_realtime_usec)`
+is the child-scoped calculation method alongside the compatible existing API.
+It takes raw absolute realtime-microsecond endpoints (zero means absent).
+The broker selects the operand using the current rule, reads the caller's live
+grant, and returns one absolute monotonic-microsecond deadline. Values must be
+safe integers for GJS. No caller-selected target or grant is accepted.
 
 The calculation contract is:
 
@@ -172,10 +224,10 @@ Acceptance is finite:
   lock/unlock or inactivity return, and natural expiry still work. A shorter
   expired/revoked grant preserves positive daily time.
 
-Run the lowest effective maintained host selections, then affected installed
-checks on `onpc-Ubuntu26.04` and `onpc-Fedora44`. Reuse the existing countdown
-cases 27–29 and affected expiry/recovery owners; do not create another scenario
-matrix or rerun completed unrelated tasks. Use
+Run the lowest effective maintained host selections in Session 1, then affected
+installed checks on `onpc-Ubuntu26.04` and `onpc-Fedora44` in Session 2. Reuse the
+existing countdown cases 27–29 and affected expiry/recovery owners; do not create
+another scenario matrix or rerun completed unrelated tasks. Use
 [test maintenance](../../tests/README.md#all-established-regressions) and launcher
 help/listing to select actual registered checks. Read the VM/UI/storage mandates
 before the respective operations, retain existing finite timing inputs and
@@ -187,6 +239,36 @@ review required by [AGENTS.md](../../AGENTS.md#product-boundaries). Build packag
 changes with `tools/build_package.py` after the final such edit; apply the existing
 [activation rules](../Publishing.md#package-update-activation) to broker and
 extension updates. Update the affected current design descriptions, check changed
-Markdown links, and leave a short result with remaining blockers. No release or
-publication is authorized here. Passing this increment earns no row 3/4 or
-extension-disabled acceptance.
+Markdown links, and leave the session handoff or final result specified above.
+Release preparation is in scope for Session 2; publication is not authorized
+here. Passing this increment earns no row 3/4 or extension-disabled acceptance.
+
+## Session 1 result and Session 2 handoff
+
+Session 1 completed on 2026-11-01. The broker selects the native/fallback endpoint
+and live grant; the extension stores its absolute deadline, rejects stale
+replies, retries failed reads finitely and renders locally. Existing native
+notifications cover grant, policy, activity and clock invalidation. Lock owners,
+resume workarounds and the independent native export remain in place.
+
+Focused validation passed: 883 unit tests across `test_core.py`,
+`test_service_contract.py`, `test_diagnostics.py` and `test_diagnostic_privacy.py`;
+18 private-D-Bus component tests; the indicator, diagnostic and notification
+Node selections; GJS adapter tests; JavaScript static checks; and changed Markdown
+links. Astra xHigh independently reviewed and revised the production change:
+uncertain clock samples now fail rather than expire time prematurely. Its
+requested expired-native/live-grant combination also passed its affected core
+test. No remaining blocking host-review findings were identified.
+
+`tools/build_package.py` completed both formats after the final packaged edit:
+`output/deb/oh-no-parent-control_2.0+local1~ubuntu26.04.1_amd64.deb` and
+`output/rpm/oh-no-parent-control-2.0-0.1.dev.fc44.x86_64.rpm`.
+
+Next: execute Session 2 on `onpc-Ubuntu26.04` and `onpc-Fedora44`. Cases 27–29
+are registered and ready (`E2E-011/daily-only`, `grant-only`, `combined`), selectable
+with `tools/run-tests e2e --id '27,28,29'`. Select affected expiry/recovery checks
+under the existing [coverage allocation](../TestAutomation/UI-and-E2E-Coverage.md#expiry-locking-migration-allocation),
+retaining its pending limitations. Complete the supported previous-release
+upgrade/activation and normal release checks against finalized release inputs.
+Installed behavior, upgrade acceptance and whole-product release readiness have
+not been evaluated in Session 1; those are the remaining gates to shippability.

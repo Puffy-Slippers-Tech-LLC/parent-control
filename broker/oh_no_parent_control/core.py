@@ -41,6 +41,9 @@ MIN_MANAGED_UID = 1000
 DAILY_SCHEDULE_FLAG = 1 << 0
 DAILY_LIMIT_FLAG = 1 << 1
 FULL_DAY_SCHEDULE = (0, 86400)
+# D-Bus uint64 values used by GJS must remain exactly representable in Number.
+MAX_SAFE_DEADLINE_USEC = (1 << 53) - 1
+CLOCK_SAMPLE_TOLERANCE_USEC = 1000
 APPROVER_USERNAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*[$]?$")
 
 
@@ -381,6 +384,66 @@ class Broker:
         return calculate_active_extension_seconds(
             daily_allowance_remaining_seconds, grant_remaining, 0,
         )
+
+    def calculate_own_deadline(self, caller_uid: int,
+                               native_deadline_realtime_usec: int,
+                               timer_deadline_realtime_usec: int) -> int:
+        """Select the native/fallback endpoint and live grant; never renew time.
+
+        Inputs are absolute CLOCK_REALTIME microseconds (zero means absent),
+        output is absolute CLOCK_MONOTONIC microseconds. Observations retain the
+        same child-supplied trust as CalculateOwnRemainingTime.
+        """
+        target = self._target(self._load_config(), caller_uid)
+        endpoints = (native_deadline_realtime_usec, timer_deadline_realtime_usec)
+        if any(type(value) is not int or not 0 <= value <= MAX_SAFE_DEADLINE_USEC
+               for value in endpoints):
+            raise InvalidRequest("deadline values must be safe unsigned microseconds")
+
+        before = self._deadline_clock_sample()
+        try:
+            issued, duration = self._accounts.get_extension(target.uid)
+        except Exception as error:
+            raise BackendFailure("remaining-time grant is unavailable") from error
+        if (type(issued) is not int or type(duration) is not int or
+                issued < 0 or not 0 <= duration <= UINT32_MAX):
+            raise BackendFailure("remaining-time grant is invalid")
+        after = self._deadline_clock_sample()
+        # Each real-time reading is bracketed by monotonic readings. The two
+        # offset intervals must overlap within 1ms of clock/sample granularity.
+        # A clock jump or suspend across the read needs a fresh calculation.
+        lower = max(before[0] - before[1], after[0] - after[1])
+        upper = min(before[2] - before[1], after[2] - after[1])
+        if after[0] < before[2] or lower > upper + CLOCK_SAMPLE_TOLERANCE_USEC:
+            raise BackendFailure("deadline clock mapping changed")
+        if any(value - after[1] > UINT32_MAX * 1_000_000 for value in endpoints):
+            raise InvalidRequest("deadline is outside the remaining-time range")
+
+        # A positive native endpoint remains binding even after it expires.
+        allowance = native_deadline_realtime_usec or timer_deadline_realtime_usec
+        grant = (issued + duration) * 1_000_000 if duration else 0
+        if grant - after[1] > UINT32_MAX * 1_000_000:
+            raise BackendFailure("remaining-time grant is invalid")
+        # Use the earlier proven offset, consuming sampling and transport time.
+        offset = min(before[0] - before[1], after[0] - after[1])
+        deadline = max(0, max(allowance, grant) + offset)
+        if deadline > MAX_SAFE_DEADLINE_USEC:
+            raise BackendFailure("calculated deadline is invalid")
+        return deadline
+
+    def _deadline_clock_sample(self) -> tuple[int, int, int]:
+        start = self._monotonic()
+        realtime = self._now().timestamp()
+        end = self._monotonic()
+        if (not all(math.isfinite(value) and value >= 0
+                    for value in (start, realtime, end)) or end < start):
+            raise BackendFailure("deadline clocks are unavailable")
+        # A descheduled sample cannot locate realtime closely enough to use
+        # its conservative offset without expiring valid time prematurely.
+        if (end - start) * 1_000_000 > CLOCK_SAMPLE_TOLERANCE_USEC:
+            raise BackendFailure("deadline clock sample is uncertain")
+        return (math.floor(start * 1_000_000), round(realtime * 1_000_000),
+                math.floor(end * 1_000_000))
 
     def prepare_own_session(self, caller_uid: int) -> bool:
         """Restore expired-grant app policy when a child resumes its session.

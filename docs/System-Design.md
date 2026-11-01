@@ -38,7 +38,7 @@ changing approval or commit behavior. A preference schema change needs
 | Localization and personal language | [Localization](SystemDesign/Localization.md) | [Infrastructure](SystemDesign/Localization.md#localization-infrastructure), [settings backend](SystemDesign/Localization.md#language-user-settings-backend), [settings GUI](SystemDesign/Localization.md#language-user-settings-gui), [translation lifecycle](SystemDesign/Localization.md#translation-lifecycle-and-shared-ui) |
 | Saved-data compatibility and upgrades | [Data migration](SystemDesign/Data-Migration.md) | [Package ordering and retries](SystemDesign/Data-Migration.md#package-lifecycle), [adding migrations](SystemDesign/Data-Migration.md#adding-a-preference-migration), [safety](SystemDesign/Data-Migration.md#safety-contract) |
 | Time limits and child sessions | [Screen time](SystemDesign/Screen-Time.md) | [Enablement](SystemDesign/Screen-Time.md#screen-time-model), [calculations and usage](SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities), [countdown/lock/PAM](SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement) |
-| Proposed broker countdown refactor | [Broker countdown](SystemDesign/Broker-Countdown.md) | Bounded calculation/display handoff retaining the extension's native timing input and current expiry owners; not implemented |
+| Broker countdown refactor | [Broker countdown](SystemDesign/Broker-Countdown.md) | Broker-owned deadline calculation and local extension display, retaining native timing inputs and expiry owners; installed acceptance pending |
 | Proposed broker expiry coordination | [Expiry exploration](SystemDesign/Broker-Expiry-Locking.md) | Row 3: scheduling, invalidation, native lock completion and recovery; not implemented |
 | Extension-independent timing inputs | [Timing exploration](SystemDesign/Replace-Main.timeLimitsManager.md) | Row 4: existing public observations with native Malcontent history; no upstream changes or replacement accountant; unproven |
 | Proposed optional child extension | [Design draft](SystemDesign/Optional-Child-Extension.md) | Native GNOME/Malcontent investigation and gradual migration with publishable intermediate releases; not implemented |
@@ -72,8 +72,9 @@ no Parent launch route. The Parent App reads remaining time through
 `GetTimeStatus`; it does not directly read another account's AccountsService
 grant. The broker reads that grant and runs a fixed usage helper as the selected child for status, or
 as the authenticated approver during a fixed-duration approval. The child
-extension obtains the public daily-time estimate and asks the broker to combine
-it with the live grant.
+extension supplies native and public timer endpoints; the broker selects the
+timing source, combines it with the live grant and returns a monotonic deadline
+for the panel to display locally.
 
 The GTK feedback worker sends an explicitly submitted report directly over
 HTTPS. The broker only supplies validated diagnostics; it does not upload

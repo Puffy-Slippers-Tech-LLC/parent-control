@@ -140,7 +140,9 @@ export class GnomeApplicationUiAdapter {
     }
 
     _remainingSeconds() {
-        const remaining = this._indicator._remainingSeconds(Main.timeLimitsManager.getCurrentTime());
+        if (!this._indicator._preview && !this._indicator._statusLoaded)
+            throw new Error('Remaining time is unavailable');
+        const remaining = this._indicator._remainingSeconds();
         if (!Number.isSafeInteger(remaining))
             throw new Error('Remaining time is unavailable');
         // A past deadline represents zero remaining time, including hidden reads.

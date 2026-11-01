@@ -1,7 +1,7 @@
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 
-import {calculateOwnRemainingTime} from '../../child/timeCalculationClient.js';
+import {calculateOwnDeadline, calculateOwnRemainingTime} from '../../child/timeCalculationClient.js';
 import {timerErrorCategory, waitForRetry} from '../../child/timerQuery.js';
 
 function assertEqual(actual, expected, message) {
@@ -49,6 +49,15 @@ async function main() {
         () => { throw new Error('overflow value was accepted'); },
         error => assertEqual(error.message, 'Invalid remaining-time value', 'Gio adapter rejects overflow'),
     );
+
+    for (const invalid of [-1, NaN, Infinity, null, undefined, '100', 1e10]) {
+        for (const endpoints of [[invalid, 0], [0, invalid]]) {
+            await calculateOwnDeadline(...endpoints).then(
+                () => { throw new Error('invalid countdown endpoint was accepted'); },
+                error => assertEqual(error.message, 'Invalid countdown endpoint', 'deadline input validation'),
+            );
+        }
+    }
 
     const start = GLib.get_monotonic_time();
     await waitForRetry(1);

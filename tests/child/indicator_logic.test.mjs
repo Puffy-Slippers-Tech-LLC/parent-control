@@ -8,9 +8,7 @@ import {
     busyRetryDelay,
     canOpenRequest,
     displayState,
-    effectiveAllowanceRemaining,
     formatRemainingTime,
-    nextEstimateState,
     remainingSeconds,
     requestCompletionState,
     shouldPrepareSession,
@@ -34,7 +32,8 @@ test('layout refreshes cannot postpone the countdown tick', () => {
             },
         },
     });
-    Object.assign(indicator, {_timeoutId: 0, _timeoutDeadline: 0, _preview: true});
+    Object.assign(indicator, {_timeoutId: 0, _timeoutDeadline: 0, _preview: false,
+        _refreshEstimate() { assert.fail('display ticks must not read timing sources'); }});
     let remaining = 56;
     indicator._sync = () => {
         remaining = 56 - Math.floor(now / 1_000_000);
@@ -484,14 +483,14 @@ test('countdown hides on lock and greeter and resumes only with time remaining',
     let scheduled;
     const indicator = createIndicator({
         displayState,
+        GLib: {get_monotonic_time: () => now * 1_000_000},
         Main: {sessionMode, timeLimitsManager: {
             getCurrentTime: () => now, dailyLimitEnabled: true,
         }},
         logInfo() {},
     });
     Object.assign(indicator, {
-        _preview: false, _calculatedEnd: 220, _statusLoaded: true,
-        _activeExtensionEnd: 0,
+        _preview: false, _deadlineUsec: 220_000_000, _statusLoaded: true,
         _recordCountdownState() {}, _prepareSession() {},
         _clearTimeout() { scheduled = null; }, _stopRequestIconSpin() {},
         _setShown(value) { shown = value; },
@@ -582,101 +581,142 @@ test('panel API becomes unavailable at lock or greeter before actors are hidden'
     assert.throws(() => adapter.nativeAllowanceDeadline(), /unavailable/);
 });
 
-test('calculates allowance and preserves a verified estimate on a transient failure', () => {
-    assert.equal(effectiveAllowanceRemaining(['', 0, 160], 100, 140), 40);
-    assert.equal(effectiveAllowanceRemaining(null, 100, 90), 0);
-    for (const unavailable of [0, undefined, Number.NaN, Number.POSITIVE_INFINITY])
-        assert.equal(effectiveAllowanceRemaining(['', 0, 160], 100, unavailable), 60);
-    assert.equal(effectiveAllowanceRemaining(['', 0, 160], 100, 200), 100);
-    const previous = {calculatedEnd: 900, statusLoaded: true};
-    assert.deepEqual(nextEstimateState(previous, Number.NaN, 100), previous);
-    assert.deepEqual(nextEstimateState(previous, 45, 100), {calculatedEnd: 145, statusLoaded: true});
-});
-
-test('fresh uncheckpointed estimates cannot restart the active daily countdown', async () => {
-    let now = 100;
-    let dailyEnd = 340;
-    let grantEnd = 0;
+function refreshHarness({loaded = true} = {}) {
+    let now = 100_000_000;
+    let timerEnd = 340;
+    let deadline = 340_123_456;
+    let failure = null;
+    const calls = [], reports = [], logs = [], timers = new Map(), delays = [];
+    let nextId = 0;
+    const manager = {getCurrentTime: () => now / 1_000_000, dailyLimitTime: 340};
     const indicator = createIndicator({
-        queryEstimatedTimes: async () => ({'': [false, 0, now + 240]}),
-        effectiveAllowanceRemaining, nextEstimateState,
-        calculateOwnRemainingTime: async daily => Math.max(daily, grantEnd - now, 0),
-        Main: {timeLimitsManager: {getCurrentTime: () => now,
-            get dailyLimitTime() { return dailyEnd; }}},
-        logInfo() {},
+        GLib: {get_monotonic_time: () => now, PRIORITY_DEFAULT: 0, SOURCE_REMOVE: false,
+            timeout_add: (_priority, delay, callback) => {
+                delays.push(delay);
+                timers.set(++nextId, callback);
+                return nextId;
+            }, source_remove: id => timers.delete(id)},
+        queryEstimatedTimes: async () => {
+            if (failure === 'timer-estimate') throw new Error('source unavailable');
+            return {'': [false, 0, timerEnd]};
+        },
+        calculateOwnDeadline: async (...args) => {
+            calls.push(args);
+            if (failure === 'broker-calculation') throw new Error('broker unavailable');
+            return deadline;
+        },
+        remainingSeconds,
+        timerErrorCategory: () => 'other',
+        Main: {sessionMode: {isLocked: false, isGreeter: false}, timeLimitsManager: manager},
+        logInfo() {}, logWarning: (event, fields) => logs.push({event, ...fields}),
     });
-    Object.assign(indicator, {_calculatedEnd: 0, _statusLoaded: false,
-        _onError() { assert.fail('successful timer refresh must not fail'); }, _sync() {}});
-    for (now of [100, 160, 220, 340, 341]) {
-        await indicator._refreshEstimate();
-        assert.equal(indicator._calculatedEnd, Math.max(dailyEnd, now));
-        assert.equal(indicator._statusLoaded, true);
+    Object.assign(indicator, {_deadlineUsec: loaded ? 150_000_000 : 0, _statusLoaded: loaded,
+        _onError: error => reports.push(error), _sync() {}});
+    return {indicator, manager, calls, reports, logs, timers, delays,
+        time: value => { now = value * 1_000_000; },
+        timer: value => { timerEnd = value; },
+        deadline: value => { deadline = value; },
+        fail: value => { failure = value; }};
+}
+
+test('passes raw observations and retains the broker deadline through fresh usage estimates', async () => {
+    const h = refreshHarness();
+    for (const now of [100, 160, 220, 340, 341]) {
+        h.time(now);
+        h.timer(now + 240); // Fresh completed-use estimates omit the ongoing interval.
+        await h.indicator._refreshEstimate();
+        assert.deepEqual(h.calls.at(-1), [340, now + 240,
+            'com.puffyslippers.OhNoParentControl1']);
+        assert.equal(h.indicator._deadlineUsec, 340_123_456);
+        assert.equal(h.indicator._remainingSeconds(), Math.ceil(340.123456 - now));
+        assert.equal(h.indicator._statusLoaded, true);
     }
-    now = 350;
-    dailyEnd = 500; // A newly configured allowance replaces the old deadline.
-    await indicator._refreshEstimate();
-    assert.equal(indicator._calculatedEnd, 500);
-    grantEnd = 600; // The broker still selects the longer live grant.
-    await indicator._refreshEstimate();
-    assert.equal(indicator._calculatedEnd, 600);
-    now = 610;
-    dailyEnd = 700;
-    await indicator._refreshEstimate();
-    assert.equal(indicator._calculatedEnd, 700, 'expired grants preserve remaining daily time');
+    h.manager.dailyLimitTime = 0; // Inactivity is passed through for broker selection.
+    await h.indicator._refreshEstimate();
+    assert.equal(h.calls.at(-1)[0], 0);
+    h.deadline(700_000_000);
+    await h.indicator._refreshEstimate();
+    assert.equal(h.indicator._deadlineUsec, 700_000_000);
 });
 
-test('refresh diagnostics identify the failing stage and preserve verified state', async () => {
-    for (const [stage, loaded] of ['timer-estimate', 'allowance-calculation', 'broker-calculation']
-        .flatMap(stage => [true, false].map(loaded => [stage, loaded]))) {
-        const error = new Error('private@example.test /home/private');
-        const logs = [];
-        const reports = [];
-        const indicator = createIndicator({
-            queryEstimatedTimes: async () => {
-                if (stage === 'timer-estimate')
-                    throw error;
-                return {};
-            },
-            effectiveAllowanceRemaining: () => {
-                if (stage === 'allowance-calculation')
-                    throw error;
-                return 10;
-            },
-            calculateOwnRemainingTime: async () => { throw error; },
-            timerErrorCategory: () => 'other',
-            Main: {sessionMode: {isLocked: true, isGreeter: false},
-                timeLimitsManager: {getCurrentTime: () => 100, dailyLimitTime: 110}},
-            logWarning: (event, fields) => logs.push({event, ...fields}),
-        });
-        const previousEnd = loaded ? 150 : 0;
-        Object.assign(indicator, {_calculatedEnd: previousEnd, _statusLoaded: loaded,
-            _onError: failure => reports.push(failure), _sync() {}});
-        await indicator._refreshEstimate();
-        assert.equal(indicator._calculatedEnd, previousEnd);
-        assert.equal(indicator._statusLoaded, loaded);
-        assert.equal(indicator._refreshPending, false);
-        assert.deepEqual(reports, [error]);
-        assert.deepEqual(logs, [{event: 'child.refresh-failed', stage,
-            category: 'other', loaded, locked: true, greeter: false}]);
+test('temporary failures retain the original deadline or initial unavailable state with finite recovery', async () => {
+    for (const loaded of [true, false]) {
+        for (const stage of ['timer-estimate', 'broker-calculation']) {
+            const h = refreshHarness({loaded});
+            h.fail(stage);
+            await h.indicator._refreshEstimate();
+            for (let attempt = 0; attempt < 3; attempt++) {
+                const [id, callback] = [...h.timers][0];
+                h.timers.delete(id);
+                callback();
+                await new Promise(setImmediate);
+            }
+            assert.deepEqual(h.delays, [1000, 3000, 10000]);
+            assert.equal(h.timers.size, 0, 'recovery stops after three retries');
+            assert.equal(h.indicator._deadlineUsec, loaded ? 150_000_000 : 0);
+            assert.equal(h.indicator._statusLoaded, loaded);
+            assert.equal(h.reports.length, 4);
+            assert.ok(h.logs.every(log => log.stage === stage && log.loaded === loaded));
+            h.time(110);
+            if (loaded) assert.equal(h.indicator._remainingSeconds(), 40);
+            h.fail(null);
+            await h.indicator._refreshEstimate();
+            assert.equal(h.indicator._deadlineUsec, 340_123_456);
+            assert.equal(h.indicator._statusLoaded, true);
+            assert.equal(h.indicator._refreshRetries, 0);
+        }
     }
 });
 
-test('a recovered timer refresh updates the countdown without opening an error report', async () => {
+test('delayed and invalidated replies cannot restart time or replace newer policy', async () => {
+    let now = 100_000_000;
+    const replies = [];
     const indicator = createIndicator({
-        queryEstimatedTimes: async () => ({}),
-        effectiveAllowanceRemaining: () => 20,
-        calculateOwnRemainingTime: async () => 30,
-        nextEstimateState,
-        Main: {timeLimitsManager: {getCurrentTime: () => 100, dailyLimitTime: 120}},
-        logInfo() {},
+        GLib: {get_monotonic_time: () => now},
+        queryEstimatedTimes: async () => ({'': [false, 0, 200]}),
+        calculateOwnDeadline: () => new Promise(resolve => replies.push(resolve)),
+        remainingSeconds, logInfo() {},
+        Main: {timeLimitsManager: {getCurrentTime: () => 100, dailyLimitTime: 200}},
     });
-    Object.assign(indicator, {_calculatedEnd: 90, _statusLoaded: true,
-        _onError() { assert.fail('successful recovery must not report an error'); }, _sync() {}});
-    await indicator._refreshEstimate();
-    assert.equal(indicator._calculatedEnd, 130);
-    assert.equal(indicator._statusLoaded, true);
+    Object.assign(indicator, {_deadlineUsec: 150_000_000, _statusLoaded: true, _sync() {}});
+    const first = indicator._refreshEstimate();
+    await new Promise(setImmediate);
+    now = 105_000_000;
+    replies.shift()(200_000_000);
+    await first;
+    assert.equal(indicator._remainingSeconds(), 95, 'reply latency consumes time');
+
+    const obsolete = indicator._refreshEstimate();
+    await new Promise(setImmediate);
+    indicator.refreshEstimate(); // A source/policy change invalidates the in-flight reply.
+    indicator._brokerOwnerChanged(':1.99'); // Replacement coalesces into the same fresh read.
+    replies.shift()(999_000_000);
+    await obsolete;
+    assert.equal(indicator._deadlineUsec, 200_000_000, 'obsolete reply was rejected');
+    await new Promise(setImmediate);
+    assert.equal(replies.length, 1, 'one replacement read handles the burst');
+    replies.shift()(180_000_000);
+    await new Promise(setImmediate);
+    assert.equal(indicator._deadlineUsec, 180_000_000);
+
+    const pending = indicator._refreshEstimate();
+    await new Promise(setImmediate);
+    indicator._destroyed = true;
+    replies.shift()(999_000_000);
+    await pending;
+    assert.equal(indicator._deadlineUsec, 180_000_000, 'disposed indicators reject late replies');
 });
 
+test('grant confirmation requests a fresh deadline without adding its original duration', () => {
+    const indicator = createIndicator();
+    Object.assign(indicator, {_deadlineUsec: 150_000_000});
+    let refreshes = 0;
+    indicator.refreshEstimate = () => refreshes++;
+    indicator.showGrantedTime(300);
+    indicator.showGrantedTime(0);
+    assert.equal(refreshes, 2);
+    assert.equal(indicator._deadlineUsec, 150_000_000);
+});
 test('classifies bounded busy retries and prevents duplicate request overlays', () => {
     assert.equal(busyRetryDelay('org.example.Error.Busy', 0), 100);
     assert.equal(busyRetryDelay('org.example.Error.Busy', 5), undefined);

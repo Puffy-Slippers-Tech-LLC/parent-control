@@ -289,6 +289,7 @@ The ownership of runtime state is deliberately split:
 | `AppFilter` | AccountsService | Live launcher/Flatpak blocklist derived from preferences |
 | `ActiveExtension` | AccountsService | Current one-time grant |
 | Usage intervals and estimates | `malcontent-timerd` | Measured daily use |
+| Product countdown deadline | Broker calculation from native/timer observations and the live grant | Derived monotonic deadline, retained only in extension memory |
 | UID-scoped native deny rules | fapolicyd | Live execution policy derived from `AppFilter` and saved patterns |
 | Extension payload | System GNOME data directory | Immutable package content discovered when Shell starts |
 | Extension activation | Per-account GNOME settings | Derived enabled state for managed children |

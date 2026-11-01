@@ -3,6 +3,7 @@ import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {diagnosticEnvelope} from '../../child/diagnosticEvents.mjs';
 import {createIndicator} from './support/indicator.mjs';
+import {remainingSeconds} from '../../child/indicatorLogic.mjs';
 
 const catalog = JSON.parse(readFileSync(new URL(
     '../../common/oh_no_parent_control_ui/diagnostic_catalog.json', import.meta.url)));
@@ -91,16 +92,17 @@ test('countdown diagnostics preserve operands without recording every tick or ra
     const logs = [];
     const indicator = createIndicator({
         GLib: {get_monotonic_time: () => now},
+        remainingSeconds,
         logInfo: (event, fields) => logs.push(JSON.parse(diagnosticEnvelope(
             catalog, event, JSON.parse(JSON.stringify(fields))))),
     });
     const wall = 1_791_743_000;
     const sample = elapsed => {
         now = 1_000_000 + elapsed * 1_000_000;
-        indicator._calculatedEnd = wall + 240;
+        indicator._deadlineUsec = 241_000_000;
         indicator._recordCountdownRefresh({estimate: [false, 0, wall + elapsed + 239],
             currentTime: wall + elapsed, managerLimit: wall + 240,
-            effectiveAllowance: 240 - elapsed, calculated: 240 - elapsed,
+            deadline: 241_000_000,
             refreshStarted: now - 375_000, brokerStarted: now - 125_000});
     };
     for (let elapsed = 0; elapsed <= 90; elapsed++)
@@ -109,11 +111,11 @@ test('countdown diagnostics preserve operands without recording every tick or ra
     assert.deepEqual(logs.map(log => log.fields.reason), ['initial', 'periodic']);
     assert.deepEqual(logs[1].fields, {reason: 'periodic', source: 'native',
         timer_available: true, native_available: true, timer_remaining: 239,
-        native_remaining: 180, allowance: 180, remaining: 180, previous_remaining: 180,
+        native_remaining: 180, remaining: 180, previous_remaining: 180,
         elapsed_ms: 60000, refresh_ms: 375, broker_ms: 125});
     indicator._recordCountdownRefresh({estimate: [false, 0, wall + 90 + 150],
-        currentTime: wall + 90, managerLimit: 0, effectiveAllowance: 150,
-        calculated: 150, refreshStarted: now, brokerStarted: now});
+        currentTime: wall + 90, managerLimit: 0,
+        deadline: 241_000_000, refreshStarted: now, brokerStarted: now});
     assert.equal(logs.at(-1).fields.reason, 'source-changed');
     assert.equal(logs.at(-1).fields.native_available, false);
     assert.equal(logs.at(-1).fields.source, 'timer');
@@ -128,29 +130,34 @@ test('countdown diagnostics preserve operands without recording every tick or ra
 
 test('countdown state records inactivity and lock transitions without per-second history', () => {
     const logs = [];
+    let current = 100;
     const sessionMode = {isLocked: false, isGreeter: false};
     const manager = {dailyLimitTime: 340, dailyLimitEnabled: true};
-    const indicator = createIndicator({Main: {sessionMode},
+    const indicator = createIndicator({Main: {sessionMode}, remainingSeconds,
+        GLib: {get_monotonic_time: () => current * 1_000_000},
         logInfo: (event, fields) => logs.push(JSON.parse(diagnosticEnvelope(
             catalog, event, JSON.parse(JSON.stringify(fields)))))});
-    Object.assign(indicator, {_statusLoaded: true, _calculatedEnd: 340});
-    for (let now = 100; now <= 110; now++)
-        indicator._recordCountdownState(manager, now);
+    Object.assign(indicator, {_statusLoaded: true, _deadlineUsec: 340_000_000});
+    for (current = 100; current <= 110; current++)
+        indicator._recordCountdownState(manager, current);
     assert.equal(logs.length, 1);
     manager.dailyLimitTime = 0;
+    current = 110;
     indicator._recordCountdownState(manager, 110);
     manager.dailyLimitTime = 340;
+    current = 132;
     indicator._recordCountdownState(manager, 132);
     sessionMode.isLocked = true;
+    current = 340;
     indicator._recordCountdownState(manager, 340);
     assert.deepEqual(logs.map(log => log.fields.native_available), [true, false, true, true]);
     assert.deepEqual(logs.map(log => log.fields.remaining), [240, 230, 208, 0]);
     assert.equal(logs.at(-1).fields.locked, true);
     // Logging failures cannot interrupt the same verified countdown path.
     const failing = createIndicator({Main: {sessionMode}, logInfo() { throw new Error('private'); }});
-    Object.assign(failing, {_statusLoaded: true, _calculatedEnd: 340});
+    Object.assign(failing, {_statusLoaded: true, _deadlineUsec: 340_000_000});
     assert.doesNotThrow(() => failing._recordCountdownState(manager, 340));
     assert.doesNotThrow(() => failing._recordCountdownRefresh({estimate: [], currentTime: 340,
-        managerLimit: 340, effectiveAllowance: 0, calculated: 0,
+        managerLimit: 340, deadline: 0,
         refreshStarted: 0, brokerStarted: 0}));
 });

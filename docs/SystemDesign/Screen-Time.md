@@ -296,10 +296,12 @@ Parent retains the `GetTimeStatus(uu) -> (uuuu)` status contract.
 ## Countdown and expiry enforcement
 
 The child extension uses GNOME Shell's supported time-limit manager and the
-public Malcontent estimate signal/query for the daily estimate. It passes that
-estimate to `CalculateOwnRemainingTime`; the broker derives the child from the
-caller and reads the live `ActiveExtension` itself. The panel counts down in
-hours/minutes (compact hours or minutes on a vertical panel), then seconds at
+public Malcontent estimate signal/query for timing observations. It passes both
+absolute realtime endpoints to `CalculateOwnDeadline`; the broker derives the
+child from the caller, selects the timing source and reads the live
+`ActiveExtension` itself. The panel stores the returned monotonic-microsecond
+deadline and counts down locally, without broker or timer reads on display ticks,
+in hours/minutes (compact hours or minutes on a vertical panel), then seconds at
 60 seconds or less, preserving its last verified estimate across a
 temporary read failure. At expiry, deduplicated diagnostics record whether the
 estimate and daily limit are loaded, whether Shell is already in lock/greeter
@@ -316,8 +318,29 @@ omit ongoing usage until it is checkpointed, so taking the later deadline would
 restart the displayed countdown on every query. When Shell has no active
 deadline, the public timer estimate supplies the recorded-use fallback. Daily
 accounting must preserve inactive intervals; a deadline cached before inactivity
-is not a fresh resume balance. The broker still reads the live grant and selects
-the longer remaining amount.
+is not a fresh resume balance. The broker selects the native/fallback endpoint
+and combines it with the live grant using the existing maximum rule. Two
+realtime samples bracketed by monotonic reads surround the grant read. Samples
+wider than 1 ms or clock-offset intervals inconsistent beyond 1 ms fail through
+normal read-error handling. The earlier sampled offset converts the original
+endpoint conservatively; calculation and reply latency never restart time.
+
+Initial load, native state/deadline/enabled notifications, the timer's estimate
+signal, session-mode transitions, overlay completion and broker-owner changes
+refresh the calculation. GNOME's existing deadline notifications cover
+session-limit/grant changes, inactivity/resume and clock adjustments; no new
+event framework or expiry scheduler is added. Pending reads coalesce, and a
+newer invalidation or disposal rejects obsolete replies. Requests pin the known
+broker owner. Failures retain the last verified deadline without extending it,
+with at most three recovery retries after 1, 3 and 10 seconds; a new invalidation
+rearms recovery. A failed first load stays unavailable and cannot trigger the
+product's zero-time lock. Grant confirmation requests a fresh calculation.
+
+The `child.countdown-deadline` diagnostic records bounded operand durations and
+the broker result, never raw deadlines or identities. The older
+`child.countdown-sample` catalogue entry remains readable for historical logs.
+This refactor's installed countdown/expiry and upgrade acceptance remains
+pending under [Session 2](Broker-Countdown.md#session-2--verify-the-installed-product-and-finish-release-readiness).
 
 GNOME Shell 50.1 and 50.5 do not refresh their cached parental-controls deadline
 on resume, and the native dispatcher can lock using that stale deadline. The

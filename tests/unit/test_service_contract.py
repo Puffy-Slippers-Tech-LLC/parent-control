@@ -89,6 +89,14 @@ def test_time_grant_preset_dbus_contract():
         ("target_uid", "u", "in"), ("presets_json", "s", "in"), ("saved_presets_json", "s", "out"))
 
 
+def test_child_deadline_contract_has_explicit_clocks_and_no_selected_identity():
+    assert signatures(INTROSPECTION_XML)["CalculateOwnDeadline"] == (
+        ("native_deadline_realtime_usec", "t", "in"),
+        ("timer_deadline_realtime_usec", "t", "in"),
+        ("deadline_monotonic_usec", "t", "out"),
+    )
+
+
 @pytest.mark.parametrize("method,signature,values,operation,arguments", [
     ("GetOwnWhatsNew", "()", (), "get_own_whats_new", (1001,)),
     ("GetChildWhatsNew", "(u)", (1002,), "get_child_whats_new", (1001, 1002)),

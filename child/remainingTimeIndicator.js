@@ -11,16 +11,14 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import {describeControl, setAutomationId} from './accessibility.js';
 import {queryEstimatedTimes, timerErrorCategory} from './timerQuery.js';
-import {calculateOwnRemainingTime} from './timeCalculationClient.js';
+import {calculateOwnDeadline} from './timeCalculationClient.js';
 import {prepareOwnSession} from './sessionPreparationClient.js';
 import {RemainingTimeNotifications} from './remainingTimeNotifications.js';
 import {ResumeEstimateRefresh} from './resumeEstimateRefresh.js';
 import {logDebug, logInfo, logWarning} from './logger.js';
 import {
     displayState,
-    effectiveAllowanceRemaining,
     formatRemainingTime,
-    nextEstimateState,
     remainingSeconds,
     shouldPrepareSession,
 } from './indicatorLogic.mjs';
@@ -32,6 +30,8 @@ const SCREEN_SAVER_NAME = 'org.gnome.ScreenSaver';
 const SCREEN_SAVER_PATH = '/org/gnome/ScreenSaver';
 const SCREEN_SAVER_INTERFACE = 'org.gnome.ScreenSaver';
 const COUNTDOWN_ANIMATION_KEY = 'one-minute-countdown-animation';
+const BROKER_NAME = 'com.puffyslippers.OhNoParentControl1';
+const REFRESH_RETRY_DELAYS_MS = [1000, 3000, 10000];
 
 // Diagnostics retain durations, never native wall-clock deadlines or identities.
 function diagnosticSeconds(value) {
@@ -160,15 +160,19 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._notifications = this._preview ? null : new RemainingTimeNotifications(
             appName, logoPath, translations, onError, () => this._sync(),
             () => onRequest(true));
-        this._activeExtensionEnd = approvedGrantRemaining > 0
-            ? Main.timeLimitsManager.getCurrentTime() + approvedGrantRemaining
-            : 0;
-        this._calculatedEnd = this._activeExtensionEnd;
+        // Synthetic duration is used only by the development preview. Product
+        // grants always require a broker-issued absolute deadline.
+        this._deadlineUsec = preview
+            ? GLib.get_monotonic_time() + approvedGrantRemaining * 1_000_000 : 0;
         this._statusLoaded = false;
         this._lockPending = false;
         this._expiryDiagnostic = null;
         this._refreshPending = false;
         this._refreshAgain = false;
+        this._refreshSerial = 0;
+        this._refreshRetryId = 0;
+        this._refreshRetries = 0;
+        this._brokerOwner = null;
         this._sessionPreparePending = false;
         this._sessionPrepared = false;
         this._resumeEstimateRefresh = this._preview ? null : new ResumeEstimateRefresh(
@@ -177,7 +181,11 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._timerSignalId = this._preview ? 0 : Gio.DBus.system.signal_subscribe(
             TIMER_BUS_NAME, TIMER_INTERFACE, 'EstimatedTimesChanged',
             TIMER_OBJECT_PATH, null, Gio.DBusSignalFlags.NONE,
-            () => this._refreshEstimate());
+            () => this.refreshEstimate());
+        this._brokerWatchId = this._preview ? 0 : Gio.bus_watch_name_on_connection(
+            Gio.DBus.system, BROKER_NAME, Gio.BusNameWatcherFlags.NONE,
+            (_connection, _name, owner) => this._brokerOwnerChanged(owner),
+            () => this._brokerOwnerChanged(null));
 
         // Register the indicator while the panel is being initialized.  The
         // time-limits manager obtains its estimate asynchronously at login, so
@@ -186,12 +194,16 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         Main.panel.addToStatusArea(ROLE, this, 1, 'center');
         this.container.hide();
 
-        this._connect(Main.timeLimitsManager, 'notify::state', () => this._sync());
+        this._connect(Main.timeLimitsManager, 'notify::state', () => {
+            this.refreshEstimate();
+            this._sync();
+        });
         this._connect(Main.timeLimitsManager, 'notify::daily-limit-time',
-            () => this._refreshEstimate());
+            () => this.refreshEstimate());
         this._connect(Main.timeLimitsManager, 'notify::daily-limit-enabled',
-            () => this._refreshEstimate());
+            () => this.refreshEstimate());
         this._connect(Main.sessionMode, 'updated', () => {
+            this.refreshEstimate();
             this._sync();
             if (!Main.sessionMode.isLocked && !Main.sessionMode.isGreeter)
                 this._onLanguageRefresh?.();
@@ -215,7 +227,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this.refreshLanguage();
         this._queueLayoutSync();
         if (!this._preview)
-            this._refreshEstimate();
+            this.refreshEstimate();
     }
 
     setRequestActive(active) {
@@ -480,6 +492,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         if (this._destroyed)
             return;
         this._destroyed = true;
+        this._cancelRefreshRetry();
         this._resumeEstimateRefresh?.close();
         this._resumeEstimateRefresh = null;
         this._notifications?.close();
@@ -518,6 +531,9 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         if (this._timerSignalId)
             Gio.DBus.system.signal_unsubscribe(this._timerSignalId);
         this._timerSignalId = 0;
+        if (this._brokerWatchId)
+            Gio.bus_unwatch_name(this._brokerWatchId);
+        this._brokerWatchId = 0;
         this._actorDestroyId = 0;
         logDebug('child.indicator-stopped');
     }
@@ -564,14 +580,30 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         }
     }
 
-    _remainingSeconds(currentTime) {
-        return remainingSeconds(this._calculatedEnd, currentTime);
+    _remainingSeconds() {
+        return remainingSeconds(this._deadlineUsec / 1_000_000,
+            GLib.get_monotonic_time() / 1_000_000);
     }
 
     refreshEstimate() {
         if (this._preview || this._destroyed)
             return;
+        this._cancelRefreshRetry();
+        this._refreshRetries = 0;
         this._refreshEstimate();
+    }
+
+    _brokerOwnerChanged(owner) {
+        if (this._destroyed || owner === this._brokerOwner)
+            return;
+        this._brokerOwner = owner;
+        this.refreshEstimate();
+    }
+
+    _cancelRefreshRetry() {
+        if (this._refreshRetryId)
+            GLib.source_remove(this._refreshRetryId);
+        this._refreshRetryId = 0;
     }
 
     refreshNotifications() {
@@ -581,6 +613,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     async _refreshEstimate() {
         if (this._destroyed)
             return;
+        const serial = this._refreshSerial = (this._refreshSerial ?? 0) + 1;
         if (this._refreshPending) {
             this._refreshAgain = true;
             return;
@@ -591,32 +624,28 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         const refreshStarted = GLib.get_monotonic_time();
         try {
             const estimates = await queryEstimatedTimes();
-            if (this._destroyed)
+            if (this._destroyed || serial !== this._refreshSerial)
                 return;
 
             stage = 'allowance-calculation';
             const estimate = estimates[''];
             const currentTime = Main.timeLimitsManager.getCurrentTime();
-            const managerLimit = Number(
-                Main.timeLimitsManager.dailyLimitTime ?? 0);
-            const effectiveAllowance = effectiveAllowanceRemaining(
-                estimate, currentTime, managerLimit);
+            const managerLimit = Main.timeLimitsManager.dailyLimitTime;
+            const timerEnd = estimate ? estimate[2] : 0;
             stage = 'broker-calculation';
             const brokerStarted = GLib.get_monotonic_time();
-            const calculated = await calculateOwnRemainingTime(
-                effectiveAllowance);
-            if (this._destroyed)
+            const deadline = await calculateOwnDeadline(
+                managerLimit, timerEnd, this._brokerOwner ?? BROKER_NAME);
+            if (this._destroyed || serial !== this._refreshSerial)
                 return;
             this._recordCountdownRefresh({estimate, currentTime, managerLimit,
-                effectiveAllowance, calculated, refreshStarted, brokerStarted});
-            const next = nextEstimateState(
-                {calculatedEnd: this._calculatedEnd, statusLoaded: this._statusLoaded},
-                calculated, currentTime);
-            this._calculatedEnd = next.calculatedEnd;
-            this._statusLoaded = next.statusLoaded;
-            logInfo('child.estimate', {remaining: calculated});
+                deadline, refreshStarted, brokerStarted});
+            this._deadlineUsec = deadline;
+            this._statusLoaded = true;
+            this._refreshRetries = 0;
+            logInfo('child.estimate', {remaining: diagnosticSeconds(this._remainingSeconds())});
         } catch (error) {
-            if (!this._destroyed) {
+            if (!this._destroyed && serial === this._refreshSerial) {
                 // A transient daemon/database failure says nothing about the
                 // last successful estimate. Preserve it until a supported
                 // D-Bus query supplies a replacement.
@@ -626,6 +655,15 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                     locked: Main.sessionMode.isLocked,
                     greeter: Main.sessionMode.isGreeter,
                 });
+                const delay = REFRESH_RETRY_DELAYS_MS[this._refreshRetries ?? 0];
+                if (delay !== undefined) {
+                    this._refreshRetries = (this._refreshRetries ?? 0) + 1;
+                    this._refreshRetryId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
+                        this._refreshRetryId = 0;
+                        this._refreshEstimate();
+                        return GLib.SOURCE_REMOVE;
+                    });
+                }
                 this._onError?.(error, 'countdown-refresh');
             }
         } finally {
@@ -641,13 +679,13 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     }
 
     _recordCountdownRefresh({estimate, currentTime, managerLimit,
-        effectiveAllowance, calculated, refreshStarted, brokerStarted}) {
+        deadline, refreshStarted, brokerStarted}) {
         try {
             const now = GLib.get_monotonic_time();
             const nativeAvailable = Number.isFinite(managerLimit) && managerLimit > 0;
             const timerEnd = Number(estimate?.[2]);
-            const previousRemaining = diagnosticSeconds(this._calculatedEnd - currentTime);
-            const remaining = diagnosticSeconds(calculated);
+            const previousRemaining = diagnosticSeconds(this._remainingSeconds());
+            const remaining = diagnosticSeconds((deadline - now) / 1_000_000);
             const source = nativeAvailable ? 'native' : 'timer';
             const previous = this._countdownSample;
             const reason = !previous ? 'initial'
@@ -658,12 +696,12 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             if (previous && reason === 'periodic' && now - previous.at < 60_000_000)
                 return;
             this._countdownSample = {at: now, source, zero: remaining === 0};
-            logInfo('child.countdown-sample', {
+            logInfo('child.countdown-deadline', {
                 reason, source, timer_available: Number.isFinite(timerEnd) && timerEnd > 0,
                 native_available: nativeAvailable,
                 timer_remaining: diagnosticSeconds(timerEnd - currentTime),
                 native_remaining: nativeAvailable ? diagnosticSeconds(managerLimit - currentTime) : 0,
-                allowance: diagnosticSeconds(effectiveAllowance), remaining,
+                remaining,
                 previous_remaining: previousRemaining,
                 elapsed_ms: previous ? diagnosticSeconds((now - previous.at) / 1000) : 0,
                 refresh_ms: diagnosticSeconds((now - refreshStarted) / 1000),
@@ -690,7 +728,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             this._countdownState = key;
             logInfo('child.countdown-state', {...fields,
                 native_remaining: fields.native_available ? diagnosticSeconds(nativeEnd - currentTime) : 0,
-                remaining: diagnosticSeconds(this._calculatedEnd - currentTime)});
+                remaining: diagnosticSeconds(this._remainingSeconds())});
         } catch (_error) {
             // No diagnostic failure may interrupt countdown or locking.
         }
@@ -724,20 +762,10 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         }
     }
 
-    showGrantedTime(durationSeconds) {
-        const now = Main.timeLimitsManager.getCurrentTime();
-        if (durationSeconds > 0) {
-            this._activeExtensionEnd = now + durationSeconds;
-        } else {
-            const tomorrow = GLib.DateTime.new_from_unix_local(now)
-                .add_days(1);
-            this._activeExtensionEnd = GLib.DateTime.new_local(
-                tomorrow.get_year(), tomorrow.get_month(), tomorrow.get_day_of_month(),
-                0, 0, 0).to_unix();
-        }
-        // The grant duration was produced by the broker-owned shared formula.
-        this._calculatedEnd = this._activeExtensionEnd;
-        this._sync();
+    showGrantedTime(_durationSeconds) {
+        // Confirmation may arrive late. Read the live grant; never restart its
+        // original duration from the time the confirmation was received.
+        this.refreshEstimate();
     }
 
     _sync() {
@@ -752,11 +780,9 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             this._sessionPrepared = false;
         else
             this._prepareSession();
-        if (this._activeExtensionEnd <= currentTime)
-            this._activeExtensionEnd = 0;
         const state = displayState({
-            calculatedEnd: this._calculatedEnd,
-            currentTime,
+            calculatedEnd: this._deadlineUsec / 1_000_000,
+            currentTime: GLib.get_monotonic_time() / 1_000_000,
             locked: Main.sessionMode.isLocked,
             greeter: Main.sessionMode.isGreeter,
         });
@@ -939,8 +965,6 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, delay, () => {
             this._timeoutId = 0;
             this._timeoutDeadline = 0;
-            if (!this._preview)
-                this._refreshEstimate();
             this._sync();
             return GLib.SOURCE_REMOVE;
         });

@@ -72,6 +72,8 @@ def test_every_public_method_uses_real_dbus_signatures_and_serialization(private
         ("CalculateRemainingTime", GLib.Variant("(uuuu)", (1100, 120, 60, 30)),
          "(u)", (150,)),
         ("CalculateOwnRemainingTime", GLib.Variant("(u)", (120,)), "(u)", (120,)),
+        ("CalculateOwnDeadline", GLib.Variant("(tt)", (1_800_000_000_000_000, 0)),
+         "(t)", (132_500_000,)),
         ("PrepareOwnSession", None, "(b)", (True,)),
         ("SetPreferences", GLib.Variant("(us)", (1100, preferences_json)),
          "(s)", None),
@@ -111,6 +113,18 @@ def test_every_public_method_uses_real_dbus_signatures_and_serialization(private
     assert '"event":"child.enabled"' in forwarded_log
     assert '"uid"' not in forwarded_log
     assert '"source_uid"' not in forwarded_log
+
+
+def test_deadline_dispatch_uses_bus_credentials_and_preserves_microseconds(private_service):
+    native, timer = 1_800_000_000_123_456, 1_800_000_030_654_321
+    result = call(private_service.client, "CalculateOwnDeadline",
+                  GLib.Variant("(tt)", (native, timer)), "(t)")
+    assert result.unpack() == (132_500_000,)
+    assert ("calculate_own_deadline", (os.getuid(), native, timer)) in private_service.broker.calls
+    private_service.broker.behaviors["calculate_own_deadline"] = AccessDenied("ineligible caller")
+    with pytest.raises(GLib.Error) as refused:
+        call(private_service.client, "CalculateOwnDeadline", GLib.Variant("(tt)", (0, 0)), "(t)")
+    assert Gio.dbus_error_get_remote_error(refused.value) == AccessDenied.dbus_name
 
 
 def test_malformed_json_unknown_methods_and_worker_failures_are_public_errors(

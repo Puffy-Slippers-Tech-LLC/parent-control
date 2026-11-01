@@ -4,7 +4,7 @@ import unittest
 import pytest
 from pathlib import Path
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest import mock
 from zoneinfo import ZoneInfo
 
@@ -50,6 +50,79 @@ def test_login_recovery_respects_saved_control_and_preserves_account_state(calle
 
 
 class CoreTests(unittest.TestCase):
+    def test_child_deadline_selects_native_fallback_and_live_grant(self):
+        accounts = Accounts()
+        broker = make_broker(accounts=accounts)
+        wall = int(broker._now().timestamp())
+        for native, fallback, grant_remaining, expected in (
+                (40, 80, 0, 40), (100, 80, 0, 100),
+                (-10, 80, 0, -10), (-10, 80, 60, 60),
+                (None, 80, 0, 80), (None, None, 60, 60),
+                (40, 80, 60, 60), (80, 120, 40, 80),
+                (80, 120, -10, 80), (None, None, 0, -100)):
+            with self.subTest(native=native, fallback=fallback, grant=grant_remaining):
+                accounts.extension = (wall + grant_remaining - 120, 120) if grant_remaining else (0, 0)
+                deadline = broker.calculate_own_deadline(
+                    1001, 0 if native is None else (wall + native) * 1_000_000,
+                    0 if fallback is None else (wall + fallback) * 1_000_000)
+                self.assertEqual(deadline, max(0, (100 + expected) * 1_000_000))
+
+    def test_child_deadline_latency_consumes_the_original_interval_without_rounding(self):
+        accounts = Accounts()
+        broker = make_broker(accounts=accounts)
+        wall = broker._now()
+        elapsed = [0.0]
+        broker._now = lambda: wall + timedelta(seconds=elapsed[0])
+        broker._monotonic = lambda: 100 + elapsed[0]
+        accounts.extension = (0, 0)
+
+        def delayed_read(_uid):
+            elapsed[0] += 2.25
+            return accounts.extension
+
+        accounts.get_extension = delayed_read
+        endpoint = round(wall.timestamp() * 1_000_000) + 10_123_456
+        self.assertEqual(broker.calculate_own_deadline(1001, endpoint, 0), 110_123_456)
+        elapsed[0] += 1
+        self.assertEqual(broker.calculate_own_deadline(1001, endpoint, 0), 110_123_456)
+
+    def test_child_deadline_refuses_other_roles_and_bad_observations_before_grant_read(self):
+        accounts = Accounts()
+        broker = make_broker(accounts=accounts)
+        for caller in (0, 991, 1003, 1004, 1005):
+            with self.subTest(caller=caller), self.assertRaises((AccessDenied, InvalidRequest)):
+                broker.calculate_own_deadline(caller, 0, 0)
+        for value in (True, -1, 1.5, float('nan'), 1 << 53):
+            for endpoints in ((value, 0), (0, value)):
+                with self.subTest(endpoints=endpoints), self.assertRaises(InvalidRequest):
+                    broker.calculate_own_deadline(1001, *endpoints)
+        self.assertEqual(accounts.events, [])
+
+    def test_child_deadline_refuses_failed_grants_and_clock_discontinuities(self):
+        accounts = Accounts()
+        broker = make_broker(accounts=accounts)
+        wall = broker._now()
+        endpoint = round(wall.timestamp() * 1_000_000) + 30_000_000
+        for grant in ((-1, 1), (1, True), (0, 1 << 32), (1 << 63, 1)):
+            accounts.extension = grant
+            with self.subTest(grant=grant), self.assertRaises(BackendFailure):
+                broker.calculate_own_deadline(1001, endpoint, 0)
+        with mock.patch.object(accounts, 'get_extension', side_effect=OSError):
+            with self.assertRaises(BackendFailure):
+                broker.calculate_own_deadline(1001, endpoint, 0)
+        accounts.extension = (0, 0)
+        for jump in (-10, 10):
+            broker._now = mock.Mock(side_effect=[wall, wall + timedelta(seconds=jump)])
+            with self.subTest(jump=jump), self.assertRaises(BackendFailure):
+                broker.calculate_own_deadline(1001, endpoint, 0)
+        broker._now = lambda: wall
+        broker._monotonic = mock.Mock(side_effect=[100, 99])
+        with self.assertRaises(BackendFailure):
+            broker.calculate_own_deadline(1001, endpoint, 0)
+        broker._monotonic = mock.Mock(side_effect=[100, 100.1])
+        with self.assertRaises(BackendFailure):
+            broker.calculate_own_deadline(1001, endpoint, 0)
+
     def test_time_grant_presets_child_and_kiosk_crud_is_isolated_without_policy_effects(self):
         with tempfile.TemporaryDirectory() as directory:
             accounts, authorizer = Accounts(), Authorizer()

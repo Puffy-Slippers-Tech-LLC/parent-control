@@ -854,16 +854,16 @@ test('production indicator schedules custom thresholds and still locks at zero',
         displayState: ({calculatedEnd}) => ({remaining: calculatedEnd, visible: calculatedEnd > 0,
             shouldLock: calculatedEnd <= 0, nextUpdateSeconds: 30})});
     const schedule = new ReminderSchedule();
-    Object.assign(indicator, {_statusLoaded: true, _sessionPrepared: true, _activeExtensionEnd: 0,
+    Object.assign(indicator, {_statusLoaded: true, _sessionPrepared: true,
         _preview: true, _notifications: {update: (...args) => updates.push(args),
             nextDelay: (time, fallback) => schedule.nextDelay([{value: 75, unit: 'second'}], time, fallback)},
         _prepareSession() {}, _setShown() {}, _updateLabel() {}, _schedule: delay => delays.push(delay),
         _clearTimeout() {}, _stopRequestIconSpin() {}, _lockSession() { updates.push('lock'); }});
-    indicator._calculatedEnd = remaining;
+    indicator._deadlineUsec = remaining * 1_000_000;
     indicator._sync();
     assert.deepEqual(delays, [15]);
     indicator._preview = false;
-    indicator._calculatedEnd = 0;
+    indicator._deadlineUsec = 0;
     // Avoid diagnostics unrelated to this isolated scheduling contract.
     indicator._expiryDiagnostic = 'loaded=true limitEnabled=true locked=false greeter=false pending=undefined';
     indicator._sync();
@@ -878,10 +878,11 @@ test('real countdown controller delivers both final reminders while the game hid
     h.layoutManager.primaryMonitor.inFullscreen = true;
     h.notifier.preferences = {show_in_fullscreen: true, reminders};
     const indicator = createIndicator({displayState, logInfo() {},
+        GLib: {get_monotonic_time: () => now * 1_000_000},
         Main: {sessionMode: h.sessionMode,
             timeLimitsManager: {getCurrentTime: () => now, dailyLimitEnabled: true}}});
-    Object.assign(indicator, {_statusLoaded: true, _activeExtensionEnd: 0,
-        _calculatedEnd: 163, _notifications: h.notifier, _preview: false,
+    Object.assign(indicator, {_statusLoaded: true,
+        _deadlineUsec: 163_000_000, _notifications: h.notifier, _preview: false,
         container: {mapped: false}, _prepareSession() {}, _setShown() {}, _updateLabel() {},
         _schedule: delay => delays.push(delay), _clearTimeout() {}, _stopRequestIconSpin() {},
         _lockSession() { locked = true; }});

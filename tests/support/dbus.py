@@ -217,6 +217,9 @@ class RecordingBroker:
     def calculate_own_remaining_time(self, *args):
         return self._invoke("calculate_own_remaining_time", 120, *args)
 
+    def calculate_own_deadline(self, *args):
+        return self._invoke("calculate_own_deadline", 132_500_000, *args)
+
     def prepare_own_session(self, *args):
         return self._invoke("prepare_own_session", True, *args)
 

@@ -139,6 +139,7 @@ the broker resolves and revalidates it.
 | `ListRunningSoftBlockedApps` | - | - | selected child |
 | `CalculateRemainingTime` | own | selected child | selected child |
 | `CalculateOwnRemainingTime` | own | - | - |
+| `CalculateOwnDeadline` | own | - | - |
 | `PrepareOwnSession` | own | - | - |
 | `RecoverChildExtension` | - | - | selected child (including root PAM helper) |
 | `UpdateRequestPreferences` | own | selected child | selected child |
@@ -195,6 +196,14 @@ values do not enter the automatic feedback report.
 The shared form selects its own surface. `CalculateRemainingTime` validates
 caller-supplied arithmetic operands and returns a calculation; it does not
 authorize or write a grant.
+
+`CalculateOwnDeadline(native_deadline_realtime_usec, timer_deadline_realtime_usec)`
+derives the eligible child from bus credentials and returns absolute monotonic
+microseconds. Both inputs are absolute realtime microseconds; zero means no
+endpoint. The broker prefers a positive native endpoint, even after expiry,
+otherwise uses the timer endpoint, then takes the maximum with its live
+AccountsService grant. Inputs retain the existing child-observation trust and
+authorize no writes. The older calculation methods remain compatible.
 
 ## Authorization and grant transactions
 

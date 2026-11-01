@@ -153,6 +153,7 @@ def test_wrong_entry_qualification_requires_actual_greeter_and_refusal(monkeypat
 
 @pytest.mark.parametrize('fault', ['owner', 'locked', 'changed', 'authority'])
 def test_admin_context_refuses_before_package_access(monkeypatch, fault):
+    monkeypatch.setattr(control, 'screen_saver_active', lambda _: fault == 'locked')
     monkeypatch.setattr(control.os, 'geteuid', Mock(side_effect=[0, 1000]))
     account = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture')
     monkeypatch.setattr(control.pwd, 'getpwnam', lambda _: account)
@@ -191,6 +192,8 @@ def test_worker_uses_shared_login_and_stops_on_uncertain_result(fault):
 @pytest.mark.parametrize('fault', ['', 'owner', 'writable', 'hardlink', 'special',
                                    'replaced', 'parent', 'changed-session'])
 def test_admin_package_read_binds_identity_and_digest_without_install(monkeypatch, fault):
+    # Synthetic sessions must not consult the development host's user bus.
+    monkeypatch.setattr(control, 'screen_saver_active', lambda _: False)
     account = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture')
     monkeypatch.setattr(control, 'package_format', lambda: 'deb')
     monkeypatch.setattr(control.os, 'geteuid', Mock(side_effect=[0, 1000]))

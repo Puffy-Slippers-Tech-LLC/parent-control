@@ -119,6 +119,8 @@ def test_actual_identity_decoder_binds_nondefault_package(monkeypatch, fault):
 def test_guest_single_use_before_real_argv(monkeypatch, tmp_path, binding, fault):
     import grp
     import pwd
+    # Keep native lock observation synthetic, alongside the session inventory.
+    monkeypatch.setattr(session_control, 'screen_saver_active', lambda _: False)
     monkeypatch.setattr(os, 'geteuid', lambda: 0)
     monkeypatch.setattr(pwd, 'getpwnam', lambda _: SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture'))
     monkeypatch.setattr(grp, 'getgrnam', lambda _: SimpleNamespace(gr_gid=27))

@@ -37,7 +37,7 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Synthetic E2E evidence and provenance | [e2e_evidence.py](e2e_evidence.py), [e2e_provenance.py](e2e_provenance.py) | `attempt`, `source`, `assets` and `lease` exercise real validators with declared synthetic inputs. |
 | Offline asset transfer | [e2e_transfer.py](e2e_transfer.py) | `GuestFiles` uses pytest-private files for actual upload bytes, metadata, corruption and partial-failure tests. It acquires no VM or cleanup ownership. |
 | Recorder and offline credential fixtures | [e2e_recording.py](e2e_recording.py), [e2e_credentials.py](e2e_credentials.py) | Recorder `session` uses an imported evidence `attempt`; opt-in `collector_sync` checks real flushed bytes and collector sync order while dedicated collector tests retain physical sync coverage. Retention sync remains real. Credential `attempt` can be aliased locally. Preserve privacy canaries and cleanup results. |
-| Launcher orchestration | [launcher.py](launcher.py) | Opt-in `synthetic_package_identity` retains real named-input option/prefix selection with tiny synthetic hashes. `synthetic_report_evidence` retains real report/checkpoint files, counts and retention ownership while replacing unrelated sealed custody archives. Real source-byte identity/refusal and sealed publication remain in storage and runner-evidence regressions. |
+| Launcher orchestration | [launcher.py](launcher.py) | Opt-in `synthetic_package_identity` retains real named-input option/prefix selection with one private source file and tiny synthetic hashes. Real source-byte identity/refusal remains in the storage regressions. |
 | Redacted authentication evidence | [authentication.py](authentication.py) | `collect_local` executes the real collector with account/OS reads replaced. |
 | Catalog scope and screenshot metadata | [installed_catalog.py](installed_catalog.py), [screens.py](screens.py) | Temporary real catalog discovery; synthetic PNG headers for metadata validation, not pixel acceptance. |
 | Child indicator unit adapter | [indicator.mjs](../child/support/indicator.mjs) | Fresh Node VM context and explicit platform doubles; nested-Shell tests retain real lifecycle/input coverage. |
@@ -746,9 +746,7 @@ projection after inventory traversal. If an application exits during either
 read, discard the entire observation before bounded reacquisition. Preserve the
 catalog's owner pins; an absent owner may disappear from a fresh inventory, but
 a replacement owner cannot inherit its authority. Denied or uncertain operations
-remain terminal. `test_accessible_observation.py` exercises both read phases
-through the real desktop/catalogue path and requires a complete child desktop
-before accepting overlay return.
+remain terminal. A complete child desktop is required before accepting overlay return.
 
 `ApplicationUI` opens its own connection to the current
 `DBUS_SESSION_BUS_ADDRESS`, preserving isolation between private preview buses
@@ -901,10 +899,7 @@ Keep expected values and comparison endpoints in each recipe, rather than
 inheriting another qualifier's checkpoint names. Capture the incoming Parent
 page and child before the explicit Screen Limits read; returning to an existing
 window must not reselect the child to repair a mismatch. Desktop identity and
-window endpoint/PID are independent preservation results. The
-[desktop/session regressions](../unit/test_e2e_desktop_session.py) exercise renamed
-callers, nested capture mutation, changed results and refusal before replies.
-These checks retain the existing private-file/process resource classification.
+window endpoint/PID are independent preservation results.
 
 Retained-child histories use `journey_checks.RetainedSessionJourney` with
 caller-declared `session_checks={later: earlier}` endpoints on the existing

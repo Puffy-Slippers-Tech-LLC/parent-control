@@ -134,10 +134,8 @@ CONTRACT_MODULES = frozenset(
     {
         "test_child_preview.py",
         "test_installer.py",
-        "test_integration_harness.py",
         "test_kiosk_rendering.py",
         "test_package_activation.py",
-        "test_prepare_vm_contract.py",
         "test_service_contract.py",
         "test_systemd_unit.py",
     }

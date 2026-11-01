@@ -335,7 +335,7 @@ serial latch around the entire composition, including every failure path.
 | HAR06 | C | Submit the existing harmless serial command once and observe actual output, then independently corroborate its session. | `onpc_serial::command(state)`: UI06(fixed split-marker command) → HAR02(output) → HAR03(session checkpoint). Explicit authenticated entry; consumes state before input and never replays failures. | ready |
 | HAR07 | C | Log out the authenticated serial fixture normally and independently observe the session-free greeter before any graphical return. | Serial logout stays valid; its graphical greeter result needs HAR03's GDM route qualification. | pending |
 | HAR08 | C | Return from the logged-out serial console to graphics and obtain a fresh public greeter observation. Require HAR07's explicit evidence from this attempt. | The ordering and replay guards remain; the graphical result needs HAR03/GDM01 route qualification. | pending |
-| HAR09 | A | Reconcile all ordered case-1 public-UI results with worker markers, requiring exactly one successful serial logout between dismissed GDM and returned GDM. Read existing evidence; perform no guest action. | `serial_harness.matched_screens`; [controller reconciliation regressions](../../tests/unit/test_e2e_controller_qualification_cleanup_safety.py). Case module retains its import for compatibility. | ready |
+| HAR09 | A | Reconcile all ordered case-1 public-UI results with worker markers, requiring exactly one successful serial logout between dismissed GDM and returned GDM. Read existing evidence; perform no guest action. | `serial_harness.matched_screens`. Case module retains its import for compatibility. | ready |
 | HAR10 | A | Validate the complete expected stage sequence, actual worker module success and verified shutdown result before terminal assertions. Zero exit alone is insufficient. | `serial_harness.validate_stages(directory, observations)` is the existing pre-shutdown callback; `validate_completion(directory, observations, worker)` repeats complete stage/module validation and requires verified shutdown before reconciliation. Case module retains these imports for compatibility. | ready |
 
 HAR03(boot) brackets acknowledged stages exactly as the current callback does;
@@ -3142,9 +3142,8 @@ explicit and its source callable and required installed slice qualification are
 recorded under the [status contract](README.md#status-vocabulary). A later
 complete scenario is not a prerequisite of its own block. Ready primitives above
 refer to existing
-[public-UI regressions](../../tests/unit/test_accessible_e2e_ui.py),
 [local product checks](../../tests/ui/test_e2e_accessible_adapter.py),
-[actual pointer](../../tests/unit/test_e2e_pointer_helper.py), with existing
+with existing
 case results in retained runner artifacts.
 They do not claim qualification for future kiosk, lock, terminal or game
 selectors. Add those with their first consuming block. A later extension of an
@@ -3164,7 +3163,7 @@ authentication outcome or app behavior being tested.
 
 | ID | Kind | Supporting operation and boundary | Existing source | Status |
 | --- | --- | --- | --- | --- |
-| FIX04 | A | Transfer the existing verified asset manifest to the powered-off guarded guest before the attempt; stage finite synthetic files through guarded SSH. No asset installation or arbitrary bundle interface. | `AssetTransfer.provision` / `observe` in [asset_transfer.py](../../tests/e2e/asset_transfer.py); [transfer safety](../../tests/unit/test_e2e_asset_transfer_cleanup_safety.py), case 1 qualification. `SyntheticFiles.call('stage')` supplies the [synthetic text files](#synthetic-file-commands); its six finite `profile` values supply the qualified [attachment boundaries](#attachment-rejection-boundaries), with exact receipt/readback and cleanup. Reusable fixture readiness belongs to FIX06, not transfer or installation during an attempt. `stage_upgrade_assets` and `VerifiedInputs(upgrade=True)` supply the [qualified genuine v1.2/current dual-package binding](#verified-upgrade-asset-transfer). | existing transfer, synthetic-text, six attachment-boundary profiles and Ubuntu amd64 dual-package upgrade transfer ready |
+| FIX04 | A | Transfer the existing verified asset manifest to the powered-off guarded guest before the attempt; stage finite synthetic files through guarded SSH. No asset installation or arbitrary bundle interface. | `AssetTransfer.provision` / `observe` in [asset_transfer.py](../../tests/e2e/asset_transfer.py); case 1 qualification. `SyntheticFiles.call('stage')` supplies the [synthetic text files](#synthetic-file-commands); its six finite `profile` values supply the qualified [attachment boundaries](#attachment-rejection-boundaries), with exact receipt/readback and cleanup. Reusable fixture readiness belongs to FIX06, not transfer or installation during an attempt. `stage_upgrade_assets` and `VerifiedInputs(upgrade=True)` supply the [qualified genuine v1.2/current dual-package binding](#verified-upgrade-asset-transfer). | existing transfer, synthetic-text, six attachment-boundary profiles and Ubuntu amd64 dual-package upgrade transfer ready |
 | FIX06 | A | Independently verify one declared reusable fixture profile after baseline restore. Read-only files, launchers and ownership checks; no installation, repair, app launch or product-state setup. | Native: `NativeFixtures.verify` / `fixture_actions` in [native_fixtures.py](../../tests/e2e/native_fixtures.py), with guarded reads in [native_fixtures_guest.py](../../tests/e2e/native_fixtures_guest.py); see [native preparation](#native-fixture-preparation). Native Jordan-bound verification/catalogue qualified by `check_e2e_native_fixtures`, with affected regression. Chinese: `fixture_actions(profile='chinese')` and `chinese_language_assets.verify`; [language preparation](#chinese-language-preparation-and-desktop-language-setup). `check_e2e_chinese_language_assets` qualified wrong-entry refusal, independent valid readback and unchanged state on Ubuntu 26.04. New profiles require their own verification before consumers and do not broaden FIX04. FIX05 retains the separate real Lunar profile. | native file/catalogue and Chinese asset verification ready; other profiles planned |
 | FIX03 | A | Prepare only a declared multiple/no-child/no-approver/locked-approver profile; do not generalize FIX02 into arbitrary mutation. | `EmptyAccountFixture.prepare` / `e2e_dynamic_account.prepare_empty` changes canonical child roles while preserving identities, administrators and station. `kiosk_no_child.PLAN` / `onpc_kiosk_no_child::run` and `check_e2e_kiosk_no_child` require exact empty children, explanation, disabled Request/duration/soft/approver controls and absent prompt. `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run` adds normal Cancel/GDM return. Other finite profiles are specified below; outer restoration owns undo. | ready; multiple/no-child/no-approver/locked-approver profiles |
 | FIX01 | A | Create one eligible account at the declared durable checkpoint while Parent stays open. Customer acceptance requires later visible discovery/selection. | `DynamicAccountFixture.create` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
@@ -3192,8 +3191,6 @@ unrelated-file preservation. The offline witness preserves
 Ubuntu's exact `/etc/default/locale` → `../locale.conf` link identity and separately
 hashes its canonical regular file; other links, dangling or unsafe targets still
 refuse. Asset link/owner/immutability and consumed-failure guards remain required.
-[Upgrade safety](../../tests/unit/test_upgrade_assets_cleanup_safety.py) covers
-these boundaries through the real transfer, decoder and recorder.
 
 ### Chinese language preparation and desktop-language setup
 
@@ -3888,8 +3885,7 @@ Shared capabilities and remaining extension boundaries:
  complete request, and rejects missing/replayed captures before acknowledgement.
  Stage names and qualification default plans carry no implicit assertions.
  Cases 47/48/50/51/52/192 select this class directly; qualification wrappers
- only supply their own plans. Renamed-stage and changed-field regressions live
- in [the kiosk checks](../../tests/unit/test_e2e_kiosk_valid_duration.py).
+ only supply their own plans.
 - `JourneyPlan.challenges` binds a nonsecret challenge ID to its fixture role
  and two consecutive declared invocation IDs. `UiObservations.observe_challenge`
  requires fresh, ordered same-challenge observations; the durable controller
@@ -4767,8 +4763,6 @@ and redacted role labels, never credentials, entered text or observed account
 names. Public UI operations declare their labels in
 `ui_observations.OPERATION_LABELS`. Keep inventory descriptions complete for
 the shared recorder/viewer; viewing supplies observation, not acceptance.
-[Progress regressions](../../tests/unit/test_e2e_progress.py) own the registration
-and timing checks for new worker blocks and UI operations.
 
 1. Select one inventory variant and its complete visible result. Identify the
  required fixtures and surfaces. Reuse accepted setup; installation mechanics
@@ -4830,12 +4824,7 @@ and timing checks for new worker blocks and UI operations.
  Reuse resulting runner artifacts; report only the
  references and continuation state it needs.
 
-The shared controller regressions use a second synthetic plan to check reuse,
-the real durable recorder to check phase timing, and injected checkpoint/worker
-failures to prove no further input is acknowledged:
-[controller tests](../../tests/unit/test_installed_journey_cleanup_safety.py).
-[Pointer tests](../../tests/unit/test_e2e_pointer_helper.py) exercise their shared
-input boundary. Synthetic fixtures never count as customer coverage.
+Synthetic fixtures never count as customer coverage.
 
 <a id="lessons-to-preserve"></a>
 

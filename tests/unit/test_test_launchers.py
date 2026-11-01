@@ -77,7 +77,7 @@ def test_named_input_preparation_precedes_dispatch_and_failure_stops_privilege(
     if build_status:
         assert execute.call_count == 1
         authorize.assert_not_called()
-        freeze.assert_not_called()
+        freeze.assert_called_once()
     else:
         assert execute.call_count == 2
         authorize.assert_called_once_with('/usr/local/libexec/onpc-test-runner')
@@ -694,7 +694,7 @@ def test_fixture_qualification_rejects_invalid_child_result(monkeypatch, frozen_
 
 @pytest.mark.parametrize('route', ['category', 'direct'])
 @pytest.mark.parametrize('failure', ['none', 'package', 'fixture', 'malformed', 'duplicate'])
-def test_fixture_qualification_freezes_after_package_before_privilege(
+def test_fixture_qualification_freezes_before_package_and_privilege(
         monkeypatch, route, failure, frozen_fixture_selection):
     import dev_privileges
     import regression_process
@@ -705,7 +705,10 @@ def test_fixture_qualification_freezes_after_package_before_privilege(
     monkeypatch.setattr(commands, 'plan', lambda *args: (
         [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner',
           'integration', 'check_fixture_provisioning']], False))
-    monkeypatch.setattr(commands, 'qualification_artifact_command', lambda *args: ['package-preparation'])
+    package_command = ['package-preparation', '--output', '/tmp/onpc-test-input']
+    monkeypatch.setattr(commands, 'qualification_artifact_command', lambda *args: package_command)
+    monkeypatch.setattr(commands, 'qualification_input_options', lambda *args: {})
+    monkeypatch.setattr('test_storage.named_input', lambda **kwargs: commands.Path('/tmp/onpc-test-input'))
     frozen = frozen_fixture_selection.record()
     monkeypatch.setattr(dev_privileges, 'check', lambda *args: events.append('privilege'))
     executed = []
@@ -721,8 +724,8 @@ def test_fixture_qualification_freezes_after_package_before_privilege(
                 line *= 2
             kwargs['output'](line)
             return 9 if failure == 'fixture' else 0
-        events.append('package' if command == ['package-preparation'] else 'dispatch')
-        status = 7 if command == ['package-preparation'] and failure == 'package' else 0
+        events.append('package' if command == package_command else 'dispatch')
+        status = 7 if command == package_command and failure == 'package' else 0
         return status
 
     control = SimpleNamespace(run=Mock(side_effect=execute))
@@ -752,11 +755,11 @@ def test_fixture_qualification_freezes_after_package_before_privilege(
         assert commands._main(['integration', 'check_fixture_provisioning']) == (
             {'package': 7, 'fixture': 2, 'malformed': 2, 'duplicate': 2}.get(failure, 0))
     if failure == 'package':
-        assert events == ['package']
+        assert events == ['fixture', 'package']
     elif failure in ('fixture', 'malformed', 'duplicate'):
-        assert events == ['package', 'fixture']
+        assert events == ['fixture']
     else:
-        assert events == ['package', 'fixture', 'privilege', 'dispatch']
+        assert events == ['fixture', 'package', 'privilege', 'dispatch']
         assert executed[-1][-2:] == ['--fixture-selection', json.dumps(frozen, sort_keys=True)]
 
 

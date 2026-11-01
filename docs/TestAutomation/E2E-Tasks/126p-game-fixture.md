@@ -28,11 +28,9 @@ actual gameplay, windowed/fullscreen behavior and expiry to the following tasks.
 
 ## Live VM acceptance
 
-Run affected baseline/ownership checks, reusing
-`tests/unit/test_baseline_fixtures_cleanup_safety.py`'s shared idempotence,
-interrupted-placement and foreign-input checks. A finite game asset declaration
-does not require its own copy of those matrices. Add a focused direct check
-only if implementation changes a safety boundary they cannot exercise.
+Run affected baseline/ownership checks. Validate the finite game asset declaration
+through its installed fixture acceptance; do not recreate the retired baseline
+unit matrix.
 After ordinary preparation and
 restore, independently verify the declared
 files, modes, owners and launcher without writes, then observe the exact public

@@ -1123,20 +1123,6 @@ later replies cannot clear it. Ordered checkpoints retain transfer start and
 successful transfer verification. The outer lease owns all cleanup, including
 partial transfer failure; the transfer helper never boots, stops or restores.
 Authenticated secret/console transport uses the separate contracts below.
-Host regressions execute the exact probe against filesystem fixtures, checking
-receipt agreement and malformed trees, ownership, permissions, links, special
-files and changed/missing/extra payloads. They do not replace live qualification.
-
-```sh
-tools/run-unit-tests tests/unit/test_e2e_inventory.py tests/unit/test_e2e_evidence.py -q
-```
-
-These tests run automatically in `make check` via ordinary unit discovery.
-They cover selection refusal, pending/ready separation, matrix closure,
-three-sided evidence declarations, malformed input, executable containment,
-phase/intervention categories and host-only CLI behavior. Runtime tests also
-cover exact result reconciliation, split outcomes, retained failures, provenance,
-private copies, tampering, secret exclusion and file/directory replacement.
 
 ### Installation findings to carry forward
 
@@ -1580,12 +1566,7 @@ checks expiration before another observer dispatch. Owned off-state restoration 
 even if it crosses the deadline; expiration still fails and closes both resources.
 All lifecycle, module, lease and final preservation checks remain required.
 
-`test_delayed_shutdown_callback_keeps_finite_deadline_and_requires_off_observation`
-in [worker cleanup regressions](../unit/test_e2e_worker_cleanup_safety.py) covers
-the old-budget refusal, delayed success with actual off observation, exhausted
-new-budget refusal and both closes, including success and expiration at the
-hour-long lifecycle budget. Invalid budgets refuse before resources.
-Reuse `test_timeout_refuses_and_cleans_up`, `Adapter` and `Lease.stop`.
+Invalid budgets refuse before resources.
 
 Private `worker-before-cleanup.json` and `worker-result.json` reports contain
 only fixed diagnostic fields, distribution digest, timing, failure history and

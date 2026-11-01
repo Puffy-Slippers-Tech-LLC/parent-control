@@ -15,7 +15,6 @@ from regression_ui import Bucket
 REVIEWED = frozenset("""
 system_first_configure
 system_removal_faults
-screen_preview_cleanup_safety
 e2e_app_rows
 build_package
 build_test_artifacts
@@ -28,33 +27,18 @@ adapters
 app_policy
 app_termination
 apt_removal_notice
-authentication_evidence
-automation_ids
 broker_properties
 broker_state_machine
 catalog
 catalog_scope
 child_preview
-codex_test_rules
-compatible_native_fixtures
 config
 core
 data_migration
-dev_tool_installation
 diagnostic_export
 diagnostic_privacy
 diagnostic_report
 diagnostics
-e2e_evidence
-e2e_execution_cleanup_safety
-e2e_gdm_recipient
-e2e_inventory
-e2e_overlay_prompt
-e2e_recording_cleanup_safety
-e2e_recording_credentials
-e2e_secret_variables
-e2e_vt6_recipient
-e2e_worker_cleanup_safety
 error_reporting
 execution_policy
 execution_policy_ready
@@ -64,8 +48,6 @@ fedora_execution_policy
 fedora_pam
 feedback_collection
 feedback_transport
-fixture_cleanup_safety
-fixture_provision_cleanup_safety
 floating_islands
 graphical_lease
 installer
@@ -97,8 +79,6 @@ privileged_test_runner
 probe_bus_client_cleanup_safety
 probe_channel_cleanup_safety
 probe_generation_cleanup_safety
-provision
-public_atspi
 publish_source_integrity
 read_only_launcher
 regression
@@ -111,12 +91,8 @@ release_signing
 request_selections
 request_time_estimate
 rpm_packaging
-screenshot_cleanup_safety
-screenshot_export_safety
 service_contract
 session_limit_check
-setup_privileges
-support
 system_accounts_cleanup_safety
 system_agent_cleanup_safety
 system_caller
@@ -124,12 +100,9 @@ system_guest
 system_info
 systemd_unit
 test_activity
-test_artifacts
 test_checkpoint
 test_launchers
-test_retention_cleanup_safety
 test_runner_policy
-test_storage_cleanup_safety
 thunder
 uninstall
 unit_test_launcher
@@ -151,7 +124,6 @@ ESTIMATES = {
     'test_broker_properties.py': 20,
     'test_broker_state_machine.py': 20,
     'test_package_payload.py': 15,
-    'test_e2e_evidence.py': 90,
 }
 
 

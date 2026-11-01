@@ -56,6 +56,11 @@ def guest_rig(monkeypatch):
     monkeypatch.setattr(guest.os, 'getgrouplist', lambda *_: [27])
     current = {'7': props()}
     monkeypatch.setattr(guest.sessions, 'sessions', lambda: copy.deepcopy(current))
+    # Keep GNOME lock observations synthetic too; never consult the host's
+    # accounts or user bus while checking the guest's mutation guards.
+    monkeypatch.setattr(guest.sessions, 'screen_saver_active', lambda uid: any(
+        item['User'] == str(uid) and item['LockedHint'] == 'yes'
+        for item in current.values()))
     monkeypatch.setattr(guest.sessions, 'call', Mock(return_value='C\nzh_CN.utf8\n'))
     api = Mock(resolve=Mock(return_value=(guest.ROOT + '/User1001', 'en_US.UTF-8')))
     return api, current, users

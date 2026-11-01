@@ -1980,6 +1980,10 @@ def test_runtime_failure_keeps_product_attribution_and_collects(
     vm.commands.last_returncode = 1
     capture = Mock(side_effect=runner.Error('capture:failed') if capture_failure else None)
     monkeypatch.setattr(runner, 'capture_session_screen', capture)
+    # Exercise pytest failure attribution with a simulated VM, without the
+    # prepared inputs and desktop required by the earlier live observation.
+    expiry = Mock()
+    monkeypatch.setattr(runner, 'observe_graphical_expiry', expiry)
     selection = runner.resolve_selection(area, inventories=INVENTORIES)
     failed_command = runner.pytest_command(RUN, area, selection)
 
@@ -1996,6 +2000,7 @@ def test_runtime_failure_keeps_product_attribution_and_collects(
         'outcome': 'failed', 'category': 'pytest:failed:' + area}
     assert vm.call.call_args.args[0] == runner.guest_command(RUN, 'collect', 'failed')
     assert sum(call.args[0] == failed_command for call in vm.call.call_args_list) == 1
+    assert expiry.call_count == int(area == 'session')
     assert capture.call_count == int(area == 'session')
     if capture_failure:
         assert ledger.outcomes['collection'] == {'outcome': 'failed', 'category': 'capture:failed'}

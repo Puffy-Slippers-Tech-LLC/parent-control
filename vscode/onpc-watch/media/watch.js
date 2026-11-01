@@ -50,10 +50,14 @@
             entry.session_number, entry.session_inactive, section.view, section.collapsed]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
+        section.tabObserver?.disconnect();
         section.heading.replaceChildren();
-        element('span', 'run-label', section.heading).textContent = entry.label;
-        const links = element('span', 'run-links', section.heading);
-        const collapse = element('button', 'run-copy', links);
+        const titlebar = element('span', 'run-titlebar', section.heading);
+        const title = element('span', 'run-label', titlebar);
+        title.textContent = entry.label;
+        title.title = entry.label;
+        const controls = element('span', 'run-controls', titlebar);
+        const collapse = element('button', 'run-copy', controls);
         collapse.type = 'button';
         const collapseIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         collapseIcon.setAttribute('viewBox', '0 0 20 20');
@@ -71,7 +75,7 @@
             sessionHeading(section);
             runDividers();
         });
-        const copy = element('button', 'run-copy', links);
+        const copy = element('button', 'run-copy', controls);
         copy.type = 'button';
         copy.title = 'Copy current tab content';
         copy.setAttribute('aria-label', copy.title);
@@ -87,15 +91,27 @@
                 error: section.errorStatus, session: section.output }[section.view];
             vscode.postMessage({ type: 'copy', root: entry.id, text: body.innerText });
         });
-        links.append(' ');
+        const links = element('span', 'run-links', section.heading);
         for (const [view, label] of [['status', 'Status'], ['launcher', 'Launcher'], ['error', 'Error'], ['session', 'Session']]) {
-            if (view !== 'status') links.append(' | ');
             const text = view === 'session' && entry.session_number ? `Session ${entry.session_number}` : label;
             const item = link(links, text, () => runView(entry.id, view));
             item.classList.add('run-tab');
             if (view === 'session' && (entry.session_inactive ?? !entry.session_active)) item.classList.add('session-inactive');
             if (section.view === view) item.setAttribute('aria-current', 'page');
         }
+        section.tabObserver = new ResizeObserver(() => {
+            if (!links.isConnected) return;
+            // Measure compact tabs first so widening always restores a single row.
+            links.classList.remove('wrapped');
+            const widths = Array.from(links.children, tab => tab.getBoundingClientRect().width);
+            const gap = parseFloat(getComputedStyle(links).columnGap) || 0;
+            const singleRowWidth = widths.reduce((sum, width) => sum + width, 0) + gap * (widths.length - 1);
+            // Keep equal widths from increasing the heading's preferred width.
+            links.style.maxWidth = `${singleRowWidth}px`;
+            links.style.setProperty('--run-tab-width', `${Math.max(...widths)}px`);
+            links.classList.toggle('wrapped', singleRowWidth > links.getBoundingClientRect().width + 0.5);
+        });
+        section.tabObserver.observe(links);
     }
 
     function link(parent, text, click) {
@@ -221,8 +237,8 @@
     arrangeTiles(tileLayout);
 
     function resize(value) {
-        split = Math.min(90, Math.max(10, value));
-        layout.style.gridTemplateColumns = `minmax(0, ${split}fr) 6px minmax(0, ${100 - split}fr)`;
+        split = Math.min(90, Math.max(0, value));
+        layout.style.gridTemplateColumns = `minmax(min-content, ${split}fr) 6px minmax(0, ${100 - split}fr)`;
         divider.setAttribute('aria-valuenow', String(Math.round(split)));
         persist();
     }
@@ -245,7 +261,7 @@
     divider.addEventListener('lostpointercapture', () => document.body.classList.remove('resizing'));
     divider.addEventListener('dblclick', () => resize(30));
     divider.addEventListener('keydown', event => {
-        const value = { ArrowLeft: split - 2, ArrowRight: split + 2, Home: 10, End: 90 }[event.key];
+        const value = { ArrowLeft: split - 2, ArrowRight: split + 2, Home: 0, End: 90 }[event.key];
         if (value === undefined) return;
         event.preventDefault();
         resize(value);
@@ -464,6 +480,7 @@
         for (const [id, section] of sections) {
             if (!ids.has(id)) {
                 section.inputObserver.disconnect();
+                section.tabObserver?.disconnect();
                 section.body.remove();
                 section.divider.remove();
                 sections.delete(id);

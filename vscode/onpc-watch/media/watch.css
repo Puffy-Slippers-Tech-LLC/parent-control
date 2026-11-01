@@ -18,11 +18,13 @@ nav button[aria-pressed="true"] {
 }
 .idle { opacity: .6; }
 #watch {
-    display: grid; grid-template-columns: minmax(0, 30fr) 6px minmax(0, 70fr);
+    display: grid; grid-template-columns: minmax(min-content, 30fr) 6px minmax(0, 70fr);
     flex: 1; min-height: 0; min-width: 0;
 }
-#runs { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; }
+#runs { display: flex; flex-direction: column; min-width: min-content; min-height: 0; overflow: auto; }
 .run { display: flex; flex: 1 1 0; flex-direction: column; min-height: 100px; overflow: hidden; }
+/* Only the heading sets the panel's minimum width, not transcript/body content. */
+.run > :not(.run-heading) { min-width: 0; contain: inline-size; }
 .run.collapsed { flex: 0 0 auto !important; min-height: 0; }
 .run.collapsed > :not(.run-heading) { display: none !important; }
 .run-divider { flex: 0 0 6px; background: var(--vscode-panel-border); cursor: ns-resize; touch-action: none; }
@@ -30,12 +32,20 @@ nav button[aria-pressed="true"] {
 .run-divider[aria-disabled="false"]:hover, .run-divider:focus-visible { background: var(--vscode-focusBorder); }
 .resizing-runs, .resizing-runs * { cursor: ns-resize !important; user-select: none; }
 .run-heading {
-    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
     margin: 0; padding: 8px; flex-shrink: 0; font-size: 1em;
-    overflow-wrap: anywhere; border-bottom: 1px solid var(--vscode-panel-border);
+    border-bottom: 1px solid var(--vscode-panel-border);
 }
-.run-label { min-width: 0; }
-.run-links { margin-left: auto; white-space: nowrap; }
+.run-titlebar { display: flex; flex: 1 1 0; min-width: min-content; align-items: baseline; gap: 8px; }
+.run-label {
+    flex: 1 1 8ch; width: 0; min-width: 8ch;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.run-controls { display: flex; flex-shrink: 0; }
+.run-links {
+    display: flex; flex: 0 1 auto; flex-wrap: wrap; margin-left: auto;
+    justify-content: flex-end; align-items: baseline; gap: 4px;
+}
 .run-copy {
     display: inline-flex; vertical-align: middle; align-items: center; justify-content: center;
     width: 28px; height: 28px; padding: 4px; border: 1px solid transparent;
@@ -47,10 +57,12 @@ nav button[aria-pressed="true"] {
 .session-link { color: #0066ff; text-decoration: underline; cursor: pointer; }
 .run-tab {
     display: inline-block; padding: 4px 8px; border-bottom: 2px solid transparent;
+    white-space: nowrap;
     color: var(--vscode-tab-inactiveForeground); background: var(--vscode-tab-inactiveBackground);
     text-decoration: none; font-weight: normal;
 }
 .run-tab:hover { background: var(--vscode-tab-hoverBackground); }
+.run-links.wrapped .run-tab { width: var(--run-tab-width); text-align: center; }
 .run-tab.session-inactive { text-decoration: line-through; }
 .run-tab[aria-current="page"] {
     color: var(--vscode-tab-activeForeground); background: var(--vscode-tab-activeBackground);

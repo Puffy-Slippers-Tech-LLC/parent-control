@@ -31,7 +31,7 @@ function html(webview, context) {
         <body><div id="watch">
         <aside id="runs" aria-label="Run status across worktrees"><p class="empty" role="status">Waiting for tests…</p></aside>
         <div id="divider" role="separator" aria-label="Resize run status and viewers"
-            aria-orientation="vertical" aria-valuemin="10" aria-valuemax="90" aria-valuenow="30" tabindex="0"></div>
+            aria-orientation="vertical" aria-valuemin="0" aria-valuemax="90" aria-valuenow="30" tabindex="0"></div>
         <section id="viewer" aria-label="UI and VM viewers"><div id="viewer-header">
         <nav id="viewers" aria-label="Viewers"></nav>
         <div id="tile-layout" role="group" aria-label="Tile layout">

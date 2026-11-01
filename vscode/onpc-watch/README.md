@@ -36,7 +36,13 @@ remain active. Reconnecting restores the latest retained run in each idle
 worktree from its existing run files. Session input is disabled once its owner
 exits. Retention uses existing run files and reader memory; it adds no disk persistence.
 Each title, e.g. `[main] fix-tests`, keeps **Status**, **Launcher**, **Error** and **Session**
-links at its right end. The name comes from the launcher's `current.json`
+links at its right end. When narrowed, the title truncates down to five characters
+plus an ellipsis, e.g. `[work...`. Further narrowing moves the title and action
+buttons onto the first row and all tabs onto the second row. As that row narrows,
+the tabs wrap onto additional rows until they stack vertically. Wrapped tabs have
+equal widths and centered text. The left panel's minimum width fits both the
+shortened title with its action buttons and the widest tab below it. Hover over a
+truncated title to see its full text. The name comes from the launcher's `current.json`
 publication, including custom plan launcher names. Older runs without a published
 name show `launcher` until their next start, attachment or reload request.
 **Status** shows the current run status, **Launcher** shows

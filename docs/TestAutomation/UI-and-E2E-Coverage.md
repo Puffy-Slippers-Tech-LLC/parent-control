@@ -137,6 +137,56 @@ owners retain missing bindings. Every case still captures its original work,
 reaches real expiry, obtains real approval and independently observes recovery.
 No earlier qualification or lower-suite pass supplies those complete results.
 
+## Expiry locking migration allocation
+
+The [broker expiry migration](../SystemDesign/Broker-Expiry-Locking.md)
+starts with TA and uses the existing canonical tasks below. It creates no
+parallel expiry scenario suite, duplicate qualification workers or second queue.
+This allocation owns cross-plan overlap; recipes still own finite data and
+ordered results. No status or executable binding changes through reconciliation.
+
+| Scope | Single delivery owner | Later work must not repeat |
+| --- | --- | --- |
+| Extension-independent live balance and approval calculations | Migration extends `test_core` for native-time arithmetic/failure refusal and the installed session owner below for real uninterrupted-use/read behavior. Existing TIME01, REQUEST08 and FLOW05 owners retain public status/estimate/approval observations on their declared surfaces | A second timing ledger, status/approval journey suite or copied authentication matrix. Endpoint independence and ongoing-use qualification are planned; existing panel-based results supply no such credit. Each complete request case still observes its own estimate, authentication and approved result. |
+| Current daily/grant/combined natural locks, denial, retained work and peer activity | Existing cases 22, 25–29; shared TIME04, lock-input and activity observations | A new baseline expiry journey or unchanged provider matrix. Existing cases receive only affected regressions after actual code changes. |
+| Revocation at zero/positive daily time, Cancel, retained entry and peer continuity | Tasks 084/085, canonical cases 17/19; tasks 144/145 own the distinct supported multi-desktop cases 18/20 behind task 143 | A separate migration-only copy of these scenarios. They switch to Parent before revocation; foreground immediate-lock acceptance belongs to the installed residual below. Deliver each full case once. |
+| Daily balance outlasting a soft-app grant | Task 182 owns positive FLOW18 preparation; task 206/case 164 owns uninterrupted expiry/no-lock/soft-access results | Task 182 must not add its optional second expiry wait. Tasks 207–212/cases 165–170 reuse preparation/observation and own only their different post-expiry transitions. |
+| Idle and suspend before/after grant expiry | Task 164/case 122; LIFE03 tasks 166a/166; tasks 167/168/cases 124/125 | Another generic idle/suspend expiry suite. LIFE03 is implemented/qualified once; complete cases retain only their unique choices, policy, work and recovery composition. |
+| Real usage-read outage/recovery; zero-time entry exposure | Task 172 (engineering obligation 143) and task 171 (engineering obligation 142) under the installed session owners | A second identity-scoped reader-fault matrix or zero-time exposure qualifier under the migration. Retain unresolved before-access behavior and provider gates. |
+| Expiry-specific broker/timer/session-bus failure, hang, owner replacement, stale work, lock completion, foreground revocation and policy races | Migration extends the installed session owner `system_graphical_expiry.verify` under `test_session_expiry.test_kiosk_expiry_graphical_runtime` (system-282) for process/desktop effects; `test_core` owns deterministic broker ordering assertions and `test_private_dbus_service` owns service dispatch assertions | These expiry extensions are planned, with no current fault/foreground-revocation binding or acceptance credit. No future E2E engineering matrix or separate recovery framework. Tasks 169/170/173–175/178/179 retain their different residuals; tasks 171/172 own the exposure/reader residuals above, even if delivered in the same installed owner. |
+| Games/fullscreen, expired app exceptions, remembered choices, repeated household routines, natural midnight/DST | Their current canonical tasks/recipes | Generic expiry, service-fault or provider qualification added before each consumer. Keep the different interaction's required public result and reuse shared mechanics. |
+
+Migration work implementing a pending full scenario must use its stable case ID,
+recipe and canonical task; register and accept that case rather than an alias.
+Close that row as part of the actual delivery, so it cannot be scheduled later
+as duplicate implementation. When a later selected task encounters an already
+accepted exact scope, reconcile its remaining work and reuse that completion
+without rechecking old reports or rerunning it solely for a different label.
+Partial operations and native probes do not close a complete customer case.
+Different account/provider/input bindings or code changes require only their
+affected qualification/regressions; no saved guest state transfers between runs.
+Required task prerequisites and supported-route gates still apply. For example,
+LIFE03 qualification is reused, but cases 124/125 each perform their own real
+suspend/wake and observe their own deadline, access and retained-work results.
+Cases 165–170 likewise each cross their original grant deadline before their
+distinct action; case 164's pass supplies no state or expiry result to them.
+
+For mixed journeys, retain the minimum ordered observations needed to prove
+the distinct interaction, not a second generic expiry matrix. A native game
+retained across lock, app-policy restoration after unlock, or natural midnight
+is not supplied by a generic desktop lock pass. Current rows remain unchecked
+until their remaining outcomes actually pass. Existing checked rows stay done.
+The migration design is not a new task-selection pointer and does not advance
+or reorder the E2E queue.
+
+Source destinations for the planned engineering extensions are
+[installed graphical expiry](../../tests/integration/system_graphical_expiry.py),
+its [registered session test](../../tests/system/test_session_expiry.py),
+[broker core regressions](../../tests/unit/test_core.py) and
+[private D-Bus dispatch](../../tests/component/test_private_dbus_service.py).
+Sharing an installed attempt does not merge the distinct assertions or give
+obligations 142/143 completion credit before their own residuals pass.
+
 ## Complete scenario-family review
 
 The [inventory](../../tests/e2e/scenarios.json) owns stable IDs, executable bindings

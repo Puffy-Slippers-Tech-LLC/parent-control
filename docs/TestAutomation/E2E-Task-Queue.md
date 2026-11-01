@@ -44,7 +44,8 @@ here; tasks 314/315 are not kiosk baseline prerequisites. Later tasks
 065a, 079b/079d and 197/197a/197k consume applicable shared work and implement
 their remaining scope. C04l/s/r/i reuse existing feature coverage; C04w adds
 only the bounded usability pause. Existing and pending E2E scenarios keep their
-distinct acceptance. Task 059 remains this queue's first unchecked row.
+distinct acceptance. The [entry plan's next-task pointer](E2E-Execution-Plan.md#next-task)
+identifies the current first unchecked row.
 The delivered 313a/313 scope is reused through the catalogue, without duplicate
 queue tasks or a dependency on unfinished kiosk/new-plan work. Neither plan
 executes the other implicitly. No queue row is completed by this reconciliation.
@@ -77,6 +78,27 @@ failure-only qualification. The public trigger remains unresolved, and case
 **109p/116p/126p** reuse shared baseline safety coverage, adding direct checks
 only for a genuinely changed boundary; their installed profile qualification
 and later app/game journeys remain pending.
+
+## Expiry migration reuse
+
+Apply the [expiry locking allocation](UI-and-E2E-Coverage.md#expiry-locking-migration-allocation)
+and the [migration design](../SystemDesign/Broker-Expiry-Locking.md) to all
+unfinished expiry consumers. Migration TA is delivered through the existing
+canonical rows: 084/085/144/145 (revocation), 182/206 (daily time outlasting a
+grant), 164/166a/166/167/168 (idle/suspend), and 171/172 (entry exposure and
+usage-read faults). There is no second expiry implementation queue. Full-case
+delivery during migration closes that same row only after its normal acceptance;
+later work consumes accepted scope without repeating it. No row is completed
+or reordered by this documentation change.
+
+Tasks 182, 126/129 and later app, lifecycle, game and calendar cases reuse the
+shared expiry observations and add only their named distinct interaction.
+Do not add a generic expiry tour, service-fault matrix or duplicate qualification
+worker to those tasks. Task 182 stops at the positive D>G>0 witness; case 164
+owns its no-action expiry result. LIFE03 stays with 166a/166 rather than new
+migration-only suspend qualifiers. Engineering tasks 169/170/173–175/178/179
+keep their different startup, authentication, save, identity, reload and partial
+termination residuals; expiry work must not copy their existing fault matrices.
 
 ## Reallocated system coverage
 

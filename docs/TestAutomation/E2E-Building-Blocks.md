@@ -2166,6 +2166,13 @@ chooser, attachment, editing and enforcement outcomes remain separate.
 
 ### Time and ordinary lifecycle boundaries
 
+The [expiry migration allocation](UI-and-E2E-Coverage.md#expiry-locking-migration-allocation)
+uses these same TIME04/LIFE03 operations and canonical scenario tasks. Extend
+the shared expiry observer to remove enforcement's panel dependency; do not
+create a parallel migration expiry/suspend qualifier. Existing qualification
+status below is unchanged until the affected installed checks pass. FLOW18
+preparation stops at positive D>G>0; case 164 owns its uninterrupted expiry.
+
 LIFE04/05's current `PackageCommand.read_result` requires the final reboot
 notice for its installed upgrade bindings. the corresponding qualifications must implement
 their finite no-action/process/session notice and independent completion

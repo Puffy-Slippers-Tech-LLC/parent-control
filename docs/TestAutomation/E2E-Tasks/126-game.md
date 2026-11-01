@@ -7,6 +7,8 @@ Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
+Reuse the [expiry migration allocation](../UI-and-E2E-Coverage.md#expiry-locking-migration-allocation): only windowed-gameplay/lock composition is new here. Do not repeat generic expiry, service-fault or lock-provider qualification.
+
 Deliver **APP05/FLOW10 windowed game**. First scheduled consumer: [E2E-023, case 126](../E2E-Scenario-Recipes.md#e2e-023).
 Read the named [block contracts](../E2E-Building-Blocks.md#customer-terminal-files-and-application-use), [related block contracts](../E2E-Building-Blocks.md#reusable-journey-fragments) and only the selected consumer's recipe.
 

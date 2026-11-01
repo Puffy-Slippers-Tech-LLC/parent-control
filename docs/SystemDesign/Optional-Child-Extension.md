@@ -75,7 +75,7 @@ Details and current limitations remain in [Screen time](Screen-Time.md).
 
 | Responsibility in the extension | Consequence of removing it today | Discovery needed before migration |
 | --- | --- | --- |
-| Verified total-time calculation and expiry lock requests in [the indicator](../../child/remainingTimeIndicator.js) | Loses the product's additional expiry path; native locking still exists. | Whether native exhaustion locking meets the complete product contract across supported session transitions. |
+| Verified total-time calculation and expiry lock requests in [the indicator](../../child/remainingTimeIndicator.js) | Loses the product's additional expiry path; native locking still exists. | [Expiry migration](Broker-Expiry-Locking.md): TA-first qualification, independent timing and complete product enforcement across session transitions. |
 | [Native deadline endpoint](../../child/applicationUi.js) | Positive-daily-allowance child status reads and fixed approvals can fail without fresh timing data. | A supported source for ongoing usage or an equivalent live balance, without depending on the UI transport. |
 | Login/unlock trigger for `PrepareOwnSession` | Expired soft-app exceptions may miss their required restoration transition. | A reliable independent trigger with the correct authentication and policy ordering. |
 | [Resume estimate refresh](../../child/resumeEstimateRefresh.js) | Loses a workaround for stale native deadlines during inactivity/resume. | Which packaged versions need the workaround and whether a native fix or public external integration resolves it. |
@@ -229,17 +229,26 @@ Future live work follows the [VM mandate](../Mandates/VM-Mandate.MD) and
 [UI automation mandate](../Mandates/UI-Automation-Mandate.MD); this draft does
 not choose a VM, prepare a baseline or add test registrations.
 
+### First expiry migration
+
+The [broker-owned expiry locking migration](Broker-Expiry-Locking.md) owns the
+first slice's context, historical rationale, native investigation, TA-first
+handover, timing prerequisites and reliability/acceptance gates. Its
+[test allocation](../TestAutomation/UI-and-E2E-Coverage.md#expiry-locking-migration-allocation)
+reuses canonical E2E tasks and prevents duplicate expiry qualification.
+The migration is pending; this draft claims no completed handover.
+
 ## Journey through gradual migration
 
 ### Choose a complete capability slice
 
-Use discoveries to choose the next bounded capability that can be transferred
-without leaving a missing dependency. A likely early slice is application-policy
-reconciliation, whose privileged implementation is already in the broker and
-whose missing piece is the lifecycle trigger. Fresh timing information is a
-dependency for status and fixed approvals. Expiry ownership and eventual removal
-of activation gates depend on resolving the relevant timing and native-lock
-questions. This is a dependency direction, not a committed execution order.
+The selected first slice is [expiry locking](Broker-Expiry-Locking.md), starting
+with its regression defense and resolving its timing and native-lock dependencies
+before handover. Application-policy reconciliation remains a separate slice:
+its privileged implementation is already in the broker and its missing piece is
+the lifecycle trigger. Fresh timing information also serves status and fixed
+approvals. Removing activation gates depends on qualifying all their essential
+consumers; this expiry slice alone does not authorize that final handover.
 
 For each slice, prefer qualified native behavior first, then a native fix or
 supported interface improvement, then the smallest broker or session adapter
@@ -336,37 +345,10 @@ accordingly. Disabled runtime and absent payload are different lifecycle claims.
 
 ## Locking and service reliability decisions
 
-Both the existing extension request and a broker-issued request ultimately rely
-on GNOME's native secure lock. The comparison is about request delivery,
-completion and lifetime, not two different lock implementations.
-
-| Candidate path | Completion property to account for |
-| --- | --- |
-| Existing `org.gnome.ScreenSaver.Lock` call | GNOME replies after `lock-screen-shown`; our extension reports errors but has no dedicated bounded expiry-lock retry loop. |
-| Broker calling logind `LockSession` | Successful return means a lock signal was sent; it does not acknowledge completed locking. |
-| Native GNOME expiry dispatcher | Already exists without the extension; its timing, lockability and recovery behavior need qualification for our product. |
-
-See the inspected [GNOME D-Bus handler](https://github.com/GNOME/gnome-shell/blob/50.6/js/ui/shellDBus.js#L518),
-[logind lock handler](https://github.com/GNOME/gnome-shell/blob/50.6/js/ui/screenShield.js#L145)
-and [logind contract](https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.login1.html).
-A replacement must not downgrade acknowledgement to request-only success.
-Define bounded observation, retries, owner changes and failure reporting. A
-`LockedHint` or screensaver-active value alone is not proof of protected input.
-
-If investigation justifies continuous broker work, design it within the existing
-service before adding a daemon. Deadlines must not wait behind parent
-authentication or long management operations. Define startup readiness, connection
-recovery, crash/hang supervision, restart limits and reconstruction from existing
-authoritative state. A heartbeat must represent useful progress; automatic
-restart does not establish correct accounting or enforcement during an outage.
-
-State explicitly what protects an already unlocked desktop while a service is
-unavailable. Denying the next login does not protect that desktop. Neither an
-extension nor an external broker can independently repair a hung compositor's
-secure lock. Session termination would sacrifice open work and change the
-current contract; it is not an implicit fallback. An unresolved protection gap
-blocks the corresponding release claim rather than becoming unlimited time or
-an undocumented behavior change.
+The [expiry migration](Broker-Expiry-Locking.md#locking-and-service-reliability-decisions)
+owns lock-request completion, supervision and outage requirements. Apply those
+requirements before transferring continuous expiry responsibilities; a broker
+request and the extension both depend on GNOME's secure lock.
 
 ## Related designs and specification changes
 

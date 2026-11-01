@@ -7,6 +7,8 @@ Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
+This is the sole shared pre-deadline LIFE03 delivery for the [expiry migration allocation](../UI-and-E2E-Coverage.md#expiry-locking-migration-allocation). Implement and qualify this binding once for migration and all consumers; no second suspend worker or selector.
+
 Deliver **LIFE03 normal suspend/wake with active grant**. Named consumer: task **166** and any
 complete cases released directly by this slice in the canonical queue.
 

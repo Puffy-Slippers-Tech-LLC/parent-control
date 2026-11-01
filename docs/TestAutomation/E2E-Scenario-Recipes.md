@@ -2613,6 +2613,13 @@ Unsupported-OS/reserved-account installation refusal needs its separate package
 environment qualification; this Ubuntu 26.04 customer runner does not simulate
 another distribution by changing release files.
 
+The [expiry migration allocation](UI-and-E2E-Coverage.md#expiry-locking-migration-allocation)
+delivers expiry/revocation TA through these same canonical cases and shared
+operations. Do not add migration-only aliases, prerequisite expiry tours or
+engineering matrices to the recipes. If migration has accepted the complete
+exact case, reuse its closed canonical row; partial qualification leaves only
+the distinct recipe outcomes pending and supplies no complete-case credit.
+
 Engineering obligations 147/148 reuse their executable requester-disconnect,
 broker concurrency and private-bus owners under the
 [allocation record](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage),

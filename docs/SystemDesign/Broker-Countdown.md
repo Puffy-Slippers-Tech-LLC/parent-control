@@ -1,8 +1,10 @@
 # Broker countdown and extension display
 
-Status: Session 1 complete; Session 2 installed acceptance and release readiness
-pending. Rows 1 and 2 are implemented together; the increment is not yet accepted
-as shippable. This is a bounded migration step, with the extension still required.
+Status: Session 1 complete; Session 2 focused installed countdown, recovery and
+older-release upgrade checks passed on both VMs. Whole-product release readiness
+is blocked by unrelated host-test failures and incomplete release checks. Rows 1
+and 2 are implemented together; the increment is not yet accepted as shippable.
+This is a bounded migration step, with the extension still required.
 
 ## Outcome and release boundary
 
@@ -25,8 +27,8 @@ of those results. Actual publication remains a separate authorized action.
 
 | Row | Responsibility | Scope of this increment |
 | --- | --- | --- |
-| 1 | Move countdown arithmetic into broker | Implemented; installed acceptance pending |
-| 2 | Make extension display broker results | Implemented with row 1; installed acceptance pending |
+| 1 | Move countdown arithmetic into broker | Implemented; focused installed checks passed; release readiness blocked |
+| 2 | Make extension display broker results | Implemented with row 1; focused installed checks passed; release readiness blocked |
 | 3 | Schedule broker expiry and invalidate it after policy changes | Excluded; retain existing expiry owners |
 | 4 | Replace access to `Main.timeLimitsManager` | Excluded; retain existing native timing inputs |
 
@@ -71,7 +73,8 @@ them again. Finalize release inputs through the existing release-preparation
 workflow before validating the final candidate. Complete the required local
 release checks, affected installed acceptance below on both named VMs, and the
 supported previous-release upgrade under the existing upgrade contract,
-including retained settings, broker restart and child-session renewal. Scoped
+including retained settings and the activation required by the actual package
+manifest comparison. Scoped
 countdown checks alone do not establish whole-product release readiness.
 
 Fix only issues within this increment. Later source or release-input changes
@@ -243,7 +246,7 @@ Markdown links, and leave the session handoff or final result specified above.
 Release preparation is in scope for Session 2; publication is not authorized
 here. Passing this increment earns no row 3/4 or extension-disabled acceptance.
 
-## Session 1 result and Session 2 handoff
+## Session 1 result
 
 Session 1 completed on 2026-11-01. The broker selects the native/fallback endpoint
 and live grant; the extension stores its absolute deadline, rejects stale
@@ -264,11 +267,42 @@ test. No remaining blocking host-review findings were identified.
 `output/deb/oh-no-parent-control_2.0+local1~ubuntu26.04.1_amd64.deb` and
 `output/rpm/oh-no-parent-control-2.0-0.1.dev.fc44.x86_64.rpm`.
 
-Next: execute Session 2 on `onpc-Ubuntu26.04` and `onpc-Fedora44`. Cases 27–29
-are registered and ready (`E2E-011/daily-only`, `grant-only`, `combined`), selectable
-with `tools/run-tests e2e --id '27,28,29'`. Select affected expiry/recovery checks
-under the existing [coverage allocation](../TestAutomation/UI-and-E2E-Coverage.md#expiry-locking-migration-allocation),
-retaining its pending limitations. Complete the supported previous-release
-upgrade/activation and normal release checks against finalized release inputs.
-Installed behavior, upgrade acceptance and whole-product release readiness have
-not been evaluated in Session 1; those are the remaining gates to shippability.
+## Session 2 result — 2026-11-01
+
+Finalized the v2.0 release date and notes, retaining the extension requirement.
+Both package formats built and clean DEB/RPM publishing checks passed.
+
+| Installed check | Ubuntu 26.04 | Fedora 44 |
+| --- | --- | --- |
+| Countdown cases 27–29: daily-only, grant-only, combined | Passed | Passed |
+| Graphical expiry/recovery 282: locking, retained work, peer session, PAM and extension recovery | Passed | Passed |
+| Older-release upgrade 287: retained settings, migration, readiness, grant preservation, enforcement and reboot activation | v1.2 → v2.0 passed | v1.3 → v2.0 passed |
+
+Old and current product packages were built locally from verified sources.
+All owned cleanup and baseline restoration completed. Nothing was published.
+Pending journeys in the existing
+[coverage allocation](../TestAutomation/UI-and-E2E-Coverage.md#expiry-locking-migration-allocation)
+remain pending; these results do not extend their acceptance.
+
+### Remaining work
+
+1. Repair the two failures in `test_desktop_language_cleanup_safety.py`:
+   `test_guest_valid_api_input_and_invalid_declared_bindings` hit
+   `session:fixture-identity`; the `[api-error]` variant of
+   `test_guest_refuses_before_mutation_or_never_retries_uncertain_api` expected
+   one language write but observed none. A test-fixture defect is suspected;
+   the cause is unconfirmed, with no evidence linking it to this migration.
+   Use `tools/fix-tests unit 'tests/unit/test_desktop_language_cleanup_safety.py' -q`.
+2. Resume incomplete normal release checks with `tools/run-tests --resume host`
+   after repair, preserving completed unchanged selections. The full host run
+   stopped at those failures; interrupted and unstarted checks are not passes.
+3. Determine activation for the supported release-to-candidate transition from
+   the actual [package manifests](../Publishing.md#package-update-activation).
+   Check 287 qualifies the tested reboot transitions. Separate no-reboot
+   acceptance is required only if the intended transition requires broker
+   restart/session renewal rather than reboot; then verify retained settings,
+   broker restart, child logout/login and working countdown/enforcement without
+   reboot. Applicability has not been established; no activation defect was observed.
+
+The increment remains unshippable until these release gates close. Preserve the
+completed checks; later source changes receive only their affected validation.

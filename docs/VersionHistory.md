@@ -1,9 +1,9 @@
-## v2.0
+## v2.0 - 2026-11-01
 ### New Features
 - **Parent App**: Feedback and error reporting prompts for reply email but still does not require it
   
 ### Bug Fixes
-
+- **Screen Time**: The broker now calculates the child countdown deadline, and the child panel displays it locally without restarting time when replies arrive. The child extension is still required.
 
 ## v1.5 - 2026-10-31
 ### Kind Ask

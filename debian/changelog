@@ -5,8 +5,11 @@ oh-no-parent-control (2.0+local1~ubuntu26.04.1) resolute; urgency=medium
     does not require it
 
   Bug Fixes
+  * Screen Time: The broker now calculates the child countdown deadline, and
+    the child panel displays it locally without restarting time when replies
+    arrive. The child extension is still required.
 
- -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Sat, 31 Oct 2026 19:34:34 +0000
+ -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Sun, 01 Nov 2026 12:00:00 +0000
 
 oh-no-parent-control (1.5+ppa1~ubuntu26.04.1) resolute; urgency=medium
 

@@ -184,7 +184,9 @@ def test_selected_listing_uses_exact_inventory_scope(selector, count):
 def test_dispatcher_preserves_execution_verification_policy(skip, checkout):
     path = checkout / 'tests/e2e/scenarios.json'
     document = json.loads(path.read_text())
-    document['scenarios'] = document['scenarios'][:1]
+    # Keep the selected smoke scenario even when customer journeys are reordered.
+    document['scenarios'] = [scenario for scenario in document['scenarios']
+                             if scenario['id'] == 'E2E-001']
     executable = checkout / 'tests/e2e/synthetic.py'
     executable.write_text('raise AssertionError("must not execute")\n')
     document['scenarios'][0]['variants'][0].update(

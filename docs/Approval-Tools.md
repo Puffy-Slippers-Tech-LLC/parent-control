@@ -90,6 +90,48 @@ no infrastructure/source edits, setup, staging, installation or publication.
 
 ## One-time setup
 
+### Portable Codex configuration
+
+Clone the repository and run `./setup.sh` on a supported desktop, or
+`./setup.sh --headless` on a supported automation server. Both install the
+tracked command policies and render project configuration from
+[`config/codex-project.toml`](../config/codex-project.toml). On an already
+configured host, `./setup.sh --codex-rules-only` refreshes the same settings
+without installing dependencies. Trust the checkout in Codex and restart Codex
+after setup. Setup does not silently mark other directories as trusted.
+
+The generated `.codex/config.toml` and `.codex/rules/tests.rules` are ignored by
+Git. Setup owns these files and replaces them on refresh; make shared changes
+in the tracked templates, not the generated files. Checkout paths are rendered
+for each clone/worktree, including paths containing spaces or quotes. The shared
+defaults include model, reasoning effort, service tier, terminal preferences and
+the checkout write root. Existing personal configuration and credentials under
+`~/.codex` are preserved; project defaults override corresponding personal
+defaults only in this trusted project.
+
+Desktop setup adds [`config/codex-desktop.toml`](../config/codex-desktop.toml)
+when the calling account's bundled app marketplace exists, resolving its location
+from `CODEX_HOME` or `~/.codex`. This reproduces desktop preferences and enabled
+bundled plugins. Initialize the separately installed desktop app, then rerun the
+Codex refresh if setup reported missing desktop integrations. Explicit headless
+setup omits them. App-owned MCP/browser process wiring, generated version paths
+and plugin caches are supplied by that app, not copied from another computer.
+
+The tracked machine read policy now includes ordinary file readers, pipeline
+filters, checksums and public `curl -fsSL` fetches previously dependent on saved
+personal approvals. The repository `AGENTS.md` includes their quoting guidance.
+Historical personal grants for unrelated projects, raw VM commands and privileged
+utilities are not imported: maintained project guards and diagnostics remain the
+authority. Obsolete `.codex-staged-*` snapshots are ignored and unused.
+
+Provision Git identity, signing configuration/private keys, SSH/Git credentials,
+Codex login, plugin account connections and `.envrc` secrets separately on each
+host. Setup preserves existing Git settings and reports missing identity/upstream;
+it never copies authentication, private keys, session history or personal trust
+lists. See [signing setup](Publishing.md#noninteractive-signing) for publishing.
+
+### Setup modes and activation
+
 Run `./setup.sh --test-tools-only`, then restart Codex with this checkout trusted.
 Setup installs root-owned helpers and scoped Polkit rules, pins the finalized
 test baseline's VM UUID, and renders portable project-relative command prefixes.

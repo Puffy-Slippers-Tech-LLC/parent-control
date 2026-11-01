@@ -239,14 +239,43 @@ def test_tools_refresh_installs_fixed_helper_before_cache_repair_and_can_retry(m
     repaired.assert_called_with(ROOT)
 
 
-def test_rules_render_for_a_checkout_with_spaces(tmp_path):
-    root = tmp_path / 'checkout with spaces'
+def test_rules_render_for_a_checkout_with_spaces(tmp_path, monkeypatch):
+    root = tmp_path / 'checkout with spaces and "quotes"'
     (root / 'tools').mkdir(parents=True)
     (root / 'config').mkdir()
     for name in ('run-tests', 'run-unit-tests', 'run-ui-tests', 'diagnose', 'test-vm',
                  'cleanup-screenshots', 'read-only'):
         shutil.copy2(ROOT / 'tools' / name, root / 'tools' / name)
     shutil.copy2(ROOT / 'config/codex-tests.rules', root / 'config/codex-tests.rules')
+    for name in ('codex-project.toml', 'codex-desktop.toml'):
+        shutil.copy2(ROOT / 'config' / name, root / 'config' / name)
+    # Exercise setup's generated configuration in an isolated account/check out.
+    import tomllib
+    home = tmp_path / 'codex home'
+    home.mkdir()
+    credentials = home / 'auth.json'
+    credentials.write_text('private account state')
+    monkeypatch.setenv('CODEX_HOME', str(home))
+    main = rules['main']
+    monkeypatch.setitem(main.__globals__, '__file__', str(root / 'tools/install_codex_rules.py'))
+    monkeypatch.setattr(rules['sys'], 'argv', ['install_codex_rules.py', '--headless'])
+    main()
+    config = root / '.codex/config.toml'
+    settings = tomllib.loads(config.read_text())
+    assert settings['sandbox_workspace_write']['writable_roots'] == [str(root)]
+    assert 'plugins' not in settings
+    main()
+    marketplace = home / '.tmp/bundled-marketplaces/openai-bundled'
+    marketplace.mkdir(parents=True)
+    monkeypatch.setattr(rules['sys'], 'argv', ['install_codex_rules.py'])
+    main()
+    settings = tomllib.loads(config.read_text())
+    assert settings['marketplaces']['openai-bundled']['source'] == str(marketplace)
+    assert settings['plugins']['browser@openai-bundled']['enabled'] is True
+    monkeypatch.setattr(rules['sys'], 'argv', ['install_codex_rules.py', '--headless'])
+    main()
+    assert 'plugins' not in tomllib.loads(config.read_text())
+    assert credentials.read_text() == 'private account state'
     rendered = rules['render'](root)
     assert '@CHECKOUT@' not in rendered
     assert str(root) not in rendered
@@ -254,6 +283,10 @@ def test_rules_render_for_a_checkout_with_spaces(tmp_path):
     root.rename(moved)
     assert rules['render'](moved) == rendered
     root = moved
+    monkeypatch.setitem(main.__globals__, '__file__', str(root / 'tools/install_codex_rules.py'))
+    main()
+    settings = tomllib.loads((root / '.codex/config.toml').read_text())
+    assert settings['sandbox_workspace_write']['writable_roots'] == [str(root)]
     ast.parse(rendered)  # This declaration-only rules subset has valid string literals.
     (root / 'tools/test-vm').chmod(0o644)
     with pytest.raises(ValueError):

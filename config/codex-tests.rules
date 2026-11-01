@@ -179,11 +179,11 @@ prefix_rule(
     justification = "Use tools/read-only for searches, filters and HTTPS reads; unrestricted arguments can run preprocessors, overwrite files, or send modifying network requests.",
     not_match = ["curl -fsSL 'https://example.com/path?key=value'"],
 )
-# Preserve the user's existing global curl -fsSL allow. A blanket curl prompt
-# overrides it even for a quoted, direct public GET. Do not duplicate or widen
+# Setup reproduces the user's curl -fsSL allow in codex-read-only.rules. A blanket
+# curl prompt overrides it even for a quoted, direct public GET. Do not duplicate
 # that grant here. It is a prefix, not trailing-argument validation: use it only
 # for trusted public reads, and use tools/read-only fetch for untrusted inputs.
-# Preserve saved sort/uniq reader allows too: ordinary pipelines are explicitly
+# Preserve the maintained sort/uniq reader allows too: ordinary pipelines are explicitly
 # authorized across paths, filters and counts. Do not shadow them with a prompt
 # or add duplicate allows. Prefix grants do not validate trailing output options;
 # use tools/read-only for untrusted arguments or argument-confined operations.

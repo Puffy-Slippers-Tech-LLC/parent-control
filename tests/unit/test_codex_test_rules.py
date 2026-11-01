@@ -203,14 +203,13 @@ def test_legacy_global_allow_cannot_override_project_prompt(command):
     'https://example.com/~project/path?key=value&other=value',
     'https://gitlab.freedesktop.org/pwithnall/malcontent/-/raw/0.14.0/meson.build',
 ])
-def test_saved_curl_public_fetch_allow_is_not_overridden_or_duplicated(url):
-    # Model the user's existing global rule without reading personal policy or
-    # adding a second maintained allowance. The reported command was already
-    # correctly quoted; a project prompt caused the conflict after parsing.
+def test_saved_curl_public_fetch_allow_is_reproduced_without_conflicting_rules(url):
+    # Setup now reproduces the saved approval on hosts without personal rules.
     saved_rule = {'pattern': ['curl', '-fsSL'], 'decision': 'allow'}
     argv = shlex.split(f'curl -fsSL {shlex.quote(url)}')
     maintained_rules = [*entries('codex-read-only.rules'), *entries()]
-    assert not any(matches(rule['pattern'], argv) for rule in maintained_rules)
+    assert [rule['decision'] for rule in maintained_rules
+            if matches(rule['pattern'], argv)] == ['allow']
     decisions = {rule['decision'] for rule in [saved_rule, *maintained_rules]
                  if matches(rule['pattern'], argv)}
     assert decisions == {'allow'}
@@ -247,10 +246,11 @@ def test_saved_curl_prefix_does_not_validate_trailing_arguments():
     'head -n 20', 'tail -n 3', 'tail -n 50 arbitrary/log',
     'cut -d : -f 1', 'wc -l',
 ])
-def test_saved_reader_allows_are_not_overridden_or_duplicated(command):
+def test_saved_reader_allows_are_reproduced_without_conflicting_rules(command):
     argv = shlex.split(command)
     maintained_rules = [*entries('codex-read-only.rules'), *entries()]
-    assert not any(matches(rule['pattern'], argv) for rule in maintained_rules)
+    assert [rule['decision'] for rule in maintained_rules
+            if matches(rule['pattern'], argv)] == ['allow']
     saved_rule = {'pattern': [argv[0]], 'decision': 'allow'}
     assert {rule['decision'] for rule in [saved_rule, *maintained_rules]
             if matches(rule['pattern'], argv)} == {'allow'}

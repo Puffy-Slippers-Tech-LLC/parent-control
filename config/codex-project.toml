@@ -1,0 +1,14 @@
+# Managed by ./setup.sh; machine-specific values are rendered into .codex/config.toml.
+model = "gpt-6.1-sol"
+model_reasoning_effort = "low"
+service_tier = "default"
+
+[sandbox_workspace_write]
+writable_roots = ["@CHECKOUT@"]
+
+[tui]
+fullscreen_transcript = false
+resume_cwd = "current"
+
+[notice]
+hide_rate_limit_model_nudge = true

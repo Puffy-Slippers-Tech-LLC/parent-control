@@ -141,6 +141,12 @@ preparation lifetime, which a task's example command cannot establish.
 
 ## Reads, edits and evidence
 
+- For public research, use direct `curl -fsSL 'https://example.com/path'` with
+  a literal quoted URL. Keep approved fetch commands direct and pipeline filters
+  separately approved. If a request fails, check quoting and command shape before
+  requesting escalation; preserve the requested operation and honor denials.
+  Do not add duplicate or broader rules, general shell grants or unrestricted
+  network access to repair a quoting problem.
 - Quote every path, pattern and URL. Inspect operands and run direct reads from
   the intended working directory. Use `rg -n` with literal paths and quoted
   `--glob` filters; use `tools/read-only files|search --path-glob ...` for filename

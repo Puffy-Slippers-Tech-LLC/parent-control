@@ -1,11 +1,12 @@
 #!/usr/bin/python3 -IB
-"""Install machine-wide reads and render portable project Codex prefixes."""
+"""Install machine-wide reads and render portable project Codex settings/rules."""
 import json
 import os
 from pathlib import Path
 import sys
 import stat
 import tempfile
+import tomllib
 
 
 SYSTEM_RULES = Path('/etc/codex/rules/onpc-read-only.rules')
@@ -89,16 +90,45 @@ def main():
     if sys.argv[1:] == ['--system'] and os.geteuid() == 0:
         install_system_rules(root)
         return
-    if len(sys.argv) != 1:
+    if sys.argv[1:] not in ([], ['--headless']):
         raise ValueError('run through ./setup.sh --codex-rules-only')
     source = render(root)
-    destination = root / '.codex/rules/tests.rules'
+    configuration = (root / 'config/codex-project.toml').read_text().replace(
+        '"@CHECKOUT@"', json.dumps(str(root)))
+    codex_home = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex')))
+    marketplace = codex_home / '.tmp/bundled-marketplaces/openai-bundled'
+    if '--headless' not in sys.argv and marketplace.is_dir():
+        configuration += '\n' + (root / 'config/codex-desktop.toml').read_text().replace(
+            '"@MARKETPLACE@"', json.dumps(str(marketplace)))
+    else:
+        print('codex-rules-install: desktop integrations omitted; run setup again after desktop app initialization if needed')
+    tomllib.loads(configuration)
+    write_checkout_file(root / '.codex/config.toml', configuration)
+    write_checkout_file(root / '.codex/rules/tests.rules', source)
+    print('codex-rules-install: project settings installed; trust this checkout in Codex and restart')
+
+
+def write_checkout_file(destination, source):
+    """Replace only managed checkout files, refusing redirected destinations."""
+    if any(path.is_symlink() for path in (destination, *destination.parents)):
+        raise ValueError('symlink in checkout configuration path')
     destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.is_symlink():
-        raise ValueError('symlink in checkout rules path')
-    if not destination.exists() or destination.read_text() != source:
-        destination.write_text(source)
-    destination.chmod(0o644)
+    if destination.exists():
+        info = destination.stat()
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid():
+            raise ValueError('unsafe checkout configuration file')
+        if destination.read_text() == source:
+            return
+    descriptor, temporary = tempfile.mkstemp(prefix='.onpc-codex-', dir=destination.parent)
+    try:
+        with os.fdopen(descriptor, 'w') as stream:
+            stream.write(source)
+            stream.flush()
+            os.fchmod(stream.fileno(), 0o644)
+            os.fsync(stream.fileno())
+        os.replace(temporary, destination)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
 
 
 if __name__ == '__main__':

@@ -18,7 +18,7 @@ Usage: ./setup.sh [MODE] [--vm NAME]
                        Includes guarded root guest commands through tools/test-vm exec
   --ui-tests-only       Prepare this checkout's UI test environment using installed host packages
   --watch               Install/update only the ONPC Watch VS Code editor extension
-  --codex-rules-only    Refresh machine-wide and checkout Codex rules
+  --codex-rules-only    Refresh shared Codex settings and machine-wide/checkout rules
   --bootstrap-tools     Install setup authorization once, or refresh its existing grant
   --replace-missing-baseline  Replace an explicitly deleted baseline from a prepared, off VM
                              Requires --vm NAME or ID from config/test-vm.json
@@ -109,8 +109,12 @@ bootstrap_tools() {
 install_codex_rules() {
     echo 'setup: [stage:codex-rules]'
     run_root codex-rules /usr/bin/python3 -IB "$script_dir/tools/install_codex_rules.py" --system
-    /usr/bin/python3 -IB "$script_dir/tools/install_codex_rules.py"
-    echo 'setup: Codex rules installed; restart Codex with this checkout trusted'
+    if [[ $mode == --headless ]]; then
+        /usr/bin/python3 -IB "$script_dir/tools/install_codex_rules.py" --headless
+    else
+        /usr/bin/python3 -IB "$script_dir/tools/install_codex_rules.py"
+    fi
+    echo 'setup: Codex settings and rules installed; restart Codex with this checkout trusted'
 }
 
 install_test_tools() {

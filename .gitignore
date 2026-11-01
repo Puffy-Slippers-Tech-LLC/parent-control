@@ -1,4 +1,7 @@
 .envrc
+# Rendered by setup from config/codex-*. Keep host paths and private state local.
+/.codex/
+/.codex-staged-*
 # Independent development checkouts are not source inputs for this checkout.
 /.worktrees/
 # One-time diagnostic downloads from test machines; never commit their contents.

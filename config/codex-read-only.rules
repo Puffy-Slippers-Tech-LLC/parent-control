@@ -1,5 +1,20 @@
 # Machine-wide inspection, independent of checkout and path. Select any repo
 # with the command tool's working directory; no unrestricted git/-C prefix.
+# These ordinary reads were previously dependent on saved personal approvals.
+# Prefix grants trust trailing arguments; use tools/read-only for untrusted input.
+prefix_rule(
+    pattern = [["cat", "ls", "head", "tail", "cut", "sort", "uniq", "wc", "jq", "sha256sum",
+                "/usr/bin/cat", "/usr/bin/ls", "/usr/bin/head", "/usr/bin/tail",
+                "/usr/bin/cut", "/usr/bin/sort", "/usr/bin/uniq", "/usr/bin/wc",
+                "/usr/bin/jq", "/usr/bin/sha256sum"]],
+    decision = "allow",
+    justification = "Reproduce authorized ordinary file reads, filters and checksums on development hosts.",
+)
+prefix_rule(
+    pattern = [["curl", "/usr/bin/curl"], "-fsSL"],
+    decision = "allow",
+    justification = "Fetch trusted public research to standard output with a direct quoted URL.",
+)
 prefix_rule(
     pattern = [["sed", "/usr/bin/sed"], "-n"],
     decision = "allow",

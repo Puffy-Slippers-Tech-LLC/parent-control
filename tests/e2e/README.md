@@ -1014,9 +1014,7 @@ effect on the next controller invocation without replacing snapshots.
 `baseline:verification` retains boundary, call count, mode, elapsed seconds and
 outcome fields; `mode` is always `metadata-only` and `bytes_read` is zero for
 image-content verification (not a measure of all QEMU/guest I/O). Totals remain
-in installed and public E2E results. The
-[ownership and no-scan regressions](../unit/test_backing_verification_cleanup_safety.py)
-join the automatic isolated safety prerequisites.
+in installed and public E2E results.
 
 ### Earlier provenance qualifications
 
@@ -1273,9 +1271,7 @@ descriptor with `ENOTTY`. The joined review reproduced this with a real local
 PTY; the earlier probe doubles incorrectly returned success. Foreground checks
 now reuse the repeated pinned shell's
 [`/proc` terminal/session/process-group fields](https://www.kernel.org/doc/html/latest/filesystems/proc.html),
-including `tpgid`, before and after the terminal open. `test_e2e_vt6_shell.py`
-retains late foreground replacement refusal, descriptor closure and a real
-noncontrolling-terminal ioctl regression. No observer session or terminal
+including `tpgid`, before and after the terminal open. No observer session or terminal
 ownership is changed. Attempts 9/10 below now exercise this correction live;
 their complete qualification remains failed.
 
@@ -1299,8 +1295,7 @@ The joined authentication review found the capture reader's whole-stat defect
 also in `vt6_command.READ_MARKER`. A delayed first read on `/tmp` reproduces a
 false refusal locally. The guest's `marker_identity` now compares the stable
 fields of `provenance.identity` plus UID/GID, excluding read-driven atime and
-preserving nanosecond mtime/ctime. The delayed-read regression and per-field
-descriptor/path mutations in `test_e2e_vt6_command.py` protect that boundary.
+preserving nanosecond mtime/ctime.
 This correction now has completed live command-stage evidence in attempt 10;
 normal worker shutdown remains unqualified for that integrated route.
 
@@ -1361,10 +1356,7 @@ verified ordered worker code provide input provenance; pixels/timestamps alone
 do not prove the absence of invisible input or make observation/input atomic.
 A same-stage, same-boot replay cannot be distinguished by the worker protocol
 alone; the controller's one-use order and fresh current-attempt capture remain
-mandatory. [Controller tests](../unit/test_e2e_vt6_controller.py) cover those
-gates and checkpoint failure; `test_input_guard_binds_live_worker_and_staged_bytes_and_always_cleans`
-in [cleanup tests](../unit/test_graphical_smoke_cleanup_safety.py) covers current
-worker/distribution refusal and resource closure.
+mandatory.
 
 Both `matches_pinned_recipient` Booleans in that run are **invalid**: the initial
 parser compared a digest with the stored `(boot, recipient)` tuple. The corrected
@@ -1374,8 +1366,7 @@ qualifies its matching branch live.
 The old run's executable/configuration/timing fields are unaffected.
 The [shared credential and execution boundaries](../../docs/Mandates/Test-Scope-Mandate.md)
 own allowed direct safety coverage; diagnostic helpers do not gain a separate
-unit matrix. Controller and [cleanup regressions](../unit/test_graphical_smoke_cleanup_safety.py)
-retain their applicable authorization and ownership checks.
+unit matrix.
 
 **Finite fixture login window — preparation and password readiness qualified:**
 `fixture_credentials.provision_vt6_login_window` now reuses the existing
@@ -1406,11 +1397,6 @@ path, adding explicit UID/GID stability. Device/inode, mode, links, size and
 nanosecond mtime/ctime remain invariant; read-driven atime is excluded. All
 initial freshness, directory, reference/pixel, worker, staged-asset, boot and recipient
 gates remain. A changed stable field retains its fixed descriptor/path predicate.
-[Controller regressions](../unit/test_e2e_vt6_controller.py) cover the installed
-writer with a 1.05-second first-read delay, every stable field on both views,
-single-use refusal and publication ordering. The
-[cleanup regressions](../unit/test_graphical_smoke_cleanup_safety.py) validate
-fixed-code checkpoints and reject private or malformed diagnostics.
 Attempts 9/10 below pass the corrected capture stage, and attempt 10 completes
 the authenticated command stage. Attempt 11 below also passes normal worker
 shutdown; complete qualification still requires final artifact and baseline checks.
@@ -1423,9 +1409,7 @@ The existing credential-free collection route is
 provision/read passwords or combine with authentication/installation. Boot and
 independent recipient checks bracket the two private captures; capture seals
 on completion/failure. It produced the retained reviewed pixels; no new
-maintenance or collector is needed. Regressions are
-[test_e2e_vt6_prompt.py](../unit/test_e2e_vt6_prompt.py) and the login/probe tests
-above. These checks establish local ordering/refusal behavior. The retained
+maintenance or collector is needed. The retained
 prompt pass qualifies live collection, not secret input.
 
 ## Ordered controller records
@@ -1601,11 +1585,7 @@ in [worker cleanup regressions](../unit/test_e2e_worker_cleanup_safety.py) cover
 the old-budget refusal, delayed success with actual off observation, exhausted
 new-budget refusal and both closes, including success and expiration at the
 hour-long lifecycle budget. Invalid budgets refuse before resources.
-Reuse `test_timeout_refuses_and_cleans_up`, `Adapter`, `Lease.stop` and
-[public shutdown regressions](../unit/test_e2e_shutdown.py); the existing
-`test_vt6_worker_uses_existing_finite_extended_budget` in
-[smoke cleanup regressions](../unit/test_graphical_smoke_cleanup_safety.py) covers
-selection without changing other flows.
+Reuse `test_timeout_refuses_and_cleans_up`, `Adapter` and `Lease.stop`.
 
 Private `worker-before-cleanup.json` and `worker-result.json` reports contain
 only fixed diagnostic fields, distribution digest, timing, failure history and

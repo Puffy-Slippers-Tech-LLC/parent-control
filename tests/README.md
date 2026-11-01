@@ -271,12 +271,13 @@ host categories, review the [resource and compatibility policy](../tools/regress
 Record the specific conflicting shared resource for any required exclusivity.
 Do not declare work complete with a module merely left in the unreviewed fallback.
 
-`test_e2e_baseline_auth_pause.py` uses pytest-private records, in-memory public
-UI/transport doubles and fake clocks. It owns no
-VM, display, socket, bus, external service, shared cache or fixture build; its
-small CPU/I/O load permits compatible unit overlap. It adds no cleanup module
-or resource owner. Existing MATE and TIME03 host checks retain those same
-private resources and their current classifications.
+Non-product unit coverage is deliberately narrow: shared execution/verdict
+integrity, credential handling, privilege and destructive-action boundaries.
+Scenario assertions, ordinary helper features, tool presentation and synthetic
+journey matrices are validated through their owning tests rather than a second
+unit layer. Product unit tests remain intact. The unit and cleanup inventories
+list only retained modules; their existing private resources and isolation
+classifications remain unchanged.
 
 The [host inventory regression](unit/test_regression_unit.py) detects modules
 left unreviewed across all three inventories; a reviewed exclusive exception
@@ -591,7 +592,7 @@ Optional categories restrict both repair and verification: `tools/fix-tests host
 `tools/fix-tests vm`,
 `tools/fix-tests unit ui` and `tools/fix-tests "unit ui"` are supported.
 Category arguments pass through to the runner, for example `tools/fix-tests e2e --id 6`
-or `tools/fix-tests unit 'tests/unit/test_fix_tests.py' -q`. The exact selectors
+or `tools/fix-tests unit 'tests/unit/test_regression.py' -q`. The exact selectors
 are retained for repairs and every verification round. Launcher options such as
 `--vm`, `--model`, `--effort`, `--rounds`, `--tasks` and `--stop` remain launcher-owned,
 are recognized before or after categories, and are removed from the forwarded
@@ -919,9 +920,6 @@ The [failure mandate](#handling-test-failures) still applies: classify from evid
 report expected versus actual behavior and ask before accepting changed behavior
 or altering expectations unless that exact change is already authorized. The
 loop does not weaken checks or bypass permissions to continue.
-
-The process lifecycle is qualified using isolated test/agent doubles in
-`test_fix_tests_cleanup_safety.py`; these tests never invoke the model or VM.
 
 ### Scripted E2E implementation
 
@@ -1582,9 +1580,7 @@ and pointer before continuing. Only a validated completion response and successf
 staging permit advancement. Newly added unchecked tasks are preserved and included
 in recovery's status checks. Removed or reordered existing tasks, changes to another
 task's status and newly added completed tasks still refuse recovery.
-The launcher never assumes an interrupted live test passed. Lifecycle qualification
-lives in
-[test_write_e2e_cleanup_safety.py](unit/test_write_e2e_cleanup_safety.py).
+The launcher never assumes an interrupted live test passed.
 
 ### Aggregate execution and reconnection
 
@@ -2654,7 +2650,6 @@ and recovery checks without launching additional test suites.
 Changes to graphical ownership or descriptor transfer use the existing shared
 regressions in `tests/unit/test_graphical_lease.py`. They cover
 VM ownership refusal and real display descriptor transfer/revocation. The
-worker's existing owner is `tests/unit/test_graphical_worker_cleanup_safety.py`;
 ordinary adapter or worker changes do not automatically require these checks. The privileged
 integration dispatcher executes only the requested operation.
 `integration check_graphical_worker` has non-VM fixtures that verify byte transfer,
@@ -2776,16 +2771,13 @@ or deletes another worker's artifacts. Nested-Shell tests also discard their
 regenerable Mesa/NVIDIA shader caches after successful teardown, retaining
 Shell logs and reviewable screenshots. Synthetic E2E preflight assets have an
 explicit temporary-directory fixture lifetime, including setup failure.
-`test_ui_artifacts_cleanup_safety.py` covers successful/failed teardown,
-concurrent attempts, directory replacement and symlink/hardlink refusal.
 Private filenames do not isolate storage capacity; retained images must not
 compete with runtime sockets on memory-backed storage.
 Pytest continues to own its numbered-directory locks and capture files; no
 worker deletes another worker's evidence.
 Maintainer-script fixtures use `tests.support.shell.relocate_system_paths` to
 rewrite only original source matches in one pass. Sequential replacements
-corrupt inserted roots containing `/var/` or `/home/`; `test_support_shell.py`
-covers those roots and the real package configuration/removal suites exercise
+corrupt inserted roots containing `/var/` or `/home/`; the real package configuration/removal suites exercise
 the resulting scripts in launcher-configured disk scratch.
 Request-layout checks exercise the shared form at supported display scales
 through public IDs, including selected approver, duration, submission and exact
@@ -2977,20 +2969,6 @@ survives partial source/slot deletion until recorded cleanup finishes. Source,
 seal, old generations, staging and control/recovery copies retain their existing
 byte, file and metadata limits; capacity refusal preserves prior proof.
 
-P03 lives in `tests/unit/test_evidence_capture.py`, using private synthetic owners
-and real storage/retention locks. It covers authority, exact context, immutable
-mapping, refusal, bounded capacity and resumable interruption. These are host
-infrastructure checks, with no installed-product or VM acceptance credit.
-Repeated source-owner reopenings recover the same request, seal and publication
-allocation through more than three interrupted transitions. A real failed copy
-or acknowledgement capacity refusal keeps the original bytes and dependency
-registration through oversized startup recovery; only the matching verified
-acknowledgement permits retirement. `tests/unit/test_plan_evidence.py` composes
-that handoff with real input capture/carry and serialized suspended checkpoints:
-five restarts and unrelated export/source rotations preserve the exact result,
-input, command and cleanup bytes, including failed and partial interrupted proof.
-These shared-mechanism checks do not replace the producer/consumer integrations
-assigned to later export tasks.
 
 Required recordings use the same sealed publication route before latest-only
 replacement. `recording_storage.Store.owner()` holds an existing case without

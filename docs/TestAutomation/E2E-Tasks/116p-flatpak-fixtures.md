@@ -27,12 +27,9 @@ installation and confinement; launching and activity remain in following tasks.
 
 ## Live VM acceptance
 
-Run affected baseline/ownership checks; reuse the shared reconciliation,
-interrupted-placement and foreign-input coverage in
-`tests/unit/test_baseline_fixtures_cleanup_safety.py`. Adding finite A/H/S
-identities does not require another copy of that matrix. Add a focused direct
-check only for a new package-command, installation-scope or ownership boundary
-that the shared checks cannot exercise. Qualify one real baseline
+Run affected baseline/ownership checks. Validate finite A/H/S identities through
+their installed fixture acceptance; do not recreate the retired baseline unit
+matrix. Qualify one real baseline
 installation of the declared runtime/app identities. After restore in a fresh
 guarded attempt, verify runtime/app digests, installation scope, confinement and launchers
 without installing or repairing anything. Independently observe the exact Parent

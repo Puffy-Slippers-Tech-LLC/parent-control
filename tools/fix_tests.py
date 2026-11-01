@@ -2058,7 +2058,7 @@ def main(argv=None):
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh', 'max'),
                         help='initial reasoning effort (default: low for unit, medium otherwise; unit escalates through medium, high and xhigh; other categories through high, xhigh and max)')
     parser.epilog = ('Pass categories and arguments as for run-tests, e.g. e2e --id 6 '
-                     'or unit tests/unit/test_fix_tests.py -q. Launcher options are recognized '
+                     'or unit tests/unit/test_regression.py -q. Launcher options are recognized '
                      'anywhere and removed from the forwarded arguments. '
                      'Omitting categories selects every leaf. Host and VM workflows have '
                      'separate sessions; attach using the same scope. Bare --stop cancels both scopes.')

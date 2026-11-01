@@ -279,8 +279,7 @@ unit layer. Product unit tests remain intact. The unit and cleanup inventories
 list only retained modules; their existing private resources and isolation
 classifications remain unchanged.
 
-The [host inventory regression](unit/test_regression_unit.py) detects modules
-left unreviewed across all three inventories; a reviewed exclusive exception
+Review modules across all three inventories; a reviewed exclusive exception
 requires an explicit path and concrete reason. Unknown modules still execute
 exclusively at runtime so incomplete checkouts fail safely. Validate partition
 coverage and compatible overlap for the changed scope using the maintained

@@ -21,8 +21,6 @@ probe_bus_client
 probe_channel
 probe_generation
 regression
-system_accounts
-system_agent
 vm_backup
 vm_control
 """.split())

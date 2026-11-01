@@ -40,8 +40,10 @@ class ChildPreviewTests(unittest.TestCase):
         indicator = (ROOT / "child" / "remainingTimeIndicator.js").read_text()
         client = (ROOT / "child" / "timeCalculationClient.js").read_text()
 
-        self.assertIn("'CalculateOwnRemainingTime'", client)
-        self.assertIn("calculateOwnRemainingTime", indicator)
+        # Screen-Time.md specifies broker-issued absolute deadlines for the
+        # child countdown; duration calculations belong to other callers.
+        self.assertIn("'CalculateOwnDeadline'", client)
+        self.assertIn("await calculateOwnDeadline(", indicator)
         self.assertIn("manager.dailyLimitEnabled", indicator)
         self.assertIn("'org.gnome.ScreenSaver'", indicator)
         self.assertIn("SCREEN_SAVER_INTERFACE, 'Lock'", indicator)

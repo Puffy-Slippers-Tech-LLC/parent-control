@@ -3,7 +3,7 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
-Required tasks: 001, 002.
+Required tasks: 001.
 Estimate: 45–75 minutes; indivisible revoke/control histories on both targets.
 
 Read the [master](../Broker-Expiry-Plan.md), original revocation rationale and

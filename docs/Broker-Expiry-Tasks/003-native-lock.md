@@ -2,13 +2,20 @@
 
 Acceptance: review
 
-Required tasks: 002.
+Required tasks: 001.
 Estimate: 45–75 minutes; daily and grant natural-deadline histories on both targets.
 
 Read the [master](../Broker-Expiry-Plan.md), native investigation and current
 system-282/TIME04 implementations. Extend system-282 with planned parameters
-`native-daily-lock` and `native-grant-lock` (unimplemented), consuming the shared
-panel-free observation and task 002's independent native timing mechanics.
+`native-daily-lock` and `native-grant-lock` (unimplemented), consuming task 001's
+shared panel-free activity, lock/input, retained-work and peer observations.
+An external live countdown reader is not a prerequisite. Bound observations
+using attempt-owned policy/grant setup and monotonic timing, with known native
+usage established through existing fixtures. Do not guess missing usage, poll
+saved-only estimates into a renewed deadline, submit synthetic records or use
+the disabled extension's endpoint. If the existing setup cannot establish a
+trustworthy daily-use baseline, report that concrete observation blocker;
+it is not permission to introduce another activity accountant.
 
 Observe daily-only and zero-daily grant-only natural exhaustion with the whole
 extension disabled throughout the observation. Verify the extension's absence

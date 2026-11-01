@@ -1,12 +1,13 @@
 # Explore broker-owned expiry locking
 
-Status: row 3 exploration; scheduler implementation and installed replacement
-qualification are pending. Existing accepted automation remains accepted;
+Status: row 3 native-versus-product exploration; native qualification and any
+justified replacement remain pending. No scheduler is selected. Existing accepted automation remains accepted;
 this document schedules no enforcement change.
 
-Explore moving the product's additional exhaustion/revocation lock coordination
-from the extension to the existing broker, retaining native GNOME/Malcontent
-accounting and secure locking. The reason is resilience when an unrelated
+First qualify native exhaustion/revocation behavior with the child extension
+disabled. Explore broker coordination only for demonstrated core gaps, retaining
+native GNOME/Malcontent accounting and secure locking. A new scheduler is not
+the default solution. The reason is resilience when an unrelated
 extension crashes Shell and extensions are globally disabled after recovery.
 This is one slice of the [optional-extension design](Optional-Child-Extension.md),
 not authorization to make the whole extension optional.
@@ -26,37 +27,38 @@ Rows 1/2 are complete in the
 They introduce no continuous broker expiry timer or lock-owner handover; row 3
 remains a separate exploration.
 
-[Replacing Main.timeLimitsManager](Replace-Main.timeLimitsManager.md) explores
-row 4: supported timing observations without the extension. Row 3 can be designed
-and characterized with the existing extension-backed input; its exploration does
-not depend on row 4 being solved. Row 4 can deliver timing without moving locks.
-Extension-independent broker expiry ultimately requires both deliveries. Do not
-let a timing blocker prevent a bounded effect-owner design, or call an
-extension-backed scheduler extension-independent.
+The [optional-extension goal](Optional-Child-Extension.md#destination-and-release-boundaries)
+retains the extension for desktop reminders, the in-session overlay and the precise
+countdown. Its `Main.timeLimitsManager` reader may remain extension-dependent.
+The former independent-reader prerequisite is retired. Native GNOME already
+owns live activity tracking and its exhaustion lock; those mechanisms do not
+need an external live balance to keep running without third-party extensions.
 
 Upstream/native package changes and replacing Malcontent accounting are forbidden.
-Row 3 may consume a validated deadline; it must not implement a second timing
-observer or solve row 4 inside a scheduler task.
+Any justified broker effect must name its supported authoritative input and
+failure policy. Do not assume an extension-supplied deadline can support a core
+extension-disabled claim, or build a second timing observer to make it do so.
 
 ## Bounded exploration and result
 
-Read the existing current-path code and historical rationale below, then propose
-the smallest effect owner within the existing broker. Answer:
+Read the existing current-path code and historical rationale below, then decide
+whether native behavior is sufficient or a bounded broker change is needed. Answer:
 
 1. Which exhaustion/revocation obligations need broker coordination beyond
    native GNOME locking? Preserve known product requirements while distinguishing
    source inspection, characterized native gaps and passing installed behavior.
-2. How does one per-child/session deadline get armed, invalidated after a live
-   policy change, and revalidated immediately before a lock request or retry?
+2. If a broker effect is needed, how does its authoritative trigger get armed,
+   invalidated after a live policy change, and revalidated immediately before a
+   lock request or retry?
    Cover renewal/disablement, ended/replaced sessions and stale callbacks without
    inventing another policy store or activity accountant.
-3. How will expiry progress independently of authentication/management work,
+3. How does native expiry continue independently of authentication/management work,
    observe bounded completion, and recover after broker/provider owner loss?
    State existing native protection and any unprotected outage interval honestly.
-4. What is the finite implementation/acceptance slice, what existing tests are
-   reused, and which remaining timing/compatibility gates prevent an independent
-   release? Separate a scheduler using the current source from the final
-   extension-disabled claim.
+4. What finite qualification or implementation slice is justified, what existing
+   tests are reused, and which core compatibility gates remain? A recommendation
+   to retain native expiry without a new scheduler is valid. Convenience timing
+   and the in-session overlay need not work while the extension is disabled.
 
 This is source/design review, not a live fault campaign, scheduler prototype,
 service policy change or enforcement handover. A useful result names the selected
@@ -92,19 +94,18 @@ capabilities migrated.
    implement missing observations and cases there, and obtain installed results
    on Ubuntu 26.04 and Fedora 44. The baseline must distinguish real lock/input,
    retained work and peer continuity from timer values or service-state hints.
-2. Resolve the native-versus-broker effect boundary independently of the row 4
-   exploration. Qualify what native GNOME already enforces; add broker behavior
-   only for demonstrated product obligations. Before an extension-independent
-   handover, row 4 must separately supply qualified live timing. Repeated reads
-   must not move the deadline forward or checkpoint invented use.
-3. Implement the bounded broker lifecycle and effect ownership alongside the
+2. Resolve the native-versus-broker effect boundary. Qualify what native GNOME
+   already enforces; add broker behavior only for demonstrated core obligations.
+   Do not make a replacement countdown reader a prerequisite for native locking.
+   Repeated reads must not move expiry forward or checkpoint invented use.
+3. If needed, implement bounded broker lifecycle and effect ownership alongside the
    established production path. Observation/shadow work must not write usage,
    award time, relax policy or compete to mutate state. Define stale-work
    cancellation and approval/revocation ordering before effect handover.
-4. Switch the product lock-request owner only after the replacement passes the
+4. If a replacement is needed, switch the product lock-request owner only after it passes the
    affected installed histories with the old extension request unable to mask
-   it. Whole-extension-disabled checks establish independence once the timing
-   prerequisite is resolved; narrower test-only isolation may diagnose expiry
+   it. Whole-extension-disabled checks establish core independence without
+   requiring a countdown; narrower test-only isolation may diagnose expiry
    without conflating the remaining compatibility hooks. Neither isolation is
    a production preference or proof that the whole extension is optional.
 5. Remove the obsolete extension lock requests, update affected specification,
@@ -185,15 +186,15 @@ canonical customer owners. Its [ordered queue](../Broker-Expiry-Task-Queue.md)
 implements the missing defense before enforcement changes. No automation or
 production behavior is implemented by this document refactor.
 
-An extension-independent current timing source remains a final handover prerequisite,
-not a prerequisite for this row 3 exploration:
-`TimerUsage.query_native_deadline` currently calls the extension's
-`NativeTime1.GetDeadline`; recorded use omits uninterrupted activity. Repeated
-reads must not extend time or checkpoint invented use. The
-[row 4 exploration](Replace-Main.timeLimitsManager.md) owns resolving this
-dependency through existing public inputs without a second durable ledger,
-native changes or a replacement accountant. An in-memory live observer remains
-unproven until its startup/reconciliation/recovery contract is resolved.
+The existing `TimerUsage.query_native_deadline` reader may keep calling the
+extension's `NativeTime1.GetDeadline` for countdown/overlay consumers. That
+convenience dependency does not block native expiry qualification. The
+[screen-time owner](Screen-Time.md#countdown-and-expiry-enforcement) records why
+saved-only estimates are not a live countdown replacement. Qualify core controls
+through their public outcomes with the extension disabled; do not require a new
+live-reader protocol or count a convenience feature's absence as an enforcement
+failure. Core admission, app-policy restoration, independent approvals and
+compatibility obligations remain under the optional-extension design.
 
 ## Locking and service reliability decisions
 
@@ -232,7 +233,7 @@ an undocumented behavior change.
 ### Required acceptance histories
 
 The extracted [TA acceptance contract](../Broker-Expiry-Plan.md#acceptance-contract-for-this-queue)
-and task briefs retain independent timing, actual lock completion, live
+and task briefs retain native usage semantics, actual lock completion, live
 revocation, authoritative ordering, stale-effect cancellation, outage protection
 and reconstruction, admission/isolation and unavailable-lock boundaries.
 These remain mandatory handover gates on both supported targets, not optional

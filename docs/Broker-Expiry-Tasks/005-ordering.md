@@ -2,7 +2,7 @@
 
 Acceptance: host
 
-Required tasks: 002.
+Required tasks: 001.
 Estimate: 20–30 minutes.
 
 Read the [master](../Broker-Expiry-Plan.md), Broker/State ownership and complete

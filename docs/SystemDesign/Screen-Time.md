@@ -299,10 +299,25 @@ The broker owns product deadline arithmetic; the extension owns timing
 observations and countdown presentation. The extension is still required for
 the native timing bridge, existing product lock requests, session preparation
 and compatibility hooks. Broker calculation does not establish independent
-timing or broker-owned expiry scheduling. The separate
-[expiry](Broker-Expiry-Locking.md) and
-[timing-source](Replace-Main.timeLimitsManager.md) explorations own those proposed
-changes; neither is part of the current countdown path.
+timing or broker-owned expiry scheduling. The
+[expiry exploration](Broker-Expiry-Locking.md) owns qualification of native
+locking and any demonstrated need for broker coordination.
+
+The [optional-extension goal](Optional-Child-Extension.md#destination-and-release-boundaries)
+removes core dependencies on the extension, while keeping desktop reminders,
+the in-session overlay and the precise countdown extension-dependent. It does
+not require replacing `Main.timeLimitsManager` or its convenience-reader bridge.
+Native GNOME retains activity tracking, recording and exhaustion locking when
+third-party extensions are disabled. Product approval, app-policy, admission and
+compatibility dependencies still need their own qualification before claiming
+that the core works without the extension; this design describes current code.
+When reenabled, convenience UI must refresh from current native state without
+resetting allowance or replaying an old grant.
+
+The retired reader investigation found that Malcontent's saved records omit
+unfinished activity, so repeatedly querying its estimate is not a drop-in live
+countdown source. That is a limitation of an external reader, not a reason to
+replace native accounting or make an independent live balance a core requirement.
 
 The child extension uses GNOME Shell's supported time-limit manager and the
 public Malcontent estimate signal/query for timing observations. It passes both

@@ -25,7 +25,7 @@ and task outcomes for that reconciliation; do not rerun accepted histories or
 create a separate timing framework or proof archive.
 
 Record remaining migration gates in the existing design/allocation: independent
-timing, actual input lock and live revoke, authoritative ordering, outage
+core approvals, actual input lock and live revoke, authoritative ordering, outage
 protection/reconstruction, retained/fresh admission and before-access obligation
 142, reader obligation 143, idle/suspend and other required canonical customer
 histories. Pending owners/providers remain blockers; do not copy their tasks or

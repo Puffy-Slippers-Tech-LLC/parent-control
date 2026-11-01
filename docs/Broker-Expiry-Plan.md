@@ -1,22 +1,28 @@
-# Broker timing and expiry exploration plan
+# Native expiry and core independence exploration plan
 
 Task queue: [Ordered task queue](Broker-Expiry-Task-Queue.md).
 Next task: **001c — [Explore expiry coordination in the broker](Broker-Expiry-Tasks/001c-expiry-exploration.md)**.
 
 ## Outcome and boundary
 
-Resolve the two separately bounded explorations:
-[row 3 expiry coordination](SystemDesign/Broker-Expiry-Locking.md) and
-[row 4 timing inputs](SystemDesign/Replace-Main.timeLimitsManager.md).
+Resolve [native expiry coverage and any necessary product coordination](SystemDesign/Broker-Expiry-Locking.md)
+under the [core-independence goal](SystemDesign/Optional-Child-Extension.md#destination-and-release-boundaries).
 Active tasks are source/design reviews, not product implementation, VM fault
 campaigns or a full optional-extension migration. Existing completed automation
 stays done; this reconciliation completes no unchecked row.
 
+Keep the extension for desktop reminders, the in-session overlay and the precise
+countdown. Their timing dependencies may remain. Native GNOME already tracks
+usage and requests exhaustion locks without third-party extensions; qualify the
+required product outcomes before proposing additional broker behavior.
+Reliability, robustness and usability take priority. This reconciliation executes
+no expiry task and grants no installed acceptance.
+
 The completed [rows 1/2 countdown design](SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement)
 is outside this launcher. Upstream changes,
 native package patches/replacements and replacing Malcontent accounting are
-forbidden. Keep native recording and Malcontent storage. A proposed transient
-live observer is not permission for a second durable ledger or usage writes.
+forbidden. Keep native recording and Malcontent storage; do not build a second
+activity observer or usage ledger to replace the convenience timing reader.
 
 The design owns product invariants and reliability decisions. The
 [coverage allocation](TestAutomation/UI-and-E2E-Coverage.md#expiry-locking-migration-allocation)
@@ -26,43 +32,33 @@ deferred. Extend canonical owners rather than adding a suite, worker framework
 or alias selector. Moving a row into deferred work does not drop its acceptance
 or resolve the associated release blocker.
 
-## Native-time prerequisite plan
+## Native enforcement and retained convenience timing
 
-Task 002 found that its reader reaches the extension's `NativeTime1.GetDeadline`;
-completed records omit uninterrupted activity. The earlier direct-reader review
-remains a valid finding, but the [upstream support proposal](Live-Time-Support-Plan.md)
-is superseded and forbidden as a delivery route. Do not wait for a new native
-API or restart the rejected saved-history-only approach.
+The active review is **001c — [Explore expiry coordination in the broker](Broker-Expiry-Tasks/001c-expiry-exploration.md)**.
+Determine which core obligations native GNOME supplies and whether any observed
+gap needs bounded product coordination. A recommendation that no scheduler is
+needed is valid. Review completion grants no installed lock pass.
 
-The active reviews use the same queue, without another launcher:
-
-1. **001c — [Explore expiry coordination in the broker](Broker-Expiry-Tasks/001c-expiry-exploration.md).**
-   Resolve effect ownership, invalidation, completion and recovery with the
-   current timing input. It depends on completed observation task 001, not row 4.
-2. **001a0 — [Explore timing without the extension](Broker-Expiry-Tasks/001a0-live-time-support.md).**
-   Evaluate existing logind observations plus native recorded usage and a
-   transient unfinished interval. Identify synchronization/recovery gaps and
-   a bounded recommendation; no prototype or accounting replacement.
-3. **001a — [Confirm the live-time observation contract](Broker-Expiry-Tasks/001a-live-time-source.md).**
-   Pin a supportable existing-input composition on both targets. A missing
-   initial/recovery interval is a blocker, not permission to guess usage.
-
-001c is first so a timing-source blocker cannot prevent row 3 exploration.
-Rows 3 and 4 can be explored separately; final extension-independent expiry
-requires both deliveries. Review completion grants no source, timing or lock pass.
+The former timing-reader chain is retired: 001a/001b/002 are excluded from
+scheduling, not completed implementation or qualification. Completed research
+001a0 remains done with no POC or installed result. Its startup/recovery finding
+concerned a proposed external observer, not a native-enforcement defect. The
+current extension may retain `NativeTime1.GetDeadline` for convenience consumers;
+neither a new native API nor a replacement live balance blocks this goal.
+The [screen-time owner](SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement)
+retains the current reader's limitations. Preserve existing host arithmetic and
+failure-refusal coverage; retiring a proposal is not permission to discard code
+or change its assertions.
 
 ## Deferred delivery and activation gate
 
-The queue's `Deferred future work` section retains 001b and installed/host TA
-tasks 002–013, including suffixed IDs and all existing assertions. They do not
-run automatically after the active reviews. Preserve 002's pending host changes
-and lack of installed results. No consumer acceptance is weakened to fit an
-unproven live observer.
+The queue's `Deferred future work` section retains installed/host TA tasks
+003–013, including suffixed IDs and their core behavior assertions. They do not
+run automatically after the review. Native timing/locking is established through
+public use and protected-input outcomes, without requiring the missing countdown.
 
 After exploration, explicitly scope/reactivate only a finite delivery increment.
-The old 001b helper-only brief cannot silently authorize an activity observer;
-revise it with precise source, startup/reconciliation/recovery, consumer and
-validation boundaries before activation. A future scheduler needs its own
+Do not reactivate the retired reader chain. A future scheduler needs its own
 implementation brief; none is authorized by the current TA tasks. Select current
 path TA independently where it is genuinely source-independent, preserving
 each task's scope/acceptance and backward dependencies rather than activating
@@ -81,13 +77,13 @@ original-work recovery and foreground graphical-peer input/work continuity at
 this same owner, accepted on Ubuntu 26.04 and Fedora 44. ScreenSaver/logind hints
 remain supporting observations. Extend this owner only for the distinct
 engineering conditions below; do not duplicate 281, startup or package recovery
-coverage. Extension-independent accounting and enforcement remain pending.
+coverage. Extension-disabled core enforcement qualification remains pending.
 
 | Existing owner | Reuse and remaining boundary |
 | --- | --- |
-| Cases 22, 25–29, TIME04 | Daily/grant/combined expiry, retained/fresh denial, recovery and peer continuity already have bindings. Panel observations do not establish endpoint independence. Add affected observations at the shared owner; never a second baseline journey. |
+| Cases 22, 25–29, TIME04 | Daily/grant/combined expiry, retained/fresh denial, recovery and peer continuity already have bindings. Panel observations do not establish enforcement with the extension disabled. Add affected observations at the shared owner; never a second baseline journey. |
 | Tasks 084/085, cases 17/19; tasks 143–145, cases 18/20 | Full revocation, Cancel, retained entry and multi-desktop recipes remain here. They switch to Parent before revoke; task 004 below adds only foreground revocation through an authorized management connection. |
-| Task 182; tasks 206–212, cases 164–170 | FLOW18 preparation ends at positive D>G>0. Uninterrupted shorter-grant expiry and soft-app access belong to 206; later transitions remain 207–212. Native estimates in task 002 establish timing semantics, not another customer no-lock journey. |
+| Task 182; tasks 206–212, cases 164–170 | FLOW18 preparation ends at positive D>G>0. Uninterrupted shorter-grant expiry and soft-app access belong to 206; later transitions remain 207–212. Native lock checks must not duplicate this customer no-lock journey. |
 | Task 164/case 122; LIFE03 tasks 166a/166; tasks 167/168, cases 124/125 | Idle and real suspend/wake use these owners and their prerequisites. No new suspend qualifier or copied wake matrix. |
 | Tasks 171/172, obligations 142/143 | Before-access exposure and real identity-scoped usage-reader failures stay here. This plan does not close them with a final lock, timing probe or timer-owner fault. |
 | Tasks 169/170/173–175/178/179 | Startup, authentication, save, identity, reload and partial-termination residuals retain their matrices. Task 006b adds only old expiry callback isolation when the session changes. |
@@ -142,18 +138,17 @@ and its recovery per attempt, with identity-recorded injection/restoration and
 owned cleanup. Account/grant/usage edits cannot repair the observed history.
 No second durable usage ledger, synthetic accounting, top-up, logout fallback or
 extension reactivation may manufacture a pass.
-The proposed row 4 transient observation must be qualified on its own merits;
-it is not an alternate history store or permission to fabricate missing use.
 
-First qualify added assertions on the current production path. Task 002 isolates
-the timing endpoint to qualify the delivered row 4 composition; task 003 isolates
-the extension lock request to establish native limits. Later
+First qualify added assertions on the current production path. Task 003 observes
+native limits with the extension disabled, using public activity, fixture-owned
+timing and real protected-input results rather than a replacement countdown
+reader. Any later
 replacement implementation must run only affected histories with the old expiry
 request unable to mask the result, including whole-extension-disabled checks
-once timing is independent. TA completion grants neither replacement acceptance
-nor proof that all extension capabilities are optional.
+without making convenience timing independent. TA completion grants neither
+replacement acceptance nor proof that every core dependency is removed.
 
-Before effect handover, the implementation work must also extend the same
+If a broker effect owner is introduced, its implementation must extend the same
 canonical tests to the new broker effect owner: cancellation after authoritative
 renewal/disablement, ended/replaced sessions and reused account identities,
 revalidation before retry, pending-effect reconstruction and genuine watchdog
@@ -200,7 +195,7 @@ Each row owns its affected checks and cleanup. Record a short result, check only
 that row and advance the pointer. Trust checked prerequisites; never rerun them
 to renew evidence. Maintain inventories and generated coverage when bindings
 change, check Markdown links, and run the queued package builder only if packaged
-inputs/build dependencies changed. Core backend edits are confined to the
-explicitly reactivated, bounded reader/observer delivery in 001b; active reviews
-authorize no backend edits. Such later work retains the model and
+inputs/build dependencies changed. Core backend edits require a separately
+scoped and explicitly activated core increment; active reviews authorize no
+backend edits. Such later work retains the model and
 independent Astra xHigh review requirements in [AGENTS.md](../AGENTS.md).

@@ -139,9 +139,8 @@ No earlier qualification or lower-suite pass supplies those complete results.
 
 ## Expiry locking migration allocation
 
-The [broker expiry exploration](../SystemDesign/Broker-Expiry-Locking.md) and
-[timing-input exploration](../SystemDesign/Replace-Main.timeLimitsManager.md)
-are scheduled by the [execution plan](../Broker-Expiry-Plan.md), run by
+The [broker expiry exploration](../SystemDesign/Broker-Expiry-Locking.md)
+is scheduled by the [execution plan](../Broker-Expiry-Plan.md), run by
 `tools/broker`. Its active queue owns bounded reviews; the missing engineering
 extensions below remain deferred until their delivery scope is ready.
 Customer scenarios retain their existing canonical tasks. This creates no
@@ -152,7 +151,7 @@ ordered results. No status or executable binding changes through reconciliation.
 
 | Scope | Single delivery owner | Later work must not repeat |
 | --- | --- | --- |
-| Extension-independent live balance and approval calculations | Migration extends `test_core` for native-time arithmetic/failure refusal and the installed session owner below for real uninterrupted-use/read behavior. Existing TIME01, REQUEST08 and FLOW05 owners retain public status/estimate/approval observations on their declared surfaces | A second timing ledger, status/approval journey suite or copied authentication matrix. Endpoint independence and ongoing-use qualification are planned; existing panel-based results supply no such credit. Each complete request case still observes its own estimate, authentication and approved result. |
+| Core approvals and extension-dependent convenience timing | Existing core/adapter owners retain arithmetic, identity and failure-refusal coverage. TIME01, REQUEST08 and FLOW05 retain public observations on their declared surfaces. Core independent GTK/kiosk approvals must work without the extension; precise countdown, desktop reminders and in-session overlay are qualified with the extension enabled or reenabled | An independent live-reader prerequisite, second timing ledger, copied status/approval journey or authentication matrix. Convenience absence while disabled is expected; existing core approval results still need their full recipe. Retiring the proposed reader grants no installed acceptance and removes no executable coverage. |
 | Current daily/grant/combined natural locks, denial, retained work and peer activity | Existing cases 22, 25–29; shared TIME04, lock-input and activity observations | A new baseline expiry journey or unchanged provider matrix. Existing cases receive only affected regressions after actual code changes. |
 | Revocation at zero/positive daily time, Cancel, retained entry and peer continuity | Tasks 084/085, canonical cases 17/19; tasks 144/145 own the distinct supported multi-desktop cases 18/20 behind task 143 | A separate migration-only copy of these scenarios. They switch to Parent before revocation; foreground immediate-lock acceptance belongs to the installed residual below. Deliver each full case once. |
 | Daily balance outlasting a soft-app grant | Task 182 owns positive FLOW18 preparation; task 206/case 164 owns uninterrupted expiry/no-lock/soft-access results | Task 182 must not add its optional second expiry wait. Tasks 207–212/cases 165–170 reuse preparation/observation and own only their different post-expiry transitions. |

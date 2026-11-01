@@ -320,12 +320,17 @@ def configure_target(rig, target):
     rig.boundary.target = copy.deepcopy(record)
 
 
-@pytest.mark.parametrize('target', ['ubuntu', 'fedora'])
-def test_installed_hard_reboot_renews_only_readiness_and_preserves_scenario_mutations(rig, target):
+@pytest.mark.parametrize('target,subsets', [
+    ('ubuntu', ('trusted-hard',)),
+    ('fedora', ('trusted-hard',)),
+    ('ubuntu', ('trusted-hard', 'native', 'activity', 'baseline-child')),
+])
+def test_installed_hard_reboot_renews_only_readiness_and_preserves_scenario_mutations(
+        rig, target, subsets):
     configure_target(rig, target)
-    first = execute(rig, ('trusted-hard',))
+    first = execute(rig, subsets)
     scenario = rig.boundary.path('/home/child/scenario-document')
-    scenario.parent.mkdir(parents=True)
+    scenario.parent.mkdir(parents=True, exist_ok=True)
     scenario.write_bytes(b'preserve deliberate scenario version')
     writes, registered = rig.boundary.writes[:], rig.registered[:]
     rig.boundary.calls.clear()

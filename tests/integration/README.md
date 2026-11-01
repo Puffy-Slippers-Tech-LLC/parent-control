@@ -1129,12 +1129,23 @@ extension and autologin setup without requiring a preceding area to pass.
 It observes real scope creation,
 expiry locking, extension recovery, PAM admission and authenticated broker
 requests. The fixture is a runtime diagnostic; API requests do not establish
-GUI interaction coverage. A separate fixed local-VT fixture checks another
-account's foreground session across child expiry; it does not claim a graphical
-Switch User journey. PAM password probes run in individually bounded, owned
+GUI interaction coverage. Before engineering PAM probes change credentials,
+the same installed owner attaches the shared guarded desktop worker. It observes
+natural expiry without the panel, challenges the actual lock with one harmless
+Shift, and verifies the original native application and work after declared
+recovery. A second expiry keeps another graphical user foreground and verifies
+that user's original work and usable input, then challenges the retained child's
+lock and verifies its original work on recovery. The shared session owner returns
+directly from the verified, unlocked Parent desktop to the same protected child
+without locking either desktop again; other desktop identities and lock states
+must stay unchanged. The greeter-only entry retains its separate source guard.
+The activity fixture uses the
+attempt's existing provisioning receipt and VM lease. These engineering phases
+add no standalone qualification or customer-case registration; their finite
+budgets live in `natural_expiry_observation`. PAM password probes run in individually bounded, owned
 processes with credentials supplied only on stdin. Native module status is
-recorded before its assertion. The observer records public ScreenSaver and
-logind lock state and screen-lock settings. After successful or failed session
+recorded before its assertion. Public ScreenSaver and logind lock state and
+screen-lock settings are supporting observations only. After successful or failed session
 diagnostics, the owning controller wakes the display with a fixed non-text
 Shift modifier and retains a private screen capture, checking ownership around
 both operations. Capture failure preserves the original test failure.

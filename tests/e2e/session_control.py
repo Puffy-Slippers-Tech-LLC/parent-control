@@ -36,6 +36,8 @@ LABELS.update({'command-context': 'Verifying the administrator package command c
                'continuous-activity': 'Preparing the Parent desktop for continuous accessibility input'})
 BINDINGS['child-enter-locked'] = ('child', 'enter-locked')
 LABELS['enter-locked'] = 'Entering the preserved locked child session'
+BINDINGS['child-enter-locked-from-parent'] = ('child', 'enter-locked-from-parent')
+LABELS['enter-locked-from-parent'] = 'Returning from Parent to the preserved locked child session'
 BINDINGS['child-retained-locked'] = ('child', 'retained-locked')
 LABELS['retained-locked'] = 'Verifying the same preserved locked child session'
 BINDINGS['parent-desktop-identity'] = ('parent', 'desktop-identity')
@@ -181,18 +183,24 @@ def local_graphical(props):
             and props['Type'] in ('wayland', 'x11'))
 
 
-def source_session(current, uid, *, locked=False):
+def source_identity(current, uid):
+    """Validate the foreground desktop before consulting its owned user bus."""
     active = [(identity, props) for identity, props in current.items()
               if local_graphical(props) and props['Active'] == 'yes']
     require(len(active) == 1, 'active-session')
     identity, props = active[0]
     require(props.get('State') != 'opening', 'source-opening')
     require(props['User'] == str(uid) and props['Class'] in ('user', 'user-early'), 'source-owner')
-    require(props['LockedHint'] == ('yes' if locked else 'no'),
-            'source-unlocked' if locked else 'source-locked')
     owned = [key for key, item in current.items() if local_graphical(item)
              and item['User'] == str(uid) and item['Class'] in ('user', 'user-early')]
     require(owned == [identity], 'ambiguous-source')
+    return identity
+
+
+def source_session(current, uid, *, locked=False):
+    identity = source_identity(current, uid)
+    require(screen_saver_active(uid) == locked,
+            'source-unlocked' if locked else 'source-locked')
     return identity
 
 
@@ -205,6 +213,30 @@ def environment(account):
     return {'HOME': account.pw_dir, 'USER': account.pw_name, 'LANG': 'C.UTF-8',
             'PATH': '/usr/bin:/bin', 'XDG_RUNTIME_DIR': str(runtime),
             'DBUS_SESSION_BUS_ADDRESS': 'unix:path=' + str(runtime / 'bus')}
+
+
+def screen_saver_active(uid):
+    """Fresh native lock classification, never a protected-surface input proof.
+
+    Initial GNOME locks can leave logind's LockedHint unset. Query only the
+    validated fixture account's bus, under that account rather than root.
+    """
+    require(type(uid) is int and uid >= 1000, 'fixture-identity')
+    account = pwd.getpwuid(uid)
+    require(account.pw_uid == uid and account.pw_name in ACCOUNTS.values(), 'fixture-identity')
+    caller = os.geteuid()
+    require(caller in (0, uid), 'lock-reader-owner')
+    env = environment(account)
+    identity = ({'user': uid, 'group': account.pw_gid,
+                 'extra_groups': os.getgrouplist(account.pw_name, account.pw_gid)}
+                if caller == 0 else {})
+    result = subprocess.run([
+        '/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.ScreenSaver',
+        '--object-path', '/org/gnome/ScreenSaver', '--method', 'org.gnome.ScreenSaver.GetActive'],
+        stdin=subprocess.DEVNULL, capture_output=True, text=True, check=True,
+        timeout=10, env=env, **identity).stdout.strip()
+    require(result in ('(true,)', '(false,)'), 'lock-state')
+    return result == '(true,)'
 
 
 def submit(action):
@@ -244,7 +276,8 @@ def destination(current, source, uid, action):
                 and original['Class'] in ('user', 'user-early'), 'source-replaced')
     if action == 'lock':
         require(original is not None, 'source-lost')
-        return original['LockedHint'] == 'yes' and original['Active'] == 'yes'
+        return (original['Active'] == 'yes' and source_identity(current, uid) == source
+                and screen_saver_active(uid))
     active = [props for props in current.values()
               if local_graphical(props) and props['Active'] == 'yes']
     require(len(active) <= 1, 'ambiguous-destination')
@@ -252,7 +285,14 @@ def destination(current, source, uid, action):
                    and active[0].get('State') != 'opening')
     if action in ('switch-user', 'return-greeter'):
         require(original is not None, 'source-lost')
-        return greeter and original['Active'] == 'no' and original['LockedHint'] == 'yes'
+        if not greeter or original['Active'] != 'no':
+            return False
+        try:
+            return locked_entry_source(current, uid)[0] == source
+        except SessionError as error:
+            if str(error) != 'session:entry-locked':
+                raise
+            return False
     return greeter and original is None
 
 
@@ -345,35 +385,70 @@ def locked_entry_source(current, uid):
               if local_graphical(item) and item['Active'] == 'yes']
     require(len(active) == 1 and active[0]['Class'] == 'greeter', 'entry-greeter')
     require(active[0].get('State') != 'opening', 'entry-opening')
+    return locked_target(current, uid)
+
+
+def locked_target(current, uid):
+    """Identify one inactive protected desktop without changing its state."""
     owned = [(key, item) for key, item in current.items() if local_graphical(item)
              and item['User'] == str(uid) and item['Class'] in ('user', 'user-early')]
     require(len(owned) == 1, 'entry-target')
     identity, target = owned[0]
     require(target.get('State') != 'opening', 'entry-opening')
-    require(target['Active'] == 'no' and target['LockedHint'] == 'yes', 'entry-locked')
+    require(target['Active'] == 'no' and screen_saver_active(uid), 'entry-locked')
     return identity, target
 
 
-def enter_locked(account):
+def enter_locked(account, *, from_parent=False):
     """Activate once through logind; never authenticate, unlock or relock."""
     before = sessions()
-    source, target = locked_entry_source(before, account.pw_uid)
-    require(locked_entry_source(sessions(), account.pw_uid) == (source, target), 'source-changed')
+    if from_parent:
+        parent_uid = pwd.getpwnam(ACCOUNTS['parent']).pw_uid
+        require(parent_uid != account.pw_uid, 'entry-source-target')
+        origin = source_session(before, parent_uid)
+        source, target = locked_target(before, account.pw_uid)
+    else:
+        source, target = locked_entry_source(before, account.pw_uid)
+    peer_locks = {}
+    for key, item in before.items():
+        if key != source and local_graphical(item) and item['Class'] in ('user', 'user-early'):
+            peer_uid = int(item['User'])
+            if pwd.getpwuid(peer_uid).pw_name in ACCOUNTS.values():
+                peer_locks[key] = (peer_uid, screen_saver_active(peer_uid))
+    confirmed = sessions()
+    if from_parent:
+        require(source_session(confirmed, parent_uid) == origin
+                and all(confirmed[origin][key] == before[origin][key]
+                        for key in ('User', 'Remote', 'Class', 'Type', 'Seat')), 'source-changed')
+        confirmed_source, confirmed_target = locked_target(confirmed, account.pw_uid)
+    else:
+        confirmed_source, confirmed_target = locked_entry_source(confirmed, account.pw_uid)
+    require(confirmed_source == source and all(confirmed_target[key] == target[key]
+            for key in target if key != 'LockedHint'), 'source-changed')
     call(['/usr/bin/loginctl', 'activate', source])
     deadline = time.monotonic() + 45
     while True:
         current = sessions()
         original = current.get(source)
         require(original is not None and all(original[key] == target[key]
-                for key in ('User', 'Remote', 'Class', 'Type', 'Seat', 'LockedHint')), 'entry-replaced')
+                for key in ('User', 'Remote', 'Class', 'Type', 'Seat')), 'entry-replaced')
         owned = [key for key, item in current.items() if local_graphical(item)
                  and item['User'] == str(account.pw_uid) and item['Class'] in ('user', 'user-early')]
         require(owned == [source], 'entry-target')
+        require(original.get('State') != 'opening' and screen_saver_active(account.pw_uid),
+                'entry-locked')
         for key, item in before.items():
             if key != source and local_graphical(item) and item['Class'] in ('user', 'user-early'):
                 require(key in current and all(current[key][field] == item[field]
-                        for field in ('User', 'Remote', 'Class', 'Type', 'Seat', 'LockedHint')),
+                        for field in ('User', 'Remote', 'Class', 'Type', 'Seat')),
                         'entry-other-session-changed')
+                if key in peer_locks:
+                    peer_uid, was_locked = peer_locks[key]
+                    require(screen_saver_active(peer_uid) == was_locked,
+                            'entry-other-session-changed')
+                else:
+                    require(current[key]['LockedHint'] == item['LockedHint'],
+                            'entry-other-session-changed')
         active = [key for key, item in current.items() if local_graphical(item) and item['Active'] == 'yes']
         require(len(active) <= 1, 'ambiguous-destination')
         if active == [source]:
@@ -426,21 +501,25 @@ def execute(binding):
         # Entry is bound to local graphical sessions, not background user
         # managers left over from an earlier greeter. Those can finish exiting
         # while the retained desktop and current greeter remain unchanged.
-        # Keep complete properties for every graphical session on both reads;
-        # a replaced source, new competing desktop or changed lock still refuses.
-        graphical_before = {key: item for key, item in current.items() if local_graphical(item)}
-        graphical_after = {key: item for key, item in confirmed.items() if local_graphical(item)}
+        # Keep graphical session properties on both reads. LockedHint is
+        # diagnostic; recheck the target's native lock state independently.
+        graphical_before = {key: {field: value for field, value in item.items() if field != 'LockedHint'}
+                            for key, item in current.items() if local_graphical(item)}
+        graphical_after = {key: {field: value for field, value in item.items() if field != 'LockedHint'}
+                           for key, item in confirmed.items() if local_graphical(item)}
         if graphical_after != graphical_before:
             # Private engineering evidence: public session IDs/properties only,
             # never names, passwords or product state. Preserve the refusal.
             print('session-entry-observation: ' + json.dumps(
                 {'before': current, 'after': confirmed}, sort_keys=True), file=sys.stderr)
         require(graphical_after == graphical_before, 'source-changed')
+        require(entry_identity(confirmed, account.pw_uid,
+                'same' if mode == 'refusals' else mode) == identity, 'source-changed')
         return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
                 'entry': mode, 'session_sha256': identity}
-    if action == 'enter-locked':
+    if action in ('enter-locked', 'enter-locked-from-parent'):
         return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
-                **enter_locked(account)}
+                **enter_locked(account, from_parent=action == 'enter-locked-from-parent')}
     if action == 'retained-locked':
         source, target = locked_entry_source(sessions(), account.pw_uid)
         identity = [source, *[target[key] for key in ('User', 'Remote', 'Class', 'Type', 'Seat')]]
@@ -461,8 +540,20 @@ def execute(binding):
         require(False, 'wrong-entry-accepted')
     locked = action == 'return-greeter'
     switch_diagnostic = binding == 'parent-switch-user'
-    source = source_session(sessions(
-        diagnostic='source' if switch_diagnostic else None), account.pw_uid, locked=locked)
+    current = sessions(diagnostic='source' if switch_diagnostic else None)
+    if locked and any(local_graphical(item) and item['Active'] == 'yes'
+                      and item['Class'] == 'greeter' for item in current.values()):
+        # Natural expiry can already have returned to GDM. Confirm the same
+        # retained locked target before accepting that destination, with no input.
+        source, target = locked_entry_source(current, account.pw_uid)
+        confirmed = sessions()
+        confirmed_source, confirmed_target = locked_entry_source(confirmed, account.pw_uid)
+        require(confirmed_source == source and all(confirmed_target[key] == target[key]
+                for key in target if key != 'LockedHint')
+                and destination(confirmed, source, account.pw_uid, action), 'source-changed')
+        return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
+                'source_retained': True, 'destination': 'greeter'}
+    source = source_session(current, account.pw_uid, locked=locked)
     if action == 'desktop-identity':
         current = sessions()
         require(source_session(current, account.pw_uid) == source, 'source-changed')
@@ -575,7 +666,8 @@ def observe(transport, binding):
         return result
     require(result == {'operation': binding, 'outcome': 'passed',
                        'interface': 'system session', 'source_retained': action != 'logout',
-                       'destination': 'locked' if action in ('lock', 'enter-locked') else 'greeter'}, 'response')
+                       'destination': 'locked' if action in (
+                           'lock', 'enter-locked', 'enter-locked-from-parent') else 'greeter'}, 'response')
     return result
 
 

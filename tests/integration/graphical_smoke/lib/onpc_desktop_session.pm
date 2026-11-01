@@ -383,6 +383,45 @@ sub qualify_retained_denial {
     $journey->finish();
 }
 
+# Installed system-282 owns the engineering expiry/grant actions. This worker
+# supplies only finite public input and independently observed recovery/work.
+sub system_graphical_expiry {
+    onpc_progress::operation('Preserving child work and isolating expiry from another desktop');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'desk:system-expiry-plan' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => 'system-graphical-expiry', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->seen('return-greeter');
+    enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'initial');
+    onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
+    $journey->invoke('natural-expiry');
+    $journey->consume_observation('lock-input-ready', $journey->invoke('lock-input-ready'));
+    testapi::send_key('shift');
+    $journey->invoke('lock-result');
+    $journey->seen('recovery-greeter');
+    enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'recovered');
+    onpc_app_rows::native_activity_resume($journey, 'recovery-activity');
+    $journey->invoke('recovery-work');
+    $journey->seen('child-switch');
+    $journey->invoke('child-greeter');
+    enter_desktop($journey, 'gdm', 'parent', 'fresh', 'success', 'peer');
+    onpc_app_rows::native_activity_entry($journey, 'peer-activity', 'command', 'parent');
+    $journey->invoke('peer-expiry');
+    $journey->invoke('peer-work');
+    $journey->seen('child-locked');
+    $journey->consume_observation('peer-lock-input-ready', $journey->invoke('peer-lock-input-ready'));
+    testapi::send_key('shift');
+    $journey->invoke('peer-lock-result');
+    $journey->seen('final-greeter');
+    enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'final');
+    onpc_app_rows::native_activity_resume($journey, 'final-activity');
+    $journey->invoke('final-work');
+    $journey->finish();
+}
+
 sub run {
     onpc_progress::operation('Checking shared desktop session commands');
     my ($exchange, $action) = @_;

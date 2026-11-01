@@ -342,6 +342,10 @@ the geometry prohibition or authorize skipping unrelated active blockers.
 
 ## Input and independent results
 
+Apply the [VM timing contract](VM-Mandate.MD#timing-and-slow-vm-resilience) when
+composing installed actions and observations with grants, expiry or other
+time boundaries.
+
 - **Presentation acceptance:** Visual inspection/review is excluded from UI
   and E2E acceptance. Keep the geometry prohibition.
   Qualify public logical text, matching accessible labels, stable identities

@@ -17,6 +17,9 @@ protection, preserved work and unaffected peer, then supported service recovery
 and reconstruction within the declared outage-inclusive budget. Retained/fresh
 future login denial alone cannot qualify an already exposed desktop.
 
+Confirm the owned service is stopped before original expiry and remains stopped
+through the required interval; a late stop cannot establish outage protection.
+
 Use one finite grant-only history, not a repeat of daily/grant/combined cases.
 Reuse crash-owner recovery checks and add only stop-specific lifecycle effects.
 Do not add service policy or use a top-up/logout to make the result pass.

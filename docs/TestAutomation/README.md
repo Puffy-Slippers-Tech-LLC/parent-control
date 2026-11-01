@@ -26,7 +26,7 @@ diagnostic files do not govern task progression.
 | [Test scope mandate](../Mandates/Test-Scope-Mandate.md) | Required product coverage, limits on recursive tests, exclusion of test-tool UI tests and reduction criteria | Permission to delete a failing product assertion to obtain a pass |
 | [UI automation mandate](../Mandates/UI-Automation-Mandate.MD) | GUI versus supporting-command selection, public IDs, external-provider exception and input/result guards | Qualification of an adapter merely because its technique is permitted |
 | [Application UI API](Application-UI-API.md) | Product-control operations, canonical values, adapter boundaries and control inventory | Installed desktop qualification or route selection independent of the UI mandate |
-| [VM mandate](../Mandates/VM-Mandate.MD) | Target selection, leases, observation and baseline preparation lifetime | A passing product result or permission to use the development host as an installed target |
+| [VM mandate](../Mandates/VM-Mandate.MD) | Target selection, leases, observation, baseline preparation lifetime and [timing resilience](../Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience) | A passing product result or permission to use the development host as an installed target |
 | [Test storage mandate](../Mandates/Test-Storage-Mandate.md) | Shared allocation, retention and cleanup boundaries | Permission to delete unowned artifacts |
 | [Test maintenance](../../tests/README.md) | Suite selection/scheduling, parallelism review, failure handling and runner operation | Customer acceptance from a host test |
 | [Shared support guide](../../tests/support/README.md) | Reusable fixture and harness implementation routes | Scenario data or a second implementation of shared mechanics |

@@ -18,6 +18,12 @@ injected engineering faults and public customer results are clearly distinct.
 Verify diagnostic characterizations use maintained guarded routes and unsupported
 protection results have not been converted into passing registrations.
 
+Review the delivered timing declarations against the master's linked VM
+contract: short measured effects, ample setup/functional budgets and no
+deadline-reset or duplicate-discovery dependency. Use current implementations
+and task outcomes for that reconciliation; do not rerun accepted histories or
+create a separate timing framework or proof archive.
+
 Record remaining migration gates in the existing design/allocation: independent
 timing, actual input lock and live revoke, authoritative ordering, outage
 protection/reconstruction, retained/fresh admission and before-access obligation

@@ -212,7 +212,9 @@ use that same boundary with the case-required subsets described in the
 installed-system contract, after explicit offline app restoration and
 fresh SSH bootstrap. Read-only readiness renewal after a session reboot
 checks the same selected bytes and native state without resetting scenario
-mutations. Ubuntu's [installed E2E preparation](../integration/README.md#ubuntu-installed-e2e-preparation)
+mutations. Renewal permits the hard witness alone or system-282's exact
+hard/native/activity/baseline-child union; all other subsets still refuse.
+Ubuntu's [installed E2E preparation](../integration/README.md#ubuntu-installed-e2e-preparation)
 and the same [Fedora boundary](../integration/README.md#fedora-installed-e2e-preparation)
 use the immutable native selection by default, and the finite native/activity/
 baseline-child union only for the fixed baseline composition and active-grant
@@ -315,6 +317,38 @@ allows one harmless Shift and independently reads the same lock again.
 the natural lock, stopping before Shift for engineering probes and normal owned
 maintenance cleanup. It supplies no acceptance credit. Its fixture inputs use
 the maintained builder; no reusable prerequisite is installed during a run.
+System-282 reuses the same activity and lock readers through
+`natural_expiry.run_system_graphical_expiry` and the installed owner's attached
+desktop worker. Its engineering reads omit the panel. The shared
+`natural_expiry_observation` owner fixes one-second sampling, a maximum
+15-second gap between completed samples and expiry plus 15 seconds for the
+dedicated natural-lock observation. A missed or late timed sample fails even if
+it eventually observes a lock. The subsequent fresh lock-ready → Shift →
+independent same-lock result has a separate 180-second verification budget.
+The peer history verifies foreground input/work continuity and protected child
+input under expiry plus 180 seconds; it does not claim a 15-second background
+lock measurement: switch-user already locks the child before entering Parent.
+Recovery has 300 seconds for guarded sign-in and independent
+work readback. Setup/recovery grants last 1200 seconds so navigation need not
+race their expiry; the measured 45-second and peer 15-second grants stay short.
+These implement the [VM timing contract](../../docs/Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience)
+through the existing worker and observers. TIME04 keeps its initial sample upper end
+plus 15 seconds; foreground-revocation and lock-retry bounds remain 15 seconds.
+The complete current-production system-282 history passed on Ubuntu 26.04 and
+Fedora 44, including both protected-input challenges and original-work recovery.
+This qualifies the shared engineering observations, not extension-free locking
+or a complete customer scenario.
+For startup diagnosis, `tools/test-vm --vm NAME reproduce-system-graphical-expiry`
+reuses system-282's one-second autologin seed, reboot and fixture renewal, then
+records the child session, foreground and read-only public surface before and
+after its preparation grant. It retains the owned maintenance guest for `exec`
+probes followed by `stop`, without running the expiry worker or supplying
+acceptance credit. Native lock hints in these diagnostics are supporting facts.
+The seeded startup can expose a protected Shell curtain or restriction while
+logind still reports an unlocked hint. Session navigation and lock-read routing
+use fresh screen-saver state from the verified fixture's own session bus;
+secure-lock acceptance still requires the owned public protected surface and
+independent input/readback. Returning to the greeter never relocks that surface.
 The natural-expiry host modules use private pytest records, fake clocks,
 in-memory UI/transport doubles and bounded waited Perl children. Their reviewed
 unit/cleanup classifications add no shared path, process, bus or display owner.

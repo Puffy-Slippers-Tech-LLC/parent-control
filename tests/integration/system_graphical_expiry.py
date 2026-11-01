@@ -6,6 +6,7 @@ setup, not a customer login/authentication journey. Outer VM restoration owns
 all cleanup; this module never signals or terminates a session.
 """
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -230,13 +231,7 @@ def wait_for(predicate, category, timeout=90):
 
 
 def screen_lock_observation(child, session, manager, account):
-    """Read native Shell activity and lock policy, retaining logind's hint.
-
-    GNOME can lock before its asynchronous logind proxy exists, in which case
-    it never sends the initial LockedHint. A stale hint must not override the
-    native ScreenSaver interface, normal password mode, and enabled lock policy.
-    The installed PAM authentication/account denials are checked separately.
-    """
+    """Supporting native state only; guarded graphical input proves protection."""
     guest.guard()
     current = child_session(child)
     guest.require(current is not None and current[0] == session, 'expiry:desktop-ended')
@@ -258,77 +253,102 @@ def screen_lock_observation(child, session, manager, account):
     return state
 
 
-def verify_other_foreground(child, session, record):
-    """Expiry must preserve another account's real foreground local VT.
+def startup_observation():
+    """Read the seeded desktop and foreground without granting or entering it.
 
-    A transient service opens the installed login PAM stack on an unused fixed
-    VT. This is supported fixture setup, not a GDM Switch User journey. The
-    service owns only its directly launched sleep; it exits naturally and the
-    outer lease restores the guest. No discovered process is signalled.
+    This is bounded engineering diagnosis, not secure-lock acceptance. Native
+    hints are retained alongside the independently inspected public surface.
+    """
+    guest.guard()
+    accounts = identities()
+    wait_for(lambda: (FIXTURE / 'seeded.json').is_file(), 'expiry:gdm-seed-not-observed')
+    session, props = wait_for(lambda: child_session(accounts['child']),
+                              'expiry:gdm-session-missing')
+    manager = installed_manager()
+    account, _ = manager._account(accounts['child'])
+    wait_for(lambda: manager._shell_is_available(account), 'expiry:gnome-shell-unavailable')
+    foreground = []
+    for row in guest.run(['loginctl', 'list-sessions', '--no-legend', '--no-pager']).splitlines():
+        identity = row.split()[0]
+        values = dict(line.split('=', 1) for line in guest.run([
+            'loginctl', 'show-session', identity, '-p', 'Active', '-p', 'Class',
+            '-p', 'Type', '-p', 'Remote', '-p', 'Seat', '-p', 'User']).splitlines())
+        if values.get('Active') == 'yes' and values.get('Remote') == 'no' \
+                and values.get('Seat') == 'seat0' and values.get('Type') in ('wayland', 'x11'):
+            foreground.append({'class': values['Class'],
+                               'child': values['User'] == str(accounts['child'])})
+    guest.require(len(foreground) == 1, 'expiry:startup-foreground')
+    return {'session': session, 'scope': props['Scope'],
+            'foreground': foreground[0],
+            'extension': manager._runtime_state(account),
+            'native_lock': screen_lock_observation(accounts['child'], session, manager, account)}
+
+
+def graphical_history(command):
+    """Finite fixture transitions for the host's guarded graphical history.
+
+    Entitlements are changed only at declared history/recovery boundaries. The
+    host owns real input, original work comparisons and lock observations; this
+    leaf cannot claim those results from session hints or a grant readback.
     """
     marker = guest.guard()
-    other = identities()['other']
-    def inventory():
-        rows = guest.run(['loginctl', 'list-sessions', '--no-legend', '--no-pager']).splitlines()
-        guest.require(len(rows) <= 32, 'expiry:foreground-session-inventory')
-        return [(row.split()[0], dict(line.split('=', 1) for line in guest.run([
-            'loginctl', 'show-session', row.split()[0], '-p', 'User', '-p', 'Class',
-            '-p', 'Type', '-p', 'Service', '-p', 'Seat', '-p', 'TTY', '-p', 'Scope',
-            '-p', 'Active', '-p', 'LockedHint']).splitlines())) for row in rows]
-    initial = inventory()
-    guest.require(not any(props.get('TTY') == 'tty7' or
-                          (props.get('User') == str(other) and props.get('Class') == 'user')
-                          for _, props in initial), 'expiry:foreground-fixture-collision')
-    other_state = account_state(other)
-    guest.run(['systemd-run', '--quiet', '--collect', '--service-type=exec',
-               '--unit=onpc-expiry-foreground-' + marker['run'], '--uid=' + str(other),
-               '--property=PAMName=login', '--property=TTYPath=/dev/tty7',
-               '--property=StandardInput=tty', '--property=StandardOutput=null',
-               '--property=StandardError=null', '/usr/bin/sleep', '1800'])
-    def created():
-        matches = [(ident, props) for ident, props in inventory()
-                   if props.get('User') == str(other) and props.get('Class') == 'user']
-        guest.require(len(matches) <= 1, 'expiry:foreground-duplicate-session')
-        return matches[0] if matches else None
-    other_session, props = wait_for(created, 'expiry:foreground-session-not-created', 15)
-    record('onpc.expiry.other-foreground-created', json.dumps({
-        key: props.get(key) for key in ('Type', 'Seat', 'TTY', 'Service', 'Active', 'LockedHint')
-    }, sort_keys=True))
-    guest.require(props.get('Type') == 'tty' and props.get('Seat') == 'seat0'
-                  and props.get('TTY') == 'tty7' and props.get('Service') == 'login',
-                  'expiry:foreground-session-properties')
-    guest.run(['loginctl', 'activate', other_session])
-    def foreground():
-        current = dict(inventory()).get(other_session)
-        guest.require(current is not None, 'expiry:other-session-ended')
-        return current if current.get('Active') == 'yes' else None
-    before = wait_for(foreground, 'expiry:other-session-not-foreground', 10)
-    guest.require(before.get('LockedHint') == 'no',
-                  'expiry:other-session-not-ready-before-expiry')
-    # Establish the foreground before starting the deliberately short expiry
-    # window. Slow activation/inventory must not consume the child's six seconds.
-    deadline = grant(child, 6)
-    observation_deadline = time.monotonic() + 10
-    while time.time() <= deadline + 1:
-        guest.require(time.monotonic() < observation_deadline, 'expiry:foreground-clock-discontinuity')
-        guest.require(child_session(child)[0] == session, 'expiry:background-child-ended')
-        time.sleep(0.25)
-    # A slow grant readback may cross the deadline before the loop starts.
-    # Always check the retained child after expiry, even in that case.
-    guest.require(child_session(child)[0] == session, 'expiry:background-child-ended')
-    after = foreground()
-    guest.require(after is not None and after.get('LockedHint') == 'no'
-                  and after['Scope'] == before['Scope']
-                  and account_state(other) == other_state
-                  and guest.run(['systemctl', 'is-active', after['Scope']]) == 'active',
-                  'expiry:foreground-user-disrupted')
-    record('onpc.expiry.other-foreground',
-           'real-local-tty; same-session-active-and-unlocked-past-child-deadline')
-    guest.run(['loginctl', 'activate', session])
+    accounts = identities()
+    child = accounts['child']
+    path = FIXTURE / 'graphical-history.json'
+    if command == 'host-ready':
+        guest.require(not path.exists(), 'expiry:graphical-history-replayed')
+        wait_for(lambda: (FIXTURE / 'seeded.json').is_file(), 'expiry:gdm-seed-not-observed')
+        seeded = json.loads((FIXTURE / 'seeded.json').read_text())
+        boot = Path('/proc/sys/kernel/random/boot_id').read_text()
+        guest.require(seeded['boot'] == boot and 0 < seeded['remaining_seconds'] <= 1,
+                      'expiry:one-second-seed')
+        session, props = wait_for(lambda: child_session(child), 'expiry:gdm-session-missing')
+        manager = installed_manager()
+        account, _ = manager._account(child)
+        wait_for(lambda: manager._shell_is_available(account), 'expiry:gnome-shell-unavailable')
+        guest.require(manager._runtime_state(account) == (True, True), 'expiry:extension-inactive')
+        history = {'run': marker['run'], 'boot': boot, 'session': session,
+                   'scope': props['Scope'], 'grants': 0,
+                   'other_state': hashlib.sha256(repr(account_state(accounts['other'])).encode()).hexdigest()}
+        with path.open('x') as stream:
+            json.dump(history, stream)
+        # Setup/recovery grants are headroom, not waits. The short measured
+        # grants below are issued only after the corresponding desktop is ready.
+        seconds = 1200
+    else:
+        history = json.loads(path.read_text())
+        guest.require(history['run'] == marker['run']
+                      and history['boot'] == Path('/proc/sys/kernel/random/boot_id').read_text(),
+                      'expiry:graphical-history-identity')
+        current = child_session(child)
+        guest.require(current is not None and current[0] == history['session']
+                      and current[1]['Scope'] == history['scope']
+                      and guest.run(['systemctl', 'is-active', history['scope']]) == 'active'
+                      and hashlib.sha256(repr(account_state(accounts['other'])).encode()).hexdigest()
+                          == history['other_state'], 'expiry:graphical-history-continuity')
+        if command == 'host-complete':
+            guest.require(history['grants'] == 4 and not history.get('complete'),
+                          'expiry:graphical-history-incomplete')
+            history['complete'] = True
+            path.write_text(json.dumps(history))
+            return {'completed': True}
+        sequence = ('natural-grant', 'natural-recovery', 'peer-grant', 'peer-recovery')
+        index = history['grants']
+        guest.require(index < len(sequence) and command == sequence[index],
+                      'expiry:graphical-history-order')
+        seconds = (45, 1200, 15, 1200)[index]
+        history['grants'] += 1
+        path.write_text(json.dumps(history))
+    deadline = grant(child, seconds)
+    remaining = deadline - time.time()
+    guest.require(0 < remaining <= seconds, 'expiry:graphical-history-grant')
+    return {'remaining_seconds': remaining}
 
 
 def verify(record):
     guest.guard()
+    history = json.loads((FIXTURE / 'graphical-history.json').read_text())
+    guest.require(history.get('complete') is True, 'expiry:graphical-history-incomplete')
     # Retain completed observations even if a native dependency later stalls
     # and pytest cannot finish its JUnit document. The outer collector already
     # preserves this private results directory on both success and failure.
@@ -368,20 +388,15 @@ def verify(record):
     account, _ = manager._account(child)
     wait_for(lambda: manager._shell_is_available(account), 'expiry:gnome-shell-unavailable')
     guest.require(manager._runtime_state(account) == (True, True), 'expiry:extension-inactive')
-    lock_state = None
-    def locked():
-        nonlocal lock_state
-        lock_state = screen_lock_observation(child, session, manager, account)
-        return lock_state['screensaver_active']
-    try:
-        wait_for(locked, 'expiry:gnome-screen-not-active')
-    finally:
-        if lock_state is not None:
-            record('onpc.expiry.lock-state', json.dumps(lock_state, sort_keys=True))
+    record('onpc.expiry.lock-state', json.dumps(
+        screen_lock_observation(child, session, manager, account), sort_keys=True))
     guest.require(time.time() > seed_result['deadline']
                   and guest.run(['systemctl', 'is-active', scope]) == 'active',
                   'expiry:expired-desktop-not-retained')
-    record('onpc.expiry.graphical-expiry', 'same-session-active; locked-after-deadline')
+    record('onpc.expiry.graphical-expiry',
+           'same-session-active; guarded-lock-input-and-original-work-verified-by-host')
+    record('onpc.expiry.other-foreground',
+           'graphical-peer-input-and-original-work-verified-by-host')
     enabled = manager._list(account, 'enabled-extensions')
     disabled = manager._list(account, 'disabled-extensions')
     manager._set_boolean(account, 'disable-user-extensions', True)
@@ -417,10 +432,18 @@ def verify(record):
                   and guest.run(['systemctl', 'show', scope, '--property=RuntimeMaxUSec', '--value'])
                       == 'infinity', 'expiry:extended-scope-not-retained')
     record('onpc.expiry.extended-session', 'same-session-active-past-earlier-approved-deadline')
-    verify_other_foreground(child, session, record)
 
 
 if __name__ == '__main__':
     guest.guard()
-    guest.require(sys.argv[1:] in (['prepare'], ['broker-ready']), 'expiry:graphical-arguments')
-    (prepare if sys.argv[1] == 'prepare' else broker_ready)()
+    commands = ('host-ready', 'natural-grant', 'natural-recovery',
+                'peer-grant', 'peer-recovery', 'host-complete')
+    guest.require(len(sys.argv) == 2 and sys.argv[1] in (
+        'prepare', 'broker-ready', 'host-observe', *commands),
+                  'expiry:graphical-arguments')
+    if sys.argv[1] == 'host-observe':
+        print(json.dumps(startup_observation(), sort_keys=True))
+    elif sys.argv[1] in commands:
+        print(json.dumps(graphical_history(sys.argv[1]), sort_keys=True))
+    else:
+        (prepare if sys.argv[1] == 'prepare' else broker_ready)()

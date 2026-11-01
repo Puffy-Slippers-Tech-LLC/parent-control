@@ -34,18 +34,17 @@ restoration branches while preparing this profile.
 
 ## Live VM acceptance
 
-On the live VM follow the recipe's [finite FLOW18 profile and prearmed return](../E2E-Scenario-Recipes.md#expired-grant-with-daily-time-remaining).
-Approve the prescribed small addition with soft apps, open S and switch away
-while ample grant time remains. Arm the public deadline observer and guarded
-return before the final G=60–90-second/D≥120-second Parent witness. Return
-directly and independently require D>G>0; FLOW18 must return at that positive
-child witness. Stop qualification there: case 164/task 206 owns the original
+On the live VM follow the recipe's [finite FLOW18 profile and early return margins](../E2E-Scenario-Recipes.md#expired-grant-with-daily-time-remaining).
+Approve the prescribed small addition with soft apps, open S and switch away.
+Use that owner's public G and D−G reserves to return with minutes available,
+then independently require D>G>0. FLOW18 must finish at that positive child
+witness. Stop qualification there: case 164/task 206 owns the original
 grant expiry/no-lock result, and cases 165–170 own their post-expiry actions
 under the [expiry allocation](../UI-and-E2E-Coverage.md#expiry-locking-migration-allocation).
 Do not repeat that expiry wait in this preparation task or a migration wrapper.
 Defer settings/form/other-child tours until their owning
 post-expiry action. Wrong inequalities fail preparation; no relabeling, top-up
-or policy edit after approval. An unreachable real return window stays gated.
+or policy edit after approval. An unreachable real return margin stays gated.
 
 Planned qualification selector (not registered; implement before use):
 

@@ -58,6 +58,8 @@ prefix_rule(
     pattern = [[
         "tools/backupvm",
         "./tools/backupvm",
+        "tools/broker",
+        "./tools/broker",
         "tools/build_package.py",
         "./tools/build_package.py",
         "tools/cleanup-e2e",
@@ -66,6 +68,8 @@ prefix_rule(
         "./tools/cleanup-screenshots",
         "tools/diagnose",
         "./tools/diagnose",
+        "tools/disable-extension",
+        "./tools/disable-extension",
         "tools/execute-plan",
         "./tools/execute-plan",
         "tools/fix-tests",

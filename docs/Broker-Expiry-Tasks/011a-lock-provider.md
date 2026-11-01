@@ -21,6 +21,10 @@ production lacks this retry, retain the actual boundary rather than pretending
 that a future broker effect exists. Future retry ownership remains a replacement
 gate, and a current product mismatch follows failure handling.
 
+Observe unavailable/replaced ownership and any renewal commit directly; do not
+race restoration against the final seconds or infer order from transport
+completion. Restored availability retains the original retry/effect bound.
+
 Use maintained real-boundary fault injection, not production hooks. Run both
 attempts on both targets and restore exact owned provider/action state. A future
 owner needs affected checks again; current extension recovery cannot qualify it.

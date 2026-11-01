@@ -1131,6 +1131,13 @@ sub run {
         onpc_fresh_thirty_allowance::run(\&exchange, 'existing');
         return;
     }
+    if ($ready->{system_graphical_expiry}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_desktop_session::system_graphical_expiry(\&exchange,
+            $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{switch_user_expiry_parent}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

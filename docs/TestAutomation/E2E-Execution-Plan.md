@@ -113,6 +113,8 @@ consumer and blocks no current-release task.
    and implement the selected slice, supporting checks and stated acceptance.
    Bind entry, finite inputs, expected public results, precision and deadlines;
    reuse qualified shared operations and extend only the missing boundary.
+   Review the [VM timing contract](../Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience)
+   against the complete composition, including preparation and recovery.
    Apply the [bounded implementation rules](E2E-Building-Blocks.md#keep-supporting-work-bounded)
    and changed-boundary composition preflight before the first live attempt.
 5. Finish live verification, cleanup and close-out. Report the task ID, result

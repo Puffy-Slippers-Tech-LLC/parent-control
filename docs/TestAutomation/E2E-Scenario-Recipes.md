@@ -251,11 +251,16 @@ prompt exercise the product's denial/choices/retry behavior.
 
 Use public observations to bind actual values before actions. Expected results
 come from the specification, not from accepting whichever outcome occurs.
-Short observations normally have a 45-second deadline; ordinary account/app
-refresh has a 60-second deadline. Approval waits allow 90 seconds for planned
-fixture interaction. Natural expiry uses the earlier displayed balance plus
-30 seconds for display/lock propagation, within the case deadline. A timeout
-fails or records an unavailable prerequisite; it never changes the expectation.
+Size functional observation, authentication and refresh budgets through the
+[VM timing mandate](../Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience)
+and the shared operation's guest, transport and outer limits. Reconcile an
+insufficient existing binding within its implementation/qualification task;
+these recipes grant no new runtime qualification. The default timed natural-expiry
+observation bound is the earlier displayed balance plus 30 seconds, within the
+case deadline, only when the named block has no stricter contract.
+[TIME04](E2E-Building-Blocks.md#natural-enforced-lock-qualification) retains its
+original sample's display upper bound plus 15 seconds; this default cannot widen
+it. Later functional verification has its own budget.
 
 D and G are displayed daily and grant balances; R is the requested duration.
 Record their display precision and elapsed navigation time. For a fixed request,
@@ -276,7 +281,7 @@ Large durations test selection and displayed arithmetic without waiting to expir
 | Rest of the day (40/43) | First approve a 1440-minute fixed grant, read its later deadline, then choose/approve Rest of the day. Read PARENT09 before and after: the replacement interval is shorter and the footer says until midnight. Calendar cases own the exact deadline check. No 24-hour wait. |
 | Shared choices (58–61) | Jordan custom 1.25, soft included; Riley custom 2.5, soft excluded. Seed station approver Jamie and each overlay approver Sam. Compare shared values and local selectors before edits; reverse direction/primary child per variant. |
 | Short time | Natural daily tests use 4 minutes and verify positive D before entry. Pending grant-only natural-expiry journeys use 10 minutes and recovery uses 20, unless their exact-value recipe overrides these inputs. Active reboot/update uses 20 minutes. Prepare fixtures and observers before issuance; these are finite preparation choices, not bypasses of observed balances. |
-| E2E-038 daily dominant | Start with daily 10 minutes and a real 0.1-minute addition including soft apps. Enter, open S and switch away well before the final window. Capture the public grant interval and arm its deadline observer and retained-child return route first. The final Parent read must show G=60–90 seconds and D≥120 seconds; return directly while G>0. No settings/form tour or later screen/app save intervenes before the tested action. FLOW18 checks the inequalities; wrong timing fails preparation. |
+| E2E-038 daily dominant | Use the [FLOW18 preparation and return margins](#expired-grant-with-daily-time-remaining) with daily 10 minutes and a real 0.1-minute addition including soft apps. Its early child return preserves the same original natural expiry. |
 | Station restriction routes | Super/Overview, Super-A/app grid, ordinary terminal shortcut; inspect available controls for Parent/settings launch. If no search field appears, no query is typed. About/report restrictions have their own cases. |
 | Kiosk multiple/ineligible accounts (53/56) | Read exact eligible child/approver sets. Request and Cancel Riley/Jamie, then Jordan/Sam (the second fixture administrator is Casey). Final selection and actual selected-parent prompts cover both identities with two pairs; do not cross every child with every parent. |
 | App transitions (13–16) | Allowed→Soft, Soft→Hard, Hard→Soft, Soft→Allowed, Allowed→Hard, Hard→Allowed: all six directed changes. Prepare daily 30 with at least 900 seconds actually remaining before the 75-second soft-app approval, including when temporarily enabling a limits-off profile; max(D,G)+R supplies ample access for the opening transition. Open work under Allowed before Allowed→Soft/Hard. Before Soft→Hard obtain real soft approval and reopen the matching activity; in limits-off cases temporarily enable, approve/open, then disable (preserving the activity). Verify the declared limit state again before the tested save. Hard→Soft stays blocked without a new exception; Soft→Allowed and Hard→Allowed permit launches. Unchanged-block restoration is owned by 169. |
@@ -308,13 +313,17 @@ own scheduled profile.
 | grant-only | Enable, save 0; pending natural-expiry journeys approve 10 minutes at the station, non-expiry journeys 20. | D=0, G>0; GDM. Recovery requests use 20 minutes unless an exact-value table overrides them. Completed cases retain their own declared inputs. |
 | combined / grant-dominant | Pending non-expiry journeys enable/save 30, then request 20 additional minutes at the station. E2E-024's natural-expiry grant-dominant journey uses daily 10 and a 10-minute addition. | G>D>0 by a distinguishable margin; GDM. Completed cases retain their own explicit finite inputs. |
 | daily-dominant | Enable, save 0; approve 10 minutes; while still enabled save 20. | D>G>0 at Parent and request time, with at least 300 seconds of G and a dominance gap over 90 seconds before the timed request; GDM. This allowance save restores soft launch blocks; it does not establish a soft exception. E2E-048 overrides both finite inputs. |
-| daily-dominant with soft exception | FLOW18: save 10, request 0.1 including soft apps, open S, then wait away from the child using the already armed public deadline/return route. | Final Parent witness G=60–90 seconds and D≥120 seconds; finish FLOW18 on the returned child desktop with D>G>0. Its consumer subsequently observes expiry. No policy save follows approval. |
+| daily-dominant with soft exception | FLOW18: save 10, request 0.1 including soft apps, open S, then use the [early return profile](#expired-grant-with-daily-time-remaining). | Finish on the returned child desktop with D>G>0 and the original soft exception. Its consumer subsequently observes the same natural expiry. No policy save follows approval. |
 
 Non-expiry form/catalogue cases use 30 daily minutes unless they need zero;
 they observe the remaining margin rather than waiting for all that time.
 FLOW20 argument qualifications likewise use a publicly saved 30-minute daily
 base with at least 900 seconds actually remaining before approval; the exact
 30/75-second additions do not limit time for child return and arithmetic reads.
+Prepare the account/form, observers and any retained activity before approval.
+The 900-second floor is an entry minimum; require enough actual usable time
+for the complete declared authentication, automatic exit, child return and
+independent comparison budgets, preserving the original approval interval.
 Zero-daily consumers keep their own natural-expiry profiles.
 Animation persistence is included in lifecycle cases 118/120, with Riley given
 30 daily minutes and Jordan retaining the original active grant. Animation-enabled
@@ -2013,15 +2022,27 @@ that inactive child. Returning with G>0 retains the soft exception. Then let G
 reach zero while D is still positive. Establish those public inequalities before
 choosing the action; never relabel a failed profile.
 
-Prepare the public deadline observer and guarded retained-child return before
-the G=60–90-second witness. Use the earlier displayed grant interval to approach
-that window, take only the final Parent balance read, and return directly;
-defer settings, form and other-child tours. On child return independently require
-D>G>0; FLOW18 returns at that positive child witness. Preserve that original
-grant interval; each consumer subsequently observes actual expiry from the
-child desktop before its declared post-expiry action. No allowance edit, approval top-up or extra restoring return
-may manufacture the pre-expiry state. A route unable to return within the real
-window remains unqualified; increasing observation timeouts cannot repair it.
+Prepare S's assets and launch/result binding, the public deadline observer and
+guarded retained-child return before issuing the grant. After approval, enter,
+open S and capture its activity, then switch away. While the child is inactive,
+let the daily/grant gap grow;
+return as soon as the public balance intervals leave ample time for the complete
+return/work observation and the consumer's post-expiry action. Conservative
+lower bounds must leave at least 180 seconds of G and 180 seconds of D−G at the
+final Parent witness, with further margin if the declared operation budgets
+need it. There is no narrow upper bound on G to target and no reason to wait
+until either reserve is nearly exhausted. Account for actual setup consumption,
+read latency and display precision; an infeasible profile stays unqualified.
+
+Take that final Parent balance read and return directly; defer settings, form
+and other-child tours. On child return independently require D>G>0; FLOW18
+returns at that positive child witness. The consumer then observes the same
+original grant's expiry from the child desktop before its declared action.
+Moving part of the existing away-wait to the child desktop adds no expiry wait.
+Keep enough observed daily time for that action and its independent work/app
+results, using the shared functional budget after the timed expiry observation.
+No allowance edit, top-up or extra restoring return may manufacture the
+pre-expiry state or reset the original deadline.
 
 | Case / action | Customer blocks after natural grant expiry | Required child result |
 | --- | --- | --- |
@@ -2185,6 +2206,15 @@ disclosure or surface binding still needs its affected qualification. Reusing
 Privacy evidence never reuses a draft, submission authorization outside its
 scope, or another case's send result.
 
+Before Send, ready the retry/status observer, any required warning/response
+bindings and the same LIFE06 restoration route. The original submission's retry
+deadline must cover the declared Close, stay/Stop or reconnection sequence with
+margin. Keep the required stay-open result before Stop and independently
+observe the same submission's acceptance or stopped destination; a terminal
+send failure or lost report cannot stand in for that result. These functional
+observations use the VM timing mandate without extending the product retry
+window or issuing another Send.
+
 | Case | Exact branch after preparation and one Send |
 | --- | --- |
 | 156 ordinary success | Leave the optional reply address empty. FEED09(success and owned confirmation without reply follow-up) → FEED14(manual dismissal) → FEED01 → FEED03(cleared). |
@@ -2228,6 +2258,16 @@ Plan separate natural windows in queue order. Independent cases cannot reuse
 an earlier case's state. Each seasonal case prepares both children before the
 same offset change and observes both within that one attempt; it does not
 schedule separate grant journeys at the same transition.
+
+Prepare identities, policies, assets, clock observations and both return routes
+before approaching the scheduled boundary. For the paired seasonal cases,
+finish Jordan's Rest-of-the-day approval first; prepare Riley's request and
+authentication route so the required fixed-grant approval occurs near the
+beginning of its five-minute eligible interval, leaving ample time for both
+pre-change public observations. Reaching that interval without the prepared
+routes is an applicability failure; do not rush credentials near the offset
+change. Post-change readback and eventual denial use their functional budgets
+while retaining the original UTC deadlines and the one-hour case bound.
 
 | Cases | Window and expected public comparison |
 | --- | --- |

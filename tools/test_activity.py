@@ -148,6 +148,11 @@ def activity(root, *, host_only=None, named_vm=None, includes_host=False):
     previous_compatibility = _compatibility_descriptor
     value = os.environ.get(VARIABLE)
     inherited = previous
+    if host_only is True and previous is not None and not previous_host_only:
+        # A mixed queue keeps its batch owner while its host phase uses the
+        # already reserved host owner and the independent host journal.
+        inherited = _host_descriptor
+        value = os.environ.get(HOST_VARIABLE)
     if inherited is None and value is not None:
         if not value.isdecimal() or int(value) < 3:
             raise ValueError('invalid inherited test activity descriptor')

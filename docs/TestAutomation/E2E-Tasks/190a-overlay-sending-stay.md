@@ -34,6 +34,9 @@ shared feedback API facade for sending/retry and FEED17/18. Reuse LIFE06's
 this surface's qualification. Keep one guarded Send and an independent
 stay-open result.
 
+Use the recipe's [sending/retry preparation](../E2E-Scenario-Recipes.md#sending-background-completion-and-report-exits)
+for this stay-open/reconnection branch.
+
 Reuse the shared overlay result/exit projections delivered for case 220 when
 available, without depending on that scenario's execution or repeating its
 complete history. Qualify only the new retry/warning/stay boundary and any

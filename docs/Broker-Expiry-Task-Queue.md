@@ -6,7 +6,7 @@ Planned parameter names are not executable selectors.
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
 | [x] | 000a | Use safe desktop sign-in in installed checks | Baseline | Reuse guarded graphical entry and credentials within the installed session owner's existing VM lease | Both target credential checks passed; owned cleanup complete; 26 recovery safety checks passed and independent review found no issues |
-| [ ] | 001 | [Observe secure locking without the panel](Broker-Expiry-Tasks/001-observation.md) | 000a | Extend shared lock/input, retained-work and graphical-peer observations; declare finite budgets | Shared observations added; installed integration and both-target checks pending |
+| [x] | 001 | Observe secure locking without the panel | 000a | Extend shared lock/input, retained-work and graphical-peer observations; declare finite budgets | Complete system-282 passed on Ubuntu and Fedora; strict timing separated from ample functional budgets without added waits; 27 focused safety checks passed; owned cleanup complete |
 | [ ] | 002 | [Check native time without the extension](Broker-Expiry-Tasks/002-native-time.md) | 001 | Independent uninterrupted-use reads and native balance calculations, no alternate ledger | 45–75 min |
 | [ ] | 003 | [Check native exhaustion locks](Broker-Expiry-Tasks/003-native-lock.md) | 002 | Daily-only and grant-only extension-disabled native lock results | 45–75 min |
 | [ ] | 004 | [Check revocation on the active desktop](Broker-Expiry-Tasks/004-revocation.md) | 001, 002 | Foreground zero-daily lock and positive-daily control without switching away | 45–75 min |

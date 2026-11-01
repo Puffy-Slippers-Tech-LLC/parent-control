@@ -19,6 +19,10 @@ Observe actual protected input independently of request
 success, ScreenSaver or LockedHint. Delayed/missing replies are never sufficient
 success evidence; a completed lock still needs its input witness.
 
+Use the controlled reply boundary to establish delayed/missing acknowledgement;
+do not approximate it with a sleep close to the product deadline. Reuse the
+qualified shared protected-input sequence rather than another discovery pass.
+
 Where a current retry owner exists, retry only within the declared budget and
 after revalidating current child,
 session and balance. Commit a legitimate renewal during one pending attempt to

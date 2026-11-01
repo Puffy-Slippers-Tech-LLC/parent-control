@@ -151,7 +151,7 @@ def test_pam_scope_uses_supported_capture_and_requires_native_witnesses(
 
 @pytest.mark.parametrize('entry,args', [('prepare', ()), ('seed', ()), ('verify', (Mock(),)),
                                       ('screen_lock_observation', (1004, '4', Mock(), Mock())),
-                                      ('verify_other_foreground', (1004, '4', Mock()))])
+                                      ('graphical_history', ('host-ready',))])
 def test_graphical_fixture_requires_guest_guard_before_actions(monkeypatch, entry, args):
     monkeypatch.setattr(graphical.guest, 'guard',
                         Mock(side_effect=expiry.guest.GuestError('test:guest-refused')))

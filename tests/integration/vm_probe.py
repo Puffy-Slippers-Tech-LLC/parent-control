@@ -906,6 +906,115 @@ def reproduce_overlay_return(lease, fixture_selection):
         boundary_operation='child-countdown-present', fixture_selection=selection, timeout=1800)
 
 
+def reproduce_system_graphical_expiry(lease, fixture_selection):
+    """Retain system-282's boot history immediately after its host-ready grant."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    from natural_expiry import _system_history_command
+    from online_snapshot import rebind_maintenance
+    from qualification_storage import recovery_session, allocate
+    from system_fixture_preparation import SUBSETS, guest_target, validate_input, provision
+    from tools.test_storage import named_input
+    from ui_observations import UiObservations
+    import time
+
+    target = guest_target(lease.capture.state['guest'])
+    system.require(target in ('ubuntu', 'fedora'), 'fixtures:system-installed-target-not-qualified')
+    fixture_selection = validate_input(fixture_selection, target=target)
+    name, xml, _record = attested_online_snapshot(lease)
+    lease.installed_name, lease.installed_xml = name, xml
+    lease.online_pending, lease.online_bootstrap = False, None
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+
+    with operation('Reproducing system-282 through its host-ready boundary'), recovery_session(
+            check='reproduce_system_graphical_expiry', lease=lease, live=True):
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-system-graphical-expiry-diagnosis-'))
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
+        print('system-graphical-expiry-diagnosis: evidence=' + str(directory), flush=True)
+        transport = connect(lease)
+        # Use the installed runner's frozen source closure and package checks,
+        # without collecting or executing pytest or attaching a desktop worker.
+        manifest = system.stage_assets(system.artifact_source(assets), directory / 'input',
+                                       lease.commands, package_only=True)
+        case = 'test_kiosk_expiry_graphical_runtime'
+        selection = system.Selection(area='session', test=case, scope='diagnostic',
+            phases=('session',), prerequisites=(),
+            executions=(system.CaseExecution('session', 'session', case, False),),
+            available={'session': (case,)})
+        system.stage_selected_inputs(selection, directory / 'input')
+        system.stage_asset_inventory(directory / 'input', manifest, package_only=True)
+        transport = rebind_maintenance(lease, directory, transport)
+        transport.wait_boot_complete()
+        # Online entry was explicitly attested above. Acceptance retains the
+        # separate offline-restore guard in system_fixture_preparation.prepare.
+        context = provision(transport, lease, directory, fixture_selection,
+                            subsets=SUBSETS + ACTIVITY_SUBSETS)
+        controller = context['controller']
+        controller.require_ready(context['receipt'])
+        transport.copy(False, str(directory / 'input') + '/', system.PAYLOAD + '/')
+        run = lease.state['run']
+        transport.call(system.guest_command(run, 'verify-installed'), timeout=660)
+
+        def leaf(command, timeout):
+            return transport.call(['env', 'ONPC_EXPECTED_RUN=' + run,
+                'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-B',
+                system.PAYLOAD + '/system_graphical_expiry.py', command], timeout=timeout)
+
+        controller.require_ready(context['receipt'])
+        leaf('prepare', 300)
+        transport.reboot()
+        transport.wait_boot_complete()
+        context['receipt'] = controller.renew_after_reboot(context['receipt'])
+        controller.require_ready(context['receipt'])
+
+        def bounded_public_call(*arguments, **options):
+            # Diagnostic reads must leave time to probe the retained 300-second
+            # grant, even when a provider's ordinary readiness wait is longer.
+            options['timeout'] = min(options.get('timeout', 20), 20)
+            return transport.call(*arguments, **options)
+
+        public_transport = SimpleNamespace(call=bounded_public_call, commands=transport.commands)
+        observations = {}
+        for stage in ('before-host-ready', 'host-ready', 'after-host-ready'):
+            lease.guard()
+            started = time.monotonic()
+            if stage == 'host-ready':
+                value = {'grant_deadline_monotonic': _system_history_command(transport, 'host-ready')}
+            else:
+                raw = leaf('host-observe', 120)
+                system.require(type(raw) is bytes and 0 < len(raw) <= 16384,
+                               'diagnosis:graphical-observation-response')
+                value = json.loads(raw)
+                system.require(type(value) is dict, 'diagnosis:graphical-observation-response')
+                operation_name = None
+                if value['foreground']['child']:
+                    operation_name = ('child-lock-curtain' if value['native_lock']['screensaver_active']
+                                      else 'fresh-child-desktop')
+                elif value['foreground']['class'] == 'greeter':
+                    operation_name = 'gdm-installed-accounts'
+                public = {'operation': operation_name, 'outcome': 'unavailable'}
+                if operation_name is not None:
+                    try:
+                        public.update(outcome='observed',
+                                      result=UiObservations(public_transport).observe(operation_name))
+                    except Exception as error:
+                        # Fixed type only: raw provider errors can contain UI
+                        # text. A failed read supplies no lock/desktop verdict.
+                        public.update(outcome='refused', error_type=type(error).__name__)
+                value['public_surface'] = public
+            value['started_monotonic'] = started
+            value['finished_monotonic'] = time.monotonic()
+            observations[stage] = value
+            (directory / 'observations.json').write_bytes(system.baseline.encode(observations))
+            print('system-graphical-expiry-diagnosis: ' + stage + ' ' + json.dumps(value), flush=True)
+        lease.guard()
+        print('system-graphical-expiry-diagnosis: host-ready scene retained; evidence=' +
+              str(directory), flush=True)
+
+
 def probe_overlay_activity(lease):
     """Read the same retained Riley activity through the maintained observer."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))

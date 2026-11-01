@@ -2033,6 +2033,58 @@ def test_host_startup_recovers_only_idle_verified_evidence(tmp_path, monkeypatch
         assert evidence.exists()
 
 
+@pytest.mark.parametrize('fault', [None, 'replaced', 'vm-input', 'unfinished-host'])
+def test_queue_recovery_keeps_completed_host_output_and_refuses_other_owners(
+        tmp_path, monkeypatch, fault):
+    import test_activity
+    import test_retention as live_retention
+    import test_storage
+    import vm_test_queue
+    from vm_selection import BATCH
+    monkeypatch.delenv(test_activity.VARIABLE, raising=False)
+    monkeypatch.delenv(test_activity.HOST_VARIABLE, raising=False)
+    monkeypatch.setattr(test_activity, '_descriptor', None)
+    monkeypatch.setattr(test_activity, '_host_descriptor', None)
+    monkeypatch.setenv(BATCH, '{"vms":[],"concurrency":1}')
+    with test_activity.activity(tmp_path, includes_host=True):
+        batch_owner = test_activity.descriptors()
+        store = live_retention.Store(test_activity.retention_path(tmp_path))
+        with store.session():
+            name = 'onpc-test-artifacts-input' if fault == 'vm-input' else 'onpc-ui-preview-host'
+            evidence = test_storage.directory('allocations', root=tmp_path) / name
+            evidence.mkdir(mode=0o700)
+            live_retention.retain(evidence)
+            (evidence / 'test.log').write_text('historical output')
+            if fault == 'unfinished-host':
+                live_retention.preserve_for_recovery()
+        # Put completed host evidence in history, as an older mixed queue did.
+        if fault != 'unfinished-host':
+            with store.session():
+                pass
+        original = (store.path / 'current.json').read_bytes()
+        if fault == 'replaced':
+            evidence.rename(evidence.with_name('original'))
+            evidence.mkdir(mode=0o700)
+        guard = lambda: vm_test_queue.queue_output_guard(tmp_path, store)
+        if fault:
+            with pytest.raises(ValueError, match='replaced|non-queue'):
+                store.reconcile(guard, completed_guard=lambda paths: None)
+        else:
+            assert not store.reconcile(guard, completed_guard=lambda paths: None)
+            # The nested host phase retains both parent locks and writes to
+            # its own journal, while restoration keeps the batch owner live.
+            with test_activity.activity(tmp_path, host_only=True):
+                assert test_activity.descriptors() == (batch_owner[1], batch_owner[1])
+                host = live_retention.Store(test_activity.retention_path(tmp_path))
+                assert host.path != store.path
+                with host.session():
+                    pass
+            assert test_activity.descriptors() == batch_owner
+            assert test_activity.retention_path(tmp_path) == store.path
+        assert (store.path / 'current.json').read_bytes() == original
+        assert evidence.exists()
+
+
 @pytest.fixture
 def repetition_tree():
     # Only the bounded repetition workload uses /tmp (tmpfs on the host).

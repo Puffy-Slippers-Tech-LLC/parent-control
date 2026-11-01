@@ -20,5 +20,8 @@ ends the desktop, report the retention limitation under failure handling; a new
 session cannot count as retained work. Do not replace the real boundary with a
 client disconnect or guessed identity.
 
+Confirm pending work and the real bus-owner change explicitly; do not depend on
+a last-second restart or infer outage timing from eventual reconnection.
+
 Run the distinct delta on both targets, restore only owned state and retain
 unsupported recovery as a handover blocker. No generic disconnect/reader matrix.

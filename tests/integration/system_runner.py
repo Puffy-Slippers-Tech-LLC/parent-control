@@ -1669,6 +1669,12 @@ def stage_selected_inputs(selection, destination):
     if any(item.area == 'package' and item.case_id == KIOSK_ACTIVATION_CASE
            for item in selection.executions):
         identity['host_files'] = kiosk_activation_host_inputs()
+    if 'session' in selection.phases:
+        # The graphical input manifest also validates its worker's deferred
+        # imports, before the attached desktop observer is constructed.
+        sys.path.insert(0, str(ROOT / 'tests/e2e'))
+        from check_graphical_smoke import inputs as graphical_inputs
+        identity['graphical_expiry_host_files'] = graphical_inputs()
     path = destination / 'selected-inputs.json'
     path.write_bytes(baseline.encode(identity))
     digest = baseline.digest(path)
@@ -2138,6 +2144,37 @@ def run_pytest(vm, run, phase, selection):
         vm.commands.progress = previous
 
 
+def observe_graphical_expiry(vm, lease, directory, ledger, fixture_context, fixture_selection):
+    """Extend system-282 under its existing lease, before PAM changes passwords."""
+    sys.path.insert(0, str(ROOT / 'tests/e2e'))
+    from types import SimpleNamespace
+    from check_graphical_smoke import inputs as graphical_inputs
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    from natural_expiry import run_system_graphical_expiry
+    from provenance import VerifiedInputs
+
+    recorded = json.loads((directory / 'input/selected-inputs.json').read_bytes())[
+        'graphical_expiry_host_files']
+    require(graphical_inputs() == recorded, 'expiry:host-inputs-changed')
+    require(fixture_context is not None, 'expiry:fixture-context-required')
+    fixture_context['controller'].require_ready(fixture_context['receipt'])
+    verified = VerifiedInputs(lease=lease, root=ROOT)
+    verified.fixture_selection = fixture_selection
+    verified.fixture_prepared = {**fixture_context, 'subsets': ACTIVITY_SUBSETS,
+                                 'caller': 'system-282'}
+    context = SimpleNamespace(lease=lease, verified=verified,
+        fixture_selection=fixture_selection, fixture_subsets=ACTIVITY_SUBSETS,
+        fixture_caller='system-282')
+    output = directory / 'graphical-expiry'
+    output.mkdir(mode=0o700)
+    def progress(stage, observed):
+        log('stage:graphical-expiry-' + stage)
+    result = run_system_graphical_expiry(output, lease, vm, ledger,
+        expected_inputs=verified.source_files, progress=progress, context=context)
+    require(graphical_inputs() == recorded, 'expiry:host-inputs-changed')
+    (output / 'result.json').write_bytes(baseline.encode(result))
+
+
 def installed_run(vm, lease, directory, selection, ledger=None, *, already_installed=False,
                   fixture_selection=None, preparation_only=False, preparation_observer=None):
     ledger = ledger or RunLedger()
@@ -2161,6 +2198,9 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         fixture_selection = (installed_selection(fixture_selection) if already_installed else
                              selection_record(fixture_selection))
         subsets = SUBSETS
+        if 'session' in selection.phases:
+            from e2e_fixture_preparation import ACTIVITY_SUBSETS
+            subsets += ACTIVITY_SUBSETS
         if any(item.case_id in (PREVIOUS_POLICY_CASE, TRUSTED_FIXTURES_CASE)
                for item in selection.executions):
             # This history sets and observes distinct hard/soft policies.
@@ -2429,6 +2469,9 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 log('stage:graphical-expiry-reboot')
                 with ledger.measure('reboot'):
                     reboot()
+                with ledger.measure('test'):
+                    observe_graphical_expiry(vm, lease, directory, ledger,
+                                             fixture_context, fixture_selection)
             log('stage:pytest-' + phase)
             with ledger.measure('test'):
                 try:

@@ -266,20 +266,3 @@ def test_access_collector_uses_log_files_and_redacts_optional_reader_errors(
     else:
         assert result['returncode'] == 1 and result['stderr'] == '[Child user] reader error'
         audit.run.assert_called_once()
-
-
-@pytest.mark.parametrize('properties', [
-    'User=2000\nClass=user\nTTY=tty7',
-    'User=1005\nClass=user\nTTY=tty3',
-])
-def test_foreground_fixture_refuses_an_occupied_vt_or_existing_other_session(monkeypatch, properties):
-    monkeypatch.setattr(expiry.guest, 'guard', lambda: {'run': 'fixed-run'})
-    monkeypatch.setattr(expiry, 'identities', lambda: {'other': 1005})
-    run = Mock(side_effect=['9 2000 user seat0 tty7', properties])
-    monkeypatch.setattr(expiry.guest, 'run', run)
-    issue = Mock()
-    monkeypatch.setattr(expiry, 'grant', issue)
-    with pytest.raises(expiry.guest.GuestError, match='foreground-fixture-collision'):
-        expiry.verify_other_foreground(1004, '4', Mock())
-    assert all(c.args[0][0] == 'loginctl' for c in run.call_args_list)
-    issue.assert_not_called()

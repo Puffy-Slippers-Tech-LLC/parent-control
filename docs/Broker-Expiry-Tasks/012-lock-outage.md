@@ -17,6 +17,10 @@ Neither extension nor broker can independently repair a hung compositor lock.
 Do not terminate the session, close ordinary work, relax policy or invent an
 undocumented fallback to turn this condition into success.
 
+Confirm the outage spans the required exhaustion/revoke event; a late fault or
+observer is an invalid history, not evidence of protection. A successful
+restoration read cannot establish timely locking during the earlier outage.
+
 If protection cannot be achieved while preserving work, retain that unsupported
 boundary in the design and final handover blocker, with expected versus actual
 behavior and return condition. A demonstrated unsupported limit is not a passing

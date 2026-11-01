@@ -18,6 +18,7 @@ for current and future launcher/session behavior.
 | Decide whether to add, retain or remove tests | [Test scope mandate](../docs/Mandates/Test-Scope-Mandate.md) |
 | Choose or run regressions | [Suite selection](#all-established-regressions); `tools/run-tests --help` and `--list` |
 | Add a host module or change resources | [Parallelism review](#host-test-parallelism-review) and [coverage maintenance](#coverage-maintenance-workflow) |
+| Plan or repair timing in a VM test | [Timing and slow-VM resilience](../docs/Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience) |
 | Investigate a failure or continue prior work | [Failure handling](#handling-test-failures), [reconnection](#aggregate-execution-and-reconnection), then [resume](#resuming-test-execution) if needed |
 | Automate repairs or E2E implementation | [Repair loop](#scripted-repair-loop) or [E2E launcher](#scripted-e2e-implementation), respectively |
 | Read, export or reclaim test output | [Artifact access](#prompt-free-test-artifact-access), [retention](#aggregate-output-retention) and [cleanup safety](#cleanup-safety-prerequisites) |
@@ -2127,8 +2128,10 @@ The queue summary uses `retention-batch/`; older single-target records remain in
 `retention/`. Queue startup reconciles its interrupted host-output journal under
 the existing storage owner lease; it does not recover a VM or replace the
 workers' separate VM recovery. Live owners and replaced allocations still refuse.
-Non-queue allocations refuse this host-only recovery and remain with their
-owning workflow.
+Completed historical host-test output from combined runs remains in its original
+batch journal and receives the same ownership, identity and mount audits.
+VM inputs and unrelated allocations still refuse this host-only recovery.
+New combined runs give their host-test output its own host journal.
 Each journal retains
 its own last three runs, so active host evidence cannot block VM preparation
 or be rotated by it. Existing records stay in their original journal.

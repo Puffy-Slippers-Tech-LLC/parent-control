@@ -19,6 +19,10 @@ Observe protection through the outage and reconstruction from current native
 state within original budgets. Old replies/effects must not reach a replaced
 session; neither reconnect nor repeated reads may extend time or award usage.
 
+Confirm the real owner change through maintained identity observations rather
+than a delay sized to expected restart speed; replacement overhead never resets
+the original effect deadline.
+
 Use the minimum supported real replacement needed to exercise the boundary.
 Run this delta on both targets and restore owned process/service
 state with the established recovery route. No broader E2E residual is closed.

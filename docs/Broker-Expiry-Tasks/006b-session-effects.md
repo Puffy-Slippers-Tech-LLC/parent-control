@@ -22,3 +22,9 @@ external replacement gates, not an invented scheduler for this task.
 Run changed current-owner checks on both targets and restore owned fixtures.
 Missing supported session-control routes remain blockers; saved guest state and
 mocked process identities supply no installed result.
+
+Prepare replacement identity and its ample positive entitlement before the
+pending-callback boundary. Establish pending/ended/replacement order through
+the maintained controls and observations, not near-expiry sign-in speed. Keep
+the original callback/deadline identity when checking the new usable desktop;
+later navigation must not renew the old effect's budget.

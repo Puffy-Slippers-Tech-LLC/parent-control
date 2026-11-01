@@ -61,8 +61,10 @@ tray controls remain a separate autostart prerequisite.
 
 All unfinished rows also follow the shared
 [supporting-operation and observation choices](E2E-Execution-Contracts.md#supporting-operations-and-observations).
-Catalogue update/removal reopens Parent after Save; timing uses bounded
-public-state waits and measured read intervals. Required launch integrations,
+The inherited [task brief contract](E2E-Execution-Contracts.md#task-brief-contract)
+applies the VM timing mandate to every remaining active and deferred task;
+finite timing requirements stay in the owning recipes. Catalogue update/removal
+reopens Parent after Save. Required launch integrations,
 natural expiry, authentication, interval coverage and ownership guards remain.
 These planning changes leave task status and live qualification unchanged.
 

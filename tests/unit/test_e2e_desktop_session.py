@@ -7,7 +7,7 @@ the existing compatible unit classification continues to apply.
 
 import json
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 
@@ -20,12 +20,57 @@ from tests.support.desktop_session import RUN_PROBE, props
 from tests.support.perl import run_perl
 
 
+@pytest.fixture
+def native_lock(monkeypatch):
+    state = Mock(return_value=False)
+    monkeypatch.setattr(control, 'screen_saver_active', state)
+    return state
+
+
+@pytest.mark.parametrize('fault', ['', 'same-user', 'foreign-caller', 'nonfixture',
+                                  'runtime-owner', 'bus-owner', 'invalid-state'])
+def test_native_lock_reader_binds_fixture_bus_and_runs_only_as_its_owner(monkeypatch, fault):
+    account = SimpleNamespace(pw_uid=1000, pw_gid=1000,
+        pw_name='foreign' if fault == 'nonfixture' else control.ACCOUNTS['child'],
+        pw_dir='/home/fixture')
+    monkeypatch.setattr(control.pwd, 'getpwuid', lambda uid: account)
+    monkeypatch.setattr(control.os, 'geteuid', lambda:
+        1001 if fault == 'foreign-caller' else 1000 if fault == 'same-user' else 0)
+    monkeypatch.setattr(control.os, 'getgrouplist', lambda *_: [1000])
+    root, runtime, bus = MagicMock(), MagicMock(), MagicMock()
+    root.__truediv__.return_value = runtime
+    runtime.__truediv__.return_value = bus
+    runtime.lstat.return_value = SimpleNamespace(st_mode=control.stat.S_IFDIR,
+        st_uid=1001 if fault == 'runtime-owner' else 1000)
+    bus.lstat.return_value = SimpleNamespace(st_mode=control.stat.S_IFSOCK,
+        st_uid=1001 if fault == 'bus-owner' else 1000)
+    monkeypatch.setattr(control, 'Path', Mock(return_value=root))
+    run = Mock(return_value=SimpleNamespace(stdout='garbage' if fault == 'invalid-state' else '(true,)'))
+    monkeypatch.setattr(control.subprocess, 'run', run)
+    if fault not in ('', 'same-user'):
+        with pytest.raises(control.SessionError):
+            control.screen_saver_active(1000)
+    else:
+        assert control.screen_saver_active(1000)
+    assert run.call_count == int(fault in ('', 'same-user', 'invalid-state'))
+    if run.called:
+        options = run.call_args.kwargs
+        assert options['timeout'] == 10 and options['check'] is True
+        assert options['env']['DBUS_SESSION_BUS_ADDRESS'] == 'unix:path=' + str(bus)
+        assert run.call_args.args[0][-1] == 'org.gnome.ScreenSaver.GetActive'
+        if fault == 'same-user':
+            assert not {'user', 'group', 'extra_groups'}.intersection(options)
+        else:
+            assert (options['user'], options['group'], options['extra_groups']) == (1000, 1000, [1000])
+
+
 @pytest.mark.parametrize('fault,locked', [
     ('wrong-owner', False), ('remote', False), ('wrong-seat', False), ('greeter', False),
     ('wrong-lock-state', False), ('wrong-lock-state', True),
     ('multiple-active', False), ('multiple-owned', False), ('opening', False), ('missing', False),
 ])
-def test_source_refuses_wrong_or_ambiguous_sessions(fault, locked):
+def test_source_refuses_wrong_or_ambiguous_sessions(fault, locked, native_lock):
+    native_lock.return_value = not locked if fault == 'wrong-lock-state' else locked
     source = props(locked='yes' if locked else 'no')
     current = {'7': source}
     if fault == 'wrong-owner':
@@ -48,6 +93,35 @@ def test_source_refuses_wrong_or_ambiguous_sessions(fault, locked):
         current.clear()
     with pytest.raises(control.SessionError):
         control.source_session(current, 1000, locked=locked)
+    if fault != 'wrong-lock-state':
+        native_lock.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'unlocked', 'replaced'])
+def test_return_greeter_accepts_only_the_same_retained_locked_target_without_input(
+        monkeypatch, fault, native_lock):
+    native_lock.return_value = fault != 'unlocked'
+    before = {'7': props(active='no', locked='no'), '8': props('120', kind='greeter')}
+    after = {key: dict(value) for key, value in before.items()}
+    if fault == 'unlocked':
+        before['7']['LockedHint'] = 'no'
+    elif fault == 'replaced':
+        after['9'] = after.pop('7')
+    monkeypatch.setattr(control.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(control.pwd, 'getpwnam', lambda _: SimpleNamespace(pw_uid=1000))
+    monkeypatch.setattr(control, 'sessions', Mock(side_effect=[before, after]))
+    submit, environment = Mock(), Mock()
+    monkeypatch.setattr(control, 'submit', submit)
+    monkeypatch.setattr(control, 'environment', environment)
+    if fault:
+        with pytest.raises(control.SessionError):
+            control.execute('child-return-greeter')
+    else:
+        assert control.execute('child-return-greeter') == {
+            'operation': 'child-return-greeter', 'outcome': 'passed',
+            'interface': 'system session', 'source_retained': True, 'destination': 'greeter'}
+    submit.assert_not_called()
+    environment.assert_not_called()
 
 
 @pytest.mark.parametrize('state,active', [('closing', 'no'), ('closing', 'yes'), ('unknown', 'no')])
@@ -69,7 +143,8 @@ def test_session_reader_distinguishes_logged_out_records_before_fresh_input(monk
         control.entry_identity(control.sessions(), 1000, 'fresh')
 
 
-def test_opening_greeter_cannot_authorize_a_destination_or_fresh_password(monkeypatch):
+def test_opening_greeter_cannot_authorize_a_destination_or_fresh_password(monkeypatch, native_lock):
+    native_lock.return_value = True
     records = {'7': {**props(active='no', locked='yes'), 'State': 'online'},
                '8': {**props('120', active='no', kind='greeter'), 'State': 'opening'}}
     monkeypatch.setattr(control, 'session_ids', lambda: list(records))
@@ -88,7 +163,11 @@ def test_opening_greeter_cannot_authorize_a_destination_or_fresh_password(monkey
 
 
 @pytest.mark.parametrize('change', ['manager-exited', 'source-owner', 'greeter-replaced', 'lock-state'])
-def test_retained_entry_rechecks_graphical_identity_despite_background_manager_exit(monkeypatch, change):
+def test_retained_entry_rechecks_graphical_identity_despite_background_manager_exit(
+        monkeypatch, change, native_lock):
+    native_lock.return_value = True
+    if change == 'lock-state':
+        native_lock.side_effect = [True, False]
     before = {'7': props(active='no', locked='yes'),
               '8': props('120', kind='greeter'),
               '9': {**props('121', kind='manager-early'), 'Seat': '', 'Type': 'unspecified'}}
@@ -110,7 +189,7 @@ def test_retained_entry_rechecks_graphical_identity_despite_background_manager_e
         assert result['session_sha256'] == control.entry_identity(before, 1000, 'retained')
         assert result['entry'] == 'retained' and result['outcome'] == 'passed'
     else:
-        with pytest.raises(control.SessionError, match='source-changed'):
+        with pytest.raises(control.SessionError, match='source-changed|entry-locked'):
             control.execute('parent-entry-retained')
     assert reads.call_count == 2
     submit.assert_not_called()
@@ -216,10 +295,11 @@ def test_unregistered_commands_refuse_before_session_lookup(monkeypatch, binding
 @pytest.mark.parametrize('fault', ['changed-source', 'changed-lock'])
 @pytest.mark.parametrize('binding', ['parent-logout', 'standard-return-greeter'])
 def test_execute_checks_ownership_and_lock_state_again_after_dropping_privileges(
-        monkeypatch, fault, binding):
+        monkeypatch, fault, binding, native_lock):
     role, action = control.BINDINGS[binding]
     locked = 'yes' if action == 'return-greeter' else 'no'
     wrong_lock = 'no' if locked == 'yes' else 'yes'
+    native_lock.side_effect = [locked == 'yes', wrong_lock == 'yes']
     account = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name=control.ACCOUNTS[role])
     monkeypatch.setattr(control.os, 'geteuid', lambda: 0)
     monkeypatch.setattr(control.pwd, 'getpwnam', lambda _: account)
@@ -242,7 +322,8 @@ def test_execute_checks_ownership_and_lock_state_again_after_dropping_privileges
     prepare.assert_not_called()
 
 
-def test_child_switch_binds_riley_and_observes_the_retained_locked_session(monkeypatch):
+def test_child_switch_binds_riley_and_observes_the_retained_locked_session(monkeypatch, native_lock):
+    native_lock.side_effect = [False, False, True]
     account = SimpleNamespace(pw_uid=1001, pw_gid=1001, pw_name='onpc-child-riley')
     lookup = Mock(return_value=account)
     monkeypatch.setattr(control.pwd, 'getpwnam', lookup)
@@ -290,6 +371,7 @@ def lock_tree(monkeypatch, entry='curtain'):
     monkeypatch.setattr(a.pwd, 'getpwnam', lambda _: SimpleNamespace(pw_uid=1000))
     monkeypatch.setattr(a, 'Path', lambda _: SimpleNamespace(stat=lambda: SimpleNamespace(st_uid=1000)))
     monkeypatch.setattr(control, 'sessions', lambda: {'7': props(locked='yes')})
+    monkeypatch.setattr(control, 'screen_saver_active', lambda uid: True)
     ui = ui_for(root)
     ui.mate_challenge_identity = Mock(return_value='a' * 64)
     ui._shell_provider_metadata = Mock(return_value={
@@ -407,28 +489,51 @@ print encode_json({ok => $ok ? 1 : 0, retry => $retry ? 1 : 0,
 
 
 @pytest.mark.parametrize('fault', ['', 'not-greeter', 'unlocked', 'active', 'missing', 'duplicate',
-                                  'changed', 'unlocked-result', 'lost-other', 'uncertain'])
-def test_enter_locked_activates_only_the_preserved_locked_child_once(monkeypatch, fault):
-    before = {'7': props('1002', active='no', locked='yes'),
+                                  'changed', 'unlocked-result', 'lost-other', 'other-unlocked', 'uncertain',
+                                  'from-parent', 'parent-replaced', 'parent-locked', 'foreign-unlocked'])
+def test_enter_locked_activates_only_the_preserved_locked_child_once(monkeypatch, fault, native_lock):
+    from_parent = fault in ('from-parent', 'parent-replaced', 'parent-locked')
+    native_lock.return_value = fault != 'unlocked'
+    if from_parent:
+        native_lock.side_effect = lambda uid: uid == 1002 or fault == 'parent-locked'
+    elif fault == 'unlocked-result':
+        child_states = iter([True, True, False])
+        native_lock.side_effect = lambda uid: next(child_states) if uid == 1002 else True
+    elif fault == 'other-unlocked':
+        peer_states = iter([True, False])
+        native_lock.side_effect = lambda uid: next(peer_states) if uid == 1000 else True
+    monkeypatch.setattr(control.pwd, 'getpwuid', lambda uid: SimpleNamespace(
+        pw_name='foreign' if uid == 1003 else control.ACCOUNTS['parent' if uid == 1000 else 'child']))
+    monkeypatch.setattr(control.pwd, 'getpwnam', lambda _: SimpleNamespace(pw_uid=1000))
+    before = {'7': props('1002', active='no', locked='no'),
               '8': props('120', kind='greeter'), '9': props('1000', active='no', locked='yes')}
     after = {**before, '7': props('1002', locked='yes'), '8': props('120', active='no', kind='greeter')}
+    if from_parent:
+        before['8'] = props('120', active='no', kind='greeter')
+        before['9'] = props('1000', locked='no')
+        after['9'] = props('1000', active='no', locked='no')
+    if fault == 'foreign-unlocked':
+        before['9'] = props('1003', active='no', locked='yes')
+        after['9'] = props('1003', active='no', locked='no')
     if fault == 'not-greeter': before['8'] = props('1000')
     if fault == 'unlocked': before['7']['LockedHint'] = 'no'
     if fault == 'active': before['7']['Active'] = 'yes'
     if fault == 'missing': del before['7']
     if fault == 'duplicate': before['10'] = props('1002', active='no', locked='yes')
     rechecked = {key: dict(value) for key, value in before.items()}
+    if fault == 'parent-replaced': rechecked['10'] = rechecked.pop('9')
     if fault == 'changed': rechecked['7']['Type'] = 'x11'
     if fault == 'unlocked-result': after['7']['LockedHint'] = 'no'
     if fault == 'lost-other': del after['9']
     monkeypatch.setattr(control, 'sessions', Mock(side_effect=[before, rechecked, after]))
     command = Mock(side_effect=RuntimeError('uncertain') if fault == 'uncertain' else None)
     monkeypatch.setattr(control, 'call', command)
-    if fault:
+    if fault not in ('', 'from-parent'):
         with pytest.raises((control.SessionError, RuntimeError)):
-            control.enter_locked(SimpleNamespace(pw_uid=1002))
+            control.enter_locked(SimpleNamespace(pw_uid=1002), from_parent=from_parent)
     else:
-        assert control.enter_locked(SimpleNamespace(pw_uid=1002)) == {
+        assert control.enter_locked(SimpleNamespace(pw_uid=1002), from_parent=from_parent) == {
             'source_retained': True, 'destination': 'locked'}
-    assert command.call_count == int(fault in ('', 'unlocked-result', 'lost-other', 'uncertain'))
+    assert command.call_count == int(fault in ('', 'from-parent', 'unlocked-result', 'lost-other',
+                                              'other-unlocked', 'foreign-unlocked', 'uncertain'))
     if command.called: command.assert_called_once_with(['/usr/bin/loginctl', 'activate', '7'])

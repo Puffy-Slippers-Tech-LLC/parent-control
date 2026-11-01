@@ -243,7 +243,7 @@ def test_decoder_pins_boot_session_and_source(fault):
 def test_lock_result_requires_prior_ready_proof_before_transport():
     ui, transport, _ = decoder()
     with pytest.raises(EvidenceError, match='order'):
-        ui.observe(RESULT)
+        ui.observe('child-natural-expiry-engineering-lock-result')
     transport.call.assert_not_called()
 
 
@@ -266,14 +266,17 @@ def test_observed_lock_does_not_substitute_for_lock_input_ready_proof():
 @pytest.mark.parametrize('fault', [None, 'surface', 'session', 'desktop', 'owner'])
 def test_lock_result_pins_ready_lock_surface_session_and_input_owner(fault):
     _, _, read = decoder()
-    assert read(OBSERVE, observation(locked=True))['state'] == 'locked'
-    assert read(READY, observation(locked=True))['lock']['surface_id'] == SURFACE
+    # A fresh peer observer must discover its protected input recipient once,
+    # without an otherwise redundant observe call before readiness.
+    ready = 'child-natural-expiry-engineering-lock-ready'
+    result = 'child-natural-expiry-engineering-lock-result'
+    assert read(ready, observation(locked=True))['lock']['surface_id'] == SURFACE
     value = observation(locked=fault != 'desktop')
     if fault == 'surface': value['lock']['surface_id'] = 'f' * 64
     if fault == 'session': value['session_sha256'] = 'f' * 64
     if fault == 'owner': value['lock']['owner'] = 'other-fixture-child'
     if fault:
         with pytest.raises((EvidenceError, accessible_ui.UiError)):
-            read(RESULT, value)
+            read(result, value)
     else:
-        assert read(RESULT, value)['lock'] == lock_value()
+        assert read(result, value)['lock'] == lock_value()

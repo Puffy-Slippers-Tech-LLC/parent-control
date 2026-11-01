@@ -603,7 +603,7 @@ class Provisioner:
                 self._shared['lock'].release()
 
     def renew_after_reboot(self, readiness):
-        """Recheck the installed-system hard witness on a new boot, without writes.
+        """Recheck the installed-system fixtures on a new boot, without writes.
 
         The live lease owns the original request and terminal latch. Renewal
         cannot change its selection, attempt, subset or destinations, replay
@@ -618,7 +618,9 @@ class Provisioner:
             require(readiness.binding == self._request['binding']
                     and state['domain_uuid'] == readiness.binding['vm_uuid']
                     and state['run'] == readiness.binding['run'], 'stale-readiness')
-            require(readiness.binding['subsets'] == ['trusted-hard']
+            require(readiness.binding['subsets'] in (
+                        ['trusted-hard'],
+                        ['activity', 'baseline-child', 'native', 'trusted-hard'])
                     and self._request['target'] in (
                         {'os': 'ubuntu', 'release': '26.04', 'architecture': 'x86_64'},
                         {'os': 'fedora', 'release': '44', 'architecture': 'x86_64'}),

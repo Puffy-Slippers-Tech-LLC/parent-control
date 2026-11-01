@@ -17,6 +17,13 @@ Keep another foreground user's input/work unaffected during target expiry or
 recovery; observe the target transition separately. Before-access exposure
 still belongs to task 171 and receives no credit from a final lock here.
 
+Prepare authentication discovery and the expiry observer under ample setup
+time. Establish the genuine challenge comfortably before the measured expiry
+and confirm it remains pending across that original deadline. Use readiness
+gates where current public transaction rules permit them; do not assume another
+grant can commit during authentication or race password entry against a final
+countdown. Challenge resolution and work recovery retain their separate budgets.
+
 Each attempt owns finite state/order, declared windows and cleanup. Run changed
 host checks and new installed histories on both targets. Production inability
 to progress is a blocker under failure handling, not authority to rewrite it.

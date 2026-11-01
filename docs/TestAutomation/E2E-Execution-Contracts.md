@@ -18,6 +18,7 @@ prerequisites, implementation and acceptance alongside these applicable owners:
 | Selecting or resuming work | [Plan reading routes](E2E-Execution-Plan.md#load-only-the-selected-context); the first unchecked active queue row is authoritative. Prerequisite task IDs select delivered scope, not predecessor briefs or saved VM state. |
 | Any implementation | [Shared support guide](../../tests/support/README.md), [bounded supporting work](E2E-Building-Blocks.md#keep-supporting-work-bounded) and [composition preflight](E2E-Building-Blocks.md#composition-preflight). Cases and qualifications call the same shared operations; callers retain their distinct assertions. |
 | Designing or revising a journey | [Product-focused journeys](#product-focused-journeys): retain product outcomes and necessary safety guards; remove incidental provider requirements from completed and unfinished coverage. |
+| VM timing, including unfinished and deferred consumers | [Timing and slow-VM resilience](../Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience). Apply it during composition preflight to setup, authentication, transitions, observations and recovery; each recipe retains only its finite inputs and product timing assertions. |
 | Existing system/integration coverage | Apply [assertion-level reuse](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage) to the case, its steps and acceptance. Remove duplicate engineering work; preserve the complete customer journey and its independent public outcomes. |
 | UI work | [Application UI API](Application-UI-API.md), [UI mandate](../Mandates/UI-Automation-Mandate.MD) and [UI/E2E allocation](UI-and-E2E-Coverage.md). All existing and new product reads/actions use the shared UI/E2E facade with scoped stable IDs and canonical values. Keep authentication, file choosers and supporting tools in their external adapters; supporting system operations use shared commands/APIs. |
 | Reusable guest inputs | [Baseline lifetime](../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline). Add declared fixtures/dependencies to idempotent baseline preparation; attempts and app-snapshot preparation verify them. Deliberate package/account/file mutations under test remain in the journey. |
@@ -47,6 +48,9 @@ Briefs contain task-specific deltas. Use this format for new and revised briefs:
 - Name the final product result, finite input/branch references, relevant source
   paths/symbols and selected qualification or case command. Mark nonexistent
   selectors as planned; inspect registration before running them.
+  Bind any time-sensitive composition to the VM timing owner above; put shared
+  budgets in the operation and finite preparation margins in the recipe rather
+  than copying a timing checklist into each consumer brief.
 - For a scenario, state the customer's goal and the outcomes that prove it.
   Include only UI operations needed to achieve or observe those outcomes;
   simplify redundant navigation, unchanged reads and dialog visits. Allocate
@@ -181,16 +185,15 @@ implemented and qualified; these rules do not qualify additional distros or DEs.
 | Reach or leave a session | Use the shared guarded session command and one independent destination/identity observation. Reuse an existing product window. Keep graphical authentication only when required for entry or the tested denial/unlock. Select a supported adapter before mutation; do not try commands or menus in succession after uncertain input. |
 | Prepare files, accounts or packages | Use the existing finite shared command/API profile and its owned completion receipt. Resolve desktop directories and account identities through supported APIs, not translated folder names or list order. Inspect the required product result afterward. |
 | Refresh a catalogue after a package change | After saving the retained draft, reopen Parent through LIFE01, select the target child through PARENT02 and await its loaded catalogue. Switching children reuses cached lists; follow the [frontend catalogue lifecycle](../SystemDesign/Frontends.md#parent-controls-and-shared-information). |
-| Wait for a save, window, login or recovery | Await the required public state within the original deadline using read-only observations. Remove arbitrary settling sleeps, repeated unchanged inventories and checks of unrelated desktop controls. Keep mutations outside waits and never replay uncertain input. |
+| Wait for a save, window, login or recovery | Use the shared operation's public-state wait under the [VM timing contract](../Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience). Observe only the required owner/result; remove inventories of unrelated desktop controls. |
 | Compare elapsed time | Bracket each public read with controller monotonic timestamps and include read latency and declared display precision in the comparison. Require observable progress without demanding every intermediate tick or exact scheduler cadence. Keep the original allowance/grant deadline. |
 | Establish absence or closure | Use a complete, current observation scoped to the required owner/surface and the earlier activity identity when testing closure. An unavailable observer, incomplete list, timeout or generic launch error cannot prove absence or policy denial. Do not inventory unrelated desktop contents. |
 | Observe a short-lived result | Ready the shared observer before the triggering action and await the actual owned result. Use the existing trace lifecycle only when the assertion concerns an interval or a transient that snapshots cannot establish; preserve gap detection and secret sealing. Persistent results need no pre-entry trace. |
 
-Real waits remain when elapsed time is the product input: delayed approval,
-natural expiry, cooldown, refresh intervals and calendar transitions. Bind their
-start/end observations and bounds before execution. A missed required window
-fails that attempt; do not reset the grant, extend the product interval, retry
-the mutation or silently accept a different branch. During suspend, use the
+Recipes retain real elapsed-time inputs: delayed approval, natural expiry,
+cooldown, refresh intervals and calendar transitions. Their start/end public
+observations and finite bounds remain distinct from the functional budgets in
+the VM timing owner. During suspend, use the
 controller's elapsed clock; guest uptime and lost SSH alone prove neither
 suspend nor product denial. Calendar comparisons also need actual UTC instants,
 local date, timezone and offset, so repeated local times remain distinguishable.

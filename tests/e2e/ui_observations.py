@@ -56,6 +56,11 @@ OPERATION_LABELS = {
     'child-natural-expiry-activity': 'Using the owned child app while usable time remains',
     'child-natural-expiry-lock-ready': 'Checking the naturally locked input recipient',
     'child-natural-expiry-lock-result': 'Reading the owned lock after harmless normal input',
+    **{'child-natural-expiry-engineering-' + action: description for action, description in (
+        ('observe', 'Observing child work or its lock independently of the panel'),
+        ('activity', 'Using the original child app before its engineering expiry deadline'),
+        ('lock-ready', 'Checking the independently observed lock input recipient'),
+        ('lock-result', 'Reading the same lock after harmless normal input'))},
     'kiosk-diagnostic-error': 'Observing a real kiosk request failure under the owned engineering fault',
     'kiosk-diagnostic-exit': 'Leaving the unavailable request safely without submission or replay',
     'kiosk-diagnostic-report': 'Opening the kiosk error report through its public dismissal action',
@@ -1015,6 +1020,10 @@ class UiObservations:
                    390 if operation in accessible_ui.GREETER_OPERATIONS
                    or operation in accessible_ui.STATION_BRANCH_OPERATIONS else
                    120 if form_diagnostics else 90)
+        if operation in accessible_ui.ENGINEERING_EXPIRY_OPERATIONS:
+            # Leave transport margin around the guest's 150-second verification
+            # wait; the journey still owns one deadline for the whole challenge.
+            timeout = 180 if operation.endswith(('lock-ready', 'lock-result')) else 15
         event_trace = operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events',
                                     'feedback-collection-events')
         if (self.system_prompt is None and not form_diagnostics and not event_trace
@@ -1517,7 +1526,7 @@ class UiObservations:
             require(type(source) is str and re.fullmatch(r'[0-9a-f]{64}', source),
                     'ui:reminder-source-required')
             binding = [self.boot_guard or '', source]
-        if operation == 'child-natural-expiry-activity':
+        if operation in ('child-natural-expiry-activity', 'child-natural-expiry-engineering-activity'):
             source = getattr(self, 'natural_expiry_source', None)
             require(type(source) is str and re.fullmatch(r'[0-9a-f]{64}', source),
                     'ui:natural-expiry-source')
@@ -1527,10 +1536,14 @@ class UiObservations:
             require(type(source) is str and re.fullmatch(r'[0-9a-f]{64}', source),
                     'ui:countdown-session-source')
             binding = [self.boot_guard or '', source]
-        if operation.endswith(('natural-expiry-lock-ready', 'natural-expiry-lock-result')):
-            require(hasattr(self, 'natural_expiry_lock') and (
-                operation != 'child-natural-expiry-lock-result'
-                or self.last_operation == 'child-natural-expiry-lock-ready'),
+        if operation in accessible_ui.NATURAL_EXPIRY_OPERATIONS and operation.endswith(('lock-ready', 'lock-result')):
+            # The engineering peer return starts a new observer while already
+            # protected. Its fresh readiness read establishes the lock proof;
+            # results still require that exact immediately preceding readiness.
+            require(operation == 'child-natural-expiry-engineering-lock-ready' or
+                hasattr(self, 'natural_expiry_lock') and (
+                not operation.endswith('lock-result')
+                or self.last_operation == operation.removesuffix('lock-result') + 'lock-ready'),
                 'ui:natural-expiry-lock-order')
         if operation in accessible_ui.KIOSK_DIAGNOSTIC_OPERATIONS - {'kiosk-diagnostic-error'}:
             previous = {'kiosk-diagnostic-report': 'kiosk-diagnostic-error',
@@ -1650,6 +1663,7 @@ class UiObservations:
             require(result.get('natural_expiry_refused') is True, 'ui:natural-expiry-refusal')
             expected['natural_expiry_refused'] = True
         if operation in accessible_ui.NATURAL_EXPIRY_OPERATIONS:
+            engineering = operation in accessible_ui.ENGINEERING_EXPIRY_OPERATIONS
             value = result.get('natural_expiry')
             require(type(value) is dict and set(value) == {
                 'state', 'session_sha256', 'source', 'activity', 'seconds', 'lock', 'acted'}
@@ -1657,15 +1671,17 @@ class UiObservations:
                 and type(value['session_sha256']) is str
                 and re.fullmatch(r'[0-9a-f]{64}', value['session_sha256'])
                 and type(value['acted']) is bool
-                and (operation == 'child-natural-expiry-activity' or not value['acted']),
+                and (operation.endswith('-activity') or not value['acted']),
                 'ui:natural-expiry-response')
             previous_session = getattr(self, 'natural_expiry_session', value['session_sha256'])
             require(value['session_sha256'] == previous_session, 'ui:natural-expiry-session-changed')
             if value['state'] == 'desktop':
                 require(not operation.endswith(('lock-ready', 'lock-result'))
                     and not hasattr(self, 'natural_expiry_lock')
-                    and value['lock'] is None and type(value['seconds']) is int
-                    and 0 <= value['seconds'] < 86400 and type(value['source']) is str
+                    and value['lock'] is None and (
+                        value['seconds'] is None if engineering else
+                        type(value['seconds']) is int and 0 <= value['seconds'] < 86400)
+                    and type(value['source']) is str
                     and re.fullmatch(r'[0-9a-f]{64}', value['source']), 'ui:natural-expiry-response')
                 AppActivityObservation.from_value(value['activity'])
                 require(value['source'] == getattr(self, 'natural_expiry_source', value['source']),

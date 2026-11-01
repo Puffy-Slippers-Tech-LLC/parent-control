@@ -1,7 +1,8 @@
 # VM mandate
 
-This mandate owns VM target selection, observation, leases and preparation
-lifetime. [Approval tools](../Approval-Tools.md) owns command grants;
+This mandate owns VM target selection, observation, leases, preparation
+lifetime and timing resilience for VM tests.
+[Approval tools](../Approval-Tools.md) owns command grants;
 [test maintenance](../../tests/README.md#all-established-regressions) owns runner
 scheduling and [E2E execution](../TestAutomation/E2E-Execution-Contracts.md#live-verification-contract)
 owns task acceptance. A documentation-only reconciliation performs no VM work
@@ -236,6 +237,69 @@ completion is uncertain. Simultaneous abrupt controller and SSH death can still
 leave guest work running after the host descriptor disappears; inherited host
 descriptors do not prove remote completion. The recorded VM ownership and
 recovery routes remain necessary in that case.
+
+## Timing and slow-VM resilience
+
+Design VM tests to tolerate a substantially slower guest or controller without
+rushing input in the last seconds of a countdown. Apply this during planning,
+implementation, qualification and repair, including engineering histories and
+customer E2E. Use existing shared waits and observers; cases own their finite
+inputs and assertions. Do not add a timing framework or a per-task copy of these
+rules.
+
+- **Prepare with ample headroom.** Complete fixture, application, session and
+  observer readiness before starting a short measured interval wherever the
+  required history permits. Use a comfortably long attempt-owned setup or
+  recovery grant when its expiry is incidental. Authentication must have room
+  for prompt discovery, a fresh recipient check, password delivery, submission
+  and independent result observation. For example, a 20-minute kiosk grant with
+  authentication begun about five minutes before expiry avoids the race through
+  the last 30 seconds. These values illustrate margin, not required
+  durations, waits or a literal slowdown multiplier. Do not wait for an
+  incidental grant to expire; use the scenario's authorized next action or
+  owned cleanup.
+- **Separate measured behavior from test overhead.** Preserve the specified
+  product response bound and its original trigger, grant or expiry. Give
+  navigation, authentication, transport, retained-work checks and recovery
+  their own ample finite budgets when they do not measure that bound. A timely
+  lock observation and a later functional input challenge are different
+  assertions; neither a late lock nor successful input proves timely locking.
+  A history that enters an already locked session cannot prove natural lock
+  onset. Keep genuinely timed expiry intervals short after preparation; do not
+  extend the behavior under test to hide a slow test.
+- **Control ordering instead of relying on speed.** For a required crossing
+  such as expiry during authentication, establish the genuine challenge and
+  ready the observation with comfortable lead time before the original
+  boundary. Use supported public readiness/order gates where available. Do not
+  assume a policy write is possible while authentication owns a transaction,
+  or substitute an internal state injection in customer acceptance. If the
+  available route cannot establish the required order reliably, report that
+  concrete gap rather than accepting a lucky pass.
+- **Wait for state and return promptly.** Replace arbitrary settling sleeps,
+  repeated full discovery and unrelated checks with the required scoped
+  observation. Retain every fresh input-recipient guard and independently
+  observe the result under the [UI mandate](UI-Automation-Mandate.MD#input-and-independent-results).
+  Evidence must remain tied to the original VM, boot, account, session,
+  challenge and work as applicable. Increasing a failure timeout must add no
+  normal-path delay; use bounded polling or the existing event observation and
+  finish as soon as the result is established.
+- **Budget the complete sequence.** Account for observation and transport
+  costs, not just input time. Keep one monotonic deadline per bounded sequence;
+  nested waits consume its remaining time and read-only retries cannot renew
+  it. Leave transport margin around guest waits and sufficient outer-worker
+  time for the finite history and owned cleanup. Do not stack fresh per-step
+  timeouts, renew the measured grant, replay uncertain input or rerun until a
+  favorable schedule passes. Diagnose which bound failed before changing it;
+  preserve actual product timing failures under [failure handling](../../tests/README.md#handling-test-failures).
+
+Choose and review margins from the complete history and observed slow stages,
+not the last successful runtime alone. Use normal runner timings to report the
+measured boundary and functional budget separately. A pass with only seconds
+to spare is a reason to review the design, not evidence of resilience. Broad
+headroom should keep ordinary execution fast; no artificial slow-VM matrix,
+extra repeat runs, evidence archive or new tests of these policy rules are
+required. Task-specific values and unavoidable boundary constraints belong in
+the existing case or unfinished brief, linked here.
 
 ## VM observation mandate
 

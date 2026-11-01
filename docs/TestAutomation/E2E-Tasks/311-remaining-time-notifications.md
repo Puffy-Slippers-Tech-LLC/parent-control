@@ -56,8 +56,9 @@ five minutes. Independently observe the 1m and 15s warnings once through natural
 countdown; expect shared localized text and Critical urgency. Do not wait for
 the 10m and 5m warnings to appear; their saved defaults remain checked, but their
 delivery is outside this case's acceptance.
-Prepare game mode, supported fullscreen transition and the public emission
-observer before approaching these thresholds, following the
+Complete language/reminder saves, account entry, game mode, supported fullscreen
+transition and the public emission observer before the below-five-minute
+approach. Arm renewed-access intervals the same way, following the
 [finite reminder timing owner](../E2E-Scenario-Recipes.md#explicit-time-preparation).
 Keep each emitted warning's actual identity and deadline through its visibility
 checks; no settings tour belongs inside the 15-second warning interval.

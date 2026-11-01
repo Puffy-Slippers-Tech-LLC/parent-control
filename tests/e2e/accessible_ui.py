@@ -180,8 +180,10 @@ COUNTDOWN_OPERATIONS = frozenset({'child-countdown-present', 'child-countdown-ab
 COUNTDOWN_SESSION_OPERATIONS = frozenset('child-countdown-session-' + state
     for state in ('pin', 'locked', 'greeter', 'restored'))
 OPERATIONS |= COUNTDOWN_SESSION_OPERATIONS
+ENGINEERING_EXPIRY_OPERATIONS = frozenset('child-natural-expiry-engineering-' + action
+    for action in ('observe', 'activity', 'lock-ready', 'lock-result'))
 NATURAL_EXPIRY_OPERATIONS = frozenset('child-natural-expiry-' + action for action in (
-    'observe', 'activity', 'lock-ready', 'lock-result'))
+    'observe', 'activity', 'lock-ready', 'lock-result')) | ENGINEERING_EXPIRY_OPERATIONS
 OPERATIONS |= NATURAL_EXPIRY_OPERATIONS
 OPERATIONS |= {'child-natural-expiry-wrong-account-refused'}
 PANEL_ANIMATION_OPERATIONS = frozenset({'child-countdown-animation-read',
@@ -8213,20 +8215,29 @@ class AccessibleUI:
         require(uid == pwd.getpwnam(CHILD_ACCOUNTS[CHILD]).pw_uid == os.geteuid(),
                 'ui:natural-expiry-account')
         current = session_control.sessions()
-        active = [item for item in current.values() if session_control.local_graphical(item)
-                  and item['Active'] == 'yes']
-        require(len(active) == 1 and active[0]['LockedHint'] in ('yes', 'no'),
+        source = session_control.source_identity(current, uid)
+        locked = session_control.screen_saver_active(uid)
+        confirmed = session_control.sessions()
+        identity = session_control.entry_identity(confirmed, uid, 'lock' if locked else 'same')
+        require(session_control.source_identity(confirmed, uid) == source
+                and all(current[source][key] == confirmed[source][key]
+                        for key in ('User', 'Remote', 'Class', 'Type', 'Seat')),
                 'ui:natural-expiry-session')
-        locked = active[0]['LockedHint'] == 'yes'
-        identity = session_control.entry_identity(current, uid, 'lock' if locked else 'same')
         return identity, locked
 
     def natural_expiry(self, operation):
         """TIME04: observe before app input; never inspect the app below a lock."""
         require(operation in NATURAL_EXPIRY_OPERATIONS, 'ui:natural-expiry-operation')
         require(not self.input_uncertain, 'ui:uncertain-input')
+        engineering = operation in ENGINEERING_EXPIRY_OPERATIONS
+        action = operation.removeprefix('child-natural-expiry-').removeprefix('engineering-')
+        if engineering:
+            # Timed expiry sampling stays strict. Later input verification has
+            # its own bounded controller clock and need not race that sample.
+            self.timeout = (150 if action in ('lock-ready', 'lock-result')
+                            else min(self.timeout, 15))
         expected = getattr(self, 'expected_natural_expiry_source', None)
-        if operation == 'child-natural-expiry-activity':
+        if action == 'activity':
             require(type(expected) is str and re.fullmatch(r'[0-9a-f]{64}', expected),
                     'ui:natural-expiry-source')
         session, locked = self.natural_expiry_session()
@@ -8252,12 +8263,14 @@ class AccessibleUI:
             source = hashlib.sha256(json.dumps([session, activity['pid'], activity['endpoint']],
                                                sort_keys=True).encode()).hexdigest()
             require(expected is None or expected == source, 'ui:natural-expiry-stale-activity')
-            remaining = self.snapshot_owned_target('child-remaining-time', showing=False,
-                                                  check_prompt=True)
-            require(remaining is not None and self.showing(remaining),
-                    'ui:natural-expiry-countdown')
-            seconds = remaining.getValue()
-            require(type(seconds) is int and 0 <= seconds < 86400, 'ui:natural-expiry-countdown')
+            seconds = None
+            if not engineering:
+                remaining = self.snapshot_owned_target('child-remaining-time', showing=False,
+                                                      check_prompt=True)
+                require(remaining is not None and self.showing(remaining),
+                        'ui:natural-expiry-countdown')
+                seconds = remaining.getValue()
+                require(type(seconds) is int and 0 <= seconds < 86400, 'ui:natural-expiry-countdown')
             # Recheck the session after discovery and immediately before input.
             # Near expiry, retain read-only observation instead of racing an action.
             identity, is_locked = self.natural_expiry_session()
@@ -8279,7 +8292,8 @@ class AccessibleUI:
                     raise
                 return observe()
         value = self.wait(transition_read, 'natural-expiry', prompt_in_predicate=True)
-        if operation != 'child-natural-expiry-activity' or value['state'] == 'locked' or value['seconds'] <= 10:
+        if (action != 'activity' or value['state'] == 'locked'
+                or not engineering and value['seconds'] <= 10):
             return value
         self.invalidate_observation()
         root = self.snapshot_owned_target('onpc-fixture-native-primary',
@@ -14555,9 +14569,10 @@ def require_active_launch_session(*, unlocked=False):
             if props.get('Class') in ('user', 'user-early') and props.get('Type') in ('wayland', 'x11'):
                 require(props.get('Remote') == 'no' and props.get('Seat') == 'seat0',
                         'ui:launch-session')
-                require(not unlocked or props.get('LockedHint') == 'no', 'ui:launch-session')
                 active.append(session)
     require(len(active) == 1, 'ui:launch-session')
+    if unlocked:
+        require(not session_control.screen_saver_active(uid), 'ui:launch-session')
 
 
 def native_execution_journal_diagnostic(unit, *, executable='/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage'):

@@ -6,6 +6,8 @@ Apply it when planning, adding, changing or reviewing tests, including test
 infrastructure work and automated repair. [Test maintenance](../../tests/README.md)
 owns execution and failure handling; the [UI mandate](UI-Automation-Mandate.MD)
 owns permitted automation routes. Task briefs cannot require excluded coverage.
+The [VM timing contract](VM-Mandate.MD#timing-and-slow-vm-resilience) owns slow-VM
+headroom and the separation of product timing assertions from test overhead.
 
 ## Required coverage
 

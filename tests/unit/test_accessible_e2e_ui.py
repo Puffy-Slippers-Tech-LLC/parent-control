@@ -86,11 +86,13 @@ def test_guest_boot_refusal_precedes_identity_switch_and_ui_access(monkeypatch, 
 def test_direct_parent_launch_requires_one_active_local_graphical_user(monkeypatch, fault):
     monkeypatch.setattr(accessible_ui.os, 'getuid', lambda: 0 if fault == 'root' else 1001)
     monkeypatch.setattr(accessible_ui.os, 'geteuid', lambda: 0 if fault in ('root', 'wrong-euid') else 1001)
+    native_lock = Mock(return_value=fault == 'locked')
+    monkeypatch.setattr(accessible_ui.session_control, 'screen_saver_active', native_lock)
     props = {'User': '1001', 'Active': 'yes', 'Remote': 'no', 'Class': 'user',
              'Type': 'wayland', 'Seat': 'seat0', 'LockedHint': 'no'}
     for kind, key, value in [('foreign-user', 'User', '1002'), ('remote', 'Remote', 'yes'),
                              ('inactive', 'Active', 'no'), ('wrong-seat', 'Seat', 'seat1'),
-                             ('locked', 'LockedHint', 'yes'), ('tty', 'Type', 'tty')]:
+                             ('tty', 'Type', 'tty')]:
         if fault == kind:
             props[key] = value
     def call(argv, **kwargs):
@@ -107,6 +109,8 @@ def test_direct_parent_launch_requires_one_active_local_graphical_user(monkeypat
             accessible_ui.require_active_launch_session(unlocked=True)
     else:
         accessible_ui.require_active_launch_session(unlocked=True)
+    if fault not in (None, 'locked'):
+        native_lock.assert_not_called()
 
 
 def parent_save_ui(*, enabled=True, controls_enabled=True, child_uid=1001):

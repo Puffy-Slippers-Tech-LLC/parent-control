@@ -18,6 +18,10 @@ pending lock request boundary to detect lost/replayed effects. Recover via the
 supported lifecycle and reconstruct current native balance, grant and session
 within a predeclared budget including outage time. Never reset the grant clock.
 
+Confirm the exact crash/pending-request boundary before crossing expiry rather
+than relying on a last-second signal. A restart first observed after expiry
+cannot establish whether protection held during the required outage.
+
 Reject duplicate time, replayed approval, stale effects or peer disturbance.
 Observe useful deadline progress, not merely a running service. Current lack of
 automatic restart is a recorded boundary, not an automatic pass or permission

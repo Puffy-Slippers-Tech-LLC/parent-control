@@ -29,6 +29,12 @@ journeys. Do not repeat their authentication matrix or task 172's reader faults.
 If no independent source can supply current use, report that blocker; static
 recorded use or the disabled extension's endpoint cannot qualify independence.
 
+Prepare the native reader and ordinary foreground activity under ample setup
+entitlement before starting the measured interval. Bracket fresh reads with
+monotonic timestamps and native precision; require meaningful progress over the
+interval, not an exact tick or two back-to-back reads differing. Arm any short
+grant-expiry observation only once its reader is ready.
+
 Run affected host checks and this installed parameter on both targets; restore
 exact original native limits/grants and extension state through owned cleanup.
 Timing estimates establish no lock, app-access or customer-case pass.

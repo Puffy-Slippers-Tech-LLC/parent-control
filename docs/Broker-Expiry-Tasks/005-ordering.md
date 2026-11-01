@@ -17,6 +17,11 @@ rollback and existing caller/session authorization independently; not every
 concurrent operation succeeds. Positive daily time remains usable after grant
 removal. Extend only assertions missing from the current core/dispatch owners.
 
+Establish each interleaving with existing controlled callbacks/events and a
+bounded join. Do not use small sleeps, thread speed or repeated runs to obtain
+the desired order; assert the actual commit/refusal order independently of
+which worker finishes first.
+
 Reuse existing retry/cancellation and identity regressions rather than repeating
 the reliability 001 family or E2E residual matrices. Test meaningful existing
 broker state/dispatch contracts, not a mock of an invented future scheduler.

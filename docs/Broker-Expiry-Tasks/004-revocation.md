@@ -16,6 +16,12 @@ Observe immediate bounded input-protecting lock and retained work, using the
 original deadline and task 001's predeclared revocation bound. Use a positive
 daily-balance control: grant removal must leave existing daily access usable.
 Verify live AccountsService state defeats a stale cached client grant.
+
+Prepare the management connection, foreground work and lock observer before
+revocation; anchor its response bound to the original observed revoke, not the
+later return/navigation. Give the positive-daily control ample remaining access
+for its complete input/work check so incidental daily exhaustion cannot mimic
+a revocation failure.
 Then isolate the old expiry request to qualify the native boundary; distinguish
 this diagnostic result from the production-path regression and future broker
 replacement qualification. An unmet native obligation stays a handover blocker;

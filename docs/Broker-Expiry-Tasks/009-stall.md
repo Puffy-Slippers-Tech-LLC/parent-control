@@ -19,6 +19,10 @@ Where a health/heartbeat exists, it must represent useful deadline progress;
 service liveness alone cannot establish enforcement. No heartbeat/supervision
 implementation is authorized by this TA task.
 
+Confirm the actual stall spans expiry; host scheduling or a slow reply cannot
+substitute for that ordering. The original process identity must still own the
+stall when recovery resumes it.
+
 Reuse the shared crash mechanics and observation; add only the stalled-process
 condition and its recovery. Run on both targets with finite fault/recovery
 windows and serial identity-checked cleanup; unsupported progress remains a

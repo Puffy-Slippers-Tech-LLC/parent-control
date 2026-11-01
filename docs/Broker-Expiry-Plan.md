@@ -1,7 +1,7 @@
 # Broker expiry test automation execution plan
 
 Task queue: [Ordered task queue](Broker-Expiry-Task-Queue.md).
-Next task: **001 — [Observe secure locking without the panel](Broker-Expiry-Tasks/001-observation.md)**.
+Next task: **002 — [Check native time without the extension](Broker-Expiry-Tasks/002-native-time.md)**.
 
 ## Outcome and boundary
 
@@ -24,11 +24,13 @@ The review compares executable bindings, not titles or pending declarations.
 System-281 owns PAM/runtime-cap policy. System-282's
 [graphical worker](../tests/integration/system_graphical_expiry.py) and
 [session registration](../tests/system/test_session_expiry.py) exercise real
-grant expiry, retained session and extension recovery, but require the extension
-active and use ScreenSaver state/policy rather than an input challenge. Its
-peer control does not prove another graphical user's continued input/work.
-Keep those assertions. Extend this owner only for the distinct engineering
-conditions below; do not duplicate 281, startup or package recovery coverage.
+grant expiry, retained session and extension recovery with the extension active.
+Task 001 added panel-independent timed locking, fresh protected-input challenges,
+original-work recovery and foreground graphical-peer input/work continuity at
+this same owner, accepted on Ubuntu 26.04 and Fedora 44. ScreenSaver/logind hints
+remain supporting observations. Extend this owner only for the distinct
+engineering conditions below; do not duplicate 281, startup or package recovery
+coverage. Extension-independent accounting and enforcement remain pending.
 
 | Existing owner | Reuse and remaining boundary |
 | --- | --- |
@@ -64,12 +66,16 @@ native/secure-lock boundary without granting a passing enforcement result.
 Missing ownership or observation still blocks them. A production-path regression
 cannot be reclassified as a successful diagnostic to evade failure handling.
 
-Task 001 fixes finite sampling precision, observation windows, retry budgets
-and recovery deadlines before effect tests. Preserve TIME04's current sample
-upper end plus 15 seconds. Other budgets require a declared rationale before
-execution; do not adjust expectations after failure. Outage time counts against
-the original deadline and recovery budget. A sent lock request, LockedHint,
-ScreenSaver activity, countdown or successful restart alone cannot pass.
+Every unfinished row applies the VM mandate's
+[timing and slow-VM resilience](Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience).
+The [shared expiry owner](../tests/support/README.md) declares the delivered
+sampling, lock-verification and recovery budgets and their distinct claims.
+Preserve TIME04's current sample upper end plus 15 seconds and the engineering
+timed-lock bound; outage time still counts against the original effect/recovery
+deadline. A sent lock request, LockedHint, ScreenSaver activity, countdown or
+successful restart alone cannot pass. Task briefs below add only their specific
+trigger, ordering and observation needs; host orderings use controlled events
+rather than hoping for a particular scheduler interleaving.
 
 Lock-producing histories establish real protected input, retained ordinary work
 and the relevant session/peer isolation control. Timing-only probes establish

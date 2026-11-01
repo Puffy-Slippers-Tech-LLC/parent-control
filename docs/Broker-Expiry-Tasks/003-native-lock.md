@@ -20,6 +20,11 @@ variant: use existing switch helpers and prove the target's transition, not
 only peer continuity. Daily use pauses while inactive; never expect its old
 active-use deadline to survive a switch unchanged.
 
+The existing switch-user route locks the source desktop itself: it cannot prove
+a later background expiry transition. That variant needs a qualified independent
+transition observation or an explicit observation blocker; a pre-existing lock
+supplies only retained protection.
+
 Keep existing extension-enabled expiry/recovery assertions. These parameters
 qualify native enforcement specifically; do not duplicate combined-countdown,
 fresh/retained admission or positive daily soft-app journeys. Native limitations

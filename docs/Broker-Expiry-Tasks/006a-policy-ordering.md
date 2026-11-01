@@ -18,6 +18,12 @@ An entitled desktop stays usable; a restricted one locks within declared bounds.
 Retain work and unaffected peer input. Reuse host ordering from 005 and public
 management helpers; do not duplicate generic concurrency obligations 147/148.
 
+Ready both actors and observations before starting each short expiry history.
+Use the established callback/order mechanics to select the intended boundary,
+then check the live authoritative commit/refusal result. Wall-clock sleeps or
+submitting in the final countdown seconds cannot establish that ordering; an
+unavailable controlled boundary remains explicit rather than rerunning to luck.
+
 Run the new installed delta on both targets, restore owned state, and report
 current-path mismatches under failure handling. Future broker effect callbacks
 remain mandatory replacement gates; do not invent them in this TA task.

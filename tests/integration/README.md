@@ -1498,8 +1498,7 @@ failed test assertion.
   actual grant or denial assertions.
   `FixturePassword` generates distinct temporary
   credentials and sets them through guarded guest stdin without diagnostic
-  export. Agent cleanup signals only its directly spawned pidfd; run
-  `test_system_agent_cleanup_safety.py` before integrated use. This text-agent
+  export. Agent cleanup signals only its directly spawned pidfd. This text-agent
   coverage does not replace graphical authentication journeys.
 - `system_assertions.py`: reusable `batch`, `call`,
   `account_property` and `account_state` assertions. Account state compares

@@ -15,7 +15,6 @@ from regression_ui import Bucket
 REVIEWED = frozenset("""
 system_first_configure
 system_removal_faults
-e2e_app_rows
 build_package
 build_test_artifacts
 publish
@@ -55,7 +54,6 @@ kiosk_confinement
 kiosk_login
 kiosk_model
 kiosk_rendering
-launcher_worktrees
 licensing
 lightning
 localization
@@ -80,26 +78,17 @@ probe_bus_client_cleanup_safety
 probe_channel_cleanup_safety
 probe_generation_cleanup_safety
 publish_source_integrity
-read_only_launcher
 regression
 regression_cleanup_safety
-regression_inputs
-regression_schedule
-regression_selection
-regression_unit
 release_signing
 request_selections
 request_time_estimate
 rpm_packaging
 service_contract
 session_limit_check
-system_accounts_cleanup_safety
-system_agent_cleanup_safety
-system_caller
 system_guest
 system_info
 systemd_unit
-test_activity
 test_checkpoint
 test_launchers
 test_runner_policy
@@ -110,7 +99,6 @@ usage_query_retry
 vm_backup_cleanup_safety
 vm_control_cleanup_safety
 vm_pool
-watch_activity
 whats_new
 """.split())
 
@@ -120,7 +108,6 @@ ESTIMATES = {
     **CLEANUP_ESTIMATES,
     'test_test_launchers.py': 6,
     'test_regression.py': 30,
-    'test_regression_schedule.py': 25,
     'test_broker_properties.py': 20,
     'test_broker_state_machine.py': 20,
     'test_package_payload.py': 15,

@@ -461,17 +461,36 @@ class ExtensionManagerTests(unittest.TestCase):
 
     def test_report_uses_fixed_user_manager_launch_and_reuses_existing_report_unit(self):
         with (mock.patch.object(self.manager, "_account", return_value=(self.account, None)),
-              mock.patch.object(self.manager, "_run_command", side_effect=[RuntimeError(), None]) as run):
+              mock.patch.object(self.manager, "_run_command", side_effect=[
+                  SimpleNamespace(stdout="DISPLAY=:0\n"), RuntimeError(), None]) as run):
             self.manager.report_failure(1001)
-        self.assertEqual(run.call_args_list[0].args[1][-4:], (
+        self.assertEqual(run.call_args_list[0].args[1], ("systemctl", "--user", "show-environment"))
+        self.assertEqual(run.call_args_list[1].args[1][-4:], (
             "--", "/usr/bin/oh-no-parent-control-child", "--child-overlay", "--error-report-stdin"))
-        self.assertIn("--unit=oh-no-parent-control-extension-error.service", run.call_args_list[0].args[1])
-        self.assertEqual(run.call_args_list[1].args[1][:4], ("systemctl", "--user", "is-active", "--quiet"))
+        self.assertIn("--unit=oh-no-parent-control-extension-error.service", run.call_args_list[1].args[1])
+        self.assertEqual(run.call_args_list[2].args[1][:4], ("systemctl", "--user", "is-active", "--quiet"))
         self.assertTrue(all(call.kwargs["require_live"] for call in run.call_args_list))
+
+    def test_report_defers_without_graphical_environment_and_launches_when_it_returns(self):
+        with (mock.patch.object(self.manager, "_account", return_value=(self.account, None)),
+              mock.patch.object(self.manager, "_run_command", return_value=SimpleNamespace(
+                  stdout="DISPLAY=\nWAYLAND_DISPLAY=\nPRIVATE_DISPLAY=:0\n")) as run):
+            with self.assertRaises(ChildExtensionUnavailable):
+                self.manager.report_failure(1001)
+            run.assert_called_once_with(self.account,
+                ("systemctl", "--user", "show-environment"), require_live=True)
+            run.reset_mock()
+            run.side_effect = [SimpleNamespace(stdout="WAYLAND_DISPLAY=wayland-0\n"), None]
+            self.manager.report_failure(1001)
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(run.call_args.args[1][0], "systemd-run")
 
     @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
     def test_report_command_projects_diagnostics_and_executes_as_the_child(self, run):
-        run.return_value = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+        secret = "private@example.test /home/private-child"
+        run.side_effect = [
+            subprocess.CompletedProcess([], 0, stdout="WAYLAND_DISPLAY=wayland-0\nPRIVATE=" + secret, stderr=""),
+            subprocess.CompletedProcess([], 0, stdout="", stderr="")]
         with (mock.patch.object(self.manager, "_account", return_value=(self.account, None)),
               mock.patch.object(self.manager, "_command", side_effect=lambda _account, arguments:
                   (list(arguments), {"XDG_RUNTIME_DIR": "/run/user/1001"}, "live-session")),
@@ -483,6 +502,7 @@ class ExtensionManagerTests(unittest.TestCase):
         events = [decode(record.onpc_payload) for record in logs.records]
         self.assertNotIn("diagnostic.rejected", [row["event"] for row in events])
         self.assertTrue(all(row["fields"].get("operation", "other") == "other" for row in events))
+        self.assertNotIn(secret, "\n".join(logs.output))
 
     @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
     def test_settings_command_drops_privileges_without_pam(self, run):

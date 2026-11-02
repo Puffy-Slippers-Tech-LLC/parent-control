@@ -1641,11 +1641,15 @@ def stage_selected_inputs(selection, destination):
     inputs = [('Makefile', 'install-source/Makefile'), *COMMON_SELECTED_INPUTS]
     if selection.qualification_failure:
         inputs.append(('tests/integration/system_qualification.py', 'system_qualification.py'))
-    if any(item.case_id == 'test_child_extension_monitor_session_lifecycle'
+    if any(item.case_id in {'test_child_extension_monitor_session_lifecycle',
+                            'test_child_extension_failure_reporting'}
            for item in selection.executions):
         # This stdlib-only command has its own guarded CLI. It does not import
         # its host observation adapter when run for one pinned desktop logout.
         inputs.append(('tests/e2e/session_control.py', 'session-control'))
+    if any(item.case_id == 'test_child_extension_failure_reporting'
+           for item in selection.executions):
+        inputs.append(('tests/support/application_ui.py', 'application_ui_support.py'))
     for area in AREA_SOURCES:
         if area not in selected_areas:
             continue

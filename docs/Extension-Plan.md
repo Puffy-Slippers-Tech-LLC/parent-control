@@ -1,7 +1,7 @@
 # Extension recovery VM test plan
 
 Task queue: [Ordered task queue](Extension-Task-Queue.md).
-Next task: **003 — [Report extension failures without a crash loop](Extension-Tasks/003-error-reporting.md)**.
+Next task: **004 — [Restore the extension after startup and reboot](Extension-Tasks/004-startup-recovery.md)**.
 
 ## Scope
 

@@ -28,24 +28,36 @@ from tests.support.broker import (
 @pytest.mark.parametrize("caller", [1001, 991])
 def test_extension_recovery_requires_administrator(caller):
     extensions = Extensions()
+    on_recovered = mock.Mock()
     with pytest.raises(AccessDenied):
-        make_broker(extensions=extensions).recover_child_extension(caller, 1001)
+        make_broker(extensions=extensions).recover_child_extension(caller, 1001,
+                                                                 on_recovered=on_recovered)
     assert extensions.calls == []
+    on_recovered.assert_not_called()
 
 
 @pytest.mark.parametrize("caller", [0, 1003])
 def test_login_recovery_respects_saved_control_and_preserves_account_state(caller):
     preferences, extensions, accounts = Preferences(), Extensions(), Accounts()
     broker = make_broker(preferences=preferences, extensions=extensions, accounts=accounts)
-    assert not broker.recover_child_extension(caller, 1001)
+
+    def notified(uid):
+        assert broker._request_lock.locked()
+        assert extensions.recoveries == [uid]
+
+    on_recovered = mock.Mock(side_effect=notified)
+    assert not broker.recover_child_extension(caller, 1001, on_recovered=on_recovered)
     assert extensions.calls == []
+    on_recovered.assert_not_called()
     preferences.values[1001]["parent_control_enabled"] = True
-    assert broker.recover_child_extension(caller, 1001)
+    assert broker.recover_child_extension(caller, 1001, on_recovered=on_recovered)
+    on_recovered.assert_called_once_with(1001)
     assert extensions.recoveries == [1001]
     assert accounts.events == []
     with mock.patch.object(extensions, "set_enabled", side_effect=RuntimeError("failure")):
         with pytest.raises(BackendFailure):
-            broker.recover_child_extension(caller, 1001)
+            broker.recover_child_extension(caller, 1001, on_recovered=on_recovered)
+    on_recovered.assert_called_once_with(1001)
     assert broker.recover_child_extension(caller, 1001)  # Failure released the transaction lock.
 
 
@@ -55,6 +67,16 @@ def test_session_extension_hints_revalidate_policy_and_roles_under_transaction_l
     action = mock.Mock()
     assert not broker.reconcile_enabled_child(1001, action)
     preferences.values[1001]["parent_control_enabled"] = True
+    revision = broker.extension_reconciliation_revision()
+    assert not broker.extension_reconciliation_busy()
+    assert broker.reconcile_enabled_child(1001, lambda: None, expected_revision=revision)
+    # A completed recovery between observation and locking invalidates even
+    # an otherwise eligible, saved-enabled action; its try-lock is released.
+    revision = broker.extension_reconciliation_revision()
+    assert broker.recover_child_extension(0, 1001)
+    with pytest.raises(Busy):
+        broker.reconcile_enabled_child(1001, action, expected_revision=revision)
+    action.assert_not_called()
     with mock.patch.object(action, "side_effect", RuntimeError()):
         with pytest.raises(RuntimeError):
             broker.reconcile_enabled_child(1001, action)

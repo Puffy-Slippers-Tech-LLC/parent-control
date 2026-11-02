@@ -253,7 +253,10 @@ distinction.
 If Shell disappears soon after recovery and its replacement still has extensions
 globally disabled, automatic activation pauses rather than repeatedly undoing
 GNOME's crash protection. A parent can explicitly request recovery through the
-existing recovery actions; observing the extension healthy also clears the hold.
+existing recovery actions. Successful explicit recovery rearms monitoring even
+if its brief healthy transition is missed, while preserving any pending report.
+It does not clear a newer confirmed failure.
+Observing the extension healthy also clears the hold.
 Ordinary logout/relogin with extensions globally enabled does not trigger an
 error report or this hold. A confirmed product-extension error remains reportable
 after a Shell restart, even if the replacement Shell has already recovered it.

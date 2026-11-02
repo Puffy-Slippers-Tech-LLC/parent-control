@@ -205,10 +205,11 @@ class BrokerEvents:
         self.origin = startup['register_finished_ns'] / 1e9 - latest['elapsed_ms'] / 1000
 
     @staticmethod
-    def read():
+    def read(component='broker'):
         from oh_no_parent_control.logs import decode
+        guest.require(component in {'broker', 'child'}, 'extension:log-component')
         rows = []
-        for path in Path('/var/log/oh-no-parent-control/broker').glob('*.events*'):
+        for path in (Path('/var/log/oh-no-parent-control') / component).glob('*.events*'):
             try:
                 info = path.lstat()
                 guest.require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and
@@ -222,8 +223,8 @@ class BrokerEvents:
                     continue  # Never interpret an in-flight append as a record.
                 row = json.loads(line)
                 decode(json.dumps({key: row[key] for key in ('v', 'event', 'operation', 'fields')}),
-                       component='broker')
-                guest.require(row['component'] == 'broker' and type(row['elapsed_ms']) is int
+                       component=component)
+                guest.require(row['component'] == component and type(row['elapsed_ms']) is int
                               and row['elapsed_ms'] >= 0, 'extension:invalid-broker-log')
                 rows.append(row)
         guest.require(len(rows) < 10000, 'extension:broker-log-bound')
@@ -816,6 +817,375 @@ def verify_lifecycle(publish):
         record('broker-replacement', {'pending_recovery_before_stop': True,
                'old_worker_settled': True, 'new_invocation': True, 'saved_off_preserved': True,
                'late_enable_attempts': 0, 'error_reports': 0})
+    finally:
+        for observer in reversed(observers):
+            observer.close()
+
+
+# Same-user UI adapter for the launch-owned, non-unique Child error reporter.
+# Mutations are explicit one-shot operations; polling invokes only 'read'.
+REPORT_UI = '''
+import json, sys, types
+sys.path.insert(0, '/usr/lib/oh-no-parent-control')
+support = types.ModuleType('application_ui_support')
+sys.modules[support.__name__] = support
+exec(sys.argv[1], support.__dict__)
+from application_ui_support import process_application_ui, UIClientError
+pid, operation = int(sys.argv[2]), sys.argv[3]
+try:
+    ui = process_application_ui(pid, frontend='child-request')
+    with_ui = lambda identity: ui.getElementById(identity)
+    dialog = with_ui('feedback-dialog')
+    if not dialog.metadata['visible']:
+        raise UIClientError('Unavailable')
+    if operation == 'edit':
+        with_ui('feedback-editor-input').setText(sys.argv[4])
+    elif operation == 'close':
+        with_ui('feedback-close').activate()
+        print(json.dumps({'closed': True}))
+        sys.exit(0)
+    elif operation != 'read':
+        raise ValueError('operation')
+    document = with_ui('feedback-editor-document').getValue()
+    client = dialog.client
+    surfaces = client.listSurfaces()
+    print(json.dumps({'ready': True, 'pid': client.pid, 'owner': client.owner,
+          'path': client.object_path, 'document': document,
+          'reports': sum(s['id'] == 'feedback-dialog' and s['visible'] for s in surfaces),
+          'success': any(s['id'] == 'feedback-success-dialog' and s['visible'] for s in surfaces)}))
+except UIClientError as error:
+    if operation != 'read' or error.code != 'Unavailable':
+        raise
+    print(json.dumps({'ready': False}))
+'''
+
+
+def verify_failure_reporting(publish):
+    """One native ERROR, deferred report/draft, then conservative bus-loss hold.
+
+    The sole native payload fault is restored before renewing the Shell module
+    cache. Whole-bus loss uses the runner-created user manager, never a PID kill.
+    The outer installed-system owner restores autologin and the VM fixture.
+    """
+    from contextlib import contextmanager
+    from system_session_expiry import isolated_broker_for_extension_faults
+
+    marker = guest.guard()
+    guest.enable_diagnostics()
+    prepared = json.loads(FIXTURE.read_text())
+    guest.require(prepared['run'] == marker['run'] and
+                  prepared['boot'] != Path('/proc/sys/kernel/random/boot_id').read_text(),
+                  'extension:failure-reboot-boundary')
+    deadline = time.monotonic() + 1050
+    accounts = identities()
+    child = accounts['child']
+    manager = installed_manager()
+    from oh_no_parent_control.preferences import PreferenceStore
+    account, _ = manager._account(child)
+    store = PreferenceStore()
+    observers = []
+    reporter = 'oh-no-parent-control-extension-error.service'
+    user_unit = f'user@{child}.service'
+    # The verified input tree is root-private. Hand the shared public adapter's
+    # source to the child process without exposing the rest of that tree.
+    ui_support = Path(__file__).with_name('application_ui_support.py').read_text()
+
+    def record(name, value):
+        publish('onpc.extension.failure.' + name, json.dumps(value, sort_keys=True))
+
+    def wait(predicate, category, timeout=90):
+        remaining = deadline - time.monotonic()
+        guest.require(remaining > 0, 'extension:failure-budget')
+        return wait_for(predicate, 'extension:failure-' + category,
+                        timeout=min(timeout, remaining))
+
+    def user(*arguments):
+        return manager._run_command(account, ('systemctl', '--user', *arguments),
+                                    require_live=True).stdout.strip()
+
+    def user_identity():
+        value = guest.run(['systemctl', 'show', user_unit, '--property=InvocationID', '--value'])
+        guest.require(re.fullmatch(r'[0-9a-f]{32}', value) and value != '0' * 32,
+                      'extension:failure-user-manager-identity')
+        return value
+
+    def observe():
+        wait(lambda: child_session(child), 'child-session')
+        wait(lambda: manager._shell_is_available(account), 'shell-unavailable')
+        observer = Shell(account, manager.session_bus_address(child), track_owner=True)
+        observers.append(observer)
+        def ready():
+            try:
+                return observer.info()
+            except observer.GLib.Error as error:
+                if observer.Gio.DBusError.get_remote_error(error) in {
+                        'org.freedesktop.DBus.Error.UnknownMethod',
+                        'org.freedesktop.DBus.Error.UnknownObject'}:
+                    return False
+                raise
+        wait(ready, 'extension-interface')
+        return observer
+
+    def automatic_login(enabled):
+        guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
+                   f'/org/freedesktop/Accounts/User{child}', 'org.freedesktop.Accounts.User',
+                   'SetAutomaticLogin', 'b', str(enabled).lower()])
+        guest.require(account_property(child, 'org.freedesktop.Accounts.User',
+                                       'AutomaticLogin') is enabled,
+                      'extension:failure-autologin-readback')
+
+    def logout():
+        session, _ = child_session(child)
+        result = json.loads(guest.run(['/usr/bin/python3', '-I', str(Path(__file__).with_name('session-control')),
+                                     'maintenance-logout', str(child), session], timeout=90))
+        guest.require(result.get('outcome') == 'passed' and child_session(child) is None,
+                      'extension:failure-logout-not-observed')
+
+    def report_state():
+        # A fixed transient service is the product's singleton ownership
+        # boundary. No window title or process-name census supplies identity.
+        def absent():
+            return not user('list-units', '--all', '--plain', '--no-legend', reporter)
+        missing = {'ActiveState': 'inactive', 'MainPID': '0', 'InvocationID': ''}
+        if absent():
+            return missing
+        raw = user('show', reporter, '--property=ActiveState,MainPID,InvocationID')
+        values = dict(line.split('=', 1) for line in raw.splitlines())
+        guest.require(set(values) == {'ActiveState', 'MainPID', 'InvocationID'}
+                      and values['MainPID'].isdigit(), 'extension:failure-report-service-state')
+        return values
+
+    def report(operation='read', value=''):
+        state = report_state()
+        if state['ActiveState'] != 'active' or state['MainPID'] == '0':
+            guest.require(operation == 'read', 'extension:failure-report-not-active')
+            return False
+        pid = int(state['MainPID'])
+        process = Path('/proc') / str(pid)
+        guest.require(process.stat().st_uid == child, 'extension:failure-report-wrong-user')
+        started = (process / 'stat').read_text().rsplit(')', 1)[1].split()[19]
+        result = json.loads(manager._run_command(account, ('/usr/bin/python3', '-B', '-c',
+            REPORT_UI, ui_support, str(pid), operation, value),
+            require_live=True, timeout=30).stdout)
+        if operation != 'close':
+            guest.require(report_state() == state and process.stat().st_uid == child
+                          and (process / 'stat').read_text().rsplit(')', 1)[1].split()[19] == started,
+                          'extension:failure-report-replaced')
+        return result if result.get('ready') or operation == 'close' else False
+
+    @contextmanager
+    def unavailable_display():
+        identity = user_identity()
+        values = dict(line.split('=', 1) for line in user('show-environment').splitlines()
+                      if '=' in line)
+        saved = {key: values[key] for key in ('DISPLAY', 'WAYLAND_DISPLAY') if key in values}
+        guest.require(any(saved.values()), 'extension:failure-no-original-display')
+        user('unset-environment', 'DISPLAY', 'WAYLAND_DISPLAY')
+        try:
+            yield
+        finally:
+            guest.require(user_identity() == identity, 'extension:failure-display-manager-replaced')
+            current = dict(line.split('=', 1) for line in user('show-environment').splitlines()
+                           if '=' in line)
+            guest.require(not {'DISPLAY', 'WAYLAND_DISPLAY'}.intersection(current),
+                          'extension:failure-display-environment-changed')
+            user('set-environment', *(key + '=' + value for key, value in saved.items()))
+            restored = dict(line.split('=', 1) for line in user('show-environment').splitlines()
+                            if '=' in line)
+            guest.require({key: restored[key] for key in ('DISPLAY', 'WAYLAND_DISPLAY')
+                           if key in restored} == saved, 'extension:failure-display-not-restored')
+
+    @contextmanager
+    def native_error():
+        path = manager.installation / 'extension.js'
+        fd = os.open(path, os.O_RDWR | os.O_NOFOLLOW)
+        identity = os.fstat(fd)
+        guest.require(stat.S_ISREG(identity.st_mode) and identity.st_uid == identity.st_gid == 0
+                      and identity.st_nlink == 1 and identity.st_size < 262144,
+                      'extension:failure-payload-owner')
+        original = os.read(fd, identity.st_size + 1)
+        fault = b'export default class Extension { enable() { throw new Error("onpc-owned-native-fault"); } disable() {} }\n'
+        def write(value):
+            os.lseek(fd, 0, os.SEEK_SET)
+            guest.require(os.write(fd, value) == len(value), 'extension:failure-payload-short-write')
+            os.ftruncate(fd, len(value))
+            os.fsync(fd)
+        try:
+            write(fault)
+            record('owned-fault', {'device': identity.st_dev, 'inode': identity.st_ino,
+                                  'original_sha256': hashlib.sha256(original).hexdigest()})
+            yield
+        finally:
+            try:
+                current = path.lstat()
+                guest.require((current.st_dev, current.st_ino, current.st_uid, current.st_gid,
+                               current.st_mode, current.st_nlink) ==
+                              (identity.st_dev, identity.st_ino, identity.st_uid, identity.st_gid,
+                               identity.st_mode, identity.st_nlink)
+                              and path.read_bytes() == fault, 'extension:failure-payload-replaced')
+                write(original)
+                os.utime(fd, ns=(identity.st_atime_ns, identity.st_mtime_ns))
+                guest.require(path.read_bytes() == original, 'extension:failure-payload-not-restored')
+                record('owned-restoration', {'exact_payload_restored': True})
+            finally:
+                os.close(fd)
+
+    def healthy():
+        return shell.info().get('state') == 1 and shell.enabled()
+
+    def no_enable(events, since):
+        guest.require(not attempts(events.since(since)), 'extension:failure-automatic-enable')
+
+    def preserved():
+        guest.require(state_digest(child) == snapshot, 'extension:failure-child-policy-changed')
+        for role in ('other', 'parent'):
+            guest.require(state_digest(accounts[role]) == prepared['other_accounts'][role],
+                          'extension:failure-other-account-changed')
+        guest.require(native_choices(manager, accounts['other']) == prepared['other_child_choices'],
+                      'extension:failure-other-child-extension-changed')
+
+    child_events_before = {(row['segment'], row['sequence']) for row in BrokerEvents.read('child')}
+
+    def no_submission():
+        rows = [row for row in BrokerEvents.read('child')
+                if (row['segment'], row['sequence']) not in child_events_before]
+        guest.require(not any(row['event'].startswith('feedback-transport.')
+                              or row['event'] == 'feedback.002' for row in rows),
+                      'extension:failure-report-sent-without-send')
+
+    try:
+        shell = observe()
+        guest.require(not store.load(child)['parent_control_enabled'] and
+                      shell.info().get('state') == 6 and shell.info().get('enabled') is False,
+                      'extension:failure-initial-not-never-loaded')
+        accepted(call(accounts['parent'], 'GetPreferences', '(u)', (child,)))
+        identity = invocation()
+        events = BrokerEvents(accepted(call(accounts['parent'], 'GetStartupTimings'))[0])
+        grant(child, 3600)
+        with native_error():
+            with unavailable_display():
+                preferences = store.load(child)
+                store.save(child, {**preferences, 'parent_control_enabled': True})
+                snapshot = state_digest(child)
+                interface = 'org.freedesktop.Accounts.User'
+                language = account_property(child, interface, 'Language')
+                try:
+                    guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
+                        f'/org/freedesktop/Accounts/User{child}', interface, 'SetLanguage', 's',
+                        'en_US.UTF-8' if language != 'en_US.UTF-8' else 'zh_CN.UTF-8'])
+                finally:
+                    guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
+                        f'/org/freedesktop/Accounts/User{child}', interface, 'SetLanguage', 's', language])
+                wait(lambda: shell.info().get('state') == 3 and shell.call(SHELL, PATH, INTERFACE,
+                     'GetExtensionErrors', '(s)', (UUID,), '(as)'), 'native-error-not-observed')
+                failed_at = time.monotonic()
+                time.sleep(4)
+                guest.require(invocation() == identity and report_state()['MainPID'] == '0',
+                              'extension:failure-report-not-deferred')
+                no_enable(events, failed_at)
+            first = wait(report, 'deferred-report-not-visible')
+            guest.require(first['reports'] == 1 and not first['success'],
+                          'extension:failure-report-count-or-submission')
+            draft = 'Owned extension failure draft; keep this text.'
+            report('edit', draft)
+            edited = wait(lambda: (value if draft in json.dumps(value['document']) else False)
+                          if (value := report()) else False, 'edited-draft-not-visible')
+            for _ in range(2):
+                manager._run_as(account, 'gnome-extensions', 'disable', '--quiet', UUID)
+                manager._run_as(account, 'gnome-extensions', 'enable', '--quiet', UUID)
+            wait(lambda: shell.info().get('state') == 3, 'repeated-native-error')
+            time.sleep(3)
+            guest.require(report() == edited, 'extension:failure-repeat-overwrote-draft')
+            with isolated_broker_for_extension_faults():
+                guest.require(report() == edited, 'extension:failure-stopped-broker-lost-draft')
+            guest.require(invocation() != identity, 'extension:failure-broker-not-restarted')
+            events = BrokerEvents(accepted(call(accounts['parent'], 'GetStartupTimings'))[0])
+            restarted = time.monotonic()
+            time.sleep(5)
+            guest.require(report() == edited and shell.info().get('state') == 3,
+                          'extension:failure-restarted-broker-overwrote-draft')
+            no_enable(events, restarted)
+            preserved()
+            no_submission()
+            report('close')
+            wait(lambda: report_state()['MainPID'] == '0', 'report-close-not-finished')
+            record('native-error-report', {'actual_gnome_error': True, 'broker_available': True,
+                   'deferred_until_display_returned': True, 'one_report': True,
+                   'edited_draft_survived_repeated_error_and_restart': True, 'send_selected': False})
+
+        # The original source is back, but GNOME caches imports for a Shell
+        # lifetime. Renew the session before the explicit parent recovery.
+        logout()
+        guest.prepare_activation_greeter()
+        shell = observe()
+        accepted(call(accounts['parent'], 'RecoverChildExtension', '(u)', (child,)))
+        wait(healthy, 'parent-recovery')
+        began = time.monotonic()
+        manager._run_as(account, 'gnome-extensions', 'disable', '--quiet', UUID)
+        wait(lambda: healthy() and attempts(events.since(began)), 'monitor-not-rearmed')
+        recovered_at = time.monotonic()
+        bus_id = shell.call('org.freedesktop.DBus', '/org/freedesktop/DBus',
+                            'org.freedesktop.DBus', 'GetId', '()', (), '(s)')
+        owner = user_identity()
+        automatic_login(False)
+        guest.require(user_identity() == owner and child_session(child) is not None,
+                      'extension:failure-crash-fixture-replaced')
+        guest.require(time.monotonic() - recovered_at < 60, 'extension:failure-crash-too-late')
+        crash_at = time.monotonic()
+        guest.run(['systemctl', 'stop', user_unit], timeout=60)
+        wait(shell.bus.is_closed, 'whole-bus-loss-not-delivered', timeout=30)
+        lost_at = time.monotonic()
+        guest.require(lost_at - recovered_at < 60, 'extension:failure-bus-loss-outside-crash-window')
+        wait(lambda: child_session(child) is None, 'crashed-session-retained')
+        guest.require(guest.run(['systemctl', 'show', user_unit, '--property=ActiveState',
+                                '--value']) == 'inactive', 'extension:failure-user-manager-not-stopped')
+        # The stopped manager may leave its old socket pathname. A separate
+        # public session avoids treating that stale socket as a live transport.
+        manager._run_as(account, 'dbus-run-session', '--', 'gsettings', 'set',
+                        'org.gnome.shell', 'disable-user-extensions', 'true')
+        guest.require(manager._run_as(account, 'dbus-run-session', '--', 'gsettings', 'get',
+                      'org.gnome.shell', 'disable-user-extensions').stdout.strip() == 'true',
+                      'extension:failure-offline-global-disable-not-saved')
+        automatic_login(True)
+        guest.prepare_activation_greeter()
+        shell = observe()
+        guest.require(shell.call('org.freedesktop.DBus', '/org/freedesktop/DBus',
+                      'org.freedesktop.DBus', 'GetId', '()', (), '(s)') != bus_id,
+                      'extension:failure-bus-not-renewed')
+        held = time.monotonic()
+        until = held + 35
+        while time.monotonic() < until:
+            guest.require(not shell.enabled() and shell.info().get('state') != 1,
+                          'extension:failure-crash-hold-lost')
+            time.sleep(.5)
+        no_enable(events, crash_at)
+        guest.require(not any(row['event'] == 'extension-manager.command'
+                              and row['fields']['tool'] == 'other'
+                              for _stamp, row in events.since(crash_at)),
+                      'extension:failure-bus-loss-report-attempt')
+        guest.require(report_state()['MainPID'] == '0', 'extension:failure-bus-loss-reported')
+        no_submission()
+        accepted(call(accounts['parent'], 'RecoverChildExtension', '(u)', (child,)))
+        wait(healthy, 'crash-explicit-parent-recovery')
+        began = time.monotonic()
+        manager._run_as(account, 'gnome-extensions', 'disable', '--quiet', UUID)
+        wait(lambda: healthy() and attempts(events.since(began)), 'crash-monitor-not-rearmed')
+        preserved()
+        quiet = time.monotonic()
+        logout()
+        time.sleep(3)
+        guest.require(not any(row['event'] == 'extension-manager.command'
+                              and row['fields']['tool'] == 'other'
+                              for _stamp, row in events.since(quiet)),
+                      'extension:failure-ordinary-logout-reported')
+        no_submission()
+        record('crash-window', {'whole_bus_loss_after_recovery_seconds': round(crash_at - recovered_at, 3),
+               'bus_close_observed_after_recovery_seconds': round(lost_at - recovered_at, 3),
+               'old_bus_closed': True, 'new_bus': True, 'replacement_globally_disabled': True,
+               'hold_seconds': 35, 'automatic_enable_commands': 0,
+               'explicit_parent_recovered': True, 'monitor_rearmed': True,
+               'bus_loss_and_ordinary_logout_quiet': True, 'send_events': 0,
+               'extension_crash_attribution': False})
     finally:
         for observer in reversed(observers):
             observer.close()

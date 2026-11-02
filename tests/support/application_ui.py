@@ -26,6 +26,78 @@ ENDPOINTS = {
 PRODUCT_APPLICATIONS = frozenset(ENDPOINTS.values())
 
 
+def process_application_ui(pid, *, frontend, connection=None):
+    """Bind a launch-owned non-unique reporter through its public bus export.
+
+    The launch adapter supplies the current service PID. Discover its actual
+    export by bounded public introspection, never by window titles or widgets.
+    The normal client retains its same-user, PID and unique-owner guards.
+    """
+    import xml.etree.ElementTree as ET
+    import time
+    from gi.repository import Gio, GLib
+    from common.oh_no_parent_control_ui.application_ui import INTERFACE
+    if type(pid) is not int or pid <= 0 or frontend not in ENDPOINTS:
+        raise UIClientError('Denied')
+    connection = connection or Gio.bus_get_sync(Gio.BusType.SESSION, None)
+    deadline = time.monotonic() + 8
+
+    def call(owner, path, interface, method, signature, arguments, result):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise UIClientError('Unavailable')
+        return connection.call_sync(owner, path, interface, method,
+            GLib.Variant(signature, arguments), GLib.VariantType.new(result),
+            Gio.DBusCallFlags.NO_AUTO_START, min(2000, max(1, int(remaining * 1000))),
+            None).unpack()[0]
+
+    names = call('org.freedesktop.DBus', '/org/freedesktop/DBus',
+                 'org.freedesktop.DBus', 'ListNames', '()', (), '(as)')
+    if len(names) > 1024:
+        raise UIClientError('InvalidResponse')
+    matches = []
+    for owner in names:
+        if not owner.startswith(':'):
+            continue
+        try:
+            actual = call('org.freedesktop.DBus', '/org/freedesktop/DBus',
+                          'org.freedesktop.DBus', 'GetConnectionUnixProcessID',
+                          '(s)', (owner,), '(u)')
+        except GLib.Error as error:
+            if Gio.DBusError.get_remote_error(error) in {
+                    'org.freedesktop.DBus.Error.NameHasNoOwner',
+                    'org.freedesktop.DBus.Error.UnixProcessIdUnknown'}:
+                continue
+            raise
+        if actual != pid:
+            continue
+        pending, seen = ['/'], set()
+        while pending:
+            path = pending.pop()
+            if path in seen or len(seen) >= 64:
+                raise UIClientError('InvalidResponse')
+            seen.add(path)
+            xml = call(owner, path, 'org.freedesktop.DBus.Introspectable',
+                       'Introspect', '()', (), '(s)')
+            if len(xml) > 262144:
+                raise UIClientError('InvalidResponse')
+            tree = ET.fromstring(xml)
+            if any(item.get('name') == INTERFACE for item in tree.findall('interface')):
+                client = UIClient(frontend, owner=owner, object_path=path,
+                                  connection=connection, timeout_msec=2000)
+                if client.pid != pid:
+                    raise UIClientError('Denied')
+                matches.append(client)
+            for child in tree.findall('node'):
+                name = child.get('name', '')
+                if not name or '/' in name or len(pending) >= 64:
+                    raise UIClientError('InvalidResponse')
+                pending.append(path.rstrip('/') + '/' + name)
+    if len(matches) != 1:
+        raise UIClientError('Unavailable')
+    return ApplicationUI(clients={frontend: matches[0]}, connection=connection)
+
+
 def is_product_node(node):
     return isinstance(node, ApplicationNode)
 

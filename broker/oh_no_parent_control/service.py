@@ -892,9 +892,12 @@ class Service:
     def _prepare_own_session_worker(self, invocation, caller_uid, recovery_target=None):
         method = "PrepareOwnSession" if recovery_target is None else "RecoverChildExtension"
         try:
-            reconciled = (self.broker.prepare_own_session(caller_uid)
-                          if recovery_target is None else
-                          self.broker.recover_child_extension(caller_uid, recovery_target))
+            if recovery_target is None:
+                reconciled = self.broker.prepare_own_session(caller_uid)
+            else:
+                monitor = self._extension_monitor
+                reconciled = self.broker.recover_child_extension(caller_uid, recovery_target,
+                    on_recovered=monitor.recovered if monitor is not None else None)
             LOG.info("service.008", method=method)
             GLib.idle_add(
                 self._return_value_variant, invocation,

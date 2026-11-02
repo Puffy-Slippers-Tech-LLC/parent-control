@@ -51,6 +51,8 @@ class _Watch:
     next_check: float = 0
     failed: bool = False
     reported: bool = False
+    report_pending: bool = False
+    fault_generation: int = 0
     failure_time: float = 0
     last_recovery: float = 0
     recovery_interrupted: bool = False
@@ -119,6 +121,31 @@ class ExtensionMonitor:
         # cannot perform later effects: the action and every command check the
         # stop event. Do not hold up broker exit on an unresponsive OS service.
         self._thread.join(timeout=8)
+
+    def recovered(self, uid):
+        """Rearm after a successful, authorized explicit recovery.
+
+        Called while the broker still holds its recovery transaction lock,
+        which also orders confirmed faults. Snapshot here; mutate only on the
+        owning context, without erasing a later fault or a replacement watch.
+        """
+        if self._stopped.is_set():
+            return
+        watch = self.watches.get(uid)
+        if watch is None:
+            return
+        generation = watch.fault_generation
+
+        def rearm():
+            if self._stopped.is_set():
+                return
+            if (self.watches.get(uid) is watch and
+                    watch.fault_generation == generation):
+                watch.failed = False
+                self._schedule(watch)
+
+        self._later(0, rearm)
+        self._context.wakeup()
 
     def _lifecycle_changed(self, *_args):
         if not self._stopped.is_set() and self._refresh_source is None:
@@ -272,16 +299,19 @@ class ExtensionMonitor:
 
     @staticmethod
     def _fault(watch):
+        watch.fault_generation += 1
         if not watch.failed:
             if time.monotonic() - watch.failure_time >= 60:
                 watch.reported = False
             watch.failure_time = time.monotonic()
         watch.failed = True
+        watch.report_pending = not watch.reported
 
     def _report(self, watch):
         if not watch.reported:
             self.manager.report_failure(watch.uid)
             watch.reported = True
+        watch.report_pending = False
 
     def _observe(self, watch):
         info, = self._call(watch, SHELL, PATH, INTERFACE, "GetExtensionInfo",
@@ -318,14 +348,17 @@ class ExtensionMonitor:
                       asset=fields["asset"], reason=fields["reason"])
             self._fault(watch)
         elif state == 1 and enabled:
-            if watch.failed:
-                # A failure observed before compositor/bus loss remains
-                # reportable even if the new Shell already recovered itself.
-                self._report(watch)
             watch.failed = False
         if watch.failed:
             self._report(watch)
             return
+        self._recover(watch, info, enabled, now)
+        # Reporting must not consume the command budget before renewed
+        # enforcement. Keep the old error report pending even after recovery.
+        if watch.report_pending:
+            self._report(watch)
+
+    def _recover(self, watch, info, enabled, now):
         if watch.recovery_interrupted:
             if not enabled:
                 return
@@ -334,6 +367,7 @@ class ExtensionMonitor:
         # Shell has never loaded. Only wait if it is still configured enabled
         # (or that public detail is unavailable), rather than disabling recovery
         # for the stable configured-disabled state.
+        state = info["state"]
         if state in {7, 8} or state == 6 and enabled and info.get("enabled") is not False:
             raise _ChangingState()
         if state != 1 or not enabled:
@@ -365,6 +399,7 @@ class ExtensionMonitor:
                 return
             # At most two probes per second even under a user signal flood.
             watch.next_check = time.monotonic() + 0.5
+            revision = self.broker.extension_reconciliation_revision()
             if self.broker.extension_reconciliation_busy():
                 raise Busy("another request is already in progress")
             # User-controlled reply latency never holds the policy lock.
@@ -373,9 +408,10 @@ class ExtensionMonitor:
             info, user_extensions_enabled = self._observe(watch)
             with self.manager.command_budget(3, self._stopped):
                 enabled = self.broker.reconcile_enabled_child(watch.uid,
-                    lambda: self._reconcile(watch, info, user_extensions_enabled))
+                    lambda: self._reconcile(watch, info, user_extensions_enabled),
+                    expected_revision=revision)
             if not enabled:
-                watch.failed = watch.reported = False
+                watch.failed = watch.reported = watch.report_pending = False
                 watch.last_recovery = 0
                 watch.recovery_interrupted = False
                 watch.recoveries = 0

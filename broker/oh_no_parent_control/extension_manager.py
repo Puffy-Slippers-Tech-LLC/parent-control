@@ -510,6 +510,18 @@ class ExtensionManager:
         The frontend flag selects its existing fixed child-operation-failed error.
         """
         account, _home = self._account(uid)
+        # A live Shell/user bus can precede the user manager's graphical
+        # environment. Type=exec only acknowledges execve(), so launching then
+        # would lose the report when GTK exits without a display. Keep it
+        # pending in the monitor instead; never log this private environment.
+        result = self._run_command(account, (
+            "systemctl", "--user", "show-environment"), require_live=True)
+        if len(result.stdout) > 65536:
+            raise ValueError("oversized child session environment")
+        if not any(key in {"DISPLAY", "WAYLAND_DISPLAY"} and value.strip()
+                   for key, separator, value in
+                   (line.partition("=") for line in result.stdout.splitlines()) if separator):
+            raise ChildExtensionUnavailable("child graphical session is unavailable")
         try:
             self._run_command(account, (
                 "systemd-run", "--user", "--quiet", "--collect",

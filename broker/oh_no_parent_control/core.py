@@ -354,11 +354,16 @@ class Broker:
         return tuple(user.uid for user in self._accounts.list_users()
                      if self._eligible(config, user))
 
-    def reconcile_enabled_child(self, target_uid, action):
+    def reconcile_enabled_child(self, target_uid, action, *, expected_revision=None):
         """Revalidate a session hint under the same lock as parent policy writes."""
         if not self._acquire_request_lock():
             raise Busy("another request is already in progress")
         try:
+            # This acquisition advances the revision once. Any other advance
+            # since the unlocked observation makes its state stale.
+            if (expected_revision is not None and
+                    self._transaction_revision != expected_revision + 1):
+                raise Busy("child extension observation is stale")
             config = self._load_config()
             target = self._accounts.get_user(target_uid)
             if not self._eligible(config, target):
@@ -369,6 +374,10 @@ class Broker:
             return True
         finally:
             self._request_lock.release()
+
+    def extension_reconciliation_revision(self):
+        """Read before checking busy, then validate after the unlocked probe."""
+        return self._transaction_revision
 
     def extension_reconciliation_busy(self):
         """A scheduling hint only; reconciliation still acquires/revalidates."""
@@ -561,7 +570,8 @@ class Broker:
         finally:
             self._request_lock.release()
 
-    def recover_child_extension(self, caller_uid: int, target_uid: int) -> bool:
+    def recover_child_extension(self, caller_uid: int, target_uid: int, *,
+                                on_recovered: Callable[[int], None] | None = None) -> bool:
         """Reassert saved enforcement for PAM and administrator management."""
         if not self._is_admin(caller_uid):
             raise AccessDenied("administrator access is required")
@@ -578,6 +588,8 @@ class Broker:
                 self._extensions.set_enabled(target.uid, True, recover_global_switch=True)
             except Exception as error:
                 raise BackendFailure("could not recover the child extension") from error
+            if on_recovered is not None:
+                on_recovered(target.uid)
             return True
         finally:
             self._request_lock.release()

@@ -617,6 +617,8 @@ CASES = (
                  'Keep parental control active when extensions are disabled'),
     CaseIdentity(296, 'extension', 'test_child_extension_monitor_session_lifecycle',
                  'Keep recovery safe across session and broker changes'),
+    CaseIdentity(297, 'extension', 'test_child_extension_failure_reporting',
+                 'Report extension failures without a crash loop'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

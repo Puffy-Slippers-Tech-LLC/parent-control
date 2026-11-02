@@ -85,7 +85,7 @@ def test_extension_monitor_retries_disabled_state_indefinitely_with_capped_failu
     monitor.manager = ExtensionManager()
     monitor.broker = mock.Mock()
     monitor.broker.extension_reconciliation_busy.return_value = False
-    monitor.broker.reconcile_enabled_child.side_effect = lambda _uid, action: (action(), True)[1]
+    monitor.broker.reconcile_enabled_child.side_effect = lambda _uid, action, **_kwargs: (action(), True)[1]
     monitor._observe = mock.Mock(return_value=({"state": 2}, True))
     monitor.manager.set_enabled = mock.Mock(side_effect=RuntimeError("temporary verification failure"))
     monitor.manager.report_failure = mock.Mock()
@@ -115,6 +115,206 @@ def test_extension_monitor_retries_disabled_state_indefinitely_with_capped_failu
     monitor._check(watch)
     assert monitor.manager.set_enabled.call_count == 13
     monitor.manager.report_failure.assert_called_once_with(1001)
+
+
+def test_extension_monitor_keeps_deferred_report_after_recovery_and_reports_it_once():
+    import threading
+    from oh_no_parent_control.extension_manager import ChildExtensionUnavailable, ExtensionManager
+
+    monitor = ExtensionMonitor.__new__(ExtensionMonitor)
+    monitor._stopped = threading.Event()
+    monitor.manager = ExtensionManager()
+    monitor.manager.set_enabled = mock.Mock()
+    monitor.manager.report_failure = mock.Mock(side_effect=[
+        ChildExtensionUnavailable(), ChildExtensionUnavailable(),
+        ChildExtensionUnavailable(), None])
+    monitor.broker = mock.Mock()
+    monitor.broker.extension_reconciliation_busy.return_value = False
+    monitor.broker.reconcile_enabled_child.side_effect = lambda _uid, action, **_kwargs: (action(), True)[1]
+    monitor._observe = mock.Mock(return_value=({"state": 3, "error": ""}, True))
+    monitor._later = mock.Mock()
+    watch = _Watch(1001, connection=object(), shell_present=True)
+    monitor.watches = {1001: watch}
+    monitor._check(watch)
+    assert watch.failed and not watch.reported and watch.report_pending
+    assert 0 < monitor._later.call_args.args[0] <= 30
+    # Shell can recover while the user manager still lacks a display. Keep
+    # the observed error pending until its report can actually be launched.
+    monitor._observe.return_value = ({"state": 1}, True)
+    watch.source = None
+    monitor._check(watch)
+    assert not watch.failed and not watch.reported and watch.report_pending
+    # Normal observed recovery rearms enforcement too: another disable must
+    # recover while reporting is still unavailable, without parent action.
+    monitor._observe.return_value = ({"state": 2}, True)
+    watch.source = None
+    monitor._check(watch)
+    monitor.manager.set_enabled.assert_called_once_with(1001, True, recover_global_switch=True)
+    assert not watch.failed and not watch.reported and watch.report_pending
+    monitor._observe.return_value = ({"state": 1}, True)
+    watch.source = None
+    monitor._check(watch)
+    assert not watch.failed and watch.reported and not watch.report_pending
+    monitor._check(watch)
+    assert monitor.manager.report_failure.call_count == 4
+    assert monitor.manager.set_enabled.call_count == 1
+
+
+@pytest.mark.parametrize("deferred", [False, True])
+def test_explicit_recovery_rearms_without_a_healthy_observation_and_keeps_deferred_report(deferred):
+    import threading
+    from oh_no_parent_control.extension_manager import ChildExtensionUnavailable, ExtensionManager
+
+    monitor = ExtensionMonitor.__new__(ExtensionMonitor)
+    monitor._stopped = threading.Event()
+    monitor._context = mock.Mock()
+    monitor._later = mock.Mock()
+    monitor._schedule = mock.Mock()
+    monitor.manager = ExtensionManager()
+    monitor.broker = mock.Mock()
+    monitor.broker.extension_reconciliation_busy.return_value = False
+    monitor.broker.reconcile_enabled_child.side_effect = lambda _uid, action, **_kwargs: (action(), True)[1]
+    monitor._observe = mock.Mock(return_value=({"state": 3, "error": ""}, True))
+    effects = []
+    display_ready = not deferred
+
+    def report(_uid):
+        effects.append("report")
+        if not display_ready:
+            raise ChildExtensionUnavailable()
+
+    monitor.manager.report_failure = mock.Mock(side_effect=report)
+    monitor.manager.set_enabled = mock.Mock(side_effect=lambda *_args, **_kwargs: effects.append("enable"))
+    watch = _Watch(1001, connection=object(), shell_present=True)
+    monitor.watches = {1001: watch}
+    with mock.patch("oh_no_parent_control.extension_monitor.time.monotonic", return_value=100):
+        monitor._check(watch)
+        assert watch.failed and watch.report_pending == deferred
+        watch.recovery_interrupted = True
+        watch.last_recovery, watch.recoveries, watch.next_check = 80, 2, 101
+        monitor.recovered(1001)
+        assert watch.failed  # The service thread cannot mutate the watch.
+        monitor._later.call_args.args[1]()
+        assert not watch.failed and watch.report_pending == deferred
+        assert watch.recovery_interrupted
+        assert (watch.last_recovery, watch.recoveries, watch.next_check) == (80, 2, 101)
+        # Deliberately skip healthy: disablement is the first observation after
+        # trusted parent recovery, matching coalesced native Shell signals.
+        monitor._observe.return_value = ({"state": 2}, True)
+        effects.clear()
+        monitor._check(watch)
+        monitor.manager.set_enabled.assert_called_once_with(1001, True, recover_global_switch=True)
+        assert effects == (["enable", "report"] if deferred else ["enable"])
+        assert not watch.failed and watch.report_pending == deferred
+        if deferred:
+            assert 0 < watch.next_check - 100 <= 30
+            monitor._observe.return_value = ({"state": 1}, True)
+            monitor._check(watch)
+            assert not watch.failed and watch.report_pending
+            display_ready = True
+            monitor._check(watch)
+            assert watch.reported and not watch.report_pending
+        # A newly observed ERROR still stops further automatic activation.
+        monitor._observe.return_value = ({"state": 3, "error": ""}, True)
+        monitor._check(watch)
+        assert watch.failed
+        monitor._observe.return_value = ({"state": 2}, True)
+        monitor._check(watch)
+        assert monitor.manager.set_enabled.call_count == 1
+        monitor.recovered(1001)
+        # Owner loss delivered before the queued notification must survive it.
+        watch.recovery_interrupted = True
+        monitor._later.call_args.args[1]()
+        monitor._observe.return_value = ({"state": 2}, False)
+        monitor._check(watch)
+        assert watch.recovery_interrupted and not watch.failed
+        assert monitor.manager.set_enabled.call_count == 1
+
+
+@pytest.mark.parametrize("interleaving", ["before_busy_check", "during_observation", "after_recovery"])
+def test_recovery_notification_preserves_only_faults_observed_after_its_transaction(interleaving):
+    import threading
+    from oh_no_parent_control.extension_manager import ExtensionManager
+    from tests.support.broker import Preferences, make_broker
+
+    monitor = ExtensionMonitor.__new__(ExtensionMonitor)
+    monitor._stopped = threading.Event()
+    monitor._context = mock.Mock()
+    monitor._later = mock.Mock()
+    monitor._schedule = mock.Mock()
+    monitor.manager = ExtensionManager()
+    monitor.manager.set_enabled = mock.Mock()
+    monitor.manager.report_failure = mock.Mock()
+    preferences = Preferences()
+    preferences.values[1001]["parent_control_enabled"] = True
+    monitor.broker = make_broker(preferences=preferences, extensions=monitor.manager)
+    monitor._observe = mock.Mock(return_value=({"state": 3, "error": ""}, True))
+    watch = _Watch(1001, connection=object(), shell_present=True)
+    monitor.watches = {1001: watch}
+    callbacks = []
+
+    def recover():
+        assert monitor.broker.recover_child_extension(0, 1001, on_recovered=monitor.recovered)
+        callbacks.append(monitor._later.call_args.args[1])
+
+    with mock.patch("oh_no_parent_control.extension_monitor.time.monotonic", return_value=100):
+        monitor._check(watch)
+        generation = watch.fault_generation
+        assert watch.failed
+        if interleaving == "before_busy_check":
+            # Completing between revision capture and busy check must still
+            # invalidate this observation, although the lock is now free.
+            with mock.patch.object(monitor.broker, "extension_reconciliation_busy",
+                                   side_effect=lambda: (recover(), False)[1]):
+                monitor._check(watch)
+        elif interleaving == "during_observation":
+            monitor._observe.side_effect = lambda _watch: (recover(), ({"state": 3}, True))[1]
+            monitor._check(watch)
+            monitor._observe.side_effect = None
+        else:
+            recover()
+            # This ERROR is genuinely newer than the successful recovery,
+            # but the private-context notification has not run yet.
+            monitor._check(watch)
+        fresh_error = interleaving == "after_recovery"
+        assert watch.fault_generation == generation + int(fresh_error)
+        callbacks[0]()
+        assert watch.failed == fresh_error
+        monitor._observe.return_value = ({"state": 2}, True)
+        monitor._check(watch)
+        # One call belongs to explicit recovery. Only the pre-recovery stale
+        # observations permit another automatic activation after notification.
+        assert monitor.manager.set_enabled.call_count == (1 if fresh_error else 2)
+
+
+@pytest.mark.parametrize("unavailable", ["removed", "replaced", "stopped"])
+def test_explicit_recovery_notification_is_safe_when_watch_goes_away(unavailable):
+    import threading
+
+    monitor = ExtensionMonitor.__new__(ExtensionMonitor)
+    monitor._stopped = threading.Event()
+    monitor._context = mock.Mock()
+    monitor._later = mock.Mock()
+    monitor._schedule = mock.Mock()
+    watch = _Watch(1001, failed=True, report_pending=True)
+    monitor.watches = {1001: watch}
+    monitor.recovered(1001)
+    callback = monitor._later.call_args.args[1]
+    if unavailable == "removed":
+        del monitor.watches[1001]
+    elif unavailable == "replaced":
+        monitor.watches[1001] = _Watch(1001, failed=True, report_pending=True)
+    else:
+        monitor._stopped.set()
+    callback()
+    assert watch.failed and watch.report_pending
+    if unavailable == "replaced":
+        assert monitor.watches[1001].failed and monitor.watches[1001].report_pending
+    monitor._schedule.assert_not_called()
+    monitor._stopped.set()
+    monitor._later.reset_mock()
+    monitor.recovered(1001)
+    monitor._later.assert_not_called()
 
 
 def test_extension_monitor_slows_successful_repeated_disables_and_resets_after_healthy_quiet():
@@ -571,7 +771,15 @@ def test_login_recovery_dispatch_uses_bus_identity_and_worker_errors():
     service.credentials.uid.return_value = 0
     service.broker = mock.Mock()
     service.broker.recover_child_extension.return_value = True
+    service._extension_monitor = mock.Mock()
     invocation = mock.Mock()
+
+    def recover(_caller, target, *, on_recovered):
+        if service.broker.recover_child_extension.return_value:
+            on_recovered(target)
+        return service.broker.recover_child_extension.return_value
+
+    service.broker.recover_child_extension.side_effect = recover
 
     def thread(*, target, args, daemon):
         return mock.Mock(start=lambda: target(*args))
@@ -581,12 +789,21 @@ def test_login_recovery_dispatch_uses_bus_identity_and_worker_errors():
                      side_effect=lambda callback, *args: callback(*args))):
         service._method_call(None, ":1.42", None, None, "RecoverChildExtension",
                              GLib.Variant("(u)", (1001,)), invocation)
-        service.broker.recover_child_extension.assert_called_once_with(0, 1001)
+        service.broker.recover_child_extension.assert_called_once_with(
+            0, 1001, on_recovered=service._extension_monitor.recovered)
+        service._extension_monitor.recovered.assert_called_once_with(1001)
         assert invocation.return_value.call_args.args[0].unpack() == (True,)
+        service._extension_monitor.reset_mock()
+        service.broker.recover_child_extension.return_value = False
+        service._method_call(None, ":1.42", None, None, "RecoverChildExtension",
+                             GLib.Variant("(u)", (1001,)), invocation)
+        assert invocation.return_value.call_args.args[0].unpack() == (False,)
+        service._extension_monitor.recovered.assert_not_called()
         service.broker.recover_child_extension.side_effect = AccessDenied("root required")
         service._method_call(None, ":1.42", None, None, "RecoverChildExtension",
                              GLib.Variant("(u)", (1001,)), invocation)
         assert invocation.return_dbus_error.call_args.args[0].endswith("AccessDenied")
+        service._extension_monitor.recovered.assert_not_called()
 
 
 def signatures(xml):

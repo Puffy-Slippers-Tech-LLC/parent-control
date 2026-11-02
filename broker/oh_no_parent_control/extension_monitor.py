@@ -313,7 +313,9 @@ class ExtensionMonitor:
         elif not watch.healthy_since:
             watch.healthy_since = now
         if state in {3, 4}:
-            LOG.error("extension-manager.load-state", **_load_error_fields(info))
+            fields = _load_error_fields(info)
+            LOG.error("extension-manager.load-state", state=fields["state"],
+                      asset=fields["asset"], reason=fields["reason"])
             self._fault(watch)
         elif state == 1 and enabled:
             if watch.failed:

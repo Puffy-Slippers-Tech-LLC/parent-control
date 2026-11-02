@@ -68,7 +68,7 @@ The response contains these fields:
 | `resource_sample` | Sample identity, compared only within this source. |
 | `resource_charts` | Array of `{label, text, segments}` for CPU, Memory and Disk; empty if unavailable. |
 | `session_result` | Optional `{id, ok, error?}` acknowledging the requested action. |
-| `run_times` | Optional array, populated only for `selected: "run-time"`: `{id, title, category, vm, seconds, case_file, description, case_link, recording}`. Links are published artifact references; recording may be null. |
+| `run_times` | Optional array, populated only for `selected: "run-time"`: `{id, title, category, vm, seconds, case_file, description, steps?, expected?, case_link, recording}`. Description is a one-line summary; optional steps are plain-text strings and expected is a plain-text outcome. Links are published artifact references; recording may be null. |
 
 A run section has `id`, `label`, `active`, `status`, `run` (run identity or null),
 `rows`, `error_rows`, `launcher_output`, `session` (identity or null),

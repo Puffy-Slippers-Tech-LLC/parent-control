@@ -1,0 +1,325 @@
+{
+  "E2E-001": {
+    "expected": "Graphical sign-in and console access work, and returning to sign-in leaves no user session open.",
+    "summary": "Use sign-in and console screens after a fresh boot.",
+    "steps": ["Select an account at sign-in, then cancel before entering its password.", "Sign in and out through the text console.", "Return to the graphical sign-in screen."]
+  },
+  "E2E-002": {
+    "expected": "Installation completes, personal accounts remain available, and Parent and the request station are usable.",
+    "summary": "Install parental control and open its parent and request screens.",
+    "steps": ["Install the app and follow its restart notice.", "Open Parent and inspect a child's screen and app limits.", "Open the request station, then cancel back to sign-in."]
+  },
+  "E2E-003": {
+    "expected": "Parent shows eligible children and their own settings, or clearly explains that none are available.",
+    "summary": "Find Parent and show the children available to manage.",
+    "steps": ["Find Parent in the app grid.", "Inspect each child's screen and app settings.", "Add a child while Parent stays open and check that the new child appears."],
+    "variants": {"none": {"steps": ["Find Parent in the app grid on a computer with no eligible children.", "Open Parent and read the explanation that no child is available."]}}
+  },
+  "E2E-004": {
+    "expected": "A standard user cannot access parental management.",
+    "summary": "Prevent a standard user from opening parental management.",
+    "steps": ["Sign in as a standard user and search for Parent.", "Check that parental management is unavailable."],
+    "variants": {"terminal": {"steps": ["Try opening Parent directly as a standard user.", "Read the access denial and check that management controls never open."]}}
+  },
+  "E2E-005": {
+    "expected": "Daily-time edits preserve an active grant; toggling limits clears it, and app restrictions remain enforced.",
+    "summary": "Change daily limits without losing track of temporary time or app rules.",
+    "steps": ["Prepare daily time, temporary time, or both, with allowed and blocked apps.", "Enable limits and visit a new or retained child desktop.", "Change the daily allowance and check access with positive and zero time.", "Turn limits off and on; check that app blocks remain and old temporary time does not return."]
+  },
+  "E2E-006": {
+    "expected": "Each saved rule controls the selected child's apps without changing another user's activity.",
+    "summary": "Apply changes between allowed, soft-blocked and hard-blocked apps.",
+    "steps": ["Leave child and other-user activities open.", "Change each app rule between allowed, soft blocked and hard blocked.", "Check affected child apps and new launches while the other user's work continues."]
+  },
+  "E2E-007": {
+    "expected": "Cancellation changes nothing; confirmation removes temporary time and restores blocks without removing daily time or affecting other users.",
+    "summary": "Cancel or confirm revocation while a child has open apps.",
+    "steps": ["Give temporary access and leave child and other-user apps open.", "Cancel revocation and check that access and work continue.", "Confirm revocation; check temporary time is removed and blocked apps close across the child's desktops.", "Check daily time and the other user's work remain unaffected."]
+  },
+  "E2E-008": {
+    "expected": "Exhausted daily time locks the child and prevents access until valid new time is approved.",
+    "summary": "Lock the child when daily time ends and require new time to return.",
+    "steps": ["Use an allowed app with a short daily allowance and countdown animation enabled.", "Wait for natural locking and check that the child cannot unlock without time.", "Approve temporary time and return to the retained desktop.", "Revoke that time and check that a fresh sign-in is refused."]
+  },
+  "E2E-009": {
+    "expected": "Allowed work survives expiry, and replacement approval determines whether soft-blocked work remains available.",
+    "summary": "Recover unfinished work after temporary time runs out.",
+    "steps": ["Use allowed and temporarily permitted soft-blocked apps with no daily time.", "Let temporary time expire and check that the desktop locks.", "Approve replacement time and unlock the same desktop.", "Check allowed work survives and soft-blocked work follows the new approval choice."]
+  },
+  "E2E-010": {
+    "expected": "The child's time expires while away, and the other user's work remains usable.",
+    "summary": "Let child time expire while another user continues working.",
+    "steps": ["Give the child temporary time, then switch to another user.", "Continue the other user's activity beyond the child's remaining time.", "Check that the child cannot return without more time and the other user's work remains usable."]
+  },
+  "E2E-011": {
+    "expected": "Returning does not restart the countdown, and access ends when usable time runs out.",
+    "summary": "Follow the countdown through returning to work and running out of time.",
+    "steps": ["Begin child work with daily time, temporary time, or both.", "Lock and unlock while time remains; check the countdown continues from the original balance.", "Continue through the final seconds until the desktop locks naturally."]
+  },
+  "E2E-012": {
+    "expected": "The selected parent approves the displayed request once; time and app access follow its choices.",
+    "summary": "Request time from the child panel and authenticate the selected parent.",
+    "steps": ["Open a request from the child panel and choose a parent, duration and soft-app option.", "Approve the matching parent prompt and check added time and app access.", "Reopen the request directly and check that another approval requires fresh authentication."]
+  },
+  "E2E-013": {
+    "expected": "Rejected or cancelled authentication grants no access, preserves choices, and allows a successful fresh retry.",
+    "summary": "Retry safely after an incorrect password or cancelled approval.",
+    "steps": ["Prepare a time request and submit an incorrect parent password.", "Check that choices remain and no time or app permission is granted.", "Cancel a fresh approval and check the same restrictions again.", "Approve successfully and check added time, soft-app access and continued hard blocks."]
+  },
+  "E2E-014": {
+    "expected": "Invalid input grants nothing, and duplicate clicks produce one approval and the correct resulting time.",
+    "summary": "Approve preset, custom or rest-of-day time without duplicate requests.",
+    "steps": ["Choose the tested duration and review its estimate; reject invalid custom input when applicable.", "Double-click Request and check that only one approval prompt opens.", "Approve once and check the resulting time and normal exit."]
+  },
+  "E2E-015": {
+    "expected": "The form returns to the correct desktop or sign-in screen; only approval adds time.",
+    "summary": "Exit a request safely by cancelling, pressing Escape or approving.",
+    "steps": ["Open the child overlay or request station and change request choices.", "Take the tested exit action.", "Check return to the same child work or sign-in screen, with added time only after approval."]
+  },
+  "E2E-016": {
+    "expected": "The station offers requests without exposing a general desktop, terminal or parental management.",
+    "summary": "Keep the request station restricted throughout an approval attempt.",
+    "steps": ["Enter the request station and try ordinary desktop and terminal shortcuts.", "Approve, reject or cancel a request and check that general desktop access stays unavailable.", "Exit normally and check that sign-in remains usable."]
+  },
+  "E2E-017": {
+    "expected": "Only eligible accounts can be used for requests, and unavailable requests have a clear explanation.",
+    "summary": "Offer eligible children and parents and explain unavailable requests.",
+    "steps": ["Open the request station with the tested account availability.", "Check child and parent choices and the selected child's settings.", "Check that available requests identify the right accounts, or read why requesting is unavailable."]
+  },
+  "E2E-018": {
+    "expected": "Request values stay separate per child and shared across forms; remembered parents stay local to each form.",
+    "summary": "Share each child's request choices while remembering parents separately on each form.",
+    "steps": ["Save distinct duration and soft-app choices for two children.", "Move between the child overlay and request station.", "Check that each child's choices follow them while each form keeps its own remembered parent."]
+  },
+  "E2E-019": {
+    "expected": "The child's app access follows its rule on the tested launch route without restricting the other user.",
+    "summary": "Enforce app rules through native, Snap and Flatpak launch routes.",
+    "steps": ["Set the tested app rule and screen-limit state for the child.", "Try the app through the selected launch route and check allowed use or blocking.", "Check that another standard user can still use the same app."]
+  },
+  "E2E-020": {
+    "expected": "Saving handles the changed app and preserves its intended rule across update or removal and reinstall.",
+    "summary": "Save an app rule when the app changes while its editor is open.",
+    "steps": ["Edit a blocked app's match rule without saving yet.", "Update or remove the app, then save the rule and reopen Parent.", "Check the updated app remains covered, or reinstall the removed app and check its rule was retained."]
+  },
+  "E2E-021": {
+    "expected": "The action reaches every affected child desktop while leaving other users' work unchanged.",
+    "summary": "Apply policy changes across one child's open desktops.",
+    "steps": ["Leave recognizable work open in multiple child desktops and another user's desktop.", "Save app rules, approve access or revoke time through the normal controls.", "Check app behavior in every child desktop and confirm the other user's work continues."]
+  },
+  "E2E-022": {
+    "expected": "Saved settings survive the selected lifecycle event, time keeps its original deadline, and expired access needs new approval.",
+    "summary": "Preserve policy and time deadlines across restarts, sign-ins, idle periods or sleep.",
+    "steps": ["Save limits, app rules and the request choices covered by this case, then approve temporary time.", "Restart the app, sign out, reboot, remain idle or suspend as selected.", "Check saved settings and the original time deadline after returning.", "If time expired, approve replacement time and check usable access and app rules."]
+  },
+  "E2E-023": {
+    "expected": "Zero time prevents access; approved time permits real gameplay, expiry locks it, and replacement time restores the retained game.",
+    "summary": "Approve game time from zero allowance and resume the game after expiry.",
+    "steps": ["Set zero daily allowance and check that child sign-in is refused.", "Approve time at the request station, sign in and play the game.", "Continue until the desktop locks and refuses access without more time.", "Approve replacement time and continue the same game."]
+  },
+  "E2E-024": {
+    "expected": "Approved time adds to the current larger balance and extends the same game beyond the previous deadline.",
+    "summary": "Add time during gameplay without losing the existing balance or game.",
+    "steps": ["Start playing with daily or temporary time as the larger balance.", "Request and approve more time while playing.", "Resume the same game beyond the old deadline and continue until the extended time expires."]
+  },
+  "E2E-025": {
+    "expected": "Daily access remains and the replacement approval determines soft-app launches and retained soft-app work.",
+    "summary": "Replace expired temporary permission before returning with daily time left.",
+    "steps": ["Open a soft-blocked app with approval, then raise daily time above the temporary balance.", "Leave the child desktop and let temporary time expire while daily time remains.", "Approve replacement time before signing in or unlocking.", "Check app launches and whether retained soft-app work follows the new include-or-exclude choice."]
+  },
+  "E2E-026": {
+    "expected": "The updated app is usable after its instructed activation, with saved policy and the original grant deadline preserved.",
+    "summary": "Update the installed app while keeping saved policy and the original time deadline.",
+    "steps": ["Use an earlier release with saved limits, app rules and active temporary time.", "Install the update and follow its app, session or computer restart instructions.", "Check the new version, usable screens, saved settings and remaining time without resetting the deadline."]
+  },
+  "E2E-027": {
+    "expected": "Removal releases restrictions; reinstall retains saved policy without old grants; purge resets policy and shared request defaults.",
+    "summary": "Remove, reinstall and purge parental control with the expected saved settings.",
+    "steps": ["Install the app, save settings and use approved child access.", "Remove it and follow its notice; check personal accounts and formerly blocked apps remain usable.", "Reinstall and check saved choices return without old temporary time.", "Purge and reinstall again; check parental policy and shared requests start with defaults."]
+  },
+  "E2E-030": {
+    "expected": "About identifies the installed product and closes back to the same unchanged child settings.",
+    "summary": "Read installed product information and return to the same child settings.",
+    "steps": ["Select a child in Parent and open About.", "Read the installed version and license information.", "Close About and check the same child and settings remain selected."]
+  },
+  "E2E-031": {
+    "expected": "Feedback drafts, validation, attachments or downloads follow the selected flow without sending feedback.",
+    "summary": "Prepare and review feedback without submitting it.",
+    "steps": ["Compose a feedback draft and inspect Privacy.", "Exercise the selected draft, validation, attachment or diagnostic-download flow.", "Check the intended draft and files are preserved or discarded at the expected boundary."],
+    "variants": {
+      "draft-reopen": {"steps": ["Write formatted feedback, a reply address and an attachment.", "Visit Privacy and reopen feedback; check the draft remains.", "Exit and restart Parent; check the draft is discarded."]},
+      "validation": {"steps": ["Try sending empty feedback and read the validation message.", "Enter feedback and a reply address.", "Reopen feedback and check the entered draft remains."]},
+      "attachments": {"steps": ["Attach two files to feedback.", "Remove the unwanted file.", "Check only the intended attachment remains without sending."]},
+      "diagnostic-export": {"steps": ["Prepare feedback and download its diagnostics.", "Cancel once and recover from an unwritable destination.", "Save a readable diagnostic archive and check the feedback draft remains."]}
+    }
+  },
+  "E2E-032": {
+    "expected": "The service accepts the report once, shows thanks, and clears the submitted draft and attachments.",
+    "summary": "Send reviewed feedback and clear its draft after service acceptance.",
+    "steps": ["Compose feedback with reviewed attachments and inspect Privacy.", "Send once and read the service's acceptance and thanks.", "Dismiss thanks and reopen feedback; check the submitted draft and files are cleared."]
+  },
+  "E2E-033": {
+    "expected": "The pending report finishes after reconnection without another Send or an unsolicited window, and its draft clears.",
+    "summary": "Finish a pending feedback submission after Internet access returns.",
+    "steps": ["Compose reviewed feedback, disconnect from the Internet and send once.", "Read the retry state and close the feedback window while Parent stays open.", "Reconnect and reopen feedback; check it finishes without another Send and clears the draft."]
+  },
+  "E2E-035": {
+    "expected": "Each child retains the last accepted allowance after Parent is reopened.",
+    "summary": "Save daily allowances and keep the final value for each child.",
+    "steps": ["Enable limits and change the tested preset or custom allowance.", "Read the final saved allowance for each affected child.", "Reopen Parent and check the last accepted values remain."],
+    "variants": {"save-order": {"steps": ["Quickly save two different allowances for one child.", "Save a separate allowance for another child.", "Reopen Parent and check each child retains their own final allowance."]}}
+  },
+  "E2E-036": {
+    "expected": "Confirmed revocation restores soft-app restrictions even without an active grant while preserving daily access.",
+    "summary": "Revoke temporary app permission even when no active time grant remains.",
+    "steps": ["Keep daily time and an open soft-blocked app after temporary time has been cleared.", "Cancel revocation and check the app continues, then confirm revocation.", "Check the soft app closes and blocked launches fail while daily time and allowed work remain."]
+  },
+  "E2E-038": {
+    "expected": "Daily access continues; soft-app launches and existing apps follow the tested recovery action without affecting other users.",
+    "summary": "Keep daily access after temporary time ends and check when soft-app blocks return.",
+    "steps": ["Open allowed and temporarily permitted soft-blocked apps with daily time also available.", "Let temporary time expire while the child continues using daily time.", "Take the selected return or policy action, or continue without an action.", "Check existing apps and new launches while another user's work continues."],
+    "variants": {
+      "none": {"expected": "Daily access and existing soft-app use continue; natural grant expiry alone does not restore soft-app launch blocks.", "steps": ["Open allowed and temporarily permitted soft-blocked apps with daily time remaining.", "Keep using the same desktop after temporary time expires.", "Try new soft-app launches and revisit the other user's work."]},
+      "unlock": {"expected": "Daily access continues, while returning through unlock closes soft-blocked apps and blocks new launches.", "steps": ["Let temporary time expire while using allowed and soft-blocked apps with daily time remaining.", "Lock and unlock the child desktop.", "Inspect existing apps, try new launches and revisit the other user's work."]},
+      "fresh-login": {"expected": "Daily time permits a new session, but new soft-app launches are blocked; the other user's work remains unaffected.", "steps": ["Let temporary time expire with daily time remaining.", "Sign out and sign in again as the child.", "Try allowed and blocked apps, then revisit the other user's work."]},
+      "allowance-edit": {"expected": "Editing daily time restores soft-app launch blocks without closing earlier soft-app work or affecting another user.", "steps": ["Let temporary time expire while allowed and soft-blocked apps remain open.", "Change the child's daily allowance without toggling limits.", "Return to the child and compare existing work and new launches."]},
+      "toggle": {"expected": "Turning limits off and on restores soft-app launch blocks without closing earlier soft-app work or affecting another user.", "steps": ["Let temporary time expire while allowed and soft-blocked apps remain open.", "Turn the child's limits off and on in Parent.", "Return to the child and compare existing work and new launches."]},
+      "app-save": {"expected": "Saving unchanged app rules restores soft-app launch blocks without closing earlier soft-app work or affecting another user.", "steps": ["Let temporary time expire while allowed and soft-blocked apps remain open.", "Save the child's existing app rules again in Parent.", "Return to the child and compare existing work and new launches."]},
+      "revoke": {"expected": "Revocation closes soft-blocked apps and blocks new launches while daily time, allowed work and other users remain unaffected.", "steps": ["Let temporary time expire while allowed and soft-blocked apps remain open.", "Confirm Revoke in Parent while daily time remains.", "Return to the child and compare existing work and new launches."]}
+    }
+  },
+  "E2E-039": {
+    "expected": "Interrupted or too-soon requests add no access; a later valid request needs fresh authentication and can succeed.",
+    "summary": "Handle interrupted approvals and requests made too soon.",
+    "steps": ["Interrupt a pending approval through a normal session action, or request again during the cooldown.", "Read the cancellation or too-soon explanation and check no extra access was granted.", "Return to the request and check choices and restrictions remain.", "Retry when allowed and require fresh parent authentication."]
+  },
+  "E2E-040": {
+    "expected": "Removed or ineligible selections fall back safely without carrying another account's settings or choices.",
+    "summary": "Refresh selected accounts and remembered choices after accounts change.",
+    "steps": ["Select a child or approver and save recognizable settings and request choices.", "Remove the selected child or make the remembered approver ineligible.", "Check fallback to an eligible account and its own choices, or read that no child is available."]
+  },
+  "E2E-041": {
+    "expected": "The app list and saved matching choices produce the intended child launch restrictions, including the documented reopening behavior.",
+    "summary": "Find apps and save matching rules that control the intended launches.",
+    "steps": ["Open the child's app list, including child-specific apps.", "Exercise the selected search, filter or match-rule editing flow.", "Reopen saved choices and try the affected app launches."],
+    "variants": {
+      "search-filters": {"steps": ["Open the child's app list.", "Search and filter the list.", "Check the intended apps and their saved choices appear."]},
+      "match-editor": {"steps": ["Edit an app's match rule.", "Check valid rules save and rejected rules preserve the last accepted choice.", "Try the affected child launches."]},
+      "match-reopen": {"steps": ["Save a precise match override for an app with a suggested pattern.", "Reopen Parent and inspect the documented suggested-pattern redisplay.", "Select precise matching again before saving and check launches."]},
+      "shared-launchers": {"steps": ["Inspect apps that share a launcher target.", "Save the intended app rule.", "Try the related child launches and check the rule applies correctly."]},
+      "special-paths": {"steps": ["Inspect apps whose paths contain special characters.", "Save their match rules.", "Try launching them as the child and check the intended restrictions."]},
+      "pattern-files": {"steps": ["Save a file-pattern rule for an app.", "Copy or rename the relevant files.", "Check matching launches are restricted and unrelated launches remain usable."]}
+    }
+  },
+  "E2E-042": {
+    "expected": "Product information is readable and closing it preserves the unfinished request and station restrictions.",
+    "summary": "Read product information without losing an unfinished request.",
+    "steps": ["Leave request choices unfinished and open About.", "Read installed product, legal and contact information.", "Close About and check the request and station restrictions remain."],
+    "variants": {"command-help": {"expected": "Installed help and manuals are readable without opening management or request windows.", "steps": ["Read the installed commands' help and manuals.", "Check that reading help opens no management or request window."]}}
+  },
+  "E2E-043": {
+    "expected": "Local management, approvals, timekeeping and app restrictions work offline on both request forms.",
+    "summary": "Manage limits and approve child access without Internet access.",
+    "steps": ["Go offline and save screen limits and app rules in Parent.", "Approve time and soft-app access from the child overlay, then from the request station.", "Check added time, allowed and soft-app use, and continued hard blocking after each approval.", "Revoke access offline and check soft apps close before reconnecting."]
+  },
+  "E2E-044": {
+    "expected": "Time follows the tested calendar boundary: daily time renews, rest-of-day ends at local midnight, and fixed grants keep their elapsed deadline.",
+    "summary": "Keep time allowances correct across midnight and daylight-saving changes.",
+    "steps": ["Prepare the tested daily or temporary time near the natural calendar boundary.", "Cross midnight or the daylight-saving change and compare balances and request estimates.", "Check daily renewal, rest-of-day expiry or the original fixed-time deadline as applicable."],
+    "variants": {
+      "spring-forward-paired-grants": {"steps": ["Give one child rest-of-day time and another a fixed grant before the spring clock change.", "Cross the clock change and check neither grant gains or loses an hour.", "Check the fixed grant expires at its original deadline while rest-of-day access continues."]},
+      "fall-back-paired-grants": {"steps": ["Give one child rest-of-day time and another a fixed grant before the autumn clock change.", "Cross the clock change and check neither grant gains or loses an hour.", "Check the fixed grant expires at its original deadline while rest-of-day access continues."]}
+    }
+  },
+  "E2E-045": {
+    "expected": "The report can be reviewed or declined without sending, and the last accepted app rule remains saved.",
+    "summary": "Review or dismiss a policy error report without changing the last saved rule.",
+    "steps": ["Save a valid app rule, then try a rejected rule.", "Review the automatic error report and Privacy, then close without sending.", "Repeat and dismiss the report directly; check the last accepted rule remains."]
+  },
+  "E2E-046": {
+    "expected": "Unavailable diagnostics do not prevent editing or closing; retry preserves the draft, and accepted sending without logs exits normally.",
+    "summary": "Keep error reporting usable when diagnostics cannot be collected.",
+    "steps": ["Open an error report with diagnostics unavailable and read its explanation.", "Write a draft and check report editing and closing remain available.", "Retry diagnostics in Parent, or explicitly send without logs at the request station.", "Check the draft survives retry or the accepted station report returns to sign-in."]
+  },
+  "E2E-047": {
+    "expected": "Accepted feedback completes the expected return flow; stopped or abandoned sending leaves no later submission.",
+    "summary": "Finish or stop feedback while preserving the expected return flow.",
+    "steps": ["Prepare feedback or an error report and inspect Privacy.", "Take the selected send, stop-sending or app-exit action.", "Check accepted reports finish normally and stopped drafts are not sent later."],
+    "variants": {
+      "overlay-success": {"steps": ["Prepare a child error report with a reply address and inspect Privacy.", "Send and read acceptance, the reply note and thanks.", "Dismiss thanks and check return to the child desktop."]},
+      "kiosk-success": {"steps": ["Prepare a request-station error report and inspect Privacy.", "Send and read acceptance and thanks.", "Dismiss thanks and check return to sign-in."]},
+      "app-exit": {"steps": ["Start sending feedback while offline.", "Exit Parent before sending completes.", "Reopen Parent and check no pending submission or draft returns."]},
+      "overlay-stop": {"steps": ["Start sending a child error report while offline.", "Choose Stop sending and close the report.", "Check return to the child desktop without a later submission."]},
+      "kiosk-stop": {"steps": ["Start sending a request-station error report while offline.", "Choose Stop sending and close the report.", "Check return to sign-in without a later submission."]}
+    }
+  },
+  "E2E-048": {
+    "expected": "Approval adds time using current balances without restoring time spent waiting at the prompt.",
+    "summary": "Use current remaining time when a parent takes time to approve.",
+    "steps": ["Open a short additional-time request and read its estimate.", "Leave the approval prompt open before authenticating.", "Check the resulting balance accounts for time elapsed during approval.", "Make another request after the cooldown and check its added time too."]
+  },
+  "E2E-049": {
+    "expected": "Soft-app access follows each latest approval; hard blocks and allowed work persist, and saved rules do not change.",
+    "summary": "Replace temporary soft-app permission through each supported launch route.",
+    "steps": ["Keep allowed work open with hard- and soft-blocked apps configured.", "Approve time excluding soft apps, then including them, then excluding them again.", "After each approval check allowed work, hard blocking and the expected soft-app access or closure.", "Check saved app rules remain unchanged."]
+  },
+  "E2E-050": {
+    "expected": "Repeated real use preserves work and applies every time and app change without affecting the other child.",
+    "summary": "Alternate homework, games and approvals over repeated child sessions.",
+    "steps": ["Prepare allowed homework, a soft-blocked game and a hard-blocked app.", "Repeat two cycles of daily use, approvals on both forms, allowance changes and revocation.", "Check work, time and app access after every change, including natural locking and recovery.", "Check another child's work stays unaffected and final policy remains saved."]
+  },
+  "E2E-051": {
+    "expected": "Each child retains their own work, policy and choices; revoking one child's access does not interrupt the other.",
+    "summary": "Keep two children's work, time and request choices separate during repeated use.",
+    "steps": ["Prepare distinct work, app rules and request choices for two children.", "Alternate both children and parents through daily use and approvals on both request forms.", "After each change check the other child's work, balances and choices remain their own.", "Revoke one child's grant-only access while the other continues using daily time."]
+  },
+  "E2E-052": {
+    "expected": "Lunar and Minecraft work only when permitted; positive time without soft-app permission cannot bypass blocking through login autostart.",
+    "summary": "Stop Lunar login autostart from bypassing soft-app restrictions.",
+    "steps": ["Allow Lunar, launch Minecraft and check ordinary login autostart works.", "Soft block Lunar and check launching is denied without temporary permission.", "Approve time excluding soft apps, reboot and check Lunar cannot autostart or launch.", "Include soft apps and play again, then exclude them and check blocking returns after reboot."]
+  },
+  "E2E-053": {
+    "expected": "Chinese installation and request text is usable, the selected language persists, and both approvals add the intended access.",
+    "summary": "Use Chinese installation notices and saved request language across station visits.",
+    "steps": ["Install with the child's desktop language set to Chinese and read the restart notice.", "Restart, inspect the Chinese request station and save Chinese as the child's language.", "Approve two requests across separate station visits.", "Check Chinese prompts and confirmations, remembered language and added time."]
+  },
+  "E2E-054": {
+    "expected": "Each account keeps its own language across forms and sessions, offline and after reconnection, without policy changes.",
+    "summary": "Keep personal languages separate across accounts and offline sessions.",
+    "steps": ["Go offline and save Chinese for Parent and different languages for two children.", "Switch children and approvers and reopen the request station.", "Reopen the child overlay and start a new desktop session.", "Check each account retains its own language and unchanged policy before and after reconnecting."]
+  },
+  "E2E-055": {
+    "expected": "Parent and its dialogs change language while the original draft, child policy and time remain intact.",
+    "summary": "Change Parent's language without losing feedback or child policy.",
+    "steps": ["Prepare child policy and a feedback draft in English.", "Switch Parent to Hebrew and inspect management, About and feedback.", "Restore English and check the draft, names, policy and time balances remain intact."]
+  },
+  "E2E-056": {
+    "expected": "The restart notice persists on the same boot and disappears after its restart action makes Parent usable.",
+    "summary": "Complete fresh installation using Parent's restart notice.",
+    "steps": ["Install the app and open Parent before restarting.", "Close and reopen the notice; check it remains until restart.", "Choose Reboot now and check Parent becomes usable without the notice."]
+  },
+  "E2E-057": {
+    "expected": "The Child App's notice persists until restart, then the enabled child's request form becomes usable.",
+    "summary": "Complete fresh installation using the Child App's restart notice.",
+    "steps": ["Install the app and open Child App before restarting.", "Close and reopen the notice on the same desktop.", "Choose Reboot now, enable the child's limits and check the request form opens normally."]
+  },
+  "E2E-058": {
+    "expected": "The station's notice persists until restart, then normal child selection and requests become available.",
+    "summary": "Complete fresh installation using the request station's restart notice.",
+    "steps": ["Install the app and enter the request station before restarting.", "Close the notice, return to sign-in and reenter; check the notice remains.", "Choose Reboot now, enable the child and check the station offers a usable request form."]
+  },
+  "E2E-059": {
+    "expected": "Language changes and approval preserve the original work and request choices while adding the intended time.",
+    "summary": "Approve a Hebrew child request without losing work or request choices.",
+    "steps": ["Leave child work open and prepare an English request.", "Switch to Hebrew and check request choices remain.", "Approve through the parent's English prompt and check Hebrew confirmation and added time.", "Restore English and check original work and choices remain without resetting time."]
+  },
+  "E2E-060": {
+    "expected": "Changing the approver does not change the child's language or request choices, and cancelling returns safely to sign-in.",
+    "summary": "Keep the child's request language when the approving parent changes.",
+    "steps": ["Prepare a request at the station and switch its language to Hebrew.", "Choose a different approving parent and check the child's language and request choices remain.", "Restore English and cancel back to sign-in while station restrictions remain in place."]
+  },
+  "E2E-061": {
+    "expected": "Language changes preserve work and the original countdown deadline, and the desktop locks when daily time expires.",
+    "summary": "Keep the original countdown and work while changing the child's language.",
+    "steps": ["Start child work with a daily allowance and read the countdown.", "Switch the request language to Hebrew and back to English.", "Check the same work, choices and original time deadline remain.", "Continue until natural locking and check time is exhausted without a new grant."]
+  }
+}

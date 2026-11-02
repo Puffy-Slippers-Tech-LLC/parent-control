@@ -127,8 +127,11 @@ are excluded; system lifecycle phases in one execution attempt are added togethe
 Rows update only after all selected phases of a case finish. Unfinished attempts
 publish no partial row; an earlier completed duration remains until replaced.
 Case links open the existing case file in a new editor tab. The recording icon
-uses the existing default desktop viewer route (or the SSH video tab). **Show** /
-**Hide** expands existing case descriptions or scenario steps as plain text.
+uses the existing default desktop viewer route (or the SSH video tab). The
+**Description** column shows a one-line scenario summary. **Show** / **Hide**
+expands concise bullet steps and an **Expected:** outcome. Descriptions come
+from checked-in scenario metadata, including for previously logged timings;
+updating descriptions requires no test rerun.
 Only executed, logged cases appear; this is not a test inventory. Small latest-only
 records live in the shared `state` directory under gitignored `output/test-runs/`.
 

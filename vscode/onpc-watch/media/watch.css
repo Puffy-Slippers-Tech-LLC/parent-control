@@ -153,7 +153,10 @@ nav button[aria-pressed="true"] {
 }
 .run-times a { color: var(--vscode-textLink-foreground); text-decoration: underline; cursor: pointer; }
 .run-times td:last-child { width: 35%; }
-.run-times td:last-child div { white-space: pre-wrap; padding-top: 8px; }
+.run-times td:last-child div { white-space: normal; padding-bottom: 8px; }
+.run-times ul { margin: 8px 0; padding-left: 20px; }
+.run-times li + li { margin-top: 4px; }
+.run-times p { margin: 8px 0 0; }
 #grid[data-layout="vertical"] { grid-template-columns: minmax(0, 1fr); }
 #grid[data-layout="horizontal"]:not(.single) {
     grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(300px, 1fr);

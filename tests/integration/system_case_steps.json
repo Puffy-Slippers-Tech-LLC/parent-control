@@ -1,0 +1,2353 @@
+{
+  "1": {
+    "summary": "Verify the installed parental-control components and services.",
+    "steps": [
+      "Install parental control.",
+      "Check its installed components and required services before and after restarting."
+    ],
+    "expected": "The installation is complete, protected files stay private, and services are ready."
+  },
+  "2": {
+    "summary": "Request a restart after the first installation.",
+    "steps": [
+      "Install parental control for the first time.",
+      "Check whether a restart is requested."
+    ],
+    "expected": "The installation requests a restart before full activation."
+  },
+  "3": {
+    "summary": "Finish installation activation after restarting.",
+    "steps": [
+      "Restart after installing parental control.",
+      "Check the installation's restart status."
+    ],
+    "expected": "The restart completes and the pending restart request is cleared."
+  },
+  "4": {
+    "summary": "Recover safely from an interrupted first installation.",
+    "steps": [
+      "Interrupt the first installation at two stages of request-station setup.",
+      "Retry setup with the same request-station account.",
+      "Restart and check request-station access and ordinary accounts."
+    ],
+    "expected": "Incomplete setup cannot expose an unrestricted request-station login; retry completes safely and preserves ordinary accounts."
+  },
+  "5": {
+    "summary": "Keep the request-station account visible and correctly routed after restarting.",
+    "steps": [
+      "Check the request-station account's visibility and dedicated login route.",
+      "Repair missing or hidden account information and retry interrupted repairs.",
+      "Restart and check the account and other users again."
+    ],
+    "expected": "The same request-station account remains visible with its dedicated session, and existing account information is preserved."
+  },
+  "6": {
+    "summary": "Remove, reinstall, and purge parental control without breaking ordinary access.",
+    "steps": [
+      "Apply child restrictions, then remove parental control and restart.",
+      "Reinstall and check saved settings.",
+      "Purge parental control, restart, and reinstall again."
+    ],
+    "expected": "Removal clears restrictions but retains settings; purge clears saved settings; ordinary login and applications remain usable."
+  },
+  "7": {
+    "summary": "Restore child protection after interrupted removal, then retry safely.",
+    "steps": [
+      "Apply child restrictions and interrupt removal.",
+      "Check that child protection and ordinary users' access are preserved.",
+      "Recover the installation, restart, and retry removal."
+    ],
+    "expected": "Failed removal restores protection, and the later removal succeeds without damaging other accounts."
+  },
+  "8": {
+    "summary": "Recover a failed Fedora purge through normal reinstallation.",
+    "steps": [
+      "Purge the Fedora installation while a conflicting request-station home prevents completion.",
+      "Reinstall and check restored child protection.",
+      "Resolve the conflict, restart, and repeat the purge."
+    ],
+    "expected": "The conflict and recovery information are preserved; reinstall restores protection and the final purge succeeds."
+  },
+  "9": {
+    "summary": "Recover removal interrupted while securing request-station access.",
+    "steps": [
+      "Interrupt removal while it is securing request-station access.",
+      "Check that child protection and ordinary login are preserved.",
+      "Recover, restart, and retry removal."
+    ],
+    "expected": "The failed removal preserves protection and account information; the later removal completes safely."
+  },
+  "10": {
+    "summary": "Recover removal interrupted while releasing request-station protection.",
+    "steps": [
+      "Interrupt removal while releasing the request-station security policy.",
+      "Check that the incomplete removal remains safe.",
+      "Resolve the interruption and retry removal."
+    ],
+    "expected": "Removal can recover without exposing an unrestricted request-station account or damaging other users."
+  },
+  "11": {
+    "summary": "Finish removal after request-station account deletion is interrupted.",
+    "steps": [
+      "Interrupt removal while deleting the request-station account.",
+      "Check access while removal is incomplete.",
+      "Recover and complete removal, including a restart."
+    ],
+    "expected": "The surviving request-station account stays inaccessible until safe recovery completes; ordinary users keep access."
+  },
+  "12": {
+    "summary": "Preserve administrator-edited service settings during removal.",
+    "steps": [
+      "Attempt removal with an administrator-edited request-station service setting.",
+      "Check that the conflicting data and other users' access are preserved.",
+      "Resolve the conflict, recover the installation, restart, and retry removal."
+    ],
+    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+  },
+  "13": {
+    "summary": "Refuse removal that encounters redirected password-login settings.",
+    "steps": [
+      "Attempt removal with a redirected password-login configuration.",
+      "Check that the conflicting data and other users' access are preserved.",
+      "Resolve the conflict, recover the installation, restart, and retry removal."
+    ],
+    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+  },
+  "14": {
+    "summary": "Refuse removal that encounters redirected request-station service settings.",
+    "steps": [
+      "Attempt removal with a redirected request-station service configuration.",
+      "Check that the conflicting data and other users' access are preserved.",
+      "Resolve the conflict, recover the installation, restart, and retry removal."
+    ],
+    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+  },
+  "15": {
+    "summary": "Refuse removal that encounters a redirected login hook.",
+    "steps": [
+      "Attempt removal with a redirected login hook.",
+      "Check that the conflicting data and other users' access are preserved.",
+      "Resolve the conflict, recover the installation, restart, and retry removal."
+    ],
+    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+  },
+  "16": {
+    "summary": "Refuse removal when the request-station ownership record belongs to another user.",
+    "steps": [
+      "Attempt removal with a request-station ownership record belonging to another user.",
+      "Check that the conflicting data and other users' access are preserved.",
+      "Resolve the conflict, recover the installation, restart, and retry removal."
+    ],
+    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+  },
+  "17": {
+    "summary": "Refuse removal when the request-station ownership record is redirected.",
+    "steps": [
+      "Attempt removal with a redirected request-station ownership record.",
+      "Check that the conflicting data and other users' access are preserved.",
+      "Resolve the conflict, recover the installation, restart, and retry removal."
+    ],
+    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+  },
+  "18": {
+    "summary": "Refuse removal when the ownership record names the wrong request-station account.",
+    "steps": [
+      "Attempt removal with an ownership record naming the wrong request-station account.",
+      "Check that the conflicting data and other users' access are preserved.",
+      "Resolve the conflict, recover the installation, restart, and retry removal."
+    ],
+    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+  },
+  "19": {
+    "summary": "Refuse removal when the saved request-station identity names the wrong account.",
+    "steps": [
+      "Attempt removal with a request-station identity record naming the wrong account.",
+      "Check that the conflicting data and other users' access are preserved.",
+      "Resolve the conflict, recover the installation, restart, and retry removal."
+    ],
+    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+  },
+  "20": {
+    "summary": "Preserve a request-station home that belongs to another user.",
+    "steps": [
+      "Attempt removal with a request-station home belonging to another user.",
+      "Check that the conflicting data and other users' access are preserved.",
+      "Resolve the conflict, recover the installation, restart, and retry removal."
+    ],
+    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+  },
+  "21": {
+    "summary": "Preserve a redirected request-station home during removal.",
+    "steps": [
+      "Attempt removal with a redirected request-station home.",
+      "Check that the conflicting data and other users' access are preserved.",
+      "Resolve the conflict, recover the installation, restart, and retry removal."
+    ],
+    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+  },
+  "22": {
+    "summary": "Preserve another filesystem mounted over the request-station home.",
+    "steps": [
+      "Attempt removal with a separate filesystem mounted over the request-station home.",
+      "Check that the conflicting data and other users' access are preserved.",
+      "Resolve the conflict, recover the installation, restart, and retry removal."
+    ],
+    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+  },
+  "23": {
+    "summary": "Preserve saved product data that belongs to another user.",
+    "steps": [
+      "Attempt removal with saved product data belonging to another user.",
+      "Check that the conflicting data and other users' access are preserved.",
+      "Resolve the conflict, recover the installation, restart, and retry removal."
+    ],
+    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+  },
+  "24": {
+    "summary": "Preserve redirected product data during removal.",
+    "steps": [
+      "Attempt removal with redirected saved product data.",
+      "Check that the conflicting data and other users' access are preserved.",
+      "Resolve the conflict, recover the installation, restart, and retry removal."
+    ],
+    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+  },
+  "25": {
+    "summary": "Preserve another filesystem mounted over saved product data.",
+    "steps": [
+      "Attempt removal with a separate filesystem mounted over saved product data.",
+      "Check that the conflicting data and other users' access are preserved.",
+      "Resolve the conflict, recover the installation, restart, and retry removal."
+    ],
+    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+  },
+  "26": {
+    "summary": "Check permissions for the first child listing children for management.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to list the children available for management."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "27": {
+    "summary": "Check permissions for the second child listing children for management.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to list the children available for management."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "28": {
+    "summary": "Check permissions for the first administrator listing children for management.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to list the children available for management."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "29": {
+    "summary": "Check permissions for the second administrator listing children for management.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to list the children available for management."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "30": {
+    "summary": "Check permissions for the request-station account listing children for management.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to list the children available for management."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "31": {
+    "summary": "Check permissions for an unrelated ordinary user listing children for management.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to list the children available for management."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "32": {
+    "summary": "Check permissions for a locked administrator account listing children for management.",
+    "steps": [
+      "Act as the locked administrator account.",
+      "Attempt to list the children available for management."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "33": {
+    "summary": "Check permissions for the first child listing approving parents.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to list the parents who can approve requests."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "34": {
+    "summary": "Check permissions for the second child listing approving parents.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to list the parents who can approve requests."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "35": {
+    "summary": "Check permissions for the first administrator listing approving parents.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to list the parents who can approve requests."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "36": {
+    "summary": "Check permissions for the second administrator listing approving parents.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to list the parents who can approve requests."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "37": {
+    "summary": "Check permissions for the request-station account listing approving parents.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to list the parents who can approve requests."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "38": {
+    "summary": "Check permissions for an unrelated ordinary user listing approving parents.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to list the parents who can approve requests."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "39": {
+    "summary": "Check permissions for a locked administrator account listing approving parents.",
+    "steps": [
+      "Act as the locked administrator account.",
+      "Attempt to list the parents who can approve requests."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "40": {
+    "summary": "Check permissions for the first child reading their own child identity.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to identify their own child account."
+    ],
+    "expected": "The returned child identity matches the requesting account."
+  },
+  "41": {
+    "summary": "Check permissions for the second child reading their own child identity.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to identify their own child account."
+    ],
+    "expected": "The returned child identity matches the requesting account."
+  },
+  "42": {
+    "summary": "Check permissions for the first administrator reading their own child identity.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to identify their own child account."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "43": {
+    "summary": "Check permissions for the second administrator reading their own child identity.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to identify their own child account."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "44": {
+    "summary": "Check permissions for the request-station account reading their own child identity.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to identify their own child account."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "45": {
+    "summary": "Check permissions for an unrelated ordinary user reading their own child identity.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to identify their own child account."
+    ],
+    "expected": "The returned child identity matches the requesting account."
+  },
+  "46": {
+    "summary": "Check permissions for a locked administrator account reading their own child identity.",
+    "steps": [
+      "Act as the locked administrator account.",
+      "Attempt to identify their own child account."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "47": {
+    "summary": "Check permissions for the first child reading child settings.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to read settings for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "48": {
+    "summary": "Check permissions for the second child reading child settings.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to read settings for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "49": {
+    "summary": "Check permissions for the first administrator reading child settings.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to read settings for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "50": {
+    "summary": "Check permissions for the second administrator reading child settings.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to read settings for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "51": {
+    "summary": "Check permissions for the request-station account reading child settings.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to read settings for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "52": {
+    "summary": "Check permissions for an unrelated ordinary user reading child settings.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to read settings for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "53": {
+    "summary": "Check permissions for a locked administrator account reading child settings.",
+    "steps": [
+      "Act as the locked administrator account.",
+      "Attempt to read settings for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "54": {
+    "summary": "Check permissions for the first child listing a child's applications.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to list applications for the selected child."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "55": {
+    "summary": "Check permissions for the second child listing a child's applications.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to list applications for the selected child."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "56": {
+    "summary": "Check permissions for the first administrator listing a child's applications.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to list applications for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "57": {
+    "summary": "Check permissions for the second administrator listing a child's applications.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to list applications for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "58": {
+    "summary": "Check permissions for the request-station account listing a child's applications.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to list applications for the selected child."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "59": {
+    "summary": "Check permissions for an unrelated ordinary user listing a child's applications.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to list applications for the selected child."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "60": {
+    "summary": "Check permissions for a locked administrator account listing a child's applications.",
+    "steps": [
+      "Act as the locked administrator account.",
+      "Attempt to list applications for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "61": {
+    "summary": "Check permissions for the first child reading a child's remaining time.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to read the selected child's remaining time."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "62": {
+    "summary": "Check permissions for the second child reading a child's remaining time.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to read the selected child's remaining time."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "63": {
+    "summary": "Check permissions for the first administrator reading a child's remaining time.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to read the selected child's remaining time."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "64": {
+    "summary": "Check permissions for the second administrator reading a child's remaining time.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to read the selected child's remaining time."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "65": {
+    "summary": "Check permissions for the request-station account reading a child's remaining time.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to read the selected child's remaining time."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "66": {
+    "summary": "Check permissions for an unrelated ordinary user reading a child's remaining time.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to read the selected child's remaining time."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "67": {
+    "summary": "Check permissions for a locked administrator account reading a child's remaining time.",
+    "steps": [
+      "Act as the locked administrator account.",
+      "Attempt to read the selected child's remaining time."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "68": {
+    "summary": "Check permissions for the first child calculating a child's remaining time.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to calculate remaining time for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "69": {
+    "summary": "Check permissions for the second child calculating a child's remaining time.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to calculate remaining time for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "70": {
+    "summary": "Check permissions for the first administrator calculating a child's remaining time.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to calculate remaining time for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "71": {
+    "summary": "Check permissions for the second administrator calculating a child's remaining time.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to calculate remaining time for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "72": {
+    "summary": "Check permissions for the request-station account calculating a child's remaining time.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to calculate remaining time for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "73": {
+    "summary": "Check permissions for an unrelated ordinary user calculating a child's remaining time.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to calculate remaining time for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "74": {
+    "summary": "Check permissions for a locked administrator account calculating a child's remaining time.",
+    "steps": [
+      "Act as the locked administrator account.",
+      "Attempt to calculate remaining time for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "75": {
+    "summary": "Check permissions for the first child calculating their own remaining time.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to calculate their own remaining time."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "76": {
+    "summary": "Check permissions for the second child calculating their own remaining time.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to calculate their own remaining time."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "77": {
+    "summary": "Check permissions for the first administrator calculating their own remaining time.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to calculate their own remaining time."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "78": {
+    "summary": "Check permissions for the second administrator calculating their own remaining time.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to calculate their own remaining time."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "79": {
+    "summary": "Check permissions for the request-station account calculating their own remaining time.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to calculate their own remaining time."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "80": {
+    "summary": "Check permissions for an unrelated ordinary user calculating their own remaining time.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to calculate their own remaining time."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "81": {
+    "summary": "Check permissions for a locked administrator account calculating their own remaining time.",
+    "steps": [
+      "Act as the locked administrator account.",
+      "Attempt to calculate their own remaining time."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "82": {
+    "summary": "Check permissions for the first child preparing their own child session.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to prepare their own child session."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "83": {
+    "summary": "Check permissions for the second child preparing their own child session.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to prepare their own child session."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "84": {
+    "summary": "Check permissions for the first administrator preparing their own child session.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to prepare their own child session."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "85": {
+    "summary": "Check permissions for the second administrator preparing their own child session.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to prepare their own child session."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "86": {
+    "summary": "Check permissions for the request-station account preparing their own child session.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to prepare their own child session."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "87": {
+    "summary": "Check permissions for an unrelated ordinary user preparing their own child session.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to prepare their own child session."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "88": {
+    "summary": "Check permissions for a locked administrator account preparing their own child session.",
+    "steps": [
+      "Act as the locked administrator account.",
+      "Attempt to prepare their own child session."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "89": {
+    "summary": "Check permissions for the first child saving request choices.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to save the selected child's request choices."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "90": {
+    "summary": "Check permissions for the second child saving request choices.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to save the selected child's request choices."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "91": {
+    "summary": "Check permissions for the first administrator saving request choices.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to save the selected child's request choices."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "92": {
+    "summary": "Check permissions for the second administrator saving request choices.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to save the selected child's request choices."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "93": {
+    "summary": "Check permissions for the request-station account saving request choices.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to save the selected child's request choices."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "94": {
+    "summary": "Check permissions for an unrelated ordinary user saving request choices.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to save the selected child's request choices."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "95": {
+    "summary": "Check permissions for a locked administrator account saving request choices.",
+    "steps": [
+      "Act as the locked administrator account.",
+      "Attempt to save the selected child's request choices."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "96": {
+    "summary": "Check permissions for the first child saving a custom request amount and time unit.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to save a custom request amount and time unit."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "97": {
+    "summary": "Check permissions for the second child saving a custom request amount and time unit.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to save a custom request amount and time unit."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "98": {
+    "summary": "Check permissions for the first administrator saving a custom request amount and time unit.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to save a custom request amount and time unit."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "99": {
+    "summary": "Check permissions for the second administrator saving a custom request amount and time unit.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to save a custom request amount and time unit."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "100": {
+    "summary": "Check permissions for the request-station account saving a custom request amount and time unit.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to save a custom request amount and time unit."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "101": {
+    "summary": "Check permissions for an unrelated ordinary user saving a custom request amount and time unit.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to save a custom request amount and time unit."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "102": {
+    "summary": "Check permissions for a locked administrator account saving a custom request amount and time unit.",
+    "steps": [
+      "Act as the locked administrator account.",
+      "Attempt to save a custom request amount and time unit."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "103": {
+    "summary": "Check permissions for the first child saving the request sound preference.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to save the request sound preference."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "104": {
+    "summary": "Check permissions for the second child saving the request sound preference.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to save the request sound preference."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "105": {
+    "summary": "Check permissions for the first administrator saving the request sound preference.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to save the request sound preference."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "106": {
+    "summary": "Check permissions for the second administrator saving the request sound preference.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to save the request sound preference."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "107": {
+    "summary": "Check permissions for the request-station account saving the request sound preference.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to save the request sound preference."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "108": {
+    "summary": "Check permissions for an unrelated ordinary user saving the request sound preference.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to save the request sound preference."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "109": {
+    "summary": "Check permissions for a locked administrator account saving the request sound preference.",
+    "steps": [
+      "Act as the locked administrator account.",
+      "Attempt to save the request sound preference."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "110": {
+    "summary": "Check permissions for the first child saving parental-control settings.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to save the selected child's parental-control settings."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "111": {
+    "summary": "Check permissions for the second child saving parental-control settings.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to save the selected child's parental-control settings."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "112": {
+    "summary": "Check permissions for the first administrator saving parental-control settings.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to save the selected child's parental-control settings."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "113": {
+    "summary": "Check permissions for the second administrator saving parental-control settings.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to save the selected child's parental-control settings."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "114": {
+    "summary": "Check permissions for the request-station account saving parental-control settings.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to save the selected child's parental-control settings."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "115": {
+    "summary": "Check permissions for an unrelated ordinary user saving parental-control settings.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to save the selected child's parental-control settings."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "116": {
+    "summary": "Check permissions for a locked administrator account saving parental-control settings.",
+    "steps": [
+      "Act as the locked administrator account.",
+      "Attempt to save the selected child's parental-control settings."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "117": {
+    "summary": "Check permissions for the first child turning off parental control.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to turn off parental control for the selected child."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "118": {
+    "summary": "Check permissions for the second child turning off parental control.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to turn off parental control for the selected child."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "119": {
+    "summary": "Check permissions for the first administrator turning off parental control.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to turn off parental control for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "120": {
+    "summary": "Check permissions for the second administrator turning off parental control.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to turn off parental control for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "121": {
+    "summary": "Check permissions for the request-station account turning off parental control.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to turn off parental control for the selected child."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "122": {
+    "summary": "Check permissions for an unrelated ordinary user turning off parental control.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to turn off parental control for the selected child."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "123": {
+    "summary": "Check permissions for a locked administrator account turning off parental control.",
+    "steps": [
+      "Act as the locked administrator account.",
+      "Attempt to turn off parental control for the selected child."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "124": {
+    "summary": "Check permissions for the first child revoking extra time.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to revoke the selected child's extra time."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "125": {
+    "summary": "Check permissions for the second child revoking extra time.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to revoke the selected child's extra time."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "126": {
+    "summary": "Check permissions for the first administrator revoking extra time.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to revoke the selected child's extra time."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "127": {
+    "summary": "Check permissions for the second administrator revoking extra time.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to revoke the selected child's extra time."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "128": {
+    "summary": "Check permissions for the request-station account revoking extra time.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to revoke the selected child's extra time."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "129": {
+    "summary": "Check permissions for an unrelated ordinary user revoking extra time.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to revoke the selected child's extra time."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "130": {
+    "summary": "Check permissions for a locked administrator account revoking extra time.",
+    "steps": [
+      "Act as the locked administrator account.",
+      "Attempt to revoke the selected child's extra time."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "131": {
+    "summary": "Check permissions for the first child requesting their own extra time while control is off.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to request extra time for their own account while parental control is off."
+    ],
+    "expected": "Extra time is refused while parental control is off."
+  },
+  "132": {
+    "summary": "Check permissions for the second child requesting their own extra time while control is off.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to request extra time for their own account while parental control is off."
+    ],
+    "expected": "Extra time is refused while parental control is off."
+  },
+  "133": {
+    "summary": "Check permissions for the first administrator requesting their own extra time while control is off.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to request extra time for their own account while parental control is off."
+    ],
+    "expected": "Extra time is refused while parental control is off."
+  },
+  "134": {
+    "summary": "Check permissions for the second administrator requesting their own extra time while control is off.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to request extra time for their own account while parental control is off."
+    ],
+    "expected": "Extra time is refused while parental control is off."
+  },
+  "135": {
+    "summary": "Check permissions for the request-station account requesting their own extra time while control is off.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to request extra time for their own account while parental control is off."
+    ],
+    "expected": "Extra time is refused while parental control is off."
+  },
+  "136": {
+    "summary": "Check permissions for an unrelated ordinary user requesting their own extra time while control is off.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to request extra time for their own account while parental control is off."
+    ],
+    "expected": "Extra time is refused while parental control is off."
+  },
+  "137": {
+    "summary": "Check permissions for a locked administrator account requesting their own extra time while control is off.",
+    "steps": [
+      "Act as the locked administrator account.",
+      "Attempt to request extra time for their own account while parental control is off."
+    ],
+    "expected": "Extra time is refused while parental control is off."
+  },
+  "138": {
+    "summary": "Check permissions for the first child requesting extra time for a selected child.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to request extra time for a selected child through the request station."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "139": {
+    "summary": "Check permissions for the second child requesting extra time for a selected child.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to request extra time for a selected child through the request station."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "140": {
+    "summary": "Check permissions for the first administrator requesting extra time for a selected child.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to request extra time for a selected child through the request station."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "141": {
+    "summary": "Check permissions for the second administrator requesting extra time for a selected child.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to request extra time for a selected child through the request station."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "142": {
+    "summary": "Check permissions for the request-station account requesting extra time for a selected child.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to request extra time for a selected child through the request station."
+    ],
+    "expected": "The request-station route is allowed, but no extra time is granted without parent authentication."
+  },
+  "143": {
+    "summary": "Check permissions for an unrelated ordinary user requesting extra time for a selected child.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to request extra time for a selected child through the request station."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "144": {
+    "summary": "Check permissions for a locked administrator account requesting extra time for a selected child.",
+    "steps": [
+      "Act as the locked administrator account.",
+      "Attempt to request extra time for a selected child through the request station."
+    ],
+    "expected": "The operation is refused for this account's role."
+  },
+  "145": {
+    "summary": "Check permissions for the first child recording their own component's diagnostic events.",
+    "steps": [
+      "Act as the first child.",
+      "Attempt to record a diagnostic event for their own product component."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "146": {
+    "summary": "Check permissions for the second child recording their own component's diagnostic events.",
+    "steps": [
+      "Act as the second child.",
+      "Attempt to record a diagnostic event for their own product component."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "147": {
+    "summary": "Check permissions for the first administrator recording their own component's diagnostic events.",
+    "steps": [
+      "Act as the first administrator.",
+      "Attempt to record a diagnostic event for their own product component."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "148": {
+    "summary": "Check permissions for the second administrator recording their own component's diagnostic events.",
+    "steps": [
+      "Act as the second administrator.",
+      "Attempt to record a diagnostic event for their own product component."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "149": {
+    "summary": "Check permissions for the request-station account recording their own component's diagnostic events.",
+    "steps": [
+      "Act as the request-station account.",
+      "Attempt to record a diagnostic event for their own product component."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "150": {
+    "summary": "Check permissions for an unrelated ordinary user recording their own component's diagnostic events.",
+    "steps": [
+      "Act as the unrelated ordinary user.",
+      "Attempt to record a diagnostic event for their own product component."
+    ],
+    "expected": "The operation is allowed for this account's role."
+  },
+  "151": {
+    "summary": "Allow locked administrators to record Parent diagnostics",
+    "steps": [
+      "Use a locked administrator account to record a Parent diagnostic event."
+    ],
+    "expected": "The event is accepted for the Parent component."
+  },
+  "152": {
+    "summary": "Keep child settings private",
+    "steps": [
+      "As the first child, try to read saved settings for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "153": {
+    "summary": "Keep child settings private",
+    "steps": [
+      "As the second child, try to read saved settings for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "154": {
+    "summary": "Keep child settings private",
+    "steps": [
+      "As the another standard user, try to read saved settings for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "155": {
+    "summary": "Keep remaining-time details private",
+    "steps": [
+      "As the first child, try to read remaining time for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "156": {
+    "summary": "Keep remaining-time details private",
+    "steps": [
+      "As the second child, try to read remaining time for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "157": {
+    "summary": "Keep remaining-time details private",
+    "steps": [
+      "As the another standard user, try to read remaining time for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "158": {
+    "summary": "Prevent cross-child time calculations",
+    "steps": [
+      "As the first child, try to calculate remaining time for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "159": {
+    "summary": "Prevent cross-child time calculations",
+    "steps": [
+      "As the second child, try to calculate remaining time for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "160": {
+    "summary": "Prevent cross-child time calculations",
+    "steps": [
+      "As the another standard user, try to calculate remaining time for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "161": {
+    "summary": "Protect another child's request choices",
+    "steps": [
+      "As the first child, try to save request choices for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "162": {
+    "summary": "Protect another child's request choices",
+    "steps": [
+      "As the second child, try to save request choices for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "163": {
+    "summary": "Protect another child's request choices",
+    "steps": [
+      "As the another standard user, try to save request choices for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "164": {
+    "summary": "Protect another child's custom request duration",
+    "steps": [
+      "As the first child, try to save custom request duration and units for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "165": {
+    "summary": "Protect another child's custom request duration",
+    "steps": [
+      "As the second child, try to save custom request duration and units for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "166": {
+    "summary": "Protect another child's custom request duration",
+    "steps": [
+      "As the another standard user, try to save custom request duration and units for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "167": {
+    "summary": "Protect another child's request sound choices",
+    "steps": [
+      "As the first child, try to change request sound preferences for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "168": {
+    "summary": "Protect another child's request sound choices",
+    "steps": [
+      "As the second child, try to change request sound preferences for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "169": {
+    "summary": "Protect another child's request sound choices",
+    "steps": [
+      "As the another standard user, try to change request sound preferences for a different child."
+    ],
+    "expected": "Access is denied and the other child's settings remain unchanged."
+  },
+  "170": {
+    "summary": "Protect private records and prevent diagnostic impersonation",
+    "steps": [
+      "As the first child, try to read or change children's private saved records.",
+      "Try to record diagnostic events as another product component."
+    ],
+    "expected": "Private records remain protected and diagnostic impersonation is refused."
+  },
+  "171": {
+    "summary": "Protect private records and prevent diagnostic impersonation",
+    "steps": [
+      "As the second child, try to read or change children's private saved records.",
+      "Try to record diagnostic events as another product component."
+    ],
+    "expected": "Private records remain protected and diagnostic impersonation is refused."
+  },
+  "172": {
+    "summary": "Protect private records and prevent diagnostic impersonation",
+    "steps": [
+      "As the first parent, try to read or change children's private saved records.",
+      "Try to record diagnostic events as another product component."
+    ],
+    "expected": "Private records remain protected and diagnostic impersonation is refused."
+  },
+  "173": {
+    "summary": "Protect private records and prevent diagnostic impersonation",
+    "steps": [
+      "As the second parent, try to read or change children's private saved records.",
+      "Try to record diagnostic events as another product component."
+    ],
+    "expected": "Private records remain protected and diagnostic impersonation is refused."
+  },
+  "174": {
+    "summary": "Protect private records and prevent diagnostic impersonation",
+    "steps": [
+      "As the request station, try to read or change children's private saved records.",
+      "Try to record diagnostic events as another product component."
+    ],
+    "expected": "Private records remain protected and diagnostic impersonation is refused."
+  },
+  "175": {
+    "summary": "Protect private records and prevent diagnostic impersonation",
+    "steps": [
+      "As the unrelated user, try to read or change children's private saved records.",
+      "Try to record diagnostic events as another product component."
+    ],
+    "expected": "Private records remain protected and diagnostic impersonation is refused."
+  },
+  "176": {
+    "summary": "Protect private records and prevent diagnostic impersonation",
+    "steps": [
+      "As the locked administrator, try to read or change children's private saved records.",
+      "Try to record diagnostic events as another product component."
+    ],
+    "expected": "Private records remain protected and diagnostic impersonation is refused."
+  },
+  "177": {
+    "summary": "Offer only eligible children and approving parents",
+    "steps": [
+      "List children and approving parents from Parent and the request station."
+    ],
+    "expected": "Only eligible accounts appear, sorted by name with their account pictures."
+  },
+  "178": {
+    "summary": "Reject deleted children and parents in remembered selections",
+    "steps": [
+      "Remember a child and an approving parent, then delete those accounts.",
+      "Retry discovery, management and approval using the old selections."
+    ],
+    "expected": "Deleted accounts disappear; stale selections are rejected without changing surviving accounts."
+  },
+  "179": {
+    "summary": "Keep system administration separate from parent approval",
+    "steps": [
+      "Use the system administrator account to read and manage a child's controls.",
+      "Try to select that account as an approving parent or use child-only actions."
+    ],
+    "expected": "Administrative management works, but child-only actions, root approval and diagnostic impersonation are refused."
+  },
+  "180": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to use account discovery, child identity, approval and diagnostic actions."
+    ],
+    "expected": "Access is denied."
+  },
+  "181": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to use account discovery, child identity, approval and diagnostic actions."
+    ],
+    "expected": "Access is denied."
+  },
+  "182": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to list approving parents."
+    ],
+    "expected": "Access is denied."
+  },
+  "183": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to list approving parents."
+    ],
+    "expected": "Access is denied."
+  },
+  "184": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to read its child identity."
+    ],
+    "expected": "Access is denied."
+  },
+  "185": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to read its child identity."
+    ],
+    "expected": "Access is denied."
+  },
+  "186": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to read child settings."
+    ],
+    "expected": "Access is denied."
+  },
+  "187": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to read child settings."
+    ],
+    "expected": "Access is denied."
+  },
+  "188": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to list child applications."
+    ],
+    "expected": "Access is denied."
+  },
+  "189": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to list child applications."
+    ],
+    "expected": "Access is denied."
+  },
+  "190": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to read remaining time."
+    ],
+    "expected": "Access is denied."
+  },
+  "191": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to read remaining time."
+    ],
+    "expected": "Access is denied."
+  },
+  "192": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to calculate remaining time."
+    ],
+    "expected": "Access is denied."
+  },
+  "193": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to calculate remaining time."
+    ],
+    "expected": "Access is denied."
+  },
+  "194": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to calculate its own remaining time."
+    ],
+    "expected": "Access is denied."
+  },
+  "195": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to calculate its own remaining time."
+    ],
+    "expected": "Access is denied."
+  },
+  "196": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to prepare a child session."
+    ],
+    "expected": "Access is denied."
+  },
+  "197": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to prepare a child session."
+    ],
+    "expected": "Access is denied."
+  },
+  "198": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to save request choices."
+    ],
+    "expected": "Access is denied."
+  },
+  "199": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to save request choices."
+    ],
+    "expected": "Access is denied."
+  },
+  "200": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to save custom request units."
+    ],
+    "expected": "Access is denied."
+  },
+  "201": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to save custom request units."
+    ],
+    "expected": "Access is denied."
+  },
+  "202": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to change request sound preferences."
+    ],
+    "expected": "Access is denied."
+  },
+  "203": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to change request sound preferences."
+    ],
+    "expected": "Access is denied."
+  },
+  "204": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to save parental settings."
+    ],
+    "expected": "Access is denied."
+  },
+  "205": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to save parental settings."
+    ],
+    "expected": "Access is denied."
+  },
+  "206": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to change parental control."
+    ],
+    "expected": "Access is denied."
+  },
+  "207": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to change parental control."
+    ],
+    "expected": "Access is denied."
+  },
+  "208": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to revoke extra time."
+    ],
+    "expected": "Access is denied."
+  },
+  "209": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to revoke extra time."
+    ],
+    "expected": "Access is denied."
+  },
+  "210": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to request extra time as a child."
+    ],
+    "expected": "Access is denied."
+  },
+  "211": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to request extra time as a child."
+    ],
+    "expected": "Access is denied."
+  },
+  "212": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to request extra time from the request station."
+    ],
+    "expected": "Access is denied."
+  },
+  "213": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to request extra time from the request station."
+    ],
+    "expected": "Access is denied."
+  },
+  "214": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As an account without interactive login, try to record a diagnostic event."
+    ],
+    "expected": "Access is denied."
+  },
+  "215": {
+    "summary": "Refuse parental-control access from noninteractive accounts",
+    "steps": [
+      "As a system service account, try to record a diagnostic event."
+    ],
+    "expected": "Access is denied."
+  },
+  "216": {
+    "summary": "Reject accounts that cannot be managed as children",
+    "steps": [
+      "Select a parent as the child and try to read child settings."
+    ],
+    "expected": "The ineligible child selection is rejected without changing that account."
+  },
+  "217": {
+    "summary": "Reject accounts that cannot be managed as children",
+    "steps": [
+      "Select a locked administrator as the child and try to read child settings."
+    ],
+    "expected": "The ineligible child selection is rejected without changing that account."
+  },
+  "218": {
+    "summary": "Reject accounts that cannot be managed as children",
+    "steps": [
+      "Select a request-station account as the child and try to read child settings."
+    ],
+    "expected": "The ineligible child selection is rejected without changing that account."
+  },
+  "219": {
+    "summary": "Reject accounts that cannot be managed as children",
+    "steps": [
+      "Select a account without interactive login as the child and try to read child settings."
+    ],
+    "expected": "The ineligible child selection is rejected without changing that account."
+  },
+  "220": {
+    "summary": "Reject accounts that cannot be managed as children",
+    "steps": [
+      "Select a system service account as the child and try to read child settings."
+    ],
+    "expected": "The ineligible child selection is rejected without changing that account."
+  },
+  "221": {
+    "summary": "Reject accounts that cannot be managed as children",
+    "steps": [
+      "Select a parent as the child and try to enable parental control."
+    ],
+    "expected": "The ineligible child selection is rejected without changing that account."
+  },
+  "222": {
+    "summary": "Reject accounts that cannot be managed as children",
+    "steps": [
+      "Select a locked administrator as the child and try to enable parental control."
+    ],
+    "expected": "The ineligible child selection is rejected without changing that account."
+  },
+  "223": {
+    "summary": "Reject accounts that cannot be managed as children",
+    "steps": [
+      "Select a request-station account as the child and try to enable parental control."
+    ],
+    "expected": "The ineligible child selection is rejected without changing that account."
+  },
+  "224": {
+    "summary": "Reject accounts that cannot be managed as children",
+    "steps": [
+      "Select a account without interactive login as the child and try to enable parental control."
+    ],
+    "expected": "The ineligible child selection is rejected without changing that account."
+  },
+  "225": {
+    "summary": "Reject accounts that cannot be managed as children",
+    "steps": [
+      "Select a system service account as the child and try to enable parental control."
+    ],
+    "expected": "The ineligible child selection is rejected without changing that account."
+  },
+  "226": {
+    "summary": "Reject accounts that cannot be managed as children",
+    "steps": [
+      "Select a parent as the child and try to request extra time."
+    ],
+    "expected": "The ineligible child selection is rejected without changing that account."
+  },
+  "227": {
+    "summary": "Reject accounts that cannot be managed as children",
+    "steps": [
+      "Select a locked administrator as the child and try to request extra time."
+    ],
+    "expected": "The ineligible child selection is rejected without changing that account."
+  },
+  "228": {
+    "summary": "Reject accounts that cannot be managed as children",
+    "steps": [
+      "Select a request-station account as the child and try to request extra time."
+    ],
+    "expected": "The ineligible child selection is rejected without changing that account."
+  },
+  "229": {
+    "summary": "Reject accounts that cannot be managed as children",
+    "steps": [
+      "Select a account without interactive login as the child and try to request extra time."
+    ],
+    "expected": "The ineligible child selection is rejected without changing that account."
+  },
+  "230": {
+    "summary": "Reject accounts that cannot be managed as children",
+    "steps": [
+      "Select a system service account as the child and try to request extra time."
+    ],
+    "expected": "The ineligible child selection is rejected without changing that account."
+  },
+  "231": {
+    "summary": "Require parent authentication before granting extra time",
+    "steps": [
+      "Enable parental control for the first child.",
+      "Request extra time without completing parent authentication."
+    ],
+    "expected": "No extra time is granted and existing account settings remain unchanged."
+  },
+  "232": {
+    "summary": "Require parent authentication before granting extra time",
+    "steps": [
+      "Enable parental control for the second child.",
+      "Request extra time without completing parent authentication."
+    ],
+    "expected": "No extra time is granted and existing account settings remain unchanged."
+  },
+  "233": {
+    "summary": "Keep account pictures current in child and parent lists",
+    "steps": [
+      "Set and clear the child account picture.",
+      "Read the account through child discovery and the child's own account details."
+    ],
+    "expected": "The product reports the current account picture, including an empty selection."
+  },
+  "234": {
+    "summary": "Keep account pictures current in child and parent lists",
+    "steps": [
+      "Set and clear the parent account picture.",
+      "Read the account through approving-parent discovery."
+    ],
+    "expected": "The product reports the current account picture, including an empty selection."
+  },
+  "235": {
+    "summary": "Keep account pictures current in child and parent lists",
+    "steps": [
+      "Set and clear the parent account picture.",
+      "Read the account through approving-parent discovery."
+    ],
+    "expected": "The product reports the current account picture, including an empty selection."
+  },
+  "236": {
+    "summary": "Reject ineligible accounts selected to approve extra time",
+    "steps": [
+      "Request extra time from the child's session.",
+      "Select a child, a locked parent or an account without interactive login as the approver."
+    ],
+    "expected": "Every ineligible approver is refused without granting time or changing account settings."
+  },
+  "237": {
+    "summary": "Reject ineligible accounts selected to approve extra time",
+    "steps": [
+      "Request extra time from the request station.",
+      "Select the station account, a locked parent or a system service account as the approver."
+    ],
+    "expected": "Every ineligible approver is refused without granting time or changing account settings."
+  },
+  "238": {
+    "summary": "Reject ineligible accounts selected to approve extra time",
+    "steps": [
+      "Request extra time from the child's session.",
+      "Select another child as the approving parent."
+    ],
+    "expected": "Approval is refused without granting time or changing account settings."
+  },
+  "239": {
+    "summary": "Reject ineligible accounts selected to approve extra time",
+    "steps": [
+      "Request extra time from the request station.",
+      "Select another child as the approving parent."
+    ],
+    "expected": "Approval is refused without granting time or changing account settings."
+  },
+  "240": {
+    "summary": "Reject ineligible accounts selected to approve extra time",
+    "steps": [
+      "Request extra time from the child's session.",
+      "Select an unrelated standard user as the approving parent."
+    ],
+    "expected": "Approval is refused without granting time or changing account settings."
+  },
+  "241": {
+    "summary": "Reject ineligible accounts selected to approve extra time",
+    "steps": [
+      "Request extra time from the request station.",
+      "Select an unrelated standard user as the approving parent."
+    ],
+    "expected": "Approval is refused without granting time or changing account settings."
+  },
+  "242": {
+    "summary": "Reject ineligible accounts selected to approve extra time",
+    "steps": [
+      "Request extra time from the child's session.",
+      "Select a locked parent as the approving parent."
+    ],
+    "expected": "Approval is refused without granting time or changing account settings."
+  },
+  "243": {
+    "summary": "Reject ineligible accounts selected to approve extra time",
+    "steps": [
+      "Request extra time from the request station.",
+      "Select a locked parent as the approving parent."
+    ],
+    "expected": "Approval is refused without granting time or changing account settings."
+  },
+  "244": {
+    "summary": "Reject ineligible accounts selected to approve extra time",
+    "steps": [
+      "Request extra time from the child's session.",
+      "Select the request-station account as the approving parent."
+    ],
+    "expected": "Approval is refused without granting time or changing account settings."
+  },
+  "245": {
+    "summary": "Reject ineligible accounts selected to approve extra time",
+    "steps": [
+      "Request extra time from the request station.",
+      "Select the request-station account as the approving parent."
+    ],
+    "expected": "Approval is refused without granting time or changing account settings."
+  },
+  "246": {
+    "summary": "Reject ineligible accounts selected to approve extra time",
+    "steps": [
+      "Request extra time from the child's session.",
+      "Select an account without interactive login as the approving parent."
+    ],
+    "expected": "Approval is refused without granting time or changing account settings."
+  },
+  "247": {
+    "summary": "Reject ineligible accounts selected to approve extra time",
+    "steps": [
+      "Request extra time from the request station.",
+      "Select an account without interactive login as the approving parent."
+    ],
+    "expected": "Approval is refused without granting time or changing account settings."
+  },
+  "248": {
+    "summary": "Reject ineligible accounts selected to approve extra time",
+    "steps": [
+      "Request extra time from the child's session.",
+      "Select a system service account as the approving parent."
+    ],
+    "expected": "Approval is refused without granting time or changing account settings."
+  },
+  "249": {
+    "summary": "Reject ineligible accounts selected to approve extra time",
+    "steps": [
+      "Request extra time from the request station.",
+      "Select a system service account as the approving parent."
+    ],
+    "expected": "Approval is refused without granting time or changing account settings."
+  },
+  "250": {
+    "summary": "Exclude unsuitable administrator accounts from approval",
+    "steps": [
+      "Give an administrator account a disabled login shell or an unsupported account name.",
+      "Look for that account among approving parents and try selecting it directly from both request screens."
+    ],
+    "expected": "Ineligible administrators are excluded and cannot approve; other accounts remain unchanged."
+  },
+  "251": {
+    "summary": "Exclude network-directory accounts from parental control",
+    "steps": [
+      "Discover children and approving parents when network-directory accounts are present.",
+      "Try using remote accounts as callers, managed children and approving parents."
+    ],
+    "expected": "Only local accounts are accepted; remote accounts cannot read settings or approve requests."
+  },
+  "252": {
+    "summary": "Keep one child's changes separate from other accounts",
+    "steps": [
+      "Enable a child's controls and change their request choices.",
+      "Revoke extra time and turn the child's controls off."
+    ],
+    "expected": "Other children's and parents' settings remain unchanged."
+  },
+  "253": {
+    "summary": "Remove management access when an administrator's role changes",
+    "steps": [
+      "Use Parent as an administrator, then change that account to a standard user.",
+      "Repeat child discovery without reopening the connection, then restore administrator status."
+    ],
+    "expected": "Discovery is denied immediately after the role change and works again after restoration."
+  },
+  "254": {
+    "summary": "Remove child-only access when a child becomes an administrator",
+    "steps": [
+      "Read a child's own account, then change that child to an administrator.",
+      "Repeat the child-only action without reopening the connection, then restore the child role."
+    ],
+    "expected": "The child-only action is denied immediately after the role change and works again after restoration."
+  },
+  "255": {
+    "summary": "Cancel approval when the requester closes",
+    "steps": [
+      "Begin an extra-time request from each request screen.",
+      "Close the requester while the parent authentication prompt is open."
+    ],
+    "expected": "Approval is cancelled, no time or settings change, and subsequent requests are no longer blocked."
+  },
+  "256": {
+    "summary": "Reject approval when the selected child has been deleted",
+    "steps": [
+      "Begin extra-time requests from the child's session and the request station.",
+      "Delete the selected child while authentication is pending, then finish parent authentication."
+    ],
+    "expected": "Both stale requests are rejected; deleted settings are not recreated and surviving accounts are unchanged."
+  },
+  "257": {
+    "summary": "Recheck the child's role before granting extra time",
+    "steps": [
+      "Begin an extra-time request from the child's session.",
+      "Change the selected child into an administrator.",
+      "Finish authenticating the selected parent."
+    ],
+    "expected": "The stale request is rejected without granting time or changing other account settings."
+  },
+  "258": {
+    "summary": "Recheck the child's role before granting extra time",
+    "steps": [
+      "Begin an extra-time request from the request station.",
+      "Change the selected child into an administrator.",
+      "Finish authenticating the selected parent."
+    ],
+    "expected": "The stale request is rejected without granting time or changing other account settings."
+  },
+  "259": {
+    "summary": "Recheck the parent's role before granting extra time",
+    "steps": [
+      "Begin an extra-time request from the child's session.",
+      "Change the selected parent into a standard user.",
+      "Finish authenticating the selected parent."
+    ],
+    "expected": "The stale request is rejected without granting time or changing other account settings."
+  },
+  "260": {
+    "summary": "Recheck the parent's role before granting extra time",
+    "steps": [
+      "Begin an extra-time request from the request station.",
+      "Change the selected parent into a standard user.",
+      "Finish authenticating the selected parent."
+    ],
+    "expected": "The stale request is rejected without granting time or changing other account settings."
+  },
+  "261": {
+    "summary": "Reject approval based on outdated request choices",
+    "steps": [
+      "Begin an extra-time request from the child's session.",
+      "Change the child's request preferences.",
+      "Finish authenticating the selected parent."
+    ],
+    "expected": "The stale request is rejected without granting time or changing other account settings."
+  },
+  "262": {
+    "summary": "Reject approval based on outdated request choices",
+    "steps": [
+      "Begin an extra-time request from the request station.",
+      "Change the child's request preferences.",
+      "Finish authenticating the selected parent."
+    ],
+    "expected": "The stale request is rejected without granting time or changing other account settings."
+  },
+  "263": {
+    "summary": "Reject a parent account locked during approval",
+    "steps": [
+      "Begin an extra-time request from the child's session.",
+      "Lock the selected parent's account while authentication is pending.",
+      "Try to finish approval with that parent's password."
+    ],
+    "expected": "The locked parent is removed from discovery and cannot grant extra time."
+  },
+  "264": {
+    "summary": "Reject a parent account locked during approval",
+    "steps": [
+      "Begin an extra-time request from the request station.",
+      "Lock the selected parent's account while authentication is pending.",
+      "Try to finish approval with that parent's password."
+    ],
+    "expected": "The locked parent is removed from discovery and cannot grant extra time."
+  },
+  "265": {
+    "summary": "Accept only the selected parent's password for approval",
+    "steps": [
+      "Request extra time from the child's session and select a parent.",
+      "Try another parent's password, then retry with the selected parent's password.",
+      "After approval, try to change account roles and parental controls as the requester."
+    ],
+    "expected": "Only the selected parent's password grants time; the requester gains no management rights and other accounts stay unchanged."
+  },
+  "266": {
+    "summary": "Accept only the selected parent's password for approval",
+    "steps": [
+      "Request extra time from the request station and select a parent.",
+      "Try another parent's password, then retry with the selected parent's password.",
+      "After approval, try to change account roles and parental controls as the requester."
+    ],
+    "expected": "Only the selected parent's password grants time; the requester gains no management rights and other accounts stay unchanged."
+  },
+  "267": {
+    "summary": "Configure the dedicated request-station session",
+    "steps": [
+      "Inspect the installed request-station account and its selected desktop session."
+    ],
+    "expected": "The account cannot log into a shell and is configured for the dedicated GNOME request station."
+  },
+  "268": {
+    "summary": "Keep request-station login admission properly scoped",
+    "steps": [
+      "Check the request station's installed graphical-login admission and alternate-login refusal.",
+      "Vary its saved desktop-session choices and repeat the admission checks."
+    ],
+    "expected": "Graphical admission is allowed and alternate-login admission is refused for the station; saved routing and ordinary users' access stay unchanged."
+  },
+  "269": {
+    "summary": "Preserve request-station desktop and audio integrations",
+    "steps": [
+      "Use the request station with supported desktop and audio integrations.",
+      "Try reachable startup inputs and compare ordinary-user behavior."
+    ],
+    "expected": "Request-station restrictions preserve its intended features without affecting ordinary users."
+  },
+  "270": {
+    "summary": "Keep session isolation scoped to the request station",
+    "steps": [
+      "Exercise the request station's session-isolation callbacks."
+    ],
+    "expected": "Isolation follows the request-station identity and leaves ordinary accounts unaffected."
+  },
+  "271": {
+    "summary": "Preserve ordinary users' services and applications",
+    "steps": [
+      "Inspect the request station's login integration and user services.",
+      "Run ordinary parent and child services and scripting applications."
+    ],
+    "expected": "Request-station integration stays scoped to that account; ordinary user services retain their expected behavior."
+  },
+  "272": {
+    "summary": "Block applications only for the selected child",
+    "steps": [
+      "Launch an application as two children.",
+      "Block and unblock it for one child with screen-time control off and on.",
+      "Repeat using a soft block while screen-time control is on."
+    ],
+    "expected": "Only the selected child's launches are blocked; clearing the block restores access and the other child remains unaffected."
+  },
+  "273": {
+    "summary": "Recover safely after an application-policy check is refused",
+    "steps": [
+      "Start an installed application-policy check when service admission is refused.",
+      "Retry with a fresh check after refusal is resolved."
+    ],
+    "expected": "The refused check settles safely and the fresh check completes independently."
+  },
+  "274": {
+    "summary": "Preserve application-policy check files across service restarts",
+    "steps": [
+      "Create an application-policy check and stop, start and restart the parental-control service.",
+      "Create a fresh check after the restart."
+    ],
+    "expected": "The original check's files survive service restarts and the new check uses independent files."
+  },
+  "275": {
+    "summary": "Run application-policy checks within the installed security restrictions",
+    "steps": [
+      "Run an application-policy check inside the installed parental-control service."
+    ],
+    "expected": "The check runs with the service's actual security restrictions."
+  },
+  "276": {
+    "summary": "Recover safely when an application-policy requester disconnects",
+    "steps": [
+      "Start an application-policy check, then disconnect its requester.",
+      "Run a fresh check after the interrupted attempt."
+    ],
+    "expected": "The interrupted check settles safely and the new check runs independently."
+  },
+  "277": {
+    "summary": "Block applications whose locations contain spaces",
+    "steps": [
+      "Launch an application whose location contains spaces.",
+      "Soft-block it for one child with screen-time control off, then clear the block."
+    ],
+    "expected": "The selected child is blocked and regains access after clearing; the other child's access and settings stay unchanged."
+  },
+  "278": {
+    "summary": "Apply saved app patterns to newly installed versions",
+    "steps": [
+      "Block a versioned application using a saved filename pattern.",
+      "Add a new matching version and make it trusted by the operating system.",
+      "Clear the block and launch both versions again."
+    ],
+    "expected": "Matching versions stay blocked only for the selected child; unrelated apps stay usable and clearing the block restores access."
+  },
+  "279": {
+    "summary": "Preserve app blocks after a menu launcher disappears",
+    "steps": [
+      "Block an application, then remove its menu launcher while leaving the application installed.",
+      "Save the unchanged policy and try launching the application.",
+      "Clear the block and launch it again."
+    ],
+    "expected": "The block survives the missing launcher and affects only the selected child; clearing it restores access."
+  },
+  "280": {
+    "summary": "Show the selected child's application list",
+    "steps": [
+      "Read the application list for one child, then switch to another child."
+    ],
+    "expected": "Each list resolves the selected child's application names and launch locations, including personal overrides and hidden entries."
+  },
+  "281": {
+    "summary": "Recover offline controls and preserve login time enforcement",
+    "steps": [
+      "Recover parental-control extension settings while the child is logged out.",
+      "Exercise failed policy activation and rollback.",
+      "Check session time limits for graphical and terminal logins."
+    ],
+    "expected": "Recovery preserves extension choices and other accounts; failures do not grant access, and time enforcement follows each login type."
+  },
+  "282": {
+    "summary": "Lock expired child sessions and restore access after approval",
+    "steps": [
+      "Use a child's graphical session until time runs out, including while another user is in the foreground.",
+      "Approve more time and recover disabled parental-control extensions.",
+      "Continue using the same session beyond its earlier deadline."
+    ],
+    "expected": "Expiry locks the child's retained desktop without disrupting another user; approval restores access to the original work."
+  },
+  "283": {
+    "summary": "Install and remove login integration on a standard system",
+    "steps": [
+      "Install parental control with an ordinary login configuration.",
+      "Restart the computer and check the login integration.",
+      "Remove parental control and restart again."
+    ],
+    "expected": "Installation and removal preserve unrelated login configuration and apply the expected parental-control integration after restart."
+  },
+  "284": {
+    "summary": "Install and remove login integration with a managed distribution profile",
+    "steps": [
+      "Install parental control with the distribution's managed login profile.",
+      "Restart the computer and check the login integration.",
+      "Remove parental control and restart again."
+    ],
+    "expected": "Installation and removal preserve unrelated login configuration and apply the expected parental-control integration after restart."
+  },
+  "285": {
+    "summary": "Preserve administrator login overrides during installation and removal",
+    "steps": [
+      "Install parental control with an administrator's login override.",
+      "Restart the computer and check the login integration.",
+      "Remove parental control and restart again."
+    ],
+    "expected": "Installation and removal preserve unrelated login configuration and apply the expected parental-control integration after restart."
+  },
+  "286": {
+    "summary": "Recover a pending vendor login update during installation",
+    "steps": [
+      "Install parental control with a pending distribution login-profile update.",
+      "Restart the computer and check the login integration.",
+      "Remove parental control and restart again."
+    ],
+    "expected": "Installation and removal preserve unrelated login configuration and apply the expected parental-control integration after restart."
+  },
+  "287": {
+    "summary": "Preserve parental controls when upgrading from an earlier release",
+    "steps": [
+      "Set a child's app blocks, time limits and approved extra time using the previous release.",
+      "Upgrade parental control and restart the computer.",
+      "Check the saved choices and launch blocked and allowed applications."
+    ],
+    "expected": "The upgrade preserves account identities and policy; extra time keeps decreasing and application restrictions still work."
+  },
+  "288": {
+    "summary": "Verify hard and soft app blocks before an upgrade",
+    "steps": [
+      "Use the previous release to launch the trusted applications used in upgrade testing.",
+      "Apply hard and soft blocks for one child.",
+      "Approve extra time with soft-blocked applications included and retry the launches."
+    ],
+    "expected": "Both blocks initially prevent the selected child's launches; approval restores only soft-blocked apps, while another child stays unrestricted."
+  },
+  "289": {
+    "summary": "Preserve application use through a dependency update",
+    "steps": [
+      "Use an application in an existing child session.",
+      "Update the application's operating-system dependency.",
+      "Continue using it and start a fresh session."
+    ],
+    "expected": "The dependency update preserves intended application access in both retained and fresh sessions."
+  },
+  "290": {
+    "summary": "Allow unrelated writable folders around the request station",
+    "steps": [
+      "Add unrelated writable folders alongside request-station files.",
+      "Enter and use the request station."
+    ],
+    "expected": "Unrelated writable folders do not prevent ordinary request-station use."
+  },
+  "291": {
+    "summary": "Recover request-station use after an essential service interruption",
+    "steps": [
+      "Interrupt an essential request-station service.",
+      "Try entering the request station, then restore the service and enter again."
+    ],
+    "expected": "Incomplete startup is refused safely and normal use returns after recovery."
+  },
+  "292": {
+    "summary": "Protect request-station startup permissions",
+    "steps": [
+      "Check startup-file permissions for the request station.",
+      "Try unsupported changes to its required startup files."
+    ],
+    "expected": "Unsafe startup inputs are refused without weakening ordinary-account permissions."
+  },
+  "293": {
+    "summary": "Keep request-station entry reliable as desktop conditions vary",
+    "steps": [
+      "Vary ordinary surrounding desktop state.",
+      "Repeatedly enter and use the request station."
+    ],
+    "expected": "Normal environmental variation does not prevent usable request-station sessions."
+  },
+  "294": {
+    "summary": "Recover interrupted request-station configuration safely",
+    "steps": [
+      "Interrupt a request-station configuration change.",
+      "Recover the interrupted change while unrelated or live state is present.",
+      "Enter the request station again."
+    ],
+    "expected": "Recovery restores usable owned state and preserves unrelated or live state."
+  },
+  "295": {
+    "summary": "Keep parental control active when extensions are disabled",
+    "steps": [
+      "Start with parental control enabled and its extension inactive.",
+      "Disable the parental-control extension individually and through GNOME's global extension switch.",
+      "Repeat disablement, allow a quiet period, then disable it again.",
+      "Turn parental control off as the parent."
+    ],
+    "expected": "Recovery continues at a bounded rate, resumes promptly after quiet, preserves policies and other extensions, and stops when the parent turns control off."
+  },
+  "296": {
+    "summary": "Keep recovery safe across session and service changes",
+    "steps": [
+      "Disable the parental-control extension, then log out and start a fresh child session.",
+      "Disable it while a parent authentication prompt is open, then cancel the prompt.",
+      "Stop the parental-control service with recovery pending and restart with control saved off."
+    ],
+    "expected": "Recovery follows the current session, waits for approval activity, and respects saved-off state without late activation or false error reports."
+  },
+  "297": {
+    "summary": "Report extension failures without repeated crashes",
+    "steps": [
+      "Cause the parental-control extension to fail while the error-report window cannot open.",
+      "Restore the display, edit the report draft, and repeat the failure across a service restart.",
+      "Recover the extension, then interrupt the child's session soon after recovery.",
+      "Use the parent's recovery action and disable the extension once more."
+    ],
+    "expected": "One report preserves its draft without sending automatically; unsafe retries stop after session loss, and explicit parent recovery restores normal monitoring."
+  }
+}

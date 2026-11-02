@@ -15,6 +15,36 @@ else:
     import test_retention
 
 
+def descriptions(root):
+    """Checked-in human scenarios, independent of execution and timing history."""
+    result = {}
+    for name in ('system_case_steps.json', 'system_check_steps.json'):
+        path = root / 'tests/integration' / name
+        if not path.is_file():
+            continue  # Related worktrees may predate scenario metadata.
+        for identifier, value in json.loads(path.read_text()).items():
+            result['system', int(identifier) if identifier.isdecimal() else identifier] = value
+    path = root / 'tests/e2e/scenario_steps.json'
+    if not path.is_file():
+        return result
+    scenarios = json.loads(path.read_text())
+    inventory = json.loads((root / 'tests/e2e/scenarios.json').read_text())
+    for scenario in inventory['scenarios']:
+        value = scenarios[scenario['id']]
+        for variant in scenario['variants']:
+            result['e2e', variant['coverage_id']] = {
+                **value, **value.get('variants', {}).get(variant['id'], {})}
+    return result
+
+
+def describe_case(record, catalogue):
+    value = catalogue.get((record['category'], record['id']))
+    if value:
+        record.update(description=value.get('summary', record['title']),
+                      steps=value['steps'], expected=value['expected'])
+    return record
+
+
 def metadata(root, category, nodeid):
     from tools.vm_recording import case_identity
     identity = case_identity(root, category, dict(nodeid=nodeid))
@@ -53,8 +83,9 @@ def metadata(root, category, nodeid):
         if not source.is_file():
             return None
         description = ast.get_docstring(ast.parse(source.read_text())) or ''
-    return dict(id=identifier, title=title, case_file=str(source.relative_to(root)),
-                description=description or title)
+    return describe_case(dict(id=identifier, title=title, category=category,
+                              case_file=str(source.relative_to(root)),
+                              description=description or title), descriptions(root))
 
 
 def _name(category, identifier):
@@ -101,6 +132,7 @@ def load(root):
         directory = test_storage.directory('state', root=root, create=False)
     except FileNotFoundError:
         return []
+    catalogue = descriptions(root)
     fd = test_retention.directory(directory)
     rows = []
     try:
@@ -147,7 +179,7 @@ def load(root):
                                     record['seconds'] = max(record['seconds'], duration)
                 except (OSError, ValueError):
                     pass
-                rows.append(record)
+                rows.append(describe_case(record, catalogue))
             except (OSError, ValueError, KeyError, TypeError):
                 continue
     finally:

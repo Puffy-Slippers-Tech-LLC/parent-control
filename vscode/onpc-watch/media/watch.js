@@ -717,12 +717,23 @@
             tr.insertCell().textContent = row.vm;
             tr.insertCell().textContent = `${Math.floor(row.seconds / 60 + .5)}m`;
             const description = tr.insertCell();
+            const summary = document.createElement('div');
+            summary.textContent = row.description;
+            description.append(summary);
             const toggle = document.createElement('a');
             toggle.href = '#';
             toggle.textContent = 'Show';
             const text = document.createElement('div');
             text.hidden = true;
-            text.textContent = row.description;
+            const steps = document.createElement('ul');
+            for (const step of row.steps || []) {
+                const item = document.createElement('li');
+                item.textContent = step;
+                steps.append(item);
+            }
+            const expected = document.createElement('p');
+            expected.textContent = row.expected ? `Expected: ${row.expected}` : '';
+            text.append(steps, expected);
             toggle.onclick = event => {
                 event.preventDefault();
                 text.hidden = !text.hidden;
@@ -730,7 +741,7 @@
                 toggle.setAttribute('aria-expanded', String(!text.hidden));
             };
             toggle.setAttribute('aria-expanded', 'false');
-            description.append(toggle, text);
+            if (row.steps?.length || row.expected) description.append(toggle, text);
         }
         grid.append(table);
     }

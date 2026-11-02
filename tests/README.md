@@ -1921,6 +1921,18 @@ the linked recording's saved duration supplies a lower bound; saved history is
 not rewritten. The
 [extension guide](../vscode/onpc-watch/README.md) owns its table and links.
 
+Human-facing VM descriptions are checked-in metadata, separate from execution
+steps, selectors and timing history. System cases and registered standalone
+checks use `tests/integration/system_case_steps.json` and
+`tests/integration/system_check_steps.json`; E2E scenarios use
+`tests/e2e/scenario_steps.json`, with variant overrides where paths differ.
+Each entry supplies a plain-language summary, essential scenario steps and an
+expected outcome. Maintain these alongside changes to the case's behavior;
+omit provisioning, transport, evidence and cleanup mechanics. Descriptions of
+pending or retired identities do not make them executable or establish a pass.
+Run Time resolves current descriptions when reading logged cases, so metadata
+updates also apply to older timings without rewriting execution history.
+
 `tools/run-tests` automatically records every VM-scoped category, including
 system and E2E execution, through the
 private GTK recording renderer with shared read-only VM feeds and filtered SSH

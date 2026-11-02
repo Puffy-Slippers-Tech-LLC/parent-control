@@ -1,0 +1,117 @@
+{
+  "check_e2e_auth_prompt": {
+    "summary": "Keep request-station authentication tied to the selected parent.",
+    "steps": ["Request more time at the request station.", "Try mismatched or stale authentication prompts and cancel the request."],
+    "expected": "Only the current prompt for the selected parent is accepted; refused or cancelled requests grant no time."
+  },
+  "check_e2e_challenges": {
+    "summary": "Use each authentication challenge only once.",
+    "steps": ["Start an approval request.", "Try reusing or replacing its authentication challenge."],
+    "expected": "A challenge belongs to one current request and cannot be reused to approve another."
+  },
+  "check_e2e_gdm_recipient": {
+    "summary": "Send login credentials only to the intended login prompt.",
+    "steps": ["Select an account at the login screen.", "Try incorrect or stale prompt identities, then return with Escape."],
+    "expected": "Credentials are withheld from unverified prompts and Escape returns safely."
+  },
+  "check_e2e_overlay_prompt": {
+    "summary": "Cancel independent approval prompts from the child desktop.",
+    "steps": ["Open a child approval request and cancel authentication.", "Repeat with a fresh request."],
+    "expected": "Each request has its own parent authentication prompt and cancellation grants no access."
+  },
+  "check_graphical_credentials": {
+    "summary": "Sign in through the real login screen.",
+    "steps": ["Select the prepared account at the login screen.", "Authenticate with its password."],
+    "expected": "The intended account signs in successfully."
+  },
+  "check_graphical_vt6_authentication": {
+    "summary": "Authenticate through a text login.",
+    "steps": ["Open the text login and sign in with the prepared account.", "Run a harmless command in that session."],
+    "expected": "Authentication reaches the intended account and its command completes."
+  },
+  "check_e2e_active_grant_disable": {
+    "summary": "Turn off screen-time control while extra time is active.",
+    "steps": ["Give the child extra time.", "Turn off screen-time control and inspect the resulting time and application restrictions."],
+    "expected": "The temporary grant is cleared and the saved application restrictions remain enforced."
+  },
+  "check_e2e_basic_locale_auth": {
+    "summary": "Approve a request when only basic language information is available.",
+    "steps": ["Open the request station with limited language discovery.", "Choose a child and authenticate a parent approval."],
+    "expected": "Limited language information does not prevent a genuine approval."
+  },
+  "check_e2e_child_isolation": {
+    "summary": "Keep other children usable when one child's home is unavailable.",
+    "steps": ["Make one child's home unavailable and request access for another child.", "Restore the affected home and request access again."],
+    "expected": "The healthy child's requests still work, and the affected child recovers after restoration."
+  },
+  "check_e2e_kiosk_admission_contention": {
+    "summary": "Recover request-station entry after a temporary access conflict.",
+    "steps": ["Attempt request-station entry during a brief access conflict.", "Remove the conflict and enter again."],
+    "expected": "The conflict is handled safely and normal station use returns."
+  },
+  "check_e2e_kiosk_configuration_recovery": {
+    "summary": "Recover request-station use after configuration damage.",
+    "steps": ["Attempt station entry with an invalid configuration.", "Restore the configuration and use the station again."],
+    "expected": "Invalid configuration cannot open unrestricted access; restored configuration allows normal use."
+  },
+  "check_e2e_kiosk_feedback_confinement": {
+    "summary": "Keep feedback confined to the request station during failures.",
+    "steps": ["Request access while the parental-control service is unavailable.", "Restore the service and open the request error report, its editor and privacy information."],
+    "expected": "The request reports the failure, and error reporting remains usable within the restricted station."
+  },
+  "check_e2e_kiosk_identity_helper": {
+    "summary": "Recover station entry after account identification fails.",
+    "steps": ["Attempt station entry while account identification is unavailable.", "Restore account identification and enter again."],
+    "expected": "The failure is safe and normal request-station use returns."
+  },
+  "check_e2e_kiosk_lease_variation": {
+    "summary": "Recover station entry after an interrupted earlier session.",
+    "steps": ["Leave an outdated station-session reservation.", "Enter the station again and use its normal controls."],
+    "expected": "Outdated session state is recovered without blocking normal station use."
+  },
+  "check_e2e_kiosk_notification_wellbeing": {
+    "summary": "Keep station reminders and ordinary wellbeing settings isolated.",
+    "steps": ["Preview and cancel a station reminder.", "Temporarily suppress and restore wellbeing for an ordinary account."],
+    "expected": "Reminder controls remain confined to the station, and ordinary wellbeing settings are restored."
+  },
+  "check_e2e_kiosk_optional_artwork": {
+    "summary": "Keep requests working without optional background artwork.",
+    "steps": ["Enter the request station with optional artwork missing.", "Approve a request, restore the artwork, and request again."],
+    "expected": "Missing artwork does not prevent station entry or parent approval."
+  },
+  "check_e2e_kiosk_preferences_confinement": {
+    "summary": "Keep Preferences within the restricted request station.",
+    "steps": ["Open Preferences from the request station.", "Use and dismiss the available preference controls."],
+    "expected": "Preferences provides no unrestricted desktop or application access."
+  },
+  "check_e2e_kiosk_routing_variation": {
+    "summary": "Recover station entry when saved login routing changes.",
+    "steps": ["Change the station's saved login routing and attempt entry.", "Restore normal routing and enter again."],
+    "expected": "Changed routing is handled safely and restored routing supports normal station use."
+  },
+  "check_e2e_kiosk_service_recovery": {
+    "summary": "Recover requests after the parental-control service becomes unavailable.",
+    "steps": ["Open the station while the parental-control service is unavailable and exit safely.", "Restore the service, reopen the station, and approve a fresh request."],
+    "expected": "The outage allows a safe exit and a fresh authenticated approval works after recovery."
+  },
+  "check_e2e_kiosk_service_route": {
+    "summary": "Keep station access safe through an alternate account-switch route.",
+    "steps": ["Attempt to enter the request-station account from a child session using account switching.", "Return to the normal station-entry route."],
+    "expected": "The alternate route preserves station restrictions and normal entry remains usable."
+  },
+  "check_e2e_kiosk_service_variation": {
+    "summary": "Preserve station entry across automatic-login service variation.",
+    "steps": ["Exercise the automatic-login service path.", "Restore normal station entry and use its controls."],
+    "expected": "The service variation does not undermine station restrictions or restored normal use."
+  },
+  "check_e2e_locale_discovery_auth": {
+    "summary": "Approve requests despite a language-discovery failure.",
+    "steps": ["Open the station while language discovery fails and approve a request.", "Restore language discovery and request again."],
+    "expected": "Parent authentication and approval remain usable during the failure and after recovery."
+  },
+  "check_fixture_e2e_installed": {
+    "summary": "Verify prepared applications support saved child policies.",
+    "steps": ["Open the prepared child application catalogue.", "Save application restrictions and restore the original settings."],
+    "expected": "Prepared applications are discoverable, policy saves work, and the original settings can be restored."
+  }
+}

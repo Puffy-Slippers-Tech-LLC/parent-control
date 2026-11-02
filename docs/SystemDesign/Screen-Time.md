@@ -243,6 +243,13 @@ available. Opening a report sends nothing, and repeated observations do not
 continually reopen the same failure. A Shell crash alone does not identify the
 extension responsible.
 
+GNOME also uses its error state while asynchronously importing an extension.
+The public `GetExtensionErrors` history distinguishes that loading placeholder
+from a confirmed failure: an empty history stays pending without a report or
+healthy cooldown credit. Recorded exceptions remain failures even when their
+message is empty. Both automatic monitoring and explicit recovery use this
+distinction.
+
 If Shell disappears soon after recovery and its replacement still has extensions
 globally disabled, automatic activation pauses rather than repeatedly undoing
 GNOME's crash protection. A parent can explicitly request recovery through the
@@ -631,7 +638,7 @@ interface is documented in [pam_systemd](https://github.com/systemd/systemd/blob
 
 ## Related design
 
-- [Extension recovery VM test plan](../Extension-Plan.md): queued system/integration coverage for monitoring, failures and v1.5 recovery entry points; not executed or customer E2E coverage.
+- [Extension recovery VM test plan](../Extension-Plan.md): queued system coverage for monitoring, failures and v1.5 recovery entry points; not executed or customer E2E coverage.
 - For authorization and grant commit/rollback order, read [Broker](Broker.md#authorization-and-grant-transactions).
 - For app-policy restoration after unlock, read [Application policy](Applications.md#session-entry-reconciliation).
 - For startup ordering or changed PAM/extension activation, read [Lifecycle](Lifecycle.md) and [Package update](../Publishing.md#package-update-activation).

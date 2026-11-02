@@ -291,6 +291,14 @@ class ExtensionMonitor:
         state = info.get("state")
         if type(enabled) is not bool or type(state) not in (int, float) or state not in {1, 2, 3, 4, 6, 7, 8}:
             raise ValueError("invalid child extension state")
+        if state == 3:
+            # GNOME sets ERROR before awaiting the extension's import. Only
+            # its public error history distinguishes that loading sentinel
+            # from a real failure, including an exception with empty text.
+            errors, = self._call(watch, SHELL, PATH, INTERFACE, "GetExtensionErrors",
+                                GLib.Variant("(s)", (UUID,)), "(as)")
+            if not errors:
+                raise _ChangingState()
         return info, enabled
 
     def _reconcile(self, watch, info, enabled):
@@ -372,6 +380,7 @@ class ExtensionMonitor:
                 watch.healthy_since = 0
             watch.failures = 0
         except _ChangingState:
+            watch.healthy_since = 0
             self._retry(watch)
         except Busy:
             # Polkit can hold the transaction lock indefinitely. A failed

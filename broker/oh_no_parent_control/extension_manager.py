@@ -487,7 +487,20 @@ class ExtensionManager:
             raise ValueError("oversized extension info")
         info, = GLib.Variant.parse(GLib.VariantType.new("(a{sv})"),
                                   result.stdout, None, None).unpack()
-        return _load_error_fields(info)["state"] in {"error", "out-of-date"}
+        state = _load_error_fields(info)["state"]
+        if state != "error":
+            return state == "out-of-date"
+        # During async import GNOME uses ERROR before recording any error.
+        # Its public history also preserves actual exceptions with empty text.
+        result = self._run_command(account, (
+            "gdbus", "call", "--session", "--dest", "org.gnome.Shell",
+            "--object-path", "/org/gnome/Shell", "--method",
+            "org.gnome.Shell.Extensions.GetExtensionErrors", UUID), require_live=True)
+        if len(result.stdout) > 65536:
+            raise ValueError("oversized extension errors")
+        errors, = GLib.Variant.parse(GLib.VariantType.new("(as)"),
+                                    result.stdout, None, None).unpack()
+        return bool(errors)
 
     def report_failure(self, uid):
         """Launch the existing child error flow with the user manager's display env.

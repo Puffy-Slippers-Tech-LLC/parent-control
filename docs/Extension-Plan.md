@@ -1,7 +1,7 @@
 # Extension recovery VM test plan
 
 Task queue: [Ordered task queue](Extension-Task-Queue.md).
-Next task: **002 — [Keep recovery safe across session and broker changes](Extension-Tasks/002-session-lifecycle.md)**.
+Next task: **003 — [Report extension failures without a crash loop](Extension-Tasks/003-error-reporting.md)**.
 
 ## Scope
 

@@ -615,6 +615,8 @@ CASES = (
                  'Kiosk retained required drift history'),
     CaseIdentity(295, 'extension', 'test_child_extension_monitor_native_recovery',
                  'Keep parental control active when extensions are disabled'),
+    CaseIdentity(296, 'extension', 'test_child_extension_monitor_session_lifecycle',
+                 'Keep recovery safe across session and broker changes'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

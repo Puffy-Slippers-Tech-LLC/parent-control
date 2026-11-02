@@ -82,11 +82,12 @@ def prepare():
 class Shell:
     """Root's real connection to the child's public bus; no Shell Eval."""
 
-    def __init__(self, account, address):
+    def __init__(self, account, address, *, track_owner=False):
         from gi.repository import Gio, GLib
         from oh_no_parent_control.child_bus import connect_child_bus
         self.Gio, self.GLib = Gio, GLib
         self.events = []
+        self.owner_events = []
         context = GLib.MainContext.new()
         replies = []
         context.push_thread_default()
@@ -120,11 +121,19 @@ class Shell:
         self.properties = self.bus.signal_subscribe(
             SHELL, 'org.freedesktop.DBus.Properties', 'PropertiesChanged', PATH, INTERFACE,
             Gio.DBusSignalFlags.NONE, lambda *_args: None)
-        uid = self.call('org.freedesktop.DBus', '/org/freedesktop/DBus',
-                        'org.freedesktop.DBus', 'GetConnectionUnixUser', '(s)',
-                        (self.bus.get_unique_name(),), '(u)')
-        guest.require(os.geteuid() == 0 and uid == account.pw_uid,
-                      'extension:observer-credentials')
+        self.owner_subscription = (self.bus.signal_subscribe(
+            'org.freedesktop.DBus', 'org.freedesktop.DBus', 'NameOwnerChanged',
+            '/org/freedesktop/DBus', SHELL, Gio.DBusSignalFlags.NONE,
+            lambda *_args: None) if track_owner else None)
+        try:
+            uid = self.call('org.freedesktop.DBus', '/org/freedesktop/DBus',
+                            'org.freedesktop.DBus', 'GetConnectionUnixUser', '(s)',
+                            (self.bus.get_unique_name(),), '(u)')
+            guest.require(os.geteuid() == 0 and uid == account.pw_uid,
+                          'extension:observer-credentials')
+        except BaseException:
+            self.close()
+            raise
 
     def observe(self, _bus, message, incoming, _data):
         # Gio's receive thread timestamps notification arrival independently of
@@ -140,6 +149,11 @@ class Shell:
                     and len(values) == 3 and values[0] == INTERFACE
                     and values[1].get('UserExtensionsEnabled') is False):
                 self.events.append((time.monotonic(), 0))
+            elif (message.get_sender() == 'org.freedesktop.DBus'
+                    and message.get_interface() == 'org.freedesktop.DBus'
+                    and message.get_member() == 'NameOwnerChanged'
+                    and len(values) == 3 and values[0] == SHELL):
+                self.owner_events.append((time.monotonic(), values[1], values[2]))
         return message
 
     def call(self, destination, path, interface, method, signature, values, result):
@@ -161,8 +175,11 @@ class Shell:
     def close(self):
         self.bus.signal_unsubscribe(self.subscription)
         self.bus.signal_unsubscribe(self.properties)
+        if self.owner_subscription is not None:
+            self.bus.signal_unsubscribe(self.owner_subscription)
         self.bus.remove_filter(self.filter)
-        self.bus.close_sync(None)
+        if not self.bus.is_closed():
+            self.bus.close_sync(None)
 
 
 def invocation():
@@ -513,6 +530,295 @@ def verify(publish):
                                                     else None)})
         finally:
             shell.close()
+
+
+def verify_lifecycle(publish):
+    """One retained installed history for session, transaction and stop ownership.
+
+    The authentication challenge is genuine, deliberately cancelled, and never
+    receives a password. No approval, grant or authentication timeout is replayed.
+    """
+    import select
+    import pwd
+    from contextlib import contextmanager
+    from system_caller import PersistentCaller, TextAgent
+    from system_session_expiry import isolated_broker_for_extension_faults
+
+    marker = guest.guard()
+    guest.enable_diagnostics()
+    prepared = json.loads(FIXTURE.read_text())
+    guest.require(prepared['run'] == marker['run'] and
+                  prepared['boot'] != Path('/proc/sys/kernel/random/boot_id').read_text(),
+                  'extension:lifecycle-reboot-boundary')
+    # One finite budget includes preparation, renewed sessions and cleanup;
+    # individual waits may not extend the history indefinitely on a slow guest.
+    deadline = time.monotonic() + 900
+    accounts = identities()
+    child = accounts['child']
+    manager = installed_manager()
+    from oh_no_parent_control.preferences import PreferenceStore
+    account, _ = manager._account(child)
+    store = PreferenceStore()
+    observers = []
+
+    def record(name, value):
+        publish('onpc.extension.lifecycle.' + name, json.dumps(value, sort_keys=True))
+
+    def wait(predicate, category, timeout=90):
+        remaining = deadline - time.monotonic()
+        guest.require(remaining > 0, 'extension:lifecycle-budget')
+        return wait_for(predicate, 'extension:lifecycle-' + category,
+                        timeout=min(timeout, remaining))
+
+    def observe():
+        from gi.repository import Gio, GLib
+        def connect():
+            address = manager.session_bus_address(child)
+            if address is None:
+                return False
+            try:
+                observer = Shell(account, address, track_owner=True)
+            except GLib.Error as error:
+                # A normal fresh login can still have the stopped daemon's
+                # socket path. The maintained transport reports absence and
+                # refused/closed connections as these typed startup outcomes.
+                if any(error.matches(Gio.io_error_quark(), code) for code in (
+                        Gio.IOErrorEnum.NOT_FOUND, Gio.IOErrorEnum.CLOSED)):
+                    return False
+                raise
+            observers.append(observer)
+            return observer
+        observer = wait(connect, 'user-bus-not-ready')
+        wait(lambda: observer.owner(SHELL), 'shell-unavailable')
+        def ready():
+            try:
+                return observer.info()
+            except observer.GLib.Error as error:
+                # Shell owns its name before exporting the extension object
+                # during normal login. Wait only for this startup boundary;
+                # unrelated D-Bus failures remain test failures.
+                if observer.Gio.DBusError.get_remote_error(error) in {
+                        'org.freedesktop.DBus.Error.UnknownMethod',
+                        'org.freedesktop.DBus.Error.UnknownObject'}:
+                    return False
+                raise
+        wait(ready, 'extension-interface-not-ready')
+        return observer
+
+    def bus_identity(observer):
+        def query(method, signature, values, result):
+            return observer.call('org.freedesktop.DBus', '/org/freedesktop/DBus',
+                                 'org.freedesktop.DBus', method, signature, values, result)
+        owner = query('GetNameOwner', '(s)', (SHELL,), '(s)')
+        pid = query('GetConnectionUnixProcessID', '(s)', (owner,), '(u)')
+        guest.require(query('GetConnectionUnixUser', '(s)', (owner,), '(u)') == child
+                      and type(pid) is int and pid > 0, 'extension:lifecycle-shell-credentials')
+        process = Path('/proc') / str(pid)
+        guest.require(process.stat().st_uid == child
+                      and (process / 'comm').read_text().strip() == 'gnome-shell',
+                      'extension:lifecycle-shell-process')
+        start = (process / 'stat').read_text().rsplit(')', 1)[1].split()[19]
+        return query('GetId', '()', (), '(s)'), owner, (pid, start)
+
+    def other_accounts_preserved():
+        for role in ('other', 'parent'):
+            guest.require(state_digest(accounts[role]) == prepared['other_accounts'][role],
+                          'extension:lifecycle-other-account-changed')
+        guest.require(native_choices(manager, accounts['other']) == prepared['other_child_choices'],
+                      'extension:lifecycle-other-extension-changed')
+
+    def no_report(rows):
+        # report_failure's systemd-run (and its already-running check) are the
+        # only manager commands outside the three native management tools.
+        guest.require(not any(row['event'] == 'extension-manager.command'
+                              and row['fields']['tool'] == 'other' for _stamp, row in rows),
+                      'extension:lifecycle-unexpected-report-launch')
+
+    def healthy():
+        return shell.info().get('state') == 1 and shell.enabled()
+
+    def recovered(since):
+        rows = events.since(since)
+        return healthy() and attempts(rows) and any(
+            row['event'] == 'extension-manager.012' and row['fields']['enabled']
+            for _stamp, row in rows)
+
+    def preserved():
+        guest.require(state_digest(child) == snapshot, 'extension:lifecycle-policy-changed')
+        other_accounts_preserved()
+        guest.require(([value for value in manager._list(account, 'enabled-extensions') if value != UUID],
+                       [value for value in manager._list(account, 'disabled-extensions') if value != UUID])
+                      == choices, 'extension:lifecycle-extension-choices-changed')
+        guest.require(UUID in manager._list(account, 'enabled-extensions')
+                      and UUID not in manager._list(account, 'disabled-extensions')
+                      and manager._runtime_state(account) == (True, True),
+                      'extension:lifecycle-durable-runtime-membership')
+
+    def disable():
+        manager._run_as(account, 'gnome-extensions', 'disable', '--quiet', UUID)
+
+    @contextmanager
+    def transaction():
+        with PersistentCaller(child) as caller, TextAgent(caller) as agent:
+            requested = time.monotonic()
+            caller.send({'kind': 'call', 'method': 'RequestOwnAccess', 'signature': '(uub)',
+                         'args': (accounts['parent'], 300, False)})
+            other_parent = pwd.getpwnam('onpc-parent-casey').pw_uid
+            agent.prompt(accounts['parent'], other_parent)
+            # An independent real public operation confirms the transaction
+            # lock is held. Its Busy refusal cannot change saved/native policy.
+            busy = call(accounts['parent'], 'SetParentControl', '(ubu)', (child, True, 1440))
+            guest.require(busy.get('error') == guest.BUS + '.Error.Busy',
+                          'extension:lifecycle-transaction-not-held')
+            yield caller, agent, requested
+
+    try:
+        wait(lambda: child_session(child), 'initial-session')
+        shell = observe()
+        accepted(call(accounts['parent'], 'SetParentControl', '(ubu)', (child, True, 1440)))
+        wait(healthy, 'initial-enable')
+        grant(child, 3600)
+        snapshot = state_digest(child)
+        choices = ([value for value in manager._list(account, 'enabled-extensions') if value != UUID],
+                   [value for value in manager._list(account, 'disabled-extensions') if value != UUID])
+        identity = invocation()
+        events = BrokerEvents(accepted(call(accounts['parent'], 'GetStartupTimings'))[0])
+        began = time.monotonic()
+
+        # Attribute this recovery to the monitor, then log out within GNOME's
+        # recovery guard. A normal logout must not become an extension failure.
+        started = time.monotonic()
+        disable()
+        wait(lambda: recovered(started), 'before-logout-not-recovered')
+        recovered_at = time.monotonic()
+        session, _ = child_session(child)
+        previous_bus = bus_identity(shell)
+        unit = f'user@{child}.service'
+        user_invocation = guest.run(['systemctl', 'show', unit, '--property=InvocationID', '--value'])
+        guest.require(re.fullmatch(r'[0-9a-f]{32}', user_invocation)
+                      and user_invocation != '0' * 32, 'extension:lifecycle-user-manager-identity')
+        guest.require(time.monotonic() - recovered_at < 60, 'extension:lifecycle-logout-too-late')
+        logout = json.loads(guest.run(['/usr/bin/python3', '-I', str(guest.PAYLOAD / 'session-control'),
+                                      'maintenance-logout', str(child), session], timeout=90))
+        guest.require(logout.get('outcome') == 'passed' and child_session(child) is None,
+                      'extension:lifecycle-logout-not-observed')
+        wait(lambda: any(old == previous_bus[1] and not new
+                         for _stamp, old, new in shell.owner_events),
+             'shell-owner-loss-not-delivered', timeout=15)
+        # GNOME can leave the user manager alive after logout. Stop only the
+        # exact fixture instance observed before logout, never a renewed one.
+        state = guest.run(['systemctl', 'show', unit, '--property=ActiveState', '--value'])
+        if state != 'inactive':
+            guest.require(guest.run(['systemctl', 'show', unit,
+                          '--property=InvocationID', '--value']) == user_invocation,
+                          'extension:lifecycle-user-manager-replaced')
+            guest.run(['systemctl', 'stop', unit], timeout=60)
+        wait(shell.bus.is_closed, 'old-user-bus-not-closed', timeout=30)
+        # A stopped user manager may leave its old Unix socket entry behind.
+        # That pathname alone is not a live transport: require the real
+        # connection closed and the owned service stopped, then compare the
+        # next bus's daemon ID and Shell process below.
+        guest.require(guest.run(['systemctl', 'show', unit,
+                      '--property=ActiveState', '--value']) == 'inactive',
+                      'extension:lifecycle-old-user-manager-still-active')
+        # The maintained route refuses any remaining user desktop and starts
+        # GDM afresh; prepared autologin supplies a real new child session.
+        guest.prepare_activation_greeter()
+        renewed, _ = wait(lambda: child_session(child), 'fresh-session')
+        guest.require(renewed != session, 'extension:lifecycle-session-not-renewed')
+        shell = observe()
+        current_bus = bus_identity(shell)
+        guest.require(current_bus[0] != previous_bus[0]
+                      and current_bus[2] != previous_bus[2] and invocation() == identity,
+                      'extension:lifecycle-bus-or-broker-not-retained')
+        wait(healthy, 'fresh-session-not-healthy')
+        started = time.monotonic()
+        disable()
+        wait(lambda: recovered(started), 'fresh-monitor-not-reattached')
+        preserved()
+        no_report(events.since(began))
+        record('session-replacement', {'normal_logout_after_recovery': True,
+               'fresh_session': True, 'new_bus_id': True, 'new_shell_process': True,
+               'shell_owner_loss_delivered': True, 'same_broker': True,
+               'monitor_recovered_in_fresh_session': True, 'error_reports': 0})
+
+        with transaction() as (caller, agent, requested):
+            started = time.monotonic()
+            cpu_before = int(guest.run(['systemctl', 'show', guest.BROKER,
+                                       '--property=CPUUsageNSec', '--value']))
+            disable()
+            held_until = time.monotonic() + 4
+            while time.monotonic() < held_until:
+                guest.require(not healthy() and not attempts(events.since(started)),
+                              'extension:lifecycle-recovered-during-transaction')
+                guest.require(not select.select([caller.child.stdout], [], [], 0)[0],
+                              'extension:lifecycle-authentication-ended-early')
+                time.sleep(0.25)
+            cpu_after = int(guest.run(['systemctl', 'show', guest.BROKER,
+                                      '--property=CPUUsageNSec', '--value']))
+            guest.require(0 <= cpu_after - cpu_before < 2_000_000_000,
+                          'extension:lifecycle-busy-loop')
+            agent.close()  # Cancel this one real challenge; never submit/replay approval.
+            result = accepted(caller.receive())
+            guest.require(result[1] in ('denied', 'cancelled') and result[2] == 0,
+                          'extension:lifecycle-authentication-not-cancelled')
+        wait(lambda: recovered(started), 'transaction-release-not-recovered')
+        preserved()
+        guest.require(sum(row['event'] == 'core.026'
+                          for _stamp, row in events.since(requested)) == 1,
+                      'extension:lifecycle-authentication-replayed')
+        record('transaction', {'held_across_early_retries': True, 'cancelled_without_password': True,
+               'cpu_seconds': round((cpu_after - cpu_before) / 1e9, 3),
+               'recovered_after_release': True, 'policy_and_grants_preserved': True})
+
+        # A real pending recovery exists while authentication owns the lock.
+        # Keep activation masked until the old invocation has fully exited.
+        with transaction() as (caller, agent, _requested):
+            pending = time.monotonic()
+            disable()
+            wait(lambda: not healthy(), 'shutdown-fault-not-visible')
+            time.sleep(1)
+            guest.require(not attempts(events.since(pending)),
+                          'extension:lifecycle-shutdown-recovery-not-pending')
+            with isolated_broker_for_extension_faults():
+                agent.close()
+                stopped = time.monotonic()
+                guest.require(guest.run(['systemctl', 'show', guest.BROKER,
+                              '--property=MainPID', '--value']) == '0',
+                              'extension:lifecycle-old-broker-not-exited')
+                guest.require('error' in caller.receive(),
+                              'extension:lifecycle-stopped-request-completed')
+                guest.require(not healthy(), 'extension:lifecycle-stopped-worker-activated')
+                # Saved-off is an engineering fixture while the real service
+                # is isolated; no human authentication or grant is fabricated.
+                preferences = store.load(child)
+                store.save(child, {**preferences, 'parent_control_enabled': False})
+                stopped_snapshot = state_digest(child)
+                quiet_until = time.monotonic() + 3
+                while time.monotonic() < quiet_until:
+                    guest.require(not healthy(), 'extension:lifecycle-late-stopped-activation')
+                    time.sleep(0.25)
+                guest.require(not commands(events.since(stopped)),
+                              'extension:lifecycle-late-stopped-command')
+        guest.require(invocation() != identity, 'extension:lifecycle-broker-not-restarted')
+        restarted_events = BrokerEvents(accepted(call(accounts['parent'], 'GetStartupTimings'))[0])
+        off = time.monotonic()
+        quiet_until = off + 35  # Covers the monitor's maximum existing retry delay.
+        while time.monotonic() < quiet_until:
+            guest.require(not healthy() and state_digest(child) == stopped_snapshot,
+                          'extension:lifecycle-off-state-lost')
+            time.sleep(0.5)
+        guest.require(not attempts(restarted_events.since(restarted_events.origin)),
+                      'extension:lifecycle-restarted-off-worker-activated')
+        no_report(events.since(began))
+        no_report(restarted_events.since(restarted_events.origin))
+        other_accounts_preserved()
+        record('broker-replacement', {'pending_recovery_before_stop': True,
+               'old_worker_settled': True, 'new_invocation': True, 'saved_off_preserved': True,
+               'late_enable_attempts': 0, 'error_reports': 0})
+    finally:
+        for observer in reversed(observers):
+            observer.close()
 
 
 if __name__ == '__main__':

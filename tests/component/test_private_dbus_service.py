@@ -49,15 +49,19 @@ def test_child_extension_monitor_recovers_public_signals_and_reports_failure_onc
     from tests.support.broker import Accounts, Preferences, make_broker
 
     server, system = open_bus(dbusmock_session.address), open_bus(dbusmock_system.address)
-    values = {"state": 1, "enabled": True, "configured": True}
+    values = {"state": 1, "enabled": True, "configured": True, "errors": []}
     node = Gio.DBusNodeInfo.new_for_xml('''<node><interface name="org.gnome.Shell.Extensions">
       <method name="GetExtensionInfo"><arg type="s" direction="in"/><arg type="a{sv}" direction="out"/></method>
+      <method name="GetExtensionErrors"><arg type="s" direction="in"/><arg type="as" direction="out"/></method>
       <property name="UserExtensionsEnabled" type="b" access="read"/>
       <signal name="ExtensionStateChanged"><arg type="s"/><arg type="a{sv}"/></signal>
     </interface></node>''')
 
-    def method(_connection, _sender, _path, _interface, _name, parameters, invocation):
+    def method(_connection, _sender, _path, _interface, name, parameters, invocation):
         assert parameters.unpack() == (UUID,)
+        if name == "GetExtensionErrors":
+            invocation.return_value(GLib.Variant("(as)", (values["errors"],)))
+            return
         invocation.return_value(GLib.Variant("(a{sv})", ({
             "state": GLib.Variant("d", values["state"]),
             "enabled": GLib.Variant("b", values["configured"]),
@@ -126,9 +130,18 @@ def test_child_extension_monitor_recovers_public_signals_and_reports_failure_onc
             # A quick ordinary logout after recovery is not an extension error.
             name("ReleaseName", "(s)", ("org.gnome.Shell",))
             spin_until(lambda: not monitor.watches[1001].shell_present)
-            values["state"] = 6
+            # During async import GNOME exposes ERROR with no error history.
+            # The replacement Shell must finish loading without a report.
+            values["state"] = 3
             name("RequestName", "(su)", ("org.gnome.Shell", 0))
             spin_until(lambda: monitor.watches[1001].failures > 0)
+            assert monitor.watches[1001].healthy_since == 0
+            failures = monitor.watches[1001].failures
+            values["state"] = 6
+            signal_state()
+            spin_until(lambda: monitor.watches[1001].failures > failures)
+            assert reports == []
+            assert not monitor.watches[1001].failed
             values["state"] = 1
             signal_state()
             spin_until(lambda: monitor.watches[1001].failures == 0)
@@ -147,6 +160,8 @@ def test_child_extension_monitor_recovers_public_signals_and_reports_failure_onc
             signal_state()
             spin_until(lambda: len(activations) == 3)
             values["state"] = 3
+            # A recorded exception is real even when its message is empty.
+            values["errors"] = [""]
             signal_state()
             spin_until(lambda: reports == [1001])
             values["state"] = 2

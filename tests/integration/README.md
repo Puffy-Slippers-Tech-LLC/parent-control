@@ -1164,6 +1164,17 @@ Native recovery timing is recorded inside the guest, separately from command
 and VM preparation time. The ordinary guarded runner restores the VM after the
 complete history; no expiry or authenticated approval history is repeated.
 
+System ID 296, `test_child_extension_monitor_session_lifecycle`, retains a
+separate lifecycle history in `system_extension_monitor.verify_lifecycle`.
+It observes ordinary logout soon after recovery, real Shell owner loss, a new
+user bus and Shell process, and monitor recovery in the fresh session with the
+same broker. A genuine authentication challenge holds the transaction across
+early retries, then cancellation releases recovery without issuing a grant.
+A second pending recovery crosses owned broker shutdown and saved-off restart;
+the stopped invocation must settle without late activation or error reporting.
+The runner stages the existing guarded session logout command and restores the
+outer VM only after this complete history. Select it with `system --id 296`.
+
 For an explicit update check, add `--previous-artifacts '<prior-artifact-allocation>'` alongside
 `--artifacts '<current-artifact-allocation>'`, using the maintained builder's
 returned paths. Both inputs pass the same artifact and source

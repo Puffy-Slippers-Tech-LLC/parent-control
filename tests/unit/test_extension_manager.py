@@ -414,6 +414,23 @@ class ExtensionManagerTests(unittest.TestCase):
     def tearDown(self):
         self.runtime.cleanup()
 
+    def test_loading_error_sentinel_is_not_a_confirmed_failure(self):
+        from gi.repository import GLib
+
+        for state, errors, failed in ((3, [], False), (3, [""], True), (4, [], True)):
+            with self.subTest(state=state, errors=errors):
+                info = GLib.Variant("(a{sv})", ({
+                    "state": GLib.Variant("d", state),
+                    "error": GLib.Variant("s", "")},)).print_(True)
+                history = GLib.Variant("(as)", (errors,)).print_(True)
+                with mock.patch.object(self.manager, "_run_command", side_effect=[
+                        SimpleNamespace(stdout=info), SimpleNamespace(stdout=history)]) as run:
+                    self.assertEqual(self.manager._failed_live_extension(self.account), failed)
+                if state == 3:
+                    self.assertEqual(run.call_args.args[1][-2:], (
+                        "org.gnome.Shell.Extensions.GetExtensionErrors", UUID))
+                    self.assertTrue(run.call_args.kwargs["require_live"])
+
     def test_confirmed_load_failure_refuses_reactivation_before_settings_writes(self):
         state = GnomeRecoveryState(inactive=True)
         with (mock.patch.object(self.manager, "_verify_installation"),

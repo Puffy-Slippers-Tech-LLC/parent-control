@@ -124,13 +124,22 @@ shown on the left. Start tests through the usual launchers. Select an idle VM ta
 its next run. The Reconnect button restarts this tab's source connections.
 
 The fixed **Run Time** tab follows **All**. It loads logged VM case durations only
-while selected and unloads its body when another tab is selected. The selectable,
-full-width table sorts longest first and shows each case's latest execution duration
-and VM name, rounded to whole minutes (`12m`). Run time includes VM preparation
+while selected, refreshes the data once per minute, and unloads its body when
+another tab is selected. Selecting it again loads fresh data immediately. The selectable,
+full-width table keeps one latest duration and recording per case/VM pair, folded
+into one row per case. **Case ID / Title** shows a **+** when multiple VMs exist.
+Click it to expand a tree of `VM name | Run Time | ▶` children; **-** collapses it.
+Children sort by their raw duration, longest first, before display rounding.
+The folded recording button and the row's **VM name** and **Run Time** columns
+use the slowest child. Cases also sort by that child's raw duration, longest first.
+Durations use seconds below one minute (`20s`) and rounded whole minutes otherwise
+(`12m`). Run time includes VM preparation
 before the first selected case starts, matching the recording's preparation
 boundary. Older timings use the linked recording's saved duration as a lower
 bound when preparation was omitted. Repair sessions and earlier retries
 are excluded; system lifecycle phases in one execution attempt are added together.
+New lifecycle recordings join those phases into one video instead of retaining
+only the final phase. Existing short recordings require a new execution to replace them.
 Rows update only after all selected phases of a case finish. Unfinished attempts
 publish no partial row; an earlier completed duration remains until replaced.
 Case links open the existing case file in a new editor tab. The recording icon

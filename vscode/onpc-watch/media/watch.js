@@ -20,6 +20,7 @@
     const resourceSamples = new Map();
     let sessionRoot = '';
     const actions = new Map();
+    const expandedRunTimes = new Set();
 
     function countdown(node) {
         const remaining = Math.max(0, Math.ceil(Number(node.dataset.deadline) - Date.now() / 1000));
@@ -687,7 +688,7 @@
         table.className = 'run-times';
         table.dataset.signature = signature;
         const heading = table.createTHead().insertRow();
-        for (const label of ['Case ID / Title | Recording', 'Category', 'VM name', 'Run Time', 'Description']) {
+        for (const label of ['Case ID / Title', 'Category', 'VM name', 'Run Time', 'Description']) {
             const th = document.createElement('th');
             th.textContent = label;
             heading.append(th);
@@ -704,19 +705,70 @@
             cell.append(a);
             return a;
         };
+        const duration = seconds => seconds < 60
+            ? `${Math.max(1, Math.round(seconds))}s` : `${Math.floor(seconds / 60 + .5)}m`;
+        const play = (cell, row) => {
+            if (!row.recording) return;
+            cell.append(' | ');
+            const recording = link(cell, '▶', row.recording);
+            recording.title = `Open recording for ${row.vm}`;
+            recording.setAttribute('aria-label', recording.title);
+        };
+        const groups = new Map();
         for (const row of rows) {
+            const key = JSON.stringify([row.source_id, row.category, row.id]);
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(row);
+        }
+        for (const variants of groups.values()) {
+            variants.sort((a, b) => b.seconds - a.seconds || a.vm.localeCompare(b.vm));
+        }
+        const ordered = [...groups.entries()].sort((a, b) =>
+            b[1][0].seconds - a[1][0].seconds || a[1][0].title.localeCompare(b[1][0].title));
+        for (const [key, variants] of ordered) {
+            const row = variants[0];
             const tr = body.insertRow();
             const title = tr.insertCell();
+            let expand;
+            if (variants.length > 1) {
+                expand = document.createElement('button');
+                expand.type = 'button';
+                expand.className = 'vm-runs-toggle';
+                title.append(expand, ' ');
+            }
             link(title, Number.isInteger(row.id) ? `${row.id}: ${row.title}` : row.title, row.case_link);
-            if (row.recording) {
-                title.append(' | ');
-                const recording = link(title, '▶', row.recording);
-                recording.title = 'Open recording';
-                recording.setAttribute('aria-label', 'Open recording');
+            const rootRecording = document.createElement('span');
+            play(rootRecording, row);
+            title.append(rootRecording);
+            if (expand) {
+                const children = document.createElement('ul');
+                children.className = 'vm-runs';
+                for (const variant of variants) {
+                    const child = document.createElement('li');
+                    child.append(`${variant.vm} | ${duration(variant.seconds)}`);
+                    play(child, variant);
+                    children.append(child);
+                }
+                const toggle = () => {
+                    const expanded = expandedRunTimes.has(key);
+                    children.hidden = !expanded;
+                    rootRecording.hidden = expanded;
+                    expand.textContent = expanded ? '-' : '+';
+                    expand.title = expanded ? 'Collapse VM runs' : 'Expand VM runs';
+                    expand.setAttribute('aria-label', expand.title);
+                    expand.setAttribute('aria-expanded', String(expanded));
+                };
+                expand.onclick = () => {
+                    if (expandedRunTimes.has(key)) expandedRunTimes.delete(key);
+                    else expandedRunTimes.add(key);
+                    toggle();
+                };
+                toggle();
+                title.append(children);
             }
             tr.insertCell().textContent = row.category === 'e2e' ? 'E2E' : row.category;
             tr.insertCell().textContent = row.vm;
-            tr.insertCell().textContent = `${Math.floor(row.seconds / 60 + .5)}m`;
+            tr.insertCell().textContent = duration(row.seconds);
             const description = tr.insertCell();
             const summary = document.createElement('div');
             summary.textContent = row.description;

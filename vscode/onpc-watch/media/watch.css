@@ -158,6 +158,12 @@ nav button[aria-pressed="true"] {
 .run-times ul { margin: 8px 0; padding-left: 20px; }
 .run-times li + li { margin-top: 4px; }
 .run-times p { margin: 8px 0 0; }
+.run-times .vm-runs { list-style: none; padding-left: 24px; }
+.vm-runs-toggle {
+    width: 20px; padding: 0; border: 0; background: transparent;
+    color: inherit; cursor: pointer; font: inherit;
+}
+.vm-runs-toggle:hover { background: var(--vscode-toolbar-hoverBackground); }
 .description-toggle {
     display: inline-flex; vertical-align: middle; align-items: center; justify-content: center;
     width: 24px; height: 24px; padding: 3px; border: 0; border-radius: 3px;

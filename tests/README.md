@@ -1917,8 +1917,10 @@ This is development/test tooling only; package update activation is **none**.
 
 VM case start/finish events also update small latest-only duration records through
 `tools/vm_run_times.py` in the shared gitignored `state` storage directory. One
-record per category/case keeps the latest VM name and execution duration; a new
-attempt replaces its predecessor. The clock starts at the recording's preparation
+record per category/case/VM keeps its latest execution duration; a new attempt
+replaces only that pair's predecessor. Legacy per-case records remain readable
+and are deduplicated against newer records for the same pair without rewriting
+history. The clock starts at the recording's preparation
 event for the first selected case, including VM preparation before pytest starts.
 Later cases start at their own start event. Lifecycle phases within that attempt accumulate,
 while repair sessions and prior attempts do not. A new duration is published only
@@ -1950,6 +1952,9 @@ and progress footer at full frame size; it excludes the left runner terminal,
 window header and bottom checkout/resource controls.
 One private renderer belongs to the runner, including its concurrent VM queue.
 It fans the same masked frames to at most one encoder per active VM case.
+Lifecycle phases for the same case in one attempt retain their private scratch
+segments and join them into one video when the final selected phase finishes.
+Interleaved cases remain separate; earlier attempts and repair sessions are excluded.
 For `fix-tests` VM queues, the parent repair launcher owns that controller
 through all worker retries and owned cleanup; nested runners inherit its verified
 endpoint rather than creating competing controllers. Its recording index belongs
@@ -1969,8 +1974,7 @@ has had another paint interval.
 Final WebMs live directly in the shared managed
 `output/test-runs/recordings/` directory, already gitignored by `output/`.
 It stays private to the unprivileged recording owner.
-Names are `category-ID-VMnames.webm`, for example
-`e2e-150-Ubuntu26.04-Fedora44.webm`. Names include the VMs actually visible in
+Names contain the category, a stable case/VM owner key, and the VMs actually visible in
 the clip, ordered by numeric IDs in `config/test-vm.json`, with the common
 `onpc-` prefix omitted. Each VM case attempt finishes and publishes independently,
 even if another VM is still running the same case. Integration qualifications
@@ -1983,12 +1987,14 @@ them without changing existing `--area`/`--test` or checkpoint identities.
 System lifecycle phases share one case ID; parameter variants have separate
 IDs. Existing assignments must never be renumbered or reused.
 
-Each category/ID retains only its latest playable recording, including a failed
+Each category/ID/executing VM retains only its latest playable recording, including a failed
 test's recording. If an ordinary clip has been deleted, the next case owner
 retires its stale manifest claim before recording a replacement. Missing required
 evidence, replaced files and corrupt recordings still refuse recovery.
 Publication is atomic and replaces the earlier owned clip
-even when its VM-name suffix changes. Encoder/validation failure preserves the
+even when its visible-VM suffix changes. Another executing VM has a separate
+owner and cannot displace that clip. Older per-case recordings remain readable
+as a fallback for matching VMs. Encoder/validation failure preserves the
 previous file and reports an infrastructure error. Every candidate is decoded
 in full before publication. Completed cases publish before returning to repair
 or intervention, without waiting for the renderer or queue to exit. Temporary case media

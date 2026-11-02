@@ -26,6 +26,8 @@ from collections import defaultdict
 VARIABLE = 'ONPC_VM_RECORDING_CONTROL'
 ROOT = Path(__file__).resolve().parents[1]
 _capture_tokens = defaultdict(dict)
+_phase_nodes = {}
+_phase_attempts = {}
 
 
 @lru_cache(maxsize=8)
@@ -72,19 +74,36 @@ def report_event(root, category, event):
     from test_commands import CATEGORIES
     if not endpoint or category not in CATEGORIES or CATEGORIES[category].scope != 'vm':
         return
+    from vm_selection import selected
+    vm = selected()
+    phase_key = endpoint, vm.name, category
     if event.get('kind') == 'collection':
         if not event.get('nodeids'):
             return
+        pending = defaultdict(set)
+        for nodeid in event['nodeids']:
+            identity = case_identity(root, category, dict(nodeid=nodeid))
+            if identity is not None:
+                pending[identity[0]].add(nodeid)
+        _phase_nodes[phase_key] = pending
+        _phase_attempts[phase_key] = secrets.token_hex(16)
         event = dict(kind='prepared', nodeid=event['nodeids'][0])
     if event.get('kind') not in ('prepared', 'started', 'finished', 'failure'):
         return
     identity = case_identity(root, category, event)
     if identity is None:
         raise ValueError('recording: unregistered VM case')
-    from vm_selection import selected
-    vm = selected()
+    pending = _phase_nodes.get(phase_key, {}).get(identity[0], set())
+    attempt = _phase_attempts.get(phase_key)
+    if event['kind'] == 'finished':
+        pending.discard(event['nodeid'])
+        if not any(_phase_nodes.get(phase_key, {}).values()):
+            _phase_nodes.pop(phase_key, None)
+            _phase_attempts.pop(phase_key, None)
     reply = request(json.loads(endpoint), dict(op='event', vm=vm.name, category=category,
-        id=identity[0], title=identity[1], kind=event['kind'], at_ns=time.monotonic_ns()))
+        id=identity[0], title=identity[1], kind=event['kind'], at_ns=time.monotonic_ns(),
+        more_phases=bool(pending) if event['kind'] == 'finished' else False,
+        attempt=attempt))
     record = reply.get('recording')
     if record:
         print(describe(record), flush=True)
@@ -117,25 +136,30 @@ def intervention_recording(root, category, nodeid):
 def latest(root, category, nodeid):
     """Read a verified latest receipt for an intervention, without creating media."""
     from recording_storage import Store
+    from vm_selection import selected, vm_config
     identity = case_identity(root, category, dict(nodeid=nodeid))
     if identity is None:
         return None
-    try:
-        with Store(root=root, create=False).owner(category, identity[0]) as owner:
-            current = owner.state['current']
-            if current is None:
-                return None
-            owner._verify(current)
-            return dict(owner.state['provenance'], path=str(owner.store.path / current['name']),
-                        sha256=current['sha256'])
-    except FileNotFoundError:
-        return None
+    vm = selected(required=False)
+    names = [vm.name] if vm is not None else vm_config.registry(root / 'config/test-vm.json')
+    records = []
+    for name in names:
+        try:
+            with Store(root=root, create=False).vm_owner(category, identity[0], name) as owner:
+                current = owner.state['current']
+                owner._verify(current)
+                records.append(dict(owner.state['provenance'], vm=name,
+                    path=str(owner.store.path / current['name']), sha256=current['sha256']))
+        except FileNotFoundError:
+            continue
+    return max(records, key=lambda record: record['published_at'], default=None)
 
 
 def workflow_records(root, run, previous=()):
     """Keep finite latest receipts across agent sessions without retaining media."""
     from detached_launcher import nested_runs
     from recording_storage import Store
+    from vm_selection import vm_config
     candidates = list(previous)
     records = {}
     try:
@@ -162,13 +186,17 @@ def workflow_records(root, run, previous=()):
                   file=sys.stderr, flush=True)
     for record in candidates:
         try:
-            key = record['category'], record['id']
-            with Store(root=root, create=False).owner(*key) as owner:
-                current = owner.state['current']
-                if current:
-                    owner._verify(current)
-                    records[key] = dict(owner.state['provenance'], category=key[0], id=key[1],
-                        path=str(owner.store.path / current['name']), sha256=current['sha256'])
+            names = [record['vm']] if record.get('vm') else vm_config.registry(root / 'config/test-vm.json')
+            for vm in names:
+                key = record['category'], record['id'], vm
+                try:
+                    with Store(root=root, create=False).vm_owner(*key) as owner:
+                        current = owner.state['current']
+                        owner._verify(current)
+                        records[key] = dict(owner.state['provenance'], category=key[0], id=key[1], vm=vm,
+                            path=str(owner.store.path / current['name']), sha256=current['sha256'])
+                except FileNotFoundError:
+                    continue
         except FileNotFoundError:
             continue
         except (OSError, ValueError, KeyError, TypeError) as error:
@@ -287,6 +315,7 @@ class Session:
         self.run = run
         self.stack = ExitStack()
         self.cases = {}
+        self.suspended = {}
         self.active = {}
         self.case_lock = threading.Lock()
         self.lock = threading.Lock()
@@ -438,7 +467,7 @@ class Session:
                             if key is not None:
                                 self.event(dict(value, category=key[0], id=key[1], kind='failure'))
                         elif operation == 'finished':
-                            record = self.finish_vm(value['vm'], interrupted=True)
+                            record = self.finish_attempt(value['vm'])
                         else:
                             raise ValueError('recording: operation')
                 peer.sendall(json.dumps(dict(ok=True, recording=record)).encode())
@@ -469,7 +498,16 @@ class Session:
             # leases. The final per-case lease is held only during publication,
             # so simultaneous VMs can finish the same case independently.
             path = self.scratch / (secrets.token_hex(16) + '.webm')
-            self.cases[vm] = dict(path=path, errors=[], title=value.get('title', ''), interrupted=False)
+            case = self.suspended.pop((vm, *key), None)
+            if case is not None and case['attempt'] != value.get('attempt'):
+                for part in case['parts']:
+                    part.unlink(missing_ok=True)
+                case = None
+            if case is None:
+                case = dict(errors=[], title=value.get('title', ''),
+                    interrupted=False, parts=[], duration_seconds=0., vm_names=set())
+            case.update(attempt=value.get('attempt'), path=path)
+            self.cases[vm] = case
             self.active[vm] = key
             ready = self.exchange(dict(op='begin', category=category, id=identifier, vm=vm, path=str(path)))
             self.cases[vm]['started_ns'] = ready['started_ns']
@@ -477,16 +515,16 @@ class Session:
         self.active[vm] = key
         if kind == 'failure' and not case['errors']:
             elapsed_ns = max(0, at_ns - case['started_ns'])
-            seconds = elapsed_ns / 1_000_000_000
-            milliseconds = elapsed_ns // 1_000_000
+            seconds = case['duration_seconds'] + elapsed_ns / 1_000_000_000
+            milliseconds = int(seconds * 1000)
             hours, rest = divmod(milliseconds, 3600000)
             minutes, rest = divmod(rest, 60000)
-            case['errors'].append(dict(seconds=seconds, frame=elapsed_ns * 5 // 1_000_000_000, vm=vm,
+            case['errors'].append(dict(seconds=seconds, frame=int(seconds * 5), vm=vm,
                 timestamp=f'{hours:02}:{minutes:02}:{rest / 1000:06.3f}', kind='failure observed'))
         if kind == 'finished':
-            return self.finish_vm(vm)
+            return self.finish_vm(vm, more_phases=value.get('more_phases') is True)
 
-    def finish_vm(self, vm, *, interrupted=False):
+    def finish_vm(self, vm, *, interrupted=False, more_phases=False):
         key = self.active.get(vm)
         if key is None:
             return None
@@ -502,26 +540,69 @@ class Session:
             names = {vm}
         if names - self.configured.keys():
             raise ValueError('recording: unknown captured VM')
-        ordered = sorted(names, key=lambda name: int(self.configured[name].id))
-        metadata = dict(title=case['title'], errors=case['errors'],
+        case['parts'].append(case['path'])
+        case['duration_seconds'] += summary['duration_seconds']
+        case['vm_names'].update(names)
+        case['fps'] = summary['fps']
+        del self.cases[vm]
+        if more_phases and not interrupted and not case['errors']:
+            self.suspended[vm, *key] = case
+            return None
+        return self.publish_case(vm, key, case, more_phases=more_phases and not interrupted)
+
+    def finish_attempt(self, vm):
+        """Preserve review clips when an attempt stops between lifecycle phases."""
+        record = self.finish_vm(vm, interrupted=True)
+        for key in tuple(self.suspended):
+            if key[0] == vm:
+                case = self.suspended.pop(key)
+                case['interrupted'] = True
+                record = self.publish_case(vm, key[1:], case)
+        return record
+
+    def publish_case(self, vm, key, case, *, more_phases=False):
+        from recording_storage import vm_case_id
+        category, identifier = key
+        ordered = sorted(case['vm_names'], key=lambda name: int(self.configured[name].id))
+        metadata = dict(title=case['title'], vm=vm, errors=case['errors'],
                         failed=bool(case['errors']), interrupted=case['interrupted'],
-                        duration_seconds=summary['duration_seconds'], fps=summary['fps'])
+                        duration_seconds=case['duration_seconds'], fps=case['fps'])
         try:
-            with self.store.begin(category, identifier) as owner:
-                shutil.copyfile(case['path'], owner.path)
+            with self.store.begin(category, vm_case_id(identifier, vm)) as owner:
+                if len(case['parts']) == 1:
+                    shutil.copyfile(case['path'], owner.path)
+                else:
+                    from test_storage import scratch_descriptors
+                    # All segments have identical encoder settings and private,
+                    # generated basenames. Join only this attempt's phases.
+                    listing = case['path'].with_suffix('.ffconcat')
+                    try:
+                        listing.write_text('ffconcat version 1.0\n' + ''.join(
+                            f"file '{part.name}'\n" for part in case['parts']))
+                        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'concat',
+                            '-safe', '1', '-i', str(listing), '-c', 'copy', str(owner.path)],
+                            stdin=subprocess.DEVNULL, check=True, timeout=120,
+                            pass_fds=(*scratch_descriptors(), *owner.descriptors()))
+                    finally:
+                        listing.unlink(missing_ok=True)
                 path = owner.publish(ordered, validate=playable, metadata=metadata)
                 record = dict(metadata, category=category, id=identifier, path=str(path),
                               sha256=owner.state['current']['sha256'])
             # An index contains only the current recording for each identity.
             self.records[:] = [old for old in self.records
-                               if (old['category'], old['id']) != key]
+                               if (old['category'], old['id'], old.get('vm')) != (*key, vm)]
             self.records.append(record)
             if self.run is not None:
                 self.write_index(self.run, None)
             return record
         finally:
-            case['path'].unlink(missing_ok=True)
-            del self.cases[vm]
+            if more_phases:
+                # Keep a failing phase reviewable even if later phases cannot
+                # run, while retaining its segments if execution continues.
+                self.suspended[vm, *key] = case
+            else:
+                for part in case['parts']:
+                    part.unlink(missing_ok=True)
 
     def close(self, *, publish=True):
         if self.previous is None:
@@ -543,8 +624,8 @@ class Session:
                 summary = None
                 try:
                     if not self.broken and self.started_ns is not None and self.process.poll() is None:
-                        for vm in tuple(self.active):
-                            self.finish_vm(vm, interrupted=True)
+                        for vm in set(self.active) | {key[0] for key in self.suspended}:
+                            self.finish_attempt(vm)
                         summary = self.exchange(dict(op='close'))
                         self.summary = summary
                         if self.process.wait(timeout=15):
@@ -565,6 +646,7 @@ class Session:
             raise
         finally:
             self.cases.clear()
+            self.suspended.clear()
             if self.control is not None:
                 self.control.close()
             if self.pidfd is not None:

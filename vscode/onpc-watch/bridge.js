@@ -375,7 +375,7 @@ class Bridge {
         for (const id of this.displayedFrames.keys()) if (!visible.has(id)) this.displayedFrames.delete(id);
         const latestTimes = new Map();
         for (const row of run_times) {
-            const id = JSON.stringify([row.source_id, row.category, row.id]);
+            const id = JSON.stringify([row.source_id, row.category, row.id, row.vm]);
             const previous = latestTimes.get(id);
             if (!previous || row.completed_at > previous.completed_at) latestTimes.set(id, row);
         }

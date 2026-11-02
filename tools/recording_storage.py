@@ -35,6 +35,15 @@ def case_identity(value):
              re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,119}', value) is not None))
 
 
+def vm_case_id(case_id, vm):
+    """A bounded recording owner identity for one public case/VM pair."""
+    if (not case_identity(case_id) or not isinstance(vm, str)
+            or re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', vm) is None):
+        raise ValueError('recordings: invalid case/VM pair')
+    digest = hashlib.sha256(json.dumps([case_id, vm]).encode()).hexdigest()
+    return f'vm_{str(case_id)[:32]}_{digest}'
+
+
 def _identity(info, name):
     test_retention.private(info, regular=True)
     return dict(name=name, device=info.st_dev, inode=info.st_ino)
@@ -78,6 +87,21 @@ class Store:
         if not _token(category) or not case_identity(case_id):
             raise ValueError('recordings: invalid category or case ID')
         return Recording(self, category, case_id, reserve=False)
+
+    @contextmanager
+    def vm_owner(self, category, case_id, vm):
+        """Prefer the pair's recording, falling back to matching legacy media."""
+        for identifier in (vm_case_id(case_id, vm), case_id):
+            try:
+                owner = self.owner(category, identifier)
+            except FileNotFoundError:
+                continue
+            with owner:
+                if (owner.state['current'] is not None
+                        and vm in owner.state['provenance'].get('vm_names', [])):
+                    yield owner
+                    return
+        raise FileNotFoundError('recordings: no recording for this case/VM pair')
 
 
 class Recording:

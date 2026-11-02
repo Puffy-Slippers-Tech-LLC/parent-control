@@ -511,7 +511,7 @@ class Viewer:
             from vm_run_times import load
             selection = tuple(root for root in self.roots if scope in ('all', str(root)))
             now = time.monotonic()
-            if self.run_times is None or selection != self.run_times_scope or now - self.run_times_at >= 1:
+            if self.run_times is None or selection != self.run_times_scope or now - self.run_times_at >= 60:
                 self.run_times = [row for root in selection for row in load(root)]
                 self.run_times_scope, self.run_times_at = selection, now
             run_times = self.run_times

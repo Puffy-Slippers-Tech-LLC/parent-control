@@ -88,8 +88,9 @@ def metadata(root, category, nodeid):
                               description=description or title), descriptions(root))
 
 
-def _name(category, identifier):
-    key = json.dumps([category, identifier], separators=(',', ':'))
+def _name(category, identifier, vm=None):
+    key = json.dumps([category, identifier, vm] if vm is not None else
+                     [category, identifier], separators=(',', ':'))
     return 'vm-time-' + hashlib.sha256(key.encode()).hexdigest() + '.json'
 
 
@@ -109,7 +110,7 @@ def save(root, record):
     temporary = '.vm-time-' + uuid.uuid4().hex
     try:
         test_retention.private(os.fstat(fd))
-        name = _name(record['category'], record['id'])
+        name = _name(record['category'], record['id'], record['vm'])
         try:
             _read(fd, name)
         except FileNotFoundError:
@@ -145,7 +146,8 @@ def load(root):
                 from tools.recording_storage import case_identity
                 if (record['category'] not in ('system', 'e2e')
                         or not case_identity(record['id'])
-                        or name != _name(record['category'], record['id'])
+                        or name not in (_name(record['category'], record['id']),
+                                        _name(record['category'], record['id'], record['vm']))
                         or not isinstance(record['seconds'], (float, int))
                         or not math.isfinite(record['seconds']) or record['seconds'] < 0
                         or type(record['completed_at']) not in (float, int)
@@ -161,7 +163,8 @@ def load(root):
                 record['recording'] = None
                 from tools.recording_storage import Store
                 try:
-                    with Store(root=root, create=False).owner(record['category'], record['id']) as owner:
+                    with Store(root=root, create=False).vm_owner(
+                            record['category'], record['id'], record['vm']) as owner:
                         current = owner.state['current']
                         if current and record['vm'] in owner.state['provenance'].get('vm_names', []):
                             # Validate identity without hashing video bytes on every refresh.
@@ -184,7 +187,13 @@ def load(root):
                 continue
     finally:
         os.close(fd)
-    return sorted(rows, key=lambda row: (-row['seconds'], row['title'], row['vm']))
+    # Legacy per-case records remain readable without rewriting saved history.
+    latest = {}
+    for row in rows:
+        key = row['category'], row['id'], row['vm']
+        if key not in latest or row['completed_at'] >= latest[key]['completed_at']:
+            latest[key] = row
+    return sorted(latest.values(), key=lambda row: (-row['seconds'], row['title'], row['vm']))
 
 
 class Tracker:

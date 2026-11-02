@@ -157,6 +157,13 @@ nav button[aria-pressed="true"] {
 .run-times ul { margin: 8px 0; padding-left: 20px; }
 .run-times li + li { margin-top: 4px; }
 .run-times p { margin: 8px 0 0; }
+.description-toggle {
+    display: inline-flex; vertical-align: middle; align-items: center; justify-content: center;
+    width: 24px; height: 24px; padding: 3px; border: 0; border-radius: 3px;
+    background: transparent; cursor: pointer;
+}
+.description-toggle:hover { background: var(--vscode-toolbar-hoverBackground); }
+.description-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 #grid[data-layout="vertical"] { grid-template-columns: minmax(0, 1fr); }
 #grid[data-layout="horizontal"]:not(.single) {
     grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(300px, 1fr);

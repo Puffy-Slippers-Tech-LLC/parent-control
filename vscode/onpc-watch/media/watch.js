@@ -720,28 +720,50 @@
             const summary = document.createElement('div');
             summary.textContent = row.description;
             description.append(summary);
-            const toggle = document.createElement('a');
-            toggle.href = '#';
-            toggle.textContent = 'Show';
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'description-toggle';
+            toggle.title = 'Expand description';
+            toggle.setAttribute('aria-label', toggle.title);
+            const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            icon.setAttribute('viewBox', '0 0 20 20');
+            icon.setAttribute('aria-hidden', 'true');
+            const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            chevron.setAttribute('d', 'M5 7l5 5 5-5');
+            icon.append(chevron);
+            toggle.append(icon);
             const text = document.createElement('div');
             text.hidden = true;
+            const stepsLabel = document.createElement('p');
+            stepsLabel.textContent = 'Steps:';
             const steps = document.createElement('ul');
             for (const step of row.steps || []) {
                 const item = document.createElement('li');
                 item.textContent = step;
                 steps.append(item);
             }
-            const expected = document.createElement('p');
-            expected.textContent = row.expected ? `Expected: ${row.expected}` : '';
-            text.append(steps, expected);
-            toggle.onclick = event => {
-                event.preventDefault();
+            if (row.steps?.length) text.append(stepsLabel, steps);
+            if (row.expected) {
+                const expectedLabel = document.createElement('p');
+                expectedLabel.textContent = 'Expected:';
+                const expected = document.createElement('ul');
+                const item = document.createElement('li');
+                item.textContent = row.expected;
+                expected.append(item);
+                text.append(expectedLabel, expected);
+            }
+            toggle.onclick = () => {
                 text.hidden = !text.hidden;
-                toggle.textContent = text.hidden ? 'Show' : 'Hide';
+                toggle.title = text.hidden ? 'Expand description' : 'Collapse description';
+                toggle.setAttribute('aria-label', toggle.title);
+                chevron.setAttribute('d', text.hidden ? 'M5 7l5 5 5-5' : 'M5 12l5-5 5 5');
                 toggle.setAttribute('aria-expanded', String(!text.hidden));
             };
             toggle.setAttribute('aria-expanded', 'false');
-            if (row.steps?.length || row.expected) description.append(toggle, text);
+            if (row.steps?.length || row.expected) {
+                summary.append(' ', toggle);
+                description.append(text);
+            }
         }
         grid.append(table);
     }

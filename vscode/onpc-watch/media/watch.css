@@ -153,7 +153,6 @@ nav button[aria-pressed="true"] {
     border-bottom: 1px solid var(--vscode-panel-border); overflow-wrap: anywhere;
 }
 .run-times a { color: var(--vscode-textLink-foreground); text-decoration: underline; cursor: pointer; }
-.run-times td:last-child { width: 35%; }
 .run-times td:last-child div { white-space: normal; padding-bottom: 8px; }
 .run-times ul { margin: 8px 0; padding-left: 20px; }
 .run-times li + li { margin-top: 4px; }

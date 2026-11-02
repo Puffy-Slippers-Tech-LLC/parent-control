@@ -144,6 +144,15 @@ nav button[aria-pressed="true"] {
     grid-auto-rows: minmax(350px, 1fr); flex: 1; min-height: 0; overflow: auto; gap: 6px; padding: 6px;
 }
 #grid.single { grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(0, 1fr); }
+#grid.runtime-body { display: block; }
+.run-times { width: 100%; border-collapse: collapse; user-select: text; }
+.run-times th, .run-times td {
+    text-align: left; vertical-align: top; padding: 8px;
+    border-bottom: 1px solid var(--vscode-panel-border); overflow-wrap: anywhere;
+}
+.run-times a { color: var(--vscode-textLink-foreground); text-decoration: underline; cursor: pointer; }
+.run-times td:last-child { width: 35%; }
+.run-times td:last-child div { white-space: pre-wrap; padding-top: 8px; }
 #grid[data-layout="vertical"] { grid-template-columns: minmax(0, 1fr); }
 #grid[data-layout="horizontal"]:not(.single) {
     grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(300px, 1fr);

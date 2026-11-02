@@ -56,6 +56,16 @@ function validate(snapshot) {
         Array.isArray(segment) && segment.length && segment.every(point => Array.isArray(point) &&
             point.length === 2 && point.every(Number.isFinite)));
     if (snapshot?.protocol !== VERSION) throw new Error('Incompatible Watch bridge; update the adapter (protocol 1 required).');
+    if (snapshot.run_times !== undefined && (!Array.isArray(snapshot.run_times) || snapshot.run_times.some(row =>
+        !row || !['system', 'integration', 'e2e'].includes(row.category) ||
+        !(Number.isInteger(row.id) && row.id > 0 || typeof row.id === 'string') ||
+        !Number.isFinite(row.seconds) || row.seconds < 0 ||
+        !Number.isFinite(row.completed_at) ||
+        ['title', 'vm', 'case_file', 'description', 'case_link'].some(field => typeof row[field] !== 'string') ||
+        row.case_link.length > 8192 || (row.recording !== null &&
+            (typeof row.recording !== 'string' || row.recording.length > 8192))))) {
+        throw new Error('Invalid VM run times.');
+    }
     if (!Array.isArray(snapshot.entries) || !Array.isArray(snapshot.runs) || !Array.isArray(snapshot.checkouts) ||
         !Array.isArray(snapshot.resource_charts) || !snapshot.capabilities ||
         typeof snapshot.capabilities.sessions !== 'boolean' || typeof snapshot.capabilities.artifacts !== 'boolean' ||
@@ -280,21 +290,21 @@ class Bridge {
             try {
                 source.tick({ scope: scope?.source === source ? scope.id : 'all',
                     selected: scope && scope.source !== source ? '__hidden__' :
-                        entry?.id || (request.selected === 'all' ? 'all' : '__hidden__'),
+                        entry?.id || (['all', 'run-time'].includes(request.selected) ? request.selected : '__hidden__'),
                     session_root: route?.source === source ? route.id : '' });
             } catch (error) { source.fail(error.message); }
         }
     }
 
     snapshot(request) {
-        const entries = [], runs = [], checkouts = [], hosts = [];
+        const entries = [], runs = [], checkouts = [], hosts = [], run_times = [];
         const scope = this.roots.get(request.scope);
         let selection;
         try { selection = JSON.parse(request.selected); } catch { /* All has no source. */ }
         // A connecting source has not yet established whether its saved viewer exists.
         const awaitingSelection = Array.isArray(selection) && selection.length === 2 &&
             this.sources.some(source => source.config.id === selection[0] && !source.snapshot);
-        const selected = awaitingSelection || this.sources.some(source => (!scope || scope.source === source) &&
+        const selected = request.selected === 'run-time' || awaitingSelection || this.sources.some(source => (!scope || scope.source === source) &&
             source.snapshot?.entries.some(entry => key(source.config.id, entry.id) === request.selected)) ? request.selected : 'all';
         const visible = new Set();
         this.links.clear(); this.roots.clear();
@@ -303,6 +313,18 @@ class Bridge {
             const { id, label } = source.config;
             const value = source.snapshot;
             const connected = source.status === 'Connected';
+            if (selected === 'run-time' && connected && (!scope || scope.source === source)) {
+                for (const row of value?.run_times || []) {
+                    const routeLink = uri => {
+                        if (!uri) return null;
+                        const token = key(id, uri);
+                        this.links.set(token, { source, uri });
+                        return token;
+                    };
+                    run_times.push({ ...row, source_id: id, case_link: routeLink(row.case_link),
+                        recording: routeLink(row.recording) });
+                }
+            }
             const rows = rows => (rows || []).map(row => row.map(part => {
                 if (!part.link) return part;
                 const token = key(id, part.link);
@@ -351,7 +373,14 @@ class Bridge {
             }
         }
         for (const id of this.displayedFrames.keys()) if (!visible.has(id)) this.displayedFrames.delete(id);
-        return { entries, runs, checkouts, hosts,
+        const latestTimes = new Map();
+        for (const row of run_times) {
+            const id = JSON.stringify([row.source_id, row.category, row.id]);
+            const previous = latestTimes.get(id);
+            if (!previous || row.completed_at > previous.completed_at) latestTimes.set(id, row);
+        }
+        const times = [...latestTimes.values()].sort((a, b) => b.seconds - a.seconds || a.title.localeCompare(b.title));
+        return { entries, runs, checkouts, hosts, run_times: times,
             scope: checkouts.some(checkout => checkout.id === request.scope) ? request.scope : 'all',
             selected,
             session_results: this.results.splice(0) };

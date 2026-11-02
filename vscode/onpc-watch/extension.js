@@ -228,13 +228,13 @@ function activate(context) {
                 const { result, remote } = await bridge.artifact(token);
                 if (result.error) throw new Error(result.error);
                 if (result.kind === 'file' && !remote) {
-                    if (!['video/webm', 'text/markdown'].includes(result.media_type)) throw new Error('Unsupported artifact media type.');
+                    if (!['video/webm', 'text/markdown', 'text/plain'].includes(result.media_type)) throw new Error('Unsupported artifact media type.');
                     const uri = new URL(result.uri);
                     if (uri.protocol !== 'file:' || uri.host || uri.search || uri.hash) throw new Error('Invalid artifact URI.');
                     const filename = fileURLToPath(uri);
                     if (fs.realpathSync(filename) !== filename || !fs.lstatSync(filename).isFile()) throw new Error('Artifact is no longer a regular file.');
                     if (result.media_type === 'video/webm') desktopCommand('gio', ['open', filename], 'Cannot open recording');
-                    else if (result.media_type === 'text/markdown') await vscode.window.showTextDocument(vscode.Uri.file(filename), { preview: false });
+                    else await vscode.window.showTextDocument(vscode.Uri.file(filename), { preview: false });
                 } else if (result.kind === 'text' && typeof result.text === 'string') {
                     const document = await vscode.workspace.openTextDocument({ content: result.text, language: 'markdown' });
                     await vscode.window.showTextDocument(document, { preview: false });

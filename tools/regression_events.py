@@ -5,6 +5,7 @@ import os
 import re
 import stat
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -133,7 +134,7 @@ def pytest_collection_finish(session):
 def pytest_runtest_logstart(nodeid, location):
     if (os.environ.get('ONPC_REGRESSION_EVENTS') == '1'
             and os.environ.get('ONPC_REGRESSION_PRIVATE')):
-        emit('started', nodeid=nodeid)
+        emit('started', nodeid=nodeid, monotonic_ns=time.monotonic_ns())
 
 
 def pytest_runtest_logreport(report):
@@ -170,7 +171,7 @@ def pytest_runtest_logreport(report):
             detail = 'Installed test failed; detailed traceback: ' + str(path)
         emit('failure', nodeid=report.nodeid, when=report.when, detail=detail, **diagnostic)
     if report.when == 'teardown':
-        emit('finished', nodeid=report.nodeid)
+        emit('finished', nodeid=report.nodeid, monotonic_ns=time.monotonic_ns())
 
 
 def pytest_collectreport(report):

@@ -132,6 +132,10 @@ class Viewer:
         self.resources = ResourceUsage()
         self.vm_memory = {}
         self.artifact_links = set()
+        self.case_links = set()
+        self.run_times = None
+        self.run_times_scope = None
+        self.run_times_at = 0
 
     def artifact(self, request):
         """Serve only artifacts published by this reader, never arbitrary paths."""
@@ -146,6 +150,14 @@ class Viewer:
             path = Path(unquote(parsed.path))
             if not path.is_absolute() or '..' in path.parts:
                 raise ValueError('Invalid artifact path.')
+            if uri in self.case_links:
+                if not any(path.resolve().is_relative_to(root.resolve() / 'tests') for root in self.roots):
+                    raise ValueError('Case file outside checkout tests.')
+                if request['inline']:
+                    if path.stat().st_size > 2 * 1024 * 1024:
+                        raise ValueError('Case file exceeds inline limit.')
+                    return dict(kind='text', text=path.read_text())
+                return dict(kind='file', uri=path.as_uri(), media_type='text/plain')
             video = path.suffix == '.webm' and any(
                 path.parent == root / 'output/test-runs/recordings' for root in self.roots)
             error_log = any(output.repair and output.run is not None
@@ -441,7 +453,7 @@ class Viewer:
                                 current_vms={'vm-' + name.encode('ascii').hex()
                                              for name in self.configured.get(self.root, {})})
         valid_ids = {entry_id(Path(root), key) for root, key in scoped}
-        if selected not in valid_ids:
+        if selected not in valid_ids and selected != 'run-time':
             selected = 'all'
         runs = self.run_status(request.get('session_root'))
         # Follow the displayed terminal sections, including changes on refresh.
@@ -465,8 +477,25 @@ class Viewer:
             for row in [*run['rows'], *run['error_rows'],
                         *((run.get('session_view') or {}).get('rows', []))]
             for part in row if part.get('link')}
+        run_times = []
+        self.case_links = set()
+        if selected == 'run-time':
+            from vm_run_times import load
+            selection = tuple(root for root in self.roots if scope in ('all', str(root)))
+            now = time.monotonic()
+            if self.run_times is None or selection != self.run_times_scope or now - self.run_times_at >= 1:
+                self.run_times = [row for root in selection for row in load(root)]
+                self.run_times_scope, self.run_times_at = selection, now
+            run_times = self.run_times
+            for row in run_times:
+                self.case_links.add(row['case_link'])
+                self.artifact_links.update(link for link in (row['case_link'], row['recording']) if link)
+        else:
+            self.run_times = None
+            self.run_times_scope = None
         return dict(protocol=1, capabilities=dict(sessions=True, artifacts=True),
                     scope=scope, selected=selected, entries=values,
+                    run_times=run_times,
                     runs=runs, session_result=result,
                     checkouts=[dict(id=str(root), label=branch) for root, branch in self.roots.items()],
                     resources=self.resources.text(), resource_sample=self.resources.last,

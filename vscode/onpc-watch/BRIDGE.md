@@ -44,7 +44,7 @@ reader's filesystem layout, Python modules, libvirt or Unix-socket protocol.
 {"protocol":1,"scope":"all","selected":"all","reset":false,"session_root":""}
 ```
 
-`scope` is `all` or a checkout ID. `selected` is `all` or a viewer ID. An unknown
+`scope` is `all` or a checkout ID. `selected` is `all`, `run-time` or a viewer ID. An unknown
 selection means no viewer pixels are requested (metadata still returns). An empty
 `session_root` requests no transcript body; otherwise it identifies a run section.
 `reset` requests full images for the visible selection. IDs are opaque strings;
@@ -68,6 +68,7 @@ The response contains these fields:
 | `resource_sample` | Sample identity, compared only within this source. |
 | `resource_charts` | Array of `{label, text, segments}` for CPU, Memory and Disk; empty if unavailable. |
 | `session_result` | Optional `{id, ok, error?}` acknowledging the requested action. |
+| `run_times` | Optional array, populated only for `selected: "run-time"`: `{id, title, category, vm, seconds, case_file, description, case_link, recording}`. Links are published artifact references; recording may be null. |
 
 A run section has `id`, `label`, `active`, `status`, `run` (run identity or null),
 `rows`, `error_rows`, `launcher_output`, `session` (identity or null),
@@ -148,15 +149,15 @@ The adapter validates that the reference is still published by this reader and
 checks filesystem/ownership permissions itself. It returns
 `{"protocol":1,"artifact_result":...}` with one of:
 
-- `{kind: "file", uri: "file:///...", media_type: "video/webm"|"text/markdown"}`
+- `{kind: "file", uri: "file:///...", media_type: "video/webm"|"text/markdown"|"text/plain"}`
   for local access when `inline` is false. SSH sources refuse file results as local
   file access. The extension also checks local files before opening them.
 - `{kind: "text", text: "..."}` for editor display.
 - `{kind: "video", data: "base64 WebM"}` for in-memory video playback.
 - `{error: "readable reason"}` for refusal/unavailability.
 
-The local adapter exports only published repair-owner `errors.md` logs and watch
-recordings in discovered checkouts' recording directories. Merely mentioning an
+The local adapter exports published case files under discovered checkouts' `tests/`
+directories, repair-owner `errors.md` logs and watch recordings. Merely mentioning an
 unrelated `errors.md` path in output does not authorize access. Both forms require
 regular, single-link files owned by the observer user, without symlink paths;
 inline limits are 2 MiB text and 64 MiB video. No downloads occur during polling.

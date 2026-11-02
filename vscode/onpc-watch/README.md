@@ -116,6 +116,17 @@ following changes on each refresh. Worktrees without a displayed run follow thos
 shown on the left. Start tests through the usual launchers. Select an idle VM tab to wait for
 its next run. The Reconnect button restarts this tab's source connections.
 
+The fixed **Run Time** tab follows **All**. It loads logged VM case durations only
+while selected and unloads its body when another tab is selected. The selectable,
+full-width table sorts longest first and shows each case's latest execution duration
+and VM name, rounded to whole minutes (`12m`). Repair sessions and earlier retries
+are excluded; system lifecycle phases in one execution attempt are added together.
+Case links open the existing case file in a new editor tab. The recording icon
+uses the existing default desktop viewer route (or the SSH video tab). **Show** /
+**Hide** expands existing case descriptions or scenario steps as plain text.
+Only executed, logged cases appear; this is not a test inventory. Small latest-only
+records live in the shared `state` directory under gitignored `output/test-runs/`.
+
 Each VM footer has an **SSH** toggle at the right, off by default. Turn it on
 to show the filtered command output above the footer. The choice is retained
 when switching viewer tabs until Watch is reopened. Long blue operation messages

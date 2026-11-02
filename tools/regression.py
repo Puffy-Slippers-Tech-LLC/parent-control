@@ -626,6 +626,8 @@ class Execution:
         self.output_error_summary = ''
         self.recording_case = None
         self.recording_failed = False
+        from vm_run_times import Tracker
+        self.run_times = Tracker(run.root, item.retry_category)
         run.sequence += 1
         self.sequence = run.sequence
         filename = f'category-{run.sequence:03d}.log'
@@ -652,6 +654,7 @@ class Execution:
 
     def recording_event(self, kind):
         from vm_recording import report_event
+        self.run_times.event(dict(kind=kind, nodeid=self.recording_case))
         record = report_event(self.run.root, self.item.retry_category,
                               dict(kind=kind, nodeid=self.recording_case))
         if kind == 'failure':
@@ -709,6 +712,7 @@ class Execution:
             item = self.item
             if not self.collect:
                 from vm_recording import report_event
+                self.run_times.event(event)
                 self.recording_result(report_event(self.run.root, item.retry_category, event))
             if event['kind'] == 'collection':
                 if self.inventory_seen:
@@ -837,6 +841,7 @@ class Execution:
                     self.recording_event('failure')
                 self.recording_event('finished')
                 self.recording_case = None
+            self.run_times.finish()
             self.result_closed = True
             run.report.snapshot(run.categories)
             run.dashboard.draw(force=True)

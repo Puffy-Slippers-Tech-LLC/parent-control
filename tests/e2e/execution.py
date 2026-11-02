@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import signal
 import sys
+import time
 import tempfile
 import threading
 import uuid
@@ -395,6 +396,8 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
 def emit_progress(kind, **fields):
     # Dashboard telemetry only; the post-close report and exit status remain
     # authoritative, including failures after the last scenario completes.
+    if kind in ('started', 'finished'):
+        fields['monotonic_ns'] = time.monotonic_ns()
     write_event(sys.stdout, kind, **fields)
 
 

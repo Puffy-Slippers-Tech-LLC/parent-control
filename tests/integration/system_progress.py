@@ -100,6 +100,8 @@ class Progress:
                 if kind not in ('started', 'finished', 'failure') or nodeid not in self.expected:
                     continue
                 result = dict(kind=kind, nodeid=self.phase + '::' + nodeid)
+                if type(event.get('monotonic_ns')) is int and event['monotonic_ns'] >= 0:
+                    result['monotonic_ns'] = event['monotonic_ns']
                 identity = identity_for_event(result['nodeid'])
                 if identity is not None:
                     result.update(case_id=identity.numeric_id, title=identity.title)

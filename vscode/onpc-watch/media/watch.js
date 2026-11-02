@@ -268,6 +268,10 @@
     resize(split);
 
     function select(scope, selected) {
+        if (selected !== 'run-time') {
+            grid.querySelector('.run-times')?.remove();
+            grid.classList.remove('runtime-body');
+        }
         state = { scope, selected };
         persist();
         vscode.postMessage({ type: 'select', ...state });
@@ -671,6 +675,66 @@
             }
     }
 
+    function runTimes(rows) {
+        grid.classList.add('runtime-body');
+        grid.querySelector('.empty')?.remove();
+        const signature = JSON.stringify(rows);
+        let table = grid.querySelector('.run-times');
+        if (table?.dataset.signature === signature) return;
+        table?.remove();
+        table = document.createElement('table');
+        table.className = 'run-times';
+        table.dataset.signature = signature;
+        const heading = table.createTHead().insertRow();
+        for (const label of ['Case ID / Title | Recording', 'Category', 'VM name', 'Run Time', 'Description']) {
+            const th = document.createElement('th');
+            th.textContent = label;
+            heading.append(th);
+        }
+        const body = table.createTBody();
+        const link = (cell, text, uri) => {
+            const a = document.createElement('a');
+            a.href = '#';
+            a.textContent = text;
+            a.onclick = event => {
+                event.preventDefault();
+                vscode.postMessage({ type: 'openRunFile', uri });
+            };
+            cell.append(a);
+            return a;
+        };
+        for (const row of rows) {
+            const tr = body.insertRow();
+            const title = tr.insertCell();
+            link(title, Number.isInteger(row.id) ? `${row.id}: ${row.title}` : row.title, row.case_link);
+            if (row.recording) {
+                title.append(' | ');
+                const recording = link(title, '▶', row.recording);
+                recording.title = 'Open recording';
+                recording.setAttribute('aria-label', 'Open recording');
+            }
+            tr.insertCell().textContent = row.category === 'e2e' ? 'E2E' : row.category;
+            tr.insertCell().textContent = row.vm;
+            tr.insertCell().textContent = `${Math.floor(row.seconds / 60 + .5)}m`;
+            const description = tr.insertCell();
+            const toggle = document.createElement('a');
+            toggle.href = '#';
+            toggle.textContent = 'Show';
+            const text = document.createElement('div');
+            text.hidden = true;
+            text.textContent = row.description;
+            toggle.onclick = event => {
+                event.preventDefault();
+                text.hidden = !text.hidden;
+                toggle.textContent = text.hidden ? 'Show' : 'Hide';
+                toggle.setAttribute('aria-expanded', String(!text.hidden));
+            };
+            toggle.setAttribute('aria-expanded', 'false');
+            description.append(toggle, text);
+        }
+        grid.append(table);
+    }
+
     async function render(snapshot) {
         for (const result of snapshot.session_results || []) {
             if (!actions.has(result.id)) continue;
@@ -686,7 +750,8 @@
         state = { scope: snapshot.scope, selected: snapshot.selected };
         persist();
         runStatus(snapshot.runs);
-        tabs(viewers, [{ id: 'all', label: 'All', active: true }, ...snapshot.entries.map(entry =>
+        tabs(viewers, [{ id: 'all', label: 'All', active: true },
+            { id: 'run-time', label: 'Run Time', active: true }, ...snapshot.entries.map(entry =>
             ({ id: entry.id, label: entry.label, active: entry.locked }))],
             state.selected, selected => select(state.scope, selected));
         resourceCharts(snapshot);
@@ -695,6 +760,12 @@
         for (const [id, view] of cards) {
             if (!ids.has(id)) { view.body.remove(); cards.delete(id); }
         }
+        if (state.selected === 'run-time') {
+            runTimes(snapshot.run_times || []);
+            return;
+        }
+        grid.querySelector('.run-times')?.remove();
+        grid.classList.remove('runtime-body');
         if (!shown.length) {
             message('Waiting for UI tests or VM activity. Select a VM tab to keep its viewer open.');
             return;

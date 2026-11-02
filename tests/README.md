@@ -1891,6 +1891,15 @@ This is development/test tooling only; package update activation is **none**.
 
 ### VM watch recordings
 
+VM case start/finish events also update small latest-only duration records through
+`tools/vm_run_times.py` in the shared gitignored `state` storage directory. One
+record per category/case keeps the latest VM name and execution duration; a new
+attempt replaces its predecessor. Lifecycle phases within that attempt accumulate,
+while repair sessions and prior attempts do not. Interrupted active cases close
+their clock when their runner attempt finishes. **ONPC: Watch → Run Time** reads
+only these logged cases on demand; the
+[extension guide](../vscode/onpc-watch/README.md) owns its table and links.
+
 `tools/run-tests` automatically records every VM-scoped category, including
 system, integration and E2E execution, through the
 private GTK recording renderer with shared read-only VM feeds and filtered SSH

@@ -1,7 +1,7 @@
 # Extension recovery VM test plan
 
 Task queue: [Ordered task queue](Extension-Task-Queue.md).
-Next task: **006 — [Restore the extension when kiosk time is approved](Extension-Tasks/006-kiosk-recovery.md)**.
+Next task: **007 — [Restore the extension when a child signs in or unlocks](Extension-Tasks/007-login-unlock-recovery.md)**.
 
 ## Scope
 
@@ -63,6 +63,7 @@ close that row. New selectors remain **unimplemented** until registered.
 | `tests/unit/test_core.py`, `test_extension_manager.py`, `test_service_contract.py`; `tests/component/test_private_dbus_service.py` | Policy/role/lock guards, commands/rollback, real private-bus callbacks, indefinite retry/backoff, normal-logout and error latches | Actual cross-UID session bus, enforcing distro policy, native GNOME behavior and reporter display |
 | System 281: `test_enforcement.test_kiosk_expiry_installed_runtime` / `system_session_expiry.verify_offline_recovery` | Offline lists/global switch, real adapter rollback and unavailable payload | Task 004 adds only missing boot/startup recovery assertions |
 | System 282: `test_session_expiry.test_kiosk_expiry_graphical_runtime` / `system_graphical_expiry.verify` | Retained session, live recovery, actual PAM authentication and genuine kiosk approval | Tasks 001, 006 and 007 extend the relevant recovery boundaries without repeating natural-expiry/gameplay histories |
+| System 300: `test_extension_monitor.test_child_extension_kiosk_recovery` / `system_extension_kiosk.verify` | One genuine kiosk approval with approval-owned activation, exact grant accounting, retained session and unrelated-state preservation | Kiosk recovery is qualified on both targets; existing system 282 failure/rollback coverage stays unchanged |
 | `system_session_expiry.verify_runtime_rollback` | Three existing write-response/readback/activation faults and owned broker isolation | Task 003 adds only missing actual extension-error/reporter behavior; no second rollback matrix |
 | `tests/unit/test_parent_main.py`, `Broker.recover_child_extension`; system 299 | Initial selection/child change call path, saved-off and authorization guards; installed Parent recovery under deliberate disablement | Initial selection, later selection and first enablement are qualified on both targets |
 | Existing E2E engineering task 174 | Broker time/app-policy save fault/retry, explicitly separate from extension rollback | Remains in its original queue; this plan neither duplicates nor closes it |

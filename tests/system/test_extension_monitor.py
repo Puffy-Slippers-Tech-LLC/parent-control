@@ -23,3 +23,8 @@ def test_child_extension_failure_reporting(record_testsuite_property):
 def test_child_extension_parent_recovery(record_testsuite_property):
     from system_extension_parent import verify
     verify(record_testsuite_property)
+
+
+def test_child_extension_kiosk_recovery(record_testsuite_property):
+    from system_extension_kiosk import verify
+    verify(record_testsuite_property)

@@ -34,6 +34,9 @@ stale live-session runtime-cap cleanup before registering D-Bus. Shared policy
 or extension-dependency failures block readiness. Failed child account/home
 validation retains its sanitized diagnostic and leaves that child's
 saved controls and live enforcement unchanged while other children continue.
+An extension reported by Shell as failed is also isolated to that child so the
+broker can remain available for its standard error report. This does not certify
+the child's countdown or other extension-dependent functionality as usable.
 Cap cleanup is best-effort.
 [Isolated app-rule omissions](Applications.md#live-filter-and-execution-rules)
 permit remaining policy and publish warnings; storage/backend activation failures
@@ -42,6 +45,12 @@ remain fatal. Readiness therefore does not certify every saved app rule.
 Startup uses live filters plus saved patterns/extension enablement; it does not
 replay all saved daily/app choices after removal cleared live state. Reapplying
 Parent controls projects retained choices; removed grants are never recreated.
+
+Normal operation starts [extension enablement monitoring](Screen-Time.md#extension-enablement-monitoring)
+for eligible child sessions. Session/account lifecycle notifications refresh the
+observed buses; child-local connection failures do not block management for other
+children. Broker shutdown releases its subscriptions and monitoring resources.
+Diagnostics-only startup creates no such worker.
 
 `GetStartupTimings` exposes six role-checked monotonic construction/reconciliation/
 cleanup/registration timestamps. Automatic diagnostics record fixed elapsed phases,

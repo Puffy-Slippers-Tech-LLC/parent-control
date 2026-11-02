@@ -20,7 +20,8 @@ import system_guest as guest
 from system_assertions import accepted, account_property, account_state, call
 from system_session_expiry import (
     REQUEST_EXTENSION_SECONDS, identities, installed_manager, grant, verify_zero_time_pam,
-    verify_request_extension, verify_runtime_rollback,
+    verify_request_extension, verify_runtime_rollback, request_global_extension_disable,
+    wait_for_extension_recovery,
 )
 
 FIXTURE = Path('/var/lib/onpc-test-graphical-expiry')
@@ -399,30 +400,31 @@ def verify(record):
            'graphical-peer-input-and-original-work-verified-by-host')
     enabled = manager._list(account, 'enabled-extensions')
     disabled = manager._list(account, 'disabled-extensions')
-    manager._set_boolean(account, 'disable-user-extensions', True)
-    wait_for(lambda: not manager._runtime_state(account)[1], 'expiry:global-disable-not-active')
+    request_global_extension_disable(manager, account)
     guest.activate_broker()
+    wait_for_extension_recovery(manager, account, 'expiry:live-extension-not-recovered')
     guest.require(not manager._boolean(account, 'disable-user-extensions')
                   and manager._runtime_state(account) == (True, True)
                   and manager._list(account, 'enabled-extensions') == enabled
                   and manager._list(account, 'disabled-extensions') == disabled,
                   'expiry:live-recovery-readback')
     guest.require(child_session(child)[0] == session, 'expiry:recovery-ended-session')
-    record('onpc.expiry.live-recovery', 'configured-and-active; switch-and-selections-verified')
+    record('onpc.expiry.live-recovery',
+           'monitor-or-startup-recovery; configured-and-active; switch-and-selections-verified')
     verify_zero_time_pam(record)
     verify_runtime_rollback(record)
-    # Disable after startup recovery, then let the authenticated kiosk grant
-    # recover enforcement without restarting the broker or changing saved policy.
-    manager._set_boolean(account, 'disable-user-extensions', True)
-    wait_for(lambda: not manager._runtime_state(account)[1], 'expiry:grant-disable-not-active')
+    # Keep authenticated child/kiosk requests and final recovery checks even
+    # when the monitor restores the extension before approval completes.
+    request_global_extension_disable(manager, account)
     old_deadline = verify_request_extension(record)
+    wait_for_extension_recovery(manager, account, 'expiry:grant-extension-not-recovered')
     guest.require(not manager._boolean(account, 'disable-user-extensions')
                   and manager._runtime_state(account) == (True, True)
                   and manager._list(account, 'enabled-extensions') == enabled
                   and manager._list(account, 'disabled-extensions') == disabled,
                   'expiry:kiosk-grant-did-not-recover-extension')
     record('onpc.expiry.kiosk-grant-recovery',
-           'polkit-authenticated; configured-and-active; switch-and-selections-verified')
+           'polkit-authenticated; monitor-or-grant-recovery; configured-and-active; switch-and-selections-verified')
     observation_deadline = time.monotonic() + REQUEST_EXTENSION_SECONDS + 20
     while time.time() <= old_deadline + 0.5:
         guest.require(time.monotonic() < observation_deadline, 'expiry:extension-clock-discontinuity')

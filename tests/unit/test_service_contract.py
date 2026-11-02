@@ -12,10 +12,171 @@ from oh_no_parent_control.logs import DailyLogWriter
 from oh_no_parent_control.core import AccessDenied
 
 from oh_no_parent_control.service import INTROSPECTION_XML, Service
+from oh_no_parent_control.extension_monitor import ExtensionMonitor, _Watch, MAX_BACKOFF_LEVEL
 from common.oh_no_parent_control_ui.reboot import product_reboot_required
 
 
 from tests.support.paths import ROOT
+
+
+def test_extension_monitor_coalesces_untrusted_hints_and_bounds_failed_work():
+    import threading
+    from gi.repository import GLib
+
+    monitor = ExtensionMonitor.__new__(ExtensionMonitor)
+    monitor._stopped = threading.Event()
+    monitor._later = mock.Mock()
+    watch = _Watch(1001)
+    for _ in range(100):
+        monitor._schedule(watch)
+    monitor._later.assert_called_once()
+    watch.source = None
+    watch.failures = MAX_BACKOFF_LEVEL
+    monitor._later.reset_mock()
+    for _ in range(100):
+        monitor._schedule(watch)
+    monitor._later.assert_called_once()
+    # Owning/replacing Shell's name is also under child control. Those bus
+    # hints cannot bypass the existing probe deadline or recovery throttle.
+    watch.source = None
+    watch.next_check = 15
+    watch.recoveries = MAX_BACKOFF_LEVEL
+    monitor._later.reset_mock()
+    with mock.patch("oh_no_parent_control.extension_monitor.time.monotonic", return_value=10):
+        for _ in range(100):
+            monitor._shell_changed(watch, GLib.Variant("(sss)", ("org.gnome.Shell", "", ":1.42")))
+    monitor._later.assert_called_once()
+    assert monitor._later.call_args.args[0] == 5
+    assert watch.next_check == 15 and watch.recoveries == MAX_BACKOFF_LEVEL
+    monitor._later.reset_mock()
+    watch.failures = 0
+    monitor._stopped.set()
+    monitor._schedule(watch)
+    monitor._later.assert_not_called()
+
+
+def test_extension_monitor_retains_cheap_busy_retry_without_session_probes():
+    import threading
+    from oh_no_parent_control.core import Busy
+    from oh_no_parent_control.extension_manager import ExtensionManager
+
+    monitor = ExtensionMonitor.__new__(ExtensionMonitor)
+    monitor._stopped = threading.Event()
+    monitor.manager = ExtensionManager()
+    monitor.broker = mock.Mock()
+    monitor.broker.extension_reconciliation_busy.return_value = True
+    monitor.broker.reconcile_enabled_child.side_effect = Busy()
+    watch = _Watch(1001, connection=object(), shell_present=True, failures=MAX_BACKOFF_LEVEL)
+    monitor.watches = {1001: watch}
+    monitor._later = mock.Mock()
+    monitor._reconcile = mock.Mock()
+    monitor._check(watch)
+    monitor._later.assert_called_once()
+    assert watch.failures == MAX_BACKOFF_LEVEL
+    monitor._reconcile.assert_not_called()
+
+
+def test_extension_monitor_retries_disabled_state_indefinitely_with_capped_failure_delay():
+    import threading
+    from oh_no_parent_control.extension_manager import ExtensionManager
+
+    monitor = ExtensionMonitor.__new__(ExtensionMonitor)
+    monitor._stopped = threading.Event()
+    monitor.manager = ExtensionManager()
+    monitor.broker = mock.Mock()
+    monitor.broker.extension_reconciliation_busy.return_value = False
+    monitor.broker.reconcile_enabled_child.side_effect = lambda _uid, action: (action(), True)[1]
+    monitor._observe = mock.Mock(return_value=({"state": 2}, True))
+    monitor.manager.set_enabled = mock.Mock(side_effect=RuntimeError("temporary verification failure"))
+    monitor.manager.report_failure = mock.Mock()
+    monitor._later = mock.Mock()
+    watch = _Watch(1001, connection=object(), shell_present=True)
+    monitor.watches = {1001: watch}
+    # Fail beyond the old attempt limit: each due retry still attempts the
+    # authorized restoration, while the delay/counter stop growing at thirty.
+    for attempt in range(12):
+        watch.source = None
+        with mock.patch("oh_no_parent_control.extension_monitor.time.monotonic", return_value=10 + attempt * 32):
+            monitor._check(watch)
+        assert monitor.manager.set_enabled.call_count == attempt + 1
+        assert monitor._later.call_args.args[0] <= 30
+    assert watch.failures == MAX_BACKOFF_LEVEL
+    assert monitor._later.call_args.args[0] == 30
+    monitor.manager.set_enabled.side_effect = None
+    watch.source = None
+    with mock.patch("oh_no_parent_control.extension_monitor.time.monotonic", return_value=500):
+        monitor._check(watch)
+    assert watch.failures == 0
+    assert monitor.manager.set_enabled.call_count == 13
+    # Infinite recovery still ends at an actual extension failure, which is
+    # reported once and cannot become another activation loop.
+    monitor._observe.return_value = ({"state": 3, "error": ""}, True)
+    monitor._check(watch)
+    monitor._check(watch)
+    assert monitor.manager.set_enabled.call_count == 13
+    monitor.manager.report_failure.assert_called_once_with(1001)
+
+
+def test_extension_monitor_slows_successful_repeated_disables_and_resets_after_healthy_quiet():
+    import threading
+
+    monitor = ExtensionMonitor.__new__(ExtensionMonitor)
+    monitor._stopped = threading.Event()
+    monitor.manager = mock.Mock()
+    monitor._schedule = mock.Mock()
+    watch = _Watch(1001)
+    clock = [100.0]
+    expected_delays = (0.5, 1, 2, 4, 8, 16, 30, 30, 30, 30)
+    with mock.patch("oh_no_parent_control.extension_monitor.time.monotonic", side_effect=lambda: clock[0]):
+        for count, delay in enumerate(expected_delays, 1):
+            monitor._reconcile(watch, {"state": 2}, True)
+            assert monitor.manager.set_enabled.call_count == count
+            clock[0] += 0.01
+            monitor._reconcile(watch, {"state": 2}, True)
+            assert monitor.manager.set_enabled.call_count == count
+            assert watch.next_check - watch.last_recovery == delay
+            clock[0] = watch.next_check
+        monitor._reconcile(watch, {"state": 1}, True)
+        clock[0] += 61
+        monitor._reconcile(watch, {"state": 2}, True)
+    assert monitor.manager.set_enabled.call_count == len(expected_delays) + 1
+    assert watch.recoveries == 1
+    monitor.manager.report_failure.assert_not_called()
+
+
+def test_extension_monitor_shell_loss_is_quiet_and_preserves_crash_protection():
+    import threading
+    from oh_no_parent_control.service import GLib
+    from oh_no_parent_control.extension_monitor import _ChangingState
+
+    monitor = ExtensionMonitor.__new__(ExtensionMonitor)
+    monitor._stopped = threading.Event()
+    monitor.manager = mock.Mock()
+    monitor._schedule = mock.Mock()
+    watch = _Watch(1001, last_recovery=10)
+    with mock.patch("oh_no_parent_control.extension_monitor.time.monotonic", return_value=45):
+        monitor._shell_changed(watch, GLib.Variant("(sss)", ("org.gnome.Shell", ":1.1", "")))
+    assert watch.recovery_interrupted and not watch.failed
+    # A rapid normal relogin is allowed to finish initialization quietly.
+    with pytest.raises(_ChangingState):
+        monitor._reconcile(watch, {"state": 6, "enabled": True}, True)
+    monitor._reconcile(watch, {"state": 1}, True)
+    monitor.manager.report_failure.assert_not_called()
+    monitor.manager.set_enabled.assert_not_called()
+    assert not watch.recovery_interrupted
+    # Whole-bus loss may precede delivery of the Shell owner-loss signal.
+    watch.shell_present = True
+    with mock.patch("oh_no_parent_control.extension_monitor.time.monotonic", return_value=45):
+        monitor._bus_closed(watch)
+    assert watch.recovery_interrupted and not watch.shell_present and not watch.failed
+    # If GNOME disabled all extensions after that loss, do not immediately
+    # undo its protection or infer which extension caused the exit.
+    monitor._reconcile(watch, {"state": 2}, False)
+    monitor.manager.report_failure.assert_not_called()
+    monitor.manager.set_enabled.assert_not_called()
+    # An actual product-extension ERROR remains reportable during the hold.
+    monitor._reconcile(watch, {"state": 3, "error": ""}, False)
+    monitor.manager.report_failure.assert_called_once_with(1001)
 
 
 @pytest.mark.parametrize("scope,uid,target", [("Own", 1001, ()), ("Child", 991, (1001,))])

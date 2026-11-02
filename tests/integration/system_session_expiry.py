@@ -6,11 +6,13 @@ outer VM lease restores the guest; no process or session is discovered for killi
 """
 
 import ctypes
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
 import pwd
 import re
+import stat
 import sys
 import tempfile
 import time
@@ -220,6 +222,55 @@ def installed_manager():
     return ExtensionManager()
 
 
+def request_global_extension_disable(manager, account):
+    """Submit the public setting change without racing its authorized recovery."""
+    manager._run_as(account, 'gsettings', 'set', 'org.gnome.shell',
+                    'disable-user-extensions', 'true')
+
+
+def wait_for_extension_recovery(manager, account, category):
+    deadline = time.monotonic() + 90
+    while True:
+        if (not manager._boolean(account, 'disable-user-extensions')
+                and manager._runtime_state(account) == (True, True)):
+            return
+        guest.require(time.monotonic() < deadline, category)
+        time.sleep(0.25)
+
+
+@contextmanager
+def isolated_broker_for_extension_faults():
+    """Give direct fault injection sole policy ownership in this leased guest."""
+    guest.guard()
+    mask = Path('/run/systemd/system') / guest.BROKER
+    guest.require(not mask.exists() and not mask.is_symlink(), 'expiry:foreign-broker-mask')
+    invocation = guest.run(['systemctl', 'show', guest.BROKER,
+                            '--property=InvocationID', '--value'])
+    guest.require(guest.run(['systemctl', 'is-active', guest.BROKER]) == 'active'
+                  and re.fullmatch(r'[0-9a-f]{32}', invocation) is not None
+                  and invocation != '0' * 32, 'expiry:fault-broker-not-active')
+    guest.run(['systemctl', 'mask', '--runtime', guest.BROKER], timeout=30)
+    identity = mask.lstat()
+    guest.require(stat.S_ISLNK(identity.st_mode) and identity.st_uid == identity.st_gid == 0
+                  and os.readlink(mask) == '/dev/null', 'expiry:fault-broker-mask-owner')
+    try:
+        guest.require(guest.run(['systemctl', 'show', guest.BROKER,
+                                 '--property=InvocationID', '--value']) == invocation,
+                      'expiry:fault-broker-replaced')
+        guest.run(['systemctl', 'stop', guest.BROKER], timeout=30)
+        guest.require(guest.run(['systemctl', 'show', guest.BROKER,
+                                 '--property=ActiveState', '--value']) == 'inactive',
+                      'expiry:fault-broker-not-stopped')
+        yield
+    finally:
+        current = mask.lstat()
+        guest.require(stat.S_ISLNK(current.st_mode) and current.st_uid == current.st_gid == 0
+                      and (current.st_dev, current.st_ino) == (identity.st_dev, identity.st_ino)
+                      and os.readlink(mask) == '/dev/null', 'expiry:fault-broker-mask-replaced')
+        guest.run(['systemctl', 'unmask', '--runtime', guest.BROKER], timeout=30)
+        guest.activate_broker()
+
+
 def pam_password_status(uid, password, *, account_only=False):
     """Bound each installed PAM transaction in its own recorded process.
 
@@ -346,9 +397,9 @@ def verify_zero_time_pam(record):
     finally:
         accepted(call(parent, 'RevokeOneTimeGrant', '(u)', (child,)))
 
-    # Daily allowance admits a child without a kiosk grant. Disable extensions
-    # after broker startup so only the installed GDM authentication path can
-    # recover enforcement; keep the current account policy and desktop intact.
+    # Daily allowance admits a child without a kiosk grant. Recovery can now
+    # precede PAM through the broker's monitor; retain the real authentication,
+    # final enforcement and unchanged-policy assertions without sole-cause claims.
     accepted(call(parent, 'SetParentControl', '(ubu)', (child, True, 1440)))
     manager = installed_manager()
     account, _ = manager._account(child)
@@ -358,13 +409,10 @@ def verify_zero_time_pam(record):
     invocation = guest.run(['systemctl', 'show', guest.BROKER,
                            '--property=InvocationID', '--value'])
     try:
-        manager._set_boolean(account, 'disable-user-extensions', True)
-        deadline = time.monotonic() + 10
-        while manager._runtime_state(account)[1]:
-            guest.require(time.monotonic() < deadline, 'expiry:daily-disable-not-observed')
-            time.sleep(0.1)
+        request_global_extension_disable(manager, account)
         status = pam_password_status(child, password)
         guest.require(status == 0, 'expiry:daily-time-pam-denied')
+        wait_for_extension_recovery(manager, account, 'expiry:daily-extension-not-recovered')
         guest.require(not manager._boolean(account, 'disable-user-extensions')
                       and manager._runtime_state(account) == (True, True)
                       and manager._list(account, 'enabled-extensions') == previous[0]
@@ -376,7 +424,7 @@ def verify_zero_time_pam(record):
                                      '--property=InvocationID', '--value']) == invocation,
                       'expiry:daily-recovery-changed-policy-or-restarted-broker')
         record('onpc.expiry.daily-pam-recovery',
-               'authenticated; no-grant; configured-and-active; policy-and-selections-preserved')
+               'authenticated; no-grant; monitor-or-pam-recovery; configured-and-active; policy-and-selections-preserved')
     finally:
         accepted(call(parent, 'SetParentControl', '(ubu)', (child, True, 0)))
 
@@ -429,8 +477,9 @@ def verify_request_extension(record):
 def verify_runtime_rollback(record):
     """Inject bounded response/readback/activation failures over real dconf.
 
-    Only the selected installed manager instance is instrumented. Each fault is
-    one-shot, allowing its actual rollback operations and readback to run.
+    Only the selected installed manager instance is instrumented. A test-owned
+    runtime mask holds the broker's competing monitor stopped across these
+    one-shot faults, allowing actual rollback operations and readback to run.
     """
     accounts = identities()
     manager = installed_manager()
@@ -470,32 +519,36 @@ def verify_runtime_rollback(record):
                 self.fired = True
                 raise RuntimeError('injected extension activation failure')
 
-    for fault in ('write-response', 'readback', 'activation'):
-        manager._set_boolean(account, 'disable-user-extensions', True)
-        if live:
-            deadline = time.monotonic() + 10
-            while manager._runtime_state(account)[1]:
-                guest.require(time.monotonic() < deadline, 'expiry:rollback-disable-not-observed')
-                time.sleep(0.1)
-        previous = (manager._list(account, 'enabled-extensions'),
-                    manager._list(account, 'disabled-extensions'))
-        runtime = manager._runtime_state(account) if live else None
-        faulty = FaultManager(fault)
-        failed = False
-        try:
-            faulty.set_enabled(accounts['child'], True, recover_global_switch=True)
-        except RuntimeError:
-            failed = True
-        guest.require(failed and faulty.fired, 'expiry:injected-failure-not-exercised')
-        guest.require(manager._boolean(account, 'disable-user-extensions') is True
-                      and manager._list(account, 'enabled-extensions') == previous[0]
-                      and manager._list(account, 'disabled-extensions') == previous[1]
-                      and (not live or manager._runtime_state(account) == runtime),
-                      'expiry:injected-failure-rollback-unverified')
-        manager.set_enabled(accounts['child'], True, recover_global_switch=True)
-        mode = 'live' if live else 'offline'
-        record('onpc.expiry.rollback.' + mode + '.' + fault,
-               'injected; real-settings-and-runtime-rollback-verified')
+    before = {uid: account_state(uid) for uid in (accounts['child'], accounts['other'])}
+    with isolated_broker_for_extension_faults():
+        for fault in ('write-response', 'readback', 'activation'):
+            manager._set_boolean(account, 'disable-user-extensions', True)
+            if live:
+                deadline = time.monotonic() + 10
+                while manager._runtime_state(account)[1]:
+                    guest.require(time.monotonic() < deadline, 'expiry:rollback-disable-not-observed')
+                    time.sleep(0.1)
+            previous = (manager._list(account, 'enabled-extensions'),
+                        manager._list(account, 'disabled-extensions'))
+            runtime = manager._runtime_state(account) if live else None
+            faulty = FaultManager(fault)
+            failed = False
+            try:
+                faulty.set_enabled(accounts['child'], True, recover_global_switch=True)
+            except RuntimeError:
+                failed = True
+            guest.require(failed and faulty.fired, 'expiry:injected-failure-not-exercised')
+            guest.require(manager._boolean(account, 'disable-user-extensions') is True
+                          and manager._list(account, 'enabled-extensions') == previous[0]
+                          and manager._list(account, 'disabled-extensions') == previous[1]
+                          and (not live or manager._runtime_state(account) == runtime),
+                          'expiry:injected-failure-rollback-unverified')
+            manager.set_enabled(accounts['child'], True, recover_global_switch=True)
+            mode = 'live' if live else 'offline'
+            record('onpc.expiry.rollback.' + mode + '.' + fault,
+                   'injected; real-settings-and-runtime-rollback-verified')
+    guest.require(all(account_state(uid) == value for uid, value in before.items()),
+                  'expiry:rollback-changed-account-policy-or-grant')
 
 
 def verify_unavailable_enforcement(record):
@@ -519,10 +572,12 @@ def verify_unavailable_enforcement(record):
     digest = guest.sha(metadata)
     accepted(call(parent, 'RevokeOneTimeGrant', '(u)', (child,)))
     before = account_state(child)
-    manager._set_boolean(account, 'disable-user-extensions', True)
-    guest.run(['systemctl', 'stop', guest.BROKER])
     metadata.rename(saved)
     try:
+        # Withhold the payload before stop: a session's concurrent D-Bus
+        # activation must encounter the same genuine startup-readiness failure.
+        guest.run(['systemctl', 'stop', guest.BROKER])
+        manager._set_boolean(account, 'disable-user-extensions', True)
         reply = call(child, 'RequestOwnAccess', '(uub)', (parent, 60, False))
         guest.require('error' in reply and 'result' not in reply,
                       'expiry:approval-without-enforcement')

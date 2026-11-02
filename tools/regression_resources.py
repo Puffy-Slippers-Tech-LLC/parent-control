@@ -51,6 +51,9 @@ DEMANDS = {
     # The installed qualifier's shared public client adds one finite, waited
     # Python child per case on that same private bus/keyfile/schema fixture.
     # It creates no new shared state or child ownership; admission is unchanged.
+    # Extension-monitor cases own one GLib worker and connections on the same
+    # private buses, close them in finally, and mock activation/report commands.
+    # They touch no host desktop/settings/units and fit existing admission.
     'component': Demand(2, GIB),
     'fixture-runtime': Demand(2, GIB),
     'source': Demand(2, GIB),

@@ -63,6 +63,7 @@ the separate technical checks described in the system design.
 - [ONPC-CORE-TIME-009] Natural exhaustion of all usable time locks the managed child's desktop without logging the child out or closing that desktop's apps. Expiry of a one-time grant alone does not lock out a child who still has daily time. Another user's foreground session continues.
 - [ONPC-CORE-TIME-010] An unexpired grant permits unlocking a retained child desktop or starting a fresh login. Returning from lock, sign-out, reboot or suspend does not restart the grant's original duration.
 - [ONPC-CORE-TIME-011] Daily allowance follows recorded use during the computer's local day. “Rest of the day” grants expire at the next local midnight, including on daylight saving time transition days. A fixed-duration grant may continue past midnight.
+- [ONPC-CORE-TIME-012] While screen-time control is on and the child's GNOME desktop is usable, disabling the child extension individually or disabling user extensions globally triggers automatic restoration of the child extension. Global recovery preserves other extensions' individual choices. Turning control off in the Parent App stops this recovery. Recovery is asynchronous and keeps retrying repeated disablement with capped backoff, while confirmed extension errors and crash protection stop unsafe activation loops. A detected child-extension failure opens the standard Child App error report when the desktop is available; opening it sends nothing.
 
 ### Application access
 

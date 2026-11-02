@@ -313,6 +313,12 @@ or exits directly when disabled. Startup errors show reporting-only UI except
 exact Parent management denial, which shows Administrator Required.
 Repeated errors preserve an active edited draft. Opening sends nothing.
 
+Broker-observed child-extension failures use the same Child App error-report
+entry point, launched under the child's identity with the user manager's graphical
+environment. Reporting is independent of the failing extension and uses a fixed
+public failure category rather than exception text. Recovery suppresses repeated
+launches for an unresolved failure; an unavailable desktop defers reporting.
+
 The local Quill 2.0.3 editor runs in ephemeral WebKitGTK 6 with network-denying
 CSP and blocked navigation. Its bridge returns text, semantic HTML and a delta
 for web-process restart restoration. Accessible formatting follows content,

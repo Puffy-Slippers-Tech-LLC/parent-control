@@ -50,4 +50,5 @@ MemoryDenyWriteExecute=yes
 SystemCallArchitectures=native
 # Allow the launcher's bounded 120-second trust wait plus broker construction.
 TimeoutStartSec=180
-TimeoutStopSec=5
+# The monitor finishes its bounded activation and separate rollback allowance.
+TimeoutStopSec=10

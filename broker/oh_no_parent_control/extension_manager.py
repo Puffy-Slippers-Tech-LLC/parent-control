@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import ast
+from contextlib import contextmanager
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, record_exception, operation
 import os
 import pwd
 import re
 import stat
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Callable
@@ -26,6 +28,10 @@ LOAD_ASSETS = {"indicatorLogic.mjs": "indicator-logic", "diagnosticEvents.mjs": 
 
 class ChildExtensionUnavailable(RuntimeError):
     """A child-local dependency prevents activation without changing policy."""
+
+
+class ChildExtensionFailed(RuntimeError):
+    """Shell confirmed a failed child extension; automatic retries must stop."""
 
 
 def _load_error_fields(info):
@@ -107,6 +113,26 @@ class ExtensionManager:
         self.installation = Path(installation)
         self.runtime_root = Path(runtime_root)
         self.installation_owner = installation_owner
+        self._command_context = threading.local()
+
+    @contextmanager
+    def command_budget(self, seconds, cancelled):
+        """Bound a monitor operation, including all commands and rollback reads."""
+        previous = getattr(self._command_context, "budget", None)
+        self._command_context.budget = (time.monotonic() + seconds, cancelled)
+        try:
+            yield
+        finally:
+            if previous is None:
+                del self._command_context.budget
+            else:
+                self._command_context.budget = previous
+
+    def session_bus_address(self, uid):
+        """Return only the fixed, ownership-checked live child bus address."""
+        account, _home = self._account(uid)
+        _command, environment, transport = self._command(account, ())
+        return environment.get("DBUS_SESSION_BUS_ADDRESS") if transport == "live-session" else None
 
     @staticmethod
     def _account(uid):
@@ -153,10 +179,18 @@ class ExtensionManager:
 
     def _run_command(self, account, arguments, *, require_live=False,
                      timeout=COMMAND_TIMEOUT_SECONDS):
+        budget = getattr(self._command_context, "budget", None)
+        if budget is not None:
+            deadline, cancelled = budget
+            timeout = min(timeout, deadline - time.monotonic())
+            if cancelled.is_set() or timeout <= 0:
+                raise TimeoutError("child extension operation was interrupted")
         command, environment, transport = self._command(account, arguments)
         if require_live and transport != "live-session":
             raise RuntimeError("child GNOME session is unavailable")
         operation = arguments[1] if len(arguments) > 1 else "unknown"
+        if operation not in {"get", "set", "reset", "list", "enable", "disable", "call", "unknown"}:
+            operation = "other"
         LOG.info("extension-manager.001", operation=operation, transport=transport)
         context = _command_diagnostics(arguments)
         LOG.info("extension-manager.command", operation=operation, transport=transport,
@@ -442,6 +476,38 @@ class ExtensionManager:
         LOG.info("extension-manager.runtime-observed", configured=configured, active=active)
         return configured, active
 
+    def _failed_live_extension(self, account):
+        from gi.repository import GLib
+
+        result = self._run_command(account, (
+            "gdbus", "call", "--session", "--dest", "org.gnome.Shell",
+            "--object-path", "/org/gnome/Shell", "--method",
+            "org.gnome.Shell.Extensions.GetExtensionInfo", UUID), require_live=True)
+        if len(result.stdout) > 65536:
+            raise ValueError("oversized extension info")
+        info, = GLib.Variant.parse(GLib.VariantType.new("(a{sv})"),
+                                  result.stdout, None, None).unpack()
+        return _load_error_fields(info)["state"] in {"error", "out-of-date"}
+
+    def report_failure(self, uid):
+        """Launch the existing child error flow with the user manager's display env.
+
+        A fixed transient unit keeps at most one report process per child,
+        including across broker restarts. No Shell message or user data is sent.
+        The frontend flag selects its existing fixed child-operation-failed error.
+        """
+        account, _home = self._account(uid)
+        try:
+            self._run_command(account, (
+                "systemd-run", "--user", "--quiet", "--collect",
+                "--unit=oh-no-parent-control-extension-error.service", "--property=Type=exec",
+                "--", "/usr/bin/oh-no-parent-control-child", "--child-overlay",
+                "--error-report-stdin"), require_live=True)
+        except RuntimeError:
+            # A previous broker may already own this user's visible report.
+            self._run_command(account, ("systemctl", "--user", "is-active", "--quiet",
+                "oh-no-parent-control-extension-error.service"), require_live=True)
+
     def _set_offline(self, account, enabled, old_enabled, old_disabled):
         new_enabled = [value for value in old_enabled if value != UUID]
         new_disabled = [value for value in old_disabled if value != UUID]
@@ -588,6 +654,13 @@ class ExtensionManager:
                  recover_global_switch=recover_global_switch, switch_recovery_needed=bool(restore_switch))
         LOG.info("extension-manager.activation-step", stage="runtime")
         old_runtime = self._runtime_state(account) if shell_available else None
+        if enabled and shell_available and not old_runtime[1]:
+            try:
+                failed = self._failed_live_extension(account)
+            except Exception:
+                failed = False
+            if failed:
+                raise ChildExtensionFailed("child GNOME extension has failed")
         if (enabled and not restore_switch and UUID in old_enabled and
                 UUID not in old_disabled and
                 (not shell_available or old_runtime == (True, True))):
@@ -647,13 +720,27 @@ class ExtensionManager:
             # Preserve the shipped failure location before the broker converts
             # it to BackendFailure; never format private exception details.
             record_exception(error)
+            failed = False
+            if enabled and shell_available:
+                try:
+                    failed = self._failed_live_extension(account)
+                except Exception:
+                    pass
             if shell_available:
                 try:
                     self.collect_diagnostics((uid,))
                 except Exception:
                     LOG.warning("extension-manager.load-observation", outcome="unavailable")
             LOG.warning("extension-manager.009", enabled=enabled, error_type=error_code(error))
-            restore()
+            if getattr(self._command_context, "budget", None) is not None:
+                # A cancelled/exhausted observation must still undo writes.
+                # This separate small allowance is also bounded during stop.
+                with self.command_budget(3, threading.Event()):
+                    restore()
+            else:
+                restore()
+            if failed:
+                raise ChildExtensionFailed("child GNOME extension has failed") from error
             raise
         if restore_switch:
             LOG.info("extension-manager.011")

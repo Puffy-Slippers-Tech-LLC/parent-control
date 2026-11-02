@@ -6,8 +6,8 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5702</span>/<span style="color: gray">0</span>/5702 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
-| Private D-Bus component | <span style="color: green">222</span>/<span style="color: gray">0</span>/222 | Checks broker behavior through a private D-Bus without changing the host system. |
+| Unit, property and contract | <span style="color: green">5713</span>/<span style="color: gray">0</span>/5713 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Private D-Bus component | <span style="color: green">223</span>/<span style="color: gray">0</span>/223 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">294</span>/<span style="color: gray">0</span>/294 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">137</span>/<span style="color: gray">0</span>/137 | Checks installed product behavior and lifecycle integration on the test VM. |
@@ -15,7 +15,7 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | Integration | <span style="color: green">25</span>/<span style="color: gray">0</span>/25 | Checks standalone engineering and essential shared safety boundaries outside E2E composition. |
 | E2E | <span style="color: green">57</span>/<span style="color: gray">139</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6449</span>/<span style="color: gray">139</span>/6588** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">6461</span>/<span style="color: gray">139</span>/6600** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Integration counts explicit standalone test registrations and host-specific tests once; E2E building blocks are not integration tests. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 

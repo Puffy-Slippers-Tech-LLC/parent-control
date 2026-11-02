@@ -32,6 +32,7 @@ from .app_termination import RunningAppTerminator
 from .catalog import list_apps
 from .core import Broker, BrokerError, Busy, InvalidRequest, BackendFailure, RollbackFailure
 from .extension_manager import ExtensionManager
+from .extension_monitor import ExtensionMonitor
 from .execution_policy import FapolicydPolicy, originally_permissive_policy
 from .dependency_diagnostics import (
     collect_dependency_diagnostics, collect_kiosk_admission_diagnostics, collect_kiosk_diagnostics,
@@ -271,6 +272,7 @@ class ServiceDependencies:
     now: Any = lambda: datetime.now().astimezone()
     broker_factory: Any = Broker
     policy_rescan_interval_seconds: float | None = 30
+    extension_monitor_factory: Any = None
 
 
 def production_dependencies(connection) -> ServiceDependencies:
@@ -293,6 +295,7 @@ def production_dependencies(connection) -> ServiceDependencies:
         running_apps=RunningAppTerminator(
             application_catalog=lambda uid: list_apps(accounts.get_user(uid)),
         ),
+        extension_monitor_factory=ExtensionMonitor,
     )
 
 
@@ -325,6 +328,7 @@ class Service:
         self._grant_signal_id = None
         self._policy_rescan_stop = threading.Event()
         self._policy_rescan_thread = None
+        self._extension_monitor = None
         if diagnostics_only:
             # No policy reconciliation, extension activation, cap cleanup,
             # subscriptions or background workers are safe before this reboot.
@@ -391,6 +395,9 @@ class Service:
             None, "com.endlessm.ParentalControls.SessionLimits",
             Gio.DBusSignalFlags.NONE, self._grant_changed,
         )
+        if dependencies.extension_monitor_factory is not None:
+            self._extension_monitor = dependencies.extension_monitor_factory(
+                self.broker, dependencies.extensions, self.connection)
 
     def _periodic_policy_rescan(self):
         while not self._policy_rescan_stop.wait(
@@ -489,6 +496,9 @@ class Service:
     def close(self):
         """Release transport resources owned by this service instance."""
         self._policy_rescan_stop.set()
+        if self._extension_monitor is not None:
+            self._extension_monitor.close()
+            self._extension_monitor = None
         if self._policy_rescan_thread is not None:
             self._policy_rescan_thread.join(timeout=1)
             self._policy_rescan_thread = None

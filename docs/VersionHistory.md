@@ -1,6 +1,7 @@
 ## v2.0 - 2026-11-01
 ### New Features
 - **Parent App**: Feedback and error reporting prompts for reply email but still does not require it
+- **Child App**: Automatically restores the parental-control extension when disabled, with retry backoff and standard error reporting for failures.
   
 ### Bug Fixes
 - **Screen Time**: The broker now calculates the child countdown deadline, and the child panel displays it locally without restarting time when replies arrive. The child extension is still required.

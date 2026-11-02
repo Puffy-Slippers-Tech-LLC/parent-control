@@ -13,7 +13,7 @@ from common.oh_no_parent_control_ui.languages import desktop_language_candidates
 from common.oh_no_parent_control_ui.diagnostic_report import LANGUAGE_IDS, MAX_LANGUAGE_USERS
 from .grant_diagnostics import GrantDiagnostics
 from .execution_policy import ExecutionPolicyError
-from .extension_manager import ChildExtensionUnavailable
+from .extension_manager import ChildExtensionFailed, ChildExtensionUnavailable
 import math
 import re
 import threading
@@ -333,7 +333,7 @@ class Broker:
                         LOG.info("core.extension-startup", outcome="started")
                         try:
                             self._extensions.set_enabled(user.uid, True, recover_global_switch=True)
-                        except ChildExtensionUnavailable as error:
+                        except (ChildExtensionUnavailable, ChildExtensionFailed) as error:
                             LOG.warning("core.extension-startup", outcome="child-unavailable")
                             LOG.error("core.001", error_type=error_code(error.__cause__ or error))
                             record_exception(error)
@@ -347,6 +347,32 @@ class Broker:
                     LOG.error("core.001", error_type=error_code(error))
                     raise BackendFailure("could not refresh the child extension") from error
         return tuple(refreshed)
+
+    def extension_watch_uids(self) -> tuple[int, ...]:
+        """Discover child sessions; this snapshot never authorizes a later write."""
+        config = self._load_config()
+        return tuple(user.uid for user in self._accounts.list_users()
+                     if self._eligible(config, user))
+
+    def reconcile_enabled_child(self, target_uid, action):
+        """Revalidate a session hint under the same lock as parent policy writes."""
+        if not self._acquire_request_lock():
+            raise Busy("another request is already in progress")
+        try:
+            config = self._load_config()
+            target = self._accounts.get_user(target_uid)
+            if not self._eligible(config, target):
+                return False
+            if not self._load_request_preferences(target.uid)["parent_control_enabled"]:
+                return False
+            action()
+            return True
+        finally:
+            self._request_lock.release()
+
+    def extension_reconciliation_busy(self):
+        """A scheduling hint only; reconciliation still acquires/revalidates."""
+        return self._request_lock.locked()
 
     def calculate_remaining_time(
             self, caller_uid: int, target_uid: int,

@@ -5,7 +5,7 @@
 Read this for daily limits, grant calculations, timer queries, child countdown,
 GNOME locking, and PAM login/unlock checks.
 
-Implementation: [core.py](../../broker/oh_no_parent_control/core.py), [extension_manager.py](../../broker/oh_no_parent_control/extension_manager.py), [remainingTimeIndicator.js](../../child/remainingTimeIndicator.js), [timerQuery.js](../../child/timerQuery.js), [session-limit helper](../../tools/session_limit_check.py), [PAM module](../../tools/pam_oh_no_parent_control.c).
+Implementation: [core.py](../../broker/oh_no_parent_control/core.py), [extension_manager.py](../../broker/oh_no_parent_control/extension_manager.py), [extension_monitor.py](../../broker/oh_no_parent_control/extension_monitor.py), [remainingTimeIndicator.js](../../child/remainingTimeIndicator.js), [timerQuery.js](../../child/timerQuery.js), [session-limit helper](../../tools/session_limit_check.py), [PAM module](../../tools/pam_oh_no_parent_control.c).
 
 ## Screen-time model
 
@@ -201,11 +201,49 @@ an enabled global switch, and, when Shell is running, enabled and active runtime
 state cause activation to return without writes or an enable command. A
 failed activation restores the switch and original lists, verifies rollback,
 and remains an error. Startup isolates failed child account/home validation and
-retains its diagnostics without changing saved controls or live enforcement;
-shared extension dependencies still gate readiness. A broker restart retries
+retains its diagnostics without changing saved controls or live enforcement.
+Shell-confirmed product-extension failures are likewise isolated so the broker
+can deliver the standard error report; shared extension dependencies still gate
+readiness. A broker restart retries
 enabled children after the unavailable integration is restored.
 An upgrade preserves a saved disabled control; its next parent enablement can
 recover the global switch without manual GNOME settings changes.
+
+### Extension enablement monitoring
+
+The broker observes the public GNOME extension interface on each eligible
+child's existing session bus. Individual disablement or the global disable
+switch schedules coalesced recovery for saved-enabled controls. Recovery clears
+the global switch when necessary and enables the product extension while
+preserving other extensions' individual choices. Healthy sessions wait for
+notifications rather than repeatedly running extension-management commands.
+
+Session notifications are untrusted hints, not policy authority. Before any
+recovery or error-report launch, the broker revalidates current account eligibility
+and saved controls under its existing transaction lock. A parent's successful
+disable stops recovery. Administrator, kiosk and ineligible accounts are outside
+this monitor; diagnostics-only startup creates no monitoring worker.
+
+Recovery is asynchronous and cannot prohibit a settings write in the child's
+own GNOME session. It restores attempted disablement while the broker and Shell
+are available; this is not a fine-grained administrator-only GNOME settings lock
+or protection against a compromised compositor. Without a confirmed extension
+error or crash-protection hold, recovery keeps retrying indefinitely with delays
+capped at 30 seconds. Rapid successful disable/recovery cycles also back off;
+60 seconds of verified healthy quiet resets that cooldown. Healthy sessions
+otherwise remain event-driven. A detected product-extension error suppresses repeated enable attempts
+and opens the existing Child App error report when a graphical session is
+available. Opening a report sends nothing, and repeated observations do not
+continually reopen the same failure. A Shell crash alone does not identify the
+extension responsible.
+
+If Shell disappears soon after recovery and its replacement still has extensions
+globally disabled, automatic activation pauses rather than repeatedly undoing
+GNOME's crash protection. A parent can explicitly request recovery through the
+existing recovery actions; observing the extension healthy also clears the hold.
+Ordinary logout/relogin with extensions globally enabled does not trigger an
+error report or this hold. A confirmed product-extension error remains reportable
+after a Shell restart, even if the replacement Shell has already recovered it.
 
 ## Grant arithmetic and usage identities
 
@@ -587,6 +625,7 @@ interface is documented in [pam_systemd](https://github.com/systemd/systemd/blob
 
 ## Related design
 
+- [Extension recovery VM test plan](../Extension-Plan.md): queued system/integration coverage for monitoring, failures and v1.5 recovery entry points; not executed or customer E2E coverage.
 - For authorization and grant commit/rollback order, read [Broker](Broker.md#authorization-and-grant-transactions).
 - For app-policy restoration after unlock, read [Application policy](Applications.md#session-entry-reconciliation).
 - For startup ordering or changed PAM/extension activation, read [Lifecycle](Lifecycle.md) and [Package update](../Publishing.md#package-update-activation).

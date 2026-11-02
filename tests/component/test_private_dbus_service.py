@@ -22,6 +22,8 @@ from oh_no_parent_control.core import (
     UserAccount,
 )
 from oh_no_parent_control.preferences import default_preferences
+from oh_no_parent_control.extension_manager import ExtensionManager, UUID
+from oh_no_parent_control.extension_monitor import ExtensionMonitor
 from oh_no_parent_control.service import (
     BUS_NAME,
     INTERFACE,
@@ -35,6 +37,120 @@ from tests.support.dbus import (
     DBUS_NAME, DBUS_PATH, DBUS_INTERFACE, CALL_TIMEOUT_MS,
     open_bus, begin_call, spin_until, call, private_service,
 )
+
+
+def test_child_extension_monitor_recovers_public_signals_and_reports_failure_once(dbusmock_system, dbusmock_session):
+    """Exercise actual Gio signal callbacks on the monitor's private context."""
+    from unittest import mock
+    from tests.support.broker import Accounts, Preferences, make_broker
+
+    server, system = open_bus(dbusmock_session.address), open_bus(dbusmock_system.address)
+    values = {"state": 1, "enabled": True, "configured": True}
+    node = Gio.DBusNodeInfo.new_for_xml('''<node><interface name="org.gnome.Shell.Extensions">
+      <method name="GetExtensionInfo"><arg type="s" direction="in"/><arg type="a{sv}" direction="out"/></method>
+      <property name="UserExtensionsEnabled" type="b" access="read"/>
+      <signal name="ExtensionStateChanged"><arg type="s"/><arg type="a{sv}"/></signal>
+    </interface></node>''')
+
+    def method(_connection, _sender, _path, _interface, _name, parameters, invocation):
+        assert parameters.unpack() == (UUID,)
+        invocation.return_value(GLib.Variant("(a{sv})", ({
+            "state": GLib.Variant("d", values["state"]),
+            "enabled": GLib.Variant("b", values["configured"]),
+            "error": GLib.Variant("s", "")},)))
+
+    identifier = server.register_object_with_closures2("/org/gnome/Shell", node.interfaces[0], method,
+        lambda *_args: GLib.Variant("b", values["enabled"]), None)
+
+    def name(method_name, signature, arguments):
+        return server.call_sync(DBUS_NAME, DBUS_PATH, DBUS_INTERFACE, method_name,
+            GLib.Variant(signature, arguments), None, Gio.DBusCallFlags.NONE, CALL_TIMEOUT_MS, None)
+
+    def signal_state():
+        server.emit_signal(None, "/org/gnome/Shell", "org.gnome.Shell.Extensions", "ExtensionStateChanged",
+            GLib.Variant("(sa{sv})", (UUID, {"state": GLib.Variant("d", values["state"])})))
+
+    name("RequestName", "(su)", ("org.gnome.Shell", 0))
+    accounts, preferences = Accounts(), Preferences()
+    preferences.values[1001]["parent_control_enabled"] = True
+    # One child on this private bus; no host session or product action is used.
+    accounts.users = {1001: accounts.users[1001]}
+    manager = ExtensionManager()
+    activations, reports = [], []
+
+    def enable(uid, enabled, *, recover_global_switch):
+        activations.append((uid, enabled, recover_global_switch))
+        values.update(state=1, enabled=True, configured=True)
+
+    monitor = None
+    try:
+        with (mock.patch.object(manager, "session_bus_address", return_value=dbusmock_session.address),
+              mock.patch.object(manager, "set_enabled", side_effect=enable),
+              mock.patch.object(manager, "report_failure", side_effect=reports.append)):
+            monitor = ExtensionMonitor(make_broker(accounts=accounts, preferences=preferences), manager, system)
+            spin_until(lambda: 1001 in monitor.watches and monitor.watches[1001].shell_present)
+            values["state"] = 2
+            for _ in range(20):
+                signal_state()
+            spin_until(lambda: len(activations) == 1)
+            assert activations == [(1001, True, True)]
+            values["enabled"] = False
+            server.emit_signal(None, "/org/gnome/Shell", "org.freedesktop.DBus.Properties", "PropertiesChanged",
+                GLib.Variant("(sa{sv}as)", ("org.gnome.Shell.Extensions",
+                    {"UserExtensionsEnabled": GLib.Variant("b", False)}, [])))
+            spin_until(lambda: len(activations) == 2)
+            # A quick ordinary logout after recovery is not an extension error.
+            name("ReleaseName", "(s)", ("org.gnome.Shell",))
+            spin_until(lambda: not monitor.watches[1001].shell_present)
+            values["state"] = 6
+            name("RequestName", "(su)", ("org.gnome.Shell", 0))
+            spin_until(lambda: monitor.watches[1001].failures > 0)
+            values["state"] = 1
+            signal_state()
+            spin_until(lambda: monitor.watches[1001].failures == 0)
+            assert reports == []
+            assert len(activations) == 2
+            preferences.values[1001]["parent_control_enabled"] = False
+            values["state"] = 2
+            checked = monitor.watches[1001].next_check
+            signal_state()
+            spin_until(lambda: monitor.watches[1001].next_check > checked)
+            assert len(activations) == 2
+            preferences.values[1001]["parent_control_enabled"] = True
+            # A never-loaded individually disabled extension remains
+            # INITIALIZED even though the global extensions switch is on.
+            values.update(state=6, configured=False)
+            signal_state()
+            spin_until(lambda: len(activations) == 3)
+            values["state"] = 3
+            signal_state()
+            spin_until(lambda: reports == [1001])
+            values["state"] = 2
+            checked = monitor.watches[1001].next_check
+            for _ in range(20):
+                signal_state()
+            spin_until(lambda: monitor.watches[1001].next_check > checked)
+            assert len(activations) == 3
+            assert reports == [1001]
+            # Actual NameOwnerChanged delivery, including its callback arity.
+            name("ReleaseName", "(s)", ("org.gnome.Shell",))
+            spin_until(lambda: not monitor.watches[1001].shell_present)
+            values["state"] = 1
+            name("RequestName", "(su)", ("org.gnome.Shell", 0))
+            spin_until(lambda: monitor.watches[1001].shell_present)
+            monitor.close()
+            assert not monitor._thread.is_alive()
+            assert monitor.watches[1001].connection is None
+            monitor = None
+            instant = ExtensionMonitor(make_broker(accounts=accounts, preferences=preferences), manager, system)
+            instant.close()
+            assert not instant._thread.is_alive()
+    finally:
+        if monitor is not None:
+            monitor.close()
+        server.unregister_object(identifier)
+        server.close_sync(None)
+        system.close_sync(None)
 
 
 def test_service_composition_receives_injected_adapters_and_clocks(private_service):

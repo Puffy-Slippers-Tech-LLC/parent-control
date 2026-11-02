@@ -17,7 +17,7 @@ from oh_no_parent_control.preferences import (
     PreferencesError, default_preferences, validate_preferences, PreferenceStore, FORMAT_VERSION,
 )
 from oh_no_parent_control.execution_policy import ExecutionPolicyError
-from oh_no_parent_control.extension_manager import ChildExtensionUnavailable
+from oh_no_parent_control.extension_manager import ChildExtensionFailed, ChildExtensionUnavailable
 
 
 from tests.support.broker import (
@@ -47,6 +47,41 @@ def test_login_recovery_respects_saved_control_and_preserves_account_state(calle
         with pytest.raises(BackendFailure):
             broker.recover_child_extension(caller, 1001)
     assert broker.recover_child_extension(caller, 1001)  # Failure released the transaction lock.
+
+
+def test_session_extension_hints_revalidate_policy_and_roles_under_transaction_lock():
+    accounts, preferences = Accounts(), Preferences()
+    broker = make_broker(accounts=accounts, preferences=preferences)
+    action = mock.Mock()
+    assert not broker.reconcile_enabled_child(1001, action)
+    preferences.values[1001]["parent_control_enabled"] = True
+    with mock.patch.object(action, "side_effect", RuntimeError()):
+        with pytest.raises(RuntimeError):
+            broker.reconcile_enabled_child(1001, action)
+    assert broker.reconcile_enabled_child(1001, lambda: None)
+    broker._request_lock.acquire()
+    try:
+        with pytest.raises(Busy):
+            broker.reconcile_enabled_child(1001, action)
+    finally:
+        broker._request_lock.release()
+    accounts.users[1001] = replace(accounts.users[1001], is_admin=True)
+    action.reset_mock()
+    assert not broker.reconcile_enabled_child(1001, action)
+    assert 1001 not in broker.extension_watch_uids()
+    action.assert_not_called()
+    assert accounts.events == []
+
+
+def test_startup_confirmed_extension_failure_keeps_saved_policy_and_broker_available():
+    preferences, extensions, accounts = Preferences(), Extensions(), Accounts()
+    preferences.values[1001]["parent_control_enabled"] = True
+    broker = make_broker(accounts=accounts, preferences=preferences, extensions=extensions)
+    before = preferences.load(1001)
+    with mock.patch.object(extensions, "set_enabled", side_effect=ChildExtensionFailed("failed")):
+        assert broker.refresh_enabled_extensions() == ()
+    assert preferences.load(1001) == before
+    assert accounts.events == []
 
 
 class CoreTests(unittest.TestCase):

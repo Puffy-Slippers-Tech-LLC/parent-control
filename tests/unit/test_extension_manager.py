@@ -2,6 +2,7 @@ import ast
 import os
 import subprocess
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,7 +10,7 @@ from unittest import mock
 from common.oh_no_parent_control_ui.diagnostic_events import decode
 
 from oh_no_parent_control.extension_manager import (
-    DISABLE_ALL_KEY, DISABLED_KEY, ENABLED_KEY, UUID, ChildExtensionUnavailable,
+    DISABLE_ALL_KEY, DISABLED_KEY, ENABLED_KEY, UUID, ChildExtensionFailed, ChildExtensionUnavailable,
     ExtensionManager, _load_error_fields,
 )
 
@@ -207,6 +208,59 @@ class ExtensionManagerTests(unittest.TestCase):
 
     def tearDown(self):
         self.runtime.cleanup()
+
+    def test_confirmed_load_failure_refuses_reactivation_before_settings_writes(self):
+        state = GnomeRecoveryState(inactive=True)
+        with (mock.patch.object(self.manager, "_verify_installation"),
+              mock.patch.object(self.manager, "_account", return_value=(self.account, Path(self.runtime.name))),
+              mock.patch.object(Path, "stat", return_value=SimpleNamespace(st_uid=1001, st_mode=0o40700)),
+              mock.patch.object(self.manager, "_shell_is_available", return_value=True),
+              mock.patch.object(self.manager, "_run_as", side_effect=lambda account, *args: state.run(account, args)),
+              mock.patch.object(self.manager, "_runtime_state", return_value=(False, False)),
+              mock.patch.object(self.manager, "_failed_live_extension", return_value=True)):
+            with self.assertRaises(ChildExtensionFailed):
+                self.manager.set_enabled(1001, True, recover_global_switch=True)
+        self.assertFalse(any(command[:2] == ("gsettings", "set") for command in state.commands))
+
+    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
+    def test_monitor_command_budget_prevents_effects_after_stop_and_nests_for_rollback(self, run):
+        stopped = threading.Event()
+        stopped.set()
+        with self.manager.command_budget(3, stopped):
+            with self.assertRaises(TimeoutError):
+                self.manager._run_as(self.account, "gsettings", "set", "schema", "key", "value")
+            with self.manager.command_budget(3, threading.Event()):
+                run.return_value = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+                self.manager._run_as(self.account, "gsettings", "get", "schema", "key")
+            with self.assertRaises(TimeoutError):
+                self.manager._run_as(self.account, "gsettings", "set", "schema", "key", "value")
+        self.assertEqual(run.call_count, 1)
+        self.assertLessEqual(run.call_args.kwargs["timeout"], 3)
+
+    def test_report_uses_fixed_user_manager_launch_and_reuses_existing_report_unit(self):
+        with (mock.patch.object(self.manager, "_account", return_value=(self.account, None)),
+              mock.patch.object(self.manager, "_run_command", side_effect=[RuntimeError(), None]) as run):
+            self.manager.report_failure(1001)
+        self.assertEqual(run.call_args_list[0].args[1][-4:], (
+            "--", "/usr/bin/oh-no-parent-control-child", "--child-overlay", "--error-report-stdin"))
+        self.assertIn("--unit=oh-no-parent-control-extension-error.service", run.call_args_list[0].args[1])
+        self.assertEqual(run.call_args_list[1].args[1][:4], ("systemctl", "--user", "is-active", "--quiet"))
+        self.assertTrue(all(call.kwargs["require_live"] for call in run.call_args_list))
+
+    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
+    def test_report_command_projects_diagnostics_and_executes_as_the_child(self, run):
+        run.return_value = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+        with (mock.patch.object(self.manager, "_account", return_value=(self.account, None)),
+              mock.patch.object(self.manager, "_command", side_effect=lambda _account, arguments:
+                  (list(arguments), {"XDG_RUNTIME_DIR": "/run/user/1001"}, "live-session")),
+              self.assertLogs("onpc", "INFO") as logs):
+            self.manager.report_failure(1001)
+        self.assertEqual(run.call_args.args[0][0], "systemd-run")
+        self.assertEqual(run.call_args.kwargs["user"], 1001)
+        self.assertEqual(run.call_args.kwargs["extra_groups"], ())
+        events = [decode(record.onpc_payload) for record in logs.records]
+        self.assertNotIn("diagnostic.rejected", [row["event"] for row in events])
+        self.assertTrue(all(row["fields"].get("operation", "other") == "other" for row in events))
 
     @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
     def test_settings_command_drops_privileges_without_pam(self, run):
@@ -501,6 +555,7 @@ class ExtensionManagerTests(unittest.TestCase):
                 ),
                 mock.patch.object(manager, "_boolean", return_value=False),
                 mock.patch.object(manager, "_shell_is_available", return_value=True),
+                mock.patch.object(manager, "_failed_live_extension", return_value=False),
                 mock.patch.object(
                     manager, "_runtime_state",
                     side_effect=[(False, False), (True, True)],

@@ -32,11 +32,12 @@ nav button[aria-pressed="true"] {
 .run-divider[aria-disabled="false"]:hover, .run-divider:focus-visible { background: var(--vscode-focusBorder); }
 .resizing-runs, .resizing-runs * { cursor: ns-resize !important; user-select: none; }
 .run-heading {
-    display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
+    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px;
     margin: 0; padding: 8px; flex-shrink: 0; font-size: 1em;
     border-bottom: 1px solid var(--vscode-panel-border);
 }
-.run-titlebar { display: flex; flex: 1 1 0; min-width: min-content; align-items: baseline; gap: 8px; }
+.run-titlebar { display: flex; flex: 1 1 0; min-width: min-content; align-items: flex-end; gap: 8px; }
+.run-label, .run-tab { font-size: var(--vscode-font-size); }
 .run-label {
     flex: 1 1 8ch; width: 0; min-width: 8ch;
     overflow: hidden; white-space: nowrap; text-overflow: ellipsis;

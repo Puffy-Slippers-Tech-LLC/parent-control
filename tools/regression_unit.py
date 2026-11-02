@@ -4,6 +4,10 @@ Retained modules use private pytest files, locks and process-local doubles.
 Owned children are bounded and reaped; no live VM, service, display or shared
 cache is acquired. Deleting tests adds no resource owner or overlap requirement.
 Unknown modules remain exclusive pending review.
+
+The extension-manager transport cases own private Unix socketpairs/pipes and
+GLib sources; their credential-drop subprocess is mocked. Every descriptor and
+source is released within its case; no live bus, account or shared path is used.
 """
 
 from pathlib import PurePosixPath

@@ -5,7 +5,7 @@
 Read this for daily limits, grant calculations, timer queries, child countdown,
 GNOME locking, and PAM login/unlock checks.
 
-Implementation: [core.py](../../broker/oh_no_parent_control/core.py), [extension_manager.py](../../broker/oh_no_parent_control/extension_manager.py), [extension_monitor.py](../../broker/oh_no_parent_control/extension_monitor.py), [remainingTimeIndicator.js](../../child/remainingTimeIndicator.js), [timerQuery.js](../../child/timerQuery.js), [session-limit helper](../../tools/session_limit_check.py), [PAM module](../../tools/pam_oh_no_parent_control.c).
+Implementation: [core.py](../../broker/oh_no_parent_control/core.py), [extension_manager.py](../../broker/oh_no_parent_control/extension_manager.py), [extension_monitor.py](../../broker/oh_no_parent_control/extension_monitor.py), [child_bus.py](../../broker/oh_no_parent_control/child_bus.py), [remainingTimeIndicator.js](../../child/remainingTimeIndicator.js), [timerQuery.js](../../child/timerQuery.js), [session-limit helper](../../tools/session_limit_check.py), [PAM module](../../tools/pam_oh_no_parent_control.c).
 
 ## Screen-time model
 
@@ -217,6 +217,12 @@ switch schedules coalesced recovery for saved-enabled controls. Recovery clears
 the global switch when necessary and enables the product extension while
 preserving other extensions' individual choices. Healthy sessions wait for
 notifications rather than repeatedly running extension-management commands.
+
+A bounded helper authenticates as the selected child and hands its authenticated
+Unix socket to the root worker. The worker reaps that helper before using the
+socket for ongoing Gio observations. Connection deadlines and shutdown close
+owned descriptors and reap owned helpers; the broker never changes its own
+credentials. This transport identity grants no policy authority.
 
 Session notifications are untrusted hints, not policy authority. Before any
 recovery or error-report launch, the broker revalidates current account eligibility

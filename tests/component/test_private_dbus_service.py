@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+from pathlib import Path
+import pwd
+import subprocess
 import threading
 from datetime import datetime, timezone
 
@@ -24,6 +27,7 @@ from oh_no_parent_control.core import (
 from oh_no_parent_control.preferences import default_preferences
 from oh_no_parent_control.extension_manager import ExtensionManager, UUID
 from oh_no_parent_control.extension_monitor import ExtensionMonitor
+from oh_no_parent_control import child_bus
 from oh_no_parent_control.service import (
     BUS_NAME,
     INTERFACE,
@@ -83,12 +87,32 @@ def test_child_extension_monitor_recovers_public_signals_and_reports_failure_onc
         values.update(state=1, enabled=True, configured=True)
 
     monitor = None
+    account = pwd.getpwuid(os.getuid())
+    popen = subprocess.Popen
+
+    def private_helper(*args, **kwargs):
+        # This unprivileged host test keeps its own credentials. Production's
+        # credential-drop arguments are covered in the transport unit owner;
+        # real cross-UID authentication belongs to installed acceptance.
+        assert kwargs.pop("user") == account.pw_uid
+        assert kwargs.pop("group") == account.pw_gid
+        assert kwargs.pop("extra_groups") == ()
+        return popen(*args, **kwargs)
+
     try:
         with (mock.patch.object(manager, "session_bus_address", return_value=dbusmock_session.address),
+              mock.patch.object(manager, "_account", return_value=(account, None)),
+              mock.patch.object(child_bus, "HELPER_PATH", str(Path(child_bus.__file__).resolve())),
+              mock.patch.object(child_bus.subprocess, "Popen", side_effect=private_helper),
               mock.patch.object(manager, "set_enabled", side_effect=enable),
               mock.patch.object(manager, "report_failure", side_effect=reports.append)):
             monitor = ExtensionMonitor(make_broker(accounts=accounts, preferences=preferences), manager, system)
             spin_until(lambda: 1001 in monitor.watches and monitor.watches[1001].shell_present)
+            connection = monitor.watches[1001].connection
+            identity = connection.call_sync(DBUS_NAME, DBUS_PATH, DBUS_INTERFACE,
+                "GetConnectionUnixUser", GLib.Variant("(s)", (connection.get_unique_name(),)),
+                GLib.VariantType.new("(u)"), Gio.DBusCallFlags.NONE, CALL_TIMEOUT_MS, None)
+            assert identity.unpack() == (account.pw_uid,)
             values["state"] = 2
             for _ in range(20):
                 signal_state()
@@ -150,6 +174,76 @@ def test_child_extension_monitor_recovers_public_signals_and_reports_failure_onc
             monitor.close()
         server.unregister_object(identifier)
         server.close_sync(None)
+        system.close_sync(None)
+
+
+def test_monitor_shutdown_drains_removed_watch_hello_after_delayed_completion(dbusmock_system):
+    """Removed child watches retain their native Gio cleanup owner at shutdown."""
+    import socket
+    import time
+    from types import SimpleNamespace
+    from unittest import mock
+
+    system = open_bus(dbusmock_system.address)
+    transport, peer = socket.socketpair()
+    broker, manager = mock.Mock(), mock.Mock()
+    uids = [1001]
+    broker.extension_watch_uids.side_effect = lambda: uids[:]
+    manager.session_bus_address.return_value = "unix:path=/unused"
+    manager._account.return_value = (SimpleNamespace(pw_uid=1001, pw_gid=1001), None)
+    attempts, completions = [], []
+
+    def stalled_connection(account, address, context, callback):
+        attempt = child_bus.connect_child_bus(account, address, context, callback, timeout=10)
+        attempts.append(attempt)
+        attempt.process = mock.Mock()
+        attempt.process.poll.return_value = 0
+        attempt.guardian = socket.socket(fileno=os.dup(transport.fileno()))
+        native = Gio.Socket.new_from_fd(os.dup(transport.fileno()))
+        attempt.stream = native.connection_factory_create_connection()
+        attempt._hello_pending = True
+
+        def delayed(gio_source, result, *_args):
+            source = GLib.timeout_source_new(1200)
+
+            def complete(*_args):
+                attempt._connected(gio_source, result)
+                completions.append(True)
+                return GLib.SOURCE_REMOVE
+
+            source.set_callback(complete)
+            source.attach(context)
+
+        Gio.DBusConnection.new(attempt.stream, None, Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION,
+            None, attempt.cancellable, delayed)
+        return attempt
+
+    monitor = None
+    try:
+        with mock.patch("oh_no_parent_control.extension_monitor.connect_child_bus", side_effect=stalled_connection):
+            monitor = ExtensionMonitor(broker, manager, system)
+            spin_until(lambda: attempts and attempts[0]._hello_pending)
+            uids.clear()
+            monitor._later(0, monitor._refresh)
+            spin_until(lambda: not monitor.watches)
+            assert attempts[0].pending
+            assert len(monitor._attempts) == 1
+            started = time.monotonic()
+            monitor.close()
+            assert time.monotonic() - started >= 1
+            assert not monitor._thread.is_alive()
+            assert completions == [True]
+            assert not attempts[0].pending
+            assert attempts[0].stream is None
+            assert monitor._attempts == {}
+            manager.set_enabled.assert_not_called()
+            manager.report_failure.assert_not_called()
+            broker.reconcile_enabled_child.assert_not_called()
+    finally:
+        if monitor is not None:
+            monitor.close()
+        transport.close()
+        peer.close()
         system.close_sync(None)
 
 

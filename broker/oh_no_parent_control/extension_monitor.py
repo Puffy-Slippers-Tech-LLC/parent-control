@@ -11,7 +11,8 @@ import time
 
 from gi.repository import Gio, GLib
 
-from common.oh_no_parent_control_ui.diagnostic_events import get_logger, record_exception
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, operation_scope, record_exception
+from .child_bus import connect_child_bus
 from .core import Busy
 from .extension_manager import ChildExtensionFailed, UUID, _load_error_fields
 
@@ -45,7 +46,6 @@ class _Watch:
     closed_handler: object = None
     source: object = None
     connecting: object = None
-    connect_timeout: object = None
     shell_present: bool = False
     failures: int = 0
     next_check: float = 0
@@ -63,6 +63,9 @@ class ExtensionMonitor:
         self.broker, self.manager = broker, manager
         self.system_connection = system_connection
         self.watches = {}
+        # A removed watch can still own a cancelled Hello or an unreaped
+        # helper. Keep those attempts alive independently until completion.
+        self._attempts = {}
         self._system_signals = []
         self._refresh_source = None
         self._stopped = threading.Event()
@@ -94,6 +97,15 @@ class ExtensionMonitor:
                 self._refresh_source.destroy()
             for watch in self.watches.values():
                 self._disconnect(watch)
+            # Cancel interrupts pending Hello via its socket. Dispatch its
+            # completion before dropping the context, so Gio releases its own
+            # stream without a concurrent close from the monitor.
+            for attempt in tuple(self._attempts):
+                attempt.cancel()
+            # close() bounds the caller's join, while this existing worker
+            # retains the context and cleanup ownership as long as needed.
+            while self._attempts:
+                self._context.iteration(True)
             for identifier in self._system_signals:
                 self.system_connection.signal_unsubscribe(identifier)
             self._context.pop_thread_default()
@@ -152,26 +164,31 @@ class ExtensionMonitor:
     def _connect(self, watch):
         if watch.connecting is not None:
             return
+        if watch.uid in self._attempts.values():
+            self._retry(watch)
+            return
         address = self.manager.session_bus_address(watch.uid)
         if address is None:
             self._retry(watch)
             return
-        cancellable = Gio.Cancellable()
-        watch.connecting = cancellable
-        watch.connect_timeout = self._later(2, cancellable.cancel)
+        account, _home = self.manager._account(watch.uid)
 
-        def connected(_source, result, *_user_data):
-            if watch.connect_timeout is not None:
-                watch.connect_timeout.destroy()
-                watch.connect_timeout = None
-            watch.connecting = None
-            connection = None
-            try:
-                connection = Gio.DBusConnection.new_for_address_finish(result)
-                connection.set_exit_on_close(False)
-                if (self._stopped.is_set() or self.watches.get(watch.uid) is not watch or
-                        address != self.manager.session_bus_address(watch.uid)):
+        def connected(connection, error):
+            self._attempts.pop(attempt, None)
+            if watch.connecting is not attempt:
+                if connection is not None:
                     connection.close(None, None, None)
+                return
+            watch.connecting = None
+            try:
+                if error is not None:
+                    raise error
+                if self._stopped.is_set() or self.watches.get(watch.uid) is not watch:
+                    connection.close(None, None, None)
+                    return
+                if address != self.manager.session_bus_address(watch.uid):
+                    connection.close(None, None, None)
+                    self._retry(watch)
                     return
                 watch.connection = connection
                 watch.closed_handler = connection.connect("closed", lambda *_args: self._bus_closed(watch))
@@ -199,19 +216,17 @@ class ExtensionMonitor:
                     record_exception(error)
                 self._retry(watch)
 
-        Gio.DBusConnection.new_for_address(address,
-            Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION,
-            None, cancellable, connected)
+        attempt = connect_child_bus(account, address, self._context, connected)
+        watch.connecting = attempt
+        self._attempts[attempt] = watch.uid
 
     def _disconnect(self, watch):
         if watch.source is not None:
             watch.source.destroy()
             watch.source = None
-        if watch.connect_timeout is not None:
-            watch.connect_timeout.destroy()
-            watch.connect_timeout = None
         if watch.connecting is not None:
-            watch.connecting.cancel()
+            attempt, watch.connecting = watch.connecting, None
+            attempt.cancel()
         if watch.connection is not None:
             connection, watch.connection = watch.connection, None
             for identifier in watch.subscriptions:
@@ -328,6 +343,7 @@ class ExtensionMonitor:
                 self._report(watch)
                 return
 
+    @operation_scope
     def _check(self, watch):
         if self._stopped.is_set() or self.watches.get(watch.uid) is not watch:
             return

@@ -1,8 +1,11 @@
 import ast
+import array
 import os
+import socket
 import subprocess
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,6 +16,208 @@ from oh_no_parent_control.extension_manager import (
     DISABLE_ALL_KEY, DISABLED_KEY, ENABLED_KEY, UUID, ChildExtensionFailed, ChildExtensionUnavailable,
     ExtensionManager, _load_error_fields,
 )
+from oh_no_parent_control import child_bus, extension_monitor
+
+
+class ChildBusTransportTests(unittest.TestCase):
+    def test_rejects_extra_transferred_descriptors_and_closes_every_received_fd(self):
+        parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        read_fd, write_fd = os.pipe()
+        close = os.close
+        try:
+            child.sendmsg([b"S"], [(socket.SOL_SOCKET, socket.SCM_RIGHTS,
+                array.array("i", [read_fd, write_fd]))])
+            with mock.patch.object(child_bus.os, "close", wraps=close) as closed:
+                with self.assertRaisesRegex(ValueError, "descriptor message"):
+                    child_bus._receive_descriptor(parent)
+            received = [call.args[0] for call in closed.call_args_list]
+            self.assertEqual(len(received), 2)
+            for descriptor in received:
+                with self.assertRaises(OSError):
+                    os.fstat(descriptor)
+        finally:
+            parent.close()
+            child.close()
+            close(read_fd)
+            close(write_fd)
+
+    def test_fixed_helper_drops_all_extra_groups_and_cancel_reaps_it_once(self):
+        from gi.repository import GLib
+
+        account = SimpleNamespace(pw_uid=1001, pw_gid=1002)
+        completed = mock.Mock()
+        process = mock.Mock()
+        process.poll.return_value = None
+        with (mock.patch.object(child_bus, "_validate_target", return_value="/safe/bus"),
+              mock.patch.object(child_bus, "_receive_descriptor", side_effect=BlockingIOError),
+              mock.patch.object(child_bus.subprocess, "Popen", return_value=process) as popen):
+            attempt = child_bus.connect_child_bus(account, "unix:path=/safe/bus",
+                GLib.MainContext.new(), completed)
+            attempt._poll()
+            arguments = popen.call_args
+            self.assertEqual(arguments.args[0][:3], ["/usr/bin/python3", "-I", child_bus.HELPER_PATH])
+            self.assertEqual(arguments.kwargs["user"], 1001)
+            self.assertEqual(arguments.kwargs["group"], 1002)
+            self.assertEqual(arguments.kwargs["extra_groups"], ())
+            self.assertEqual(arguments.kwargs["env"], {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8", "HOME": "/nonexistent"})
+            self.assertEqual(len(arguments.kwargs["pass_fds"]), 1)
+            attempt.cancel()
+            attempt.cancel()
+            self.assertTrue(attempt.pending)
+            completed.assert_not_called()
+            process.poll.return_value = -9
+            attempt._poll()
+        process.kill.assert_called_once_with()
+        process.wait.assert_not_called()
+        completed.assert_called_once()
+        self.assertIsInstance(completed.call_args.args[1], InterruptedError)
+        self.assertIsNone(attempt.channel)
+        self.assertTrue(attempt.source.is_destroyed())
+
+    def test_cancel_interrupts_hello_without_closing_gio_owned_descriptor(self):
+        from gi.repository import GLib
+
+        transport, peer = socket.socketpair()
+        completed = mock.Mock()
+        attempt = child_bus.connect_child_bus(SimpleNamespace(pw_uid=1001, pw_gid=1001),
+            "unix:path=/unused", GLib.MainContext.new(), completed)
+        try:
+            attempt.guardian = socket.socket(fileno=os.dup(transport.fileno()))
+            attempt.stream = object()
+            attempt.cancel()
+            peer.settimeout(1)
+            self.assertEqual(peer.recv(1), b"")
+            os.fstat(transport.fileno())  # The Gio-owned endpoint is still open.
+            self.assertTrue(attempt.cancellable.is_cancelled())
+            self.assertIsNone(attempt.guardian)
+            completed.assert_called_once()
+        finally:
+            attempt.cancel()
+            transport.close()
+            peer.close()
+
+    def test_cleanup_errors_keep_helper_owned_until_reaped_and_monitor_retries(self):
+        account = SimpleNamespace(pw_uid=1001, pw_gid=1001)
+        manager = mock.Mock()
+        manager.session_bus_address.return_value = "unix:path=/safe/bus"
+        manager._account.return_value = (account, None)
+        process = mock.Mock()
+        process.poll.return_value = None
+        with (mock.patch.object(extension_monitor.threading.Thread, "start"),
+              mock.patch.object(child_bus, "_validate_target", return_value="/safe/bus"),
+              mock.patch.object(child_bus, "_receive_descriptor", side_effect=BlockingIOError),
+              mock.patch.object(child_bus.subprocess, "Popen", return_value=process) as popen):
+            monitor = extension_monitor.ExtensionMonitor(mock.Mock(), manager, mock.Mock())
+            watch = extension_monitor._Watch(1001)
+            monitor.watches[1001] = watch
+            with mock.patch.object(monitor, "_retry") as retry:
+                monitor._connect(watch)
+                attempt = watch.connecting
+                attempt._poll()
+                attempt.deadline = 0
+                process.poll.side_effect = [subprocess.TimeoutExpired("private", 0),
+                                           None, None, -9]
+                process.kill.side_effect = [OSError("private cleanup failure"), None]
+                with self.assertLogs("onpc", "ERROR") as logs:
+                    for _ in range(3):
+                        attempt._poll()
+                        self.assertIs(watch.connecting, attempt)
+                        self.assertIs(attempt.process, process)
+                        self.assertTrue(attempt.pending)
+                        monitor._connect(watch)
+                        retry.assert_not_called()
+                    attempt._poll()
+                self.assertNotIn("private", "\n".join(logs.output))
+                self.assertFalse(attempt.pending)
+                self.assertIsNone(attempt.process)
+                self.assertIsNone(watch.connecting)
+                self.assertEqual(monitor._attempts, {})
+                retry.assert_called_once_with(watch)
+                self.assertEqual(popen.call_count, 1)
+                process.wait.assert_not_called()
+                monitor._connect(watch)
+                self.assertIsNotNone(watch.connecting)
+                monitor._disconnect(watch)
+                self.assertEqual(monitor._attempts, {})
+
+    def test_helper_failure_preserves_safe_category_and_differs_from_malformed_fd(self):
+        from gi.repository import Gio, GLib
+        from common.oh_no_parent_control_ui.diagnostic_events import record_exception
+
+        parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        secret = "private@example.test /home/private-child"
+        try:
+            error = GLib.Error.new_literal(Gio.dbus_error_quark(), secret, Gio.DBusError.AUTH_FAILED)
+            status = child_bus._authentication_status(error)
+            self.assertEqual(status, b"A")
+            child.send(b"E" + status)
+            with self.assertLogs("onpc", "ERROR") as logs:
+                try:
+                    child_bus._receive_descriptor(parent)
+                except GLib.Error as received:
+                    record_exception(received)
+                else:
+                    self.fail("authentication refusal was accepted")
+            payloads = [decode(row.onpc_payload) for row in logs.records]
+            self.assertIn("access-denied", [row["fields"].get("category") for row in payloads])
+            fault = next(row for row in payloads if row["event"] == "runtime.fault")
+            self.assertEqual(fault["fields"]["source"], "child-bus")
+            self.assertGreater(fault["fields"]["line"], 0)
+            self.assertNotIn(secret, "\n".join(logs.output))
+            closed = GLib.Error.new_literal(Gio.io_error_quark(), secret, Gio.IOErrorEnum.CONNECTION_CLOSED)
+            self.assertEqual(child_bus._authentication_status(closed), b"D")
+            child.send(b"EX")
+            with self.assertRaisesRegex(ValueError, "descriptor message"):
+                child_bus._receive_descriptor(parent)
+            child.close()
+            with self.assertRaisesRegex(RuntimeError, "without a status"):
+                child_bus._receive_descriptor(parent)
+        finally:
+            parent.close()
+            child.close()
+
+    def test_refuses_root_identity_and_nonlocal_or_multiple_addresses(self):
+        account = SimpleNamespace(pw_uid=0, pw_gid=0)
+        with self.assertRaisesRegex(ValueError, "identity"):
+            child_bus._validate_target(account, "unix:path=/run/user/0/bus")
+        for address in ("autolaunch:", "tcp:host=localhost,port=1",
+                        "unix:path=/tmp/a;unix:path=/tmp/b", "unix:path=/tmp/%2fbus"):
+            with self.subTest(address=address), self.assertRaises(ValueError):
+                child_bus._address_path(address)
+
+    def test_whole_deadline_interrupts_stalled_native_hello_and_releases_stream(self):
+        from gi.repository import Gio, GLib
+
+        context = GLib.MainContext.new()
+        transport, peer = socket.socketpair()
+        completed = mock.Mock()
+        context.push_thread_default()
+        attempt = child_bus.connect_child_bus(SimpleNamespace(pw_uid=1001, pw_gid=1001),
+            "unix:path=/unused", context, completed, timeout=0.05)
+        try:
+            attempt.process = mock.Mock()
+            attempt.process.poll.return_value = 0
+            attempt.guardian = socket.socket(fileno=os.dup(transport.fileno()))
+            native = Gio.Socket.new_from_fd(os.dup(transport.fileno()))
+            attempt.stream = native.connection_factory_create_connection()
+            attempt._hello_pending = True
+            Gio.DBusConnection.new(attempt.stream, None, Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION,
+                None, attempt.cancellable, attempt._connected)
+            deadline = time.monotonic() + 1
+            while not completed.called and time.monotonic() < deadline:
+                context.iteration(False)
+                time.sleep(0.001)
+            completed.assert_called_once()
+            self.assertIsInstance(completed.call_args.args[1], TimeoutError)
+            self.assertFalse(attempt.pending)
+            self.assertIsNone(attempt.stream)
+            self.assertIsNone(attempt.guardian)
+        finally:
+            attempt.cancel()
+            transport.close()
+            peer.close()
+            context.pop_thread_default()
 
 
 class LoadDiagnosticsTests(unittest.TestCase):

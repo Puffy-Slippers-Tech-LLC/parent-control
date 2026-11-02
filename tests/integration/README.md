@@ -1151,6 +1151,19 @@ diagnostics, the owning controller wakes the display with a fixed non-text
 Shift modifier and retains a private screen capture, checking ownership around
 both operations. Capture failure preserves the original test failure.
 
+The `extension` area (system ID 295) owns the standalone native GNOME monitor
+history in `system_extension_monitor.verify`. It uses a fresh autologin desktop
+with saved controls initially off, then stages saved-enabled policy through the
+installed preference store so startup and explicit recovery cannot satisfy the
+monitor checks. A temporary, exactly restored AccountsService desktop-language
+change supplies the initial discovery hint for the never-loaded instance;
+subsequent disablement uses GNOME's public settings and extension interfaces.
+Individual/global disablement, repeated interference, cooldown
+and the public parent-off action run against the same broker invocation.
+Native recovery timing is recorded inside the guest, separately from command
+and VM preparation time. The ordinary guarded runner restores the VM after the
+complete history; no expiry or authenticated approval history is repeated.
+
 For an explicit update check, add `--previous-artifacts '<prior-artifact-allocation>'` alongside
 `--artifacts '<current-artifact-allocation>'`, using the maintained builder's
 returned paths. Both inputs pass the same artifact and source

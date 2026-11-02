@@ -53,7 +53,9 @@ DEMANDS = {
     # It creates no new shared state or child ownership; admission is unchanged.
     # Extension-monitor cases own one GLib worker and connections on the same
     # private buses, close them in finally, and mock activation/report commands.
-    # They touch no host desktop/settings/units and fit existing admission.
+    # Each connection owns a short, isolated Python authentication helper and
+    # private socketpair; completion/cancellation closes fds and reaps that
+    # recorded child. No host desktop/settings/units; existing admission fits.
     'component': Demand(2, GIB),
     'fixture-runtime': Demand(2, GIB),
     'source': Demand(2, GIB),

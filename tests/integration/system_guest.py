@@ -1051,6 +1051,13 @@ def collect(marker, outcome):
     for source in sorted(logs.glob('*/*.log')):
         require(source.is_file() and not source.is_symlink(), 'log-file-type')
         (output / f'{source.parent.name}-{source.name}').write_text(redacted(source.read_text(errors='replace')))
+    # Current product diagnostics are structured events, including bounded
+    # rotations. Keep them in ordinary private failure results as well.
+    for source in sorted(logs.glob('*/*.events*')):
+        info = source.lstat()
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and info.st_nlink == 1
+                and info.st_size <= 262144 and not source.is_symlink(), 'event-file-type')
+        (output / f'{source.parent.name}-{source.name}').write_text(redacted(source.read_text()))
     for source in sorted((PAYLOAD / 'private').glob('*/*.txt')):
         require(not source.is_symlink(), 'diagnostic-file-type')
         (output / f'{source.parent.name}-{source.name}').write_text(redacted(source.read_text(errors='replace')))

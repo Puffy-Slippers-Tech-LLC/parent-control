@@ -613,6 +613,8 @@ CASES = (
                  'Kiosk retained ambient history'),
     CaseIdentity(294, 'enforcement', 'test_kiosk_retained_required_history',
                  'Kiosk retained required drift history'),
+    CaseIdentity(295, 'extension', 'test_child_extension_monitor_native_recovery',
+                 'Keep parental control active when extensions are disabled'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

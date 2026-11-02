@@ -57,6 +57,6 @@ identity retains a concrete qualification gate.
 
 Planned fixed selector: `check_e2e_fullscreen_reminder_visibility`; unregistered
 and unqualified. Register before invoking
-`tools/run-tests integration check_e2e_fullscreen_reminder_visibility`.
+`tools/run-tests system check_e2e_fullscreen_reminder_visibility`.
 Reuse unchanged fullscreen activity and natural reminder qualification; rerun
 only affected bindings if their shared route or guard changes.

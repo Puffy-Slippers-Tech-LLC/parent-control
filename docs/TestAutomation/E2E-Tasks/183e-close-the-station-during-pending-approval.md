@@ -45,5 +45,5 @@ here. Cancellation consumes no cooldown; add no fixed wait.
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_close_the_station_during_pending_approval
+tools/run-tests system check_e2e_close_the_station_during_pending_approval
 ```

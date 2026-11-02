@@ -188,7 +188,7 @@ def case_progress(run, *, reader=None):
     from watch_output import read_json
     value = (reader.read(run / 'case-progress.json', 8192) if reader is not None else
              read_json(run / 'case-progress.json', 8192))
-    if (not isinstance(value, dict) or value.get('category') not in ('system', 'integration', 'e2e')
+    if (not isinstance(value, dict) or value.get('category') not in ('system', 'e2e')
             or type(value.get('area', False)) is not bool
             or any(type(value.get(key)) is not int for key in
                    ('completed', 'total', 'index', 'round', 'vm_started_ns', 'started_ns', 'case_started_ns'))
@@ -197,13 +197,13 @@ def case_progress(run, *, reader=None):
             or value['round'] < 1
             or not 0 <= value['vm_started_ns'] <= value['started_ns'] <= value['case_started_ns'] <= time.monotonic_ns()
             or not isinstance(value.get('case_id'), str)
-            or not re.fullmatch(r'check_[a-z][a-z0-9_]*' if value['category'] == 'integration'
+            or not re.fullmatch(r'(?:[1-9][0-9]{0,9}|check_[a-z][a-z0-9_]*)' if value['category'] == 'system'
                                 else r'[1-9][0-9]{0,9}', value['case_id'])
             or not isinstance(value.get('title'), str) or len(value['title']) > 384
             or not value['title'].isprintable()):
         raise ValueError('invalid category display progress')
     counts = value.get('categories')
-    if (not isinstance(counts, dict) or not counts or set(counts) - {'system', 'integration', 'e2e'}
+    if (not isinstance(counts, dict) or not counts or set(counts) - {'system', 'e2e'}
             or any(not isinstance(item, dict) or not {'completed', 'total'} <= set(item)
                    or type(item['completed']) is not int or type(item['total']) is not int
                    or not 0 <= item['completed'] <= item['total'] <= 100000
@@ -265,7 +265,7 @@ def case_frame(steps, lines, current):
                 line = re.sub(r'\(\d+/\d+\)', lambda _: '(' + case_counts(done,
                     current.get('failed', 0), total, current.get('error_log')) + ')',
                     Dashboard.ANSI.sub('', line))
-            elif current['category'] == 'integration':
+            elif current['category'] == 'system' and current['case_id'].startswith('check_'):
                 # The retained case clock includes repair sessions and retries;
                 # the runner row alone measures only test execution time.
                 pattern = (r'(Check: ' + re.escape(current['case_id'])
@@ -310,8 +310,8 @@ def watch_case_progress(root, vm, progress, *, reader):
         return progress
 
 
-def watch_integration_progress(root, vm, progress, *, reader):
-    """Resolve focused integration runs, which have no system/E2E heartbeat."""
+def watch_system_check_progress(root, vm, progress, *, reader):
+    """Resolve standalone system checks, which have no lifecycle heartbeat."""
     import ast
     from test_storage import directory
     from watch_output import active_run
@@ -324,13 +324,13 @@ def watch_integration_progress(root, vm, progress, *, reader):
         if current['run'] != run.name:
             return progress
         args = current['argv']
-        if 'integration' not in args:
+        if 'system' not in args:
             return progress
         case = next((arg.partition('=')[2] for arg in args
                      if arg.startswith('--resume-case=')), None)
         if case is None:
-            index = args.index('integration') + 1
-            case = args[index] if index < len(args) else ''
+            from test_commands import system_check_selection
+            case = system_check_selection(args) or ''
         case = case.removesuffix('.py')
         if not re.fullmatch(r'check_[a-z][a-z0-9_]*', case):
             return progress

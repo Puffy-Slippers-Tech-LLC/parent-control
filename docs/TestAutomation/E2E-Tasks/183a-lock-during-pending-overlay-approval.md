@@ -46,5 +46,5 @@ Cancellation consumes no cooldown; add no fixed wait.
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_lock_during_pending_overlay_approval
+tools/run-tests system check_e2e_lock_during_pending_overlay_approval
 ```

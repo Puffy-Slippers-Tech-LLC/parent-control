@@ -45,5 +45,5 @@ The following fixed qualification is planned; implement and register it before
 invocation:
 
 ```sh
-tools/run-tests integration check_e2e_minecraft_provider
+tools/run-tests system check_e2e_minecraft_provider
 ```

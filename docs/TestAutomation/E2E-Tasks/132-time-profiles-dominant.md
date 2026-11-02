@@ -42,5 +42,5 @@ On the live VM preserve a real G while raising D through Parent, then read D>G>0
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_time_profiles_dominant
+tools/run-tests system check_e2e_time_profiles_dominant
 ```

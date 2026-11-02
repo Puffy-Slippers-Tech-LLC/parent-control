@@ -40,5 +40,5 @@ On an ordinary day, independently read and validate the actual system clock/time
 Implement and register this planned fixed qualification and its cleanup coverage before invoking it:
 
 ```sh
-tools/run-tests integration check_e2e_read_local_calendar_and_timezone
+tools/run-tests system check_e2e_read_local_calendar_and_timezone
 ```

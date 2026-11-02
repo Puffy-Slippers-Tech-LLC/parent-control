@@ -45,5 +45,5 @@ In a fresh guarded VM attempt, approve once, reopen and Request before five seco
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_read_overlay_cooldown_errors_and_report_choices
+tools/run-tests system check_e2e_read_overlay_cooldown_errors_and_report_choices
 ```

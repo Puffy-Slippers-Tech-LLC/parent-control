@@ -66,6 +66,6 @@ delivery and broker calls as UI input supply no acceptance.
 
 Planned fixed selector: `check_e2e_natural_reminder_observation`; unregistered and
 unqualified. Register before invoking
-`tools/run-tests integration check_e2e_natural_reminder_observation`.
+`tools/run-tests system check_e2e_natural_reminder_observation`.
 Reuse unchanged countdown, reminder settings and natural-expiry qualification;
 rerun only branches affected by the new public observation or guard.

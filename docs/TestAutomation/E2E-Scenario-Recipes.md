@@ -808,10 +808,10 @@ limits disabled and records settings before enabling them.
 Use the selected target's affected route histories after a concrete change:
 
 ```sh
-tools/run-tests --vm 'onpc-Ubuntu26.04' integration check_e2e_public_desktop_selection
-tools/run-tests --vm 'onpc-Ubuntu26.04' integration check_e2e_station_shortcuts
-tools/run-tests --vm 'onpc-Fedora44' integration check_e2e_public_desktop_selection
-tools/run-tests --vm 'onpc-Fedora44' integration check_e2e_station_shortcuts
+tools/run-tests --vm 'onpc-Ubuntu26.04' system check_e2e_public_desktop_selection
+tools/run-tests --vm 'onpc-Ubuntu26.04' system check_e2e_station_shortcuts
+tools/run-tests --vm 'onpc-Fedora44' system check_e2e_public_desktop_selection
+tools/run-tests --vm 'onpc-Fedora44' system check_e2e_station_shortcuts
 ```
 
 Each journey retains its explicit 1800-second worker limit. Chooser,
@@ -2662,10 +2662,10 @@ the distinct recipe outcomes pending and supplies no complete-case credit.
 
 Engineering obligations 147/148 reuse their executable requester-disconnect,
 broker concurrency and private-bus owners under the
-[allocation record](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage),
+[allocation record](UI-and-E2E-Coverage.md#reuse-of-system-coverage),
 with no duplicate E2E implementation tasks. The remaining
 engineering briefs target only missing assertions under their existing owners.
-Apply [system/integration reuse](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage)
+Apply [system reuse](UI-and-E2E-Coverage.md#reuse-of-system-coverage)
 at case, step and acceptance level while keeping the complete public journeys.
 
 Requirement references identify the clauses exercised by each family, not

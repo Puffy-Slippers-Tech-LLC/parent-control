@@ -51,7 +51,7 @@ may supply a customer result.
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_lunar_provider
+tools/run-tests system check_e2e_lunar_provider
 ```
 
 Pass affected safety/adapter checks before the VM run. Use shared watch intent,

@@ -48,5 +48,5 @@ retention, logout, enforcement and natural-lock histories belong to the consumer
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_child_saved_work
+tools/run-tests system check_e2e_child_saved_work
 ```

@@ -50,5 +50,5 @@ cleanup refusal coverage. Qualify an affected new guard only if implementation
 changes that boundary. Runtime guards still apply to every attempt.
 
 ```sh
-tools/run-tests integration check_e2e_game_fixture
+tools/run-tests system check_e2e_game_fixture
 ```

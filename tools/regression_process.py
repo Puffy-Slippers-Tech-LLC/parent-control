@@ -401,7 +401,7 @@ def category_run(root, category, argv, *, pipe=True):
     import test_commands
     import test_launcher as host
     commands, _ = test_commands.plan(root, category, argv)
-    if category in ('integration', 'system', 'e2e'):
+    if category in ('system', 'e2e'):
         from vm_selection import extract
         argv, _ = extract(argv, required=False)
     env = host.environment(root)
@@ -440,7 +440,9 @@ def category_run(root, category, argv, *, pipe=True):
     with Control().installed(pipe=pipe) as control:
         if test_commands.live_refresh_selection(category, argv):
             return test_commands.run_live_refresh(root, commands[-1], control=control, environment=env)
-        if category in ('system', 'e2e') and '--list' not in argv and not test_commands.has_artifacts(commands[0]):
+        if (category in ('system', 'e2e') and '--list' not in argv
+                and not (category == 'system' and test_commands.system_check_selection(argv))
+                and not test_commands.has_artifacts(commands[0])):
             from vm_selection import arguments as vm_arguments
             directory = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-')
             print('run-tests: output=' + directory, flush=True)
@@ -465,7 +467,9 @@ def category_run(root, category, argv, *, pipe=True):
                 check(command[1])
                 command = [command[0], '--disable-internal-agent', '--keep-cwd', command[1],
                            '--unattended', *command[2:]]
-                if category in ('system', 'e2e') and test_retention.token() is not None:
+                if (category in ('system', 'e2e')
+                        and not (category == 'system' and test_commands.system_check_selection(argv))
+                        and test_retention.token() is not None):
                     command.insert(4, '--retention-run=' + test_retention.token())
             status = control.run(command, cwd=root, env=env, cooperative=privileged,
                                  **({'umask': 0o077} if category == 'coverage' else {}))

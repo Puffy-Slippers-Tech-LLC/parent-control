@@ -37,5 +37,5 @@ not prerequisites for proving that distinct desktops can be reached and retained
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_multi_desktop
+tools/run-tests system check_e2e_multi_desktop
 ```

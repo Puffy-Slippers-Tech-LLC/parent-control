@@ -1472,13 +1472,13 @@ def test_vm_aggregate_uses_one_suite_and_retains_progress_and_final_failure(
 def test_entire_plan_discovers_ready_cases_and_preserves_failure(
         report, tmp_path, monkeypatch, fail_unit, fail_publish, scope):
     host_builds = scope.startswith('host-builds')
-    phases = (('host', 'system', 'integration', 'e2e') if scope in ('all', 'all-future-category') else
+    phases = (('host', 'system', 'e2e') if scope in ('all', 'all-future-category') else
               ('host',) if host_builds else tuple(scope.split()))
     from tests.support.paths import ROOT
     expand = test_commands.execution_selections
     monkeypatch.setattr(test_commands, 'execution_selections', lambda root, groups: [
         (kind, args) for kind, args in expand(ROOT, groups)
-        if kind != 'integration' or args == ['check_graphical_worker']])
+        if kind != 'system' or not (args and args[0].startswith('check_'))])
     if scope == 'all-future-category':
         monkeypatch.setitem(test_commands.CATEGORIES, 'ui-future-suite',
                             test_commands.CategorySpec('New implemented suite'))
@@ -1575,7 +1575,7 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
         assert executed_kinds == set(suite_inventory())
     if not includes_host:
         executed = [call for call in control.calls if '--list' not in call]
-        expected = ['artifacts', *(kind for kind, _ in expand(ROOT,
+        expected = ['artifacts', *(kind for kind, _ in test_commands.execution_selections(ROOT,
                     [(kind, []) for kind in phases]))]
         assert [call[1] for call in executed] == expected
         assert 'prepare' in executed[0]

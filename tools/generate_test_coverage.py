@@ -61,8 +61,12 @@ def collect_counts(root):
     cases = re.findall(r'^      (\S.*)$', output.split(marker)[1], re.MULTILINE)
     if not cases:
         raise ValueError('system: empty selector inventory')
-    rows.append(('Installed system', len(cases),
-                 'Checks installed product behavior and lifecycle integration on the test VM.'))
+    inventory = runpy.run_path(str(root / 'tests/integration/system_checks.py'))
+    # Count registered standalone checks alongside lifecycle selectors, once
+    # across supported hosts. Focused qualification selectors are not tests.
+    system_checks = inventory['inventory'](root / 'tests/integration')
+    rows.append(('Installed system', len(cases) + len(system_checks),
+                 'Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM.'))
 
     commands, _ = test_commands.plan(root, 'child-node', [])
     # Node has no collect-only mode. Count the launcher's executable files,
@@ -73,11 +77,12 @@ def collect_counts(root):
     commands, _ = test_commands.plan(root, 'child-gjs', [])
     rows.append(('Child GJS', len(commands),
                  'Checks child extension behavior that depends on the GNOME JavaScript runtime.'))
-    inventory = runpy.run_path(str(root / 'tests/integration/integration_inventory.py'))
-    # Count explicit test registrations once across supported hosts.
-    integrations = inventory['inventory'](root / 'tests/integration')
-    rows.append(('Integration', len(integrations),
-                 'Checks standalone engineering and essential shared safety boundaries outside E2E composition.'))
+    for category in inventory['HOST_CHECKS']:
+        description = {
+            'graphical-worker': 'Checks privileged graphical worker containment with isolated host fixtures.',
+            'package-notice': 'Checks native package-manager notices in isolated host fixtures.',
+        }[category]
+        rows.append((category, 1, description))
     return rows
 
 
@@ -127,8 +132,8 @@ def render(document, counts, *, root=ROOT):
         'These are inventory counts, not passing results or code-coverage percentages. '
         'Python parameter combinations count separately; property-test examples do not. '
         'Script-based checks count once per executable entry point; Node subtests are not expanded. '
-        'Installed-system cases count repeated phases and prerequisites once. '
-        'Integration counts explicit standalone test registrations and host-specific tests once; E2E building blocks are not integration tests. '
+        'Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. '
+        'Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. '
         'Aggregate, build, static-analysis and prerequisite commands are not additional test cases.',
         '', '## E2E scenarios', '',
         '| Subcategory | Count (Ready/Pending/Total) |',

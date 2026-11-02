@@ -33,5 +33,5 @@ On the VM, independently observe collection actually fail on kiosk. Read the fai
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_kiosk_collection_failure
+tools/run-tests system check_e2e_kiosk_collection_failure
 ```

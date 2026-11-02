@@ -1019,7 +1019,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         def run_requested(requested, options, description, *, vm=None):
             display_cases = None
             completed_categories = [kind for kind in inventory if checkpoint is not None and checkpoint.complete(kind)]
-            if parent is not None and requested in ('system', 'integration', 'e2e') and (focused or probe):
+            if parent is not None and requested in ('system', 'e2e') and (focused or probe):
                 from fix_tests_queue import case_inventory, case_totals, publish_case_progress
                 from test_checkpoint import Checkpoint
                 from vm_selection import selected
@@ -1040,7 +1040,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 with (run / 'last-test.log').open('rb') as stream:
                     attached = b'Attached to run-tests session:' in stream.read(8192)
                 if not attached:
-                    if parent is not None and status == 0 and retry_case and requested in ('system', 'integration', 'e2e'):
+                    if parent is not None and status == 0 and retry_case and requested in ('system', 'e2e'):
                         from fix_tests_queue import acknowledge_family_retry
                         acknowledge_family_retry(root, repair_gate, requested,
                             inventory[requested]['args'], round_number, retry_case)
@@ -1090,7 +1090,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                        *(['--resume-case-only'] if resume and (focused or probe) else [])]
             description = 'the repaired case' if focused else 'the requested category'
             generation = repair_gate.generation()
-            if parent is not None and category in ('system', 'integration', 'e2e') and not retry_case:
+            if parent is not None and category in ('system', 'e2e') and not retry_case:
                 from fix_tests_queue import run_cases
                 status = run_cases(root, category, options, lambda case_options:
                     run_requested(category, case_options, description, vm=verification_vm), repair_gate,
@@ -1596,7 +1596,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         saved = Checkpoint(root, [(category, inventory[category]['args'])],
                            resume=True, binding=vm,
                            recover_missing=resuming and bool(vm)
-                           and category in ('system', 'integration', 'e2e'))
+                           and category in ('system', 'e2e'))
         return True if case in saved.passed(category) else None
 
     def close_verified(*, category=None):
@@ -1856,7 +1856,6 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
     retained_sources = {}
     retained_family_cases = {}
     retained_progress = {}
-    integration_inventory_resume = False
     legacy = root / 'artifacts/fix-tests'
     if (legacy / 'owner').exists():
         with lock(legacy / 'owner') as owner:
@@ -1873,7 +1872,6 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
                 return run, False
     def command(run, owner):
         nonlocal retained_git, retained_pipelines, retained_queue, retained_pending, retained_waiting, retained_evidence
-        nonlocal integration_inventory_resume
         # Only explicit resume carries workflow state into a new allocation.
         # Read before shared retention can retire the previous run allocation.
         previous = current_run(run.parent) if resume else None
@@ -1949,13 +1947,6 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
         listing = subprocess.run([str(root / 'tools/run-tests'), '--list'], cwd=root,
                                  env=environment(), capture_output=True, text=True, check=True)
         inventory = requested_inventory(root, categories, inventory=category_inventory(listing.stdout))
-        from test_checkpoint import request_record
-        prior_request = request_record(root, 'fix-tests') if resume else None
-        integration_inventory_resume = (
-            'integration' in inventory and inventory['integration']['args'] == []
-            and (not resume or (prior_request is not None
-                 and prior_request['categories'] == list(categories) and prior_request['vm'] == name
-                 and prior_request.get('integration_inventory_resume', True))))
         default_model, app_model = available_models(selected_model, effort, categories=inventory)
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                 '--worker', str(root), str(run), str(owner), default_model,
@@ -1995,9 +1986,7 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
         TaskBudget(run).initialize(tasks)
         save_binding(run, name)
         from test_checkpoint import request_record
-        request_record(root, 'fix-tests', dict(categories=list(categories), rounds=rounds,
-                                             vm=name,
-                                             integration_inventory_resume=integration_inventory_resume))
+        request_record(root, 'fix-tests', dict(categories=list(categories), rounds=rounds, vm=name))
     def attached(run):
         check_binding(run, name, stopping=stop)
         if tasks is not None:

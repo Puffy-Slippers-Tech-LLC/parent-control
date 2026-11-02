@@ -6,7 +6,7 @@ Every parameter variant is a distinct case. Lifecycle phases share that case's
 ID while their existing phase::case checkpoint identities stay unchanged.
 
 Register standalone OS/backend, authorization and engineering assertions only.
-Public E2E building-block qualifications belong to neither system nor integration,
+Public E2E building-block qualifications have no system registration,
 even while their E2E consumers are pending. Shared feature names do not make
 internal payload, caller-authority, PAM or fault/recovery assertions duplicates.
 """

@@ -73,7 +73,7 @@ completion from current route qualification and scenario registration.
 Documentation or allocation review does not advance the pointer or replace
 live acceptance.
 
-The [system/integration allocation](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage)
+The [system allocation](UI-and-E2E-Coverage.md#reuse-of-system-coverage)
 keeps complete customer journeys while removing duplicate engineering cases,
 steps and acceptance matrices. The queue records removed duplicate tasks;
 remaining briefs identify the missing assertion or binding under the existing

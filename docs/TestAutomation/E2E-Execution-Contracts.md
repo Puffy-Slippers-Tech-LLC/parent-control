@@ -19,7 +19,7 @@ prerequisites, implementation and acceptance alongside these applicable owners:
 | Any implementation | [Shared support guide](../../tests/support/README.md), [bounded supporting work](E2E-Building-Blocks.md#keep-supporting-work-bounded) and [composition preflight](E2E-Building-Blocks.md#composition-preflight). Cases and qualifications call the same shared operations; callers retain their distinct assertions. |
 | Designing or revising a journey | [Product-focused journeys](#product-focused-journeys): retain product outcomes and necessary safety guards; remove incidental provider requirements from completed and unfinished coverage. |
 | VM timing, including unfinished and deferred consumers | [Timing and slow-VM resilience](../Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience). Apply it during composition preflight to setup, authentication, transitions, observations and recovery; each recipe retains only its finite inputs and product timing assertions. |
-| Existing system/integration coverage | Apply [assertion-level reuse](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage) to the case, its steps and acceptance. Remove duplicate engineering work; preserve the complete customer journey and its independent public outcomes. |
+| Existing system coverage | Apply [assertion-level reuse](UI-and-E2E-Coverage.md#reuse-of-system-coverage) to the case, its steps and acceptance. Remove duplicate engineering work; preserve the complete customer journey and its independent public outcomes. |
 | UI work | [Application UI API](Application-UI-API.md), [UI mandate](../Mandates/UI-Automation-Mandate.MD) and [UI/E2E allocation](UI-and-E2E-Coverage.md). All existing and new product reads/actions use the shared UI/E2E facade with scoped stable IDs and canonical values. Keep authentication, file choosers and supporting tools in their external adapters; supporting system operations use shared commands/APIs. |
 | Reusable guest inputs | [Baseline lifetime](../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline). Add declared fixtures/dependencies to idempotent baseline preparation; attempts and app-snapshot preparation verify them. Deliberate package/account/file mutations under test remain in the journey. |
 | Host checks | Apply the [test scope mandate](../Mandates/Test-Scope-Mandate.md) before adding infrastructure coverage; then use [suite selection](../../tests/README.md#all-established-regressions) and [parallelism review](../../tests/README.md#host-test-parallelism-review). Use selected `tools/run-tests unit`/`ui` scopes. Direct launchers remain available for narrow diagnosis. |
@@ -476,13 +476,13 @@ under their applicable contract; reuse unchanged exact bindings and their guards
 Complete scenarios stay in their separate rows. Planned
 `check_e2e_...` names must be implemented before invocation. New entries are
 argument-free `tests/integration/check_[a-z][a-z0-9_]*.py` files with applicable
-cleanup tests, selected by `tools/run-tests integration --vm NAME <name>`. Reuse shared
+cleanup tests, selected by `tools/run-tests system --vm NAME <name>`. Reuse shared
 helpers and verified assets (`tools/run-tests artifacts build` when needed);
 no new generic dispatcher or partial registered scenario. Record a passing slice
 as qualified for its exact scope. Other bindings can keep the catalogue row
 pending; a later complete scenario is not a prerequisite of its own building block.
-Registering this guarded selector does not register an integration or system test;
-category membership follows the [standalone assertion boundary](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage),
+Registering this guarded selector does not register an system test;
+category membership follows the [standalone assertion boundary](UI-and-E2E-Coverage.md#reuse-of-system-coverage),
 including while the E2E consumer is pending.
 
 ### Scenario acceptance

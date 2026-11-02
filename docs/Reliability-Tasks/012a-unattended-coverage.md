@@ -25,7 +25,7 @@ cases participate in established unattended selections and resource/fixture
 classifications are complete. Correct registration gaps, duplicate bindings and
 stale planned names at their owner. Preserve customer E2E, obligation 143 and
 core-installation queue statuses; engineering coverage grants no journey credit.
-Record compact repeat commands using existing `tools/run-tests`/integration
+Record compact repeat commands using existing `tools/run-tests system`
 routes, without a second runner or evidence archive. This is a maintained
 coverage deliverable, not a rerun of all earlier acceptance.
 

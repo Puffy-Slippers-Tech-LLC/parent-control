@@ -22,7 +22,7 @@ def metadata(root, category, nodeid):
         return None
     identifier, title = identity
     description = ''
-    if category == 'system':
+    if category == 'system' and not nodeid.startswith('check_'):
         from tests.integration.system_case_ids import identity_for_event
         case = identity_for_event(nodeid)
         function = case.case_id.split('[')[0]
@@ -111,7 +111,7 @@ def load(root):
             try:
                 record = _read(fd, name)
                 from tools.recording_storage import case_identity
-                if (record['category'] not in ('system', 'integration', 'e2e')
+                if (record['category'] not in ('system', 'e2e')
                         or not case_identity(record['id'])
                         or name != _name(record['category'], record['id'])
                         or not isinstance(record['seconds'], (float, int))
@@ -164,7 +164,7 @@ class Tracker:
         self.pending = {}
 
     def event(self, event):
-        if self.category not in ('system', 'integration', 'e2e'):
+        if self.category not in ('system', 'e2e'):
             return
         if event.get('kind') == 'collection':
             nodeids = event.get('nodeids')

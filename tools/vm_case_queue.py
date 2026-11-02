@@ -16,9 +16,6 @@ def family_binding(family, workers=None):
 def case_inventory(root, category, options, *, vm=None, pass_fds=()):
     """Collect existing public identities without starting a VM."""
     from test_commands import execution_selections
-    if category == 'integration':
-        return list(dict.fromkeys(args[0] for _, args in execution_selections(
-            root, [(category, list(options))])))
     if category == 'system':
         import test_launcher
         from test_storage import scratch_descriptors
@@ -26,6 +23,11 @@ def case_inventory(root, category, options, *, vm=None, pass_fds=()):
         name = vm or selected().name
         cases = []
         for _, arguments in execution_selections(root, [('system', list(options))]):
+            from test_commands import system_check_selection
+            check = system_check_selection(arguments)
+            if check:
+                cases.append(check)
+                continue
             command = [str(root / 'tools/run-tests'), 'system', *arguments,
                        '--vm', name, '--list']
             result = subprocess.run(command, cwd=root, env=test_launcher.environment(root),
@@ -60,6 +62,9 @@ def work_items(category, options, cases):
         return [item([case]) for case in cases]
     groups = {}
     for case in cases:
+        if case.startswith('check_'):
+            groups[('check', case)] = [case]
+            continue
         phase, _, logical = case.partition('::')
         area = phase in INDEPENDENT_SYSTEM_AREAS
         key = ('area', phase) if area else ('history', logical)

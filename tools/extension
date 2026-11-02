@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Run extension recovery VM tests through the shared execution-plan driver."""
+"""Run extension recovery system tests through the shared execution-plan driver."""
 from pathlib import Path
 import sys
 

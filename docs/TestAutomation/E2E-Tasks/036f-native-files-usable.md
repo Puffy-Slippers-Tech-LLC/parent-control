@@ -42,5 +42,5 @@ Launch from Files, observe a normal action's effect, then open a distinguishable
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_native_files_usable
+tools/run-tests system check_e2e_native_files_usable
 ```

@@ -15,11 +15,11 @@ headroom and the separation of product timing assertions from test overhead.
   authorization, enforcement, saved state, recovery and supported lifecycle
   boundaries at the lowest effective layer. Retain installed checks where the
   actual integration or customer journey is necessary.
-- **Register standalone tests, not E2E building blocks.** System and integration
-  retain checks with distinct OS/backend, authorization, fault/recovery or
+- **Register standalone tests, not E2E building blocks.** System
+  retains checks with distinct OS/backend, authorization, fault/recovery or
   essential infrastructure assertions outside current or planned E2E composition.
-  Qualifications that only exercise those E2E building blocks have no system or
-  integration registration, even while their consumers are pending. Preserve
+  Qualifications that only exercise those E2E building blocks have no system
+  registration, even while their consumers are pending. Preserve
   shared operations and focused qualification routes without scheduling exclusions.
   A mixed engineering history retains its distinct assertions and necessary
   public recovery controls, not a separate public-only qualification attempt.
@@ -59,7 +59,7 @@ results. Those are ordinary test code; validate them through their product tests
   that regression, its doubles, assertions or private setup. A small synthetic
   passing/failing test is appropriate when checking a runner's actual verdict;
   replaying real feature-test bodies or recursively launching their suites is not.
-  A separate integration check is warranted only for a distinct process,
+  A separate installed-system check is warranted only for a distinct process,
   privilege or storage boundary that the direct check cannot exercise.
 - Do not add or retain UI tests of test tools, including dashboards, watchers,
   evidence viewers and fixture control panels. Exercise any critical execution,

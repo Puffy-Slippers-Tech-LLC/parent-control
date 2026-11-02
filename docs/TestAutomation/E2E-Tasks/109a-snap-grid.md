@@ -33,5 +33,5 @@ On the VM, launch a usable Snap fixture from the grid and observe a real input e
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_snap_grid
+tools/run-tests system check_e2e_snap_grid
 ```

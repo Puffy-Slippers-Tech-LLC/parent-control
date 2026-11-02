@@ -49,5 +49,5 @@ In an authorized VM attempt, use LIFE06 to remove Internet access, Send once and
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_overlay_sending_stay
+tools/run-tests system check_e2e_overlay_sending_stay
 ```

@@ -23,7 +23,7 @@ def e2e_case_ids(root, args):
 class SelectedRun(Run):
     def __init__(self, root, report, control, selections, *, stop_on_error=False):
         selections = execution_selections(root, selections)
-        includes_vm = any(kind in ('system', 'e2e', 'integration') for kind, _ in selections)
+        includes_vm = any(kind in ('system', 'e2e') for kind, _ in selections)
         super().__init__(root, report, control, host_only=not includes_vm,
                          scope='selected categories only', continue_on_errors=not stop_on_error)
         self.serial_host = (len(selections) == 1 and selections[0][0] in ('unit', 'component', 'ui')
@@ -45,10 +45,10 @@ class SelectedRun(Run):
             events = self.events(kind, args)
             item = Category(name, None if events or kind == CLEANUP_SELECTION else 1,
                             count_overall=not (kind == 'artifacts' and args == ['prepare']),
-                            host=kind not in ('system', 'e2e', 'integration'),
+                            host=kind not in ('system', 'e2e'),
                             phase='cleanup' if kind == CLEANUP_SELECTION else 'host')
             item.selection_args = tuple(args)
-            if kind == 'integration':
+            if kind == 'system' and args and args[0].startswith('check_'):
                 item.name += ' — ' + args[0]
                 item.retry_category = kind
             if kind == 'e2e' and events:
@@ -60,6 +60,8 @@ class SelectedRun(Run):
 
     @staticmethod
     def events(kind, args):
+        if kind == 'system' and any(arg.startswith('check_') for arg in args):
+            return False
         if kind == 'e2e':
             return not any(arg.startswith('--qualify-') for arg in args)
         return kind in ('unit', 'component', 'ui', 'fixture-runtime', 'coverage', 'system') and (

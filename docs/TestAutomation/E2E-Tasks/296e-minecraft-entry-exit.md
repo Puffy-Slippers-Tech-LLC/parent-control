@@ -30,5 +30,5 @@ From an independently supplied Lunar surface, launch the prepared game to its pu
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_minecraft_entry_exit
+tools/run-tests system check_e2e_minecraft_entry_exit
 ```

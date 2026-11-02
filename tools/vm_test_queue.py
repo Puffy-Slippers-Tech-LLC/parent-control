@@ -65,8 +65,8 @@ def split(root, argv):
     selected = selections(root, args)
     if len(selected) == 1 and selected[0][0] in AGGREGATES:
         selected = [(kind, []) for kind in PHASES]
-    host = [(kind, options) for kind, options in selected if kind not in ('system', 'e2e', 'integration')]
-    guests = [(kind, options) for kind, options in selected if kind in ('system', 'e2e', 'integration')]
+    host = [(kind, options) for kind, options in selected if kind not in ('system', 'e2e')]
+    guests = [(kind, options) for kind, options in selected if kind in ('system', 'e2e')]
     def flatten(groups):
         result = [*(['--resume'] if '--resume' in argv else []),
                   *(['--resume-case-only'] if '--resume-case-only' in argv else []),
@@ -388,7 +388,7 @@ def run(root, argv, *, reloading=False):
                 if (result['status'] if isinstance(result, dict) else result) != 0:
                     if not vm_categories:
                         vm_categories.extend(kind for kind, _ in guest_selection
-                                             if kind in ('system', 'integration', 'e2e'))
+                                             if kind in ('system', 'e2e'))
                     for category in dict.fromkeys(vm_categories):
                         if not any(item['category'] == category for item in vm_failures):
                             vm_failures.append(dict(category=category, case='', vm=vm.name))

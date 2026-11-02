@@ -2020,7 +2020,7 @@ def test_rename_failures_roll_back_only_owned_metadata(lease_rig, monkeypatch, f
 
 @pytest.mark.parametrize('status', [0, 1, 130])
 @pytest.mark.parametrize('argv', [['vm', 'start'], ['vm', 'stop'],
-                                 ['integration', 'check_test_recovery']])
+                                 ['system', 'check_test_recovery']])
 def test_foreground_dispatch_runs_only_owned_operation_without_test_gate(tmp_path, monkeypatch, argv, status):
     root = Path(__file__).resolve().parents[2]
     dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))

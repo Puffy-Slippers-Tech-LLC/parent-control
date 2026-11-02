@@ -36,5 +36,5 @@ Launch each declared Flatpak fixture, perform its normal action, capture S and o
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_flatpak_command_usable
+tools/run-tests system check_e2e_flatpak_command_usable
 ```

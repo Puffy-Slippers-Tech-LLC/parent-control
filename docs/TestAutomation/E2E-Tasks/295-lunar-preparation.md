@@ -42,7 +42,7 @@ for tasks 296, 296a and 296b. Implement and register the planned fixed qualifica
 the existing guarded envelope before invocation:
 
 ```sh
-tools/run-tests integration check_e2e_lunar_profile
+tools/run-tests system check_e2e_lunar_profile
 ```
 
 Follow [close-out](../E2E-Execution-Plan.md#completion-and-document-cleanup) only

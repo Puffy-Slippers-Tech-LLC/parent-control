@@ -54,5 +54,5 @@ repeat their full histories solely to qualify this negative observation.
 Implement and register the following planned fixed qualification before use:
 
 ```sh
-tools/run-tests integration check_e2e_lunar_login_observer
+tools/run-tests system check_e2e_lunar_login_observer
 ```

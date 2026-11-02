@@ -57,5 +57,5 @@ replaying GDM's unchanged qualification history.
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_suspend_active_grant
+tools/run-tests system check_e2e_suspend_active_grant
 ```

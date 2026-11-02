@@ -36,7 +36,8 @@ CATEGORY_NAMES = {
     'traceability': 'Traceability', 'coverage': 'Python coverage',
     'check': 'Make check', 'component-all': 'Component checks',
     'fixtures': 'Test fixtures', 'artifacts': 'Package build A',
-    'integration': 'Integration checks', 'fast': 'Fast tests',
+    'graphical-worker': 'Graphical worker containment', 'package-notice': 'Package notice lifecycle',
+    'fast': 'Fast tests',
 }
 
 
@@ -219,14 +220,14 @@ class Dashboard:
         hosts = [item for item in visible if item.host]
         rendered = set()
         for item in visible:
-            if item.retry_category == 'integration':
-                if 'integration' not in rendered:
-                    rendered.add('integration')
+            if item.retry_category == 'system':
+                if 'system' not in rendered:
+                    rendered.add('system')
                     checks = [other for other in self.categories
-                              if other.retry_category == 'integration' and other.count_overall]
+                              if other.retry_category == 'system' and other.count_overall]
                     if checks:
                         lines.extend(('│  ' if hosts else '') + line
-                                     for line in self.integration(checks, now))
+                                     for line in self.system(checks, now))
                 continue
             if item.host:
                 if item.phase not in rendered:
@@ -260,12 +261,12 @@ class Dashboard:
             lines.append('\033[31;1m' + notice + '\033[0m')
         return lines
 
-    def integration(self, checks, now):
+    def system(self, checks, now):
         """Summarize the selected checks without flooding each VM's dashboard."""
         state = next((state for state in ('Failed', 'Interrupted', 'Blocked', 'Running')
                       if any(item.state == state for item in checks)),
                      'Passed' if all(item.state == 'Passed' for item in checks) else 'Pending')
-        summary = Category(CATEGORY_NAMES['integration'],
+        summary = Category(CATEGORY_NAMES['system'],
                            None if any(item.progress_total is None for item in checks) else
                            sum(item.progress_total for item in checks),
                            done=sum(item.progress_done for item in checks), state=state,
@@ -276,7 +277,7 @@ class Dashboard:
         # Keep the active check, admission reasons and failures actionable. Full
         # per-check results remain in the report and progress inventory.
         lines.extend('  ' + self.category(replace(item, name='Check: ' + item.name.removeprefix(
-                         CATEGORY_NAMES['integration'] + ' — ')), now, show_counts=False)
+                         CATEGORY_NAMES['system'] + ' — ')), now, show_counts=False)
                      for item in checks
                      if item.state in ('Running', 'Failed', 'Interrupted', 'Blocked') or item.wait_reason)
         return lines
@@ -646,7 +647,7 @@ class Execution:
                 spec = CATEGORIES.get(item.retry_category)
                 if spec is not None and spec.scope == 'vm':
                     args = item.selection_args or []
-                    self.recording_case = args[0] if args else item.retry_category
+                    self.recording_case = args[0].removesuffix('.py') if args else item.retry_category
                     self.recording_event('started')
         except BaseException:
             self.close()
@@ -908,7 +909,7 @@ class Execution:
                       'passed' if self.result_closed and self.item.state == 'Passed' else 'diagnostic')
             record = dict(sequence=self.sequence, category=category, check=category,
                 name=self.item.name, argv=self.argv,
-                target=os.environ.get(VARIABLE, '') if category in ('system', 'e2e', 'integration') else '',
+                target=os.environ.get(VARIABLE, '') if category in ('system', 'e2e') else '',
                 collect=self.collect, events=self.events,
                 selected_ids=list(self.item.nodeids or ()), resumed_ids=list(self.item.resumed_nodeids),
                 completed_ids=sorted(self.finished), failed_ids=list(self.item.failed_nodeids),
@@ -928,13 +929,13 @@ class Run:
         self.checkpoint = None
         self.continue_on_errors = continue_on_errors
         self.phases = phases if phases is not None else (
-            ('host',) if host_only or host_builds else ('host', 'system', 'integration', 'e2e'))
+            ('host',) if host_only or host_builds else ('host', 'system', 'e2e'))
         self.serial_builds = serial_builds
-        self.includes_vm = any(kind in self.phases for kind in ('system', 'integration', 'e2e'))
+        self.includes_vm = any(kind in self.phases for kind in ('system', 'e2e'))
         self.verification_mode = ('not applicable; host-only run' if not self.includes_vm else
                                   'metadata-only; image contents are not scanned')
         self.report.write('\nScope: ' + (scope or ('complete regression' if
-                          self.phases == ('host', 'system', 'integration', 'e2e') else ' + '.join(self.phases))) + '\n')
+                          self.phases == ('host', 'system', 'e2e') else ' + '.join(self.phases))) + '\n')
         if scope is None:
             self.report.write('\nBuild scheduling: ' + ('after host join (serial comparison)' if serial_builds else
                               'qualified host companions') + '\n')
@@ -952,11 +953,11 @@ class Run:
     def prepare_vm_selections(self):
         from test_commands import execution_selections
         for kind, args in execution_selections(self.root, [(kind, []) for kind in self.phases
-                                                         if kind in ('system', 'integration')]):
+                                                         if kind in ('system',)]):
             if not args:  # The ordinary current-package system suite.
                 continue
             item = Category(CATEGORY_NAMES[kind] + ' — ' + ' '.join(args),
-                            None if kind == 'system' else 1,
+                            1 if args[0].startswith('check_') else None,
                             retry_category=kind, selection_args=tuple(args))
             self.vm_extras.append((kind, args, item))
 
@@ -971,7 +972,7 @@ class Run:
         if category == 'ui':
             return [str(self.root / 'tools/run-ui-tests'), '--unattended', *args]
         from vm_selection import arguments
-        vm_args = arguments() if category in ('system', 'e2e', 'integration') else []
+        vm_args = arguments() if category in ('system', 'e2e') else []
         return [str(self.root / 'tools/run-tests'), category, '--unattended', *args, *vm_args]
 
     def resume_category(self, item, kind=None):
@@ -981,12 +982,6 @@ class Run:
             if kind == 'system':
                 selected, _ = self.system_resume_cases(item.selection_args)
                 omit = retry not in selected
-            elif kind == 'integration':
-                groups = self.checkpoint.entry(kind)['args']
-                groups = groups if groups and isinstance(groups[0], list) else [groups]
-                if retry not in {args[0] for args in groups if args}:
-                    raise ValueError('case retry is outside the selected integration inventory')
-                omit = retry != item.selection_args[0]
             else:
                 omit = False
             if omit:
@@ -994,8 +989,10 @@ class Run:
                 # or counting unexecuted work as coverage.
                 item.total, item.done, item.state, item.count_overall = 0, 0, 'Passed', False
                 return True
-        if kind == 'integration' and self.checkpoint is not None and item.selection_args:
-            if item.selection_args[0] not in self.checkpoint.passed(kind):
+        from test_commands import system_check_selection
+        check = system_check_selection(item.selection_args or ()) if kind == 'system' else None
+        if check and self.checkpoint is not None:
+            if check not in self.checkpoint.passed(kind):
                 return False
             item.done, item.state = 1, 'Passed'
             return True
@@ -1043,6 +1040,10 @@ class Run:
                        for area in system_runner.AREA_SOURCES}
 
         def identities(options):
+            from test_commands import system_check_selection
+            check = system_check_selection(options)
+            if check:
+                return {check}
             # Reuse the dispatcher's public parser, then read only its
             # normalized selectors; do not implement another CLI parser.
             options, selector = vm_config.extract_selector(list(options))
@@ -1089,6 +1090,9 @@ class Run:
         if (not passed and not retry) or kind not in ('system', 'e2e'):
             return command
         if kind == 'system':
+            from test_commands import system_check_selection
+            if system_check_selection(command[2:]):
+                return command
             groups = self.checkpoint.entry(kind)['args']
             selected = passed
             if retry or groups and isinstance(groups[0], list):
@@ -1138,6 +1142,7 @@ class Run:
         return [*command[:2], '--unattended', *filtered]
 
     def execute(self, item, command, *, collect=False, events=False, units=None):
+        from test_commands import system_check_selection
         if self.control.stopped.is_set():
             item.state = 'Interrupted'
             return 130, ''
@@ -1149,7 +1154,7 @@ class Run:
             return 0, ''
         if not collect:
             command = self.resume_command(item, command)
-            if item.retry_category == 'system' and self.checkpoint is not None:
+            if item.retry_category == 'system' and self.checkpoint is not None and not system_check_selection(command[2:]):
                 # The controller announces the remaining resolved inventory.
                 item.total = None
         if not collect and len(command) > 1 and command[1] in ('publish', 'publish-deb', 'publish-rpm', 'artifacts', 'fixtures', 'system', 'e2e'):
@@ -1179,11 +1184,11 @@ class Run:
                                       output=execution.output, cooperative=True,
                                       tick=tick)
             result = execution.finish(status)
-            if item.retry_category == 'integration' and item.selection_args:
-                case = item.selection_args[0]
+            if item.retry_category == 'system' and system_check_selection(command[2:]):
+                case = system_check_selection(command[2:])
                 passed = item.state == 'Passed'
                 if self.checkpoint is not None:
-                    self.checkpoint.event('integration',
+                    self.checkpoint.event('system',
                         dict(kind='finished' if passed else 'failure', nodeid=case), set())
                 if not passed:
                     item.failed_nodeids = (case,)
@@ -1549,7 +1554,7 @@ class Run:
                 raise ValueError('installed-system attempt failed; subsequent VM attempts refused')
         for kind, args, item in self.vm_extras:
             self.dashboard.controller_category = (kind, self.phases.index(kind) + 1, len(self.phases))
-            status, _ = self.execute(item, self.command(kind, *args), events=kind == 'system')
+            status, _ = self.execute(item, self.command(kind, *args), events=kind == 'system' and not args[0].startswith('check_'))
             if self.control.stopped.is_set():
                 return
             if status or item.state != 'Passed':
@@ -1776,7 +1781,7 @@ def failure_targets(categories, *, vm=''):
     for item in categories:
         if not item.retry_category or not (item.failures or item.state == 'Failed'):
             continue
-        scope = vm if item.retry_category in ('system', 'e2e', 'integration') else ''
+        scope = vm if item.retry_category in ('system', 'e2e') else ''
         for case in item.failed_nodeids or ('',):
             target = dict(category=item.retry_category, case=case, vm=scope)
             if target not in targets:

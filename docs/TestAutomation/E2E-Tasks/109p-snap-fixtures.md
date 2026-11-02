@@ -54,5 +54,5 @@ unchanged recipient and cleanup refusal coverage. Runtime guards still apply
 to every attempt. Do not replay the baseline preparation/refusal matrix.
 
 ```sh
-tools/run-tests integration check_e2e_snap_fixtures
+tools/run-tests system check_e2e_snap_fixtures
 ```

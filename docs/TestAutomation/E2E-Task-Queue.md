@@ -68,7 +68,7 @@ reopens Parent after Save. Required launch integrations,
 natural expiry, authentication, interval coverage and ownership guards remain.
 These planning changes leave task status and live qualification unchanged.
 
-The [system/integration allocation](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage)
+The [system allocation](UI-and-E2E-Coverage.md#reuse-of-system-coverage)
 removes duplicate engineering cases, prerequisite steps and acceptance matrices
 while preserving complete customer journeys.
 
@@ -174,7 +174,7 @@ task **218** remain unchanged; task IDs and case IDs are separate namespaces.
 Task **177** is removed from scheduling. Engineering obligation **148** reuses
 the executable threaded broker conflict/retry tests in `tests/unit/test_core.py`,
 private-bus concurrent-dispatch coverage and system **255**'s real bus/agent
-Busy/release boundary. The [allocation owner](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage)
+Busy/release boundary. The [allocation owner](UI-and-E2E-Coverage.md#reuse-of-system-coverage)
 names the exact assertions. Do not add another installed concurrency qualifier
 for the same ordering, rollback and retry results. This allocation supplies no
 new pass and leaves customer approval/interruption histories pending.

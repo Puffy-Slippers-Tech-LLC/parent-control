@@ -44,5 +44,5 @@ or independent public policy observations block the affected consumer.
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_snap
+tools/run-tests system check_e2e_snap
 ```

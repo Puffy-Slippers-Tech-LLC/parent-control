@@ -69,7 +69,7 @@ def test_named_input_preparation_precedes_dispatch_and_failure_stops_privilege(
     monkeypatch.setattr(dev_privileges, 'check', authorize)
     selector = name + suffix
     assert regression_process.category_run(
-        ROOT, 'integration', [selector], pipe=False) == build_status
+        ROOT, 'system', [selector], pipe=False) == build_status
     allocate.assert_called_once_with(output)
     flags = ['--upgrade-inputs'] if options.get('upgrade_source') else []
     assert execute.call_args_list[0].args[0] == commands.python_file(
@@ -82,12 +82,12 @@ def test_named_input_preparation_precedes_dispatch_and_failure_stops_privilege(
         assert execute.call_count == 2
         authorize.assert_called_once_with('/usr/local/libexec/onpc-test-runner')
         assert freeze.call_count == 1
-        assert freeze.call_args.args == (ROOT, 'integration', [selector])
+        assert freeze.call_args.args == (ROOT, 'system', [selector])
         assert isinstance(freeze.call_args.kwargs['control'], regression_process.Control)
         assert freeze.call_args.kwargs['environment']['PYTHONUNBUFFERED'] == '1'
         assert execute.call_args.args[0] == [
             '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-            '/usr/local/libexec/onpc-test-runner', '--unattended', 'integration', selector, *vm_args,
+            '/usr/local/libexec/onpc-test-runner', '--unattended', 'system', selector, *vm_args,
             *fixture_options]
 
 
@@ -96,13 +96,13 @@ def test_fixture_qualification_refuses_other_target_before_preparing(monkeypatch
     monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='unqualified-target'))
     control = Mock()
     with pytest.raises(ValueError, match='target is unavailable'):
-        commands.qualification_fixture_options(ROOT, 'integration', ['check_fixture_provisioning'], control=control)
+        commands.qualification_fixture_options(ROOT, 'system', ['check_fixture_provisioning'], control=control)
     control.run.assert_not_called()
 
 
 @pytest.mark.parametrize(('category', 'arguments'), [
-    ('integration', ['check_fixture_transfer']),
-    ('integration', ['check_fixture_transfer.py']),
+    ('system', ['check_fixture_transfer']),
+    ('system', ['check_fixture_transfer.py']),
     ('e2e', ['--qualify-transfer']),
 ])
 @pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
@@ -128,7 +128,7 @@ def test_transfer_freezes_exact_input_before_privileged_dispatch(
 
 
 @pytest.mark.parametrize(('category', 'arguments'), [
-    ('integration', ['check_fixture_transfer']), ('e2e', ['--qualify-transfer']),
+    ('system', ['check_fixture_transfer']), ('e2e', ['--qualify-transfer']),
 ])
 def test_transfer_refuses_unqualified_target_before_input_preparation(monkeypatch, category, arguments):
     import vm_selection
@@ -136,17 +136,17 @@ def test_transfer_refuses_unqualified_target_before_input_preparation(monkeypatc
     control = Mock()
     with pytest.raises(ValueError, match='fixture transfer target is unavailable'):
         commands.qualification_fixture_options(ROOT, category, arguments, control=control)
-    if category == 'integration':
+    if category == 'system':
         with pytest.raises(ValueError, match='fixture transfer target is unavailable'):
             commands.qualification_artifact_command(ROOT, category, arguments)
     control.run.assert_not_called()
 
 
 @pytest.mark.parametrize(('category', 'arguments'), [
-    ('integration', ['check_graphical_serial']),
-    ('integration', ['check_graphical_serial.py']),
-    ('integration', ['check_fixture_serial']),
-    ('integration', ['check_fixture_serial.py']),
+    ('system', ['check_graphical_serial']),
+    ('system', ['check_graphical_serial.py']),
+    ('system', ['check_fixture_serial']),
+    ('system', ['check_fixture_serial.py']),
     ('e2e', ['--qualify-install']), ('e2e', ['--qualify-install-refusal']),
 ])
 @pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
@@ -167,7 +167,7 @@ def test_serial_freezes_exact_input_and_refuses_unknown_target_before_preparatio
     assert commands.qualification_fixture_options(ROOT, category, arguments,
         control=SimpleNamespace(run=execute), environment={}) == [
             '--fixture-selection', json.dumps(record, sort_keys=True)]
-    if category == 'integration':
+    if category == 'system':
         # Bare serial needs no assets; qualification retains its readback witness.
         expected = ({'vm_source': True, 'fixture_source': True}
                     if arguments[0].removesuffix('.py') == 'check_fixture_serial' else None)
@@ -179,7 +179,7 @@ def test_serial_freezes_exact_input_and_refuses_unknown_target_before_preparatio
     control = Mock()
     with pytest.raises(ValueError, match='fixture serial target is unavailable'):
         commands.qualification_fixture_options(ROOT, category, arguments, control=control)
-    if category == 'integration':
+    if category == 'system':
         with pytest.raises(ValueError, match='fixture serial target is unavailable'):
             commands.qualification_artifact_command(ROOT, category, arguments)
     control.run.assert_not_called()
@@ -202,7 +202,7 @@ def test_recorded_serial_freezes_exact_input_before_dispatch(
                                                '--target', target, '--fixture-path', fixture_path)
         options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n').encode())
         return 0
-    assert commands.qualification_fixture_options(ROOT, 'integration', [selector],
+    assert commands.qualification_fixture_options(ROOT, 'system', [selector],
         control=SimpleNamespace(run=execute), environment={}) == [
             '--fixture-selection', json.dumps(record, sort_keys=True)]
     assert commands.qualification_input_options(ROOT, selector) == {
@@ -216,10 +216,10 @@ def test_recorded_serial_refuses_before_input_preparation(monkeypatch, suffix):
     selector = 'check_fixture_recorded_serial' + suffix
     control = Mock()
     for operation in (
-            lambda: commands.plan(ROOT, 'integration', [selector]),
-            lambda: commands.qualification_artifact_command(ROOT, 'integration', [selector]),
+            lambda: commands.plan(ROOT, 'system', [selector]),
+            lambda: commands.qualification_artifact_command(ROOT, 'system', [selector]),
             lambda: commands.qualification_fixture_options(
-                ROOT, 'integration', [selector], control=control)):
+                ROOT, 'system', [selector], control=control)):
         with pytest.raises(ValueError, match='fixture recorded serial target is unavailable'):
             operation()
     control.run.assert_not_called()
@@ -232,17 +232,17 @@ def test_product_free_fixture_target_refuses_before_package_or_fixture_input(mon
     monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='unqualified-target'))
     control = Mock()
     for operation in (
-            lambda: commands.plan(ROOT, 'integration', [selector + suffix]),
-            lambda: commands.qualification_artifact_command(ROOT, 'integration', [selector + suffix]),
+            lambda: commands.plan(ROOT, 'system', [selector + suffix]),
+            lambda: commands.qualification_artifact_command(ROOT, 'system', [selector + suffix]),
             lambda: commands.qualification_fixture_options(
-                ROOT, 'integration', [selector + suffix], control=control)):
+                ROOT, 'system', [selector + suffix], control=control)):
         with pytest.raises(ValueError, match='target is unavailable'):
             operation()
     control.run.assert_not_called()
 
 
 @pytest.mark.parametrize(('category', 'arguments'), [
-    *(('integration', [name]) for name in PRODUCT_FREE_FIXTURE_SELECTORS),
+    *(('system', [name]) for name in PRODUCT_FREE_FIXTURE_SELECTORS),
     ('system', ['--area=lifecycle', '--test=first-configure', '--previous-artifacts=/tmp/onpc-previous']),
 ])
 @pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
@@ -275,7 +275,7 @@ def test_product_free_runner_freezes_exact_input_before_dispatch(
 
 
 @pytest.mark.parametrize(('category', 'arguments'), [
-    *(('integration', [name]) for name in PRODUCT_FREE_FIXTURE_SELECTORS),
+    *(('system', [name]) for name in PRODUCT_FREE_FIXTURE_SELECTORS),
     ('system', ['--artifacts=/tmp/onpc-packages', '--previous-artifacts=/tmp/onpc-previous',
                 '--area=lifecycle', '--test=first-configure']),
 ])
@@ -291,14 +291,14 @@ def test_product_free_dispatcher_preserves_the_frozen_record(
     encoded = json.dumps(record)
     source_options = (['--fixture-source-selection', json.dumps(source_proof_selection(frozen_fixture_selection))]
                       if arguments == ['check_fixture_system_product_free'] else [])
-    selected_arguments = ([arguments[0] + suffix] if category == 'integration' else arguments)
+    selected_arguments = ([arguments[0] + suffix] if commands.system_check_selection(arguments) else arguments)
     command = dispatch(ROOT, [category, *selected_arguments, '--fixture-selection', encoded,
                               *source_options, '--vm', vm])
     index = command.index('--fixture-selection')
     assert json.loads(command[index + 1]) == record
     if source_options:
         assert json.loads(command[command.index('--fixture-source-selection') + 1]) == source_proof_selection(frozen_fixture_selection)
-    if category == 'system':
+    if not commands.system_check_selection(arguments):
         assert command[-2:] == ['--area=lifecycle', '--test=first-configure']
         for option in ('--artifacts', '--previous-artifacts'):
             assert command[command.index(option) + 1] in ('/tmp/onpc-packages', '/tmp/onpc-previous')
@@ -306,11 +306,11 @@ def test_product_free_dispatcher_preserves_the_frozen_record(
 
 @pytest.mark.parametrize('selector', ['check_fixture_provisioning', *SYSTEM_BOOTSTRAP_ALIASES, 'check_future_feature'])
 @pytest.mark.parametrize('vm', [vm_name(0), vm_name(1)])
-def test_source_proof_option_refuses_other_integration_selectors(monkeypatch, selector, frozen_fixture_selection, vm):
+def test_source_proof_option_refuses_other_system_checks(monkeypatch, selector, frozen_fixture_selection, vm):
     monkeypatch.setenv('ONPC_TEST_VM', vm)
     dispatch = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))['selection']
     with pytest.raises(ValueError, match='unexpected-fixture-source-selection'):
-        dispatch(ROOT, ['integration', selector, '--vm', vm,
+        dispatch(ROOT, ['system', selector, '--vm', vm,
                         '--fixture-selection', json.dumps(frozen_fixture_selection.record()),
                         '--fixture-source-selection', json.dumps(source_proof_selection(frozen_fixture_selection))])
 
@@ -333,13 +333,13 @@ def test_installed_system_freezes_original_input_and_actual_source_proof(
             + 'fixture-execution: source-edit=' + json.dumps(source) + '\n').encode())
         return 0
     control = SimpleNamespace(run=Mock(side_effect=execute))
-    options = commands.qualification_fixture_options(ROOT, 'integration',
+    options = commands.qualification_fixture_options(ROOT, 'system',
         ['check_fixture_system_installed' + suffix], control=control, environment={})
     assert options == ['--fixture-selection', json.dumps(record, sort_keys=True),
                        '--fixture-source-selection', json.dumps(source, sort_keys=True)]
     monkeypatch.setenv('ONPC_TEST_VM', vm)
     dispatch = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))['selection']
-    command = dispatch(ROOT, ['integration', 'check_fixture_system_installed' + suffix,
+    command = dispatch(ROOT, ['system', 'check_fixture_system_installed' + suffix,
                               '--vm', vm, *options])
     assert command[3:] == options
 
@@ -352,10 +352,10 @@ def test_installed_system_target_refuses_before_any_input(monkeypatch, vm, suffi
     selector = 'check_fixture_system_installed' + suffix
     control = Mock()
     for operation in (
-            lambda: commands.plan(ROOT, 'integration', [selector]),
-            lambda: commands.qualification_artifact_command(ROOT, 'integration', [selector]),
+            lambda: commands.plan(ROOT, 'system', [selector]),
+            lambda: commands.qualification_artifact_command(ROOT, 'system', [selector]),
             lambda: commands.qualification_fixture_options(
-                ROOT, 'integration', [selector], control=control)):
+                ROOT, 'system', [selector], control=control)):
         with pytest.raises(ValueError, match='target is unavailable'):
             operation()
     control.run.assert_not_called()
@@ -379,12 +379,12 @@ def test_source_proof_handoff_requires_one_bound_record(monkeypatch, fault, froz
         options['output'](b'fixture-execution: selection=' + json.dumps(record).encode() + b'\n' + line)
         return 0
     with pytest.raises(ValueError):
-        commands.qualification_fixture_options(ROOT, 'integration', ['check_fixture_system_product_free'],
+        commands.qualification_fixture_options(ROOT, 'system', ['check_fixture_system_product_free'],
             control=SimpleNamespace(run=execute), environment={})
 
 
 @pytest.mark.parametrize('category,arguments', [
-    *(('integration', [name]) for name in PRODUCT_FREE_FIXTURE_SELECTORS),
+    *(('system', [name]) for name in PRODUCT_FREE_FIXTURE_SELECTORS),
     ('system', ['--artifacts=/tmp/onpc-packages']),
 ])
 @pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'fedora'), (vm_name(1), 'ubuntu')])
@@ -525,7 +525,7 @@ def test_live_refresh_orders_actual_a_use_before_b_build_and_recovers_failures(
     monkeypatch.setattr(commands.subprocess, 'run', cleanup)
     control = SimpleNamespace(run=run)
     command = ['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner',
-               'integration', 'check_fixture_live_refresh', '--vm', vm]
+               'system', 'check_fixture_live_refresh', '--vm', vm]
     if failure == 'build-b':
         with pytest.raises(ValueError, match='preparation failed'):
             commands.run_live_refresh(ROOT, command, control=control, environment={})
@@ -556,7 +556,7 @@ def test_e2e_qualification_freezes_input_and_source_proof(monkeypatch, frozen_fi
         options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n'
             + 'fixture-execution: source-edit=' + json.dumps(source) + '\n').encode())
         return 0
-    options = commands.qualification_fixture_options(ROOT, 'integration',
+    options = commands.qualification_fixture_options(ROOT, 'system',
         [selector], control=SimpleNamespace(run=execute), environment={})
     assert options == ['--fixture-selection', json.dumps(record, sort_keys=True),
                        '--fixture-source-selection', json.dumps(source, sort_keys=True)]
@@ -564,15 +564,15 @@ def test_e2e_qualification_freezes_input_and_source_proof(monkeypatch, frozen_fi
         'vm_source': True, 'fixture_source': True,
         **({'upgrade_source': True} if selector == 'check_fixture_e2e_product_free' else {})}
     dispatch = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))['selection']
-    command = dispatch(ROOT, ['integration', selector,
+    command = dispatch(ROOT, ['system', selector,
                              '--vm', vm, *options])
     assert command[3:] == options
 
 
 @pytest.mark.parametrize(('category', 'arguments'), [
-    ('integration', ['check_e2e_approval_flow']),
-    ('integration', ['check_e2e_time_profiles_daily']),
-    ('integration', ['check_e2e_native_fixtures']),
+    ('system', ['check_e2e_approval_flow']),
+    ('system', ['check_e2e_time_profiles_daily']),
+    ('system', ['check_e2e_native_fixtures']),
     ('e2e', ['--ready']),
 ])
 @pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
@@ -600,9 +600,9 @@ def test_installed_e2e_refuses_unqualified_target_before_preparing(monkeypatch, 
     monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='unqualified'))
     control = Mock()
     for operation in (
-            lambda: commands.plan(ROOT, 'integration', [selector]),
-            lambda: commands.qualification_artifact_command(ROOT, 'integration', [selector]),
-            lambda: commands.qualification_fixture_options(ROOT, 'integration', [selector], control=control)):
+            lambda: commands.plan(ROOT, 'system', [selector]),
+            lambda: commands.qualification_artifact_command(ROOT, 'system', [selector]),
+            lambda: commands.qualification_fixture_options(ROOT, 'system', [selector], control=control)):
         with pytest.raises(ValueError, match='installed E2E target is unavailable'):
             operation()
     control.run.assert_not_called()
@@ -654,7 +654,7 @@ def test_fixture_qualification_forwards_exact_frozen_selection(monkeypatch, suff
         return 0
 
     control = SimpleNamespace(run=Mock(side_effect=execute))
-    assert commands.qualification_fixture_options(ROOT, 'integration',
+    assert commands.qualification_fixture_options(ROOT, 'system',
         ['check_fixture_provisioning' + suffix], control=control,
         environment={'PRIVATE': 'environment'}) == [
             '--fixture-selection', json.dumps(selected.record(), sort_keys=True)]
@@ -687,7 +687,7 @@ def test_fixture_qualification_rejects_invalid_child_result(monkeypatch, frozen_
 
     control = SimpleNamespace(run=Mock(side_effect=execute))
     with pytest.raises(ValueError):
-        commands.qualification_fixture_options(ROOT, 'integration',
+        commands.qualification_fixture_options(ROOT, 'system',
             ['check_fixture_provisioning'], control=control, environment={})
     control.run.assert_called_once()
 
@@ -704,7 +704,7 @@ def test_fixture_qualification_freezes_before_package_and_privilege(
         name=vm_name(0), fixture_path='selected-fixtures'))
     monkeypatch.setattr(commands, 'plan', lambda *args: (
         [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner',
-          'integration', 'check_fixture_provisioning']], False))
+          'system', 'check_fixture_provisioning']], False))
     package_command = ['package-preparation', '--output', '/tmp/onpc-test-input']
     monkeypatch.setattr(commands, 'qualification_artifact_command', lambda *args: package_command)
     monkeypatch.setattr(commands, 'qualification_input_options', lambda *args: {})
@@ -732,7 +732,7 @@ def test_fixture_qualification_freezes_before_package_and_privilege(
     monkeypatch.setattr(regression_process.Control, 'installed', Mock(return_value=nullcontext(control)))
     if route == 'category':
         run = lambda: regression_process.category_run(
-            ROOT, 'integration', ['check_fixture_provisioning'], pipe=False)
+            ROOT, 'system', ['check_fixture_provisioning'], pipe=False)
         if failure in ('fixture', 'malformed', 'duplicate'):
             with pytest.raises(ValueError):
                 run()
@@ -752,7 +752,7 @@ def test_fixture_qualification_freezes_before_package_and_privilege(
             return SimpleNamespace(returncode=execute(command, **kwargs))
 
         monkeypatch.setattr(commands.subprocess, 'run', run)
-        assert commands._main(['integration', 'check_fixture_provisioning']) == (
+        assert commands._main(['system', 'check_fixture_provisioning']) == (
             {'package': 7, 'fixture': 2, 'malformed': 2, 'duplicate': 2}.get(failure, 0))
     if failure == 'package':
         assert events == ['fixture', 'package']
@@ -1010,7 +1010,7 @@ def test_shared_upgrade_preparation_binds_each_vm_before_existing_system_dispatc
     ('system', ['--upgrade-inputs', '--artifacts=/tmp/onpc-explicit']),
     ('system', ['--upgrade-inputs', '--previous-artifacts', '/tmp/onpc-explicit']),
     ('e2e', ['--upgrade-inputs']),
-    ('integration', ['check_e2e_package_upgrade', '--upgrade-inputs']),
+    ('system', ['check_e2e_package_upgrade', '--upgrade-inputs']),
 ])
 def test_shared_upgrade_preparation_refuses_conflicts_before_allocation(monkeypatch, category, args):
     import regression_process
@@ -1018,7 +1018,8 @@ def test_shared_upgrade_preparation_refuses_conflicts_before_allocation(monkeypa
 
     allocate = Mock(side_effect=AssertionError('invalid request allocated inputs'))
     monkeypatch.setattr(test_retention, 'allocate', allocate)
-    with pytest.raises(ValueError, match='upgrade inputs require'):
+    with pytest.raises(ValueError, match=('package history inputs cannot select a named system check'
+                                         if commands.system_check_selection(args) else 'upgrade inputs require')):
         regression_process.category_run(ROOT, category, args, pipe=False)
     allocate.assert_not_called()
 
@@ -1124,7 +1125,7 @@ def test_ambiguous_input_declaration_refuses_before_allocation(tmp_path, monkeyp
     allocate = Mock()
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
     with pytest.raises(ValueError, match='qualification'):
-        commands.qualification_artifact_command(ROOT, 'integration', ['check_future'])
+        commands.qualification_artifact_command(ROOT, 'system', ['check_future'])
     allocate.assert_not_called()
 
 
@@ -1213,7 +1214,7 @@ def test_toggle_qualification_reuses_existing_inputs_without_overwriting(
     allocate = Mock(side_effect=AssertionError('existing inputs replaced'))
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
     assert commands.qualification_artifact_command(
-        ROOT, 'integration', [selector]) == commands.python_file(
+        ROOT, 'system', [selector]) == commands.python_file(
             ROOT, 'tools/vm_artifacts.py', '--candidate', str(named_input()),
             '--output', str(named_input()), *VM_ARGS)
     validate.assert_called_once_with(str(named_input()))
@@ -1490,6 +1491,8 @@ def test_scheduled_collection_keeps_inventory_protocol_without_execution_ownersh
     ('child-gjs', ['tests/child/future.test.mjs']), ('static', ['/tmp/check.py']),
     ('traceability', ['--manifest=/tmp/input']), ('coverage', ['--cov=/tmp']),
     ('artifacts', ['build', '/etc/target']), ('fixtures', ['--output=/tmp/evil']),
+    ('integration', []), ('graphical-worker', ['--vm', vm_name()]),
+    ('package-notice', ['--list']),
 ])
 def test_category_option_injection_rejected(checkout, category, argv):
     with pytest.raises(ValueError):
@@ -1519,17 +1522,22 @@ def test_privileged_parent_symlink_is_rejected(checkout):
     (external / 'check_future.py').touch()
     (checkout / 'tests/integration').symlink_to(external, target_is_directory=True)
     with pytest.raises(ValueError):
-        dispatcher['selection'](checkout, ['integration', 'check_future'])
+        dispatcher['selection'](checkout, ['system', 'check_future'])
 
 
-def test_integration_listing_is_host_safe_and_lists_only_registered_tests():
-    plan, safety = commands.plan(ROOT, 'integration', ['--list'])
-    assert plan == [['/usr/bin/python3', '-B',
-                     str(ROOT / 'tests/integration/integration_inventory.py')]]
+def test_system_listing_is_host_safe_and_lists_only_registered_tests():
+    plan, safety = commands.plan(ROOT, 'system', ['--list'])
+    assert all('pkexec' not in command[0] for command in plan)
+    assert len(plan) == 2
+    assert plan[0][2] == str(ROOT / 'tests/integration/system_runner.py')
+    assert '--list' in plan[0]
+    assert plan[1] == ['/usr/bin/python3', '-B',
+                       str(ROOT / 'tests/integration/system_checks.py')]
     assert safety is False
-    listing = runpy.run_path(str(ROOT / 'tests/integration/integration_inventory.py'))
+    listing = runpy.run_path(str(ROOT / 'tests/integration/system_checks.py'))
     registered = {item['name'] for item in listing['inventory']()}
-    assert registered == set(listing['INTEGRATION_CHECKS'])
+    assert registered == set(listing['SYSTEM_CHECKS'])
+    assert len(registered) == 23
     scheduled = listing['runnable']()
     assert scheduled and len(scheduled) == len(set(scheduled))
     assert set(scheduled).isdisjoint({
@@ -1548,21 +1556,22 @@ def test_integration_listing_is_host_safe_and_lists_only_registered_tests():
             'check_e2e_parent_save', 'check_e2e_kiosk_update_reentry'}.isdisjoint(registered)
     assert {'check_e2e_auth_prompt', 'check_e2e_kiosk_feedback_confinement',
             'check_e2e_kiosk_configuration_recovery', 'check_fixture_e2e_installed',
-            'check_graphical_credentials', 'check_graphical_worker'} <= set(scheduled)
+            'check_graphical_credentials'} <= set(scheduled)
+    assert listing['HOST_CHECKS'] == {
+        'graphical-worker': 'check_graphical_worker', 'package-notice': 'check_package_notice'}
+    assert set(listing['HOST_CHECKS'].values()).isdisjoint(registered)
+    assert all(commands.CATEGORIES[category].scope == 'host'
+               for category in listing['HOST_CHECKS'])
     ubuntu = set(listing['runnable'](host_os='ubuntu'))
     fedora = set(listing['runnable'](host_os='fedora'))
-    assert ubuntu - fedora == {'check_package_notice'}
-    assert fedora <= ubuntu
-    assert all(item['excluded_reason'] for item in listing['inventory'](host_os='fedora')
-               if item['name'] in ubuntu - fedora)
-    assert commands.execution_selections(ROOT, [('integration', [])]) == [
-        ('integration', [name]) for name in scheduled]
+    assert ubuntu == fedora == set(scheduled)
     assert commands.execution_selections(ROOT, [('system', [])]) == [
         ('system', []), ('system', ['--id', '287', '--upgrade-inputs']),
-        ('system', ['--id', '288', '--upgrade-inputs'])]
+        ('system', ['--id', '288', '--upgrade-inputs']),
+        *(('system', [name]) for name in scheduled)]
     dispatcher = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))
-    with pytest.raises(ValueError, match='list-does-not-select-test'):
-        dispatcher['selection'](ROOT, ['integration', '--list', 'check_fixture_snapshots'])
+    with pytest.raises(ValueError, match='check-selector-conflict'):
+        dispatcher['selection'](ROOT, ['system', '--list', 'check_fixture_snapshots'])
 
 
 @pytest.mark.parametrize('category', ['all', 'all-verify'])
@@ -1649,7 +1658,7 @@ def test_complete_categories_share_one_ordered_aggregate(monkeypatch, argv, deta
     monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
     # Check aggregate dispatch without entering the real persistent family queue.
     monkeypatch.setenv(vm_selection.WORKER, '1')
-    phases = tuple(kind for kind in ('host', 'system', 'integration', 'e2e')
+    phases = tuple(kind for kind in ('host', 'system', 'e2e')
                    if kind in argv or (kind != 'host' and 'vm' in argv))
     for flag in ([], ['--continue-on-errors']):
         commands.validate(ROOT, [*argv, *flag, *VM_ARGS])

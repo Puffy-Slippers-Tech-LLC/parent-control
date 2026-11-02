@@ -30,5 +30,5 @@ Launch Lunar, close to tray, observe the tray with the main window absent, resto
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_lunar_tray
+tools/run-tests system check_e2e_lunar_tray
 ```

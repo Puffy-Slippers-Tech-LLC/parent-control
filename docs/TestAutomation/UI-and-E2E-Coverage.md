@@ -11,8 +11,8 @@ not require duplicating its local matrix in E2E.
 
 Remove incidental GUI assertions. For local UI reallocations, move retained
 functional assertions only after the new owner is executable; pending obligations
-remain uncovered until then. System/integration registration follows the
-[standalone assertion boundary](#reuse-of-system-and-integration-coverage),
+remain uncovered until then. System registration follows the
+[standalone assertion boundary](#reuse-of-system-coverage),
 including planned E2E composition. Local coverage gives no customer acceptance credit.
 
 Local owners are `test_parent_feedback.py` for feedback/attachments,
@@ -65,11 +65,11 @@ the frontend still reads/validates files and updates its draft. Local tests do
 not replace the installed chooser handoff. Language/reminder fixtures likewise
 do not prove native authentication or actual warning delivery.
 
-## Reuse of system and integration coverage
+## Reuse of system coverage
 
-System and integration register only standalone tests with assertions outside
+System registers only standalone tests with assertions outside
 current or planned E2E composition. A qualification that only exercises E2E
-building blocks is not a system or integration test, even before its consumer
+building blocks is not a system test, even before its consumer
 is implemented. Keep its shared operations and focused qualification route;
 do not register it and then add a scheduling exclusion. Register engineering
 faults, internal OS/backend witnesses and essential harness safety checks in
@@ -91,7 +91,7 @@ without executable assertions establishes no coverage.
 
 | Existing owner | Work not to duplicate | Customer journey retained |
 | --- | --- | --- |
-| [Extension recovery VM plan](../Extension-Plan.md), extending system 281/282 and the installed Parent integration | Individual/global disablement, repeated interference/backoff, native extension errors/reporting, and v1.5 boot/Parent/kiosk/login/unlock recovery are standalone system/integration faults; reuse existing adapter rollback and host/private-bus guards | Existing ordinary setup, approval, countdown and retained-session journeys remain unchanged; no new E2E case or engineering prerequisite is added |
+| [Extension recovery VM plan](../Extension-Plan.md), extending system 281/282 and the installed Parent integration | Individual/global disablement, repeated interference/backoff, native extension errors/reporting, and v1.5 boot/Parent/kiosk/login/unlock recovery are standalone system faults; reuse existing adapter rollback and host/private-bus guards | Existing ordinary setup, approval, countdown and retained-session journeys remain unchanged; no new E2E case or engineering prerequisite is added |
 | `test_baseline_fixtures_cleanup_safety` shared reconciliation, interrupted-placement, foreign/tampered-input and missing-baseline checks | Per-profile copies of unchanged idempotence, owned-update, retry and refusal matrices in tasks 109p/116p/126p; check only a genuinely new package, scope, confinement or ownership boundary | Real installation and restored-profile readback remain required; later Snap/Flatpak launches, enforcement and game use/expiry retain complete acceptance |
 | `test_authorization.test_requester_disconnect_during_approval` (system 255) | Engineering obligation 147: both requester disconnects, cancellation/no writes, released transaction, fresh authenticated recovery and other-account isolation | Cases 171–175 still observe leaving an actual pending graphical approval and its public result |
 | `test_core.test_parent_disable_cannot_interleave_with_admitted_approval`, `test_approval_cannot_snapshot_parent_disable_bridge_or_rollback`; `test_private_dbus_service.test_request_workers_dispatch_concurrently`; system 255 | Engineering obligation 148: real threaded broker conflict, Busy/no writes, final time/policy and successful retry; private-bus worker dispatch; installed bus/agent Busy/release and authenticated recovery. No separate task 177 or repeated concurrency qualifier. | Complete graphical approvals, pending-request interruptions and independent child/parent journeys retain their public results |
@@ -99,7 +99,7 @@ without executable assertions establishes no coverage.
 | Existing language selection and `language_persistence.PLAN` request readers | A second presentation-history qualifier (308a/309a) repeating saved Hebrew/custom-request/approver bindings | Tasks 308/309's complete restoration histories and original-work comparisons; 308b's missing translated approval and 310a's new panel projection remain distinct |
 | Shared `PackageCommand`, match Save and Parent reopen/select operations | Complete catalogue update/remove/reinstall histories repeated in 123/123a qualifiers | Cases 110/111 implement missing verified fixture bindings and retain open drafts, actual package changes, Save, refreshed catalogue, retained rules and child launch results |
 | `test_removal.test_remove_reboot_reinstall` (system 6); `test_install_smoke.test_previous_package_policy_preservation` (287) | Package files/ownership/service/PAM/migration matrices, internal snapshots and duplicate lifecycle qualifiers | Case 139's continuous install/configure/use/remove/use/reinstall/retained-settings/reapply/purge/defaults history; cases 136–138's real notices, activation and usable apps |
-| Kiosk service/configuration recovery integration checks; shared update-reentry building block | Reimplementation of their fault/recovery controls and unchanged qualification; update-reentry has no integration registration | Actual unavailable result, restoration, genuine approval and usable return within each complete recipe |
+| Kiosk service/configuration recovery system checks; shared update-reentry building block | Reimplementation of their fault/recovery controls and unchanged qualification; update-reentry has no system registration | Actual unavailable result, restoration, genuine approval and usable return within each complete recipe |
 | Delivered native fixture and grant/use/revoke scope in the [reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse) | Rebuilding compatible fixtures or repeating the accepted finite native history for 313a/313 | Each later journey's own approval, access, expiry/revocation and retained-work results; different durations/providers/entry modes retain their missing qualification |
 
 Obligations 147/148 remain with their executable lower-suite owners without

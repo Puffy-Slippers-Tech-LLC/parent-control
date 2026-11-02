@@ -28,5 +28,5 @@ With the reviewed sending authorization, reproduce the qualified public collecti
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_send_a_kiosk_report_without_unavailable_logs
+tools/run-tests system check_e2e_send_a_kiosk_report_without_unavailable_logs
 ```

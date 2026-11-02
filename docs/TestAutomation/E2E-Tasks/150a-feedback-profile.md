@@ -51,5 +51,5 @@ focused harness checks before UI discovery or any Send-capable action. The
 fixed selector below is planned and currently unregistered.
 
 ```sh
-tools/run-tests integration check_e2e_feedback_profile
+tools/run-tests system check_e2e_feedback_profile
 ```

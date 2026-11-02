@@ -59,5 +59,5 @@ its complete customer journey remains pending until its own acceptance.
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_parent_collection_retry
+tools/run-tests system check_e2e_parent_collection_retry
 ```

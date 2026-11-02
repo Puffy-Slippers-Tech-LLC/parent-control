@@ -3,7 +3,7 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
-Category: system/integration. Requires: 001. Estimate: 30–60 minutes.
+Category: system. Requires: 001. Estimate: 30–60 minutes.
 Session exception: retain each real session/bus replacement through restoration;
 resetting the guest mid-history would conceal stale ownership or pending work.
 

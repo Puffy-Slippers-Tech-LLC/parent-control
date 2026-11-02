@@ -45,5 +45,5 @@ report that infrastructure failure; do not improvise another network route.
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_network
+tools/run-tests system check_e2e_network
 ```

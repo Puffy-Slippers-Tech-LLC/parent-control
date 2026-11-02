@@ -37,5 +37,5 @@ On the live VM, verify the declared baseline game without repair, enter a child 
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_game_activity
+tools/run-tests system check_e2e_game_activity
 ```

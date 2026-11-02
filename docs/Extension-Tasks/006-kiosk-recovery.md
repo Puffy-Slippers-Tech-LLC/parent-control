@@ -3,7 +3,7 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
-Category: system/integration. Requires: 001. Estimate: 30–60 minutes.
+Category: system. Requires: 001. Estimate: 30–60 minutes.
 Session exception: genuine authentication, grant commit and resulting native
 activation must be observed in the same retained child session on each target.
 
@@ -28,5 +28,5 @@ customer E2E approval case or require a new graphical provider qualifier merely
 to send the existing genuine broker request.
 
 Reuse system 282 if it owns the complete engineering assertion; otherwise
-register only the missing standalone integration delta before running. Record
+register only the missing standalone system delta before running. Record
 both target results, the real binding and completed owned cleanup.

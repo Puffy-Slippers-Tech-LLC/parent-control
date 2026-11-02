@@ -417,7 +417,7 @@ class RepairGate:
 
 def case_inventory(root, category, options):
     """Use the runner's original order and selectors, including lifecycle phases."""
-    if category in ('system', 'integration', 'e2e'):
+    if category in ('system', 'e2e'):
         from vm_case_queue import case_inventory as collect
         return collect(root, category, options,
                        pass_fds=(*launcher.scratch_descriptors(), *repair_descriptors()))
@@ -453,7 +453,7 @@ def case_totals(root, inventory, category, cases):
     """Discover every selected VM case category before showing the overall total."""
     totals = {category: len(cases)}
     for kind, spec in inventory.items():
-        if kind in ('system', 'integration', 'e2e') and kind != category:
+        if kind in ('system', 'e2e') and kind != category:
             selected = case_inventory(root, kind, spec['args'])
             if selected is not None:
                 totals[kind] = len(selected)
@@ -726,11 +726,7 @@ def publish_case_progress(root, run, category, cases, case, passed, *, totals, r
     from launcher_progress import case_progress
     from vm_recording import case_identity
     nodeid = case or cases[-1]
-    if category == 'integration':
-        identifier = nodeid
-        title = nodeid.removeprefix('check_').replace('_', ' ').capitalize()
-    else:
-        identifier, title = case_identity(root, category, dict(nodeid=nodeid))
+    identifier, title = case_identity(root, category, dict(nodeid=nodeid))
     now = time.monotonic_ns()
     try:
         previous = case_progress(run)

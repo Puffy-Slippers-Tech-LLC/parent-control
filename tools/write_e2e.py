@@ -527,7 +527,7 @@ its owning instructions or mandates; search existing guidance and avoid duplicat
 Do not create a lessons archive or infer lessons unsupported by evidence.
 
 ## Ask 2
-Audit all VM test code, including system tests, installed integration tests, E2E cases and their
+Audit all VM test code, including system lifecycle and standalone checks, E2E cases and their
 shared support, not only code delivered or affected by this batch. Identify
 duplicated and one-off mechanics and refactor them into existing shared owners
 for reuse across VM test suites. Keep finite test data, ordering and assertions

@@ -38,5 +38,5 @@ No alternative launch route substitutes for the tested Files action.
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_native_file_routes
+tools/run-tests system check_e2e_native_file_routes
 ```

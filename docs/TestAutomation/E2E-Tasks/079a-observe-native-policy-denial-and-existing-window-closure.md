@@ -39,5 +39,5 @@ In a fresh guarded VM attempt, open a native activity permissively and capture i
 Planned qualification selector (implement and register before use):
 
 ```sh
-tools/run-tests integration check_e2e_observe_native_policy_denial_and_existing_window_closure
+tools/run-tests system check_e2e_observe_native_policy_denial_and_existing_window_closure
 ```

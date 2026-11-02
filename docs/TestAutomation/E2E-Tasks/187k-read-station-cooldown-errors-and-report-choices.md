@@ -53,5 +53,5 @@ journey with separate cooldown errors.
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_read_station_cooldown_errors_and_report_choices
+tools/run-tests system check_e2e_read_station_cooldown_errors_and_report_choices
 ```

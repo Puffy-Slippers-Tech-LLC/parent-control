@@ -48,5 +48,5 @@ On the installed VM, configure a declared A/H/S set through Parent and finish at
 Planned qualification selector (implement and register before use):
 
 ```sh
-tools/run-tests integration check_e2e_compose_a_named_app_rule_set
+tools/run-tests system check_e2e_compose_a_named_app_rule_set
 ```

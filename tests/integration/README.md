@@ -59,7 +59,7 @@ For VM qualifications, use the maintained runner, which derives that choice
 from pinned baseline provenance and prepares the declared input automatically:
 
 ```sh
-tools/run-tests --vm NAME integration 'check_e2e_policy'
+tools/run-tests --vm NAME system 'check_e2e_policy'
 ```
 
 Replace `NAME` with the registered VM name or ID from
@@ -147,8 +147,8 @@ before VM acquisition and included in the transfer digest inventory. The
 independent package/fixture artifact build is not its byte-identity authority.
 
 ```sh
-tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_system_product_free
-tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_system_product_free
+tools/run-tests system --vm 'onpc-Ubuntu26.04' check_fixture_system_product_free
+tools/run-tests system --vm 'onpc-Fedora44' check_fixture_system_product_free
 ```
 
 This engineering selector executes the actual product-free system preparation
@@ -194,8 +194,8 @@ scenario state. Startup waiting never restarts services; native checks still
 require an active daemon and its current-boot initialization event.
 
 ```sh
-tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_system_installed
-tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_system_installed
+tools/run-tests system --vm 'onpc-Ubuntu26.04' check_fixture_system_installed
+tools/run-tests system --vm 'onpc-Fedora44' check_fixture_system_installed
 ```
 
 This engineering selector exercises two actual offline app restores. It stops
@@ -297,8 +297,8 @@ their destination and extract the archive in one guarded SSH exchange, retaining
 the transfer deadline and stopping before extraction if preparation fails.
 
 ```sh
-tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_e2e_installed
-tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_e2e_installed
+tools/run-tests system --vm 'onpc-Ubuntu26.04' check_fixture_e2e_installed
+tools/run-tests system --vm 'onpc-Fedora44' check_fixture_e2e_installed
 ```
 
 This check selects that baseline union through the same installed setup and
@@ -352,7 +352,7 @@ verifies the exact selected files before package transfer and customer input.
 Its installed lifecycle acceptance belongs to that exact scenario.
 
 ```sh
-tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_e2e_product_free
+tools/run-tests system --vm 'onpc-Ubuntu26.04' check_fixture_e2e_product_free
 ```
 
 This preparation-only selector runs distinct entry, package, upgrade and empty
@@ -379,7 +379,7 @@ admissions and labels. GDM-only entry has no native input dependency or movable
 payload. Dormant guards and customer checkpoints remain unchanged.
 
 ```sh
-tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_e2e_product_free
+tools/run-tests system --vm 'onpc-Fedora44' check_fixture_e2e_product_free
 ```
 
 The same independent readback/runtime, refusal, no-write repeat, fresh readiness,
@@ -398,7 +398,7 @@ ready reply. Package/upgrade inventory, collision and replay guards remain owned
 by `AssetTransfer`.
 
 ```sh
-tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_transfer
+tools/run-tests system --vm 'onpc-Ubuntu26.04' check_fixture_transfer
 ```
 
 This preparation-only selector exercises that real controller and Smoke boundary
@@ -417,7 +417,7 @@ Fedora 44 uses the same standalone controller and Smoke readiness boundary,
 with package-only RPM delivery after the selected native runtime is ready.
 
 ```sh
-tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_transfer
+tools/run-tests system --vm 'onpc-Fedora44' check_fixture_transfer
 ```
 
 The same independent 12-file readback, harmless Riley runtime, input refusals,
@@ -437,7 +437,7 @@ defer their separate package-only transfer until that runtime is ready; bare
 serial needs no package input.
 
 ```sh
-tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_serial
+tools/run-tests system --vm 'onpc-Ubuntu26.04' check_fixture_serial
 ```
 
 This preparation-only selector exercises one actual serial credential/getty
@@ -459,7 +459,7 @@ Credential/getty preboot checks and the shared post-SSH Smoke readiness step
 retain the Ubuntu ordering and input guards.
 
 ```sh
-tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_serial
+tools/run-tests system --vm 'onpc-Fedora44' check_fixture_serial
 ```
 
 One real preparation history independently verifies native bytes, harmless Riley
@@ -483,7 +483,7 @@ until native readiness. The recorder saves the selected input and its manifest,
 VM, boot and attempt binding in a durable observation before acknowledging ready.
 
 ```sh
-tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_recorded_serial
+tools/run-tests system --vm 'onpc-Ubuntu26.04' check_fixture_recorded_serial
 ```
 
 This preparation-only check runs the actual recorded caller once, independently
@@ -504,7 +504,7 @@ input before restoration, preserves credential/getty setup before boot and binds
 the input and fresh readiness durably before the ready reply.
 
 ```sh
-tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_recorded_serial
+tools/run-tests system --vm 'onpc-Fedora44' check_fixture_recorded_serial
 ```
 
 One actual recorded preparation independently verifies the 12 native files,
@@ -556,7 +556,7 @@ recovery requires independent exact off-state, configuration, snapshot and guest
 audits. This route does not refresh active scenarios, change subsets, promise
 same-boot rollback.
 
-`tools/run-tests integration --vm onpc-Ubuntu26.04 check_fixture_live_refresh`
+`tools/run-tests system --vm onpc-Ubuntu26.04 check_fixture_live_refresh`
 qualifies this engineering boundary on Ubuntu; select `onpc-Fedora44` for Fedora.
 Its two phases use A before editing/building
 B on the host, then independently verify/use B in the unchanged boot/domain,
@@ -590,26 +590,28 @@ before consuming it.
 
 `tools/run-tests vm` and `all` include current-package system tests, two separate
 upgrade histories (287 policy preservation and 288 trusted native fixtures),
-runnable integration checks and ready E2E cases. Bare `system` has the same three
-system attempts; explicit selectors keep their existing scope. Each upgrade uses
+registered standalone checks and ready E2E cases. Bare `system` includes those
+three lifecycle attempts and the registered standalone checks; explicit lifecycle
+selectors keep their existing scope. Each upgrade uses
 the existing `--id N --upgrade-inputs` route and its independent preparation,
 restore, failure reporting, resume prerequisites and cleanup. History 289 remains
 pending and is never selected. Other pending/retired system IDs and pending E2E
 variants remain excluded by their inventories; package-format-specific histories
 retain their target filtering.
 
-Bare `integration` runs only explicitly registered standalone tests through the
-guarded per-check launcher, including named input preparation and fixture
-selection. It never calls script bodies inside the coordinator. The
-[binding inventory](integration_inventory.py) registers tests positively;
-`tools/run-tests integration --list` lists those registrations and host applicability.
+System standalone checks run through the guarded per-check launcher, including
+named input preparation and fixture selection. The coordinator never calls
+script bodies directly. The [binding inventory](system_checks.py) registers tests
+positively; `tools/run-tests system --list` lists lifecycle selectors and standalone
+registrations. `graphical-worker` and `package-notice`
+are separate host categories and are excluded from system and VM selections.
 
-E2E building blocks are not integration tests, whether their complete consumers
+E2E building blocks are not system tests, whether their complete consumers
 are ready or pending. Language refresh, approvals, countdown/expiry, Parent
 saves, catalogue operations, feedback, navigation and package lifecycle
 qualifications retain their shared operations and guarded focused selectors.
-Their presence as `check_*.py` files does not register them in integration or VM
-aggregates. The legacy `integration CHECK` dispatcher can still launch a named
+Their presence as `check_*.py` files does not register them in system or VM
+aggregates. The explicit `system CHECK` dispatcher can still launch a named
 building-block qualification; that explicit route supplies no category membership
 or complete customer acceptance. New wrappers likewise gain no registration.
 
@@ -620,7 +622,7 @@ witnesses outside customer composition. A fault history retains its own normal
 public recovery control. The active-grant disable check runs only its engineering
 attempt; its separate public-only attempt belongs to E2E.
 
-The same [assertion boundary](../../docs/TestAutomation/UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage)
+The same [assertion boundary](../../docs/TestAutomation/UI-and-E2E-Coverage.md#reuse-of-system-coverage)
 applies to system tests. Their explicit persistent registrations retain direct
 system-bus caller/role and authentication-authority checks, internal package
 payload/reboot/PAM witnesses, native policy/UID isolation, lifecycle ownership
@@ -636,12 +638,11 @@ Operations and focused diagnostic routes retain their existing scope:
   `check_retained_runs_cleanup` are operational recovery, inventory or maintenance
   commands. They stay explicitly callable without test registration. Required
   owned recovery still runs through the normal execution preflight.
-- `check_package_notice` requires host-native APT/dpkg (Ubuntu or
-  Debian). It is excluded on Fedora hosts, independently of the selected VM;
-  listing includes that applicability reason.
+- The host `package-notice` category requires host-native APT/dpkg (Ubuntu or
+  Debian). Other hosts omit it from aggregates and refuse explicit execution.
 - Standalone fixture provisioning, snapshots, live refresh, transfer, serial,
   recorded serial, system preparation and product-free E2E preparation
-  qualifications are explicit engineering probes without integration test
+  qualifications are explicit engineering probes without system test
   registration. The graphics attachment API comparison/trace probe likewise
   remains diagnostic. Their guarded explicit selectors remain available when changing
   those mechanisms. Product journeys still exercise their normal preparation
@@ -651,7 +652,7 @@ Operations and focused diagnostic routes retain their existing scope:
 - Standalone graphics smoke, graphics transport, serial transport, credential-free
   VT6 fixture-prompt inspection (`check_graphical_vt6_prompt`), spectator
   (`check_e2e_watch`), upgrade-asset transfer and repeated-operation stage-label
-  qualifications have no integration registration. These qualify harness availability or
+  qualifications have no system registration. These qualify harness availability or
   presentation rather than product outcomes or a distinct essential safety
   boundary. Explicit engineering selectors remain available. Product journeys,
   including real upgrades and repeated operations, retain their preparation,
@@ -678,11 +679,11 @@ Operations and focused diagnostic routes retain their existing scope:
 Dormant Parent About/access wrappers and duplicate MATE-prompt, toggle and
 expanded-time wrappers have been removed. Their product coverage remains in
 the customer cases and their shared building blocks; `check_e2e_auth_prompt`
-retains its distinct credential-proof/refusal assertions in integration.
+retains its distinct credential-proof/refusal assertions in system.
 
 Routine desktop navigation, synthetic-file operations, native fixture app use,
 Chinese asset reads, observation traces and bounded waits no longer have
-separate integration entry points. Product journeys still use their shared
+separate qualification entry points. Product journeys still use their shared
 helpers and runtime guards. Historical qualification names in the
 [catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md) and completed queue
 rows record past results, not commands to recreate or rerun. Regressions belong
@@ -1183,7 +1184,7 @@ VM's independent pair before invoking that same `--previous-artifacts` route:
 tools/run-tests system --vm 'NAME,OTHER_NAME' --id 287 --upgrade-inputs
 ```
 
-`system --upgrade-inputs` applies to any explicit system selection needing a
+`system --upgrade-inputs` applies to an explicit lifecycle selection needing a
 real package update. It cannot accompany explicit artifact paths. Each worker
 requires its registry `package_format` and verifies that format against the
 pinned baseline before building; there is no DEB/RPM default or case-specific
@@ -1632,7 +1633,7 @@ This development-only integration activates immediately on profile reload
 (`none` for product packaging); it changes no application data or product package.
 
 The fixed non-booting diagnostic is
-`pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_transport`.
+`tools/run-tests system check_graphical_transport`.
 It requires the existing domain to be off and sends only an impossible graphics
 index. A normal libvirt refusal with the connection still alive proves outgoing
 FD RPC transport; a disconnected RPC is a failure. A separate owned fixture
@@ -1664,7 +1665,7 @@ security sandbox for hostile root code. Working files and raw backend output
 remain root-private and are not safe evidence exports.
 
 The fixed live feasibility invocation is now
-`pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_smoke`.
+`tools/run-tests system check_graphical_smoke`.
 It accepts no arguments and uses the same isolated safety prerequisites and
 exclusive baseline lease. Before acquiring the lease it uses the documented
 `_EXIT_AFTER_SCHEDULE=1` mode to load the distribution without starting a backend.

@@ -43,5 +43,5 @@ implementation changes the behavior it covers.
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_activation_session
+tools/run-tests system check_e2e_activation_session
 ```

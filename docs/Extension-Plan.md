@@ -46,7 +46,12 @@ Apply [repository instructions](../AGENTS.md), [test maintenance](../tests/READM
 [VM ownership/timing](Mandates/VM-Mandate.MD),
 [UI route selection](Mandates/UI-Automation-Mandate.MD#route-selection) when
 observing a product dialog, and [test storage](Mandates/Test-Storage-Mandate.md).
-Use the registered system runner and its installed package route;
+All unfinished briefs use `Category: system`. Use `tools/run-tests system`
+with the existing numeric IDs/area selectors, or `system CHECK` for a named
+standalone check. Register a new named check in the
+[system inventory](../tests/integration/system_checks.py) only when it owns
+distinct engineering assertions; focused qualification alone adds no aggregate
+coverage. Use the registered system runner and its installed package route;
 never install on the development host. Select the first unchecked row, implement
 only its missing assertions, verify both targets, finish owned cleanup and then
 close that row. New selectors remain **unimplemented** until registered.

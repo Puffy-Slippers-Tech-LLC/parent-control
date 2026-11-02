@@ -79,6 +79,11 @@ DEMANDS = {
 }
 DEMANDS.update({kind: DEMANDS['ui'] for kind in UI_KINDS})
 PARALLEL = frozenset(DEMANDS)
+# Both privileged host checks own private fixtures and recorded children, but
+# share the caller's privileged host retention journal. Keep them explicitly
+# serial with every host job; neither may obtain a VM lease or probe a guest.
+DEMANDS['graphical-worker'] = Demand(1, GIB)
+DEMANDS['package-notice'] = Demand(2, 2 * GIB)
 DEMANDS.update({'ui-exclusive': Demand(4, 4 * GIB)})
 DEMANDS['unit-exclusive'] = DEMANDS['unit']
 DEMANDS.update({kind: DEMANDS['unit'] for kind in ('cleanup', 'cleanup-exclusive')})

@@ -52,5 +52,5 @@ alias readiness/results, with no saved VM state or complete case acceptance.
 Planned selector; implement and register it before use:
 
 ```sh
-tools/run-tests integration check_e2e_shared_target_launchers
+tools/run-tests system check_e2e_shared_target_launchers
 ```

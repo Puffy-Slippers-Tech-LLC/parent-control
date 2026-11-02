@@ -40,5 +40,5 @@ On the live VM, prepare fullscreen and the declared level through the shared com
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_game_fullscreen
+tools/run-tests system check_e2e_game_fullscreen
 ```

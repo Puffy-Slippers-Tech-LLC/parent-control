@@ -3,7 +3,7 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
-Category: system/integration. Requires: 001, 002. Estimate: 30–60 minutes.
+Category: system. Requires: 001, 002. Estimate: 30–60 minutes.
 Session exception: keep the controlled native failure, visible report and owned
 restoration in the same attempt; a fresh snapshot cannot prove recovered behavior.
 
@@ -32,5 +32,5 @@ product-extension `ERROR`; restore its exact owned cause afterward. Verify:
 Use the [product UI API](../TestAutomation/Application-UI-API.md) for dialog
 observations/Close and the existing translations. Do not duplicate report-editor,
 delivery, logging or rollback matrices. A crash/fault selector is not yet
-implemented; reuse/register the proper system/integration owner, qualify both
+implemented; reuse/register the proper system owner, qualify both
 targets and complete owned cleanup before closing the task.

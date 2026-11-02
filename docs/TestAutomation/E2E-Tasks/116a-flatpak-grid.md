@@ -34,5 +34,5 @@ On the VM, launch a usable Flatpak fixture from the grid and observe a real inpu
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_flatpak_grid
+tools/run-tests system check_e2e_flatpak_grid
 ```

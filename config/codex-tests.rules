@@ -27,12 +27,12 @@ prefix_rule(
 # This root-owned dispatcher resolves the invoking checkout and pins the test VM.
 # Trust includes future check_*.py tests and edits to their imported code.
 prefix_rule(
-    pattern = ["pkexec", "--keep-cwd", "/usr/local/libexec/onpc-test-runner", ["integration", "system", "e2e", "vm"]],
+    pattern = ["pkexec", "--keep-cwd", "/usr/local/libexec/onpc-test-runner", ["system", "e2e", "vm", "graphical-worker", "package-notice"]],
     decision = "allow",
     justification = "Run project test categories through the installed dispatcher, with validated selection and automatic unprivileged cleanup prerequisites.",
     match = [
-        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner integration check_graphical_worker",
-        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner integration check_future_feature",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner graphical-worker",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner system check_future_feature",
         "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner system --area authorization --list",
         "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner e2e --list",
         "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner vm reboot",

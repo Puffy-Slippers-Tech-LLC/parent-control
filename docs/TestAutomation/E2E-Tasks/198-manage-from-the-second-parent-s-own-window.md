@@ -36,5 +36,5 @@ On the VM, open Parent normally under each administrator, manage a named child a
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_manage_from_the_second_parent_s_own_window
+tools/run-tests system check_e2e_manage_from_the_second_parent_s_own_window
 ```

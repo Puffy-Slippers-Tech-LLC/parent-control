@@ -76,6 +76,12 @@ def confined_file(root, relative):
 def selection(root, argv, *, allow_missing_artifacts=False):
     if argv == ['disk']:
         return ['/usr/bin/python3', '-B', str(confined_file(root, 'tools/host_disk.py'))]
+    if argv[:1] in (['graphical-worker'], ['package-notice']):
+        if len(argv) != 1:
+            raise ValueError('test-runner:host-check-accepts-no-arguments')
+        checks = runpy.run_path(str(confined_file(root, 'tests/integration/system_checks.py')))
+        name = checks['host_check'](argv[0])
+        return ['/usr/bin/python3', '-B', str(confined_file(root, 'tests/integration/' + name + '.py'))]
     sys.path.insert(0, str(root / 'tests/integration'))
     try:
         import vm_config
@@ -100,14 +106,11 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                 'exec', '--timeout', str(timeout), *(['--stdin'] if input_stream else []), '--', *command]
     parser = ArgumentParser(description=__doc__, allow_abbrev=False)
     categories = parser.add_subparsers(dest='category', required=True)
-    integration = categories.add_parser('integration', allow_abbrev=False)
-    integration.add_argument('test', nargs='?', help='check_* basename, with optional .py suffix')
-    integration.add_argument('--list', action='store_true')
-    integration.add_argument('--fixture-selection', help=argparse.SUPPRESS)
-    integration.add_argument('--fixture-source-selection', help=argparse.SUPPRESS)
-    integration.add_argument('--fixture-replacement-selection', help=argparse.SUPPRESS)
-    integration.add_argument('--fixture-refresh-phase', choices=('retain-a', 'replace-b'), help=argparse.SUPPRESS)
     system = categories.add_parser('system', allow_abbrev=False)
+    system.add_argument('check', nargs='?', help='check_* standalone or qualification basename')
+    system.add_argument('--fixture-source-selection', help=argparse.SUPPRESS)
+    system.add_argument('--fixture-replacement-selection', help=argparse.SUPPRESS)
+    system.add_argument('--fixture-refresh-phase', choices=('retain-a', 'replace-b'), help=argparse.SUPPRESS)
     system.add_argument('--artifacts', type=Path)
     system.add_argument('--previous-artifacts', type=Path)
     system.add_argument('--native-artifacts', type=Path)
@@ -145,7 +148,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                'Idle Ubuntu/Fedora fixture refresh: start --fixture-maintenance, then sync-fixtures '
                'to build and synchronize trusted-hard from current host sources. '
                'Guest input retires refresh eligibility; stop restores the baseline.')
-    for category in (integration, system, e2e, appsnapshot, vm):
+    for category in (system, e2e, appsnapshot, vm):
         category.add_argument('--vm', help='required configured VM name or ID; optional for declaration listing')
     vm.add_argument('action', choices=('status', 'xml', 'snapshots', 'start', 'stop', 'reboot',
                                       'reset', 'screenshot', 'send-key', 'recover-online', 'rename', 'rename-disk', 'exec', 'sync-fixtures',
@@ -256,9 +259,13 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                 args.action, *map(str, args.keys),
                 *(['--new-name', args.new_name] if args.new_name is not None else []),
                 *(['--fixture-maintenance'] if args.fixture_maintenance else []), *fixture_options]
-    if args.category == 'integration':
+    if args.category == 'system' and args.check is not None:
+        if (args.list or any(getattr(args, option) is not None for option in
+                ('artifacts', 'previous_artifacts', 'native_artifacts', 'area', 'test', 'id', 'completed_cases'))
+                or args.qualification_failure or args.skip_backing_verification):
+            raise ValueError('test-runner:check-selector-conflict')
         fixture_options = []
-        name = args.test.removesuffix('.py') if args.test is not None else None
+        name = args.check.removesuffix('.py') if args.check is not None else None
         bootstrap = name in ('check_fixture_system_product_free', 'check_parent_setup',
                              'check_parent_input', 'check_parent_standard_input')
         installed = name == 'check_fixture_system_installed'
@@ -331,16 +338,12 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                     if replacement.target != selected.target:
                         raise ValueError('test-runner:fixture-target-not-qualified')
                     fixture_options += ['--fixture-replacement-selection', json.dumps(replacement.record(), sort_keys=True)]
-        if args.list:
-            if args.test is not None:
-                raise ValueError('test-runner:list-does-not-select-test')
-            target = confined_file(root, 'tests/integration/integration_inventory.py')
-            return ['/usr/bin/python3', '-B', str(target)]
-        if args.test is None:
-            raise ValueError('test-runner:test-required')
-        name = args.test.removesuffix('.py')
+        name = args.check.removesuffix('.py')
         if not re.fullmatch(r'check_[a-z][a-z0-9_]*', name):
             raise ValueError('test-runner:invalid-test-name')
+        checks = runpy.run_path(str(confined_file(root, 'tests/integration/system_checks.py')))
+        if name in checks['HOST_CHECKS'].values():
+            raise ValueError('test-runner:host-check-requires-host-category')
         target = confined_file(root, f'tests/integration/{name}.py')
         return ['/usr/bin/python3', '-B', str(target), *fixture_options]
     if args.category == 'e2e':
@@ -389,6 +392,9 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         return ['/usr/bin/python3', '-B', str(target), *options]
     else:
         target = confined_file(root, 'tests/integration/system_runner.py')
+    if (args.fixture_source_selection is not None or args.fixture_replacement_selection is not None
+            or args.fixture_refresh_phase is not None):
+        raise ValueError('test-runner:unexpected-fixture-selection')
     if args.id is not None:
         if args.area is not None or args.test is not None:
             raise ValueError('selection:numeric-id-selector-conflict')
@@ -456,9 +462,9 @@ def selection(root, argv, *, allow_missing_artifacts=False):
 
 def child_retention_owner(argv):
     """Finite producers hold their owner in the process that seals evidence."""
-    if argv[0] in ('system', 'e2e'):
+    if argv[0] == 'e2e' or (argv[0] == 'system' and not any(arg.startswith('check_') for arg in argv[1:])):
         return True
-    if argv[0] != 'integration' or len(argv) <= 1:
+    if argv[0] != 'system' or len(argv) <= 1:
         return False
     from test_commands import INSTALLED_E2E_FIXTURE_SELECTORS, PRODUCT_FREE_E2E_FIXTURE_SELECTORS
     selector = argv[1].removesuffix('.py')
@@ -473,6 +479,21 @@ def run(root, argv, caller):
     sys.path.insert(0, str(root / 'tools'))
     import vm_pool
     argv = vm_pool.consume(argv)
+    host_args = argv[1:] if argv[:1] == ['--unattended'] else argv
+    if host_args[:1] in (['graphical-worker'], ['package-notice']):
+        command = selection(root, host_args)
+        from regression_process import Control
+        import test_retention
+        from test_storage import privileged_state, scratch_directory
+        environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
+                       'HOME': '/root', 'PKEXEC_UID': str(caller.pw_uid),
+                       'PYTHONDONTWRITEBYTECODE': '1', 'PYTHONUNBUFFERED': '1',
+                       'TMPDIR': str(scratch_directory())}
+        with test_retention.Store(privileged_state(caller.pw_uid)).session(
+                preserve_completed=test_retention.legacy_system_evidence), \
+                Control().installed(pipe=argv[:1] == ['--unattended']) as control:
+            environment.update(test_retention.environment())
+            return control.run(command, cwd=root, env=environment, owned_group=True)
     if argv[:1] in (['pool'], ['disk']):
         environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}
         if vm_pool.VARIABLE in os.environ:
@@ -494,9 +515,9 @@ def run(root, argv, caller):
         command = selection(root, argv)
         import vm_config
         argv, configured = vm_config.extract(argv, path=root / 'config/test-vm.json')
-        if argv[0] not in ('integration', 'system', 'e2e', 'appsnapshot') or '--list' in argv or '--probe' in argv:
+        if argv[0] not in ('system', 'e2e', 'appsnapshot') or '--list' in argv or '--probe' in argv:
             raise ValueError('test-runner:invalid-unattended-category')
-        if retention_run and argv[0] == 'integration':
+        if retention_run and argv[0] == 'system' and len(argv) > 1 and argv[1].startswith('check_'):
             raise ValueError('test-runner:invalid-retention-category')
         module = runpy.run_path(str(confined_file(root, 'tools/regression_process.py')))
         sys.path.insert(0, str(root / 'tools'))
@@ -511,7 +532,7 @@ def run(root, argv, caller):
             import test_retention
             from test_storage import privileged_state, scratch_directory
             environment['TMPDIR'] = str(scratch_directory())
-            recovery = argv[0] == 'integration' and argv[1].removesuffix('.py') in (
+            recovery = argv[0] == 'system' and len(argv) > 1 and argv[1].startswith('check_') and argv[1].removesuffix('.py') in (
                 'check_test_recovery', 'check_graphical_recovery', 'check_system_recovery', 'check_tmp_storage',
                 'check_tmp_storage_cleanup', 'check_storage_migration', 'check_retained_runs_cleanup')
             child_owner = child_retention_owner(argv)
@@ -537,7 +558,7 @@ def run(root, argv, caller):
         environment[vm_config.VARIABLE] = configured.name
     if vm_pool.VARIABLE in os.environ:
         environment[vm_pool.VARIABLE] = os.environ[vm_pool.VARIABLE]
-    if argv[0] in ('integration', 'system', 'e2e') and '--list' in argv:
+    if argv[0] in ('system', 'e2e') and '--list' in argv:
         return subprocess.run(command, cwd=root, env=environment, user=caller.pw_uid,
                               group=caller.pw_gid,
                               extra_groups=os.getgrouplist(caller.pw_name, caller.pw_gid),
@@ -556,13 +577,13 @@ def run(root, argv, caller):
     from test_storage import scratch_directory, scratch_descriptors, privileged_state
     import test_retention
     environment['TMPDIR'] = str(scratch_directory())
-    recovery = argv[0] == 'integration' and argv[1].removesuffix('.py') in (
+    recovery = argv[0] == 'system' and len(argv) > 1 and argv[1].startswith('check_') and argv[1].removesuffix('.py') in (
         'check_test_recovery', 'check_graphical_recovery', 'check_system_recovery', 'check_tmp_storage',
         'check_tmp_storage_cleanup', 'check_storage_migration', 'check_retained_runs_cleanup')
     child_owner = child_retention_owner(argv)
     context = (test_retention.Store(privileged_state(caller.pw_uid)).session(
         guard=lambda: retention_guard(root))
-        if argv[0] in ('integration', 'system', 'e2e', 'appsnapshot') and not recovery and not child_owner
+        if argv[0] in ('system', 'e2e', 'appsnapshot') and not recovery and not child_owner
         and not (argv[0] == 'appsnapshot' and '--resume' in argv)
         else nullcontext())
     with context:

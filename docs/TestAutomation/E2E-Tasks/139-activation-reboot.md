@@ -47,5 +47,5 @@ qualification of the same binding.
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_activation_reboot
+tools/run-tests system check_e2e_activation_reboot
 ```

@@ -54,7 +54,7 @@ expiry wait belong to this composition.
 Planned qualification selector (implement and register before use):
 
 ```sh
-tools/run-tests integration check_e2e_kiosk_approval_return
+tools/run-tests system check_e2e_kiosk_approval_return
 ```
 
 Keep 197a's explicit child/eligible-parent/duration/soft-choice arguments and

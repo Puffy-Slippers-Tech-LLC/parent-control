@@ -34,5 +34,5 @@ In a fresh guarded VM attempt with an authorized synthetic report reached throug
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_confirm_stopping_a_sending_kiosk_report
+tools/run-tests system check_e2e_confirm_stopping_a_sending_kiosk_report
 ```

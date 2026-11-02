@@ -60,10 +60,10 @@ composes caller-bound preparation and `kiosk_approved_flow.approved_request(expl
 `JourneyPlan.kiosk_request` carries the same finite binding through the public
 form, MATE recipient checks, credential owner and child countdown.
 
-Focused qualification selector (not a standalone integration registration):
+Focused qualification selector (not a standalone system registration):
 
 ```sh
-tools/run-tests integration check_e2e_kiosk_fresh_return
+tools/run-tests system check_e2e_kiosk_fresh_return
 ```
 
 ## Current blocker

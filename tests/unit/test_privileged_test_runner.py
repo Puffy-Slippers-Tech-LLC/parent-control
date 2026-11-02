@@ -34,6 +34,7 @@ def checkout(tmp_path):
     integration = tmp_path / 'tests/integration'
     integration.mkdir(parents=True)
     shutil.copy2(root / 'tests/integration/vm_config.py', integration / 'vm_config.py')
+    shutil.copy2(root / 'tests/integration/system_checks.py', integration / 'system_checks.py')
     (tmp_path / 'config').mkdir()
     shutil.copy2(root / 'config/test-vm.json', tmp_path / 'config/test-vm.json')
     (integration / 'check_future_feature.py').touch()
@@ -46,7 +47,7 @@ def checkout(tmp_path):
 
 
 def test_future_check_needs_no_allowlist_change(checkout):
-    command = select(checkout, ['integration', 'check_future_feature'])
+    command = select(checkout, ['system', 'check_future_feature'])
     assert command == ['/usr/bin/python3', '-B',
                        str(checkout / 'tests/integration/check_future_feature.py')]
 
@@ -55,12 +56,12 @@ def test_future_check_needs_no_allowlist_change(checkout):
                                    'graphical_worker', '-c', 'check_x;id'])
 def test_rejects_non_category_paths_and_code(checkout, name):
     with pytest.raises((ValueError, SystemExit)):
-        select(checkout, ['integration', name])
+        select(checkout, ['system', name])
 
 
 def test_rejects_extra_arguments(checkout):
     with pytest.raises(ValueError):
-        select(checkout, ['integration', 'check_future_feature', '--command', 'id'])
+        select(checkout, ['system', 'check_future_feature', '--command', 'id'])
 
 
 @pytest.fixture
@@ -86,17 +87,17 @@ def test_live_refresh_dispatch_requires_exact_phase_inputs_and_target(checkout, 
                '--fixture-source-selection', json.dumps(source), '--fixture-refresh-phase', phase]
     if phase == 'replace-b':
         options += ['--fixture-replacement-selection', json.dumps(replacement)]
-    args = ['integration', 'check_fixture_live_refresh', '--vm', vm]
+    args = ['system', 'check_fixture_live_refresh', '--vm', vm]
     command = runner['selection'](checkout, [*args, *options])
     assert command[:3] == ['/usr/bin/python3', '-B', str(checkout / 'tests/integration/check_fixture_live_refresh.py')]
     assert command[command.index('--fixture-refresh-phase') + 1] == phase
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
-        runner['selection'](checkout, ['integration', 'check_fixture_live_refresh',
+        runner['selection'](checkout, ['system', 'check_fixture_live_refresh',
             '--vm', vm_name(1) if target == 'ubuntu' else vm_name(0), *options])
     with pytest.raises(ValueError, match='incomplete-fixture-refresh'):
         runner['selection'](checkout, args)
     with pytest.raises(ValueError, match='unexpected-fixture-refresh'):
-        runner['selection'](checkout, ['integration', 'check_future_feature',
+        runner['selection'](checkout, ['system', 'check_future_feature',
             '--vm', vm_name(0), '--fixture-refresh-phase', phase])
 
 
@@ -107,7 +108,7 @@ def test_fixture_selection_dispatches_only_fixed_wrapper(checkout, fixture_selec
     (checkout / 'tests/integration' / (selector + '.py')).touch()
     fixture_selection['target'] = target
     fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', target)
-    command = runner['selection'](checkout, ['integration',
+    command = runner['selection'](checkout, ['system',
         selector + suffix, '--vm', vm,
         '--fixture-selection', json.dumps(fixture_selection)])
     assert command == ['/usr/bin/python3', '-B',
@@ -122,14 +123,14 @@ def test_installed_system_dispatch_is_bound_to_qualified_target(checkout, fixtur
     (checkout / 'tests/integration' / (name + '.py')).touch()
     fixture_selection['target'] = target
     fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', target)
-    command = runner['selection'](checkout, ['integration', name + suffix,
+    command = runner['selection'](checkout, ['system', name + suffix,
         '--vm', vm, '--fixture-selection', json.dumps(fixture_selection)])
     assert command == ['/usr/bin/python3', '-B',
         str(checkout / 'tests/integration' / (name + '.py')),
         '--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
     other = vm_name(1) if target == 'ubuntu' else vm_name(0)
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
-        runner['selection'](checkout, ['integration', name + suffix,
+        runner['selection'](checkout, ['system', name + suffix,
             '--vm', other, '--fixture-selection', json.dumps(fixture_selection)])
 
 
@@ -140,7 +141,7 @@ def test_installed_e2e_dispatch_is_bound_to_qualified_target(checkout, fixture_s
     (checkout / 'tests/integration' / (name + '.py')).touch()
     fixture_selection['target'] = target
     fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', target)
-    arguments = ['integration', name, '--fixture-selection', json.dumps(fixture_selection)]
+    arguments = ['system', name, '--fixture-selection', json.dumps(fixture_selection)]
     command = runner['selection'](checkout, [*arguments, '--vm', vm])
     assert command[-2:] == ['--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
@@ -155,7 +156,7 @@ def test_product_free_e2e_dispatch_is_bound_to_qualified_target(checkout, fixtur
     (checkout / 'tests/integration' / (name + '.py')).touch()
     fixture_selection['target'] = target
     fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', target)
-    arguments = ['integration', name, '--fixture-selection', json.dumps(fixture_selection)]
+    arguments = ['system', name, '--fixture-selection', json.dumps(fixture_selection)]
     command = runner['selection'](checkout, [*arguments, '--vm', vm])
     assert command[-2:] == ['--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
@@ -181,11 +182,11 @@ def test_serial_dispatch_preserves_selection_and_target(checkout, fixture_select
     fixture_selection['target'] = target
     fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', target)
     options = ['--fixture-selection', json.dumps(fixture_selection)]
-    command = runner['selection'](checkout, ['integration', selector + suffix,
+    command = runner['selection'](checkout, ['system', selector + suffix,
         '--vm', vm, *options])
     assert command[-2:] == ['--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
-        runner['selection'](checkout, ['integration', selector + suffix,
+        runner['selection'](checkout, ['system', selector + suffix,
             '--vm', vm_name(1) if target == 'ubuntu' else vm_name(0), *options])
 
 
@@ -197,13 +198,13 @@ def test_recorded_serial_dispatch_preserves_selection_and_target(checkout, fixtu
     fixture_selection['target'] = target
     fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', target)
     options = ['--fixture-selection', json.dumps(fixture_selection)]
-    command = runner['selection'](checkout, ['integration', name + suffix,
+    command = runner['selection'](checkout, ['system', name + suffix,
         '--vm', vm, *options])
     assert command == ['/usr/bin/python3', '-B',
         str(checkout / 'tests/integration' / (name + '.py')),
         '--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
-        runner['selection'](checkout, ['integration', name + suffix,
+        runner['selection'](checkout, ['system', name + suffix,
             '--vm', vm_name(1) if target == 'ubuntu' else vm_name(0), *options])
 
 
@@ -229,12 +230,12 @@ def test_transfer_dispatch_preserves_frozen_record_and_target(checkout, fixture_
     fixture_selection['target'] = target
     fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', target)
     options = ['--fixture-selection', json.dumps(fixture_selection)]
-    command = runner['selection'](checkout, ['integration', 'check_fixture_transfer',
+    command = runner['selection'](checkout, ['system', 'check_fixture_transfer',
         '--vm', vm, *options])
     assert command[-2:] == ['--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
     for suffix in ('', '.py'):
         with pytest.raises(ValueError, match='fixture-target-not-qualified'):
-            runner['selection'](checkout, ['integration', 'check_fixture_transfer' + suffix,
+            runner['selection'](checkout, ['system', 'check_fixture_transfer' + suffix,
                 '--vm', vm_name(1) if target == 'ubuntu' else vm_name(0), *options])
 
 
@@ -262,7 +263,7 @@ def test_transfer_e2e_dispatch_preserves_selection_without_enabling_install(
 @pytest.mark.parametrize('payload', ['{', 'null', '[]', '{}', 'x' * 8193])
 def test_fixture_selection_rejects_malformed_json_or_record(checkout, fixture_selection, payload):
     with pytest.raises(ValueError):
-        runner['selection'](checkout, ['integration', 'check_fixture_provisioning',
+        runner['selection'](checkout, ['system', 'check_fixture_provisioning',
             '--vm', vm_name(0), '--fixture-selection', payload])
 
 
@@ -276,17 +277,19 @@ def test_fixture_selection_rejects_malformed_json_or_record(checkout, fixture_se
 def test_fixture_selection_rejects_foreign_identity(checkout, fixture_selection, field, value):
     fixture_selection[field] = value
     with pytest.raises(ValueError):
-        runner['selection'](checkout, ['integration', 'check_fixture_provisioning',
+        runner['selection'](checkout, ['system', 'check_fixture_provisioning',
             '--vm', vm_name(0), '--fixture-selection', json.dumps(fixture_selection)])
 
 
-@pytest.mark.parametrize('args', [
-    ['check_future_feature'], ['--list'], ['check_fixture_provisioning', '--list'],
+@pytest.mark.parametrize(('args', 'error'), [
+    (['check_future_feature'], 'unexpected-fixture-selection'),
+    (['--list'], 'fixture-target-not-qualified'),
+    (['check_fixture_provisioning', '--list'], 'check-selector-conflict'),
 ])
 @pytest.mark.parametrize('vm', [vm_name(0), vm_name(1)])
-def test_fixture_selection_refuses_other_selector_or_listing(checkout, fixture_selection, args, vm):
-    with pytest.raises(ValueError, match='unexpected-fixture-selection'):
-        runner['selection'](checkout, ['integration', *args, '--vm', vm,
+def test_fixture_selection_refuses_other_selector_or_listing(checkout, fixture_selection, args, error, vm):
+    with pytest.raises(ValueError, match=error):
+        runner['selection'](checkout, ['system', *args, '--vm', vm,
             '--fixture-selection', json.dumps(fixture_selection)])
 
 
@@ -298,12 +301,12 @@ def test_fixture_selection_refuses_unqualified_target(checkout, fixture_selectio
     fixture_selection['target'] = target
     fixture_selection['allocation'] = '/tmp/onpc-native-runtime-' + target + '-' + 'a' * 64 + '-private'
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
-        runner['selection'](checkout, ['integration', selector,
+        runner['selection'](checkout, ['system', selector,
             '--vm', vm, '--fixture-selection', json.dumps(fixture_selection)])
 
 
 @pytest.mark.parametrize('category,arguments', [
-    *(('integration', [selector]) for selector in FIXTURE_WRAPPERS),
+    *(('system', [selector]) for selector in FIXTURE_WRAPPERS),
     ('system', ['--artifacts', '/tmp/onpc-current']),
 ])
 def test_fixture_selection_refuses_unknown_vm(checkout, fixture_selection, category, arguments):
@@ -326,7 +329,7 @@ def test_system_fixture_selection_preserves_exact_record(checkout, fixture_selec
 def test_rejects_symlink(checkout, tmp_path):
     (checkout / 'tests/integration/check_link.py').symlink_to(tmp_path / 'other.py')
     with pytest.raises(ValueError):
-        select(checkout, ['integration', 'check_link'])
+        select(checkout, ['system', 'check_link'])
 
 
 def test_system_selector_stays_a_single_argument(checkout):
@@ -374,9 +377,9 @@ def test_dispatch_runs_only_selected_controller_with_retention_guard(checkout, m
     monkeypatch.setattr(runner['subprocess'], 'run', execute)
     monkeypatch.setattr(runner['os'], 'getgrouplist', lambda *args: [1000])
     caller = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture', pw_dir='/tmp')
-    assert runner['run'](checkout, ['integration', 'check_future_feature', *VM_ARGS], caller) == status
+    assert runner['run'](checkout, ['system', 'check_future_feature', *VM_ARGS], caller) == status
     execute.assert_called_once()
-    assert execute.call_args.args[0] == select(checkout, ['integration', 'check_future_feature'])
+    assert execute.call_args.args[0] == select(checkout, ['system', 'check_future_feature'])
     assert 'user' not in execute.call_args.kwargs
     assert guard.call_args_list == [call(checkout), call(checkout)]
 
@@ -500,10 +503,12 @@ def test_recovery_dispatch_preserves_unfinished_vm_journal(checkout, monkeypatch
     monkeypatch.setattr(runner['os'], 'getgrouplist', lambda *args: [1000])
     control = SimpleNamespace(run=Mock(return_value=0))
     control.installed = lambda **kwargs: nullcontext(control)
-    monkeypatch.setattr(runner['runpy'], 'run_path', lambda path: {
-        'Control': lambda: control, 'safety_command': lambda root: ['cleanup-prerequisites']})
+    load = runner['runpy'].run_path
+    monkeypatch.setattr(runner['runpy'], 'run_path', lambda path: ({
+        'Control': lambda: control, 'safety_command': lambda root: ['cleanup-prerequisites']}
+        if Path(path).name == 'regression_process.py' else load(path)))
     caller = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture', pw_dir=str(checkout))
-    arguments = ['integration', name, *VM_ARGS]
+    arguments = ['system', name, *VM_ARGS]
     assert runner['run'](checkout, (['--unattended'] if unattended else []) + arguments, caller) == 0
     calls = (control.run if unattended else execute).call_args_list
     assert len(calls) == 1
@@ -517,9 +522,9 @@ def test_recovery_dispatch_preserves_unfinished_vm_journal(checkout, monkeypatch
 @pytest.mark.parametrize('unattended', [False, True])
 @pytest.mark.parametrize('arguments', [
     ['system', '--artifacts', '/tmp/onpc-selected', '--area', 'session'],
-    ['integration', 'check_e2e_baseline_journey'], ['integration', 'check_e2e_watch.py'],
-    ['integration', 'check_e2e_chinese_current_install'],
-    ['integration', 'check_fixture_recorded_serial'],
+    ['system', 'check_e2e_baseline_journey'], ['system', 'check_e2e_watch.py'],
+    ['system', 'check_e2e_chinese_current_install'],
+    ['system', 'check_fixture_recorded_serial'],
 ])
 def test_selected_producer_dispatch_keeps_command_without_parent_owner(
         checkout, monkeypatch, unattended, arguments):
@@ -535,7 +540,9 @@ def test_selected_producer_dispatch_keeps_command_without_parent_owner(
     monkeypatch.setattr(runner['subprocess'], 'run', execute)
     control = SimpleNamespace(run=Mock(return_value=7))
     control.installed = Mock(return_value=nullcontext(control))
-    monkeypatch.setattr(runner['runpy'], 'run_path', lambda path: {'Control': lambda: control})
+    load = runner['runpy'].run_path
+    monkeypatch.setattr(runner['runpy'], 'run_path', lambda path: (
+        {'Control': lambda: control} if Path(path).name == 'regression_process.py' else load(path)))
     caller = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture', pw_dir=str(checkout))
     selected = [*arguments, *(['--vm', vm_name(0)]
         if arguments[-1] in ('check_e2e_baseline_journey', 'check_e2e_chinese_current_install',
@@ -559,9 +566,9 @@ def test_selected_producer_dispatch_keeps_command_without_parent_owner(
 
 @pytest.mark.parametrize('phase', ['retain-a', 'replace-b'])
 def test_live_refresh_phases_own_storage_without_idle_vm_retention_guard(phase):
-    assert runner['child_retention_owner'](['integration', 'check_fixture_live_refresh',
+    assert runner['child_retention_owner'](['system', 'check_fixture_live_refresh',
                                            '--fixture-refresh-phase', phase])
-    assert runner['child_retention_owner'](['integration', 'check_fixture_live_refresh.py',
+    assert runner['child_retention_owner'](['system', 'check_fixture_live_refresh.py',
                                            '--fixture-refresh-phase', phase])
 
 

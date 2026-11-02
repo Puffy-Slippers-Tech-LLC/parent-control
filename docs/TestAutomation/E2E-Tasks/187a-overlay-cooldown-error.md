@@ -39,5 +39,5 @@ Approve once on the VM, perform the normal return-and-Request within five second
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_overlay_cooldown_error
+tools/run-tests system check_e2e_overlay_cooldown_error
 ```

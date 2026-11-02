@@ -270,7 +270,7 @@ class Viewer:
                 from regression import duration_text
                 category, case, vm = session.state['repair_failure']
                 started = session.state.get('started_at')
-                if category == 'integration' and isinstance(started, (int, float)):
+                if category == 'system' and case.startswith('check_') and isinstance(started, (int, float)):
                     elapsed = duration_text(time.time() - started)
                     current_vm = ''
                     for index, line in enumerate(lines):

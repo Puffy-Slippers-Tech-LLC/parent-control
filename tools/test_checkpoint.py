@@ -168,12 +168,12 @@ class Checkpoint:
         # selectors instead of silently binding resume to only the last one.
         logical = {kind: options[0] if len(options) == 1 else options
                    for kind, options in groups.items()}
-        whole_integration = [(kind, args) for kind, args in unexpanded
-                             if kind == 'integration'] == [('integration', [])]
+        whole_system = [(kind, args) for kind, args in unexpanded
+                        if kind == 'system'] == [('system', [])]
         def new_entry(kind, args):
             entry = dict(args=args, passed=[], complete=False)
-            if kind == 'integration':
-                entry['whole_inventory'] = whole_integration
+            if kind == 'system':
+                entry['whole_inventory'] = whole_system
             return entry
         self.children = []
         self.dirty = False
@@ -243,39 +243,29 @@ class Checkpoint:
                 # Repair launchers may replay that selection from scratch, but
                 # malformed progress must retain its refusal and evidence.
                 additions = False
-                if resume and whole_integration and 'integration' in state['categories']:
-                    entry = state['categories']['integration']
+                if resume and whole_system and 'system' in state['categories']:
+                    entry = state['categories']['system']
                     old = entry['args']
-                    current = groups['integration']
+                    current = groups['system']
                     provenance = entry.get('whole_inventory')
-                    if provenance is None:
-                        # Older checkpoints lack selector provenance. Only the
-                        # repair launcher's retained original public request can
-                        # authorize their additive migration on its bound VMs.
-                        request = request_record(root, 'fix-tests')
-                        vms = request.get('vm', {}) if request else {}
-                        vms = vms.get('vms', []) if isinstance(vms, dict) else [vms]
-                        provenance = bool(request and request.get('integration_inventory_resume') is True
-                                          and binding in vms)
                     old_groups = [old] if len(old) == 1 and isinstance(old[0], str) else old
-                    # Legacy whole-category checkpoints stored the discovered
-                    # check list, so an added check looked like changed selectors.
-                    # Accept only additive inventory growth, never removals or
-                    # changed focused arguments; new checks gain no pass credit.
-                    additions = (provenance is True and bool(old_groups) and old != logical['integration']
-                                 and all(isinstance(item, list) and len(item) == 1
-                                         and isinstance(item[0], str)
-                                         and item in current for item in old_groups)
+                    # Whole-system requests may gain standalone checks, while
+                    # lifecycle selectors and retained ordering stay unchanged.
+                    additions = (provenance is True and bool(old_groups) and old != logical['system']
+                                 and all(isinstance(item, list) and item in current for item in old_groups)
                                  and [item for item in current if item in old_groups] == old_groups
+                                 and all(len(item) == 1 and isinstance(item[0], str)
+                                         and re.fullmatch(r'check_[a-z][a-z0-9_]*', item[0])
+                                         for item in current if item not in old_groups)
                                  and len(old_groups) < len(current))
                 if resume and any((kind not in state['categories'] and not recover_missing)
                        or (kind in state['categories'] and state['categories'][kind]['args'] != args
-                           and not (kind == 'integration' and additions))
+                           and not (kind == 'system' and additions))
                        for kind, args in logical.items()):
                     raise ValueError(RESUME_SELECTION_MISMATCH)
                 if additions:
-                    state['categories']['integration'].update(args=logical['integration'], complete=False,
-                                                             whole_inventory=True)
+                    state['categories']['system'].update(args=logical['system'], complete=False,
+                                                        whole_inventory=True)
                     self.dirty = True
                 if namespace == 'run-tests':
                     if not resume:

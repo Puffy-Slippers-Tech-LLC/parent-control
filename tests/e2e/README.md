@@ -330,7 +330,7 @@ it installs no product service, changes no guest saved data and requires no host
 session renewal. Direct virt-manager/VNC viewing is outside this contract: its
 connection and input behavior do not enforce these boundaries.
 
-Qualification uses `tools/run-tests integration --vm NAME check_e2e_watch` for repeated
+Qualification uses `tools/run-tests system --vm NAME check_e2e_watch` for repeated
 client connections, premature closes, rejected input and collector stalls while
 the automation VNC endpoint remains responsive. It also starts a lease without
 an E2E recorder, hands off the maintenance collector, checks live screen/SSH and
@@ -1390,7 +1390,7 @@ Sudo/notice pixels remain unqualified; no new prompt collection is needed for
 the corrected worker deadline.
 
 The existing credential-free collection route is
-`tools/run-tests integration --vm NAME check_graphical_vt6_prompt`. It reuses
+`tools/run-tests system --vm NAME check_graphical_vt6_prompt`. It reuses
 `onpc_vt6::inspect_prompt`, `Smoke.VT6_PROMPT_STAGES` and `VT6_GETTY`; it cannot
 provision/read passwords or combine with authentication/installation. Boot and
 independent recipient checks bracket the two private captures; capture seals
@@ -1516,7 +1516,7 @@ still the qualified smoke; the graphical runner owns screen matching and scenari
 
 `e2e_worker.run_distribution` now runs the qualified, fixed credential-free
 distribution for `tests/integration/check_graphical_smoke.py`. Invoke the smoke
-through `tools/run-tests integration --vm NAME check_graphical_smoke`; the dispatcher invokes
+through `tools/run-tests system --vm NAME check_graphical_smoke`; the dispatcher invokes
 the selected controller with the existing VM lease and ownership checks. This is
 worker integration evidence, not an executed E2E-001 variant. The distribution's
 Perl sources still live in `tests/integration/graphical_smoke`. Customer journeys
@@ -1934,7 +1934,7 @@ files and in-memory observers under the existing unit/cleanup classifications.
 
 ### Public serial console qualification
 
-Run `tools/run-tests integration --vm NAME check_graphical_serial` through the existing
+Run `tools/run-tests system --vm NAME check_graphical_serial` through the existing
 guarded dispatcher. This fixed qualification takes no arguments. It reuses
 fixture credentials and GDM checks, then performs serial login, a harmless
 `printf`, real logout and public graphical-console selection. It never opens

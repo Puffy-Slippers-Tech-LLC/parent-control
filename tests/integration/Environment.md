@@ -321,8 +321,8 @@ verification and private online-credential publication. Unqualified runner
 envelopes refuse clean captures before input; environment-only maintenance,
 watch and baseline credential/display checks retain their explicit routes.
 
-List registered checks with `tools/run-tests integration --list`.
-`tools/run-tests integration --vm onpc-Ubuntu26.04 check_fixture_snapshots`
+List registered checks with `tools/run-tests system --list`.
+`tools/run-tests system --vm onpc-Ubuntu26.04 check_fixture_snapshots`
 audits actual clean baseline/app captures, retained checkout and archived input
 trees, independent byte readback, source/product invalidation and owned final
 restoration. Both restored captures must also have an active native service and
@@ -334,7 +334,7 @@ additions and package removals refuse. Retained results bind those package versi
 Invoke authorized baseline refresh separately; this check never
 refreshes a baseline or grants provisioning, runner or customer acceptance.
 
-`tools/run-tests integration --vm onpc-Ubuntu26.04 check_fixture_provisioning`
+`tools/run-tests system --vm onpc-Ubuntu26.04 check_fixture_provisioning`
 qualifies the shared provisioner in three separate watched attempts: refusal of
 a foreign destination, a minimal trusted-hard runtime on the clean baseline,
 and the native/activity/trusted/mechanical union on the installed app capture.
@@ -371,7 +371,7 @@ proven generated outputs may be retired before compilation; ambiguous files
 refuse. A bounded clean-output witness in the existing retirement record preserves
 authenticated stock backups across package updates and interrupted retries.
 
-`tools/run-tests integration --vm onpc-Fedora44 check_fixture_snapshots`
+`tools/run-tests system --vm onpc-Fedora44 check_fixture_snapshots`
 qualifies actual clean baseline/app captures, retained source and archived input
 trees, fixture-only identity independence, genuine dependency/shared lifecycle
 invalidation, product-package identity and watched restoration. It verifies
@@ -932,7 +932,7 @@ pass.
 
 For the narrow case of a VNC graphical attempt whose journal is
 `cleanup-requested` and whose exact recorded domain instance is still running,
-use `pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_recovery`.
+use `tools/run-tests system --vm NAME check_graphical_recovery`.
 It accepts no arguments, runs isolated safety prerequisites, reacquires the
 exclusive lock and verifies the journal, live run/domain identity, source layout,
 baseline identity and snapshot/backing proof before using ordinary lease cleanup.
@@ -941,7 +941,7 @@ on an already-off/replaced instance. Recovery evidence is retained separately
 under `/tmp/onpc-graphical-recovery-*`; original failure evidence is unchanged.
 
 For the same `cleanup-requested` interruption in an installed-system attempt,
-use `tools/run-tests integration --vm NAME check_system_recovery`. It uses the same
+use `tools/run-tests system --vm NAME check_system_recovery`. It uses the same
 exclusive lock and journal/domain/baseline checks, requires the recorded running
 SPICE instance, and performs only ordinary lease cleanup. Neither recovery route
 can adopt the other display kind. Evidence is retained separately under

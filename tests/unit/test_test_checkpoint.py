@@ -175,39 +175,41 @@ def test_resume_refuses_changed_selectors_but_can_narrow_categories(tmp_path, mo
     assert Checkpoint(root, [('publish-deb', [])], resume=True).complete('publish-deb')
     calls = []
     monkeypatch.setattr(regression_selection, 'source_identity', lambda _: 'f' * 64)
-    monkeypatch.setattr(regression, 'Admission', lambda **_: SimpleNamespace(allows=lambda *_: True))
+    monkeypatch.setattr(regression, 'Admission', lambda **_: SimpleNamespace(
+        allows=lambda *_: True, demands={}))
+    monkeypatch.setattr(regression, 'vm_demand', lambda _: None)
     def execute(self, command, **kwargs):
         calls.append(command[1])
         return 0
     monkeypatch.setattr(regression.Control, 'run', execute)
     assert regression.retained_main(root, selections=[('publish', [])], checkpoint=resumed) == 0
     assert calls == ['publish-rpm']
-    # Atomic integration checks commit only after the entire guarded command
+    # Atomic system checks commit only after the entire guarded command
     # returns successfully, including its cleanup. A sibling failure retains
     # the earlier check without marking the category complete.
-    integration = [('integration', ['check_first']), ('integration', ['check_second'])]
-    root = tmp_path / 'integration'
-    checkpoint = Checkpoint(root, integration)
+    checks = [('system', ['check_first']), ('system', ['check_second'])]
+    root = tmp_path / 'system'
+    checkpoint = Checkpoint(root, checks)
     calls.clear()
     def execute_check(self, command, **kwargs):
         calls.append(command[3])
         return 7 if command[3] == 'check_second' else 0
     monkeypatch.setattr(regression.Control, 'run', execute_check)
-    assert regression.retained_main(root, selections=integration, checkpoint=checkpoint) == 1
-    resumed = Checkpoint(root, integration, resume=True)
-    assert resumed.passed('integration') == {'check_first'}
-    assert not resumed.complete('integration')
+    assert regression.retained_main(root, selections=checks, checkpoint=checkpoint) == 1
+    resumed = Checkpoint(root, checks, resume=True)
+    assert resumed.passed('system') == {'check_first'}
+    assert not resumed.complete('system')
     assert calls == ['check_first', 'check_second']
     calls.clear()
     def retry_check(self, command, **kwargs):
         calls.append(command[3])
         return 0
     monkeypatch.setattr(regression.Control, 'run', retry_check)
-    assert regression.retained_main(root, selections=integration, checkpoint=resumed) == 0
+    assert regression.retained_main(root, selections=checks, checkpoint=resumed) == 0
     assert calls == ['check_second']
-    assert Checkpoint(root, integration, resume=True).complete('integration')
+    assert Checkpoint(root, checks, resume=True).complete('system')
 
-    # Whole integration inventories grow as new checks land. Retain existing
+    # Whole system inventories grow as new checks land. Retain existing
     # passes and repair metadata, but leave added checks pending. Exercise the
     # runner's mixed-scope split as well as the repair launcher's checkpoint.
     import runpy
@@ -216,37 +218,31 @@ def test_resume_refuses_changed_selectors_but_can_narrow_categories(tmp_path, mo
         local.setattr(runpy, 'run_path', lambda _: {'runnable': lambda _: names})
         for namespace in ('run-tests', 'fix-tests'):
             names[:] = ['check_first', 'check_second']
-            selection = [('unit', []), ('integration', [])]
+            selection = [('unit', []), ('system', [])]
             root = tmp_path / namespace
             checkpoint = Checkpoint(root, selection, namespace=namespace, binding='guest')
-            checkpoint.event('integration', dict(kind='finished', nodeid='check_first'), set())
-            checkpoint.finish([SimpleNamespace(retry_category='integration',
+            checkpoint.event('system', dict(kind='finished', nodeid='check_first'), set())
+            checkpoint.finish([SimpleNamespace(retry_category='system',
                                                count_overall=True, state='Passed')])
-            # Legacy progress needs the retained repair request as provenance.
-            if namespace == 'fix-tests':
-                checkpoint.entry('integration').pop('whole_inventory')
-                checkpoint.save()
-                request_record(root, 'fix-tests', dict(vm={'vms': ['guest']},
-                                                       integration_inventory_resume=True))
             names.append('check_added')
             resumed = Checkpoint(root, selection, namespace=namespace, binding='guest', resume=True)
-            assert resumed.passed('integration') == {'check_first'}
-            assert not resumed.complete('integration')
+            assert resumed.passed('system') == {'check_first'}
+            assert not resumed.complete('system')
             assert Checkpoint(root, selection, namespace=namespace, binding='guest', resume=True
-                              ).passed('integration') == {'check_first'}
+                              ).passed('system') == {'check_first'}
             with pytest.raises(ValueError, match='selection differs'):
-                Checkpoint(root, [('integration', ['check_added'])], namespace=namespace,
+                Checkpoint(root, [('system', ['check_added'])], namespace=namespace,
                            binding='guest', resume=True)
             names.remove('check_second')
             with pytest.raises(ValueError, match='selection differs'):
                 Checkpoint(root, selection, namespace=namespace, binding='guest', resume=True)
             focused_root = root / 'focused'
-            Checkpoint(focused_root, [('integration', ['check_first']),
-                                      ('integration', ['check_added'])],
+            Checkpoint(focused_root, [('system', ['check_first']),
+                                      ('system', ['check_added'])],
                        namespace=namespace, binding='guest')
             names.append('check_third')
             with pytest.raises(ValueError, match='selection differs'):
-                Checkpoint(focused_root, [('integration', [])], namespace=namespace,
+                Checkpoint(focused_root, [('system', [])], namespace=namespace,
                            binding='guest', resume=True)
 
 
@@ -289,7 +285,7 @@ def test_checkpoint_refuses_unsafe_or_malformed_state(tmp_path, replacement):
     else:
         path.write_text('{')
     with pytest.raises((ValueError, OSError)):
-        Checkpoint(tmp_path, [('integration', ['check_first'])], resume=True,
+        Checkpoint(tmp_path, [('system', ['check_first'])], resume=True,
                    binding='guest-one', recover_missing=True)
 
 
@@ -304,23 +300,23 @@ def test_host_and_vm_checkpoints_are_independent_and_combined_retry_can_narrow(t
     assert Checkpoint(tmp_path, [('e2e', [])], resume=True).passed('e2e') == {'guest-pass'}
     # A repair resume may restore a missing VM category with zero credit,
     # preserving a different suite's checkpoint. Existing selectors stay strict.
-    recovered = Checkpoint(tmp_path, [('integration', ['check_first'])], resume=True,
+    recovered = Checkpoint(tmp_path, [('system', ['check_first'])], resume=True,
                            binding='guest-one', recover_missing=True)
-    assert not recovered.passed('integration') and not recovered.complete('integration')
-    recovered.event('integration', dict(kind='finished', nodeid='check_first'), set())
+    assert not recovered.passed('system') and not recovered.complete('system')
+    recovered.event('system', dict(kind='finished', nodeid='check_first'), set())
     recovered.state['queue_attempt'] = 'old-attempt'
     recovered.save()
     assert Checkpoint(tmp_path, [('e2e', [])], resume=True).passed('e2e') == {'guest-pass'}
     original = (recovered.store.path / recovered.name).read_bytes()
     with pytest.raises(ValueError, match='selection differs'):
-        Checkpoint(tmp_path, [('integration', ['check_second'])], resume=True,
+        Checkpoint(tmp_path, [('system', ['check_second'])], resume=True,
                    binding='guest-one', recover_missing=True)
     assert (recovered.store.path / recovered.name).read_bytes() == original
     # Fresh execution resets its own category, without erasing the other one.
     fresh = Checkpoint(tmp_path, [('e2e', [])])
     assert not fresh.passed('e2e') and 'queue_attempt' not in fresh.state
-    assert Checkpoint(tmp_path, [('integration', ['check_first'])], resume=True).passed(
-        'integration') == {'check_first'}
+    assert Checkpoint(tmp_path, [('system', ['check_first'])], resume=True).passed(
+        'system') == {'check_first'}
     monkeypatch.setenv(VARIABLE, 'guest-two')
     assert Checkpoint(tmp_path, [('e2e', [])], resume=True).passed('e2e') == set()
 
@@ -635,7 +631,8 @@ def test_system_resume_excludes_completed_independent_cases_and_preserves_lifecy
     import system_runner
     inventories = dict(package=('test_installed_package',),
                        removal=('test_remove_reboot_reinstall',), authorization=('test_a', 'test_b'),
-                       enforcement=('test_enforcement',), session=('test_session',))
+                       enforcement=('test_enforcement',), session=('test_session',),
+                       extension=('test_child_extension_monitor_native_recovery',))
     selection = system_runner.resolve_selection('authorization', inventories=inventories)
     resumed = system_runner.resume_selection(selection, {'authorization::test_a'})
     assert [item.case_id for item in resumed.executions] == ['test_b']
@@ -669,6 +666,8 @@ def test_system_case_retry_selects_its_required_history_without_crediting_omissi
                                system_runner.PREVIOUS_POLICY_CASE,
                                system_runner.TRUSTED_FIXTURES_CASE)}
     monkeypatch.setattr(system_runner, 'collect_area_cases', inventories.__getitem__)
+    expand = test_commands.execution_selections
+    monkeypatch.setattr(test_commands, 'execution_selections', lambda root, groups: expand(ROOT, groups))
     plan = system_runner.resolve_selection(inventories=inventories, target_package_format='deb')
     retry = ('rollback::test_aborted_cleanup_rollback_retry' if history else 'authorization::test_b')
     checkpoint = Checkpoint(tmp_path, [('system', [])])
@@ -929,6 +928,8 @@ def test_grouped_system_filter_keeps_unknown_and_incompatible_ids_for_controller
         *RECOVERY_INVENTORIES['package'], system_runner.PREVIOUS_POLICY_CASE,
         system_runner.TRUSTED_FIXTURES_CASE)}
     monkeypatch.setattr(system_runner, 'collect_area_cases', inventories.__getitem__)
+    expand = test_commands.execution_selections
+    monkeypatch.setattr(test_commands, 'execution_selections', lambda root, groups: expand(ROOT, groups))
     selections = [('system', ['--area', 'authorization']), ('system', [])]
     checkpoint = Checkpoint(tmp_path, selections)
     checkpoint.event('system', dict(kind='finished', nodeid=unknown), set())
@@ -962,6 +963,8 @@ def test_grouped_system_upgrade_resume_preserves_installation_predecessors(
     monkeypatch.setattr(vm_config.VMConfig, 'require_package_format', lambda _: package_format)
     inventories = {**RECOVERY_INVENTORIES, 'authorization': ('test_a', 'test_b')}
     monkeypatch.setattr(system_runner, 'collect_area_cases', inventories.__getitem__)
+    expand = test_commands.execution_selections
+    monkeypatch.setattr(test_commands, 'execution_selections', lambda root, groups: expand(ROOT, groups))
     options = ['--area=authorization', '--test', 'test_b',
                '--previous-artifacts=/tmp/onpc-prior', '--artifacts', '/tmp/onpc-current']
     selections = [('system', ['--area', 'authorization', '--test=test_a']), ('system', options)]
@@ -1040,10 +1043,10 @@ def test_vm_queue_preserves_resume_and_first_failure_policy():
     from vm_test_queue import split
     host, guests = split(ROOT, ['--resume', '--stop-on-error', 'host', 'vm'])
     assert host == ['--resume', '--stop-on-error', 'host']
-    assert guests == ['--resume', '--stop-on-error', 'system', 'integration', 'e2e']
+    assert guests == ['--resume', '--stop-on-error', 'system', 'e2e']
     assert split(ROOT, ['all', '--continue-on-errors']) == (
         ['host', '--continue-on-errors'],
-        ['system', 'integration', 'e2e', '--continue-on-errors'])
+        ['system', 'e2e', '--continue-on-errors'])
 
 
 def test_fresh_vm_queue_resets_queued_progress_even_when_host_fails(tmp_path, monkeypatch):
@@ -1059,7 +1062,7 @@ def test_fresh_vm_queue_resets_queued_progress_even_when_host_fails(tmp_path, mo
     monkeypatch.setattr(test_commands, '_main', lambda *_, **__: 1)
     expand = test_commands.execution_selections
     monkeypatch.setattr(test_commands, 'execution_selections', lambda root, groups: expand(ROOT, groups))
-    selection = [('system', []), ('integration', []), ('e2e', [])]
+    selection = [('system', []), ('e2e', [])]
     binding = family_binding(vm.family, [vm.name])
     previous = Checkpoint(tmp_path, selection, binding=binding, namespace='run-tests-family')
     previous.event('e2e', dict(kind='finished', nodeid='old-pass'), set())
@@ -1141,7 +1144,7 @@ def test_resumed_dashboard_and_saved_progress_keep_original_counts(tmp_path, kin
         run.categories[:] = [item]
         run.dashboard.stream = io.StringIO()
         if kind == 'system':
-            run.checkpoint = Checkpoint(tmp_path, [(kind, [])])
+            run.checkpoint = Checkpoint(tmp_path, [(kind, ['--area=authorization'])])
             run.checkpoint.entry(kind)['passed'] = list(retained)
             # resume_command scopes retained system IDs before collection.
             item.resumed_nodeids = retained
@@ -1158,7 +1161,8 @@ def test_resumed_dashboard_and_saved_progress_keep_original_counts(tmp_path, kin
                 dict(kind='finished', nodeid=pending[0]))).encode())
             assert (item.done, item.total) == (1, 91)
             frame = run.dashboard.ANSI.sub('', '\n'.join(run.dashboard.render(run.dashboard.started)))
-            assert 'Resumed tests - 10% (10/100)' in frame
+            label = 'Installed-system tests' if kind == 'system' else 'Resumed tests'
+            assert label + ' - 10% (10/100)' in frame
             assert 'Overall - 10% (10/100)' in frame
             report.checkpoint(force=True)
             progress = json.loads((report.directory / 'progress.json').read_text())

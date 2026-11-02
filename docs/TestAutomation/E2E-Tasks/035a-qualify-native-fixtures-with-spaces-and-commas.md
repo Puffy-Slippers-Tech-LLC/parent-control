@@ -51,5 +51,5 @@ Readiness supplies no saved VM state or complete case acceptance.
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_qualify_native_fixtures_with_spaces_and_commas
+tools/run-tests system check_e2e_qualify_native_fixtures_with_spaces_and_commas
 ```

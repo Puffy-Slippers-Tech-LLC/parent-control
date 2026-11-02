@@ -57,5 +57,5 @@ Those customer results remain pending in case 189.
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_qualify_versioned_appimage_pattern_assets
+tools/run-tests system check_e2e_qualify_versioned_appimage_pattern_assets
 ```

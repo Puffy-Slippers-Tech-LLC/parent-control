@@ -43,5 +43,5 @@ reason to add a file-manager setup tour.
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_native_desktop_usable
+tools/run-tests system check_e2e_native_desktop_usable
 ```

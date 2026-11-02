@@ -64,8 +64,7 @@ the `all` aggregate breaks down into separately runnable pieces. `tools/run-test
 prints the ordered JSON granular inventory. Each entry has a `description`, a
 `scope` of `host` or `vm`, and
 an explicit `args` array; executing each entry with those arguments covers the
-same suites as `all`. It starts with unit and UI and ends with system,
-integration and E2E.
+same suites as `all`. It starts with unit and UI and ends with system and E2E.
 Raw test output remains in the linked report streams.
 
 Readiness and leaf/composite status are registered with each command in
@@ -85,10 +84,10 @@ select the aggregate's non-live scope; the shared launcher applies that same
 host-only boundary to focused UI commands. Owned cleanup and required package
 inputs still run wherever the selected suite needs them.
 
-The complete partition is **host + vm = all**, with **vm = system + integration + e2e**.
+The complete partition is **host + vm = all**, with **vm = system + e2e**.
 Every implemented leaf belongs to exactly one of these scopes. Combine these
-categories in one invocation; execution always orders host first, then system,
-integration and E2E. For example:
+categories in one invocation; execution always orders host first, then system
+and E2E. For example:
 
 ```sh
 tools/run-tests host
@@ -98,31 +97,32 @@ tools/run-tests system --vm NAME e2e
 tools/run-tests e2e --vm NAME
 tools/run-tests host system --vm NAME
 tools/run-tests host system e2e --vm NAME
-tools/run-tests host system integration e2e --vm NAME
 ```
 
 `host` includes discovery, unit (including cleanup regressions), component, UI,
 fixture runtime, source/traceability, static, child Node/GJS, backend checks,
-publishing checks, two fresh package builds and reproducibility comparison.
+publishing checks, graphical-worker and applicable package-notice checks, two fresh package
+builds and reproducibility comparison.
 It uses the complete aggregate's existing four-branch scheduling and stops at
 **Join host branches**, without VM discovery, authorization or execution.
 If unfinished prior work requires VM recovery, `host` refuses and preserves the
 evidence rather than touching the VM.
 
-`vm` runs system tests, runnable integration checks and ready E2E scenarios, preparing their required package
+`vm` runs system tests and ready E2E scenarios, preparing their required package
 inputs without running host test suites. Separate `host` and `vm` invocations
 may run in parallel. Each scope has its own activity lock, session discovery,
 attachment, cancellation and retained results; combined selections reserve both
 locks. Narrower categories use their owning scope's lock.
 
-Bare `system` includes the current-package suite and separate genuine upgrade
-attempts for histories 287 and 288, each through `system --id N --upgrade-inputs`.
-Focused selectors retain their original meaning. Bare `integration` expands the
-[installed binding inventory](integration/integration_inventory.py) into guarded
-per-check launches. `integration --list` contains only explicitly registered
-standalone tests, with host applicability. E2E building blocks are not registered,
-even while their customer consumers are pending. Operational
-cleanup/recovery/maintenance and unqualified envelopes never enter its test list.
+Bare `system` includes the current-package suite, separate genuine upgrade
+attempts for histories 287 and 288 through `system --id N --upgrade-inputs`, and
+registered standalone checks through guarded per-check launches. The
+[standalone inventory](integration/system_checks.py) registers installed checks
+positively; `system --list` lists lifecycle selectors and standalone registrations.
+Focused lifecycle selectors retain their original meaning. `system CHECK` runs
+one named check. E2E building blocks remain explicitly callable without category
+membership, even while their customer consumers are pending. Operational
+cleanup/recovery/maintenance and unqualified envelopes never enter the test list.
 See the [installed scheduling contract](integration/README.md#aggregate-scheduling)
 for duplicate and applicability decisions. Every check retains its own input
 preparation, failure result and owned cleanup; a failure refuses later VM attempts.
@@ -285,7 +285,7 @@ exclusively at runtime so incomplete checkouts fail safely. Validate partition
 coverage and compatible overlap for the changed scope using the maintained
 launcher, without expanding validation to unrelated host categories.
 
-`system`, `integration` and `e2e` remain sequential within each VM. VM tests default to every
+`system` and `e2e` remain sequential within each VM. VM tests default to every
 VM in `config/test-vm.json` whose `enabled` equals the string `"true"`.
 The [family configuration](integration/Environment.md#shared-vm-configuration)
 defines equivalent workers sharing package format and a fixture directory.
@@ -400,18 +400,18 @@ those cases to run again. A failed final controller/cleanup audit repeats a case
 so an empty selection cannot certify recovery. Changed selectors refuse resume;
 start without the option to reset. Host and individual VM checkpoints remain
 separate, and a retry can narrow an aggregate to an original category.
-Whole-integration selections accept additive check inventory growth on resume:
+Whole-system selections accept additive standalone check inventory growth on resume:
 existing passes remain saved and added checks run as pending work. Removed checks
 and changed explicit selectors still refuse resume. New checkpoints record whether
-the original request selected the whole inventory; older checkpoints require the
-repair launcher's matching retained whole-integration request for this recovery.
+the original request selected the whole inventory; checkpoints without that
+provenance refuse changed selections.
 Case IDs above the snapshot length limit are replayed rather than retained as
 passes. Resume repairs older checkpoints containing such IDs while keeping all
 other valid passes; malformed state and unsafe files still refuse execution.
 
 Preparation, ownership recovery and validated package inputs still run. System
 upgrade and removal/repair lifecycle cases replay their state-changing predecessors when
-needed to reach the failed phase. Each integration check is atomic: it is retained
+needed to reach the failed phase. Each standalone check is atomic: it is retained
 only after its command and owned cleanup succeed, and failed/interrupted checks
 run again. Other commands without case events resume at their category boundary. Small private checkpoints
 use the shared storage/state route; retained reports keep their normal lifetime.
@@ -1013,7 +1013,7 @@ Every **three accepted and committed tasks**, a fresh **GPT-6.1 Sol High** sessi
 runs before another queue task. Its batch identity is the exact three completed
 queue IDs, displayed as the actual first-to-last ID range (IDs may have suffixes
 or inserted prerequisites). Its reuse audit covers all VM tests, including
-system tests, installed integration tests, E2E cases and shared support, rather than only the
+system tests, E2E cases and shared support, rather than only the
 batch's affected E2E cases. This required session optimizes the current code;
 it does not collect proof, inspect old reports or repeat completed tasks' checks.
 Refactoring changes receive only their affected validation; unchanged code needs
@@ -1788,7 +1788,7 @@ The maintained launchers hold a checkout activity lock for the full command,
 including cleanup. Aggregate children join through an inherited locked file
 descriptor; another terminal's `tools/run-tests` attaches within the same scope.
 Host-only selections use `artifacts/test-activity/host.lock`; selections with
-VM or privileged integration work keep
+installed system or E2E work keep
 `artifacts/test-activity/lock`. These are the only two test scope locks;
 `all` and mixed host/VM selections reserve both, including cleanup.
 Competing owners within each scope refuse. Named VM preparation also retains
@@ -1907,7 +1907,7 @@ not rewritten. The
 [extension guide](../vscode/onpc-watch/README.md) owns its table and links.
 
 `tools/run-tests` automatically records every VM-scoped category, including
-system, integration and E2E execution, through the
+system and E2E execution, through the
 private GTK recording renderer with shared read-only VM feeds and filtered SSH
 terminals. The recording includes the viewer tabs, VM panels, SSH output
 and progress footer at full frame size; it excludes the left runner terminal,
@@ -2157,23 +2157,23 @@ separate from disposable scratch. Recovery diagnostics use their own bounded
 failed or interrupted recovery keeps its logs without rotating or clearing the
 unfinished VM journal. The existing VM lease still controls recovery itself.
 
-For older unregistered qualification directories, `tools/run-tests integration --vm NAME
+For older unregistered qualification directories, `tools/run-tests system --vm NAME
 check_tmp_storage` prints a read-only inventory with sizes and directory
 identities. After reviewing the inventory, put only explicitly selected records
 (`path`, `device`, `inode`, `mode`) in `artifacts/tmp-storage-cleanup.json`, then
-run `tools/run-tests integration --vm NAME check_tmp_storage_cleanup`. This developer
+run `tools/run-tests system --vm NAME check_tmp_storage_cleanup`. This developer
 cleanup requires an idle privileged retention owner and completed VM recovery,
 refuses live process references, and validates every identity and mount boundary
 before deleting anything. It never selects deletion targets by prefix or age.
 Keep needed recent diagnostics out of the manifest. Both commands use the
-existing integration dispatcher and live ownership checks.
+existing system dispatcher and live ownership checks.
 
 System evidence keeps its registered allocation root at mode 0700; use the
 installed artifact reader for privileged results. Legacy journals with mismatched
 system-root modes require explicit migration; they cannot create an unbounded
 archive outside rotation.
 
-For the storage relocation, `tools/run-tests integration --vm NAME check_storage_migration`
+For the storage relocation, `tools/run-tests system --vm NAME check_storage_migration`
 prints a read-only legacy inventory when `output/test-runs/storage-migration.json` is
 absent. A reviewed manifest contains exact `path`, `device`, `inode`, `mode` and
 `uid` records. With the manifest present, the same command locks legacy owners,
@@ -2324,8 +2324,8 @@ read-only system diagnostics, and trust boundaries. Stable entry points are:
 tools/run-unit-tests 'tests/unit/test_*cleanup_safety.py' 'tests/unit/test_graphical_lease.py' -q
 tools/run-tests component 'tests/component/test_*.py' -q
 tools/run-tests ui -q
-tools/run-tests integration --vm NAME check_graphical_worker
-tools/run-tests integration --vm NAME check_package_notice
+tools/run-tests graphical-worker
+tools/run-tests package-notice
 tools/run-tests system --vm NAME --artifacts '<builder-returned-directory>' --area authorization
 tools/run-tests e2e --vm NAME --list
 tools/diagnose journal --unit 'oh-no-parent-control*' --lines 500
@@ -2346,7 +2346,7 @@ Unit/property/contract selections stay in `tests/unit`, components in
 `tests/component`, and UI tests in `tests/ui`. Arbitrary pytest config/plugins,
 external paths, symlinks, shell commands and Make argument injection are refused.
 
-The root-owned test dispatcher supports integration, system, E2E and pinned-VM
+The root-owned test dispatcher supports system, host checks, E2E and pinned-VM
 operations. Its Codex approval and Polkit authorization are separate controls.
 It trusts the configured checkout's test code and imports. New files within a
 supported category need no per-file approvals. Unimplemented E2E scenarios and planned runners
@@ -2652,8 +2652,8 @@ Changes to graphical ownership or descriptor transfer use the existing shared
 regressions in `tests/unit/test_graphical_lease.py`. They cover
 VM ownership refusal and real display descriptor transfer/revocation. The
 ordinary adapter or worker changes do not automatically require these checks. The privileged
-integration dispatcher executes only the requested operation.
-`integration check_graphical_worker` has non-VM fixtures that verify byte transfer,
+system dispatcher executes only the requested operation.
+`graphical-worker` has non-VM fixtures that verify byte transfer,
 normal exit, controller disconnect, and forced supervisor interruption. This
 qualifies namespace containment, not the actual os-autoinst/VM integration.
 

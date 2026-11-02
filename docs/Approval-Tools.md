@@ -587,7 +587,7 @@ data. Codex restarts do not change Polkit authentication policy.
 Use `tools/run-tests --help` for usage and the `all` composition, or
 `tools/run-tests --list` for the ordered granular JSON inventory with explicit
 argument arrays and a `host` or `vm` scope. The disjoint partition is
-`host + vm = all`, with `vm = system + integration + e2e`. This partition is shared by `all` and `tools/fix-tests`;
+`host + vm = all`, with `vm = system + e2e`. This partition is shared by `all` and `tools/fix-tests`;
 composites, instrumentation and diagnostics are listed separately in `--help`.
 Paths are relative to
 the checkout. Quote globs and parametrized pytest IDs so Codex sees a literal
@@ -621,8 +621,10 @@ validated legacy `/tmp/onpc-*` bundles remain accepted inputs, not output exampl
 | Execution-owned native fixtures | `tools/run-tests fixtures prepare --kind native-runtime --target ubuntu\|fedora` | Verified reuse within the existing retained execution, or a separately registered copy of verified producer output; immutable selection and authenticated read-only handoff. No VM or product operation. |
 | Package/fixture artifacts and reproducibility | `tools/run-tests artifacts build` / `verify 'ARTIFACTS'` / `compare 'FIRST' 'SECOND'` | Fixed builder; explicit existing project artifact inputs |
 | Reusable package/fixture preparation | `tools/run-tests artifacts prepare` | Content-qualified reuse or a fresh build; new private output registered in bounded run retention. No VM or installed product changes. |
-| Named qualification inputs | `tools/run-tests integration --vm NAME check_parent_setup` | Integration qualifications using `named_input()` automatically select current source-keyed inputs and prepare absent bundles before privileged dispatch. Same unprivileged builder and retention; exclusive creation, no overwrite. A legacy fixed-name bundle is never selected. Shared launcher coverage follows the [test scope mandate](Mandates/Test-Scope-Mandate.md). |
-| Privileged harness/graphical checks | `tools/run-tests integration --vm NAME check_future_feature` | Direct `tests/integration/check_[a-z][a-z0-9_]*.py`; no script options |
+| Named qualification inputs | `tools/run-tests system --vm NAME check_parent_setup` | Explicit qualifications using `named_input()` automatically select current source-keyed inputs and prepare absent bundles before privileged dispatch. Same unprivileged builder and retention; exclusive creation, no overwrite. A legacy fixed-name bundle is never selected. Shared launcher coverage follows the [test scope mandate](Mandates/Test-Scope-Mandate.md). |
+| Privileged harness/graphical checks | `tools/run-tests system --vm NAME check_future_feature` | Direct `tests/integration/check_[a-z][a-z0-9_]*.py`; no script options |
+| Host worker containment | `tools/run-tests graphical-worker` | Isolated host fixtures; included in `host`, excluded from `system` and `vm` |
+| Host package notices | `tools/run-tests package-notice` | Native APT/dpkg Ubuntu/Debian host fixtures; included in `host`, excluded from `system` and `vm` |
 | Installed identity, authorization, enforcement, time, activation, migration, removal and reinstall | `tools/run-tests system --vm NAME --artifacts 'ARTIFACTS' --area authorization --test 'case[param]'` | Existing guarded VM controller; future registered areas/cases need no new rule |
 | Graphical journeys and harness scenarios | `tools/run-tests e2e --vm NAME` / `tools/run-tests e2e --vm NAME --id 1,3,4` / `tools/run-tests e2e --vm NAME --list` | Defaults to every runnable E2E case, reporting pending exclusions; no other test categories are dispatched. Missing artifacts are built automatically; `--artifacts 'ARTIFACTS'` reuses verified inputs. Explicit pending/invalid IDs refuse before privilege checks. Serial owned recovery remains mandatory; no prerequisite test suite runs. See [commands and prerequisites](../tests/e2e/README.md#run-e2e-scenarios). |
 | Asset-transfer runner qualification | `tools/run-tests e2e --vm NAME --qualify-transfer --artifacts 'ARTIFACTS'` | Guarded diagnostic attempt with live ownership checks; no scenario/list selector or product installation; pending customer dispatch stays closed |
@@ -632,8 +634,8 @@ validated legacy `/tmp/onpc-*` bundles remain accepted inputs, not output exampl
 | Scripted E2E implementation | `tools/write-e2e --vm NAME [--tasks N]` / `tools/write-e2e --vm NAME --stop` | The [launcher policy](../tests/README.md#scripted-e2e-implementation) owns fresh serial model selection, promotion/advice, the shared task limit, built-in per-task session caps and resumable close-out. Launcher-owned staging, commit and `git push` after every accepted task; every three completed close-outs adds a resumable Sol High lessons/composition audit with a refactor commit and push. Explicit literal paths exclude unrelated work and output artifacts; existing grants, safe session-boundary stop and guarded owned cancellation/cleanup apply. |
 | Execution plans | `tools/execute-plan --plan PATH [--tasks N] [--stop] [--check]` | The [shared plan contract](Execution-Plans.md) owns format, task budgets and safe resumption. Zero/negative task limits mean all remaining; oversized limits warn and finish with the queue. Each task owns its checks. The driver completes owned cleanup and Git close-out, then advances to the next unchecked row without collecting archives or rechecking old reports; `--check` makes no Git changes. Ownership, permissions and operation-specific mandates apply. |
 | Complete host category | `tools/run-tests host [--continue-on-errors]` | All host work, including publishing, two fresh builds and comparison, in the aggregate's four branches; no VM discovery, authorization or execution |
-| Complete VM category | `tools/run-tests vm [--vm NAME] [--continue-on-errors]` | System, runnable integration and ready E2E coverage; required inputs are prepared automatically; independent host runs may overlap |
-| Combined complete categories | `tools/run-tests host vm --vm NAME` | Equals `all`; `vm` expands to `system integration e2e`; any subset/order is accepted, scheduled host first, then sequential system, integration and E2E; one report and shared package inputs; combined runs reserve both scope locks |
+| Complete VM category | `tools/run-tests vm [--vm NAME] [--continue-on-errors]` | System lifecycle, registered standalone checks and ready E2E coverage; required inputs are prepared automatically; independent host runs may overlap |
+| Combined complete categories | `tools/run-tests host vm --vm NAME` | Equals `all`; `vm` expands to `system e2e`; any subset/order is accepted, scheduled host first, then sequential system and E2E; one report and shared package inputs; combined runs reserve both scope locks |
 | Host compatibility alias | `tools/run-tests host-builds [--serial-builds] [--continue-on-errors]` | Same scope as `host`; `--serial-builds` retains publishing/builds after the host join for a scheduling comparison |
 | Local publishing checks | `tools/run-tests publish` | Independently scheduled `publish-deb` and `publish-rpm` jobs, also selectable alone and included in host/test-all/test-all-verify; no publication |
 | Future fast suite | `tools/run-tests fast --component broker --type contract` | Fixed `test-fast` target; refuses while unfinished |
@@ -879,9 +881,9 @@ controller fix, not deletion of journals or a raw `virsh` workaround.
 
 Use the installed/graphical runner for ordinary tests. These maintenance
 commands do not produce complete customer-journey evidence. The existing
-`integration check_graphical_recovery` remains the separate narrow recovery
+`system check_graphical_recovery` remains the separate narrow recovery
 route for an interrupted graphical runner, under its recorded identity checks.
-`tools/run-tests` invokes `integration check_test_recovery` automatically for
+`tools/run-tests` invokes `system check_test_recovery` automatically for
 idle unfinished VM-side retention or before a new VM category. Host-only runs
 leave VM-side retention untouched and refuse unfinished records in their own
 journal. `tools/cleanup-e2e` also reconciles that host journal under its activity
@@ -1087,7 +1089,7 @@ argument-confined helpers.
 
 The safety boundary trusts this checkout, its maintained test code/imports,
 configuration and installed dependencies. A filename pattern cannot prove that
-a newly written test is harmless. In particular, privileged integration tests
+a newly written test is harmless. In particular, privileged system checks
 remain trusted root code. Review changes to helpers, tests and rules before
 running code from an untrusted branch. Ordinary tests, known operations and
 new names within the documented contracts need no individual approval; new

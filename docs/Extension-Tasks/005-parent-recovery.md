@@ -3,7 +3,7 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
-Category: integration. Requires: 001. Estimate: 30–60 minutes.
+Category: system. Requires: 001. Estimate: 30–60 minutes.
 Session exception: preserve the deliberately disabled child session and its
 current policy while observing the actual installed frontend/backend call path.
 
@@ -26,7 +26,7 @@ does not change time/grants; first enablement retains its specified daily-limit,
 stale-grant clearing and rollback semantics. Saved-off selection must not enable
 the extension. Reuse existing host authorization/selection-ordering checks.
 
-This is a fault-recovery integration, not a second Parent customer journey or
-UI presentation test. The standalone integration binding is unimplemented;
+This is a system fault-recovery check, not a second Parent customer journey or
+UI presentation test. The standalone system binding is unimplemented;
 register it only after its distinct fault assertions are executable. Verify both
 targets and complete the master's cleanup before closing the row.

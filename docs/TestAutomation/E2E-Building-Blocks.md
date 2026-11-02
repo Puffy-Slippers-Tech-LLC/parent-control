@@ -20,7 +20,7 @@ system-test obligations and cannot be selected by the E2E runner. Current scenar
 `tests/e2e/scenarios.json` and the generated coverage report, not this catalogue.
 
 Standalone qualifications for ordinary supporting helpers were removed under
-the [integration scope reduction](../../tests/integration/README.md#aggregate-scheduling).
+the [standalone scope reduction](../../tests/integration/README.md#aggregate-scheduling).
 Their names below and in completed queue rows describe historical qualification;
 they do not require recreating the entry points or repeating those histories.
 Keep the qualified shared operations and runtime guards. Validate changes through
@@ -1048,7 +1048,7 @@ through `ConfinementUsabilityQualification` and
 [`onpc_confinement_usability::run`](../../tests/integration/graphical_smoke/lib/onpc_confinement_usability.pm).
 The existing installed envelope has a 1800-second worker timeout. The complete
 composition is qualified on `onpc-Ubuntu26.04` and `onpc-Fedora44` through
-`tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' integration check_e2e_confinement_usability`.
+`tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' system check_e2e_confinement_usability`.
 
 Its finite history uses Riley/Jamie (`fixture-child`/`fixture-parent`), daily
 900 seconds, initial zero grant, Custom `1.25` Minutes (75 seconds), and soft apps
@@ -3724,7 +3724,7 @@ acceptance. Their removal from customer recipes does not delete the obligations:
 Maintained owners are [system tests](../../tests/system),
 [broker components](../../tests/component), [unit tests](../../tests/unit) and
 [UI tests](../../tests/ui). Missing exact implementation remains pending.
-The [assertion allocation](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage)
+The [assertion allocation](UI-and-E2E-Coverage.md#reuse-of-system-coverage)
 governs reuse without shortening customer journeys. In particular, obligation
 147 is already executable as system 255 in
 [`test_requester_disconnect_during_approval`](../../tests/system/test_authorization.py).

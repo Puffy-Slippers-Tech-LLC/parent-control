@@ -42,5 +42,5 @@ On the VM actually play the declared real windowed level, observe input effects 
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_game
+tools/run-tests system check_e2e_game
 ```

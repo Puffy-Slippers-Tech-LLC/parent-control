@@ -47,20 +47,21 @@ CATEGORIES = {
     'component-all': CategorySpec('the current make check-component aggregate', leaf=False),
     'fixtures': CategorySpec('build, verify PATH; native-runtime also supports prepare; --kind native-runtime --target ubuntu|fedora; recover TRANSACTION retries exact interrupted producer cleanup', leaf=False),
     'artifacts': CategorySpec('two fresh package/fixture builds and reproducibility; build, prepare (verified reuse), verify PATH, compare FIRST SECOND'),
-    'integration': CategorySpec('registered standalone integration tests; optional guarded qualification basename; --list shows test registrations and host applicability', scope='vm'),
-    'system': CategorySpec('current-package suite plus separate 287/288 upgrades by default; --id N[,N...] or --area/--test focuses selection; optional --artifacts; --previous-artifacts, --list', scope='vm'),
+    'graphical-worker': CategorySpec('contained host graphical-worker transfer, exit and interruption checks; no VM'),
+    'package-notice': CategorySpec('host-native APT/dpkg notice lifecycle in private chroots; Ubuntu/Debian hosts only'),
+    'system': CategorySpec('installed lifecycle, security and registered standalone checks; separate 287/288 upgrades by default; --id N[,N...] or --area/--test focuses selection; optional --artifacts; --previous-artifacts, --list', scope='vm'),
     'e2e': CategorySpec('all runnable E2E cases by default; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)', scope='vm'),
     'fast': CategorySpec('reserved for the make test-fast target', leaf=False, implemented=False, scope='vm'),
     'all': CategorySpec('complete established regression (default with no arguments); metadata-only VM backing verification; --continue-on-errors disables stop on first error', leaf=False),
     'all-verify': CategorySpec('compatibility alias for all; metadata-only VM verification; --continue-on-errors disables stop on first error', leaf=False),
     'host': CategorySpec('all host tests, publishing and two reproducibility builds in four branches; no VM; host + vm = all', leaf=False),
-    'vm': CategorySpec('all VM tests: system, integration and e2e; no host suites; host + vm = all', leaf=False, scope='vm'),
+    'vm': CategorySpec('all VM tests: system and e2e; no host suites; host + vm = all', leaf=False, scope='vm'),
     'host-builds': CategorySpec('compatibility alias for host; optional --serial-builds for scheduling comparison', leaf=False),
 }
 
 AGGREGATES = ('all', 'all-verify', 'host', 'host-builds', 'vm')
 PUBLISH_CATEGORIES = ('publish-deb', 'publish-rpm')
-PHASES = ('host', 'system', 'integration', 'e2e')
+PHASES = ('host', 'system', 'e2e')
 COMPLETE = (*PHASES, 'vm')
 HELP_ARGV = (['--help'], ['-h'])
 INSPECTION_FLAGS = ('--help', '-h', '--list', '--collect-only')
@@ -126,9 +127,12 @@ def suite_inventory(categories=(), *, inventory=None):
     if inventory is None:
         from regression_ui import HOST_ARGS
         leaves = {kind: spec for kind, spec in CATEGORIES.items() if spec.leaf and spec.implemented}
+        import platform
+        if platform.freedesktop_os_release()['ID'] not in ('ubuntu', 'debian'):
+            leaves.pop('package-notice', None)
         order = [*(kind for kind in ('unit', 'ui') if kind in leaves),
-                 *(kind for kind in leaves if kind not in ('unit', 'ui', 'system', 'integration', 'e2e')),
-                 *(kind for kind in ('system', 'integration', 'e2e') if kind in leaves)]
+                 *(kind for kind in leaves if kind not in ('unit', 'ui', 'system', 'e2e')),
+                 *(kind for kind in ('system', 'e2e') if kind in leaves)]
         inventory = {kind: {'description': leaves[kind].description,
                             'scope': leaves[kind].scope,
                             'args': list(HOST_ARGS) if kind == 'ui' else []}
@@ -163,6 +167,12 @@ def inventory_scope(name, spec):
     return scope
 
 
+def system_check_selection(args):
+    """Return a named installed check, independently of coordinator options."""
+    return next((argument.removesuffix('.py') for argument in args
+                 if re.fullmatch(r'check_[a-z][a-z0-9_]*(?:\.py)?', argument)), None)
+
+
 def execution_selections(root, selections):
     """Expand complete leaves; focused routes retain their original guards."""
     result = []
@@ -171,12 +181,11 @@ def execution_selections(root, selections):
             result.extend((kind, options) for options in (
                 [], ['--id', '287', '--upgrade-inputs'],
                 ['--id', '288', '--upgrade-inputs']))
-        elif kind == 'integration' and not args:
             import runpy
-            listing = runpy.run_path(str(root / 'tests/integration/integration_inventory.py'))
+            listing = runpy.run_path(str(root / 'tests/integration/system_checks.py'))
             names = listing['runnable'](root / 'tests/integration')
             if not names:
-                raise ValueError('integration inventory contains no runnable checks')
+                raise ValueError('system inventory contains no registered checks')
             result.extend((kind, [name]) for name in names)
         else:
             result.append((kind, list(args)))
@@ -324,16 +333,15 @@ Inspection
   --stop-on-error  leading option: cancel selected work at the first reported
                    failure, preserving parallel scheduling and owned cleanup
 
-Complete categories (combine in any order; execute host, system, integration, e2e)
+Complete categories (combine in any order; execute host, system, e2e)
   host         all host/dev-machine work in four balanced branches, including
                publishing, two package builds and reproducibility; no VM
   system       installed-system VM tests, sequential
-  integration  runnable guarded integration checks, sequential
   e2e          ready GUI-driven VM scenarios, sequential
-  vm           all VM work: system + integration + e2e; no host suites
+  vm           all VM work: system + e2e; no host suites
 
   all = host + vm
-  vm = system + integration + e2e
+  vm = system + e2e
 
   tools/run-tests host
   tools/run-tests vm --vm NAME
@@ -341,7 +349,7 @@ Complete categories (combine in any order; execute host, system, integration, e2
   tools/run-tests system e2e --vm NAME
   tools/run-tests e2e --vm NAME
   tools/run-tests host system --vm NAME
-  tools/run-tests host system integration e2e --vm NAME    (same as all)
+  tools/run-tests host system e2e --vm NAME    (same as all)
 
   tools/run-tests publish                     independent DEB/RPM jobs; parallel when resources allow
   tools/run-tests publish-deb                 DEB prerequisites and results only
@@ -354,15 +362,16 @@ Complete categories (combine in any order; execute host, system, integration, e2
   VM names follow numeric config IDs; no timestamp, age or size rotation.
   system --id N[,N...] selects persistent IDs shown by system --list.
   Bare system also runs 287 and 288 as separate upgrade-input attempts.
-  integration --list shows registered standalone tests and host applicability.
-  E2E building blocks are not integration registrations. A focused qualification
+  system --list includes the registered standalone installed checks.
+  system CHECK selects a named standalone check or engineering qualification.
+  E2E building blocks are not standalone registrations. A focused qualification
   basename keeps its existing guarded launch and input preparation route.
   Narrowed combined categories share one report and reuse host's package artifacts.
   Without host, VM categories prepare verified package inputs (reuse or build).
   Focused system --area AREA --test CASE also prepares inputs per VM when
   --artifacts is omitted. Each family must declare package_format (deb or rpm) in
   config/test-vm.json; there is no default. Configured concurrency still applies.
-  After host and e2e, system and integration remain.
+  After host and e2e, system remains.
   Separate host and vm runs may execute in parallel, with independent locks,
   sessions and cancellation. Combined host/VM runs reserve both scopes.
 
@@ -376,7 +385,8 @@ Aggregate aliases (no suite selectors)
 
   Host includes unit (including cleanup regressions), component, ui,
   fixture-runtime, source/traceability, static, child-node, child-gjs,
-  backend, publish, package builds A/B and their comparison.
+  backend, graphical-worker, package-notice on Ubuntu/Debian hosts, publish,
+  package builds A/B and their comparison.
   All VM operations use metadata-only verification; image contents are never
   scanned. Focused system/e2e options remain available.
   The granular inventory supplies both host's suites and fix-tests round 1.
@@ -398,7 +408,7 @@ Aggregate aliases (no suite selectors)
   Add --output PATH to prepare a new named input without replacing existing data.
   artifacts build --output '/REPO/output/test-runs/host/allocations/onpc-NAME'
   builds into a new named directory
-  for fixed integration consumers; existing paths are never overwritten.
+  for fixed installed-check consumers; existing paths are never overwritten.
   Pending E2E variants remain excluded.
 
 UI-only validation (same UI buckets and resource limits as host)
@@ -522,6 +532,8 @@ def vm_input_options(category, argv):
     """
     upgrade = '--upgrade-inputs' in argv
     native = '--native-inputs' in argv
+    if (upgrade or native) and system_check_selection(argv):
+        raise ValueError('package history inputs cannot select a named system check')
     if native and (category != 'system' or argv.count('--native-inputs') != 1 or upgrade
                    or any(value in ('--artifacts', '--previous-artifacts', '--native-artifacts')
                           or value.startswith(('--artifacts=', '--previous-artifacts=', '--native-artifacts='))
@@ -602,8 +614,7 @@ def qualification_input_options(root, selector):
 
 def qualification_artifact_command(root, category, args):
     """Prepare every declared qualification input for the selected VM."""
-    if (category != 'integration' or len(args) != 1
-            or args[0] in INSPECTION_FLAGS):
+    if category != 'system' or len(args) != 1 or not system_check_selection(args):
         return None
     fixture_execution_target(category, args)
     options = qualification_input_options(root, args[0])
@@ -660,30 +671,30 @@ def fixture_execution_target(category, args):
     """Resolve only delivered fixture envelopes, without preparing any input."""
     if any(argument in INSPECTION_FLAGS for argument in args):
         return None
-    provisioning = (category == 'integration' and len(args) == 1
+    provisioning = (category == 'system' and len(args) == 1
                     and args[0].removesuffix('.py') == 'check_fixture_provisioning')
-    bootstrap = (category == 'integration' and len(args) == 1
+    bootstrap = (category == 'system' and len(args) == 1
                  and args[0].removesuffix('.py') in (
                      'check_fixture_system_product_free', 'check_parent_setup',
                      'check_parent_input', 'check_parent_standard_input'))
-    installed = (category == 'integration' and len(args) == 1
+    installed = (category == 'system' and len(args) == 1
                  and args[0].removesuffix('.py') == 'check_fixture_system_installed')
-    installed_e2e = (category == 'integration' and len(args) == 1
+    installed_e2e = (category == 'system' and len(args) == 1
                      and args[0].removesuffix('.py') in INSTALLED_E2E_FIXTURE_SELECTORS)
-    product_free_e2e = (category == 'integration' and len(args) == 1
+    product_free_e2e = (category == 'system' and len(args) == 1
                        and args[0].removesuffix('.py') in PRODUCT_FREE_E2E_FIXTURE_SELECTORS)
-    transfer = ((category == 'integration' and len(args) == 1
+    transfer = ((category == 'system' and len(args) == 1
                  and args[0].removesuffix('.py') == 'check_fixture_transfer')
                 or category == 'e2e' and '--qualify-transfer' in args)
-    serial = ((category == 'integration' and len(args) == 1
+    serial = ((category == 'system' and len(args) == 1
                and args[0].removesuffix('.py') in ('check_graphical_serial', 'check_fixture_serial'))
               or category == 'e2e' and any(argument in (
                   '--qualify-install', '--qualify-install-refusal') for argument in args))
-    recorded_serial = (category == 'integration' and len(args) == 1
+    recorded_serial = (category == 'system' and len(args) == 1
                        and args[0].removesuffix('.py') == 'check_fixture_recorded_serial')
     scenarios = (category == 'e2e' and not any(argument in (
         '--qualify-transfer', '--qualify-install', '--qualify-install-refusal') for argument in args))
-    if not provisioning and not bootstrap and not installed and not installed_e2e and not product_free_e2e and not transfer and not serial and not recorded_serial and not scenarios and category != 'system':
+    if not provisioning and not bootstrap and not installed and not installed_e2e and not product_free_e2e and not transfer and not serial and not recorded_serial and not scenarios and (category != 'system' or system_check_selection(args)):
         return None
     from vm_selection import selected, vm_config
     targets = vm_config.fixture_targets()
@@ -737,7 +748,7 @@ def qualification_fixture_options(root, category, args, *, control=None, environ
     if target is None:
         return []
     from fixture_execution import Selection, validate_source_selection
-    source_edit = (category == 'integration' and len(args) == 1
+    source_edit = (category == 'system' and len(args) == 1
                    and args[0].removesuffix('.py') in (
                        'check_fixture_system_product_free', 'check_fixture_system_installed',
                        'check_fixture_e2e_installed', 'check_fixture_e2e_product_free'))
@@ -790,7 +801,7 @@ def qualification_fixture_options(root, category, args, *, control=None, environ
 
 
 def live_refresh_selection(category, args):
-    return (category == 'integration' and len(args) == 1
+    return (category == 'system' and len(args) == 1
             and args[0].removesuffix('.py') == 'check_fixture_live_refresh')
 
 
@@ -877,7 +888,14 @@ def make_command(root, target, assignments=()):
 def plan(root, category, argv):
     """Validate everything before prerequisites, output creation or execution."""
     native_inputs = category == 'system' and '--native-inputs' in argv
-    if category in ('integration', 'system', 'e2e'):
+    if category in ('graphical-worker', 'package-notice'):
+        if argv:
+            raise ValueError(category + ' accepts no arguments')
+        import runpy
+        checks = runpy.run_path(str(root / 'tests/integration/system_checks.py'))
+        checks['host_check'](category)
+        return [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner', category]], False
+    if category in ('system', 'e2e'):
         from vm_selection import extract_execution as extract
         argv, _ = extract(argv, required=False)
         argv, _ = vm_input_options(category, argv)
@@ -905,7 +923,7 @@ def plan(root, category, argv):
         if argv:
             raise ValueError('backend readiness accepts no arguments')
         return [python_file(root, 'tests/integration/graphical_backend.py')], False
-    if category in ('integration', 'system', 'e2e'):
+    if category in ('system', 'e2e'):
         # Validation is shared with the installed root-owned dispatcher, which
         # repeats it after pkexec. Loading this checkout copy confers no privilege.
         import runpy
@@ -950,7 +968,10 @@ def plan(root, category, argv):
             except system_runner.Error as error:
                 raise ValueError(str(error)) from error
         if '--list' in argv:
-            return [command], False
+            listing = [command]
+            if category == 'system' and argv == ['--list']:
+                listing.append(python_file(root, 'tests/integration/system_checks.py'))
+            return listing, False
         # Forward the validated E2E options, preserving a multi-case selection.
         forwarded = command[3:] if category == 'e2e' else [*argv, *vm_args]
         return [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner', category, *forwarded]], False
@@ -1131,7 +1152,7 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False):
             if category in ('unit', 'component', 'ui'):
                 return host_run(root, category, options, pipe=False)
             return category_run(root, category, options, pipe=False)
-        if category in ('system', 'e2e') and '--list' not in args:
+        if category in ('system', 'e2e') and '--list' not in args and not system_check_selection(args):
             options = args[1:] if args[:1] == ['--unattended'] else args
             planned, _ = plan(root, category, options)
             if not has_artifacts(planned[0]):
@@ -1262,7 +1283,7 @@ def validate(root, argv):
 
 
 def host_only_selection(selected):
-    """VM and privileged integration selections retain the VM checkout lock."""
+    """Installed system and E2E selections retain the VM checkout lock."""
     return bool(selected) and all(kind in CATEGORIES and kind not in ('all', 'all-verify')
                                  and CATEGORIES[kind].scope == 'host' for kind, _ in selected)
 

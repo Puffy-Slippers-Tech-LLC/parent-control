@@ -49,5 +49,5 @@ or policy edit after approval. An unreachable real return margin stays gated.
 Planned qualification selector (not registered; implement before use):
 
 ```sh
-tools/run-tests integration check_e2e_prepare_a_daily_balance_that_outlasts_a_soft_exception
+tools/run-tests system check_e2e_prepare_a_daily_balance_that_outlasts_a_soft_exception
 ```

@@ -47,5 +47,5 @@ In fresh VM attempts with no earlier target window, save each declared access ch
 Planned qualification selector (implement and register before use):
 
 ```sh
-tools/run-tests integration check_e2e_native_denial
+tools/run-tests system check_e2e_native_denial
 ```

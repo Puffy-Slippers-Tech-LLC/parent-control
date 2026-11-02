@@ -95,7 +95,7 @@ def main(argv=None):
                 if args.discard_completed:
                     from regression_process import category_run
                     from vm_selection import arguments
-                    status = category_run(root, 'integration',
+                    status = category_run(root, 'system',
                         ['check_retained_runs_cleanup', *arguments()], pipe=False)
                     if status:
                         return status

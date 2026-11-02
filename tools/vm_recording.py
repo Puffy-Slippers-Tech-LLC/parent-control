@@ -8,6 +8,7 @@ from contextlib import ExitStack, contextmanager
 from concurrent.futures import ThreadPoolExecutor
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import shutil
@@ -41,6 +42,8 @@ def case_identity(root, category, event):
     if not isinstance(nodeid, str):
         return None
     if category == 'system':
+        if re.fullmatch(r'check_[a-z][a-z0-9_]*', nodeid):
+            return nodeid, nodeid.removeprefix('check_').replace('_', ' ').capitalize()
         sys.path.insert(0, str(root / 'tests/integration'))
         try:
             from system_case_ids import identity_for_event
@@ -50,13 +53,7 @@ def case_identity(root, category, event):
         return (identity.numeric_id, identity.title) if identity else None
     if category == 'e2e':
         return e2e_identities(root).get(nodeid)
-    # Guarded integration qualifications use their literal basename as the
-    # building-block identity. Other VM categories can use the same contract.
-    from recording_storage import case_identity as valid_identity
-    nodeid = nodeid.removesuffix('.py')
-    if valid_identity(nodeid):
-        return nodeid, nodeid.removeprefix('check_').replace('_', ' ')
-    raise ValueError('recording: invalid named VM case')
+    return None
 
 
 def request(endpoint, value, *, timeout=180):

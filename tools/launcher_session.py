@@ -8,7 +8,8 @@ from rich.cells import get_character_cell_size
 from rich.text import Text
 
 from launcher_chat import ChatEditor
-from launcher_render import COMPACT_LINE, LauncherDisplay, clean, retained_tail
+from launcher_render import (COMPACT_LINE, SCROLLBACK_CHARACTERS, LauncherDisplay,
+                             clean, retained_tail)
 
 
 def clock_duration(seconds):
@@ -47,8 +48,27 @@ class SessionPanel(LauncherDisplay):
         self.text_identity = None
         self.text_width = 1
         self.simplified_cache = None
+        self.result_pending = ''
+        self.result_activity = 'orphan'
+        self.result_detail_pending = False
 
-    def visible_lines(self, logs):
+    def write(self, value, *, final=False, saved=True):
+        if not self.hide_tool_results:
+            return super().write(value, final=final, saved=saved)
+        # Filter before LauncherDisplay applies its row/character budgets.
+        # Otherwise a large invisible result evicts all of the visible prose.
+        lines = (self.result_pending + value).split('\n')
+        self.result_pending = lines.pop()
+        if final and self.result_pending:
+            lines.append(self.result_pending)
+            self.result_pending = ''
+        # A result without newlines must also have a finite memory budget.
+        self.result_pending = self.result_pending[:SCROLLBACK_CHARACTERS]
+        rows = self.visible_lines(lines, incremental=True)
+        if rows:
+            super().write('\n'.join(rows) + '\n', final=final, saved=saved)
+
+    def visible_lines(self, logs, *, incremental=False):
         """Watch keeps activity names without displaying captured tool results."""
         if not self.hide_tool_results:
             return logs
@@ -56,8 +76,8 @@ class SessionPanel(LauncherDisplay):
         # The bounded transcript (or a reconnect's byte tail) can start in
         # the middle of a result, after its heading has been discarded. Do not
         # expose that orphaned body as prose; resume at the next known block.
-        activity = 'orphan'
-        detail_pending = False
+        activity = self.result_activity if incremental else 'orphan'
+        detail_pending = self.result_detail_pending if incremental else False
         for line in logs:
             text = Text.from_ansi(line)
             plain = text.plain
@@ -85,6 +105,9 @@ class SessionPanel(LauncherDisplay):
                 else:
                     continue
             rows.append(line)
+        if incremental:
+            self.result_activity = activity
+            self.result_detail_pending = detail_pending
         return rows
 
     def simplified_lines(self, logs):

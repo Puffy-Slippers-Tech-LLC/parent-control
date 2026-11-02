@@ -557,13 +557,18 @@ class SessionOutput:
                 size = os.fstat(stream.fileno()).st_size
                 if size < self.offset:
                     self.offset = 0
-                    panel.transcript.clear()
+                    # Log compaction is not a new session. Keep the bounded
+                    # visible history while resuming from the retained log.
+                    if not panel.hide_tool_results:
+                        panel.transcript.clear()
                     panel.pending = ''
+                    panel.result_pending = ''
+                    panel.result_activity = 'orphan'
+                    panel.result_detail_pending = False
                     self.decoder.reset()
-                start = max(self.offset, size - TAIL_BYTES)
-                stream.seek(start)
-                if start > self.offset:
-                    stream.readline(TAIL_BYTES)
+                # Drain in bounded chunks without skipping messages between
+                # polls when a tool writes more than one chunk at once.
+                stream.seek(self.offset)
                 data = stream.read(min(TAIL_BYTES, max(0, size - stream.tell())))
                 self.offset = stream.tell()
             panel.write(self.decoder.decode(data))

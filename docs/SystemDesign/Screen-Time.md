@@ -261,6 +261,38 @@ Ordinary logout/relogin with extensions globally enabled does not trigger an
 error report or this hold. A confirmed product-extension error remains reportable
 after a Shell restart, even if the replacement Shell has already recovered it.
 
+### Extension recovery verification boundaries
+
+Automatic monitoring and explicit recovery have separate triggers. A healthy
+final extension state alone does not establish which path restored it. Recovery
+verification observes both GNOME's configured/active state and durable settings,
+independently of command success. Except for the named operation's intended
+effects, recovery preserves the selected child's policy, grants and recorded
+usage, other extensions' individual choices, other users and retained work.
+Login/unlock recovery requires positive native time; existing zero-time admission
+denial remains authoritative.
+
+The maintained standalone system checks own the engineering fault histories:
+
+| Boundary | Existing test owner |
+| --- | --- |
+| Individual/global disablement, repeated interference and bounded backoff | System 295 in [monitor checks](../../tests/system/test_extension_monitor.py) |
+| Session-bus/Shell replacement, logout, contention and owned shutdown | System 296 in monitor checks |
+| Confirmed extension errors, standard reporting without automatic submission and crash protection | System 297 in monitor checks |
+| Broker startup, offline persistence, cold boot and startup failure isolation | System 298 in [startup checks](../../tests/system/test_extension_startup.py) |
+| Parent initial selection, later child changes, first enablement and saved-off isolation | System 299 in monitor checks |
+| Authenticated kiosk approval, activation, single-grant accounting and retained session | System 300 in monitor checks |
+| Fresh GDM login and authenticated retained-session unlock | System 301 in monitor checks |
+
+These checks complement system 281/282's expiry, zero-time denial and adapter
+rollback coverage. Host unit/private-bus checks cover policy, role and lock
+guards, retry/error latches and rollback mechanics; they cannot establish native
+cross-UID user-bus access, Fedora SELinux behavior, GNOME activation, graphical
+reporting or recovery timing on Ubuntu 26.04/GNOME 50 and Fedora Workstation
+44/GNOME 50. Those require installed-system checks. This allocation adds no
+customer E2E cases or prerequisites and does not replace ordinary setup,
+approval, countdown or retained-session journeys.
+
 ## Grant arithmetic and usage identities
 
 Malcontent replaces an active extension starting at approval time rather than
@@ -641,7 +673,6 @@ interface is documented in [pam_systemd](https://github.com/systemd/systemd/blob
 
 ## Related design
 
-- [Extension recovery VM test plan](../Extension-Plan.md): queued system coverage for monitoring, failures and v1.5 recovery entry points; not executed or customer E2E coverage.
 - For authorization and grant commit/rollback order, read [Broker](Broker.md#authorization-and-grant-transactions).
 - For app-policy restoration after unlock, read [Application policy](Applications.md#session-entry-reconciliation).
 - For startup ordering or changed PAM/extension activation, read [Lifecycle](Lifecycle.md) and [Package update](../Publishing.md#package-update-activation).

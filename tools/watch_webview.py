@@ -32,6 +32,7 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
     from rich.text import Text
     from rich.console import Console
     from rich.style import Style
+    from document_checks import references
     from launcher_render import COMPACT_LINE, SESSION_LINE, clean, compact_text
     console = Console()
     rows = []
@@ -40,6 +41,30 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
         compact = isinstance(line, str) and line.startswith(COMPACT_LINE)
         text = line.copy() if isinstance(line, Text) else (
             compact_text(line) if compact else Text.from_ansi(line.replace(SESSION_LINE, '')))
+        if not compact and '](' in text.plain:
+            # Transcript rows include presentation indentation. Parse the prose
+            # without treating that indentation as a Markdown code block.
+            prose = text.plain.lstrip(' ')
+            indent = len(text.plain) - len(prose)
+            linked = Text()
+            position = 0
+            for reference in references(prose):
+                try:
+                    uri = urlsplit(reference.destination)
+                except ValueError:
+                    continue
+                if (reference.kind != 'inline' or uri.scheme != 'file' or uri.netloc
+                        or uri.query or uri.fragment or not uri.path.startswith('/')
+                        or not unquote(uri.path).endswith('.webm')):
+                    continue
+                start, end = indent + reference.start, indent + reference.end
+                linked.append_text(text[position:start])
+                label = text[indent + reference.label_start:indent + reference.label_end]
+                label.stylize(Style(color='#0066ff', underline=True, link=reference.destination))
+                linked.append_text(label)
+                position = end
+            linked.append_text(text[position:])
+            text = linked
         summary_label = re.match(r'^(Total Tasks:|Total Duration:|Ended:)', text.plain)
         if summary_label:
             text.stylize('bold', 0, summary_label.end())

@@ -92,11 +92,15 @@ def report_event(root, category, event):
 
 
 def describe(record):
-    errors = record.get('errors', [])
-    return ('Recording: [Open recording](<' + Path(record['path']).as_uri() + '>)' +
-            ''.join(f"\nRecording error: {error['timestamp']} "
-                    f"({error['seconds']:.6f}s, frame {error['frame']}, "
-                    f"{error['vm']}; {error['kind']})" for error in errors[:4]))
+    text = 'Recording: [Open recording](<' + Path(record['path']).as_uri() + '>)'
+    for error in record.get('errors', [])[:4]:
+        seconds = int(error['seconds'] + .5)
+        hours, rest = divmod(seconds, 3600)
+        minutes, rest = divmod(rest, 60)
+        text += (f'\nRecording error: {hours:02}:{minutes:02}:{rest:02} '
+                 f"({seconds}s, frame {error['frame']}, "
+                 f"{error['vm']}; {error['kind']})")
+    return text
 
 
 def intervention_recording(root, category, nodeid):

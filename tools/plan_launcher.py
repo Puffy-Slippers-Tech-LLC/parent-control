@@ -27,7 +27,7 @@ from execution_plan import Plan, Task, local_file, local_path, plan_namespace, q
 from launcher_git import (GitReconciliationRequired, OwnershipReconciliationRequired,
                           closeout_lock, commit_push_propagate, git_output,
                           pull_before_commit, reconciliation_instructions, stage_task,
-                          validate_closeout_ownership, validate_pull_identity, worktree_snapshot)
+                          session_changes, validate_closeout_ownership, validate_pull_identity, worktree_snapshot)
 from launcher_progress import publish_completion, publish_progress, session_lines, task_heading
 from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
 from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer
@@ -669,7 +669,10 @@ def _closeout(plan, spec, run, state):
         paths = state.get('commit_intent', {}).get('paths')
         state['plan_queue'] = plan.queue
         if paths is None:
-            paths = list(dict.fromkeys([*result['stage_paths'], plan.path, plan.queue]))
+            current = worktree_snapshot(plan.root)
+            changed = [path for path in state.get('stage_candidates', [])
+                       if path in current and current[path] != state['stage_baseline'].get(path)]
+            paths = list(dict.fromkeys([*result['stage_paths'], *changed, plan.path, plan.queue]))
             validate_closeout_ownership(plan.root, paths, state)
         pull_before_commit(plan.root, run, state, git=git_output)
         # A pull may have changed plan metadata. Reapply every guard before
@@ -922,8 +925,17 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             (run / 'nested-closed').unlink(missing_ok=True)
             publish_progress(run, state['task_id'], session_lines(heading(),
                 state['task_sessions'], active_spec.model, active_spec.effort))
+            before = worktree_snapshot(root)
             try:
-                result = execute(root, active_spec, run, owner)
+                try:
+                    result = execute(root, active_spec, run, owner)
+                finally:
+                    # Capture the final turn too, before response validation or
+                    # close-out. Persist across handoffs without scanning later
+                    # developer edits into an old task when it is resumed.
+                    state['stage_candidates'] = sorted(set(state.get('stage_candidates', []))
+                                                       | set(session_changes(root, before)))
+                    launcher.atomic(run / 'checkpoint.json', state)
                 plan = load_plan(root, spec.plan, state)
                 if state['task_id'] not in plan.state(selected=state['selected_tasks']):
                     launcher.finish_nested(root, run)

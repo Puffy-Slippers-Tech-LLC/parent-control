@@ -662,7 +662,8 @@ semantics.
 `--check` validates a plan and every unfinished brief without model sessions, VM
 operations or Git changes. The shared ordinary-plan driver first pulls the current
 branch's configured upstream with `git pull --no-rebase --ff --no-edit --no-autostash`,
-then stages the accepted task's explicit owned paths plus its master and queue, commits them as
+then stages the accepted task's explicit owned paths, captured session changes,
+and its master and queue, commits them as
 `TA: Completed task ID`, runs `git push` using the checkout's existing
 remote and branch configuration, and completes
 [shared worktree propagation](#shared-worktree-propagation). Both `execute-plan` and `reliability-plan`
@@ -692,6 +693,11 @@ version. Release these clean paths from inherited and suspended baselines before
 each agent session, including the first session after restart or a reviewed replan,
 before the task can edit them.
 Uncommitted baseline contents and pre-existing staged paths remain protected.
+Session changes are captured and checkpointed at each turn's exit, including the
+final turn and deleted task briefs, even when the response omits them from
+`stage_paths`. Close-out includes captured paths that still differ from the task's
+baseline. Restart reuses those recorded candidates rather than attributing later
+checkout edits to a finished session.
 An ownership overlap returns the same task to its coordinator with the accepted
 result and exact conflicting paths retained, before any pull or staging. Correct
 an overbroad close-out path list without dropping required edits. If ownership

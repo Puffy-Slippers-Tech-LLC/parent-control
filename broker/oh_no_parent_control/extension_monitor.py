@@ -38,6 +38,23 @@ def _backoff_seconds(level):
     return min(MAX_BACKOFF_SECONDS, 0.5 * 2 ** max(0, min(MAX_BACKOFF_LEVEL, level) - 1))
 
 
+def _record_owner(present, reason):
+    try:
+        LOG.info("extension-manager.monitor-owner", present=present, reason=reason)
+    except Exception:
+        pass  # Observation must never change recovery or admission.
+
+
+def _record(watch, emit):
+    try:
+        if watch.diagnostics is not None:
+            watch.diagnostics.append(emit)
+        else:
+            emit()
+    except Exception:
+        pass
+
+
 @dataclass
 class _Watch:
     uid: int
@@ -58,6 +75,10 @@ class _Watch:
     recovery_interrupted: bool = False
     recoveries: int = 0
     healthy_since: float = 0
+    observed_state: tuple | None = None
+    diagnostic_decision: tuple | None = None
+    hint: str = "initial"
+    diagnostics: list | None = None
 
 
 class ExtensionMonitor:
@@ -142,7 +163,7 @@ class ExtensionMonitor:
             if (self.watches.get(uid) is watch and
                     watch.fault_generation == generation):
                 watch.failed = False
-                self._schedule(watch)
+                self._schedule(watch, hint="explicit-recovery")
 
         self._later(0, rearm)
         self._context.wakeup()
@@ -169,11 +190,12 @@ class ExtensionMonitor:
             # without waiting for an unavailable bus's accumulated backoff.
             if watch.connection is None:
                 watch.failures = 0
-            self._schedule(watch)
+            self._schedule(watch, hint="lifecycle")
 
-    def _schedule(self, watch, delay=DEBOUNCE_SECONDS):
+    def _schedule(self, watch, delay=DEBOUNCE_SECONDS, *, hint="retry"):
         if self._stopped.is_set() or watch.source is not None:
             return
+        watch.hint = hint
         delay = max(delay, watch.next_check - time.monotonic())
 
         def check():
@@ -224,7 +246,8 @@ class ExtensionMonitor:
                         (PROPERTIES, "PropertiesChanged", PATH, INTERFACE)):
                     watch.subscriptions.append(connection.signal_subscribe(
                         SHELL, interface, member, path, arg0, Gio.DBusSignalFlags.NONE,
-                        lambda *_args: self._schedule(watch)))
+                        lambda *_args, hint=("extension-signal" if interface == INTERFACE else "properties-signal"):
+                            self._schedule(watch, hint=hint)))
                 watch.subscriptions.append(connection.signal_subscribe(
                     DBUS, DBUS, "NameOwnerChanged", "/org/freedesktop/DBus", SHELL,
                     Gio.DBusSignalFlags.NONE,
@@ -232,8 +255,9 @@ class ExtensionMonitor:
                         self._shell_changed(watch, parameters)))
                 watch.shell_present = self._call(watch, DBUS, "/org/freedesktop/DBus", DBUS,
                     "NameHasOwner", GLib.Variant("(s)", (SHELL,)), "(b)")[0]
+                _record_owner(watch.shell_present, "connected")
                 watch.failures = 0
-                self._schedule(watch)
+                self._schedule(watch, hint="connected")
             except Exception as error:
                 if watch.connection is not None:
                     self._disconnect(watch)
@@ -272,6 +296,7 @@ class ExtensionMonitor:
             watch.recovery_interrupted = True
         self._disconnect(watch)
         self._retry(watch)
+        _record_owner(False, "bus-closed")
 
     def _shell_changed(self, watch, parameters):
         if parameters.get_type_string() != "(sss)":
@@ -287,7 +312,8 @@ class ExtensionMonitor:
         # The child controls Shell's bus name too. Owner churn must not move
         # an already pending observation/retry ahead of its rate limit.
         if new:
-            self._schedule(watch)
+            self._schedule(watch, hint="owner-changed")
+        _record_owner(bool(new), "owner-changed")
 
     @staticmethod
     def _call(watch, destination, path, interface, method, parameters, signature):
@@ -336,6 +362,18 @@ class ExtensionMonitor:
             return
         state = info["state"]
         now = time.monotonic()
+        observed = (state, enabled)
+        if observed != watch.observed_state:
+            previous = watch.observed_state
+            # Only the already validated public state number and switch survive.
+            try:
+                hint = watch.hint
+                _record(watch, lambda: LOG.info("extension-manager.monitor-state",
+                    previous_state=int(previous[0]) if previous else 0,
+                    state=int(state), global_enabled=enabled, hint=hint))
+            except Exception:
+                pass
+            watch.observed_state = observed
         if watch.healthy_since and now - watch.healthy_since >= QUIET_RESET_SECONDS:
             watch.recoveries = 0
         if state != 1 or not enabled:
@@ -350,6 +388,7 @@ class ExtensionMonitor:
         elif state == 1 and enabled:
             watch.failed = False
         if watch.failed:
+            self._decision(watch, "confirmed-failure", "report")
             self._report(watch)
             return
         self._recover(watch, info, enabled, now)
@@ -361,6 +400,7 @@ class ExtensionMonitor:
     def _recover(self, watch, info, enabled, now):
         if watch.recovery_interrupted:
             if not enabled:
+                self._decision(watch, "interrupted-recovery", "wait")
                 return
             watch.recovery_interrupted = False
         # INITIALIZED also describes an individually disabled extension that
@@ -369,28 +409,56 @@ class ExtensionMonitor:
         # for the stable configured-disabled state.
         state = info["state"]
         if state in {7, 8} or state == 6 and enabled and info.get("enabled") is not False:
+            self._decision(watch, "changing-state", "wait")
             raise _ChangingState()
         if state != 1 or not enabled:
             if watch.recoveries:
                 due = watch.last_recovery + _backoff_seconds(watch.recoveries)
                 if now < due:
+                    self._decision(watch, "backoff", "wait", delay_ms=min(30000, max(0, int((due - now) * 1000))))
                     watch.next_check = max(watch.next_check, due)
                     self._schedule(watch)
                     return
             watch.last_recovery = now
             watch.recoveries = min(MAX_BACKOFF_LEVEL, watch.recoveries + 1)
+            reason = "global-disabled" if not enabled else "extension-inactive"
+            started = now
+            self._decision(watch, reason, "started")
             try:
                 self.manager.set_enabled(watch.uid, True, recover_global_switch=True)
                 watch.healthy_since = time.monotonic()
             except ChildExtensionFailed:
+                self._decision(watch, reason, "failed", started=started)
                 self._fault(watch)
                 self._report(watch)
                 return
+            except Exception:
+                self._decision(watch, reason, "failed", started=started)
+                raise
+            self._decision(watch, reason, "accepted", started=started)
+        else:
+            self._decision(watch, "healthy", "unchanged")
+
+    @staticmethod
+    def _decision(watch, reason, outcome, *, delay_ms=0, started=None):
+        try:
+            key = (reason, outcome)
+            if key == watch.diagnostic_decision:
+                return
+            watch.diagnostic_decision = key
+            elapsed = 0 if started is None else min(2147483647, max(0, int((time.monotonic() - started) * 1000)))
+            _record(watch, lambda: LOG.info("extension-manager.monitor-decision", reason=reason,
+                outcome=outcome, delay_ms=delay_ms, elapsed_ms=elapsed))
+        except Exception:
+            pass
 
     @operation_scope
     def _check(self, watch):
         if self._stopped.is_set() or self.watches.get(watch.uid) is not watch:
             return
+        # Emit new observations after policy/command-budget scopes and retry
+        # scheduling finish. Slow diagnostic storage cannot change those decisions.
+        watch.diagnostics = []
         try:
             if watch.connection is None:
                 self._connect(watch)
@@ -411,6 +479,7 @@ class ExtensionMonitor:
                     lambda: self._reconcile(watch, info, user_extensions_enabled),
                     expected_revision=revision)
             if not enabled:
+                self._decision(watch, "policy-ineligible", "unchanged")
                 watch.failed = watch.reported = watch.report_pending = False
                 watch.last_recovery = 0
                 watch.recovery_interrupted = False
@@ -418,9 +487,11 @@ class ExtensionMonitor:
                 watch.healthy_since = 0
             watch.failures = 0
         except _ChangingState:
+            self._decision(watch, "changing-state", "wait")
             watch.healthy_since = 0
             self._retry(watch)
         except Busy:
+            self._decision(watch, "broker-busy", "wait", delay_ms=500)
             # Polkit can hold the transaction lock indefinitely. A failed
             # try-lock performs no account/session probes and must remain
             # pending until that transaction completes.
@@ -431,3 +502,7 @@ class ExtensionMonitor:
             LOG.warning("extension-manager.load-observation", outcome="unavailable")
             record_exception(error)
             self._retry(watch)
+        finally:
+            pending, watch.diagnostics = watch.diagnostics, None
+            for emit in pending:
+                _record(watch, emit)

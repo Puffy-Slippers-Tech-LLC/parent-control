@@ -200,6 +200,23 @@ witnesses are possible contributors, not proof that an extension crashed Shell;
 an external actor and the historical cause of a disabled switch can remain unknown.
 Missing/partial journal history is explicit and never establishes no crash.
 
+The live extension monitor records changes in validated public extension state
+and the global enable switch, coalesced check hints, and Shell-owner/bus-loss
+observations without retaining identities. Recovery decisions distinguish
+confirmed failures, startup transitions, interrupted recovery, backoff and actual
+attempts with bounded elapsed/retry durations. Repeated unchanged states and
+decisions are suppressed. These observations do not identify the settings writer
+or turn bus loss into proof of a Shell crash.
+State/decision records are buffered until the recovery scope and retry scheduling
+finish; their emission timestamps/order can follow intervening broker events
+and do not represent the exact action timestamps/order.
+Broker contention records the requested operation and an advisory, non-atomic
+snapshot of the holder's closed operation category and bounded elapsed duration;
+an unavailable holder stays unknown. Session-preparation events pair local
+attempt numbers with completion, failure or disposal and elapsed duration.
+Those numbers reset when the indicator is recreated; disposal does not cancel
+broker work. Diagnostics do not change locking, retries, recovery or reporting.
+
 Dependency collection queries fixed systemd services and reviewed fapolicyd
 journal markers under one five-second budget and 256 KiB pipe bound. Timeout/
 overflow reaps only its owned command. Reads are independent within the budget,

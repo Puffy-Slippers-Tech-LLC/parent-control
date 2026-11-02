@@ -209,16 +209,35 @@ class Broker:
         self._caller_alive = caller_alive
         self._whats_new_loader = whats_new_loader
         self._request_lock = threading.Lock()
+        self._request_lock_diagnostic = None
         self._transaction_revision = 0
         self._rate_lock = threading.Lock()
         self._last_request = {}
         self._grant_diagnostics = GrantDiagnostics()
 
-    def _acquire_request_lock(self):
+    def _acquire_request_lock(self, diagnostic_kind="other"):
         if not self._request_lock.acquire(blocking=False):
+            try:
+                owner = self._request_lock_diagnostic
+                LOG.info("core.transaction-busy", requested=diagnostic_kind,
+                         holder=owner[0] if owner else "other",
+                         elapsed_ms=min(2147483647, max(0, int((time.monotonic() - owner[1]) * 1000))) if owner else 0,
+                         holder_known=owner is not None)
+            except Exception:
+                pass
             return False
         self._transaction_revision += 1
+        try:
+            self._request_lock_diagnostic = (diagnostic_kind, time.monotonic())
+        except Exception:
+            self._request_lock_diagnostic = None
         return True
+
+    def _release_request_lock(self):
+        # Clear before unlocking; a new owner must never inherit old metadata.
+        # This advisory snapshot does not authorize or synchronize any work.
+        self._request_lock_diagnostic = None
+        self._request_lock.release()
 
     def _write_extension(self, uid, value):
         self._grant_diagnostics.write_started(uid)
@@ -356,7 +375,7 @@ class Broker:
 
     def reconcile_enabled_child(self, target_uid, action, *, expected_revision=None):
         """Revalidate a session hint under the same lock as parent policy writes."""
-        if not self._acquire_request_lock():
+        if not self._acquire_request_lock("extension-monitor"):
             raise Busy("another request is already in progress")
         try:
             # This acquisition advances the revision once. Any other advance
@@ -373,7 +392,7 @@ class Broker:
             action()
             return True
         finally:
-            self._request_lock.release()
+            self._release_request_lock()
 
     def extension_reconciliation_revision(self):
         """Read before checking busy, then validate after the unlocked probe."""
@@ -488,7 +507,7 @@ class Broker:
         transaction lock so a current grant always wins and its applications
         remain untouched.
         """
-        if not self._acquire_request_lock():
+        if not self._acquire_request_lock("session-prepare"):
             raise Busy("another request is already in progress")
         try:
             config = self._load_config()
@@ -568,14 +587,14 @@ class Broker:
                     raise
                 raise BackendFailure("session application policy could not be prepared") from error
         finally:
-            self._request_lock.release()
+            self._release_request_lock()
 
     def recover_child_extension(self, caller_uid: int, target_uid: int, *,
                                 on_recovered: Callable[[int], None] | None = None) -> bool:
         """Reassert saved enforcement for PAM and administrator management."""
         if not self._is_admin(caller_uid):
             raise AccessDenied("administrator access is required")
-        if not self._acquire_request_lock():
+        if not self._acquire_request_lock("extension-recovery"):
             raise Busy("another request is already in progress")
         try:
             target = self._target(self._load_config(), target_uid)
@@ -592,7 +611,7 @@ class Broker:
                 on_recovered(target.uid)
             return True
         finally:
-            self._request_lock.release()
+            self._release_request_lock()
 
     def get_time_status(self, caller_uid: int, target_uid: int,
                         additional_seconds: int = 0) -> TimeStatus:
@@ -1004,7 +1023,7 @@ class Broker:
     def get_own_session_allows_soft_apps(self, caller_uid: int) -> bool:
         """Read current policy, independently of the next request's checkbox."""
         target = self._target(self._load_config(), caller_uid)
-        if not self._acquire_request_lock():
+        if not self._acquire_request_lock("session-policy-read"):
             raise Busy("another request is already in progress")
         try:
             preferences = self._load_request_preferences(target.uid)
@@ -1024,7 +1043,7 @@ class Broker:
             except Exception as error:
                 raise BackendFailure("session application policy is unavailable") from error
         finally:
-            self._request_lock.release()
+            self._release_request_lock()
 
     def set_own_notifications(self, caller_uid: int, notifications: object) -> dict:
         self._target(self._load_config(), caller_uid)
@@ -1167,12 +1186,12 @@ class Broker:
             raise BackendFailure("application catalog is unavailable") from error
 
     def set_preferences(self, caller_uid: int, target_uid: int, value: object) -> dict:
-        if not self._acquire_request_lock():
+        if not self._acquire_request_lock("app-policy-save"):
             raise Busy("another request is already in progress")
         try:
             return self._set_preferences_locked(caller_uid, target_uid, value)
         finally:
-            self._request_lock.release()
+            self._release_request_lock()
 
     def _set_preferences_locked(
             self, caller_uid: int, target_uid: int, value: object) -> dict:
@@ -1328,14 +1347,14 @@ class Broker:
 
     def set_parent_control(self, caller_uid: int, target_uid: int, enabled: bool,
                            daily_limit_minutes: int) -> dict:
-        if not self._acquire_request_lock():
+        if not self._acquire_request_lock("parent-control-save"):
             raise Busy("another request is already in progress")
         try:
             return self._set_parent_control_locked(
                 caller_uid, target_uid, enabled, daily_limit_minutes,
             )
         finally:
-            self._request_lock.release()
+            self._release_request_lock()
 
     def _set_parent_control_locked(self, caller_uid: int, target_uid: int, enabled: bool,
                                    daily_limit_minutes: int) -> dict:
@@ -1493,7 +1512,7 @@ class Broker:
 
     def revoke_one_time_grant(self, caller_uid: int, target_uid: int) -> None:
         """Remove a live grant and stop the selected child's blocked apps."""
-        if not self._acquire_request_lock():
+        if not self._acquire_request_lock("revoke"):
             raise Busy("another request is already in progress")
         try:
             LOG.info("core.020")
@@ -1566,7 +1585,7 @@ class Broker:
                     raise
                 raise BackendFailure("one-time grant could not be revoked") from error
         finally:
-            self._request_lock.release()
+            self._release_request_lock()
 
     def request_access(self, caller_uid: int, sender: str, target_uid: int,
                        approver_uid: int, duration_seconds: int,
@@ -1590,7 +1609,7 @@ class Broker:
                         duration_seconds: int,
                         allow_soft_blocked_apps: bool) -> tuple[str, str, int]:
         correlation_id = str(uuid.uuid4())
-        if not self._acquire_request_lock():
+        if not self._acquire_request_lock("approval"):
             raise Busy("another request is already in progress")
         authorization_scope = ExitStack()
         try:
@@ -1770,7 +1789,7 @@ class Broker:
             try:
                 authorization_scope.close()
             finally:
-                self._request_lock.release()
+                self._release_request_lock()
 
     def _load_config(self) -> Configuration:
         try:

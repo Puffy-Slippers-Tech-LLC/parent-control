@@ -31,6 +31,94 @@ from tests.support.broker import make_broker
 SECRET = "Child Name /home/private-user/private-file private@example.test secret-token"
 
 
+def test_recovery_contention_and_transitions_survive_export_without_private_data(tmp_path, caplog, monkeypatch):
+    from contextlib import nullcontext
+    from oh_no_parent_control import extension_monitor as monitor_module
+    from oh_no_parent_control.core import Busy
+
+    broker = make_broker()
+    broker._accounts.extension = (0, 0)
+    broker._preferences.values[1001]["parent_control_enabled"] = True
+    with monkeypatch.context() as patch:
+        patch.setattr(monitor_module.threading.Thread, "start", lambda _thread: None)
+        monitor = monitor_module.ExtensionMonitor(broker, Mock(), Mock())
+    watch = monitor_module._Watch(1001, connection=Mock(), shell_present=True)
+    monitor.watches[1001] = watch
+    monitor.manager.command_budget.return_value = nullcontext()
+    watch.hint = "extension-signal"
+    info = {"state": 2, "name": SECRET, "error": SECRET}
+    monkeypatch.setattr(monitor, "_observe", lambda _watch: (info, False))
+    emit = monitor_module.LOG.info
+    def record_after_recovery(*args, **kwargs):
+        assert not broker._request_lock.locked()
+        emit(*args, **kwargs)
+    monkeypatch.setattr(monitor_module.LOG, "info", record_after_recovery)
+    caplog.set_level(logging.INFO)
+    # Recovery starts while holding the real broker transaction slot. A child
+    # preparation races it; diagnostic collection must not admit the child.
+    def recover(*_args, **_kwargs):
+        with pytest.raises(Busy):
+            broker.prepare_own_session(1001)
+    monitor.manager.set_enabled.side_effect = recover
+    monitor._check(watch)
+    assert broker.prepare_own_session(1001) is False
+    monitor._reconcile(watch, {"state": 1}, True)
+    count = len(caplog.records)
+    monitor._reconcile(watch, {"state": 1}, True)
+    assert len(caplog.records) == count  # Healthy observations do not spam.
+    rows = [events.decode(record.onpc_payload) for record in caplog.records]
+    busy = next(row["fields"] for row in rows if row["event"] == "core.transaction-busy")
+    assert busy["requested"] == "session-prepare"
+    assert busy["holder"] == "extension-monitor" and busy["holder_known"]
+    assert busy["elapsed_ms"] >= 0
+    states = [row["fields"] for row in rows if row["event"] == "extension-manager.monitor-state"]
+    assert [(row["previous_state"], row["state"], row["global_enabled"]) for row in states] == [
+        (0, 2, False), (2, 1, True)]
+    decisions = [row["fields"]["outcome"] for row in rows if row["event"] == "extension-manager.monitor-decision"]
+    assert decisions == ["started", "accepted", "unchanged"]
+    writer = DailyLogWriter(tmp_path / "logs")
+    handler = BrokerFileHandler(writer)
+    for record in caplog.records:
+        handler.emit(record)
+    with ZipFile(BytesIO(validate_bundle(writer.snapshot()))) as archive:
+        exported = "".join(archive.read(name).decode() for name in archive.namelist())
+    assert "core.transaction-busy" in exported and "monitor-state" in exported
+    assert "diagnostic.rejected" not in exported
+    assert SECRET not in exported and SECRET not in caplog.text
+    # Check the actual fixture identity in fields, excluding incidental digits
+    # in timestamps and elapsed durations in the rendered archive.
+    assert 1001 not in [value for row in rows for value in row["fields"].values()]
+
+
+def test_logging_failure_cannot_change_recovery_or_busy_outcome(monkeypatch):
+    from oh_no_parent_control import core, extension_monitor as monitor_module
+    from oh_no_parent_control.core import Busy
+
+    broker = make_broker()
+    broker._accounts.extension = (0, 0)
+    assert broker._acquire_request_lock("extension-monitor")
+    with monkeypatch.context() as patch:
+        patch.setattr(core.LOG, "info", Mock(side_effect=RuntimeError(SECRET)))
+        with pytest.raises(Busy):
+            broker.prepare_own_session(1001)
+    broker._release_request_lock()
+    assert broker.prepare_own_session(1001) is False
+    with monkeypatch.context() as patch:
+        patch.setattr(monitor_module.threading.Thread, "start", lambda _thread: None)
+        monitor = monitor_module.ExtensionMonitor(broker, Mock(), Mock())
+    monkeypatch.setattr(monitor_module.LOG, "info", Mock(side_effect=RuntimeError(SECRET)))
+    watch = monitor_module._Watch(987654)
+    monitor._reconcile(watch, {"state": 2}, False)
+    monitor.manager.set_enabled.assert_called_once_with(987654, True, recover_global_switch=True)
+    # Unknown holder remains explicitly unknown instead of borrowing old data.
+    assert broker._request_lock.acquire(blocking=False)
+    try:
+        with pytest.raises(Busy):
+            broker.prepare_own_session(1001)
+    finally:
+        broker._request_lock.release()
+
+
 def test_shell_crash_and_extension_candidates_survive_export_without_identifiers(tmp_path, caplog, monkeypatch):
     from oh_no_parent_control import dependency_diagnostics as dependency
     from oh_no_parent_control.extension_manager import UUID

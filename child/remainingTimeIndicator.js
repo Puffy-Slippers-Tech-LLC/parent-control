@@ -746,13 +746,25 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             return;
 
         this._sessionPreparePending = true;
+        let attempt = 0;
+        let started = null;
+        try {
+            this._prepareDiagnosticAttempt = Math.min(0x7fffffff, (this._prepareDiagnosticAttempt ?? 0) + 1);
+            attempt = this._prepareDiagnosticAttempt;
+            started = GLib.get_monotonic_time();
+            this._recordPreparation(attempt, started, 'started');
+        } catch (_error) { /* optional diagnostics */ }
         try {
             const reconciled = await prepareOwnSession();
-            if (this._destroyed)
+            if (this._destroyed) {
+                this._recordPreparation(attempt, started, 'disposed');
                 return;
+            }
             this._sessionPrepared = true;
+            this._recordPreparation(attempt, started, reconciled ? 'reconciled' : 'unchanged');
             logInfo('child.prepared', {reconciled});
         } catch (error) {
+            this._recordPreparation(attempt, started, this._destroyed ? 'disposed' : 'failed');
             if (!this._destroyed) {
                 logWarning('child.prepare-failed');
                 this._onError?.(error, 'session-prepare');
@@ -760,6 +772,16 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         } finally {
             this._sessionPreparePending = false;
         }
+    }
+
+    _recordPreparation(attempt, started, outcome) {
+        try {
+            if (started === null)
+                return;
+            logInfo('child.session-prepare-attempt', {attempt, outcome,
+                elapsed_ms: Math.min(0x7fffffff, Math.max(0,
+                    Math.floor((GLib.get_monotonic_time() - started) / 1000)))});
+        } catch (_error) { /* diagnostics cannot change preparation/reporting */ }
     }
 
     showGrantedTime(_durationSeconds) {

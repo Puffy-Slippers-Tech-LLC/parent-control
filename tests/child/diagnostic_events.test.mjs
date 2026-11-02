@@ -3,10 +3,55 @@ import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {diagnosticEnvelope} from '../../child/diagnosticEvents.mjs';
 import {createIndicator} from './support/indicator.mjs';
-import {remainingSeconds} from '../../child/indicatorLogic.mjs';
+import {remainingSeconds, shouldPrepareSession} from '../../child/indicatorLogic.mjs';
 
 const catalog = JSON.parse(readFileSync(new URL(
     '../../common/oh_no_parent_control_ui/diagnostic_catalog.json', import.meta.url)));
+
+test('preparation diagnostics connect failure and later success without changing reporting', async () => {
+    const logs = [];
+    let calls = 0;
+    let reports = 0;
+    const failure = new Error('private@example.test /home/private');
+    const indicator = createIndicator({
+        shouldPrepareSession,
+        Main: {sessionMode: {isLocked: false, isGreeter: false}},
+        prepareOwnSession: async () => { if (++calls === 1) throw failure; return false; },
+        logWarning() {},
+        logInfo: (event, fields) => logs.push(JSON.parse(diagnosticEnvelope(
+            catalog, event, JSON.parse(JSON.stringify(fields))))),
+    });
+    indicator._onError = error => { assert.equal(error, failure); reports++; };
+    await indicator._prepareSession();
+    assert.equal(reports, 1);
+    assert.equal(indicator._sessionPreparePending, false);
+    await indicator._prepareSession();
+    assert.equal(indicator._sessionPrepared, true);
+    const attempts = logs.filter(row => row.event === 'child.session-prepare-attempt');
+    assert.deepEqual(attempts.map(row => [row.fields.attempt, row.fields.outcome]), [
+        [1, 'started'], [1, 'failed'], [2, 'started'], [2, 'unchanged']]);
+    assert.ok(!JSON.stringify(logs).includes('private'));
+    // A broken observer must not cause a failure report or alter preparation.
+    const quiet = createIndicator({shouldPrepareSession,
+        Main: {sessionMode: {isLocked: false, isGreeter: false}},
+        prepareOwnSession: async () => false,
+        logInfo(event) { if (event === 'child.session-prepare-attempt') throw failure; },
+    });
+    await quiet._prepareSession();
+    assert.equal(quiet._sessionPrepared, true);
+    assert.equal(quiet._sessionPreparePending, false);
+    let reads = 0;
+    const untimedLogs = [];
+    const untimed = createIndicator({shouldPrepareSession,
+        Main: {sessionMode: {isLocked: false, isGreeter: false}},
+        GLib: {get_monotonic_time() { if (++reads === 1) throw failure; return 123456789; }},
+        prepareOwnSession: async () => false,
+        logInfo: event => untimedLogs.push(event),
+    });
+    await untimed._prepareSession();
+    assert.equal(untimed._sessionPrepared, true);
+    assert.ok(!untimedLogs.includes('child.session-prepare-attempt'));
+});
 
 test('reminder diagnostics reject content, identities and invalid state', () => {
     const events = {

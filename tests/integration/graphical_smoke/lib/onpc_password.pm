@@ -121,8 +121,12 @@ sub enter_kiosk_mate_password {
         my $role = 'parent';
         if ($composed) {
             my $request = $journey->{kiosk_request};
-            die 'secret:challenge' unless ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
-                && ($journey->{stage_prefix} // '') eq ''
+            my $delayed = ($journey->{prefix} // '') =~ /\Akiosk-delayed-approval-(first|second)\z/
+                && ($journey->{stage_prefix} // '') eq $1 . '-'
+                && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,30,0';
+            die 'secret:challenge' unless ($delayed ||
+                    ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
+                    && ($journey->{stage_prefix} // '') eq '')
                 && ref($request) eq 'ARRAY' && @$request == 4
                 && $request->[0] =~ /\A(?:child|other-child)\z/
                 && $request->[1] =~ /\A(?:parent|other-parent)\z/
@@ -162,7 +166,7 @@ sub enter_kiosk_mate_password {
                 || ($journey->{prefix} // '') eq 'time-profiles-grant-profile-request'
                 && ($journey->{stage_prefix} // '') eq 'profile-request-'
                 && defined($wrong) && $wrong eq 'request-1200');
-        my $id = ($baseline || $isolation || $profile ? ($journey->{stage_prefix} // '') : '')
+        my $id = ($baseline || $isolation || $profile || $composed ? ($journey->{stage_prefix} // '') : '')
             . 'kiosk-mate-' . ($chinese || $long_request || $profile_request ? $wrong : $binding);
         die 'secret:challenge' unless (@_ == 1 || $reject || $chinese || $long_request || $profile_request || $composed)
             && ref($journey) eq 'onpc_journey'

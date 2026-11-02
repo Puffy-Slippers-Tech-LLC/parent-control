@@ -1339,7 +1339,9 @@ class UiObservations:
                             and previous_operation == operation.removesuffix('-mate-open') + '-soft-read'
                             or operation == 'jordan-mate-open'
                             and previous_operation in ('jordan-fraction-soft-read',
-                                                       'jordan-fraction-estimate-refresh'))):
+                                                       'jordan-fraction-estimate-refresh')
+                            or operation == accessible_ui.BOUND_MATE_ORDER[0]
+                            and previous_operation == 'kiosk-request-estimate')):
                         index = 0
                     if index == 0:
                         self.mate_request_binding = self.kiosk_request
@@ -1378,7 +1380,9 @@ class UiObservations:
                         # recipient proofs are still required before input.
                         if getattr(self, 'mate_paused', False) and index == 1:
                             require(45 <= elapsed < 135, 'ui:mate-pause-bound')
-                        else:
+                        elif index > 1 or not self.mate_bound:
+                            # Opening the prompt grants no input authority.
+                            # Human decision time precedes both fresh proofs.
                             require(elapsed < 30, 'ui:mate-stale-proof')
                     self.mate_approval_index = index + 1
                     self.mate_approval_checked = time.monotonic()

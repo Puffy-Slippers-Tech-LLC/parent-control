@@ -10,9 +10,13 @@ import uuid
 
 if __package__:
     from . import test_storage, test_retention
+    from .vm_recording import case_identity
+    from .vm_selection import selected
 else:
     import test_storage
     import test_retention
+    from vm_recording import case_identity
+    from vm_selection import selected
 
 
 def descriptions(root):
@@ -46,7 +50,6 @@ def describe_case(record, catalogue):
 
 
 def metadata(root, category, nodeid):
-    from tools.vm_recording import case_identity
     identity = case_identity(root, category, dict(nodeid=nodeid))
     if identity is None:
         return None
@@ -211,7 +214,6 @@ class Tracker:
             nodeids = event.get('nodeids')
             if not nodeids:
                 return
-            from tools.vm_recording import case_identity
             for nodeid in nodeids:
                 try:
                     identity = case_identity(self.root, self.category, dict(nodeid=nodeid))
@@ -228,7 +230,6 @@ class Tracker:
         kind, nodeid = event.get('kind'), event.get('nodeid')
         if kind not in ('prepared', 'started', 'finished') or not nodeid:
             return
-        from tools.vm_selection import selected
         vm = selected(required=False)
         if vm is None:
             return

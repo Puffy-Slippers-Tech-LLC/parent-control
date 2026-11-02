@@ -1700,7 +1700,7 @@ without a separate submission for former case 215.
 
 ### E2E-048
 
-Implementation status: Complete daily-only case 223 and grant-only case 225
+Implementation status: Complete daily-only cases 223/224 and grant-only case 225
 passed on Ubuntu 26.04. Other cases pending.
 
 **Approve after the displayed estimate has aged.** Cases 223–225, 227–228 and 230.
@@ -1747,7 +1747,14 @@ profile or gap again. Predeclare comparison intervals, including navigation,
 authentication and confirmation time. Prepare all fixtures and observers before
 issuing the setup grant; no natural-expiry wait is added to this family.
 The elapsed 45 seconds must be distinguishable from a frozen estimate with the
-available display precision. No other user changes settings during the prompt.
+available display precision. For daily-only kiosk case 224, daily time pauses
+while away: compare the issued grant against that unchanged daily operand plus
+30 seconds, subtracting only time since approval. Distinguish this from a grant
+incorrectly started at the earlier estimate. After returning to the original
+child activity, refresh Parent's actual D/G once; this read is both the first
+approval's independent result and the second request's starting operands.
+Do not reset the grant or add a settling wait after cooldown.
+No other user changes settings during the prompt.
 This is normal time spent deciding a request, not an artificially delayed
 authentication service. Zero-time overlay entry is impossible; zero-time station
 approval belongs to 50/126–127. Exact equal positive operands that cannot be

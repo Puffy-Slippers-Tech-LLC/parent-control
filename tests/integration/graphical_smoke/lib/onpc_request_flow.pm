@@ -258,6 +258,41 @@ sub kiosk_fresh_return {
     $journey->finish();
 }
 
+sub kiosk_delayed_approval {
+    onpc_progress::operation('Approving two station requests while preserving [Child user] work');
+    my ($exchange, $declared, $challenges, $binding) = @_;
+    die 'kiosk-delayed:binding' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && ref($binding) eq 'ARRAY' && join(',', @$binding) eq 'child,parent,30,0';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'kiosk-delayed-approval', review => 0);
+    $journey->{kiosk_request} = $binding;
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::daily_time_profile($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0, 10);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'initial');
+    onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
+    $journey->seen($_) for qw(initial-switch-ready initial-switch initial-greeter);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'balance');
+    $journey->seen('first-before');
+    for my $request ('first', 'second') {
+        my $section = $journey->scope($request);
+        $section->{kiosk_request} = $binding;
+        $section->seen($_) for qw(station-desktop station-switch station-greeter);
+        prepare($section, 'new', 'new', 'observed', 'fixture-child', 'fixture-parent', 30, 0, 'kiosk');
+        approve($section, 'fixture-child', 'fixture-parent', 30, 0, 'automatic');
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'retained', 'success', "$request-retained");
+        $section->seen('countdown');
+        onpc_app_rows::native_activity_resume($section, 'resume');
+        onpc_app_rows::native_read_activity($section, 'activity');
+        $section->seen($_) for qw(switch-ready switch greeter);
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', "$request-parent");
+        $section->seen('balances');
+    }
+    $journey->finish();
+}
+
 sub delayed_approval {
     onpc_progress::operation('Checking delayed approval and a second addition for [Child user]');
     my ($exchange, $declared, $challenges, $balance) = @_;

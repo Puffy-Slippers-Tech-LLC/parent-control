@@ -8,6 +8,10 @@ Unknown modules remain exclusive pending review.
 The extension-manager transport cases own private Unix socketpairs/pipes and
 GLib sources; their credential-drop subprocess is mocked. Every descriptor and
 source is released within its case; no live bus, account or shared path is used.
+
+Kiosk approval safety uses process-local clocks/observation doubles and bounded,
+reaped Perl children with captured pipes. It supplies no credentials and opens
+no bus, display, VM, shared cache or mutable path; ordinary unit overlap is safe.
 """
 
 from pathlib import PurePosixPath
@@ -55,6 +59,7 @@ floating_islands
 graphical_lease
 installer
 kiosk_confinement
+kiosk_approval_safety
 kiosk_login
 kiosk_model
 kiosk_rendering

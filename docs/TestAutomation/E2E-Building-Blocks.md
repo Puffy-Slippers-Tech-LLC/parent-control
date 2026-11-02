@@ -1735,6 +1735,18 @@ off. The unchanged fresh-child bindings above remain qualified without replay.
 Together these qualify all four kiosk entry/destination bindings, with no
 additional choice matrix, expiry wait or complete-scenario registration.
 
+Complete daily-only kiosk case **224** passed on Ubuntu 26.04 in
+`20261102T183436Z-3b5a0d5f`, through `kiosk_delayed_approval.PLAN` /
+`KioskDelayedApprovalJourney` and `onpc_request_flow::kiosk_delayed_approval`.
+It composes ten daily minutes, the real 45-second prompt wait, fresh recipient
+proofs, two 30-second additions, both retained-child returns and the original
+usable activity. Independently refreshed Parent balances verify both increments
+and distinguish paused daily time from a grant started at the earlier estimate.
+Repeated desktop entries use the main journey's declared challenge identities;
+request-local scopes retain their separate approval proofs. Collection, worker
+shutdown, owned cleanup and baseline restoration passed; the VM was observed off.
+Other E2E-048 kiosk balance profiles remain separate complete cases.
+
 #### Overlay immediate exit and approval compositions
 
 `overlay_approved_exit.IMMEDIATE_PLAN/FLOW_REJECTION_PLAN/FLOW_CANCEL_PLAN`

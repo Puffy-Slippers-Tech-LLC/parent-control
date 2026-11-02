@@ -4946,6 +4946,20 @@ need the activity closure even when all approval and language operations are
 already qualified. Reuse the shared fixture declarations; do not provision a
 missing activity from inside the running case.
 
+Also trace the qualification's public launcher selector through
+`tools/test_commands.py::INSTALLED_E2E_FIXTURE_SELECTORS` when it consumes
+installed E2E fixtures. Worker registration alone does not forward the frozen
+fixture selection through the dispatcher. For a second-child approval, trace
+that child's binding through input delivery as well as form selection and
+balance observation; an admitted request tuple alone does not bind its input.
+
+Trace every assertion phase's declaration to its intermediate result, not only
+the final result. When a deliberate approval wait distinguishes a running
+countdown from a frozen estimate, include the whole public-read bracket and
+display tolerance in that distinction. Derive the precision gate from the
+deliberate interval rather than an unrelated fixed latency cap; retain the
+original wait and independent balance assertions.
+
 Run the smallest existing checks for changed core execution, verdict, credential
 or ownership guards. Add a focused regression only for a concrete uncovered
 guarantee admitted by the [test scope mandate](../Mandates/Test-Scope-Mandate.md).

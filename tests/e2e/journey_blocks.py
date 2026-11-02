@@ -495,14 +495,17 @@ def parent_reopen():
     }
 
 
-def parent_management():
-    """PARENT01/02: direct command, owned window and fixture-child selection."""
+def parent_management(*, child='child'):
+    """PARENT01/02: direct command, owned window and explicit child selection."""
+    require(child in ('child', 'existing'), 'journey:parent-child')
+    existing = child == 'existing'
     return {
         'parent-command': 'ui:parent-command-launch',
         'parent-window': 'ui:parent-window',
-        'child-picker-opened': 'ui:child-picker-opened',
-        'child-choice-highlighted': 'ui:child-choice-highlighted',
-        'parent-selected': 'ui:parent-selected',
+        'child-picker-opened': 'ui:existing-child-picker-opened' if existing else 'ui:child-picker-opened',
+        'child-choice-highlighted': ('ui:existing-child-choice-highlighted' if existing
+                                     else 'ui:child-choice-highlighted'),
+        'parent-selected': 'ui:discovery-ready' if existing else 'ui:parent-selected',
     }
 
 

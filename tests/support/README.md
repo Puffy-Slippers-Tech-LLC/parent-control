@@ -285,6 +285,13 @@ supplies snapshot infrastructure acceptance only.
 
 ## Host and guest boundaries
 
+Parent entry declarations reuse `journey_blocks.parent_management(child=...)`:
+the default `child` selects Riley; `existing` selects Jordan and reads Screen
+Limits through the existing public operation. Both retain the same checkpoint
+names for the shared worker. Approval qualifications use this argument instead
+of copying and overwriting the child-selection map. Request choices, allowance
+values, recorder phases and assertions stay with their callers.
+
 TIME02 minute and final-second consumers reuse `countdown.CountdownSample`,
 `check_countdown_progress` and `await_countdown_progress`. Each sample copies the
 public countdown, controller monotonic read brackets and boot identity; comparisons

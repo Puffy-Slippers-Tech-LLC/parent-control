@@ -12,11 +12,7 @@ def qualification_plan(*, entry, child, approver, seconds, soft):
     role = 'child' if child == 'fixture-child' else 'other-child'
     choices = dict(child=child, approver=approver, duration_seconds=seconds, allow_soft=soft)
     flow = approval_and_return(prefix=entry, entry=entry, **choices)
-    parent = parent_management()
-    if role == 'other-child':
-        parent.update({'child-picker-opened': 'ui:existing-child-picker-opened',
-                       'child-choice-highlighted': 'ui:existing-child-choice-highlighted',
-                       'parent-selected': 'ui:discovery-ready'})
+    parent = parent_management(child='child' if role == 'child' else 'existing')
     child_entry = {'fresh-' + stage: operation for stage, operation in fresh_desktop(role).items()}
     # The activity adapter uses the declared child even for the second account.
     activity = native_activity_entry('activity')

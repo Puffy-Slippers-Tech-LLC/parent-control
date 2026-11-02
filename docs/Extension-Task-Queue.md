@@ -1,9 +1,9 @@
 # Extension recovery task queue
 
 The [master](Extension-Plan.md) owns scope, reuse and the sole next-task pointer.
-These are system/integration engineering tests, not customer E2E cases.
+These are system engineering tests, not customer E2E cases.
 The new monitor checks are the top to-dos. Table order is execution order;
-IDs are stable labels. All work below is unimplemented/unqualified on VMs.
+IDs are stable labels. Unchecked rows remain unqualified on VMs.
 
 Estimates include implementation, both installed targets and owned cleanup.
 The complete fault/restoration history stays together; each brief explains its
@@ -12,7 +12,7 @@ duplicate selectors or rerunning unrelated expiry histories.
 
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
-| [ ] | 001 | [Keep parental control active when extensions are disabled](Extension-Tasks/001-monitor-recovery.md) | Baseline | Individual/global recovery, repeated disablement beyond the old attempt limit, bounded rate and policy/role isolation | 30–60 min (session exception) |
+| [x] | 001 | Keep parental control active when extensions are disabled | Baseline | Individual/global recovery, repeated disablement beyond the old attempt limit, bounded rate and policy/role isolation | System 295 passed Ubuntu26.04/Fedora44; cleanup done. Retry cleanup, pending ownership and error reporting fixed; Astra re-review clear. |
 | [ ] | 002 | [Keep recovery safe across session and broker changes](Extension-Tasks/002-session-lifecycle.md) | 001 | Real user-bus/Shell replacement, ordinary logout, lock contention and owned shutdown | 30–60 min (session exception) |
 | [ ] | 003 | [Report extension failures without a crash loop](Extension-Tasks/003-error-reporting.md) | 001, 002 | Actual extension error, one standard report, no automatic send and conservative crash protection | 30–60 min (session exception) |
 | [ ] | 004 | [Restore the extension after startup and reboot](Extension-Tasks/004-startup-recovery.md) | 001 | v1.5 broker startup, offline persistence, cold boot and startup failure/isolation deltas | 30–60 min (session exception) |

@@ -1,21 +1,21 @@
 # Extension recovery VM test plan
 
 Task queue: [Ordered task queue](Extension-Task-Queue.md).
-Next task: **001 — [Keep parental control active when extensions are disabled](Extension-Tasks/001-monitor-recovery.md)**.
+Next task: **002 — [Keep recovery safe across session and broker changes](Extension-Tasks/002-session-lifecycle.md)**.
 
 ## Scope
 
-Implement and qualify standalone **system/integration** regressions for extension
+Implement and qualify standalone **system** regressions for extension
 disablement, deliberate interference, startup recovery and failure handling on
 Ubuntu 26.04/GNOME 50 and Fedora Workstation 44/GNOME 50. These engineering
 histories are not customer E2E journeys and add no E2E case IDs or dependencies.
 The queue starts with the newly added monitor, followed by its lifecycle/failure
 boundaries and the v1.5 recovery entry points.
 
-This plan is unexecuted. Creating it, passing host tests or building packages
-does not qualify native user-bus access, Fedora SELinux, actual GNOME activation,
-the reporter's graphical launch or recovery timing. All rows remain unchecked.
-New VM-test implementation and execution are outside the session creating this plan.
+The queue records completed native qualification. Passing host tests or building
+packages alone does not qualify native user-bus access, Fedora SELinux, actual
+GNOME activation, the reporter's graphical launch or recovery timing. Unchecked
+rows remain unqualified on VMs.
 
 Expected behavior belongs to [screen-time monitoring](SystemDesign/Screen-Time.md#extension-enablement-monitoring),
 [v1.5 recovery](SystemDesign/Screen-Time.md#screen-time-model),
@@ -46,7 +46,7 @@ Apply [repository instructions](../AGENTS.md), [test maintenance](../tests/READM
 [VM ownership/timing](Mandates/VM-Mandate.MD),
 [UI route selection](Mandates/UI-Automation-Mandate.MD#route-selection) when
 observing a product dialog, and [test storage](Mandates/Test-Storage-Mandate.md).
-Use the registered system/integration runner and its installed package route;
+Use the registered system runner and its installed package route;
 never install on the development host. Select the first unchecked row, implement
 only its missing assertions, verify both targets, finish owned cleanup and then
 close that row. New selectors remain **unimplemented** until registered.
@@ -62,7 +62,7 @@ close that row. New selectors remain **unimplemented** until registered.
 | `tests/unit/test_parent_main.py`, `Broker.recover_child_extension` | Initial selection/child change call path, saved-off and authorization guards | Task 005 qualifies actual installed Parent entry points under deliberate disablement |
 | Existing E2E engineering task 174 | Broker time/app-policy save fault/retry, explicitly separate from extension rollback | Remains in its original queue; this plan neither duplicates nor closes it |
 
-The standalone allocation follows [system/integration ownership](TestAutomation/UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage).
+The standalone allocation follows [system ownership](TestAutomation/UI-and-E2E-Coverage.md#reuse-of-system-coverage).
 Extend existing registered owners when their assertions fit; register a distinct
 new selector only for a genuinely new engineering history. Reuse unchanged
 fixture mechanics rather than rerunning their qualification matrices. Checked

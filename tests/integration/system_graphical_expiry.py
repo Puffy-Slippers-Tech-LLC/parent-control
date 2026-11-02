@@ -21,7 +21,7 @@ from system_assertions import accepted, account_property, account_state, call
 from system_session_expiry import (
     REQUEST_EXTENSION_SECONDS, identities, installed_manager, grant, verify_zero_time_pam,
     verify_request_extension, verify_runtime_rollback, request_global_extension_disable,
-    wait_for_extension_recovery,
+    wait_for_extension_recovery, isolated_broker_for_extension_faults,
 )
 
 FIXTURE = Path('/var/lib/onpc-test-graphical-expiry')
@@ -404,8 +404,13 @@ def verify(record):
            'graphical-peer-input-and-original-work-verified-by-host')
     enabled = manager._list(account, 'enabled-extensions')
     disabled = manager._list(account, 'disabled-extensions')
-    request_global_extension_disable(manager, account)
-    guest.activate_broker()
+    # Live clients can replace an unprotected stop job with D-Bus activation.
+    # Reuse the owned runtime mask to stop first, seed the disabled setting,
+    # then reactivate without a second stop. The new broker must recover it.
+    with isolated_broker_for_extension_faults():
+        request_global_extension_disable(manager, account)
+        guest.require(manager._boolean(account, 'disable-user-extensions'),
+                      'expiry:live-recovery-disable-not-observed')
     wait_for_extension_recovery(manager, account, 'expiry:live-extension-not-recovered')
     guest.require(not manager._boolean(account, 'disable-user-extensions')
                   and manager._runtime_state(account) == (True, True)

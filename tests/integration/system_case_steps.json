@@ -2349,5 +2349,14 @@
       "Use the parent's recovery action and disable the extension once more."
     ],
     "expected": "One report preserves its draft without sending automatically; unsafe retries stop after session loss, and explicit parent recovery restores normal monitoring."
+  },
+  "299": {
+    "summary": "Restore the extension from Parent controls",
+    "steps": [
+      "Open Parent with an enabled child's extension deliberately disabled.",
+      "Select another enabled child while Parent remains open.",
+      "Select a child whose controls are off, then turn controls on while GNOME extensions are globally disabled."
+    ],
+    "expected": "Each Parent recovery restores the extension and preserves unrelated settings; selecting saved-off controls leaves them off, and first enablement applies the daily limit and clears the stale grant."
   }
 }

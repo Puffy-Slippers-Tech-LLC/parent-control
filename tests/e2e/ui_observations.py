@@ -13,6 +13,34 @@ from private_artifacts import require
 import system_runner as system
 
 
+UI_PROGRAM_SOURCES = {
+    'common.oh_no_parent_control_ui.application_ui':
+        'common/oh_no_parent_control_ui/application_ui.py',
+    'common.oh_no_parent_control_ui.application_ui_client':
+        'common/oh_no_parent_control_ui/application_ui_client.py',
+    'application_ui_support': 'tests/support/application_ui.py',
+    **{name: f'tests/e2e/{name}.py' for name in (
+        'application_ui', 'session_control', 'public_atspi', 'block_semantics',
+        'feedback_formats', 'download_destination', 'fixture_ui')},
+}
+
+
+def guest_ui_program():
+    """The same standalone public adapter for guarded host and guest callers."""
+    modules = 'import sys, types\n'
+    for package in ('common', 'common.oh_no_parent_control_ui'):
+        modules += (f'module = types.ModuleType({package!r})\n'
+                    f'module.__path__ = []\n'
+                    f'sys.modules[{package!r}] = module\n')
+    for name, path in UI_PROGRAM_SOURCES.items():
+        source = (system.ROOT / path).read_text()
+        modules += (f'module = types.ModuleType({name!r})\n'
+                    f'module.__package__ = {name.rpartition(".")[0]!r}\n'
+                    f'sys.modules[{name!r}] = module\n'
+                    f'exec(compile({source!r}, {name + ".py"!r}, "exec"), module.__dict__)\n')
+    return modules + (system.ROOT / 'tests/e2e/accessible_ui.py').read_text()
+
+
 # Collection replies need room for their full bounded semantic projection.
 # App rows still validate at most 256 fixed-format ID/access/match triples.
 RESPONSE_BYTE_LIMITS = {
@@ -1471,32 +1499,10 @@ class UiObservations:
         watch_activity.event('SSH UI: ' + OPERATION_LABELS[operation])
         if self.progress is not None:
             self.progress.operation(OPERATION_LABELS[operation])
-        program = (system.ROOT / 'tests/e2e/accessible_ui.py').read_text()
-        modules = 'import sys, types\n'
         # The public client is test-side code. Carry the same facade used by
         # previews even for product-free GDM observations before installation.
         # Every product value still comes from the live Application UI service.
-        for package in ('common', 'common.oh_no_parent_control_ui'):
-            modules += (f'module = types.ModuleType({package!r})\n'
-                        f'module.__path__ = []\n'
-                        f'sys.modules[{package!r}] = module\n')
-        sources = {
-            'common.oh_no_parent_control_ui.application_ui':
-                'common/oh_no_parent_control_ui/application_ui.py',
-            'common.oh_no_parent_control_ui.application_ui_client':
-                'common/oh_no_parent_control_ui/application_ui_client.py',
-            'application_ui_support': 'tests/support/application_ui.py',
-            **{name: f'tests/e2e/{name}.py' for name in (
-                'application_ui', 'session_control', 'public_atspi', 'block_semantics',
-                'feedback_formats', 'download_destination', 'fixture_ui')},
-        }
-        for name, path in sources.items():
-            source = (system.ROOT / path).read_text()
-            modules += (f'module = types.ModuleType({name!r})\n'
-                        f'module.__package__ = {name.rpartition(".")[0]!r}\n'
-                        f'sys.modules[{name!r}] = module\n'
-                        f'exec(compile({source!r}, {name + ".py"!r}, "exec"), module.__dict__)\n')
-        program = modules + program
+        program = guest_ui_program()
         version = json.loads((system.ROOT / 'data/app.json').read_bytes())['version']
         self.boot_proof = None
         binding = []

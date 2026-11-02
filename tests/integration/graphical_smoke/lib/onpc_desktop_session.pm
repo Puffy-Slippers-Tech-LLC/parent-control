@@ -383,6 +383,24 @@ sub qualify_retained_denial {
     $journey->finish();
 }
 
+# Supporting transport only: retain the autologin child's Shell, authenticate
+# the parent, and leave Parent launch and fault/recovery assertions to pytest.
+sub extension_parent {
+    onpc_progress::operation('Entering the parent desktop while retaining the child session');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'desk:extension-parent-plan' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => 'extension-parent', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('child-before', $journey->seen('child-before'));
+    $journey->seen('child-switch');
+    $journey->invoke('child-greeter');
+    enter_desktop($journey, 'gdm', 'parent', 'fresh', 'success', 'parent');
+    $journey->finish();
+}
+
 # Installed system-282 owns the engineering expiry/grant actions. This worker
 # supplies only finite public input and independently observed recovery/work.
 sub system_graphical_expiry {

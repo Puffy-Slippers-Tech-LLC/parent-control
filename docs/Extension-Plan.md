@@ -1,7 +1,7 @@
 # Extension recovery VM test plan
 
 Task queue: [Ordered task queue](Extension-Task-Queue.md).
-Next task: **005 — [Restore the extension from Parent controls](Extension-Tasks/005-parent-recovery.md)**.
+Next task: **006 — [Restore the extension when kiosk time is approved](Extension-Tasks/006-kiosk-recovery.md)**.
 
 ## Scope
 
@@ -64,7 +64,7 @@ close that row. New selectors remain **unimplemented** until registered.
 | System 281: `test_enforcement.test_kiosk_expiry_installed_runtime` / `system_session_expiry.verify_offline_recovery` | Offline lists/global switch, real adapter rollback and unavailable payload | Task 004 adds only missing boot/startup recovery assertions |
 | System 282: `test_session_expiry.test_kiosk_expiry_graphical_runtime` / `system_graphical_expiry.verify` | Retained session, live recovery, actual PAM authentication and genuine kiosk approval | Tasks 001, 006 and 007 extend the relevant recovery boundaries without repeating natural-expiry/gameplay histories |
 | `system_session_expiry.verify_runtime_rollback` | Three existing write-response/readback/activation faults and owned broker isolation | Task 003 adds only missing actual extension-error/reporter behavior; no second rollback matrix |
-| `tests/unit/test_parent_main.py`, `Broker.recover_child_extension` | Initial selection/child change call path, saved-off and authorization guards | Task 005 qualifies actual installed Parent entry points under deliberate disablement |
+| `tests/unit/test_parent_main.py`, `Broker.recover_child_extension`; system 299 | Initial selection/child change call path, saved-off and authorization guards; installed Parent recovery under deliberate disablement | Initial selection, later selection and first enablement are qualified on both targets |
 | Existing E2E engineering task 174 | Broker time/app-policy save fault/retry, explicitly separate from extension rollback | Remains in its original queue; this plan neither duplicates nor closes it |
 
 The standalone allocation follows [system ownership](TestAutomation/UI-and-E2E-Coverage.md#reuse-of-system-coverage).

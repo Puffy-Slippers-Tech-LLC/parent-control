@@ -1681,10 +1681,26 @@ def stage_selected_inputs(selection, destination):
         },
         'files': files,
     }
+    if any(item.case_id == 'test_child_extension_parent_recovery'
+           for item in selection.executions):
+        sys.path.insert(0, str(ROOT / 'tests/e2e'))
+        from ui_observations import UI_PROGRAM_SOURCES, guest_ui_program
+        # This is the shared observer's standalone embedded program, not a
+        # second adapter. Bundle continues to own ordinary Python imports.
+        adapter = destination / 'accessible_ui.py'
+        require(not adapter.exists(), 'selection:duplicate-input-target')
+        adapter.write_text(guest_ui_program())
+        identity['generated_files'] = {'accessible_ui.py': {
+            'sha256': baseline.digest(adapter),
+            'sources': {path: baseline.digest(ROOT / path) for path in (
+                'tests/e2e/accessible_ui.py', *UI_PROGRAM_SOURCES.values())},
+        }}
     if any(item.area == 'package' and item.case_id == KIOSK_ACTIVATION_CASE
            for item in selection.executions):
         identity['host_files'] = kiosk_activation_host_inputs()
-    if 'session' in selection.phases:
+    if 'session' in selection.phases or any(
+            item.case_id == 'test_child_extension_parent_recovery'
+            for item in selection.executions):
         # The graphical input manifest also validates its worker's deferred
         # imports, before the attached desktop observer is constructed.
         sys.path.insert(0, str(ROOT / 'tests/e2e'))
@@ -2192,6 +2208,38 @@ def observe_graphical_expiry(vm, lease, directory, ledger, fixture_context, fixt
     (output / 'result.json').write_bytes(baseline.encode(result))
 
 
+def prepare_extension_parent(vm, lease, directory, ledger, fixture_context, fixture_selection):
+    """Attach only long enough to enter the real parent desktop for pytest."""
+    sys.path.insert(0, str(ROOT / 'tests/e2e'))
+    from types import SimpleNamespace
+    from check_graphical_smoke import inputs as graphical_inputs
+    from extension_parent import prepare_parent_desktop
+    from provenance import VerifiedInputs
+
+    selected_inputs = json.loads((directory / 'input/selected-inputs.json').read_bytes())
+    recorded = selected_inputs['graphical_expiry_host_files']
+    adapter = selected_inputs['generated_files']['accessible_ui.py']
+    require(baseline.digest(directory / 'input/accessible_ui.py') == adapter['sha256']
+            and all(baseline.digest(ROOT / path) == digest
+                    for path, digest in adapter['sources'].items()),
+            'extension-parent:adapter-inputs-changed')
+    require(graphical_inputs() == recorded, 'extension-parent:host-inputs-changed')
+    require(fixture_context is not None, 'extension-parent:fixture-context-required')
+    fixture_context['controller'].require_ready(fixture_context['receipt'])
+    verified = VerifiedInputs(lease=lease, root=ROOT)
+    verified.fixture_selection = fixture_selection
+    verified.fixture_prepared = fixture_context
+    context = SimpleNamespace(lease=lease, verified=verified)
+    output = directory / 'extension-parent'
+    output.mkdir(mode=0o700)
+    def progress(stage, observed):
+        log('stage:extension-parent-' + stage)
+    result = prepare_parent_desktop(output, lease, vm, ledger,
+        expected_inputs=verified.source_files, progress=progress, context=context)
+    require(graphical_inputs() == recorded, 'extension-parent:host-inputs-changed')
+    (output / 'result.json').write_bytes(baseline.encode(result))
+
+
 def installed_run(vm, lease, directory, selection, ledger=None, *, already_installed=False,
                   fixture_selection=None, preparation_only=False, preparation_observer=None):
     ledger = ledger or RunLedger()
@@ -2501,6 +2549,11 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 log('stage:extension-monitor-reboot')
                 with ledger.measure('reboot'):
                     reboot()
+                if any(item.case_id == 'test_child_extension_parent_recovery'
+                       for item in selection.executions):
+                    with ledger.measure('test'):
+                        prepare_extension_parent(vm, lease, directory, ledger,
+                                                 fixture_context, fixture_selection)
             if phase == 'startup':
                 if already_installed:
                     require_fixture_ready()

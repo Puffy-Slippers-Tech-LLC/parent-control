@@ -621,6 +621,8 @@ CASES = (
                  'Report extension failures without a crash loop'),
     CaseIdentity(298, 'startup', 'test_child_extension_startup_recovery',
                  'Restore the extension after startup and reboot'),
+    CaseIdentity(299, 'extension', 'test_child_extension_parent_recovery',
+                 'Restore the extension from Parent controls'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

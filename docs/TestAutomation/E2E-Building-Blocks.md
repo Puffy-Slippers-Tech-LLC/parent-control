@@ -2626,8 +2626,8 @@ only on Send; after these edits the expected state is **enabled Send and no
 validation explanation**, including invalid input. Reopening must preserve the
 valid snapshot before any new input. This does not establish submission rejection.
 The fixed rejection explanation projections are qualified separately below;
-disabled-Send observation still has host coverage only. Complete case 153 is
-qualified [below](#complete-local-validation); never infer rejection from input validity or
+disabled-Send observation still has host coverage only. The current case-152
+composition is described [below](#complete-local-validation); never infer rejection from input validity or
 substitute private transport validation for public evidence.
 
 `feedback_states.edit_states()` declares the shared edit-only matrix;
@@ -2652,7 +2652,8 @@ No valid submission or portal mutation is permitted. Qualification-only wrong-en
 and repeated-rejection checks remain in their callers; shared blocks do not
 choose a case's recorder phases or reset its dialog implicitly.
 
-Case 153 has complete composition acceptance; shared edit-state and UTF-16
+Historical case 153 has complete composition acceptance; that result does not
+establish acceptance of the combined case 152. Shared edit-state and UTF-16
 qualification remains independent. Neither scope qualifies other local feedback
 cases, additional surfaces or sending/delivery behavior.
 
@@ -2664,8 +2665,8 @@ are qualified through `check_e2e_feedback_rejection` for empty body, malformed
 reply, the authorized SOH fixture
 and excessive formatting, exact public explanations, usable controls, independent
 reopened entry, wrong-entry and valid-input refusal. No valid report is submitted;
-complete case 153
-has separate [composition acceptance](#complete-local-validation).
+the combined case 152 needs separate
+[composition acceptance](#complete-local-validation).
 
 `reject_invalid_feedback(case)` requires a fresh owned editor, exact bounded
 body/reply and enabled Send. It refuses valid, mismatched, ambiguous, stale or
@@ -3170,12 +3171,13 @@ child/approver operations retain exact offered-account sets/owner/no-prompt
 guards. `kiosk-valid-fraction-soft-select/read` use
 `RequestObservation.from_request`. Other values/overlay require their own scope.
 
-Case 47/`kiosk_cancel.PLAN` /`onpc_kiosk_cancel::run` uses enabled-choice
-Cancel; case 48/`kiosk_escape.PLAN` /`onpc_kiosk_escape::run` uses legacy
+Historical case 47/`kiosk_cancel.PLAN` /`onpc_kiosk_cancel::run` uses enabled-choice
+Cancel; historical case 48/`kiosk_escape.PLAN` /`onpc_kiosk_escape::run` uses legacy
 Escape-labelled `onpc_request_exit::escape` as an owned API surface close.
 Both independently require absent form/usable GDM and preserve estimate/choice
 checks. Historical native Escape evidence does not automatically qualify a
-changed API-close composition. Approved/overlay exits remain separate.
+changed API-close composition. Current case 49 composes both exits before
+approval; the changed combination needs its own live acceptance.
 
 ### Canonical reuse and implementation checkpoints
 

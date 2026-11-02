@@ -55,6 +55,7 @@
         const title = element('span', 'run-label', titlebar);
         title.textContent = entry.label;
         title.title = entry.label;
+        title.classList.toggle('finished', entry.status === 'finished');
         const controls = element('span', 'run-controls', titlebar);
         const collapse = element('button', 'run-copy', controls);
         collapse.type = 'button';

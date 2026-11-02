@@ -40,6 +40,9 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
         compact = isinstance(line, str) and line.startswith(COMPACT_LINE)
         text = line.copy() if isinstance(line, Text) else (
             compact_text(line) if compact else Text.from_ansi(line.replace(SESSION_LINE, '')))
+        summary_label = re.match(r'^(Total Tasks:|Total Duration:|Ended:)', text.plain)
+        if summary_label:
+            text.stylize('bold', 0, summary_label.end())
         heading = re.fullmatch(r'VM: (.+) \(([^()]*)\)', text.plain)
         if heading:
             text = text[4:]

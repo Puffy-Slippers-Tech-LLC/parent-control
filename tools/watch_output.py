@@ -177,7 +177,15 @@ class Output:
         duration = (clock_duration((self.summary_ended if self.summary_ended is not None
                                    else time.monotonic()) - origin)
                     if origin is not None else '—')
-        return task_summary_lines(self.task_totals, duration)
+        lines = task_summary_lines(self.task_totals, duration)
+        if not active and self.completion_status() == 'finished':
+            try:
+                with open_private(self.run / 'result.json') as stream:
+                    ended = os.fstat(stream.fileno()).st_mtime
+                lines.append('Ended: ' + time.strftime('%H:%M', time.localtime(ended)))
+            except (OSError, ValueError):
+                pass
+        return lines
 
     @property
     def execution_plan(self):

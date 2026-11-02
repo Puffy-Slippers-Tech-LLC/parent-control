@@ -43,6 +43,7 @@ nav button[aria-pressed="true"] {
     overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
 }
 .run-controls { display: flex; flex-shrink: 0; }
+.run-label.finished { color: #008000; }
 .run-links {
     display: flex; flex: 0 1 auto; flex-wrap: wrap; margin-left: auto;
     justify-content: flex-end; align-items: baseline; gap: 4px;

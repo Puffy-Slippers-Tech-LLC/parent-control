@@ -69,6 +69,9 @@ For every execution-plan launcher, including `write-e2e`, **Status**
 starts with **Total Tasks: completed/unfinished/total**
 and **Total Duration**, using the shared launcher counters and colors. A divider
 spans the panel above the completed task recaps and current task/session rows.
+The **Total Tasks:** and **Total Duration:** labels are bold. When the whole plan
+finishes, the summary adds **Ended:** with the local completion time (`HH:MM`),
+and the launcher title, including `(finished)`, turns green.
 For every execution-plan launcher, completed and current task headings end with
 ` | <duration>` from the retained task clock across sessions. The session summary
 ends with ` | <duration>` from its owner session clock.

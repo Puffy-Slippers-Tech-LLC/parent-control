@@ -88,7 +88,11 @@ the launcher's actual wait. Questions without a deadline have no extension link.
 **Session** is a blue, underlined link with a hand cursor. It replaces that
 worktree's status with the shared launcher session transcript, chatbox and
 model/effort footer, including the Simplified toggle. The transcript includes
-sent prompts and agent messages. Command and tool result bodies are hidden in
+sent prompts and agent messages. Agent prose streams while it is being written;
+the completed message replaces its provisional text, including any corrections.
+Only completed messages enter the saved transcript. Launcher status metadata and
+structured workflow results wait for completion before being interpreted.
+Command and tool result bodies are hidden in
 both modes; activity names remain visible and saved transcripts retain results.
 Simplified mode collapses command activity to one clipped line; turn it off to
 see each activity with its original line breaks. Successful Read/Search exploration shows

@@ -750,6 +750,19 @@ class AgentRenderer:
     def message(self, text, title='Agent', style='default'):
         self.block(title, SessionMarkdown(clean(text)), style)
 
+    def preview_message(self, text):
+        """Replace observer-only prose without appending unconfirmed log text."""
+        if self.on_description is None:
+            return
+        command, exploring = self.last_command, self.exploring
+        try:
+            with self.console.capture() as capture:
+                if text:
+                    self.message(text)
+        finally:
+            self.last_command, self.exploring = command, exploring
+        self.on_description(capture.get(), provisional=True)
+
     def feed(self, data):
         lines = (self.pending + data).split(b'\n')
         self.pending = lines.pop()

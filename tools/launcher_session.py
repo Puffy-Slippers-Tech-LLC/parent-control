@@ -45,6 +45,7 @@ class SessionPanel(LauncherDisplay):
         self.simplified = True
         self.simplified_bounds = None
         self.text_output = None
+        self.streaming_lines = []
         self.text_identity = None
         self.text_width = 1
         self.simplified_cache = None
@@ -210,6 +211,10 @@ class SessionPanel(LauncherDisplay):
         preview = record.get('preview')
         if preview is not None and not isinstance(preview, str):
             return
+        stream = record.get('stream', [])
+        if not isinstance(stream, list) or any(not isinstance(line, str) for line in stream):
+            return
+        self.streaming_lines = list(retained_tail(stream))
         lines = list(retained_tail([*record.get('lines', []),
                                    *(['', preview] if preview is not None else [])]))
         identity = record.get('session')
@@ -280,6 +285,7 @@ class SessionPanel(LauncherDisplay):
             # and hanging indentation, including when the viewport reflows.
             source = logs if session_logs is None else session_logs
             logs = [*(self.simplified_lines(source) if source else self.text_output), *self.details]
+        logs = [*logs, *self.streaming_lines]
         rows = (scroll or self.scroll_rows)('bottom', logs,
             output_width or width, self.output_height)
         rows += [Text('')] * (self.output_height - len(rows))
@@ -332,7 +338,7 @@ class SessionPanel(LauncherDisplay):
         logs = self.visible_lines(logs)
         if self.simplified:
             logs = self.simplified_lines(logs) if logs else self.text_output or []
-        return dict(lines=[*logs, *self.details], working=self.working(),
+        return dict(lines=[*logs, *self.details, *self.streaming_lines], working=self.working(),
                     model=' '.join(filter(None, (self.chat_state.get('model'),
                                                 self.chat_state.get('effort')))),
                     simplified=self.simplified)

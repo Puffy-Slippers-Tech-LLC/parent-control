@@ -544,15 +544,6 @@ class SessionOutput:
         # The launcher writes the full question and choices to session-output.log.
         # Keep question state for input routing without appending a second prompt.
         try:
-            # JSON escaping can expand the bounded prose beyond its text budget.
-            description = self.reader.read(run / 'descriptive-output.json', limit=2 * 1024 * 1024)
-        except FileNotFoundError:
-            description = {}
-        except (OSError, ValueError):
-            description = None
-        if description is not None:
-            panel.update_text_output(description)
-        try:
             with open_private(run / source) as stream:
                 size = os.fstat(stream.fileno()).st_size
                 if size < self.offset:
@@ -574,6 +565,19 @@ class SessionOutput:
             panel.write(self.decoder.decode(data))
         except (OSError, ValueError):
             pass
+        try:
+            # Read provisional text after the log, so completing a message
+            # cannot leave an older preview beside its authoritative text.
+            # JSON escaping can expand the bounded prose beyond its text budget.
+            description = self.reader.read(run / 'descriptive-output.json', limit=2 * 1024 * 1024)
+        except FileNotFoundError:
+            description = {}
+        except (OSError, ValueError):
+            description = None
+        if description is not None:
+            panel.update_text_output(description)
+        if owner is None or panel.chat_state.get('status') != 'running':
+            panel.streaming_lines = []
         panel.draw()
         data = panel.stream.getvalue().encode('utf-8')
         panel.stream.seek(0)

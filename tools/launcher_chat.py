@@ -12,7 +12,7 @@ import time
 import tomllib
 
 import detached_launcher as launcher
-from launcher_render import clean
+from launcher_render import SCROLLBACK_CHARACTERS, clean
 from launcher_progress import read_progress
 from launcher_runtime import AgentCapacityUnavailable
 
@@ -226,6 +226,10 @@ class AppSession:
         self.progress_key = progress[-1]['key'] if progress else None
         self.started_at = time.time()
         self.turn_started_at = None
+        self.streaming_id = None
+        self.streaming_text = ''
+        self.streaming_dirty = False
+        self.preview_at = 0
         self.publish('starting')
         self.request('initialize', {'clientInfo': {'name': 'onpc_launcher',
                      'title': 'Task launcher', 'version': '1.0'},
@@ -265,6 +269,33 @@ class AppSession:
         self.request('turn/start', {'threadId': self.thread,
                      'input': [{'type': 'text', 'text': text}], 'outputSchema': self.schema})
 
+    def preview(self, *, force=False):
+        now = time.monotonic()
+        if not self.streaming_dirty or (not force and now < self.preview_at):
+            return
+        self.preview_at = now + .1
+        self.streaming_dirty = False
+        text = self.streaming_text
+        # Status metadata and workflow results are interpreted only after item
+        # completion. Withhold incomplete status prefixes as well as payloads.
+        if text.lstrip().startswith(('{', '```')):
+            text = ''
+        else:
+            text = text.split(STATUS_PREFIX, 1)[0]
+            for size in range(len(STATUS_PREFIX) - 1, 0, -1):
+                if text.endswith(STATUS_PREFIX[:size]):
+                    text = text[:-size]
+                    break
+        self.renderer.preview_message(text)
+
+    def clear_preview(self):
+        if self.streaming_id is None and not self.streaming_dirty:
+            return
+        self.streaming_id = None
+        self.streaming_text = ''
+        self.streaming_dirty = True
+        self.preview(force=True)
+
     def poll(self):
         if self.done:
             return
@@ -301,6 +332,9 @@ class AppSession:
                              'input': [{'type': 'text', 'text': text}]})
             else:
                 self.start_turn(text)
+        # Publish at most ten times per second, even with a continuously ready
+        # output pipe. Completed text still replaces the preview immediately.
+        self.preview()
 
     def turn_requests_pending(self):
         return any(method in ('turn/start', 'turn/steer', 'turn/interrupt')
@@ -347,6 +381,7 @@ class AppSession:
 
     def fail(self, context, error):
         """Retain the provider's reason before supervisor cleanup exits."""
+        self.clear_preview()
         code = error.get('codexErrorInfo') if isinstance(error, dict) else None
         detail = (error.get('message') or str(error)) if isinstance(error, dict) else str(error)
         message = f"Codex {context}{f' ({code})' if code else ''}: {detail}"
@@ -406,6 +441,14 @@ class AppSession:
             return
         if method == 'turn/started':
             self.turn = params['turn']['id']
+        elif method == 'item/agentMessage/delta':
+            if params.get('turnId') != self.turn:
+                return
+            if params['itemId'] != self.streaming_id:
+                self.streaming_id = params['itemId']
+                self.streaming_text = ''
+            self.streaming_text = (self.streaming_text + params['delta'])[:SCROLLBACK_CHARACTERS]
+            self.streaming_dirty = True
         elif method in ('item/started', 'item/completed'):
             self.item(params['item'], method == 'item/completed')
         elif method == 'thread/tokenUsage/updated' and self.renderer.on_usage:
@@ -415,6 +458,7 @@ class AppSession:
                 'output_tokens': usage.get('outputTokens'),
                 'reasoning_output_tokens': usage.get('reasoningOutputTokens')})
         elif method == 'turn/completed':
+            self.clear_preview()
             turn = params['turn']
             self.turn = None
             if turn['status'] == 'interrupted':
@@ -435,7 +479,13 @@ class AppSession:
         kind = item['type']
         if kind == 'agentMessage':
             if not complete:
+                self.streaming_id = item['id']
+                self.streaming_text = item.get('text', '')[:SCROLLBACK_CHARACTERS]
+                self.streaming_dirty = True
                 return
+            # The completed item is authoritative, including edits or empty
+            # replacements. Never feed provisional text into result handling.
+            self.clear_preview()
             text = task_message(self.run, self.task, item['text'])
             if not text:
                 return

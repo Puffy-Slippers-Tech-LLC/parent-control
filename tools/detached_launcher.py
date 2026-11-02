@@ -258,9 +258,17 @@ def descriptive_output(run):
     path = run / 'descriptive-output.json'
     atomic(path, record)
 
-    def append(value):
-        record['lines'] = list(retained_tail([*record['lines'], *value.splitlines()]))
-        atomic(path, record)
+    def append(value, *, provisional=False):
+        if provisional:
+            record['stream'] = list(retained_tail(value.splitlines()))
+        else:
+            record.pop('stream', None)
+            record['lines'] = list(retained_tail([*record['lines'], *value.splitlines()]))
+        stream = record.get('stream', [])
+        lines = list(retained_tail([*record['lines'], *stream]))
+        # Keep one shared observer budget without letting temporary previews
+        # evict the authoritative prose retained in memory.
+        atomic(path, dict(record, lines=lines[:-len(stream)] if stream else lines))
 
     return append
 
@@ -566,6 +574,8 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         try:
             if nested:
                 finish_nested(root, run)  # Exceptions, rather than active owners, mean cleanup failed.
+            if conversation:
+                conversation.clear_preview()
         finally:
             try:
                 if session_view is not None:

@@ -632,7 +632,8 @@ def test_system_resume_excludes_completed_independent_cases_and_preserves_lifecy
     inventories = dict(package=('test_installed_package',),
                        removal=('test_remove_reboot_reinstall',), authorization=('test_a', 'test_b'),
                        enforcement=('test_enforcement',), session=('test_session',),
-                       extension=('test_child_extension_monitor_native_recovery',))
+                       extension=('test_child_extension_monitor_native_recovery',),
+                       startup=('test_child_extension_startup_recovery',))
     selection = system_runner.resolve_selection('authorization', inventories=inventories)
     resumed = system_runner.resume_selection(selection, {'authorization::test_a'})
     assert [item.case_id for item in resumed.executions] == ['test_b']

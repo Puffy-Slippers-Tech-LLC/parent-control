@@ -32,13 +32,16 @@ BOOT_SERVICE = Path('/etc/systemd/system') / BOOT_UNIT
 BOOT_DROPIN = Path('/etc/systemd/system/display-manager.service.d/onpc-test-graphical-expiry.conf')
 
 
-def prepare_broker_boot(*, fedora):
+def prepare_broker_boot(*, fedora, fixture=FIXTURE, helper='system_graphical_expiry.py'):
     """Let PID 1 establish the broker before GDM, outside its PAM domain.
 
     This attempt-only dependency and witness belong to the outer VM restore.
     No login hook starts services or changes Fedora's enforcing SELinux policy.
     """
     marker = guest.guard()
+    guest.require((fixture / 'prepared.json').is_file()
+                  and helper in {'system_graphical_expiry.py', 'system_extension_startup.py'},
+                  'expiry:broker-boot-input')
     for path in (BOOT_SERVICE, BOOT_DROPIN):
         guest.require(not path.exists() and not path.is_symlink(),
                       'expiry:broker-boot-fixture-collision')
@@ -55,7 +58,7 @@ def prepare_broker_boot(*, fedora):
     service = (f'[Unit]\nWants={guest.BROKER}\nAfter={guest.BROKER}\n'
                '[Service]\nType=oneshot\nRemainAfterExit=yes\nUMask=0077\n'
                f'ExecStart=/usr/bin/env ONPC_EXPECTED_RUN={marker["run"]} '
-               f'/usr/bin/python3 -B {guest.PAYLOAD}/system_graphical_expiry.py broker-ready\n'
+               f'/usr/bin/python3 -B {guest.PAYLOAD}/{helper} broker-ready\n'
                'TimeoutStartSec=120\n')
     dropin = f'[Unit]\nRequires={BOOT_UNIT}\nAfter={BOOT_UNIT}\n'
     for path, contents in ((BOOT_SERVICE, service), (BOOT_DROPIN, dropin)):

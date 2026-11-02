@@ -268,7 +268,9 @@ def isolated_broker_for_extension_faults():
                       and (current.st_dev, current.st_ino) == (identity.st_dev, identity.st_ino)
                       and os.readlink(mask) == '/dev/null', 'expiry:fault-broker-mask-replaced')
         guest.run(['systemctl', 'unmask', '--runtime', guest.BROKER], timeout=30)
-        guest.activate_broker()
+        # We already stopped this invocation under the mask. A second stop
+        # after unmasking can cancel a live client's newly queued activation.
+        guest.activate_broker(restart=False)
 
 
 def pam_password_status(uid, password, *, account_only=False):

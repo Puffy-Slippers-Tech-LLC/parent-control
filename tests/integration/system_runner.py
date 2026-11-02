@@ -110,7 +110,7 @@ PHASE_SEMANTICS = {phase: semantic for history in REMOVAL_HISTORIES[1:]
 PHASE_ORDER = (TRUSTED_FIXTURES_PHASE, 'previous-policy', 'installed', 'rebooted', *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *REMOVAL_PHASES,
                *(phase for history in REMOVAL_HISTORIES[1:]
                  for phase in (*history.prerequisites, *history.phases)),
-               'authorization', 'enforcement', 'session', 'extension')
+               'authorization', 'enforcement', 'session', 'extension', 'startup')
 AREA_SOURCES = {
     'package': ROOT / 'tests/system/test_install_smoke.py',
     'removal': ROOT / 'tests/system/test_removal.py',
@@ -118,6 +118,7 @@ AREA_SOURCES = {
     'enforcement': ROOT / 'tests/system/test_enforcement.py',
     'session': ROOT / 'tests/system/test_session_expiry.py',
     'extension': ROOT / 'tests/system/test_extension_monitor.py',
+    'startup': ROOT / 'tests/system/test_extension_startup.py',
 }
 COMMON_SELECTED_INPUTS = (
     ('tests/fixtures/baseline_environment.py', 'baseline_environment.py'),
@@ -171,6 +172,7 @@ PHASE_DEPENDENCIES = {
     'enforcement': (),
     'session': (),
     'extension': (),
+    'startup': (),
 }
 PHASE_PREREQUISITES = {
     TRUSTED_FIXTURES_PHASE: ('genuine-earlier-package', 'previous-install-and-reboot',
@@ -204,6 +206,7 @@ PHASE_PREREQUISITES = {
     'enforcement': ('retained-app-snapshot', 'native-enforcement-fixture'),
     'session': ('retained-app-snapshot', 'one-shot-gdm-grant-fixture-and-second-reboot'),
     'extension': ('retained-app-snapshot', 'gnome-monitor-fixture-and-second-reboot'),
+    'startup': ('retained-app-snapshot', 'offline-startup-fault-and-real-reboot'),
 }
 require = baseline.require
 Error = baseline.CaptureError
@@ -413,7 +416,7 @@ def case_phases(area, case_id):
         history = next((item for item in REMOVAL_HISTORIES if item.case_id == case_id), None)
         require(history is not None, 'selection:unregistered-removal-case')
         return history.phases
-    if area in ('authorization', 'enforcement', 'session', 'extension'):
+    if area in ('authorization', 'enforcement', 'session', 'extension', 'startup'):
         return (area,)
     package = {
         TRUSTED_FIXTURES_CASE: (TRUSTED_FIXTURES_PHASE,),
@@ -2145,7 +2148,7 @@ def run_pytest(vm, run, phase, selection):
     # each finite invocation together; its guest threads share the admission.
     package_history = any(item.area == 'removal' or item.case_id == FIRST_CONFIGURE_CASE
                           or item.case_id.startswith(PAM_CASE + '[') for item in executions)
-    timeout = {'session': 1800, 'extension': 1200}.get(phase, 900)
+    timeout = {'session': 1800, 'extension': 1200, 'startup': 1200}.get(phase, 900)
     if (phase in (*FIRST_CONFIGURE_PHASES, *PAM_PHASES, 'previous-policy', TRUSTED_FIXTURES_PHASE)
             or any(phase in history.phases for history in REMOVAL_HISTORIES)):
         timeout = 2400
@@ -2452,7 +2455,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         rebooted_recovery_phases = tuple(phase for history in REMOVAL_HISTORIES
                                          for phase in history.phases[1:])
         for phase in (TRUSTED_FIXTURES_PHASE, *FIRST_CONFIGURE_PHASES, *PAM_PHASES,
-                      *recovery_phases, 'authorization', 'enforcement', 'session', 'extension'):
+                      *recovery_phases, 'authorization', 'enforcement', 'session', 'extension',
+                      'startup'):
             if phase not in selection.phases:
                 continue
             if phase in (*rebooted_recovery_phases, FIRST_CONFIGURE_PHASES[1],
@@ -2495,6 +2499,17 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                              '/usr/bin/python3', '-B', PAYLOAD + '/system_extension_monitor.py',
                              'prepare'], timeout=300)
                 log('stage:extension-monitor-reboot')
+                with ledger.measure('reboot'):
+                    reboot()
+            if phase == 'startup':
+                if already_installed:
+                    require_fixture_ready()
+                log('stage:extension-startup-fixture')
+                with ledger.measure('test'):
+                    vm.call(['env', f'ONPC_EXPECTED_RUN={run}', 'PYTHONDONTWRITEBYTECODE=1',
+                             '/usr/bin/python3', '-B', PAYLOAD + '/system_extension_startup.py',
+                             'prepare'], timeout=720)
+                log('stage:extension-startup-reboot')
                 with ledger.measure('reboot'):
                     reboot()
             log('stage:pytest-' + phase)

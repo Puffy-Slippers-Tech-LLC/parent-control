@@ -699,11 +699,12 @@ def installed_group(path):
     return grp.getgrnam(groups.get(str(path), 'root')).gr_gid
 
 
-def activate_broker(*, reboot_required=False):
+def activate_broker(*, reboot_required=False, restart=True):
     # The static Type=dbus broker starts on demand. Use the explicitly allowed
     # public product interface, not an introspection interface its bus policy
     # does not expose. Suppress account labels returned by the read-only method.
-    run(['systemctl', 'stop', BROKER])
+    if restart:
+        run(['systemctl', 'stop', BROKER])
     run(['busctl', '--system', 'call', 'org.freedesktop.DBus', '/org/freedesktop/DBus',
          'org.freedesktop.DBus', 'StartServiceByName', 'su', BUS, '0'])
     require(run(['systemctl', 'is-active', BROKER]) == 'active', 'dbus-activation')

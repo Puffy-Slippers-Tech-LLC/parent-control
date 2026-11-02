@@ -619,6 +619,8 @@ CASES = (
                  'Keep recovery safe across session and broker changes'),
     CaseIdentity(297, 'extension', 'test_child_extension_failure_reporting',
                  'Report extension failures without a crash loop'),
+    CaseIdentity(298, 'startup', 'test_child_extension_startup_recovery',
+                 'Restore the extension after startup and reboot'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

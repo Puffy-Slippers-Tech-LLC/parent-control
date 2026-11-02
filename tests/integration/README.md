@@ -1175,6 +1175,18 @@ the stopped invocation must settle without late activation or error reporting.
 The runner stages the existing guarded session logout command and restores the
 outer VM only after this complete history. Select it with `system --id 296`.
 
+The `startup` area (system ID 298),
+`test_child_extension_startup_recovery`, keeps offline startup, a real reboot
+and live broker restarts in one installed history. Its pre-GDM witness verifies
+durable recovery before a child session can supply another recovery action.
+The fresh native desktop must then report the extension configured and active.
+Individual and global disablement in the live desktop are repaired during
+broker construction, before monitoring starts; a healthy restart performs no
+extension writes. Exact saved controls, grants, other extension choices and
+unrelated accounts remain unchanged. Existing system 281 owns the shared-payload
+refusal and rollback matrix; this history does not replay it. The normal runner
+restores the owned VM after the complete history. Select it with `system --id 298`.
+
 For an explicit update check, add `--previous-artifacts '<prior-artifact-allocation>'` alongside
 `--artifacts '<current-artifact-allocation>'`, using the maintained builder's
 returned paths. Both inputs pass the same artifact and source

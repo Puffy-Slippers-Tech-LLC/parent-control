@@ -1,7 +1,7 @@
 # Extension recovery VM test plan
 
 Task queue: [Ordered task queue](Extension-Task-Queue.md).
-Next task: **004 — [Restore the extension after startup and reboot](Extension-Tasks/004-startup-recovery.md)**.
+Next task: **005 — [Restore the extension from Parent controls](Extension-Tasks/005-parent-recovery.md)**.
 
 ## Scope
 

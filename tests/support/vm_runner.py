@@ -105,6 +105,7 @@ INVENTORIES = {
                     'test_native_catalog_is_selected_child_scoped'),
     'session': ('test_kiosk_expiry_graphical_runtime',),
     'extension': ('test_child_extension_monitor_native_recovery',),
+    'startup': ('test_child_extension_startup_recovery',),
 }
 
 # Include the comprehensive activation case so selection checks distinguish

@@ -1131,6 +1131,13 @@ sub run {
         onpc_fresh_thirty_allowance::run(\&exchange, 'existing');
         return;
     }
+    if ($ready->{extension_login}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_desktop_session::extension_login(\&exchange,
+            $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{extension_parent}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

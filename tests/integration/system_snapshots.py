@@ -22,6 +22,9 @@ def attempts(selection, *, fresh_install=False):
     groups.insert(1, (system.FIRST_CONFIGURE_PHASES, False))
     groups[2:2] = [(history.phases, False) for history in system.PAM_HISTORIES]
     groups.append(((system.TRUSTED_FIXTURES_PHASE,), False))
+    # Real password login has a different initial session from the monitor's
+    # autologin fixture. Keep it isolated for both current and fresh installs.
+    groups.append((('extension-login',), not fresh_install))
     result = []
     for phases, installed in groups:
         selected = tuple(phase for phase in phases if phase in selection.phases)

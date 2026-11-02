@@ -2350,6 +2350,15 @@
     ],
     "expected": "One report preserves its draft without sending automatically; unsafe retries stop after session loss, and explicit parent recovery restores normal monitoring."
   },
+  "301": {
+    "summary": "Restore the extension when a child signs in or unlocks",
+    "steps": [
+      "Sign in through GDM with positive daily time and parental control deliberately disabled in GNOME.",
+      "Use an application, lock the child desktop, and disable the extension again.",
+      "Authenticate once to unlock and continue the original work."
+    ],
+    "expected": "Each authentication owns extension recovery; native time remains positive, the original desktop and work survive, and grants, recorded usage, policies and other extension choices are preserved."
+  },
   "299": {
     "summary": "Restore the extension from Parent controls",
     "steps": [

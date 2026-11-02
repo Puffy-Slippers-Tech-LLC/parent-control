@@ -110,7 +110,7 @@ PHASE_SEMANTICS = {phase: semantic for history in REMOVAL_HISTORIES[1:]
 PHASE_ORDER = (TRUSTED_FIXTURES_PHASE, 'previous-policy', 'installed', 'rebooted', *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *REMOVAL_PHASES,
                *(phase for history in REMOVAL_HISTORIES[1:]
                  for phase in (*history.prerequisites, *history.phases)),
-               'authorization', 'enforcement', 'session', 'extension', 'startup')
+               'authorization', 'enforcement', 'session', 'extension', 'extension-login', 'startup')
 AREA_SOURCES = {
     'package': ROOT / 'tests/system/test_install_smoke.py',
     'removal': ROOT / 'tests/system/test_removal.py',
@@ -133,6 +133,7 @@ COMMON_SELECTED_INPUTS = (
     ('tools/regression_events.py', 'system_progress.py'),
 )
 KIOSK_ACTIVATION_CASE = 'test_kiosk_account_classification_survives_reboot'
+EXTENSION_LOGIN_CASE = 'test_child_extension_login_unlock_recovery'
 PACKAGE_READINESS_CASES = (
     'test_installed_package', 'test_first_install_requests_reboot',
     'test_reboot_applies_installation',
@@ -172,6 +173,7 @@ PHASE_DEPENDENCIES = {
     'enforcement': (),
     'session': (),
     'extension': (),
+    'extension-login': (),
     'startup': (),
 }
 PHASE_PREREQUISITES = {
@@ -206,6 +208,7 @@ PHASE_PREREQUISITES = {
     'enforcement': ('retained-app-snapshot', 'native-enforcement-fixture'),
     'session': ('retained-app-snapshot', 'one-shot-gdm-grant-fixture-and-second-reboot'),
     'extension': ('retained-app-snapshot', 'gnome-monitor-fixture-and-second-reboot'),
+    'extension-login': ('retained-app-snapshot', 'fresh-gdm-login-and-retained-unlock'),
     'startup': ('retained-app-snapshot', 'offline-startup-fault-and-real-reboot'),
 }
 require = baseline.require
@@ -412,6 +415,8 @@ def collect_area_cases(area, *, invoke=None):
 
 
 def case_phases(area, case_id):
+    if area == 'extension' and case_id == EXTENSION_LOGIN_CASE:
+        return ('extension-login',)
     if area == 'removal':
         history = next((item for item in REMOVAL_HISTORIES if item.case_id == case_id), None)
         require(history is not None, 'selection:unregistered-removal-case')
@@ -1698,7 +1703,7 @@ def stage_selected_inputs(selection, destination):
     if any(item.area == 'package' and item.case_id == KIOSK_ACTIVATION_CASE
            for item in selection.executions):
         identity['host_files'] = kiosk_activation_host_inputs()
-    if 'session' in selection.phases or any(
+    if 'session' in selection.phases or 'extension-login' in selection.phases or any(
             item.case_id == 'test_child_extension_parent_recovery'
             for item in selection.executions):
         # The graphical input manifest also validates its worker's deferred
@@ -2240,6 +2245,35 @@ def prepare_extension_parent(vm, lease, directory, ledger, fixture_context, fixt
     (output / 'result.json').write_bytes(baseline.encode(result))
 
 
+def observe_extension_login(vm, lease, directory, ledger, fixture_context, fixture_selection):
+    """Run one login/unlock history under the installed owner's live lease."""
+    sys.path.insert(0, str(ROOT / 'tests/e2e'))
+    from types import SimpleNamespace
+    from check_graphical_smoke import inputs as graphical_inputs
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    from extension_login import run_login_recovery
+    from provenance import VerifiedInputs
+
+    recorded = json.loads((directory / 'input/selected-inputs.json').read_bytes())[
+        'graphical_expiry_host_files']
+    require(graphical_inputs() == recorded, 'extension-login:host-inputs-changed')
+    require(fixture_context is not None, 'extension-login:fixture-context-required')
+    fixture_context['controller'].require_ready(fixture_context['receipt'])
+    verified = VerifiedInputs(lease=lease, root=ROOT)
+    verified.fixture_selection = fixture_selection
+    verified.fixture_prepared = {**fixture_context, 'subsets': ACTIVITY_SUBSETS, 'caller': 'system-301'}
+    context = SimpleNamespace(lease=lease, verified=verified,
+        fixture_selection=fixture_selection, fixture_subsets=ACTIVITY_SUBSETS, fixture_caller='system-301')
+    output = directory / 'extension-login'
+    output.mkdir(mode=0o700)
+    def progress(stage, observed):
+        log('stage:extension-login-' + stage)
+    result = run_login_recovery(output, lease, vm, ledger,
+        expected_inputs=verified.source_files, progress=progress, context=context)
+    require(graphical_inputs() == recorded, 'extension-login:host-inputs-changed')
+    (output / 'result.json').write_bytes(baseline.encode(result))
+
+
 def installed_run(vm, lease, directory, selection, ledger=None, *, already_installed=False,
                   fixture_selection=None, preparation_only=False, preparation_observer=None):
     ledger = ledger or RunLedger()
@@ -2263,7 +2297,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         fixture_selection = (installed_selection(fixture_selection) if already_installed else
                              selection_record(fixture_selection))
         subsets = SUBSETS
-        if 'session' in selection.phases:
+        if 'session' in selection.phases or 'extension-login' in selection.phases:
             from e2e_fixture_preparation import ACTIVITY_SUBSETS
             subsets += ACTIVITY_SUBSETS
         if any(item.case_id in (PREVIOUS_POLICY_CASE, TRUSTED_FIXTURES_CASE)
@@ -2372,10 +2406,11 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             fixture_context['controller'].require_ready(fixture_context['receipt'])
 
     def reboot():
-        if already_installed:
+        attached_login = 'extension-login' in selection.phases
+        if already_installed or attached_login:
             require_fixture_ready()
         vm.reboot()
-        if fixture_context is not None and already_installed:
+        if fixture_context is not None and (already_installed or attached_login):
             vm.wait_boot_complete()
             fixture_context['receipt'] = fixture_context['controller'].renew_after_reboot(
                 fixture_context['receipt'])
@@ -2503,7 +2538,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         rebooted_recovery_phases = tuple(phase for history in REMOVAL_HISTORIES
                                          for phase in history.phases[1:])
         for phase in (TRUSTED_FIXTURES_PHASE, *FIRST_CONFIGURE_PHASES, *PAM_PHASES,
-                      *recovery_phases, 'authorization', 'enforcement', 'session', 'extension',
+                      *recovery_phases, 'authorization', 'enforcement', 'session', 'extension', 'extension-login',
                       'startup'):
             if phase not in selection.phases:
                 continue
@@ -2554,6 +2589,27 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     with ledger.measure('test'):
                         prepare_extension_parent(vm, lease, directory, ledger,
                                                  fixture_context, fixture_selection)
+            if phase == 'extension-login':
+                if already_installed:
+                    require_fixture_ready()
+                elif not reboot_phases:
+                    # Its isolated fresh-install attempt has no package test
+                    # phases; finish the product's initial reboot before using
+                    # broker controls to prepare the fresh-login fixture.
+                    log('stage:extension-login-installed-reboot')
+                    with ledger.measure('reboot'):
+                        reboot()
+                log('stage:extension-login-fixture')
+                with ledger.measure('test'):
+                    vm.call(['env', f'ONPC_EXPECTED_RUN={run}', 'PYTHONDONTWRITEBYTECODE=1',
+                             '/usr/bin/python3', '-B', PAYLOAD + '/system_extension_login.py',
+                             'prepare'], timeout=300)
+                log('stage:extension-login-reboot')
+                with ledger.measure('reboot'):
+                    reboot()
+                with ledger.measure('test'):
+                    observe_extension_login(vm, lease, directory, ledger,
+                                            fixture_context, fixture_selection)
             if phase == 'startup':
                 if already_installed:
                     require_fixture_ready()

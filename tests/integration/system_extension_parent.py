@@ -25,46 +25,56 @@ from system_session_expiry import (
 )
 
 
-@contextmanager
-def isolated_monitor_bus():
-    """Deny the child-only bus helper, retaining root's installed broker path.
-
-    Stop the old broker first so no connected monitor survives the dependency
-    fault. The caller creates its independent Shell observer before entering.
-    Restore only the exact installed file and injected permission state.
-    """
+def monitor_bus_identity():
+    """Pin the installed helper before an attempt-owned permission fault."""
     from oh_no_parent_control.child_bus import HELPER_PATH
     helper = Path(HELPER_PATH)
     original = helper.lstat()
     guest.require(stat.S_ISREG(original.st_mode) and original.st_uid == original.st_gid == 0
                   and original.st_nlink == 1 and original.st_mode & 0o044 == 0o044
                   and not original.st_mode & 0o022, 'extension-parent:unsafe-bus-helper')
-    digest = hashlib.sha256(helper.read_bytes()).digest()
     mode = stat.S_IMODE(original.st_mode)
-    injected = mode & ~0o044
+    return {'device': original.st_dev, 'inode': original.st_ino, 'mode': mode,
+            'sha256': hashlib.sha256(helper.read_bytes()).hexdigest()}
 
-    def owned(expected_mode):
+
+def set_monitor_bus_mode(identity, expected_mode, desired_mode):
+    """Change only the pinned helper in the caller's exact expected state."""
+    from oh_no_parent_control.child_bus import HELPER_PATH
+    helper = Path(HELPER_PATH)
+    def owned(mode):
         current = helper.lstat()
         guest.require(stat.S_ISREG(current.st_mode) and current.st_uid == current.st_gid == 0
                       and current.st_nlink == 1
-                      and (current.st_dev, current.st_ino) == (original.st_dev, original.st_ino)
-                      and stat.S_IMODE(current.st_mode) == expected_mode
-                      and hashlib.sha256(helper.read_bytes()).digest() == digest,
+                      and (current.st_dev, current.st_ino) == (identity['device'], identity['inode'])
+                      and stat.S_IMODE(current.st_mode) == mode
+                      and hashlib.sha256(helper.read_bytes()).hexdigest() == identity['sha256'],
                       'extension-parent:bus-helper-replaced')
+    owned(expected_mode)
+    os.chmod(helper, desired_mode, follow_symlinks=False)
+    owned(desired_mode)
+
+
+@contextmanager
+def isolated_monitor_bus():
+    """Deny new monitor connections; retain root's installed activation path.
+
+    Stop the broker first so no connected monitor survives. A Shell observer
+    must connect before entering. Restore only the pinned file and fault state.
+    """
+    identity = monitor_bus_identity()
+    mode = identity['mode']
+    injected = mode & ~0o044
 
     changed = False
     try:
         with isolated_broker_for_extension_faults():
-            owned(mode)
-            os.chmod(helper, injected, follow_symlinks=False)
+            set_monitor_bus_mode(identity, mode, injected)
             changed = True
-            owned(injected)
         yield
     finally:
         if changed:
-            owned(injected)
-            os.chmod(helper, mode, follow_symlinks=False)
-            owned(mode)
+            set_monitor_bus_mode(identity, injected, mode)
 
 
 # Run as the administrator on that administrator's real session bus. The
@@ -109,7 +119,7 @@ except UIClientError as error:
 '''
 
 
-def recovery_proof(events, started, method, *, live):
+def recovery_proof(events, started, method, *, live, switch_recovery_needed=None):
     """Require the frontend operation itself to mutate and verify activation."""
     unique = {}
     for _stamp, row in events.since(started):
@@ -127,9 +137,11 @@ def recovery_proof(events, started, method, *, live):
     owned = [row for row in rows if row['operation'] == completed['operation']
              and row['sequence'] < completed['sequence']]
     contexts = [row for row in owned if row['event'] == 'extension-manager.activation-context']
+    if switch_recovery_needed is None:
+        switch_recovery_needed = method == 'SetParentControl'
     guest.require(len(contexts) == 1 and contexts[0]['fields']['shell_available'] is live
                   and contexts[0]['fields']['recover_global_switch'] is True
-                  and contexts[0]['fields']['switch_recovery_needed'] is (method == 'SetParentControl'),
+                  and contexts[0]['fields']['switch_recovery_needed'] is switch_recovery_needed,
                   'extension-parent:wrong-activation-context')
     mutations = [row for row in owned if row['event'] == 'extension-manager.command'
                  and row['fields']['operation'] in {'set', 'reset', 'enable', 'disable'}]

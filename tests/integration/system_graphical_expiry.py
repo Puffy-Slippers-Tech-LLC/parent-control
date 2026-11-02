@@ -206,7 +206,8 @@ def seed():
     pending.rename(FIXTURE / 'seeded.json')
 
 
-def child_session(uid):
+def child_session(uid, *, service='gdm-autologin'):
+    guest.require(service in ('gdm-autologin', 'gdm-password'), 'expiry:session-service')
     rows = guest.run(['loginctl', 'list-sessions', '--no-legend', '--no-pager']).splitlines()
     guest.require(len(rows) <= 32, 'expiry:session-inventory')
     matches = []
@@ -217,7 +218,7 @@ def child_session(uid):
             '-p', 'Service', '-p', 'Remote', '-p', 'Scope', '-p', 'LockedHint']).splitlines())
         if props.get('User') == str(uid) and props.get('Class') == 'user':
             guest.require(props.get('Type') in ('wayland', 'x11')
-                          and props.get('Service') == 'gdm-autologin'
+                          and props.get('Service') == service
                           and props.get('Remote') == 'no', 'expiry:unexpected-child-session')
             matches.append((session, props))
     guest.require(len(matches) <= 1, 'expiry:duplicate-child-session')
@@ -234,10 +235,10 @@ def wait_for(predicate, category, timeout=90):
         time.sleep(0.25)
 
 
-def screen_lock_observation(child, session, manager, account):
+def screen_lock_observation(child, session, manager, account, *, service='gdm-autologin'):
     """Supporting native state only; guarded graphical input proves protection."""
     guest.guard()
-    current = child_session(child)
+    current = child_session(child, service=service)
     guest.require(current is not None and current[0] == session, 'expiry:desktop-ended')
     state = {'logind_locked': current[1]['LockedHint'] == 'yes',
              'password_mode': account_property(child, 'org.freedesktop.Accounts.User', 'PasswordMode')}

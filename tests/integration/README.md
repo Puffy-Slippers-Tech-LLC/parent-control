@@ -1187,6 +1187,18 @@ unrelated accounts remain unchanged. Existing system 281 owns the shared-payload
 refusal and rollback matrix; this history does not replay it. The normal runner
 restores the owned VM after the complete history. Select it with `system --id 298`.
 
+System ID 301, `test_child_extension_login_unlock_recovery`, uses a separate
+`extension-login` phase in the extension area. It starts at GDM with positive
+daily time and no grant, then authenticates a fresh child login and one unlock
+of that same desktop after individual and global extension disablement. The
+shared guarded worker captures and resumes the child's original application
+work. A pinned permission fault holds automatic monitoring aside; each PAM
+recovery request must own the actual offline or live activation. Native active
+state and positive time, exact grants and policy, existing usage intervals and
+other extension choices are independently checked. The owner restores the
+permission fault before its verdict and the normal VM cleanup follows. Existing
+system 281/282 zero-time denial and expiry histories remain unchanged.
+
 For an explicit update check, add `--previous-artifacts '<prior-artifact-allocation>'` alongside
 `--artifacts '<current-artifact-allocation>'`, using the maintained builder's
 returned paths. Both inputs pass the same artifact and source

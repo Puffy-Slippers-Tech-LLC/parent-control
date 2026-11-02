@@ -383,6 +383,25 @@ sub qualify_retained_denial {
     $journey->finish();
 }
 
+sub extension_login {
+    onpc_progress::operation('Restoring parental control through child login and unlock');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'desk:extension-login-plan' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => 'extension-login', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'login');
+    onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
+    $journey->consume_observation('lock-ready', $journey->seen('lock-ready'));
+    $journey->seen('lock');
+    enter_desktop($journey, 'locked', 'child', 'lock', 'success', 'unlock');
+    onpc_app_rows::native_activity_resume($journey, 'resume');
+    $journey->invoke('original-work');
+    $journey->finish();
+}
+
 # Supporting transport only: retain the autologin child's Shell, authenticate
 # the parent, and leave Parent launch and fault/recovery assertions to pytest.
 sub extension_parent {

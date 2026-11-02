@@ -625,6 +625,8 @@ CASES = (
                  'Restore the extension from Parent controls'),
     CaseIdentity(300, 'extension', 'test_child_extension_kiosk_recovery',
                  'Restore the extension when kiosk time is approved'),
+    CaseIdentity(301, 'extension', 'test_child_extension_login_unlock_recovery',
+                 'Restore the extension when a child signs in or unlocks'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

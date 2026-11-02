@@ -44,7 +44,7 @@ class KioskRequestJourney(InstalledJourney):
         if stage in self.plan.balance_checks:
             check_balances(self, observed, self.plan.balance_checks[stage])
             self.balance = deepcopy(observed['ui']['time_explanation'])
-        elif operation == 'ui:time-explanation-read':
+        elif operation in ('ui:time-explanation-read', 'ui:time-explanation-refresh-read'):
             self.balance = deepcopy(observed['ui']['time_explanation'])
         self.check_estimate(observed)
         self.check_preserved_request(stage, observed)

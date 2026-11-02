@@ -267,14 +267,15 @@ def approval_and_return(*, prefix, entry, child, approver, duration_seconds, all
                         surface='overlay', child_entry='fresh'):
     """FLOW20: caller supplies GDM/open station or the child's overlay and balance."""
     choices = dict(child=child, approver=approver, duration_seconds=duration_seconds, allow_soft=allow_soft)
-    require(surface in ('overlay', 'kiosk') and child_entry == 'fresh', 'approval-return:entry')
+    require(surface in ('overlay', 'kiosk') and child_entry in ('fresh', 'retained')
+            and (surface == 'kiosk' or child_entry == 'fresh'), 'approval-return:entry')
     if surface == 'kiosk':
         from kiosk_approved_flow import approved_request
         from journey_blocks import desktop_entry, prefixed_stages
         binding = kiosk_choices(**choices)
         return {**prepared_request(prefix=prefix, entry=entry, initial='observed', **choices),
                 **approved_request(exit='automatic', explicit=True, **choices),
-                **prefixed_stages('fresh', desktop_entry(binding[0], source='gdm', entry=child_entry)),
+                **prefixed_stages(child_entry, desktop_entry(binding[0], source='gdm', entry=child_entry)),
                 'countdown': 'ui:child-countdown-present'}
     return {**prepared_request(prefix=prefix, entry=entry, initial='observed', surface='overlay', **choices),
             **overlay_approved_request(exit='automatic', **choices),

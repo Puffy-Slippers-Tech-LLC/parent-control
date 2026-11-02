@@ -121,7 +121,7 @@ sub enter_kiosk_mate_password {
         my $role = 'parent';
         if ($composed) {
             my $request = $journey->{kiosk_request};
-            die 'secret:challenge' unless ($journey->{prefix} // '') eq 'kiosk-fresh-return'
+            die 'secret:challenge' unless ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
                 && ($journey->{stage_prefix} // '') eq ''
                 && ref($request) eq 'ARRAY' && @$request == 4
                 && $request->[0] =~ /\A(?:child|other-child)\z/

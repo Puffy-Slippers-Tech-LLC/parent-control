@@ -384,6 +384,13 @@ sub run {
         return;
     }
     for my $entry ('new', 'open') {
+        if ($ready->{'kiosk_retained_return_' . $entry}) {
+            console('sut')->disable();
+            exchange('setup-detached', undef);
+            onpc_request_flow::kiosk_fresh_return(\&exchange, $ready->{invocations},
+                $ready->{challenge_bindings}, $ready->{kiosk_request}, $entry, 'retained');
+            return;
+        }
         if ($ready->{'kiosk_fresh_return_' . $entry}) {
             console('sut')->disable();
             exchange('setup-detached', undef);

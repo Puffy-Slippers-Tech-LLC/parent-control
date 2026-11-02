@@ -1027,6 +1027,7 @@ substitute for a usable public form, grant read or app result.
 | Request preparation | Independent selected choices and estimate; normal Cancel/reentry preserves the captured choices. Disabled-child request choices and Parent allowance presets remain distinct. |
 | Kiosk authentication | Fixed child, approver and request; two fresh same-challenge recipient proofs; one secret submission; explicit approval or rejection. Password-free Cancel is independent of wrong-password rejection. |
 | Approved exit | Explicit success followed by the declared automatic/immediate exit and usable destination. Independently read the selected child's grant through Parent; approval UI alone is insufficient. |
+| Retained child after kiosk approval | Reuse [FLOW20's retained return](#explicit-kiosk-choices-and-retained-child-return-qualification) for new/open form entry, explicit selected child and legitimate return to the original usable activity. The fixed baseline approval supplies its applicable leaves; it supplies neither this destination qualification nor a later complete case. |
 | Shared overlay | Qualify its Shell prompt separately from the kiosk's MATE prompt. Preserve the original native-app window, draft/activity, choices and fixed child through rejection, Cancel, approval and desktop return. |
 | Native policy effects | Public zero-daily setup; genuine soft-included approval; distinct Allowed/soft-app Submit results; attributed hard-app execution denial; public revoke/Confirm; zero grant and unchanged saved rules; restored time/soft-app restrictions. |
 | Existing features | Reuse language Save/Cancel/reentry, request-choice estimates/persistence, reminder identity/isolation and restricted About return as separate feature histories. Saved-preset editing, Hours, What's New and notification delivery retain their own scope. |
@@ -1701,8 +1702,38 @@ The finite duration API includes the consuming recipes' 30/60/75/120/150/180/
 600/900/1200/7200-second requests. Representative independent entries qualify
 these shared arguments without a Cartesian choice matrix. Daily policy and GDM
 or an independently open form remain caller-owned preconditions; FLOW20 does
-not prepare them implicitly. Retained-child destinations remain pending in
-task 197k. This slice registers no complete scenario.
+not prepare them implicitly. The separately qualified
+[retained-child destination](#explicit-kiosk-choices-and-retained-child-return-qualification)
+adds original-work comparisons. This slice registers no complete scenario.
+
+#### Explicit kiosk choices and retained-child return qualification
+
+`request_flow.approval_and_return(surface='kiosk', child_entry='retained')`
+reuses FLOW04/05 and explicit retained FLOW15, followed by TIME01/UI12.
+`kiosk_fresh_return.RETAINED_NEW_PLAN` / `RETAINED_OPEN_PLAN` and
+`KioskFreshReturnJourney`, dispatched by
+`onpc_request_flow::kiosk_fresh_return(..., 'retained')`, passed independent
+Riley/Jamie/new/30-second/soft-excluded and
+Jordan/Casey/open/75-second/soft-included histories on Ubuntu 26.04 in
+`20261102T174354Z-604526ed`, through `check_e2e_kiosk_approval_return`.
+
+Each publicly prepared 30 daily minutes, captured the child's recognizable
+activity, and refreshed Parent's actual daily balance after switching away,
+requiring at least 900 seconds and no prior grant. The shared
+`time-explanation-refresh-read` operation reuses guarded public child reselection
+and the time explanation; it changes no policy. The request estimate preserved
+max(D,G)+R, and the returned countdown passed the prebound elapsed-time/display
+comparison. One approval per invocation produced explicit success, automatic
+station exit and legitimate retained entry. Immutable original PID, public
+endpoint and draft/activity matched before resubmission in the same usable
+window. `JourneyPlan.activity_entries` requires the earlier capture before
+retained-entry input; absent activity or a replacement window cannot pass.
+
+Both restored attempts completed collection, worker/callback closure, owned
+cleanup, baseline restoration and source/host preservation; the VM was observed
+off. The unchanged fresh-child bindings above remain qualified without replay.
+Together these qualify all four kiosk entry/destination bindings, with no
+additional choice matrix, expiry wait or complete-scenario registration.
 
 #### Overlay immediate exit and approval compositions
 
@@ -2800,7 +2831,8 @@ The existing 75/600-second leaves retain their scope; the distinct
 120-second and current standalone 1200-second Ubuntu acceptance. Later cases
 bind their other finite durations and own their
 elapsed-time, arithmetic, app-effect and lifecycle results without replaying
-this qualifier. Retained-child destinations remain in task 197k.
+this qualifier. The [retained-child destination](#explicit-kiosk-choices-and-retained-child-return-qualification)
+also qualifies new/open entry while preserving the caller's original activity.
 Qualify changed parameter/result branches with representative independent
 entries and focused safety coverage rather than repeating unchanged approval,
 rejection, Cancel and exit histories in each consumer.
@@ -2811,9 +2843,9 @@ through prompt, automatic result, activity and countdown observations.
 Later recipes own their exact finite
 values; representative independent qualifications do not require a Cartesian
 choice matrix. FLOW11 names case-level recovery composition, with no standalone
-worker or qualification history. Cases compose TIME04, retained FLOW20 and
-their own earlier activity comparisons; missing finite approval and retained
-entry bindings remain prerequisites, not assumed qualification.
+worker or qualification history. Cases compose TIME04, qualified retained FLOW20
+and their own earlier activity comparisons; additional app/game bindings remain
+with their owners rather than being assumed from this qualification.
 
 FLOW17 has no shared callable or fixed qualification selector yet. Extend the
 declared request prompt, session command/API and request-surface operations for
@@ -2851,7 +2883,7 @@ of additional named app arguments.
 | FLOW08 | C | Exercise an app through its declared route and prove the expected usable/denied result. | `journey_blocks.native_usable_app(route, child=...)` / `onpc_app_rows::native_usable_app(journey, route, desktop, child)` compose APP01 → APP02 → APP03 for the declared native `command` or `grid` usable route; [qualification](#native-fixture-preparation). Grid binds Jordan to `other-child` and Riley to `child` explicitly. `native_usable_app('command', child='child')` adds Riley's usable-time command binding through the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification); `child='parent'` explicitly binds Jamie through [distinct-user retention](#distinct-user-retained-app-qualification). No alternative launch after failure. APP03 runs only for expected usable access. | Jordan/Riley native Allowed grid and stated Jamie/child command usable scope ready; policy denial and other bindings pending |
 | FLOW09 | C | Visit an explicitly retained user and prove the same app/activity remains usable. Inputs include source surface and that user's earlier activity observation. | `journey_blocks.retained_app_visit` / `onpc_app_rows::retained_app_visit`: FLOW15(entry=retained) → APP04(compare) → APP03. Caller binds first entry to the prior capture through `JourneyPlan.activity_entries`, then immutable `activity_checks` before original-window Submit. No launch, replacement desktop or qualifier replay. [Distinct-user qualification](#distinct-user-retained-app-qualification). | stated Jamie/Parent and Riley retained app visits ready; other bindings pending |
 | FLOW10 | C | Launch the prepared real game with its declared mode/level and play to natural lock. | FLOW08(game, usable, registered launch options) → APP05 → APP04(record activity) → TIME04. | pending |
-| FLOW11 | C | After a displayed lock, obtain legitimate replacement time, unlock and observe the expected retained app or closed blocked app. | Case-level DESK11 → FLOW20(kiosk, retained) → APP02 → APP04(compare) → APP03 when preservation is expected. Closed-app branch ends at APP02. Reuse the case's original captures; no standalone qualifier. Tasks 197k and the app/game owners retain missing bindings. | pending complete customer histories; no separate qualification task |
+| FLOW11 | C | After a displayed lock, obtain legitimate replacement time, unlock and observe the expected retained app or closed blocked app. | Case-level DESK11 → FLOW20(kiosk, retained) → APP02 → APP04(compare) → APP03 when preservation is expected. Closed-app branch ends at APP02. Reuse the case's original captures; no standalone qualifier. The app/game owners retain their missing bindings. | pending complete customer histories; no separate qualification task |
 | FLOW12 | C | From an open request form, visit the other surface for that child and compare duration/custom/soft-app choices before editing. Compare the independently remembered parent for each requesting OS user, not parent equality across surfaces. Interactive mute is separate deferred scope. Finish with the second form open. | Overlay→kiosk: `request_flow.overlay_to_kiosk` / `onpc_request_flow::overlay_to_kiosk` compose REQUEST12(cancel) → DESK03 → REQUEST01 → REQUEST03. `KioskRequestJourney` compares immutable endpoints declared in `request_transfer_checks`; `choices_overlay_to_kiosk.PLAN` binds both children and same-kiosk persistence/isolation readbacks. The [both-child qualification](#overlay-choices-transferred-to-kiosk) passed the shortened scope on Ubuntu 26.04 and Fedora 44; its historical independent retained entry is no longer a prerequisite. Kiosk→overlay: `request_flow.kiosk_to_overlay` / `onpc_request_flow::kiosk_to_overlay` compose REQUEST12(cancel) → FLOW15(child, declared fresh/retained entry) → REQUEST02 → REQUEST03 → UI12(shared values and user-local selectors); `cross_surface.PLAN` binds both children through fresh entry. See [reverse qualification](#kiosk-choices-transferred-to-overlays). Interactive mute remains deferred outside this current-choice composite. | both directions ready for both children; overlay-to-kiosk same-kiosk persistence/isolation ready; kiosk-to-overlay fresh entry and complete cases 60–61 passed; retained reverse entry pending |
 | FLOW13 | C | Establish a named time profile entirely through customer controls and finish at GDM. Entry/window arguments are explicit. Verify no grant or revoke it first; use the profile table below. | `journey_blocks.daily_time_profile` / `DailyTimeProfileJourney` / `onpc_parent::daily_time_profile` compose FLOW01 → PARENT09 → UI12(G=0 on that initial observation, no unchanged reread) → FLOW02(short custom allowance) → independent saved settings and UI12(D>0/G=0) → DESK03. [Qualified daily-only bindings and selector](#daily-only-time-profile-qualification); six/ten-minute same-user bindings passed in [case 223](#explicit-overlay-choices-and-countdown-return-qualification). `journey_blocks.grant_only_time_profile` / `GrantOnlyProfileJourney` / `onpc_parent::grant_only_time_profile` add explicit optional PARENT17 → PARENT18(confirm) → fresh PARENT09(G=0), FLOW02(declared daily allowance), FLOW06 and retained Parent result before DESK03. [Qualified grant-only bindings and selector](#grant-only-time-profile-qualification); [combined binding and selector](#combined-time-profile-qualification); fresh twenty-minute preparation with direct GDM finish passed in [case 225](#explicit-overlay-choices-and-countdown-return-qualification). Daily-dominant remains separate and adds PARENT06(larger allowance, still enabled) → PARENT08. | daily-only fresh 2-minute/same-user 4-minute and case 223's six/ten-minute same-user bindings ready; historical grant-only fresh/retained 2-minute and combined 4-minute daily/2-minute bindings passed on Ubuntu 26.04; current standalone twenty-minute fresh/revoke-first readback and combined four-minute daily/twenty-minute addition bindings qualified on Ubuntu 26.04; case 225's fresh twenty-minute/direct-GDM binding ready; other profiles/bindings pending |
 | FLOW14 | C | Open apps/recognizable activities for a finite declared user list, retaining each desktop through Switch User. Inputs state each user's fresh/retained entry and usable-time/policy prerequisites. Start and finish at GDM. | `journey_blocks.retained_app_activities` / `onpc_app_rows::retained_app_activities`: for each distinct user, FLOW15 → FLOW08(command) → APP04(capture) → desktop identity → DESK03. Earlier retained desktops must be revisited, not recreated. Parent native operations bind Jamie's active session explicitly. Duplicate users refuse; same-child multiple desktops retain a separate same-child customer-route gate. [Distinct-user qualification](#distinct-user-retained-app-qualification). | stated Jamie/Parent retained and Riley fresh preparation ready; other bindings pending |
@@ -2859,7 +2891,7 @@ of additional named app arguments.
 | FLOW17 | C | Leave a request with authentication pending by one declared supported action, observe its destination, then return and read cancellation before a new request. | Lock: shared DESK05 shortcut/command → DESK06 → DESK08; switch: DESK03 → FLOW15(return retained); sign-out: DESK04 → FLOW15(fresh); close: UI18(API surface close) → UI11(app), followed by REQUEST01/02 as declared. REQUEST03 → UI11(old prompt). E2E-039; system commands work independently of modal menu access. An unavailable tested app-close control remains gated. | pending |
 | FLOW18 | C | Prepare positive daily time that outlasts a soft-app grant without resetting its launch exception. Finish on the child desktop with both balances positive and daily dominant. | FLOW13(combined, soft included) → FLOW15(child) → FLOW08(soft app) → APP04 → DESK03 → FLOW01(parent retained) → PARENT09 → TIME03(wait until the declared remaining-grant window while child is away) → PARENT09 → UI12(D>G>0) → DESK03 → FLOW15(child retained) → TIME01. No allowance edit or app save after approval. E2E-038. | pending |
 | FLOW19 | C | Configure a finite named app-rule set for one child and return to sign-in. Each match/access edit and save is explicit; no time approval or account preparation is hidden. | FLOW01(parent, explicit source/entry/window/child) → PARENT04(App Limits) → FLOW03 for each declared app/rule → DESK03. First consumers E2E-006/007; reused as AppSet in the recipes. | pending |
-| FLOW20 | C | Approve a specified interval on either request surface and continue as the named child. Accept explicit new/open form entry, child/parent, duration, soft choice, child fresh/retained entry and expected countdown. New overlay entry requires that child's unlocked desktop; new kiosk entry requires GDM. It does not create those preconditions or alter daily policy. | FLOW04(entry and all choices) → FLOW05 → FLOW15(child,declared entry) only for kiosk → TIME01 → UI12(expected interval). `request_flow.approval_and_return` / `onpc_request_flow::approval_return` qualify [finite explicit overlay new/open entry](#explicit-overlay-choices-and-countdown-return-qualification), returning to the same usable activity. The kiosk branch / `onpc_request_flow::kiosk_fresh_return` qualify [new/open form with fresh-child destination](#explicit-kiosk-choices-and-fresh-child-return-qualification). Reuse FLOW04/05/15 without another surface-specific approval implementation. E2E-048 immediate repeat and E2E-049/050/051. | overlay new/open form and kiosk new/open form with fresh-child destination ready; kiosk retained-child destination pending in 197k |
+| FLOW20 | C | Approve a specified interval on either request surface and continue as the named child. Accept explicit new/open form entry, child/parent, duration, soft choice, child fresh/retained entry and expected countdown. New overlay entry requires that child's unlocked desktop; new kiosk entry requires GDM. It does not create those preconditions or alter daily policy. | FLOW04(entry and all choices) → FLOW05 → FLOW15(child,declared entry) only for kiosk → TIME01 → UI12(expected interval). `request_flow.approval_and_return` / `onpc_request_flow::approval_return` qualify [finite explicit overlay new/open entry](#explicit-overlay-choices-and-countdown-return-qualification), returning to the same usable activity. The kiosk branch / `onpc_request_flow::kiosk_fresh_return` qualify new/open form with [fresh](#explicit-kiosk-choices-and-fresh-child-return-qualification) and [retained](#explicit-kiosk-choices-and-retained-child-return-qualification) child destinations. Retained callers bind their earlier activity through `JourneyPlan.activity_entries` and immutable `activity_checks`. Reuse FLOW04/05/15 without another surface-specific approval implementation. E2E-048 immediate repeat and E2E-049/050/051. | overlay new/open form and all four kiosk new/open form × fresh/retained child bindings ready for the stated finite scope |
 
 FLOW16 separately qualifies Jordan's
 `gdm/parent/fresh/new/existing/0/30/1` through

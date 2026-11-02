@@ -472,7 +472,7 @@ OPERATIONS |= ALLOWANCE_KEYBOARD_OPERATIONS.keys()
 TIME_EXPLANATION_OPERATIONS = frozenset({
     'time-explanation-collapse', 'time-explanation-collapsed',
     'time-explanation-expand', 'time-explanation-wrong-child',
-    'time-explanation-read', 'time-explanation-reread',
+    'time-explanation-read', 'time-explanation-reread', 'time-explanation-refresh-read',
     'time-explanation-reach-read', 'time-explanation-reach-reread',
     'time-explanation-reach-wrong-child', 'time-explanation-config-wrong-child',
     'time-explanation-config-wrong-state',
@@ -663,7 +663,7 @@ NAMED_CUSTOM_OPERATIONS = frozenset(
 NAMED_CUSTOM_CHILDREN = {'child': CHILD, 'existing': EXISTING_CHILD}
 NAMED_CUSTOM_OPERATIONS |= frozenset(CATALOGUE_ROW_OPERATIONS)
 NAMED_TIME_OPERATIONS = frozenset({
-    'time-explanation-setup-thirty-read', 'time-explanation-read',
+    'time-explanation-setup-thirty-read', 'time-explanation-read', 'time-explanation-refresh-read',
     'time-explanation-reach-read', 'time-explanation-positive-read',
     'time-explanation-config-wrong-child', 'time-explanation-config-wrong-state',
 })
@@ -6581,6 +6581,9 @@ class AccessibleUI:
             initial, minutes, final = configurations[operation]
             return self.configure_time_controls(
                 child, initial_enabled=initial, minutes=minutes, final_enabled=final)
+        if operation == 'time-explanation-refresh-read':
+            self.reload_revoke_settings(child)
+            return self.reach_time_explanation(child)
         if operation in ('time-explanation-reach-read', 'time-explanation-reach-reread',
                          'time-explanation-zero-reread'):
             return self.reach_time_explanation(child)

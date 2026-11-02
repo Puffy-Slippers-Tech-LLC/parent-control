@@ -208,15 +208,17 @@ sub approval_return {
 }
 
 sub kiosk_fresh_return {
-    onpc_progress::operation('Approving a station request and signing in as the chosen child');
-    my ($exchange, $declared, $challenges, $binding, $entry) = @_;
-    die 'kiosk-fresh-return:binding' unless @_ == 5 && ref($binding) eq 'ARRAY'
+    onpc_progress::operation('Approving a station request and returning to the chosen child');
+    my ($exchange, $declared, $challenges, $binding, $entry, $child_entry) = @_;
+    $child_entry //= 'fresh';
+    die 'kiosk-fresh-return:binding' unless (@_ == 5 || @_ == 6) && ref($binding) eq 'ARRAY'
         && @$binding == 4 && ($entry eq 'new' || $entry eq 'open')
+        && ($child_entry eq 'fresh' || $child_entry eq 'retained')
         && $binding->[0] =~ /\A(?:child|other-child)\z/
         && $binding->[1] =~ /\A(?:parent|other-parent)\z/
         && $binding->[2] =~ /\A(?:30|60|75|120|150|180|240|600|900|1200|7200)\z/
         && ($binding->[3] == 0 || $binding->[3] == 1);
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'kiosk-fresh-return', review => 0);
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => "kiosk-$child_entry-return", review => 0);
     $journey->{kiosk_request} = $binding;
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
@@ -229,6 +231,15 @@ sub kiosk_fresh_return {
     $journey->consume_observation('parent-selected', $selected);
     $journey->seen('allowance-configured');
     onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    if ($child_entry eq 'retained') {
+        onpc_desktop_session::enter_desktop($journey, 'gdm', $binding->[0], 'fresh', 'success', 'initial');
+        onpc_app_rows::native_activity_entry($journey, 'activity', 'command', $binding->[0]);
+        $journey->seen($_) for qw(child-switch-ready child-switch child-greeter);
+        # Daily usage stops while the child is away. Read the actual balance
+        # after activity preparation without changing policy or the grant.
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'balance');
+        $journey->seen($_) for qw(balance-read station-desktop station-switch station-greeter);
+    }
     onpc_gdm::enter_station($journey, '') if $entry eq 'open';
     prepare($journey, $entry, $entry, 'observed',
         $binding->[0] eq 'child' ? 'fixture-child' : 'existing-fixture-child',
@@ -237,8 +248,13 @@ sub kiosk_fresh_return {
     approve($journey, $binding->[0] eq 'child' ? 'fixture-child' : 'existing-fixture-child',
         $binding->[1] eq 'parent' ? 'fixture-parent' : 'other-fixture-parent',
         $binding->[2], $binding->[3], 'automatic');
-    onpc_desktop_session::enter_desktop($journey, 'gdm', $binding->[0], 'fresh', 'success', 'fresh');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', $binding->[0], $child_entry, 'success', $child_entry);
     $journey->seen('countdown');
+    if ($child_entry eq 'retained') {
+        onpc_app_rows::native_activity_resume($journey, 'resume');
+        onpc_app_rows::native_read_activity($journey, 'activity-returned');
+        $journey->seen($_) for qw(activity-close activity-closed);
+    }
     $journey->finish();
 }
 

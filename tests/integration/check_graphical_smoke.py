@@ -1358,6 +1358,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                                   'overlay-approval-immediate', 'overlay-translated-approval', 'overlay-flow-rejection', 'overlay-flow-cancel',
                                   'approval-return-new', 'approval-return-open',
                                   'kiosk-fresh-return-new', 'kiosk-fresh-return-open',
+                                  'kiosk-retained-return-new', 'kiosk-retained-return-open',
                                   'overlay-browser-links', 'overlay-information') and
             (challenge_profile == 'parent' or challenges is True), 'smoke:challenge-profile')
     require(type(challenges) is bool and (not challenges or (
@@ -1932,6 +1933,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 'approval-return-open': 'installed-approval-return-open-qualification',
                 'kiosk-fresh-return-new': 'installed-kiosk-fresh-return-new-qualification',
                 'kiosk-fresh-return-open': 'installed-kiosk-fresh-return-open-qualification',
+                'kiosk-retained-return-new': 'installed-kiosk-retained-return-new-qualification',
+                'kiosk-retained-return-open': 'installed-kiosk-retained-return-open-qualification',
                 'overlay-rejection': 'installed-overlay-rejection-qualification',
                 'overlay-approval-immediate': 'installed-overlay-approval-immediate-qualification',
                 'overlay-translated-approval': 'installed-overlay-translated-approval-qualification',
@@ -2116,6 +2119,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         OverlayApprovedExitQualification, OverlayRejectionQualification,
                         ApprovalReturnNewQualification, ApprovalReturnOpenQualification,
                         KioskFreshReturnNewQualification, KioskFreshReturnOpenQualification,
+                        KioskRetainedReturnNewQualification, KioskRetainedReturnOpenQualification,
                         OverlayApprovalImmediateQualification, OverlayTranslatedApprovalQualification, OverlayFlowRejectionQualification,
                         OverlayFlowCancelQualification)
                     qualification_class = {'parent': ChallengesQualification,
@@ -2139,6 +2143,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         'approval-return-open': ApprovalReturnOpenQualification,
                         'kiosk-fresh-return-new': KioskFreshReturnNewQualification,
                         'kiosk-fresh-return-open': KioskFreshReturnOpenQualification,
+                        'kiosk-retained-return-new': KioskRetainedReturnNewQualification,
+                        'kiosk-retained-return-open': KioskRetainedReturnOpenQualification,
                         'overlay-rejection': OverlayRejectionQualification,
                         'overlay-approval-immediate': OverlayApprovalImmediateQualification,
                         'overlay-translated-approval': OverlayTranslatedApprovalQualification,

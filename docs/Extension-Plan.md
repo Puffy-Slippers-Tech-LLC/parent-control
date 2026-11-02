@@ -1,7 +1,7 @@
 # Extension recovery VM test plan
 
 Task queue: [Ordered task queue](Extension-Task-Queue.md).
-Next task: **007 — [Restore the extension when a child signs in or unlocks](Extension-Tasks/007-login-unlock-recovery.md)**.
+Next task: none.
 
 ## Scope
 
@@ -67,6 +67,13 @@ close that row. New selectors remain **unimplemented** until registered.
 | `system_session_expiry.verify_runtime_rollback` | Three existing write-response/readback/activation faults and owned broker isolation | Task 003 adds only missing actual extension-error/reporter behavior; no second rollback matrix |
 | `tests/unit/test_parent_main.py`, `Broker.recover_child_extension`; system 299 | Initial selection/child change call path, saved-off and authorization guards; installed Parent recovery under deliberate disablement | Initial selection, later selection and first enablement are qualified on both targets |
 | Existing E2E engineering task 174 | Broker time/app-policy save fault/retry, explicitly separate from extension rollback | Remains in its original queue; this plan neither duplicates nor closes it |
+
+System 301, `test_extension_monitor.test_child_extension_login_unlock_recovery`
+/ `system_extension_login.verify`, qualifies fresh GDM login and one authenticated
+retained-session unlock on both targets. Each request owns recovery with positive
+native daily time; original work, grants, recorded usage, policy and other
+extension choices are preserved. Existing system 281/282 zero-time denial remains
+unchanged.
 
 The standalone allocation follows [system ownership](TestAutomation/UI-and-E2E-Coverage.md#reuse-of-system-coverage).
 Extend existing registered owners when their assertions fit; register a distinct

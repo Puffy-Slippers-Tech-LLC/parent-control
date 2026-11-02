@@ -137,6 +137,14 @@ def load(root):
                             if video is not None:
                                 os.close(video)
                                 record['recording'] = (owner.store.path / current['name']).as_uri()
+                                # Older clocks began at pytest start, after VM
+                                # preparation. The retained clip supplies a
+                                # lower bound without rewriting saved history.
+                                duration = owner.state['provenance'].get('duration_seconds')
+                                if (not record.get('includes_preparation')
+                                        and type(duration) in (int, float)
+                                        and math.isfinite(duration) and duration >= 0):
+                                    record['seconds'] = max(record['seconds'], duration)
                 except (OSError, ValueError):
                     pass
                 rows.append(record)
@@ -153,20 +161,42 @@ class Tracker:
     def __init__(self, root, category):
         self.root, self.category = root, category
         self.starts, self.totals, self.metadata = {}, {}, {}
+        self.pending = {}
 
     def event(self, event):
         if self.category not in ('system', 'integration', 'e2e'):
             return
+        if event.get('kind') == 'collection':
+            nodeids = event.get('nodeids')
+            if not nodeids:
+                return
+            from tools.vm_recording import case_identity
+            for nodeid in nodeids:
+                try:
+                    identity = case_identity(self.root, self.category, dict(nodeid=nodeid))
+                except FileNotFoundError:
+                    # Synthetic runner checkouts need not carry a catalogue.
+                    identity = None
+                if identity is not None:
+                    self.pending.setdefault(identity[0], set()).add(nodeid)
+            if not any(nodeids[0] in nodes for nodes in self.pending.values()):
+                return
+            # Recording starts here too: preparation belongs to the first
+            # selected case, rather than to every case in the inventory.
+            event = dict(kind='prepared', nodeid=nodeids[0])
         kind, nodeid = event.get('kind'), event.get('nodeid')
-        if kind not in ('started', 'finished') or not nodeid:
+        if kind not in ('prepared', 'started', 'finished') or not nodeid:
             return
         from tools.vm_selection import selected
         vm = selected(required=False)
         if vm is None:
             return
         stamp = event.get('monotonic_ns')
-        if kind == 'started':
-            self.starts[nodeid] = time.monotonic(), stamp
+        if kind in ('prepared', 'started'):
+            # A guest monotonic clock cannot measure host-side preparation.
+            # Keep its original host start when pytest subsequently starts.
+            self.starts.setdefault(nodeid, (time.monotonic(),
+                                            stamp if kind == 'started' else None))
             return
         started = self.starts.pop(nodeid, None)
         if started is None:
@@ -181,9 +211,15 @@ class Tracker:
             return
         key = info['id'], vm.name
         self.totals[key] = self.totals.get(key, 0) + elapsed
+        pending = self.pending.get(info['id'], set())
+        pending.discard(nodeid)
+        if pending:
+            return
         save(self.root, dict(info, category=self.category, vm=vm.name,
-                            seconds=self.totals[key], completed_at=time.time()))
+                            seconds=self.totals[key], completed_at=time.time(),
+                            includes_preparation=True))
 
     def finish(self):
-        for nodeid in tuple(self.starts):
-            self.event(dict(kind='finished', nodeid=nodeid))
+        # Runner shutdown is not a case completion. Never publish a partial
+        # attempt (including a short preparation phase displayed as 0m).
+        self.starts.clear()

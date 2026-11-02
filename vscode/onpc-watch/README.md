@@ -119,8 +119,13 @@ its next run. The Reconnect button restarts this tab's source connections.
 The fixed **Run Time** tab follows **All**. It loads logged VM case durations only
 while selected and unloads its body when another tab is selected. The selectable,
 full-width table sorts longest first and shows each case's latest execution duration
-and VM name, rounded to whole minutes (`12m`). Repair sessions and earlier retries
+and VM name, rounded to whole minutes (`12m`). Run time includes VM preparation
+before the first selected case starts, matching the recording's preparation
+boundary. Older timings use the linked recording's saved duration as a lower
+bound when preparation was omitted. Repair sessions and earlier retries
 are excluded; system lifecycle phases in one execution attempt are added together.
+Rows update only after all selected phases of a case finish. Unfinished attempts
+publish no partial row; an earlier completed duration remains until replaced.
 Case links open the existing case file in a new editor tab. The recording icon
 uses the existing default desktop viewer route (or the SSH video tab). **Show** /
 **Hide** expands existing case descriptions or scenario steps as plain text.

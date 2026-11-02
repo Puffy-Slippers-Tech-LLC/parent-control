@@ -1894,10 +1894,16 @@ This is development/test tooling only; package update activation is **none**.
 VM case start/finish events also update small latest-only duration records through
 `tools/vm_run_times.py` in the shared gitignored `state` storage directory. One
 record per category/case keeps the latest VM name and execution duration; a new
-attempt replaces its predecessor. Lifecycle phases within that attempt accumulate,
-while repair sessions and prior attempts do not. Interrupted active cases close
-their clock when their runner attempt finishes. **ONPC: Watch → Run Time** reads
-only these logged cases on demand; the
+attempt replaces its predecessor. The clock starts at the recording's preparation
+event for the first selected case, including VM preparation before pytest starts.
+Later cases start at their own start event. Lifecycle phases within that attempt accumulate,
+while repair sessions and prior attempts do not. A new duration is published only
+after all selected phases of that case finish; unfinished or interrupted cases
+do not publish partial durations. A previous completed duration remains until
+its replacement completes. **ONPC: Watch → Run Time** reads
+only these logged cases on demand. For older timings that omitted preparation,
+the linked recording's saved duration supplies a lower bound; saved history is
+not rewritten. The
 [extension guide](../vscode/onpc-watch/README.md) owns its table and links.
 
 `tools/run-tests` automatically records every VM-scoped category, including

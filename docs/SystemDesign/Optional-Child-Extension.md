@@ -61,7 +61,9 @@ subject to the [threat model](../Threat-Model.md) and existing component contrac
 This work does not add support for other desktop environments.
 
 Upstream changes, native package patches/replacements and replacing Malcontent's
-accounting are forbidden. Use existing supported GNOME/system interfaces; keep
+accounting are forbidden. Use only existing public, supported GNOME/system APIs;
+an introspectable D-Bus method is not sufficient when its contract marks it
+private or its implementation requires a debug/unsafe mode. Keep
 native activity tracking, usage recording, Malcontent's durable store and native
 exhaustion locking. Do not build a second timing observer or durable ledger to
 replace a convenience reader. If a core path still depends on the extension,
@@ -121,7 +123,7 @@ Details and current limitations remain in [Screen time](Screen-Time.md).
 | Responsibility in the extension | Consequence of removing it today | Discovery needed before migration |
 | --- | --- | --- |
 | Additional expiry lock requests in the indicator | Loses the product's additional expiry path; native locking still exists. | [Row 3 exploration](Broker-Expiry-Locking.md): effect ownership, invalidation, completion and recovery, independently of replacing the timing source. |
-| Native countdown observations and [deadline endpoint](../../child/applicationUi.js) | Countdown and extension-associated child status/overlay estimates are unavailable while disabled. | Retain this convenience dependency. Verify refresh after reenabling; do not require an independent live reader. Independent core approval routes must not require this endpoint. |
+| Native countdown observations and [deadline endpoint](../../child/applicationUi.js) | Countdown, child-owned status and fixed-duration child approvals with a positive daily allowance depend on it; the kiosk approval calculation does not. | Retain the countdown/overlay dependency, including accurate overlay approval arithmetic. Independent core approval routes must not require this endpoint or extension activation. Verify refresh after reenabling. |
 | Login/unlock trigger for `PrepareOwnSession` | Expired soft-app exceptions may miss their required restoration transition. | A reliable independent trigger with the correct authentication and policy ordering. |
 | [Resume estimate refresh](../../child/resumeEstimateRefresh.js) | Loses a workaround for stale native deadlines during inactivity/resume. | Which supported packages need it and whether an existing public integration can replace it; no native patches. |
 | [Authenticated unlock continuation](../../child/sessionUnlock.js) | Loses recovery from a native exhausted-session admission race. | An existing supported replacement preserving authentication and one-time request lifetime, or an explicit unresolved dependency. |
@@ -138,6 +140,221 @@ The broker is already a system service. Its
 automatic restart or watchdog configuration. Expanding continuous responsibilities
 requires an explicit lifecycle design; a process being active is not evidence
 that enforcement is progressing.
+
+## Source findings and broker migration feasibility
+
+The 2026-11-01 source/history review distinguishes the need for a behavior from
+the ease of moving it into the broker. A justified extension workaround is not
+automatically a feasible broker implementation. Equivalent behavior includes
+timing, authentication, cancellation, recovery, preserved work and user isolation,
+not merely the same method name or eventual final state.
+
+This assessment inspected the current controllers, introducing/follow-up commits,
+test implementations and recorded task dispositions, plus upstream Shell 50.1/50.6,
+Mutter 50.1/50.6 and Malcontent 0.14.0 source. Upstream tags do not establish the
+behavior of every distribution patch or resident session. No new installed
+experiment, migration, queue completion or release acceptance resulted.
+
+| Responsibility | Evidence that the behavior is needed | Can equivalent functionality move easily into the broker? |
+| --- | --- | --- |
+| Additional expiry/revocation lock request | Native enforcement already exists; the historical repair did not isolate a native lock failure. | Sending a lock request is straightforward. An independent authoritative trigger, stale-effect cancellation, completion and recovery are not. Retaining qualified native enforcement may remove the dependency without moving a scheduler. The [expiry exploration](Broker-Expiry-Locking.md#source-review-result-and-broker-equivalence) owns this decision. |
+| Session-entry app-policy restoration | Product-specific saved hard/soft rules require reconciliation after an expired exception; native time enforcement does not implement that transition. | Bounded migration with substantial code reuse: the broker already owns reconciliation. The independent authenticated entry trigger and failure/transaction ordering remain nontrivial. Follow the existing [admission proposal](BypassChallenges/Child-Disables-Extension.md), not a second lifecycle protocol. |
+| Resume estimate refresh | Native activity transitions can evaluate a cached deadline before obtaining a fresh estimate, causing premature locking after inactivity. | Concrete public-API candidate: logind's aggregate user activity/sleep state plus Malcontent's existing query/replay APIs. Child identity, cancellation, avoiding active-use replay and recovery still need design and qualification; there is no Shell ordering barrier. See the [API audit](#public-api-feasibility-audit). |
+| Authenticated unlock continuation | Native exhausted state can remain set while inactive despite positive time, causing an authenticated Unlock to be refused on versions with the native unlock guard. | Public logind signals expose the request, but no reviewed public API exposes Shell's parental admission state or binds a retry to native consumption/cancellation of the original request. No equivalent replacement was found. The guard is version-specific; see the [API audit](#public-api-feasibility-audit). |
+| Locked keyboard focus repair | Retained-entry failures led to a diagnosed native focus issue and passing repaired histories on both targets. | No public external focus-resynchronization operation was found. The hook synchronously re-notifies Shell's resident stage grab; ordinary lock calls and public portals do not supply that operation. An extension bridge retains the dependency, and native patches are forbidden. See the [API audit](#public-api-feasibility-audit). |
+| Precise native timing export | Completed usage omits ongoing activity; the export prevents child-overlay fixed approvals from overstating daily time. | An equally precise external replacement is not established by saved usage/estimate queries. It need not migrate for convenience callers. Independent core approvals must be qualified without consuming this endpoint. |
+| Extension activation/readiness and owned process cleanup | Current startup, PAM and transactions rely on the essential hooks above; extension disable closes its owned overlay/report processes. | The individual calls are small, but removing gates safely is a cross-component change dependent on the preceding migrations. Preserve independent request lifetimes, rollback, diagnostics and package readiness; the convenience overlay may close. |
+
+### Product reconciliation and approval arithmetic
+
+Commit `baa8f8e6` introduced `PrepareOwnSession` and its extension trigger.
+The [broker reconciler](../../broker/oh_no_parent_control/core.py) already reads
+the authoritative grant under the policy transaction lock, preserves a current
+replacement and restores strict policy for a nonzero expired grant. The current
+extension trigger is asynchronous after desktop entry, not an admission barrier.
+The linked admission proposal adds stronger authenticated pre-success ordering;
+its PAM route coverage, bounded worker lifetime and failure policy make that
+delivery larger than simply relocating the current callback. Natural grant
+expiry during uninterrupted permitted use must still not immediately restore
+soft blocks or terminate apps.
+
+Commit `01ee1c51` added `NativeTime1.GetDeadline` after overlay approval arithmetic
+used recorded usage that omitted uninterrupted activity. Current
+`Broker._native_deadline()` and `_request_access()` consume it for child-owned
+status and fixed child requests when saved control is enabled with positive daily
+allowance. Kiosk calculations, rest-of-day requests and zero-daily-limit requests
+do not require that native cap. Kiosk approval still reasserts the extension when
+saved control is enabled: independence of its calculation is not independence
+of the complete transaction. The overlay can retain its reader; deleting the cap
+or substituting stale saved estimates would lose accurate convenience behavior.
+
+### Native resume and unlock compatibility
+
+Commit `d4df2187` introduced
+[resume estimate refresh](../../child/resumeEstimateRefresh.js); `5b15f17d`
+hardened recovery and diagnostics, with timer Busy names corrected by `9162f12d`.
+In the inspected [native activity path](https://github.com/GNOME/gnome-shell/blob/50.6/js/misc/timeLimitsManager.js#L569),
+activity transitions recalculate state using cached estimates, without first
+refreshing them. Native state calculation can also exhaust that cached deadline
+while inactive. The extension replays an identical recorded interval through
+Malcontent to provoke a fresh estimate; it neither invents use nor repeats writes
+during continuous activity. This affects native locking, not just the display.
+The workaround is asynchronous and cannot guarantee refresh during service
+unavailability. Moving it into the broker needs an authoritative lifecycle
+trigger and the same accounting/cancellation safeguards; it must not introduce
+another activity accountant.
+
+Commit `f0e4dc77` introduced
+[authenticated unlock continuation](../../child/sessionUnlock.js). In inspected
+Shell 50.6, `_updateState()` can retain `LIMIT_REACHED` while inactive after a
+positive estimate; [ScreenShield.deactivate](https://github.com/GNOME/gnome-shell/blob/50.6/js/ui/screenShield.js#L515)
+then rejects logind's authenticated Unlock. The controller continues only that
+trusted request, once within two monotonic seconds, after the same session is
+active and native admission is positive. A grant alone never authorizes unlock.
+Moving this to the broker would need a supported equivalent for native admission
+observation, trusted request lifetime and final dispatch ordering. No such
+replacement has been qualified; neither polling for positive time nor retrying
+Unlock indefinitely is equivalent.
+
+Existing controller tests use event-loop/native-state doubles. The
+[reliability queue](../Reliability-Task-Queue.md) retains installed daily-only and
+combined resume accounting in 003a/003 and exhausted-session single-authentication
+return in 004. Their unfinished status limits claims about complete installed
+recovery; source evidence of the defects does not pass those histories.
+
+### Native locked-input compatibility
+
+Commit `2a0447d2` introduced
+[locked keyboard focus repair](../../child/lockedSessionFocus.js). Task 044's
+history recorded retained locked-entry observation failures on Ubuntu and Fedora,
+followed by diagnosis of restored client keyboard focus at activation. Inspected
+[Mutter keyboard enablement](https://github.com/GNOME/mutter/blob/50.6/src/wayland/meta-wayland-keyboard.c#L438)
+restores the remembered client surface. Its
+[grab-notification handler](https://github.com/GNOME/mutter/blob/50.6/src/wayland/meta-wayland-input.c#L55)
+reapplies native focus policy; the extension invokes that existing path
+synchronously after keyboard-capable device addition, with no new grab or unlock.
+
+Commit `4b9843ff` closed task 044 after the repaired retained-entry histories and
+required regressions passed on both targets; the
+[canonical scope](../TestAutomation/E2E-Building-Blocks.md#both-retained-child-desktops-and-explicit-entry-modes)
+remains accepted. This supports the focus repair, not a universal claim that all
+device-reactivation variants leaked actual input, or that extension-disabled
+input protection has passed. A broker cannot directly notify another process's
+Clutter stage through the existing lock API. Equivalent extension-free locked
+input remains a native compatibility gate, not an expiry scheduling problem.
+
+### Public API feasibility audit
+
+The 2026-11-01 follow-up audited the public contracts and their native consumers,
+with upstream changes, native patches, private APIs and debug modes excluded.
+References include Shell/Mutter 50.1 and 50.6, GDM 50.0, Malcontent 0.14.0,
+the logind documentation and xdg-desktop-portal 1.20.3. This is a bounded API
+and source assessment, not a proof about every possible integration or an
+installed extension-disabled qualification.
+
+Distribution versions must remain separate. The inspected Ubuntu
+[Shell changelog](https://git.launchpad.net/ubuntu/+source/gnome-shell/tree/debian/changelog?h=ubuntu/resolute-updates)
+and [Mutter changelog](https://git.launchpad.net/ubuntu/+source/mutter/tree/debian/changelog?h=ubuntu/resolute-updates)
+name `50.1-0ubuntu1.4` and `50.1-0ubuntu2.5`; Fedora 44's
+[Shell recipe](https://src.fedoraproject.org/rpms/gnome-shell/blob/f44/f/gnome-shell.spec)
+and [Mutter recipe](https://src.fedoraproject.org/rpms/mutter/blob/f44/f/mutter.spec)
+name 50.6. These are source-packaging observations, not an inventory of resident
+sessions or a qualification of each distribution's applied patches.
+
+| Reviewed interface | Available capability | Missing guarantee or scope limit |
+| --- | --- | --- |
+| [logind user/session objects](https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.login1.html) | Observe aggregate user `State`/`IdleHint`, session `Active`/`LockedHint`, sleep state and trusted-owner `Lock`/`Unlock` signals; request locking/unlocking. | An unlock method sends a request to the session manager. Its reply does not acknowledge Shell admission or completed unlock. Signals carry no native continuation identifier, and hints do not expose Shell's time-limit state. |
+| [Malcontent Child](https://gitlab.freedesktop.org/pwithnall/malcontent/-/blob/0.14.0/libmalcontent-timer/org.freedesktop.MalcontentTimer1.Child.xml) and [Parent](https://gitlab.freedesktop.org/pwithnall/malcontent/-/blob/0.14.0/libmalcontent-timer/org.freedesktop.MalcontentTimer1.Parent.xml) | Read recorded intervals and estimates; submit identical recorded intervals with documented overlap merging. | These are the daemon's data and estimates, not Shell's cached state or an acknowledgement that Shell processed an estimate-change signal. Child methods act for the calling UID. |
+| [GNOME ScreenSaver](https://github.com/GNOME/gnome-shell/blob/50.6/data/dbus-interfaces/org.gnome.ScreenSaver.xml) | `Lock`, `SetActive`, `GetActive`, active-time queries and activity signals. | No parental admission/deadline export, request-bound unlock continuation or keyboard-focus resynchronization. `GetActive` reports the shield's activity, not complete input protection or its internal parental state. |
+| [Shell ScreenTime](https://github.com/GNOME/gnome-shell/blob/50.6/data/dbus-interfaces/org.gnome.Shell.ScreenTime.xml) and [Introspect](https://github.com/GNOME/gnome-shell/blob/50.6/data/dbus-interfaces/org.gnome.Shell.Introspect.xml) | Break-reminder state and high-level app/window information. | ScreenTime's `State` belongs to the break manager, not parental controls. Window focus information neither controls nor certifies locked keyboard routing. |
+| [Mutter IdleMonitor](https://github.com/GNOME/mutter/blob/50.6/data/dbus-interfaces/org.gnome.Mutter.IdleMonitor.xml) | Idle-time observation and idle/active watches. | `ResetIdletime` is [explicitly test-only](https://github.com/GNOME/mutter/blob/50.6/src/backends/meta-idle-manager.c#L58), requiring `MUTTER_DEBUG_RESET_IDLETIME`. It is excluded despite appearing in the XML. |
+| [InputCapture portal](https://github.com/flatpak/xdg-desktop-portal/blob/1.20.3/data/org.freedesktop.portal.InputCapture.xml) and [RemoteDesktop portal](https://github.com/flatpak/xdg-desktop-portal/blob/1.20.3/data/org.freedesktop.portal.RemoteDesktop.xml) | Request compositor-controlled capture or an authorized remote-input session. | Capture has no immediate-activation request: the compositor chooses activation and devices and may stop capture. Neither portal offers native lock-grab repair or authenticated-unlock continuation. Input injection does not establish native admission. |
+| Mutter's direct [InputCapture](https://github.com/GNOME/mutter/blob/50.6/data/dbus-interfaces/org.gnome.Mutter.InputCapture.xml) and [RemoteDesktop](https://github.com/GNOME/mutter/blob/50.6/data/dbus-interfaces/org.gnome.Mutter.RemoteDesktop.xml) D-Bus APIs | Native integration services behind the desktop/portal stack. | Both explicitly declare themselves private with no cross-version compatibility promise; direct use is excluded. |
+
+**Session preparation has a supported integration route.** Linux-PAM's
+[module and stack contracts](https://github.com/linux-pam/linux-pam/blob/v1.7.0/doc/man/pam.conf-syntax.xml)
+allow product-owned integration without patching GDM. Correct placement after
+successful configured authentication is work we control, with distribution and
+route qualification still required. GDM 50's
+[worker](https://github.com/GNOME/gdm/blob/50.0/daemon/gdm-session-worker.c#L1353)
+overrides account-check failure during reauthentication, so an account-only
+module is insufficient. Follow the existing
+[admission proposal](BypassChallenges/Child-Disables-Extension.md#authentication-and-native-locking);
+its gate prepares policy, not Shell's internal unlock continuation.
+
+**Resume has public inputs, but no atomic handover.** Both reviewed Shell
+versions derive activity from exactly the aggregate logind user
+`State == 'active'`, false user `IdleHint`, and no preparation for sleep; see the
+[native activity calculation](https://github.com/GNOME/gnome-shell/blob/50.6/js/misc/timeLimitsManager.js#L564).
+A broker coordinator can observe those same public inputs, rather than invent
+an activity ledger or substitute one session's idle hint. A fixed helper running
+as the child can query/replay only already-recorded intervals through the
+existing identity boundary. Malcontent's
+[store completion](https://gitlab.freedesktop.org/pwithnall/malcontent/-/blob/0.14.0/libmalcontent-timer/timer-store.c)
+emits estimate invalidation after a successful save, including duplicate-interval
+replay in this implementation. That is a concrete candidate, not missing API
+research. It still needs bounded workers, policy/owner invalidation, inactive
+refresh scheduling and protection against late replay during active use.
+Separate bus consumers can process an activity transition in different orders;
+neither replay success nor a fresh daemon estimate proves Shell's cache has
+updated. The current extension workaround is also asynchronous, so qualification
+must compare complete behavior without inventing a stronger atomic guarantee.
+
+**Authenticated unlock remains a native-state and ordering gap.** The ability
+to observe a trusted logind `Unlock` is already public; broker-owned request
+bookkeeping is not itself the missing capability. What is missing from the
+reviewed public surfaces is Shell's authoritative `shouldLockSession`/parental
+state and a dispatch/completion contract tying continuation to that request.
+The [ScreenSaver implementation](https://github.com/GNOME/gnome-shell/blob/50.6/js/ui/shellDBus.js#L518)
+routes `SetActive(false)` into the same `ScreenShield.deactivate()` guard as
+logind. Replacing the call therefore does not bypass the stale-state refusal.
+Observing positive daemon time or `Active`/`IdleHint` cannot prove Shell has
+processed the corresponding transition. A finite retry may improve one history,
+but without native admission/consumption observations it is not an established
+equivalent to the current one-use continuation. A fixed sleep supplies no barrier.
+
+This particular guard is absent from upstream
+[Shell 50.1](https://github.com/GNOME/gnome-shell/blob/50.1/js/ui/screenShield.js#L515)
+and present in 50.6, introduced by
+[commit 5fc616ea](https://github.com/GNOME/gnome-shell/commit/5fc616ea857e86db570f225bbfa275abd4514fb4)
+to prevent logind unlock from bypassing exhausted parental limits. Its absence
+does not establish safe zero-time admission or complete unlock recovery. Do not
+generalize the 50.6 refusal to every Ubuntu package, remove native protection,
+or downgrade native packages to avoid it.
+
+**Keyboard focus has no supported external repair in the reviewed stack.**
+The relevant keyboard-enable and grab-notification implementations are identical
+in Mutter 50.1 and 50.6. The existing hook notifies the compositor's resident
+Clutter stage; a separately loaded Clutter library provides no remote reference
+to that object. In [ScreenShield](https://github.com/GNOME/gnome-shell/blob/50.6/js/ui/screenShield.js#L193),
+locking an already grabbed shield reuses the grab, so repeating `Lock` does not
+perform the focus notification. Portal capture supplies no equivalent synchronous
+all-keyboard protection at device reactivation.
+
+The public [Wayland session-lock protocol](https://gitlab.freedesktop.org/wayland/wayland-protocols/-/blob/1.45/staging/ext-session-lock/ext-session-lock-v1.xml)
+does specify secure lock completion, but it is absent from Mutter 50.6's
+[protocol build list](https://github.com/GNOME/mutter/blob/50.6/src/meson.build#L1056)
+and [compositor initialization](https://github.com/GNOME/mutter/blob/50.6/src/wayland/meta-wayland.c#L1018).
+A protocol specification alone is not an available GNOME implementation.
+Replacing the native locker would also cross this design's owner boundary.
+Shell's [Eval implementation](https://github.com/GNOME/gnome-shell/blob/50.6/js/ui/shellDBus.js#L70)
+requires unsafe mode; it cannot be used to access the resident stage or native
+manager under the public-supported-API restriction. An extension bridge remains
+an extension dependency. Forging idle/locked hints, toggling enforcement to force
+a refresh, input injection or an unlock/relock cycle does not preserve the
+existing authority, timing and input guarantees.
+
+The easiest substantial broker migration candidate is the product's session-entry
+coordination. Resume has a concrete public-API candidate requiring lifecycle
+design and qualification. Authenticated unlock on affected versions and locked
+focus have no supported equivalent broker replacement in the audited interfaces;
+these are feasibility blockers, not merely unimplemented broker bookkeeping.
+Full core independence therefore remains unresolved even if native exhaustion
+passes and the extra extension lock request can be retired. Under the fixed
+constraints, a remaining hook can be retired only if existing native behavior
+is qualified to preserve its complete outcome or a supported equivalent is
+demonstrated. Until then retain the working hook and the corresponding extension
+requirement; session preparation alone cannot deliver an optional extension.
 
 ## Journey through investigation and discovery
 

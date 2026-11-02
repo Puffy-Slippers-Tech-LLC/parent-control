@@ -1,8 +1,8 @@
 # Explore broker-owned expiry locking
 
-Status: row 3 native-versus-product exploration; native qualification and any
-justified replacement remain pending. No scheduler is selected. Existing accepted automation remains accepted;
-this document schedules no enforcement change.
+Status: row 3 source/history findings recorded; native qualification and any
+justified replacement remain pending. No scheduler is selected. Existing accepted
+automation remains accepted; this document schedules no enforcement change.
 
 First qualify native exhaustion/revocation behavior with the child extension
 disabled. Explore broker coordination only for demonstrated core gaps, retaining
@@ -19,6 +19,9 @@ own current implementation boundaries. This document owns row 3 questions and
 the eventual effect-handover gates. The [execution plan](../Broker-Expiry-Plan.md)
 and `tools/broker` schedule exploration first and retain delivery/TA work deferred
 until bounded implementation scope exists. Customer scenarios keep their E2E owners.
+The optional-extension design owns the broader
+[per-function findings and broker migration assessment](Optional-Child-Extension.md#source-findings-and-broker-migration-feasibility);
+this document owns the expiry-specific decision and handover gates.
 
 ## Relationship to the other increments
 
@@ -177,6 +180,79 @@ native lock qualification and live-revocation checks, with the canonical E2E
 owners retaining shorter-grant continuation and retained-entry histories.
 Until those gates pass, retain the production extension expiry path; native
 natural-expiry estimates alone cannot retire it.
+
+### Source review result and broker equivalence
+
+The 2026-11-01 review traced the current indicator, broker calculations and
+transactions, introducing commits, existing tests and upstream native sources.
+It added no installed experiment or acceptance. The recommendation remains
+native expiry with no new broker scheduler unless a finite qualification
+demonstrates a missing product obligation.
+
+Commit `71df606b` repaired the cached-grant calculation and added the explicit
+lock request together. That combined repair does not prove which outcome would
+have failed with correct live policy and native locking alone. The inspected
+Shell 50.6 [manager](https://github.com/GNOME/gnome-shell/blob/50.6/js/misc/timeLimitsManager.js#L275)
+already reacts to session-limit changes and checkpoints active usage;
+its dispatcher requests locking at exhaustion, and
+[ScreenShield](https://github.com/GNOME/gnome-shell/blob/50.6/js/ui/screenShield.js#L515)
+rejects unlock while native parental-control state requires locking. These are
+source-level native paths, not extension-disabled installed results. The extra
+extension request has no isolated demonstration of necessity in the reviewed
+history.
+
+The current extension additionally refreshes estimates and applies the broker's
+live-grant calculation before requesting `org.gnome.ScreenSaver.Lock`. Its
+[lock callback](../../child/remainingTimeIndicator.js) reports completion/errors
+and clears the pending flag; it supplies no dedicated bounded retry loop.
+Native gaps in completion observation or availability recovery therefore do not
+by themselves establish that this extension path solves them.
+
+There are concrete recovery boundaries to characterize. The native dispatcher
+does not retry solely because lock-action availability changes. Malcontent's
+[policy-change handler](https://gitlab.freedesktop.org/pwithnall/malcontent/-/blob/0.14.0/libmalcontent-timer/child-timer-service.c)
+documents that its estimate-change signal is not guaranteed when its daemon is
+not running; clients must also observe policy changes. Native Shell observes
+those changes, but its asynchronous refresh/checkpoint ordering and the
+extension's additional query path are not identical. A missed-signal or
+unavailable-lock hypothesis needs its actual history, not a presumed failure or
+a redundant request presented as proof of recovery.
+
+Moving the request itself into the broker is straightforward; moving equivalent
+enforcement is not. The current broker deadline calculation still takes timing
+observations from the child, and its grant observations are diagnostics rather
+than an expiry scheduler. An extension-free broker effect would require a
+supported authoritative trigger for total usable time, invalidation on policy
+and session changes, final live-state revalidation, bounded secure-lock completion
+and reconstruction. Grant expiry alone is insufficient while daily time remains;
+saved usage omits unfinished activity. These inputs cannot be replaced with a
+cached extension deadline or repeated saved-only estimates.
+
+The broker's approval transaction holds its policy lock across authentication,
+and some management methods execute synchronously in D-Bus dispatch. A future
+effect must make useful progress independently of those waits without observing
+temporary transaction state or applying an obsolete lock after renewal/disable.
+The existing service has no automatic restart/watchdog supervision. Simply
+relocating the call would add service availability dependencies without proving
+equivalent timing or outage protection. The
+[reliability decisions](#locking-and-service-reliability-decisions) remain the
+required boundary if a broker effect is later selected.
+
+The finite next qualification is extension-disabled daily-only and grant-only
+natural exhaustion at the existing system-282 owner, followed by foreground live
+revocation with zero-daily and positive-daily controls. Deferred tasks 003/004
+retain that scope; this review does not activate them. Retained work, real input
+protection, peer continuity and the canonical shorter-grant/retained-entry
+histories remain required. A demonstrated gap would justify its own bounded
+broker implementation brief, not automatic activation of the whole deferred tail.
+
+Resume estimate refresh, authenticated unlock continuation and keyboard focus
+repair address separate native compatibility issues. App-policy restoration is
+a separate product transition. Their justification, historical evidence and
+unequal migration difficulty belong to the
+[optional-extension assessment](Optional-Child-Extension.md#source-findings-and-broker-migration-feasibility).
+Retiring the extra expiry request would not migrate those hooks or make core
+functionality extension-free.
 
 ## Existing automation and missing acceptance
 

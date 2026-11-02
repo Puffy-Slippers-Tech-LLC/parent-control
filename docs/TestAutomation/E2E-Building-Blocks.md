@@ -5023,6 +5023,12 @@ credential-owner check with the real composed prefix; keep its two fresh
 recipient proofs and single-use submission. A passing unscoped approval probe
 does not exercise a newly prefixed consumer.
 
+Repeated desktop entries must also resolve their challenge IDs on the journey
+that declared them. A request-local scope may own its approval proofs while the
+enclosing journey owns the child's retained entry and the parent's return.
+Trace both calls against the final invocation/challenge maps; sharing a request
+prefix does not make those desktop challenges local to that request.
+
 For a journey that preserves the child's work, trace its fixture subset and
 qualified caller from the case entry through journey initialization and asset
 verification. Declare both before constructing the journey: activity checks

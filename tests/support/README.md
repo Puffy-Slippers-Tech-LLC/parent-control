@@ -285,6 +285,13 @@ supplies snapshot infrastructure acceptance only.
 
 ## Host and guest boundaries
 
+Fixture provisioning qualifications reuse
+`system_fixture_preparation.register_staging`, as do system, standalone and E2E
+preparation through `system_fixture_preparation.provision`. The shared writer
+validates the staging path and exclusively creates and flushes the attempt's
+intent before guest writes. Callers retain their finite subsets, failure
+experiments and assertions; the existing VM owner retains restoration and cleanup.
+
 Parent entry declarations reuse `journey_blocks.parent_management(child=...)`:
 the default `child` selects Riley; `existing` selects Jordan and reads Screen
 Limits through the existing public operation. Both retain the same checkpoint

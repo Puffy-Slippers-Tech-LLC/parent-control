@@ -1,6 +1,5 @@
 """Cases 224/230: daily time pauses, grants age, and two approvals add 30 seconds."""
 from copy import deepcopy
-from dataclasses import replace
 import time
 
 from countdown import CountdownObservation
@@ -23,99 +22,87 @@ INITIAL_GRANT_SECONDS = 1200
 DOMINANCE_SECONDS = 90
 CHOICES = dict(child='fixture-child', approver='fixture-parent',
                duration_seconds=ADDITION_SECONDS, allow_soft=False)
-SCREENS = {
-    **fresh_desktop('parent'),
-    **daily_time_profile(source='desktop', entry='same-user', window='new',
-                         initial_enabled=False, minutes=10),
-    **prefixed_stages('initial', desktop_entry('child', source='gdm', entry='fresh')),
-    **native_activity_entry('activity', child='child'),
-    'initial-switch-ready': 'ui:fresh-child-desktop',
-    'initial-switch': 'system:child-switch-user', 'initial-greeter': 'ui:gdm-returned',
-    **prefixed_stages('balance', desktop_entry('parent', source='gdm', entry='retained')),
-    'first-before': 'ui:time-explanation-refresh-read',
-}
-for request in ('first', 'second'):
-    SCREENS.update(prefixed_stages(request, {
-        'station-desktop': 'ui:desktop', 'station-switch': 'system:parent-switch-user',
-        'station-greeter': 'ui:gdm-returned',
-        **approval_and_return(prefix='new', entry='new', surface='kiosk',
-                              child_entry='retained', **CHOICES),
-        **native_activity_resume('resume', child='child'),
-        'activity': 'ui:overlay-native-activity',
-        'switch-ready': 'ui:fresh-child-desktop',
-        'switch': 'system:child-switch-user', 'greeter': 'ui:gdm-returned',
-        **prefixed_stages('parent', desktop_entry('parent', source='gdm', entry='retained')),
-        'balances': 'ui:time-explanation-refresh-read',
-    }))
-
-LOGIN_GROUPS = {'parent-login': ('parent', ''), 'initial': ('child', 'initial-'),
-                'balance': ('parent', 'balance-')}
-for request in ('first', 'second'):
-    LOGIN_GROUPS.update({request + '-retained': ('child', request + '-retained-'),
-                         request + '-parent': ('parent', request + '-parent-')})
-LOGIN_STAGES = {prefix + stage for role, prefix in LOGIN_GROUPS.values()
-                for stage in fresh_desktop(role)}
-WAIT_INDEX = tuple(SCREENS).index('first-approval-open')
-RESULT_INDEX = tuple(SCREENS).index('first-countdown')
-PLAN = JourneyPlan(
-    prefix='kiosk-delayed-approval', worker_mode='kiosk_delayed_approval', screen_tags=SCREENS,
-    phases={'ready': 'setup', 'setup-detached': 'setup',
-            **{stage: 'step-1' if index < WAIT_INDEX else
-                      'step-2' if index < RESULT_INDEX else 'step-3'
-               for index, stage in enumerate(SCREENS)}, 'installed-greeter': 'start'},
-    invocations=tuple(stage for stage in SCREENS if stage in LOGIN_STAGES),
-    challenges={name: (role, prefix + ('recipient-qualified' if role == 'parent' else
-                                      'child-recipient-qualified'),
-                       prefix + ('recipient-rechecked' if role == 'parent' else
-                                  'child-recipient-rechecked'))
-                for name, (role, prefix) in LOGIN_GROUPS.items()},
-    settings_checks={'same-parent-selected': SettingsObservation('fixture-child', False, ('0 minutes',)),
-                     'profile-settings': SettingsObservation('fixture-child', True, ('10 minutes',))},
-    balance_checks={'profile-configured': 600},
-    kiosk_request=('child', 'parent', ADDITION_SECONDS, False),
-    activity_entries={request + '-retained-entry-guard': 'activity-capture'
-                      for request in ('first', 'second')},
-    activity_checks={request + '-' + stage: ('activity-capture', 'same')
-                     for request in ('first', 'second') for stage in ('resume-opened', 'activity')},
-    stage_actions={'desktop': 'native-verify', 'first-approval-open': 'real-interval',
-                   'first-balances': 'cooldown'},
-    assertions_after={'first-balances': 'delayed-current-balance-increment',
-                      'second-balances': 'visible-result'},
-)
 
 
-# Ready the child's original activity and its observers before starting the
-# grant. The setup approval never replaces either measured 30-second request.
-_before = tuple(SCREENS).index('first-before')
-GRANT_SCREENS = {
-    **dict(list(SCREENS.items())[:_before]),
-    'setup-before': 'ui:time-explanation-refresh-read',
-    'profile-desktop': 'ui:desktop',
-    'profile-switch': 'system:parent-switch-user', 'profile-greeter': 'ui:gdm-returned',
-    **prefixed_stages('profile-request', obtain_time(initial='default', child='fixture-child',
-        approver='fixture-parent', duration_seconds=INITIAL_GRANT_SECONDS,
-        allow_soft=True, exit='automatic')),
-    **prefixed_stages('profile-return', desktop_entry('parent', source='gdm', entry='retained')),
-    **dict(list(SCREENS.items())[_before:]),
-}
-GRANT_SCREENS.update(daily_time_profile(source='desktop', entry='same-user', window='new',
-                                       initial_enabled=False, minutes=30))
-_grant_logins = {**LOGIN_GROUPS, 'profile-return': ('parent', 'profile-return-')}
-_grant_login_stages = {prefix + stage for role, prefix in _grant_logins.values()
-                       for stage in fresh_desktop(role)}
-GRANT_PLAN = replace(PLAN, worker_mode='kiosk_delayed_grant_approval', screen_tags=GRANT_SCREENS,
-    phases={'ready': 'setup', 'setup-detached': 'setup',
-            **{stage: PLAN.phases.get(stage, 'step-1') for stage in GRANT_SCREENS},
-            'installed-greeter': 'start'},
-    invocations=tuple(stage for stage in GRANT_SCREENS if stage in _grant_login_stages),
-    challenges={name: (role, prefix + ('recipient-qualified' if role == 'parent' else
-                                      'child-recipient-qualified'),
-                       prefix + ('recipient-rechecked' if role == 'parent' else
-                                  'child-recipient-rechecked'))
-                for name, (role, prefix) in _grant_logins.items()},
-    settings_checks={**PLAN.settings_checks,
-                     'profile-settings': SettingsObservation('fixture-child', True, ('30 minutes',))},
-    balance_checks={'profile-configured': 1800})
+def approval_plan(*, grant_dominant):
+    """Compose each finite history directly from the shared public operations."""
+    minutes = 30 if grant_dominant else 10
+    screens = {
+        **fresh_desktop('parent'),
+        **daily_time_profile(source='desktop', entry='same-user', window='new',
+                             initial_enabled=False, minutes=minutes),
+        **prefixed_stages('initial', desktop_entry('child', source='gdm', entry='fresh')),
+        **native_activity_entry('activity', child='child'),
+        'initial-switch-ready': 'ui:fresh-child-desktop',
+        'initial-switch': 'system:child-switch-user', 'initial-greeter': 'ui:gdm-returned',
+        **prefixed_stages('balance', desktop_entry('parent', source='gdm', entry='retained')),
+    }
+    logins = {'parent-login': ('parent', ''), 'initial': ('child', 'initial-'),
+              'balance': ('parent', 'balance-')}
+    if grant_dominant:
+        # Ready the original activity before the setup grant starts running.
+        # This approval never replaces either measured 30-second request.
+        screens.update({
+            'setup-before': 'ui:time-explanation-refresh-read',
+            'profile-desktop': 'ui:desktop',
+            'profile-switch': 'system:parent-switch-user', 'profile-greeter': 'ui:gdm-returned',
+            **prefixed_stages('profile-request', obtain_time(initial='default', child='fixture-child',
+                approver='fixture-parent', duration_seconds=INITIAL_GRANT_SECONDS,
+                allow_soft=True, exit='automatic')),
+            **prefixed_stages('profile-return', desktop_entry('parent', source='gdm', entry='retained')),
+        })
+        logins['profile-return'] = ('parent', 'profile-return-')
+    screens['first-before'] = 'ui:time-explanation-refresh-read'
+    for request in ('first', 'second'):
+        screens.update(prefixed_stages(request, {
+            'station-desktop': 'ui:desktop', 'station-switch': 'system:parent-switch-user',
+            'station-greeter': 'ui:gdm-returned',
+            **approval_and_return(prefix='new', entry='new', surface='kiosk',
+                                  child_entry='retained', **CHOICES),
+            **native_activity_resume('resume', child='child'),
+            'activity': 'ui:overlay-native-activity',
+            'switch-ready': 'ui:fresh-child-desktop',
+            'switch': 'system:child-switch-user', 'greeter': 'ui:gdm-returned',
+            **prefixed_stages('parent', desktop_entry('parent', source='gdm', entry='retained')),
+            'balances': 'ui:time-explanation-refresh-read',
+        }))
+        logins.update({request + '-retained': ('child', request + '-retained-'),
+                       request + '-parent': ('parent', request + '-parent-')})
+    login_stages = {prefix + stage for role, prefix in logins.values()
+                    for stage in fresh_desktop(role)}
+    wait_index = tuple(screens).index('first-approval-open')
+    result_index = tuple(screens).index('first-countdown')
+    return JourneyPlan(
+        prefix='kiosk-delayed-approval',
+        worker_mode='kiosk_delayed_grant_approval' if grant_dominant else 'kiosk_delayed_approval',
+        screen_tags=screens,
+        phases={'ready': 'setup', 'setup-detached': 'setup',
+                **{stage: 'step-1' if index < wait_index else
+                          'step-2' if index < result_index else 'step-3'
+                   for index, stage in enumerate(screens)}, 'installed-greeter': 'start'},
+        invocations=tuple(stage for stage in screens if stage in login_stages),
+        challenges={name: (role, prefix + ('recipient-qualified' if role == 'parent' else
+                                          'child-recipient-qualified'),
+                           prefix + ('recipient-rechecked' if role == 'parent' else
+                                      'child-recipient-rechecked'))
+                    for name, (role, prefix) in logins.items()},
+        settings_checks={'same-parent-selected': SettingsObservation('fixture-child', False, ('0 minutes',)),
+                         'profile-settings': SettingsObservation('fixture-child', True, (f'{minutes} minutes',))},
+        balance_checks={'profile-configured': minutes * 60},
+        kiosk_request=('child', 'parent', ADDITION_SECONDS, False),
+        activity_entries={request + '-retained-entry-guard': 'activity-capture'
+                          for request in ('first', 'second')},
+        activity_checks={request + '-' + stage: ('activity-capture', 'same')
+                         for request in ('first', 'second') for stage in ('resume-opened', 'activity')},
+        stage_actions={'desktop': 'native-verify', 'first-approval-open': 'real-interval',
+                       'first-balances': 'cooldown'},
+        assertions_after={'first-balances': 'delayed-current-balance-increment',
+                          'second-balances': 'visible-result'},
+    )
+
+
+PLAN = approval_plan(grant_dominant=False)
+GRANT_PLAN = approval_plan(grant_dominant=True)
 
 
 class KioskDelayedApprovalJourney(KioskRequestJourney):

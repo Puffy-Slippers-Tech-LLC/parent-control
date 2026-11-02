@@ -26,6 +26,7 @@ import prepare_vm
 from provenance import preflight_source
 from qualification_storage import allocate, session
 from suite_lease import Suite
+from system_fixture_preparation import register_staging
 import system_runner as system
 from vm_transport import Transport
 from tools import fixture_execution, fixture_manifest, fixture_provision
@@ -406,19 +407,6 @@ print(json.dumps({'paths':data['paths'],'denied':data['denied'],'ready':True}))
         timeout=120, attempts=1))
     system.require(value == {'paths': witnesses, 'denied': denied, 'ready': True}, 'fixture-provisioning:runtime-witness')
     return {'allowed': witnesses, 'denied_untrusted': denied}
-
-
-def register_staging(directory, lease, attempt_id, path):
-    system.require(re.fullmatch(r'/run/onpc-fixture-[0-9a-f]{64}', path) is not None,
-                   'fixture-provisioning:staging-path')
-    # The existing retained attempt allocation records intent before reserve.
-    # This is evidence for its sole snapshot recovery owner, not a second journal.
-    target = directory / 'fixture-staging-intent.json'
-    with target.open('xb') as stream:
-        stream.write(system.baseline.encode({'run': lease.state['run'],
-            'vm_uuid': lease.state['domain_uuid'], 'attempt_id': attempt_id, 'staging': path}))
-        stream.flush()
-        os.fsync(stream.fileno())
 
 
 def baseline_transport(suite, directory):

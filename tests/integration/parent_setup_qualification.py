@@ -210,7 +210,7 @@ class KioskEntryQualification(ParentJourneyQualification):
         return KioskEntryJourney(context, progress)
 
     def attach_installed_snapshot(self, lease):
-        from app_snapshot import input_identity, mismatch, mode_mismatch, snapshot_name
+        from app_snapshot import input_identity, mismatch, mode_mismatch, snapshot_name, refresh_hint
         from guest_inputs import Bundle
         package = self.assets / ('package.' + smoke.runner.package_format(lease.capture.state['guest']))
         version = smoke.runner.package_version(self.commands, package)
@@ -220,6 +220,11 @@ class KioskEntryQualification(ParentJourneyQualification):
         # bytes, and refreshing the test payload does not update the product.
         bundle = Bundle.from_staged(smoke.ROOT, self.directory / 'input')
         expected = input_identity(lease, self.assets, bundle, self.commands)
+        snapshots = lease.source.domain.snapshotListNames(0)
+        if name not in snapshots:
+            scope = 'product' if any(item.startswith('onpc-v') for item in snapshots) else 'local'
+            smoke.require(False, 'setup:installed-snapshot-missing; ' +
+                          refresh_hint(None, expected, missing_scope=scope))
         snap = lease.source.domain.snapshotLookupByName(name, 0)
         import xml.etree.ElementTree as ET
         xml = snap.getXMLDesc(0)
@@ -228,7 +233,8 @@ class KioskEntryQualification(ParentJourneyQualification):
         mode = 'online' if online else 'offline'
         reason = mode_mismatch(xml, mode, **(
             {'offline_domain_xml': lease.original_xml} if not online else {})) or mismatch(xml, expected)
-        smoke.require(reason is None, 'setup:installed-snapshot-stale:' + str(reason))
+        if reason is not None:
+            smoke.require(False, 'setup:installed-snapshot-stale:' + reason + '; ' + refresh_hint(xml, expected))
         lease.guard(off=True)
         smoke.require(snap.getXMLDesc(0) == xml, 'setup:installed-snapshot-changed')
         # Keep archive integrity distinct from installed-content equivalence

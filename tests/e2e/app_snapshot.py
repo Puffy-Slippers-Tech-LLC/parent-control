@@ -65,6 +65,11 @@ def mode_mismatch(xml, mode, *, now=None, offline_domain_xml=None):
         return 'missing or invalid snapshot metadata'
 
 
+def recipe_digest(bundle):
+    return hashlib.sha256((bundle.digest('guest_install_recipe.py') +
+        bundle.digest('install-source/Makefile')).encode()).hexdigest()
+
+
 def input_identity(lease, assets, bundle, commands):
     """Only installed state invalidates the cache; test payload is replaceable."""
     package = assets / ('package.' + system.package_format(lease.capture.state['guest']))
@@ -72,8 +77,7 @@ def input_identity(lease, assets, bundle, commands):
         'package_sha256': system.baseline.digest(package),
         'package_content_sha256': package_content.digest(package, commands),
         'baseline_sha256': lease.state['baseline_sha256'],
-        'recipe_sha256': hashlib.sha256((bundle.digest('guest_install_recipe.py') +
-            bundle.digest('install-source/Makefile')).encode()).hexdigest()},
+        'recipe_sha256': recipe_digest(bundle)},
         sort_keys=True, separators=(',', ':'))
 
 
@@ -109,6 +113,28 @@ def mismatch(xml, expected):
 
 def matches(xml, expected):
     return mismatch(xml, expected) is None
+
+
+def refresh_hint(xml, expected, *, missing_scope='local'):
+    """Classify a proven refusal and bind retries to its exact expected inputs."""
+    current = json.loads(expected)
+    scope = missing_scope
+    if xml is not None:
+        reason = mismatch(xml, expected)
+        scope = 'local'
+        if reason != 'missing or invalid snapshot metadata':
+            previous = json.loads(ET.fromstring(xml).findtext('description'))
+            key = 'package_content_sha256' if previous['schema_version'] == 2 else 'package_sha256'
+            if previous[key] != current[key]:
+                scope = 'product'
+            elif reason == 'installation recipe changed':
+                scope = 'fixtures'
+    # Equivalent v2 archives can differ in delivery timestamps. Retry identity
+    # follows the same installed-content equivalence as mismatch().
+    if current['schema_version'] == 2:
+        current.pop('package_sha256')
+    identity = json.dumps(current, sort_keys=True, separators=(',', ':')).encode()
+    return 'appsnapshot:refresh-required:' + scope + ':' + hashlib.sha256(identity).hexdigest()
 
 
 def snapshot_name(version):

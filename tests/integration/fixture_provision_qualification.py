@@ -441,12 +441,17 @@ def installed_transport(suite, directory, assets):
     lease = suite.lease
     package = assets / ('package.' + system.package_format(lease.capture.state['guest']))
     name = app_snapshot.snapshot_name(system.package_version(suite.commands, package))
-    system.require(name in suite.source.domain.snapshotListNames(0),
-                   'fixture-provisioning:app-snapshot-missing; run tools/prepare-appsnapshot')
-    xml = suite.source.domain.snapshotLookupByName(name, 0).getXMLDesc(0)
     expected = app_snapshot.input_identity(lease, assets, suite.input_bundle(ROOT), suite.commands)
-    system.require(app_snapshot.matches(xml, expected) and app_snapshot.mode_mismatch(xml, 'online') is None,
-                   'fixture-provisioning:app-snapshot-stale; run tools/prepare-appsnapshot')
+    snapshots = suite.source.domain.snapshotListNames(0)
+    if name not in snapshots:
+        scope = 'product' if any(item.startswith('onpc-v') for item in snapshots) else 'local'
+        raise system.Error('fixture-provisioning:app-snapshot-missing; run tools/prepare-appsnapshot; ' +
+                           app_snapshot.refresh_hint(None, expected, missing_scope=scope))
+    xml = suite.source.domain.snapshotLookupByName(name, 0).getXMLDesc(0)
+    reason = app_snapshot.mismatch(xml, expected)
+    if reason is not None or app_snapshot.mode_mismatch(xml, 'online') is not None:
+        raise system.Error('fixture-provisioning:app-snapshot-stale; run tools/prepare-appsnapshot; ' +
+                           app_snapshot.refresh_hint(xml, expected))
     system.require(online_snapshot.load(suite.source, name, xml) is not None,
                    'fixture-provisioning:app-credentials-missing')
     lease.installed_name, lease.installed_xml = name, xml

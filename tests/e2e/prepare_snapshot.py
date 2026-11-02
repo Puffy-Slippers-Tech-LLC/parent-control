@@ -1,5 +1,6 @@
 """Standalone controller for the same snapshot module used by E2E suites."""
 import argparse
+import json
 import os
 from pathlib import Path
 import sys
@@ -83,6 +84,17 @@ def probe(expected_uuid, *, overwrite=True):
         if name in source.domain.snapshotListNames(0):
             xml = source.domain.snapshotLookupByName(name, 0).getXMLDesc(0)
             reason = mode_mismatch(xml, 'online')
+            if reason is None:
+                from app_snapshot import recipe_digest
+                from installed_setup import inputs
+                import xml.etree.ElementTree as ET
+                recipe = recipe_digest(inputs(ROOT))
+                try:
+                    previous = json.loads(ET.fromstring(xml).findtext('description'))
+                    if previous.get('recipe_sha256') != recipe:
+                        reason = 'installation recipe changed'
+                except (ET.ParseError, ValueError, TypeError, AttributeError):
+                    reason = 'missing or invalid snapshot metadata'
             if reason is not None:
                 preparation('Refreshing snapshot ' + name + ': ' + reason +
                             '; forcing overwrite=true')

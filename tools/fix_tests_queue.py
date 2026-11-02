@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import threading
@@ -23,6 +24,27 @@ WORKER = Path(__file__).with_name('fix_tests.py')
 STARTUP_SOURCE = 'ONPC_REPAIR_STARTUP_FD'
 STARTUP_REPAIR = 'ONPC_REPAIR_WRITER_FD'
 RECOVERY_ONLY = 'ONPC_REPAIR_RECOVERY_ONLY'
+SNAPSHOT_REFRESH = 'appsnapshot-refresh.json'
+SNAPSHOT_REFRESH_STATUS = 76
+
+
+def request_snapshot_refresh(run, output):
+    """Only explicit snapshot prerequisite refusals trigger queue interruption."""
+    parent = parent_run(run)
+    hints = re.findall(r'appsnapshot:refresh-required:(product|fixtures|local):([0-9a-f]{64})(?![0-9a-f])', output)
+    if parent is None or not hints:
+        return False
+    vm = json.loads((run / 'vm.json').read_text())['vm']
+    with launcher.lock(parent / 'appsnapshot-refresh-gate') as descriptor:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        path = parent / SNAPSHOT_REFRESH
+        saved = json.loads(path.read_text()) if path.exists() else {'reasons': [], 'vms': [], 'inputs': []}
+        saved['reasons'] = sorted(set(saved['reasons']) | {scope for scope, _ in hints})
+        saved['vms'] = sorted(set(saved['vms']) | {vm})
+        saved['inputs'] = sorted(set(saved.get('inputs', [])) | {
+            json.dumps([vm, scope, identity]) for scope, identity in hints})
+        launcher.atomic(path, saved)
+    return True
 
 
 def repair_descriptors():
@@ -806,7 +828,60 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
     status = 1
     try:
         with launcher_reload.watching(run), Control().installed() as control, recording(root, enabled=True, run=run) as media:
-            status = _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds, resume, control)
+            refreshed = set()
+            while True:
+                refresh = run / SNAPSHOT_REFRESH
+                if refresh.exists():
+                    from vm_selection import BATCH
+                    names = json.loads(os.environ[BATCH])['vms']
+                    request = json.loads(refresh.read_text())
+                    if not set(request['vms']) <= set(names):
+                        raise ValueError('snapshot refresh selection differs from the current VM queue')
+                    product = 'product' in request['reasons']
+                    fixtures = 'fixtures' in request['reasons']
+                    if not product and not fixtures:
+                        names = [name for name in names if name in request['vms']]
+                    identities = set(request.get('inputs', [json.dumps(request, sort_keys=True)]))
+                    if refreshed & identities:
+                        raise ValueError('app snapshot refusal repeated for unchanged inputs after queue refresh; '
+                                         'see the failed VM output')
+                    print('fix-tests: VM tests drained; rebuilding app snapshots for ' + ', '.join(names), flush=True)
+                    environment = launcher.environment()
+                    environment.pop(BATCH, None)
+                    def supervise_operation(kind, runner):
+                        operation = launcher.private_directory(run / kind)
+                        command = ['/usr/bin/python3', '-IBu', str(Path(__file__).with_name('fix_tests.py')),
+                            '--supervise', str(root), str(operation), str(owner), kind, '', model, effort,
+                            json.dumps(dict(vms=names, overwrite='false' if fixtures and not product else 'true'))]
+                        def tick():
+                            if (run / 'cancel').exists():
+                                control.stop()
+                        return runner.run(command, cwd=root, env=environment, cooperative=True, tick=tick,
+                            pass_fds=(owner, *launcher.scratch_descriptors()))
+                    status = supervise_operation('snapshot-refresh', control)
+                    # Preparation leaves maintenance guests running. Retire them
+                    # through the ordinary guarded recovery before test admission.
+                    cleanup_control = Control()
+                    cleanup_control.stopped = threading.Event()
+                    cleanup = supervise_operation('snapshot-cleanup', cleanup_control)
+                    if status or cleanup:
+                        status = status or cleanup
+                        break  # Keep the request for explicit resume after failure.
+                    if control.stopped.is_set() or (run / 'cancel').exists():
+                        status = 130
+                        break
+                    selected_names = json.loads(os.environ[BATCH])['vms']
+                    for child in run.glob('pipeline-*'):
+                        if (child / 'vm.json').exists() and json.loads((child / 'vm.json').read_text())['vm'] in selected_names:
+                            (child / 'cancel').unlink(missing_ok=True)
+                    refresh.unlink()
+                    resume = 'true'
+                    refreshed.update(identities)
+                    print('fix-tests: app snapshots rebuilt; resuming pending VM cases.', flush=True)
+                status = _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds, resume, control)
+                if status != SNAPSHOT_REFRESH_STATUS and not (
+                        status == 130 and refresh.exists() and not control.stopped.is_set()):
+                    break
         if status == launcher_reload.STATUS:
             from fix_tests import ControllerReload
             raise ControllerReload()
@@ -830,6 +905,9 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
     from fix_tests import category_inventory, requested_inventory
     from vm_queue import dispatch
     from vm_selection import BATCH, VARIABLE, WORKER as VM_WORKER, vm_config
+    from regression_process import Control
+    vm_control = Control()
+    vm_control.stopped = threading.Event()
     snapshot = json.loads(os.environ[BATCH])
     listing = subprocess.run([str(root / 'tools/run-tests'), '--list'], cwd=root,
                              env=launcher.environment(), capture_output=True, text=True, check=True)
@@ -940,6 +1018,7 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
 
     failed = threading.Event()
     def execute_owned(name, selection, *, recovery=False, receipt=None):
+        runner = control if name == 'host' else vm_control
         if control.stopped.is_set() or (run / 'cancel').exists():
             return 130
         if launcher_reload.pending():
@@ -991,10 +1070,14 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
                 with output_lock:
                     if (run / 'cancel').exists():
                         control.stop()
+                    if control.stopped.is_set() or (run / SNAPSHOT_REFRESH).exists():
+                        vm_control.stop()
                     publish()
             from contextlib import ExitStack
             with ExitStack() as startup:
-                gate = RepairGate(child, root=root, stopped=control.stopped.is_set)
+                gate = RepairGate(child, root=root, stopped=lambda:
+                    control.stopped.is_set() or runner.stopped.is_set() or
+                    name != 'host' and (run / SNAPSHOT_REFRESH).exists())
                 # A retained writer enters its exclusive gate in the worker.
                 # Everyone else inherits a reader across initial imports.
                 if not recovery:
@@ -1005,7 +1088,7 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
                     source = gate.fd
                     environment[STARTUP_REPAIR] = str(source)
                     startup.callback(gate.detach)
-                status = control.run(command, cwd=root, env=environment, output=output, tick=tick,
+                status = runner.run(command, cwd=root, env=environment, output=output, tick=tick,
                     cooperative=True, started=startup.close,
                     pass_fds=(owner, *launcher.scratch_descriptors(),
                               *((source,) if source is not None else ())))
@@ -1058,7 +1141,7 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
             else:
                 from vm_case_queue import available_worker
                 with available_worker(configured[name], slots,
-                        lambda: control.stopped.is_set() or (run / 'cancel').exists(),
+                        lambda: control.stopped.is_set() or vm_control.stopped.is_set() or (run / 'cancel').exists(),
                         needed=lambda: recovery or needed(name, selection)) as receipt:
                     if receipt is None:
                         with output_lock:
@@ -1083,6 +1166,8 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
         from fix_tests import COMPLETED_WITH_FAILURES
         if status == COMPLETED_WITH_FAILURES:
             failed.set()
+        elif status == 130 and (run / SNAPSHOT_REFRESH).exists() and not control.stopped.is_set():
+            vm_control.stop()
         elif status and status != launcher_reload.STATUS:
             if status != 130:
                 failed.set()
@@ -1114,7 +1199,7 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
     with ThreadPoolExecutor(max_workers=1) as pool:
         host_task = pool.submit(execute, 'host', host) if host else None
         try:
-            results = dispatch(vms, len(vms), lambda vm: execute(vm.name, guests), control.stopped)
+            results = dispatch(vms, len(vms), lambda vm: execute(vm.name, guests), vm_control.stopped)
             if host_task is not None:
                 host_task.result()
         except BaseException:
@@ -1122,6 +1207,8 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
             raise
     statuses = {name: value['status'] if isinstance(value, dict) else value for name, value in results.items()}
     launcher.atomic(run / 'vm-results.json', results)
+    if (run / SNAPSHOT_REFRESH).exists() and not failed.is_set() and not control.stopped.is_set():
+        return SNAPSHOT_REFRESH_STATUS
     if not failed.is_set() and not control.stopped.is_set() and not launcher_reload.pending():
         queues = run / 'family-cases'
         for path in queues.glob('*.json') if queues.exists() else ():

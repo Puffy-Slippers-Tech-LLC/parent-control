@@ -592,6 +592,12 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
             repair_run=str(run), attempt=uuid.uuid4().hex,
             selection=[[category, [arg for arg in options if arg not in ('--resume', '--resume-case-only', '--resume-area-only')
                                    and not arg.startswith('--resume-case=')]]]))
+    elif kind in ('snapshot-refresh', 'snapshot-cleanup'):
+        declaration = json.loads(test_args)
+        selection = ','.join(declaration['vms'])
+        command = ([str(root / 'tools/prepare-appsnapshot'), '--vm', selection, '--y',
+                    '--overwrite', declaration['overwrite']] if kind == 'snapshot-refresh' else
+                   [str(root / 'tools/cleanup-e2e'), '--vm', selection])
     elif kind == 'recovery':
         from vm_selection import execution_arguments, execution_binding
         options = execution_arguments() if execution_binding() is not None else ['--host-only']
@@ -1040,6 +1046,11 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 with (run / 'last-test.log').open('rb') as stream:
                     attached = b'Attached to run-tests session:' in stream.read(8192)
                 if not attached:
+                    if status and requested in ('system', 'e2e'):
+                        from fix_tests_queue import request_snapshot_refresh
+                        if request_snapshot_refresh(run, read_tail(run / 'last-test.log')):
+                            print('fix-tests: app snapshot rebuild required; interrupting owned VM pipelines.', flush=True)
+                            raise Stopped()
                     if parent is not None and status == 0 and retry_case and requested in ('system', 'e2e'):
                         from fix_tests_queue import acknowledge_family_retry
                         acknowledge_family_retry(root, repair_gate, requested,
@@ -1779,6 +1790,13 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         panel({'last_error': str(error)})
         print(f'\n\033[1;31mfix-tests: {error}\033[0m', file=sys.stderr, flush=True)
     finally:
+        from fix_tests_queue import SNAPSHOT_REFRESH
+        if parent is not None and (parent / SNAPSHOT_REFRESH).exists() and commits is not None:
+            # This is a pause in the same run, preserving session limits and
+            # any admitted task. The runner owns interrupted-case retry credit.
+            test_replay = None
+            retain_runtime()
+            atomic(run / 'reload-ready.json', True)
         if recovery_only and reloading and status == 0 and not reload:
             # The FIFO supervisor starts normal work only after every retained
             # ticket drains. Carry allowances and the admitted category across
@@ -1901,6 +1919,10 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
                     if path.exists():
                         retained_pipelines[child.name] = json.loads(path.read_text())
         if previous is not None:
+            from fix_tests_queue import SNAPSHOT_REFRESH
+            refresh = previous / SNAPSHOT_REFRESH
+            if refresh.exists():
+                retained_progress[Path(SNAPSHOT_REFRESH)] = json.loads(refresh.read_text())
             queues = previous / 'family-cases'
             if queues.exists():
                 for path in queues.glob('*.json'):

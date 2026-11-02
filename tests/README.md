@@ -822,6 +822,21 @@ VM is selected, or the selected VM/queue recovery route otherwise, before
 retrying the category. Host recovery requires no VM configuration or privilege.
 Recovery still fails closed when no actionable handoff is available.
 
+Explicit app-snapshot prerequisite refusals pause the current `fix-tests` VM
+selection as one batch. Running VM pipelines receive immediate cooperative
+cancellation, including an in-progress case; the launcher joins their owned
+cleanup before preparing snapshots. Product-content changes (including an old
+version snapshot) rebuild every selected VM. Installation/fixture recipe changes
+check all selected VMs together and rebuild only snapshots whose recipe is stale;
+matching snapshots are reused. A missing initial snapshot or VM-local snapshot
+problem refreshes only the reporting VMs. No VM outside the original selection
+is interrupted or prepared. Preparation uses the registry concurrency cap,
+followed by guarded maintenance cleanup, then resumes pending cases with their
+claims, session allowances and completed results retained. Interrupted cases
+receive no passing credit. An unsuccessful refresh or a repeated refusal for the
+same VM and expected inputs stops with the request retained for recovery. Later
+product or fixture changes can trigger another refresh within the same run.
+
 Logs and small control files are private under `output/test-runs/host/fix-tests/`. They are
 not agent conversation history. Existing test evidence remains under the runner's
 retention policy. The terminal prints the report and `Failure handoff:` paths

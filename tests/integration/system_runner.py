@@ -37,6 +37,8 @@ if __name__ == '__main__':
 
 import prepare_baseline as baseline
 from system_case_ids import UNBOUND_CASES, identity_for_case, parse_recording_ids, validate_inventory
+from system_removal_ownership import OWNERSHIP_GROUPS
+from system_removal_identity import IDENTITY_FILESYSTEM_GROUPS
 
 ROOT = Path(__file__).resolve().parents[2]
 PAYLOAD = '/var/tmp/onpc-system-input'
@@ -81,17 +83,18 @@ REMOVAL_HISTORIES = (
               (variant, variant + '-retry-rebooted'),
               (variant + '-installed', variant + '-rebooted'))
       for variant in ('denial-publication', 'account-finalization')),
-    *(History(f'test_ownership_refusal_retry[{variant}]',
-              (variant, variant + '-retry-rebooted'),
-              (variant + '-installed', variant + '-rebooted'))
-      for variant in ('systemd-user-edit', 'gdm-password-link', 'systemd-user-link',
-                      'gdm-hook-link', 'confinement-record-owner',
-                      'confinement-record-link', 'confinement-record-uid')),
-    *(History(f'test_identity_filesystem_refusal_retry[{variant}]',
-              (variant, variant + '-retry-rebooted'),
-              (variant + '-installed', variant + '-rebooted'))
-      for variant in ('kiosk-marker-uid', 'home-owner', 'home-link', 'home-mount',
-                      'state-owner', 'state-link', 'state-mount')),
+    *(History(f'test_ownership_refusal_retry[{group}]',
+              tuple(phase for variant in variants
+                    for phase in (variant if variant == group else variant + '-reinstalled-rebooted',
+                                  variant + '-retry-rebooted')),
+              (group + '-installed', group + '-rebooted'))
+      for group, variants in OWNERSHIP_GROUPS.items()),
+    *(History(f'test_identity_filesystem_refusal_retry[{group}]',
+              tuple(phase for variant in variants
+                    for phase in (variant if variant == group else variant + '-reinstalled-rebooted',
+                                  variant + '-retry-rebooted')),
+              (group + '-installed', group + '-rebooted'))
+      for group, variants in IDENTITY_FILESYSTEM_GROUPS.items()),
     History('test_rpm_posterase_recovery',
             ('rpm-posterase', 'rpm-posterase-reinstalled-rebooted'),
             ('rpm-posterase-installed', 'rpm-posterase-rebooted'), package_format='rpm'),
@@ -199,8 +202,10 @@ PHASE_PREREQUISITES = {
        for history in REMOVAL_HISTORIES[1:]},
     **{history.phases[0]: ('installed-phase', 'guest-reboot', 'native-enforcement-fixture')
        for history in REMOVAL_HISTORIES[1:]},
-    **{history.phases[1]: (history.phases[0] + '-phase', 'guest-reboot', 'boot-readiness')
-       for history in REMOVAL_HISTORIES[1:]},
+    **{phase: (history.phases[index - 1] + '-phase',
+               'guest-reboot', 'boot-readiness')
+       for history in REMOVAL_HISTORIES[1:]
+       for index, phase in enumerate(history.phases) if index},
     'authorization': ('retained-app-snapshot', 'authorization-accounts'),
     'enforcement': ('retained-app-snapshot', 'native-enforcement-fixture'),
     'session': ('retained-app-snapshot', 'one-shot-gdm-grant-fixture-and-second-reboot'),
@@ -1377,13 +1382,7 @@ def scenario_fixture_files(selection, *, target=None):
                                                      'test_rpm_posterase_recovery',
                                                      'test_interrupted_finalization_retry[denial-publication]',
                                                      'test_interrupted_finalization_retry[account-finalization]',
-                                                     'test_ownership_refusal_retry[systemd-user-edit]',
-                                                     'test_ownership_refusal_retry[gdm-password-link]',
-                                                     'test_ownership_refusal_retry[systemd-user-link]',
-                                                     'test_ownership_refusal_retry[gdm-hook-link]',
-                                                     'test_ownership_refusal_retry[confinement-record-owner]',
-                                                     'test_ownership_refusal_retry[confinement-record-link]',
-                                                     'test_ownership_refusal_retry[confinement-record-uid]',
+                                                     *REMOVAL_FAMILIES['test_ownership_refusal_retry'],
                                                      *REMOVAL_FAMILIES['test_identity_filesystem_refusal_retry'])
                                     for item in selection.executions):
         files.append('fixtures/mechanical/identity-trusted-hard')
@@ -2318,13 +2317,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                                          'test_rpm_posterase_recovery',
                                          'test_interrupted_finalization_retry[denial-publication]',
                                          'test_interrupted_finalization_retry[account-finalization]',
-                                         'test_ownership_refusal_retry[systemd-user-edit]',
-                                         'test_ownership_refusal_retry[gdm-password-link]',
-                                         'test_ownership_refusal_retry[systemd-user-link]',
-                                         'test_ownership_refusal_retry[gdm-hook-link]',
-                                         'test_ownership_refusal_retry[confinement-record-owner]',
-                                         'test_ownership_refusal_retry[confinement-record-link]',
-                                         'test_ownership_refusal_retry[confinement-record-uid]',
+                                         *REMOVAL_FAMILIES['test_ownership_refusal_retry'],
                                          *REMOVAL_FAMILIES['test_identity_filesystem_refusal_retry'])
                         for item in selection.executions)):
             subsets += ('trusted-hard-launcher',)
@@ -2335,20 +2328,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                                       'test_aborted_cleanup_rollback_retry',
                                       'test_interrupted_finalization_retry[denial-publication]',
                                       'test_interrupted_finalization_retry[account-finalization]',
-                                      'test_ownership_refusal_retry[systemd-user-edit]',
-                                      'test_ownership_refusal_retry[gdm-password-link]',
-                                      'test_ownership_refusal_retry[systemd-user-link]',
-                                      'test_ownership_refusal_retry[gdm-hook-link]',
-                                      'test_ownership_refusal_retry[confinement-record-owner]',
-                                      'test_ownership_refusal_retry[confinement-record-link]',
-                                      'test_ownership_refusal_retry[confinement-record-uid]',
-                                      'test_identity_filesystem_refusal_retry[kiosk-marker-uid]',
-                                      'test_identity_filesystem_refusal_retry[home-owner]',
-                                      'test_identity_filesystem_refusal_retry[home-link]',
-                                      'test_identity_filesystem_refusal_retry[home-mount]',
-                                      'test_identity_filesystem_refusal_retry[state-owner]',
-                                      'test_identity_filesystem_refusal_retry[state-link]',
-                                      'test_identity_filesystem_refusal_retry[state-mount]'))
+                                      *REMOVAL_FAMILIES['test_ownership_refusal_retry'],
+                                      *REMOVAL_FAMILIES['test_identity_filesystem_refusal_retry']))
                 for item in selection.executions)):
             # PAM histories seed policy with this command on both targets;
             # The selected Ubuntu removal/recovery histories also observe
@@ -2359,24 +2340,17 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                        else (*subsets, 'command'))
         if ('command' not in subsets and any(
                 item.area == 'enforcement'
-                and item.case_id in ('test_native_command_policy_is_uid_scoped',
-                                     'test_native_catalog_is_selected_child_scoped')
+                and item.case_id == 'test_native_command_policy_is_uid_scoped'
                 for item in selection.executions)):
             # Clean app snapshots omit the command and its desktop launcher.
             # Prepare both before the case's read-only fixture verification.
             subsets += ('command',)
         if any(item.area == 'enforcement'
-               and item.case_id == 'test_native_catalog_is_selected_child_scoped'
+               and item.case_id == 'test_native_command_policy_is_uid_scoped'
                for item in selection.executions):
-            # The catalogue case checks system and per-account launchers in
-            # addition to the command fixture shared by native_accounts.
-            subsets += ('catalogue',)
-        if any(item.area == 'enforcement'
-               and item.case_id == 'test_native_whitespace_policy_is_uid_scoped'
-               for item in selection.executions):
-            # The whitespace case verifies its own fixed executable and launcher;
-            # clean snapshots contain neither, even when other probe cases ran.
-            subsets += ('whitespace',)
+            # This bounded group also verifies the whitespace executable and
+            # selected-child catalogue. Supply their closure even when focused.
+            subsets += ('catalogue', 'whitespace')
         if any(item.area == 'enforcement'
                and item.case_id == 'test_native_future_pattern_is_uid_scoped'
                for item in selection.executions):
@@ -2541,8 +2515,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 run_kiosk_activation(vm, lease, directory, selection, phase, ledger)
         recovery_phases = tuple(phase for history in REMOVAL_HISTORIES
                                 for phase in history.phases)
-        rebooted_recovery_phases = tuple(phase for history in REMOVAL_HISTORIES
-                                         for phase in history.phases[1:])
+        rebooted_recovery_phases = tuple(phase for phase in recovery_phases
+                                         if phase.endswith('-rebooted'))
         for phase in (TRUSTED_FIXTURES_PHASE, *FIRST_CONFIGURE_PHASES, *PAM_PHASES,
                       *recovery_phases, 'authorization', 'enforcement', 'session', 'extension', 'extension-login',
                       'startup'):
@@ -2893,13 +2867,7 @@ def main(argv=None):
                                                  'test_rpm_posterase_recovery',
                                                  'test_interrupted_finalization_retry[denial-publication]',
                                                  'test_interrupted_finalization_retry[account-finalization]',
-                                                 'test_ownership_refusal_retry[systemd-user-edit]',
-                                                 'test_ownership_refusal_retry[gdm-password-link]',
-                                                 'test_ownership_refusal_retry[systemd-user-link]',
-                                                 'test_ownership_refusal_retry[gdm-hook-link]',
-                                                 'test_ownership_refusal_retry[confinement-record-owner]',
-                                                 'test_ownership_refusal_retry[confinement-record-link]',
-                                                 'test_ownership_refusal_retry[confinement-record-uid]',
+                                                 *REMOVAL_FAMILIES['test_ownership_refusal_retry'],
                                                  *REMOVAL_FAMILIES['test_identity_filesystem_refusal_retry'])
                                 for item in selection.executions)):
                     stage_mechanical_comparison(fixture_input,

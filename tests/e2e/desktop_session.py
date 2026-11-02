@@ -1,5 +1,6 @@
 """DESK03/04 qualification: shared system switching and logout commands."""
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -214,9 +215,18 @@ def run_attached(directory, lease, transport, ledger, plan, *, expected_inputs,
     expected_inputs = dict(expected_inputs)
 
     def check_sources():
-        require(all(expected_inputs.get(path) == digest
-                    for path, digest in inputs().items()),
-                plan.prefix + ':attached-source-changed')
+        mismatches = [path for path, digest in inputs().items()
+                      if expected_inputs.get(path) != digest]
+        if mismatches:
+            # Report only bounded names from the accepted source manifest, not
+            # file contents or names of newly introduced, unreviewed inputs.
+            known = sorted(path for path in mismatches if path in expected_inputs)
+            print(plan.prefix + ':attached-source-drift ' + json.dumps({
+                'changed_paths': known[:12],
+                'changed_count': len(known),
+                'added_count': len(mismatches) - len(known),
+            }, sort_keys=True), flush=True)
+        require(not mismatches, plan.prefix + ':attached-source-changed')
 
     check_sources()
     journey = journey_type(context, progress, plan, actions=actions, transport=transport)

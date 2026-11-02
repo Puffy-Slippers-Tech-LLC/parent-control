@@ -20,6 +20,12 @@ OWNERSHIP_VARIANTS = (
     'gdm-hook-link', 'confinement-record-owner', 'confinement-record-link',
     'confinement-record-uid',
 )
+OWNERSHIP_GROUPS = {
+    'systemd-user-edit': ('systemd-user-edit', 'gdm-password-link'),
+    'systemd-user-link': ('systemd-user-link', 'gdm-hook-link'),
+    'confinement-record-owner': ('confinement-record-owner', 'confinement-record-link',
+                                 'confinement-record-uid'),
+}
 COMMENT = b'\n# onpc removal ownership conflict\n'
 STATE = Path('/var/lib/oh-no-parent-control')
 FALLBACK_RULE = Path('/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules')

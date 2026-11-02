@@ -797,8 +797,13 @@ def test_system_case_retry_selects_its_required_history_without_crediting_omissi
         inventory=inventory, round_number=1) == 0
 
 
-@pytest.mark.parametrize('pending_phase', ['rollback', 'rollback-rearmed-rebooted'])
-def test_system_recovery_resume_replays_whole_unfinished_history_only(pending_phase):
+@pytest.mark.parametrize('case,pending_phase', [
+    ('test_aborted_cleanup_rollback_retry', 'rollback'),
+    ('test_aborted_cleanup_rollback_retry', 'rollback-rearmed-rebooted'),
+    ('test_ownership_refusal_retry[confinement-record-owner]', 'confinement-record-link-reinstalled-rebooted'),
+    ('test_ownership_refusal_retry[confinement-record-owner]', 'confinement-record-uid-retry-rebooted'),
+])
+def test_system_recovery_resume_replays_whole_unfinished_history_only(case, pending_phase):
     import system_runner
     from tests.support.vm_runner import RECOVERY_INVENTORIES
     selection = system_runner.resolve_selection(inventories=RECOVERY_INVENTORIES)
@@ -806,8 +811,8 @@ def test_system_recovery_resume_replays_whole_unfinished_history_only(pending_ph
                  if item.phase != pending_phase}
     resumed = system_runner.resume_selection(selection, completed)
     # Replay every predecessor, but stop at the unfinished phase.
-    expected_phases = system_runner.ROLLBACK_PHASES[
-        :system_runner.ROLLBACK_PHASES.index(pending_phase) + 1]
+    focused = system_runner.resolve_selection('removal', case, inventories=RECOVERY_INVENTORIES)
+    expected_phases = focused.phases[:focused.phases.index(pending_phase) + 1]
     assert resumed.phases == expected_phases
     assert resumed.executions == tuple(item for item in selection.executions
                                       if item.phase in expected_phases)
@@ -816,8 +821,6 @@ def test_system_recovery_resume_replays_whole_unfinished_history_only(pending_ph
                  if item.phase != 'authorization'}
     resumed = system_runner.resume_selection(selection, completed)
     assert resumed.phases == ('authorization',)
-    focused = system_runner.resolve_selection(
-        'removal', 'test_aborted_cleanup_rollback_retry', inventories=RECOVERY_INVENTORIES)
     for count in range(len(focused.executions) + 1):
         completed = {item.phase + '::' + item.case_id for item in focused.executions[:count]}
         assert system_runner.resume_selection(focused, completed) == focused

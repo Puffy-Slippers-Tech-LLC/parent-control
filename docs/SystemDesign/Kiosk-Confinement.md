@@ -166,8 +166,8 @@ contract references; the registry owns executable status, not these aliases.
 | Binding | Scope and limit |
 | --- | --- |
 | 267, `verify_session_composition` | Current account/routing, finite PAM and shipped GNOME Kiosk definitions; no execution fence. |
-| 268, account admission | Identity admission, saved-routing tolerance, `su-l` refusal, restoration and ordinary-account positives; no authentication, graphical entry or remote-route proof. |
-| 271, ordinary integration | Current vendor execution, distro readiness and invocation-owned manager cleanup; no private namespace/generation/mask assertions. |
+| 268, account admission (combined in 267; ID retired) | Identity admission, saved-routing tolerance, `su-l` refusal, restoration and ordinary-account positives; no authentication, graphical entry or remote-route proof. |
+| 271, ordinary integration (combined in 267; ID retired) | Current vendor execution, distro readiness and invocation-owned manager cleanup; no private namespace/generation/mask assertions. |
 | 269 | Pending reachable startup/audio input protection with ordinary-use controls. |
 | 289 | Pending real dependency update, retained use, normal exit and fresh-entry history. |
 | 290, 293 | Pending usable repeated entry with unrelated writable siblings/ambient host replacement; former private-view workers removed. |

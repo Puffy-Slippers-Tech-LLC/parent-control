@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import os
+import runpy
 import time
 import uuid
 
@@ -136,6 +137,10 @@ def load(root):
         directory = test_storage.directory('state', root=root, create=False)
     except FileNotFoundError:
         return []
+    registry = root / 'tests/integration/system_case_ids.py'
+    # Watch may display several checkouts at different revisions. Use each
+    # checkout's own retirement map, not this process's imported registry.
+    unbound = runpy.run_path(str(registry)).get('UNBOUND_CASES', {}) if registry.is_file() else {}
     catalogue = descriptions(root)
     fd = test_retention.directory(directory)
     rows = []
@@ -158,6 +163,11 @@ def load(root):
                         or any(not isinstance(record[key], str) for key in
                                ('title', 'case_file', 'description', 'vm'))):
                     raise ValueError('Invalid VM timing record')
+                if (record['category'] == 'system' and
+                        unbound.get(record['id'], (None,))[0] == 'retired'):
+                    # Consolidated cases no longer appear as tiny standalone
+                    # work. Preserve their stored history and recordings.
+                    continue
                 path = root / record['case_file']
                 if (path.resolve() != path or not path.is_relative_to(root.resolve() / 'tests')
                         or not path.is_file()):

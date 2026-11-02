@@ -21,6 +21,13 @@ IDENTITY_FILESYSTEM_VARIANTS = (
     'kiosk-marker-uid', 'home-owner', 'home-link', 'home-mount',
     'state-owner', 'state-link', 'state-mount',
 )
+IDENTITY_FILESYSTEM_GROUPS = {
+    'kiosk-marker-uid': ('kiosk-marker-uid',),
+    'home-owner': ('home-owner', 'home-link'),
+    'home-mount': ('home-mount',),
+    'state-owner': ('state-owner', 'state-link'),
+    'state-mount': ('state-mount',),
+}
 HOME = Path('/home/oh-no-parent-control')
 STATE_ROOT = Path('/var/lib/oh-no-parent-control')
 OWNER_UID = 0

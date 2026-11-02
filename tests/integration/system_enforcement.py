@@ -1,6 +1,7 @@
 """Native enforcement witnesses, used only inside the guarded installed guest."""
 
 import errno
+from contextlib import nullcontext
 import hashlib
 import json
 import os
@@ -113,14 +114,10 @@ def provision_catalog(accounts):
     print('onpc-system: stage=native-catalog-fixture outcome=ready', flush=True)
 
 
-def observe_catalog(accounts, record):
+def observe_catalog(accounts, record, *, caller):
     """Read through the installed broker as parent, switching selected child."""
     guest.guard()
-    with PersistentCaller(accounts['parent']) as caller:
-        _observe_catalog(accounts, record, caller)
-
-
-def _observe_catalog(accounts, record, caller):
+    guest.require(caller.uid == accounts['parent'], 'catalog:caller-identity')
     root = TARGET.parent / 'catalog'
     for stage, role in (('child', 'child'), ('other', 'other'), ('child-again', 'child')):
         rows = accepted(caller.call('ListApplications', '(u)', (accounts[role],)),
@@ -998,12 +995,13 @@ def native_probe_storage_lifecycle(record):
     guest.require(_broker_storage_identity() == restarted, 'probe:broker-replaced')
 
 
-def native_policy_transition(accounts, record, variant='command'):
+def native_policy_transition(accounts, record, variant='command', *, caller=None):
     """Representative hard/soft transitions, with UID isolation throughout."""
     # One real caller owns this continuous history, including restoration. Keep
     # every observation fresh while avoiding a new interpreter/bus connection
     # for each policy write and readback. The shared caller owns its exact child.
-    with PersistentCaller(accounts['parent']) as caller:
+    with (PersistentCaller(accounts['parent']) if caller is None else nullcontext(caller)) as caller:
+        guest.require(caller.uid == accounts['parent'], 'enforcement:caller-identity')
         _native_policy_transition(accounts, record, variant, caller)
 
 

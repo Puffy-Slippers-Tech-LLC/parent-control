@@ -98,11 +98,12 @@
     "expected": "The surviving request-station account stays inaccessible until safe recovery completes; ordinary users keep access."
   },
   "12": {
-    "summary": "Preserve administrator-edited service settings during removal.",
+    "summary": "Recover removal safely after edited and redirected PAM ownership records.",
     "steps": [
-      "Attempt removal with an administrator-edited request-station service setting.",
-      "Check that the conflicting data and other users' access are preserved.",
-      "Resolve the conflict, recover the installation, restart, and retry removal."
+      "Attempt removal with an edited PAM selection record and check refusal and preserved protection.",
+      "Restore the record, recover, restart, verify protection and ordinary access, then complete native removal.",
+      "Reinstall and restart, verify saved settings and restore the child's defaults.",
+      "Repeat the complete refusal, recovery, restart and native removal with a redirected PAM selection record."
     ],
     "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
   },
@@ -116,11 +117,12 @@
     "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
   },
   "14": {
-    "summary": "Refuse removal that encounters redirected request-station service settings.",
+    "summary": "Recover removal safely after redirected trust and native-policy records.",
     "steps": [
-      "Attempt removal with a redirected request-station service configuration.",
-      "Check that the conflicting data and other users' access are preserved.",
-      "Resolve the conflict, recover the installation, restart, and retry removal."
+      "Attempt removal with a redirected child-trust record and check refusal and preserved protection.",
+      "Restore the record, recover, restart, verify protection and ordinary access, then complete native removal.",
+      "Reinstall and restart, verify saved settings and restore the child's defaults.",
+      "Repeat the complete refusal, recovery, restart and native removal with a redirected fallback policy rule."
     ],
     "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
   },
@@ -134,11 +136,12 @@
     "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
   },
   "16": {
-    "summary": "Refuse removal when the request-station ownership record belongs to another user.",
+    "summary": "Recover removal safely after an account journal has a foreign owner, redirection or wrong account.",
     "steps": [
-      "Attempt removal with a request-station ownership record belonging to another user.",
-      "Check that the conflicting data and other users' access are preserved.",
-      "Resolve the conflict, recover the installation, restart, and retry removal."
+      "Attempt removal with an account journal belonging to another user and check refusal and preserved protection.",
+      "Restore the journal, recover, restart, verify protection and ordinary access, then complete native removal.",
+      "Repeat separately with a redirected journal and a journal naming the wrong account.",
+      "Between faults, reinstall and restart, verify saved settings and restore the child's defaults; finish each fault with recovery, restart and native removal."
     ],
     "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
   },
@@ -170,11 +173,13 @@
     "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
   },
   "20": {
-    "summary": "Preserve a request-station home that belongs to another user.",
+    "summary": "Preserve a request-station home with a foreign owner or redirection.",
     "steps": [
       "Attempt removal with a request-station home belonging to another user.",
       "Check that the conflicting data and other users' access are preserved.",
-      "Resolve the conflict, recover the installation, restart, and retry removal."
+      "Resolve the conflict, recover, restart, verify protection and ordinary access, then complete native removal.",
+      "Reinstall and restart, verify saved settings and restore the child's defaults.",
+      "Repeat the complete refusal, recovery, restart and native removal with a redirected home."
     ],
     "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
   },
@@ -197,11 +202,13 @@
     "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
   },
   "23": {
-    "summary": "Preserve saved product data that belongs to another user.",
+    "summary": "Preserve saved product data with a foreign owner or redirection.",
     "steps": [
       "Attempt removal with saved product data belonging to another user.",
       "Check that the conflicting data and other users' access are preserved.",
-      "Resolve the conflict, recover the installation, restart, and retry removal."
+      "Resolve the conflict, recover, restart, verify protection and ordinary access, then complete native removal.",
+      "Reinstall and restart, verify saved settings and restore the child's defaults.",
+      "Repeat the complete refusal, recovery, restart and native removal with redirected saved data."
     ],
     "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
   },
@@ -240,12 +247,12 @@
     "expected": "The operation is refused for this account's role."
   },
   "28": {
-    "summary": "Check permissions for the first administrator listing children for management.",
+    "summary": "Check discovery and own-account permissions across caller roles.",
     "steps": [
-      "Act as the first administrator.",
-      "Attempt to list the children available for management."
+      "List managed children as child, parent, kiosk and locked administrator.",
+      "List approvers as a child and query own-account details as child, parent and kiosk."
     ],
-    "expected": "The operation is allowed for this account's role."
+    "expected": "Every method/role cell has its declared result; own-account details identify the caller."
   },
   "29": {
     "summary": "Check permissions for the second administrator listing children for management.",
@@ -408,12 +415,12 @@
     "expected": "The operation is allowed for this account's role."
   },
   "49": {
-    "summary": "Check permissions for the first administrator reading child settings.",
+    "summary": "Check settings and application-list permissions across caller roles.",
     "steps": [
-      "Act as the first administrator.",
-      "Attempt to read settings for the selected child."
+      "Read child preferences as child, parent and kiosk.",
+      "List the child's applications as each of those roles."
     ],
-    "expected": "The operation is allowed for this account's role."
+    "expected": "Preferences are readable by eligible roles; only the parent may list applications."
   },
   "50": {
     "summary": "Check permissions for the second administrator reading child settings.",
@@ -520,12 +527,12 @@
     "expected": "The operation is allowed for this account's role."
   },
   "63": {
-    "summary": "Check permissions for the first administrator reading a child's remaining time.",
+    "summary": "Check time-query and calculation permissions across caller roles.",
     "steps": [
-      "Act as the first administrator.",
-      "Attempt to read the selected child's remaining time."
+      "Read time status as child, parent and kiosk.",
+      "Calculate selected-child and own remaining time as child and parent."
     ],
-    "expected": "The operation is allowed for this account's role."
+    "expected": "Eligible time queries succeed; own-time calculations are limited to children."
   },
   "64": {
     "summary": "Check permissions for the second administrator reading a child's remaining time.",
@@ -728,10 +735,10 @@
     "expected": "The operation is refused for this account's role."
   },
   "89": {
-    "summary": "Check permissions for the first child saving request choices.",
+    "summary": "Check request-choice and mute permissions across caller roles.",
     "steps": [
-      "Act as the first child.",
-      "Attempt to save the selected child's request choices."
+      "Save request choices as child, parent and kiosk.",
+      "Save custom-unit choices and mute settings as child and kiosk."
     ],
     "expected": "The operation is allowed for this account's role."
   },
@@ -912,12 +919,12 @@
     "expected": "The operation is refused for this account's role."
   },
   "112": {
-    "summary": "Check permissions for the first administrator saving parental-control settings.",
+    "summary": "Check management permissions across child, parent, kiosk and locked roles.",
     "steps": [
-      "Act as the first administrator.",
-      "Attempt to save the selected child's parental-control settings."
+      "Save preferences, toggle parental control and revoke grants as child, parent and kiosk.",
+      "Attempt a control change as a locked administrator."
     ],
-    "expected": "The operation is allowed for this account's role."
+    "expected": "Only the eligible parent may manage policy; every rejected method/role cell is diagnosed separately."
   },
   "113": {
     "summary": "Check permissions for the second administrator saving parental-control settings.",
@@ -1120,12 +1127,12 @@
     "expected": "Extra time is refused while parental control is off."
   },
   "138": {
-    "summary": "Check permissions for the first child requesting extra time for a selected child.",
+    "summary": "Check session preparation and agentless request permissions.",
     "steps": [
-      "Act as the first child.",
-      "Attempt to request extra time for a selected child through the request station."
+      "Prepare the caller's own session and request own access as child and kiosk.",
+      "Request selected-child access as child, parent and kiosk without an authentication agent."
     ],
-    "expected": "The operation is refused for this account's role."
+    "expected": "Own-session preparation is child-only; disabled-child and wrong-role requests are refused, and no agentless request grants access."
   },
   "139": {
     "summary": "Check permissions for the second child requesting extra time for a selected child.",
@@ -1192,10 +1199,9 @@
     "expected": "The operation is allowed for this account's role."
   },
   "147": {
-    "summary": "Check permissions for the first administrator recording their own component's diagnostic events.",
+    "summary": "Check component logging across eligible caller roles.",
     "steps": [
-      "Act as the first administrator.",
-      "Attempt to record a diagnostic event for their own product component."
+      "Record an own-component diagnostic event as child, parent, kiosk and locked administrator."
     ],
     "expected": "The operation is allowed for this account's role."
   },
@@ -1231,9 +1237,11 @@
     "expected": "The event is accepted for the Parent component."
   },
   "152": {
-    "summary": "Keep child settings private",
+    "summary": "Keep child settings and time queries private across child identities",
     "steps": [
-      "As the first child, try to read saved settings for a different child."
+      "Try to read the other child's preferences in both child directions.",
+      "Attempt cross-child time status and remaining-time calculations.",
+      "Check the other child's saved preferences before and after each denial."
     ],
     "expected": "Access is denied and the other child's settings remain unchanged."
   },
@@ -1296,7 +1304,8 @@
   "161": {
     "summary": "Protect another child's request choices",
     "steps": [
-      "As the first child, try to save request choices for a different child."
+      "Try to save request choices for another child in both directions.",
+      "Attempt cross-child custom-unit and mute writes, checking unchanged preferences after every denial."
     ],
     "expected": "Access is denied and the other child's settings remain unchanged."
   },
@@ -1359,7 +1368,7 @@
   "170": {
     "summary": "Protect private records and prevent diagnostic impersonation",
     "steps": [
-      "As the first child, try to read or change children's private saved records.",
+      "As child, parent and kiosk, try to read or change both children's private saved records.",
       "Try to record diagnostic events as another product component."
     ],
     "expected": "Private records remain protected and diagnostic impersonation is refused."
@@ -1690,7 +1699,8 @@
   "216": {
     "summary": "Reject accounts that cannot be managed as children",
     "steps": [
-      "Select a parent as the child and try to read child settings."
+      "Select a parent, locked administrator and kiosk as the child and try to read child settings.",
+      "Check each target's unchanged account state immediately after refusal."
     ],
     "expected": "The ineligible child selection is rejected without changing that account."
   },
@@ -1746,7 +1756,8 @@
   "224": {
     "summary": "Reject accounts that cannot be managed as children",
     "steps": [
-      "Select a account without interactive login as the child and try to enable parental control."
+      "Try to enable parental control for noninteractive and system accounts.",
+      "Request access for parent, kiosk and system targets, checking unchanged state after every refusal."
     ],
     "expected": "The ineligible child selection is rejected without changing that account."
   },
@@ -1811,8 +1822,8 @@
   "233": {
     "summary": "Keep account pictures current in child and parent lists",
     "steps": [
-      "Set and clear the child account picture.",
-      "Read the account through child discovery and the child's own account details."
+      "Set and clear child and parent account pictures independently.",
+      "Read each through its discovery list, and read the child's own account details."
     ],
     "expected": "The product reports the current account picture, including an empty selection."
   },
@@ -1969,12 +1980,13 @@
     "expected": "Other children's and parents' settings remain unchanged."
   },
   "253": {
-    "summary": "Remove management access when an administrator's role changes",
+    "summary": "Revalidate parent and child roles on persistent connections",
     "steps": [
       "Use Parent as an administrator, then change that account to a standard user.",
-      "Repeat child discovery without reopening the connection, then restore administrator status."
+      "Repeat child discovery without reopening the connection, then restore administrator status.",
+      "Independently change a connected child into an administrator, check own-account denial, restore its role and retry."
     ],
-    "expected": "Discovery is denied immediately after the role change and works again after restoration."
+    "expected": "Each existing caller loses its previous authority immediately and recovers after exact role restoration, without changing saved policy."
   },
   "254": {
     "summary": "Remove child-only access when a child becomes an administrator",
@@ -2001,20 +2013,22 @@
     "expected": "Both stale requests are rejected; deleted settings are not recreated and surviving accounts are unchanged."
   },
   "257": {
-    "summary": "Recheck the child's role before granting extra time",
+    "summary": "Recheck child and approver roles during child-surface authentication",
     "steps": [
       "Begin an extra-time request from the child's session.",
       "Change the selected child into an administrator.",
-      "Finish authenticating the selected parent."
+      "Finish authenticating the selected parent and check denial with unchanged state.",
+      "Repeat with a fresh request and agent while changing the approver's role instead; restore each mutation."
     ],
     "expected": "The stale request is rejected without granting time or changing other account settings."
   },
   "258": {
-    "summary": "Recheck the child's role before granting extra time",
+    "summary": "Recheck child role and saved preferences during kiosk authentication",
     "steps": [
       "Begin an extra-time request from the request station.",
       "Change the selected child into an administrator.",
-      "Finish authenticating the selected parent."
+      "Finish authenticating the selected parent and check denial with unchanged state.",
+      "Repeat with a fresh request and agent while changing saved preferences instead; restore each mutation."
     ],
     "expected": "The stale request is rejected without granting time or changing other account settings."
   },
@@ -2091,11 +2105,13 @@
     "expected": "Only the selected parent's password grants time; the requester gains no management rights and other accounts stay unchanged."
   },
   "267": {
-    "summary": "Configure the dedicated request-station session",
+    "summary": "Verify request-station session composition, admission and shared integration scope",
     "steps": [
-      "Inspect the installed request-station account and its selected desktop session."
+      "Inspect the installed request-station account and its selected desktop session.",
+      "Check real PAM admission and ordinary-user controls.",
+      "Check the scope of shared desktop integration."
     ],
-    "expected": "The account cannot log into a shell and is configured for the dedicated GNOME request station."
+    "expected": "The dedicated session and admission gates remain correctly configured without applying kiosk restrictions to ordinary users."
   },
   "268": {
     "summary": "Keep request-station login admission properly scoped",
@@ -2133,17 +2149,21 @@
     "steps": [
       "Launch an application as two children.",
       "Block and unblock it for one child with screen-time control off and on.",
-      "Repeat using a soft block while screen-time control is on."
+      "Repeat using a soft block while screen-time control is on.",
+      "Repeat the policy transitions independently for an executable path containing whitespace.",
+      "Switch the selected child in the application catalogue and verify account-scoped launchers."
     ],
     "expected": "Only the selected child's launches are blocked; clearing the block restores access and the other child remains unaffected."
   },
   "273": {
-    "summary": "Recover safely after an application-policy check is refused",
+    "summary": "Verify native probe refusal, storage, sandbox and sender-loss recovery",
     "steps": [
       "Start an installed application-policy check when service admission is refused.",
-      "Retry with a fresh check after refusal is resolved."
+      "Retry with a fresh check after refusal is resolved.",
+      "Check broker storage lifecycle and service sandbox independently.",
+      "Lose a probe sender permanently, then complete a fresh independent generation."
     ],
-    "expected": "The refused check settles safely and the fresh check completes independently."
+    "expected": "Each lifecycle settles safely, storage and sandbox guards hold, and fresh generations succeed after refusal or sender loss."
   },
   "274": {
     "summary": "Preserve application-policy check files across service restarts",

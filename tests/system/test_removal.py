@@ -12,6 +12,8 @@ from system_removal import (remove, removed_rebooted, reinstalled_rebooted,
                             identity_filesystem_refusal_retry,
                             identity_filesystem_retry_rebooted,
                             rpm_posterase_recovery, rpm_posterase_reinstalled_rebooted)
+from system_removal_ownership import OWNERSHIP_GROUPS
+from system_removal_identity import IDENTITY_FILESYSTEM_GROUPS
 
 pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
 
@@ -42,19 +44,33 @@ def test_interrupted_finalization_retry(record_testsuite_property, variant):
          os.environ['ONPC_SYSTEM_PHASE']](record_testsuite_property, variant)
 
 
-@pytest.mark.parametrize('variant', ['systemd-user-edit', 'gdm-password-link',
-                                    'systemd-user-link', 'gdm-hook-link',
-                                    'confinement-record-owner', 'confinement-record-link',
-                                    'confinement-record-uid'])
+@pytest.mark.parametrize('variant', tuple(OWNERSHIP_GROUPS))
 def test_ownership_refusal_retry(record_testsuite_property, variant):
-    {variant: ownership_refusal_retry,
-     variant + '-retry-rebooted': ownership_retry_rebooted}[
-         os.environ['ONPC_SYSTEM_PHASE']](record_testsuite_property, variant)
+    phase = os.environ['ONPC_SYSTEM_PHASE']
+    variants = OWNERSHIP_GROUPS[variant]
+    for index, current in enumerate(variants):
+        if phase == (current if index == 0 else current + '-reinstalled-rebooted'):
+            ownership_refusal_retry(record_testsuite_property, current,
+                                    continue_after=variants[index - 1] if index else None)
+            return
+        if phase == current + '-retry-rebooted':
+            ownership_retry_rebooted(record_testsuite_property, current,
+                next_variant=variants[index + 1] if index + 1 < len(variants) else None)
+            return
+    raise AssertionError('ownership:unselected-phase')
 
 
-@pytest.mark.parametrize('variant', ['kiosk-marker-uid', 'home-owner', 'home-link',
-                                    'home-mount', 'state-owner', 'state-link', 'state-mount'])
+@pytest.mark.parametrize('variant', tuple(IDENTITY_FILESYSTEM_GROUPS))
 def test_identity_filesystem_refusal_retry(record_testsuite_property, variant):
-    {variant: identity_filesystem_refusal_retry,
-     variant + '-retry-rebooted': identity_filesystem_retry_rebooted}[
-         os.environ['ONPC_SYSTEM_PHASE']](record_testsuite_property, variant)
+    phase = os.environ['ONPC_SYSTEM_PHASE']
+    variants = IDENTITY_FILESYSTEM_GROUPS[variant]
+    for index, current in enumerate(variants):
+        if phase == (current if index == 0 else current + '-reinstalled-rebooted'):
+            identity_filesystem_refusal_retry(record_testsuite_property, current,
+                continue_after=variants[index - 1] if index else None)
+            return
+        if phase == current + '-retry-rebooted':
+            identity_filesystem_retry_rebooted(record_testsuite_property, current,
+                next_variant=variants[index + 1] if index + 1 < len(variants) else None)
+            return
+    raise AssertionError('identity-filesystem:unselected-phase')

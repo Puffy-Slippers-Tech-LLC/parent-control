@@ -43,8 +43,9 @@ the new route; it does not repeat a Hard/Soft enforcement history. Case 188 owns
 the complete public policy-save, original/copy denial and unaffected-N journey.
 
 The installed engineering owner
-`tests/system/test_enforcement.py::test_native_whitespace_policy_is_uid_scoped`
-(system ID 277), through `system_enforcement.native_policy_transition`, covers
+the whitespace stage of
+`tests/system/test_enforcement.py::test_native_command_policy_is_uid_scoped`
+(system ID 272; retired ID 277), through `system_enforcement.native_policy_transition`, covers
 the representative whitespace command policy and other-child isolation.
 It supplies neither this copy operation nor case 188's GUI acceptance. Preserve
 the shared copy operation's path/owner/destination guards; do not replay an

@@ -999,6 +999,14 @@ def verify_surviving_identity(state, recovery, record=None, *, home_conflict=Fal
     guest.require(identity == recovery['kiosk_identity'] and
                   (home_conflict or home_identity == recovery['kiosk_home']),
                   'finalization:kiosk-identity-changed')
+    verify_recovery_ordinary_accounts(state, recovery)
+    verify_other_account(state)
+    guest.require(preference_digest(state['accounts']['child']) == state['preferences'],
+                  'finalization:preferences-changed')
+
+
+def verify_recovery_ordinary_accounts(state, recovery):
+    """Keep both ordinary identities, policies and extension choices unchanged."""
     for role, before in recovery['ordinary'].items():
         account = pwd.getpwuid(before['uid'])
         guest.require([account.pw_name, account.pw_uid, account.pw_gid,
@@ -1007,9 +1015,6 @@ def verify_surviving_identity(state, recovery, record=None, *, home_conflict=Fal
                       extension_lists(before['uid']) == before['extensions'],
                       'finalization:ordinary-account-changed')
         observe_launch(before['uid'], True, variant=state.get('native_variant', 'command'))
-    verify_other_account(state)
-    guest.require(preference_digest(state['accounts']['child']) == state['preferences'],
-                  'finalization:preferences-changed')
 
 
 def verify_durable_interval(state, recovery, saved, record, *, conflict=None):
@@ -1476,12 +1481,16 @@ def rpm_posterase_reinstalled_rebooted(record):
            'new-boot; repeated-packaged-purge-accepted; owned-account-and-home-deleted; exact-original-PAM-and-authselect-restored; ordinary-users-allowed; SELinux-enforcing')
 
 
-def identity_filesystem_refusal_retry(record, variant):
+def identity_filesystem_refusal_retry(record, variant, *, continue_after=None):
     """Keep each foreign root/identity, native refusal and owned retry together."""
     guest.guard()
     from system_kiosk_admission import terminal_admission_probes, verify_gates
-    from system_removal_identity import IDENTITY_FILESYSTEM_VARIANTS, identity_filesystem_conflict
+    from system_removal_identity import (IDENTITY_FILESYSTEM_VARIANTS, IDENTITY_FILESYSTEM_GROUPS,
+                                        identity_filesystem_conflict)
     guest.require(variant in IDENTITY_FILESYSTEM_VARIANTS, 'identity-filesystem:variant')
+    if continue_after is not None:
+        restore_recovery_defaults(record, variant, continue_after, 'identity_filesystem_retry',
+                                  IDENTITY_FILESYSTEM_GROUPS)
     state, recovery, saved, before, generated = focused_recovery_start(
         record, variant, 'identity_filesystem_retry')
     child = state['accounts']['child']
@@ -1620,21 +1629,73 @@ def identity_filesystem_refusal_retry(record, variant):
            else 'native-rearm-complete; reboot-and-removal-pending'))
 
 
-def identity_filesystem_retry_rebooted(record, variant):
+def identity_filesystem_retry_rebooted(record, variant, *, next_variant=None):
     guest.guard()
-    from system_removal_identity import IDENTITY_FILESYSTEM_VARIANTS
+    from system_removal_identity import IDENTITY_FILESYSTEM_VARIANTS, IDENTITY_FILESYSTEM_GROUPS
     guest.require(guest.reboot_cleared(), 'identity-filesystem:reboot-required')
     recovery_retry_rebooted(record, variant, 'identity_filesystem_retry',
                             IDENTITY_FILESYSTEM_VARIANTS, 'identity-filesystem')
+    if next_variant is not None:
+        prepare_recovery_reinstall(record, variant, next_variant, 'identity_filesystem_retry',
+                                    IDENTITY_FILESYSTEM_GROUPS)
 
 
-def ownership_refusal_retry(record, variant):
+def prepare_recovery_reinstall(record, previous, variant, state_key, groups):
+    """After successful native finalization, install for the next bounded fault."""
+    guest.require(any((previous, variant) in zip(group, group[1:])
+                      for group in groups.values()), 'removal:continuation-order')
+    state = json.loads(state_path().read_text())
+    guest.require(state[state_key]['variant'] == previous and package_absent(),
+                  'removal:continuation-before-finalization')
+    state['recovery_reinstall'] = {'previous': previous, 'variant': variant,
+                                   'state_key': state_key, 'boot': boot()}
+    save_state(state)
+    guest.install_package()
+    guest.require(guest.reboot_requested(), 'removal:continuation-reboot-not-requested')
+    record('onpc.removal.continuation-installed', previous + '; native-removal-verified; next=' + variant)
+
+
+def restore_recovery_defaults(record, variant, previous, state_key, groups):
+    """Verify the normal reinstall and reset only the owned child's public policy."""
+    guest.require(any((previous, variant) in zip(group, group[1:])
+                      for group in groups.values()), 'removal:continuation-order')
+    state = json.loads(state_path().read_text())
+    reinstall = state['recovery_reinstall']
+    guest.require(reinstall == {'previous': previous, 'variant': variant,
+                                'state_key': state_key, 'boot': reinstall['boot']} and
+                  boot() != reinstall['boot'] and guest.reboot_cleared(),
+                  'removal:continuation-reboot-not-observed')
+    guest.installed()
+    accounts = state['accounts']
+    child = accounts['child']
+    guest.require(preference_digest(child) == state['preferences'] and
+                  account_property(child, LIMITS, 'ActiveExtension') == [0, 0],
+                  'removal:continuation-preferences-or-grant-changed')
+    verify_other_account(state, category='removal:continuation-other-account-changed')
+    verify_recovery_ordinary_accounts(state, state[state_key])
+    defaults = state['defaults']
+    with PersistentCaller(accounts['parent']) as caller:
+        accepted(caller.call('SetParentControl', '(ubu)',
+                             (child, False, defaults['daily_time_limit_minutes'])))
+        accepted(caller.call('SetPreferences', '(us)', (child, json.dumps(defaults))))
+        current = json.loads(accepted(caller.call('GetPreferences', '(u)', (child,)))[0])
+    guest.require(current == defaults, 'removal:continuation-defaults-not-restored')
+    verify_other_account(state, category='removal:continuation-reset-changed-other-account')
+    verify_recovery_ordinary_accounts(state, state[state_key])
+    record('onpc.removal.continuation-ready', variant +
+           '; new-boot; payload-verified; preferences-retained; grant-cleared; owned-defaults-restored')
+
+
+def ownership_refusal_retry(record, variant, *, continue_after=None):
     """Preserve one foreign conflict through native refusal, then rearm its owner."""
     guest.guard()
     from system_kiosk_admission import terminal_admission_probes, verify_gates
-    from system_removal_ownership import (OWNERSHIP_VARIANTS, ownership_conflict,
+    from system_removal_ownership import (OWNERSHIP_VARIANTS, OWNERSHIP_GROUPS, ownership_conflict,
                                          ownership_targets, ownership_reason)
     guest.require(variant in OWNERSHIP_VARIANTS, 'ownership:variant')
+    if continue_after is not None:
+        restore_recovery_defaults(record, variant, continue_after, 'ownership_retry',
+                                  OWNERSHIP_GROUPS)
     state, recovery, saved, before, generated = focused_recovery_start(
         record, variant, 'ownership_retry')
     child = state['accounts']['child']
@@ -1729,11 +1790,11 @@ def ownership_refusal_retry(record, variant):
     record('onpc.ownership.resolved', variant + '; only-recorded-conflict-resolved; full-owned-integration-verified; reboot-and-native-retry-pending')
 
 
-def ownership_retry_rebooted(record, variant):
+def ownership_retry_rebooted(record, variant, *, next_variant=None):
     """Finalize only this resolved conflict after a real reboot in the same attempt."""
     guest.guard()
     from system_kiosk_admission import probe, verify_gates
-    from system_removal_ownership import OWNERSHIP_VARIANTS
+    from system_removal_ownership import OWNERSHIP_VARIANTS, OWNERSHIP_GROUPS
     guest.require(variant in OWNERSHIP_VARIANTS, 'ownership:variant')
     guest.enable_diagnostics()
     state = json.loads(state_path().read_text())
@@ -1761,6 +1822,8 @@ def ownership_retry_rebooted(record, variant):
     observe_launch(state['accounts']['parent'], True, variant=state.get('native_variant', 'command'))
     record('onpc.ownership.retry-finalized', variant +
            '; new-boot; native-remove-succeeded; owned-account-and-home-deleted; exact-original-PAM-and-disposition-restored')
+    if next_variant is not None:
+        prepare_recovery_reinstall(record, variant, next_variant, 'ownership_retry', OWNERSHIP_GROUPS)
 
 
 def remove(record):

@@ -43,7 +43,8 @@ and uncertain-input guards without replaying their refusal matrix.
 Case 187 owns the complete public block-first, reverse-block and both-Allowed
 recovery history, including saved choices and both launch results at every
 declared effect. Do not run that policy/effect sequence in this prerequisite.
-System ID 280, `test_native_catalog_is_selected_child_scoped`, owns engineering
+The catalogue stage of system ID 272, `test_native_command_policy_is_uid_scoped`
+(retired ID 280), owns engineering
 catalogue membership and target resolution through
 `system_enforcement.observe_catalog`; it does not qualify these alias rows,
 shared-target policy merging or their public launch routes. This slice supplies

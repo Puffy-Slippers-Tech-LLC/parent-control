@@ -181,9 +181,10 @@ qualify this branch. After SSH readiness and system startup completion,
 `system_runner.installed_run` uses the
 same immutable input and trusted-hard provisioner before uploading system input.
 When the selected enforcement cases include `test_native_command_policy_is_uid_scoped`
-or `test_native_whitespace_policy_is_uid_scoped` or `test_native_future_pattern_is_uid_scoped`,
-preparation also selects the corresponding `command`, `whitespace` or `pattern`
-subset, supplying its executable and desktop
+or `test_native_future_pattern_is_uid_scoped`,
+preparation also selects `command`, `whitespace` and `catalogue` for the command
+group, or `pattern` for the future-pattern case. Each
+subset supplies its executable and desktop
 launcher through that same guarded provisioner before the case verifies their
 bytes and metadata. The pattern subset includes the unrelated control; the future
 version remains a scenario input created only after active rules are witnessed.
@@ -730,7 +731,19 @@ authentication and disconnect histories retain their own callers. Denial groups
 compare account state once after their rejected calls, with no intentional
 mutation between the two observations. Mid-prompt target-role changes retain
 both request routes; shared approver-role and preference revalidation use one
-route each (IDs 259 and 262).
+route each, inside the two surface-specific groups (IDs 257 and 258).
+
+Short permission cells are combined into seven method families, plus focused
+cross-child read/write, private-record/log, invalid-target, icon and role-change
+groups. Each family retains every previously selected input and reports its
+method/role or mutation boundary. Enforcement has three bounded groups for
+kiosk integration, command/whitespace/catalogue policy and native-probe recovery;
+future-pattern, missing-launcher and expiry histories remain independent.
+Authorization and enforcement already share VM preparation within their area
+attempts; their runtime savings come from reused caller processes and fresh
+multi-account reads through one observer connection, not fewer VM restores.
+The command/whitespace/catalogue group also shares one verified administrator
+caller; each policy stage still restores its own state before the next stage.
 
 `package` → `test_pam_environment_installation_variants` selects four independent
 baseline histories (IDs 283–286): plain, distro profile, administrator override
@@ -907,7 +920,7 @@ roles' real execution and scope controls with Fedora SELinux enforcement enabled
 It supplies no removed private-policy or execution-fence proof. Deliberate reachable
 escape-route checks remain with their independently allocated histories.
 
-`enforcement` → `test_kiosk_login_admission` checks the installed
+`enforcement` → `test_kiosk_execution_confinement` includes checks of the installed
 `gdm-password`, `login` and `sshd` account stacks through libpam's `pam_start`
 and `pam_acct_mgmt`, with individually bounded workers and `pam_end` readbacks.
 Ordinary-account controls and dedicated kiosk admission precede exact kiosk
@@ -927,8 +940,9 @@ interpreter after success or failure.
 
 The [current engineering disposition map](../../docs/SystemDesign/Kiosk-Confinement.md#c04a-installed-engineering-dispositions)
 owns cases 267–271 and 289–294. Only 267 (installed session composition),
-268 (account/routing admission) and 271 (ordinary-role controls) retain runnable
-bindings in this family. Cases 269/289/290/291/293/294 are pending with explicit
+268 (account/routing admission) and 271 (ordinary-role controls) retain assertions,
+combined under runnable case 267; IDs 268/271 are retired and reserved.
+Cases 269/289/290/291/293/294 are pending with explicit
 surviving behavior and receiving tasks; 270/292 are retired private-mechanism
 witnesses. Numeric IDs and original evidence remain reserved.
 
@@ -1017,23 +1031,45 @@ Across reboots, home identity uses the filesystem UUID, Btrfs subvolume when
 applicable, inode, owner and mode. Same-boot fault cleanup still requires the
 exact device, inode, pinned descriptor, mount namespace and mount inventory.
 Only native owned retry may restore original PAM after account deletion.
-`removal::test_ownership_refusal_retry` selects all seven finite ownership
-histories in one retention session; a full bracketed selector selects one.
-The variants are `systemd-user-edit`, `gdm-password-link`, `systemd-user-link`,
-`gdm-hook-link`, `confinement-record-owner`, `confinement-record-link` and
-`confinement-record-uid`. Each retains its own baseline installation/reboot
-prerequisites and continuous conflict/refusal/resolution/reboot/removal attempt.
-The historic variant labels retain cases 12–18. Their current targets are the
-distro PAM selection authority (edit/link), child-trust ownership record (link),
-generated fallback rule (link), and the real lifecycle-created account-expiry
-journal (owner/link/UID). The journal is created through lifecycle preparation,
+`removal::test_ownership_refusal_retry` selects three bounded ownership
+histories; a full bracketed selector selects one. Case 12
+(`[systemd-user-edit]`) covers the distro PAM selection authority's edit and
+link conflicts. Case 14 (`[systemd-user-link]`) covers redirected child-trust
+and fallback-rule records. Case 16 (`[confinement-record-owner]`) covers the
+account-expiry journal's owner, link and UID conflicts. Historical IDs 13, 15,
+17 and 18 are retired and reserved; their assertions remain in those groups.
+Each group starts with its own baseline installation/reboot, then exercises its
+two or three conflicts serially. Every conflict retains refusal, exact
+restoration, rearming, a real reboot, fresh protection/identity checks and
+successful native removal. Between conflicts, normal reinstallation and another
+observed reboot establish a fresh installation, and public policy controls
+restore the owned child's defaults before applying the next fault. This removes
+four baseline restore/bootstrap/cleanup cycles; it retains every conflict's
+installation, recovery reboot and successful removal.
+The journal is created through lifecycle preparation,
 then released through verified rollback after exact conflict restoration; no
 legacy record is invented for a fresh installation.
 Native refusal must preserve the exact conflict inode, metadata, bytes or link
 text and referent, recovery records, enforcement and ordinary-user access.
 Fixture cleanup restores only that recorded conflict; full owned integration
-verification precedes reboot and successful native finalization. Family resume
-replays each unfinished history from its baseline without splicing phases.
+verification precedes each recovery reboot and successful native finalization.
+Family resume reconstructs the
+unfinished group's predecessors from its baseline without splicing restored
+guests. Retired results never grant acceptance to the new combined phases.
+
+`removal::test_identity_filesystem_refusal_retry` selects five histories. Case 20
+(`[home-owner]`) pairs home owner/link refusals, and case 23 (`[state-owner]`)
+pairs saved-state owner/link refusals. Each must recover, pass the same complete
+postboot checks and finish native removal before reinstallation for the next
+fault. IDs 21 and 24 are retired into those pairs. The
+wrong kiosk-marker UID (19), mounted home (22) and mounted saved state (25)
+remain independent: their distinct payload-erasure/finalization outcomes cannot
+supply the verified installed state required by a continuation. Together with
+the ownership groups, the focused refusal histories remove six baseline
+restore/bootstrap/cleanup cycles while retaining all fourteen individual faults,
+recovery reboots and successful native removals. These are scheduling reductions,
+not a measured runtime saving.
+
 Fedora's account-finalization history uses normal reinstall, reboot and removal;
 the separate failed post-erase/repeated packaged-purge history below retains its
 additional native transaction. These engineering faults do not replace customer UI acceptance.
@@ -1294,7 +1330,7 @@ candidate-upgrade or customer GUI acceptance.
 
 Native policy cases use finite sequences: the command baseline keeps
 allow/hard/restore with screen-time control off, then hard/restore/soft/restore
-with control on; whitespace keeps allow/hard/restore/soft/restore with control
+with control on; whitespace keeps allow/soft/restore with control
 off. Future-pattern and missing-launcher cases keep allow/hard/restore, leaving
 the shared enabled soft-policy transitions to the command baseline.
 Each observed stage retains other-child controls and each case restores its
@@ -1303,7 +1339,7 @@ complete sequences; the reduced sequences require their own installed validation
 The systemd probe history keeps admission refusal followed by a successful fresh
 generation; that recovery also covers the ordinary success path.
 
-`test_native_whitespace_policy_is_uid_scoped` checks its representative
+The whitespace stage of `test_native_command_policy_is_uid_scoped` checks its representative
 transitions and other-child assertions using a fixed executable filename
 containing a space.
 Its quoted desktop entry must resolve to that exact target. Each deny stage
@@ -1313,7 +1349,7 @@ probe accepts only maintained fixture variants and uses
 direct `execv` after credential verification. Private rule filenames and public
 property names include the variant to retain both cases in a combined run.
 Inspect its retained-app-snapshot prerequisite with
-`tools/run-tests system --vm NAME --list --area enforcement --test test_native_whitespace_policy_is_uid_scoped`.
+`tools/run-tests system --vm NAME --list --area enforcement --test test_native_command_policy_is_uid_scoped`.
 Direct host regressions retain fixture and cleanup guards; the full installed
 run linked above passed the earlier sequence.
 
@@ -1351,7 +1387,7 @@ Direct host regressions retain catalog parsing, broker preference reconciliation
 rule rendering and guarded launcher removal. Installed execution of the earlier
 sequence passed in the full run linked above.
 
-`test_native_catalog_is_selected_child_scoped` uses the same prerequisite
+The catalogue stage of `test_native_command_policy_is_uid_scoped` uses the same prerequisite
 closure and reads the installed broker catalog as the parent while selecting
 child, other child, then child again. Distinct system/child/administrator
 targets prove launcher precedence; role-only launchers and a hidden child

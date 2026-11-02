@@ -1931,7 +1931,9 @@ while repair sessions and prior attempts do not. A new duration is published onl
 after all selected phases of that case finish; unfinished or interrupted cases
 do not publish partial durations. A previous completed duration remains until
 its replacement completes. **ONPC: Watch → Run Time** reads
-only these logged cases on demand. For older timings that omitted preparation,
+only these logged cases on demand, excluding retired system IDs. Consolidation
+keeps their saved timing records and recordings intact; a surviving group's
+duration changes only after its next complete execution. For older timings that omitted preparation,
 the linked recording's saved duration supplies a lower bound; saved history is
 not rewritten. The
 [extension guide](../vscode/onpc-watch/README.md) owns its table and links.

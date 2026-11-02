@@ -783,7 +783,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          attachment_boundaries=False, feedback_reset=False, feedback_block_semantics=False,
          feedback_formats=False, feedback_link_semantics=False, real_interval=False,
          independent_network=False, public_connectivity_controls=False, native_grid_usable=False,
-         riley_native_grid=False,
+         riley_native_grid=False, native_denial=False,
          native_app=False, app_activity=False, retained_app_visits=False, chinese_language_assets=False, desktop_language=False,
          chinese_native_auth=False, parent_language=False, kiosk_language=False, overlay_language=False,
          panel_language_refresh=False,
@@ -981,6 +981,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         and approval_flow is None and not any(value for name, value in locals().items()
             if name not in ('assets', 'provision_credentials', 'app_activity')
             and isinstance(value, bool)))), 'smoke:app-activity-prerequisites')
+    require(type(native_denial) is bool and (not native_denial or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and approval_flow is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'native_denial')
+            and isinstance(value, bool)))), 'smoke:native-denial-prerequisites')
     require(type(native_app) is bool and (not native_app or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1763,6 +1768,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-riley-native-grid-qualification'
         if native_app:
             result['scope'] = 'installed-native-app-qualification'
+        if native_denial:
+            result['scope'] = 'installed-native-denial-qualification'
         if app_activity:
             result['scope'] = 'installed-app-activity-qualification'
         if retained_app_visits:
@@ -1990,7 +1997,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if (product_free_entry or parent_entry is not None or lock_surface is not None or parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or kiosk_preferences_confinement or baseline_app_effects or baseline_auth_pause or baseline_journey or active_grant_disable or confinement_usability
-                        or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or panel_language_refresh or overlay_reminder_editing or kiosk_reminder_binding or reminder_fullscreen_preference or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or app_activity or retained_app_visits
+                        or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or panel_language_refresh or overlay_reminder_editing or kiosk_reminder_binding or reminder_fullscreen_preference or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or native_denial or app_activity or retained_app_visits
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or revoke_cancel or revocation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
@@ -2292,6 +2299,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if native_app:
                     from parent_setup_qualification import NativeAppQualification
                     qualification_class = NativeAppQualification
+                if native_denial:
+                    from parent_setup_qualification import NativeDenialQualification
+                    qualification_class = NativeDenialQualification
                 if app_activity:
                     from parent_setup_qualification import NativeActivityQualification
                     qualification_class = NativeActivityQualification

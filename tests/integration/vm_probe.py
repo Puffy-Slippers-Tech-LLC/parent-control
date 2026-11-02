@@ -1033,6 +1033,28 @@ def probe_overlay_activity(lease):
         print('overlay-activity-probe: complete activity read passed', flush=True)
 
 
+def reproduce_native_denial(lease, fixture_selection):
+    """Retain Jordan's first native command denial after the actual Parent saves."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from native_denial import NativeDenialJourney, PLAN
+    from e2e_fixture_preparation import validate_input
+    from system_fixture_preparation import guest_target
+    from tools.test_storage import named_input
+
+    system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
+                   'fixtures:e2e-installed-clean-baseline-required')
+    selection = validate_input(fixture_selection,
+                              target=guest_target(lease.capture.state['guest']))
+    name, xml, _record = attested_online_snapshot(lease)
+    lease.installed_name, lease.installed_xml = name, xml
+    lease.online_pending, lease.online_bootstrap = False, None
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, NativeDenialJourney, PLAN,
+        'first-hard-command', 'native-denial', assets=assets,
+        boundary_operation='native-hard-command-blocked', fixture_selection=selection, timeout=1800)
+
+
 def reproduce_riley_native_grid(lease):
     """Retain Riley's second grid entry after the actual first launch/use/close."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1187,6 +1209,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from countdown_grant import CountdownGrantJourney, PLAN as COUNTDOWN_GRANT_PLAN
         from overlay_approved_exit import OverlayApprovedExitJourney, TRANSLATED_PLAN
         from approval_return import ApprovalReturnJourney, NEW_PLAN
+        from native_denial import NativeDenialJourney, PLAN as NATIVE_DENIAL_PLAN
         restoration = (surface == 'baseline-restoration'
             and journey_type is BaselineJourney and plan is PLAN
             and boundary == 'restore-saved' and boundary_operation == 'parent-save-disabled'
@@ -1203,7 +1226,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         overlay_return = (surface == 'overlay-return'
             and journey_type is ApprovalReturnJourney and plan is NEW_PLAN
             and boundary == 'countdown' and boundary_operation == 'child-countdown-present')
-        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return)
+        native_denial = (surface == 'native-denial'
+            and journey_type is NativeDenialJourney and plan is NATIVE_DENIAL_PLAN
+            and boundary == 'first-hard-command' and boundary_operation == 'native-hard-command-blocked')
+        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or native_denial)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1242,8 +1268,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if selected_setup:
             from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS
             context.fixture_selection = fixture_selection
-            context.fixture_subsets = ACTIVITY_SUBSETS
-            context.fixture_caller = ({'natural-access': 'E2E-008/fresh-login',
+            context.fixture_subsets = ('native',) if surface == 'native-denial' else ACTIVITY_SUBSETS
+            context.fixture_caller = ({'native-denial': None,
+                                       'natural-access': 'E2E-008/fresh-login',
                                        'countdown-grant': 'E2E-011/grant-only',
                                        'overlay-activity': 'check_e2e_overlay_translated_approval',
                                        'overlay-return': 'check_e2e_compose_approval_and_return_to_the_child'
@@ -1301,8 +1328,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                 if selected_setup:
                     from installed_journey import prepare_installed_setup
                     prepared = prepare_installed_setup(context, transport, guard)
-                    observed['setup'] = {'installed_snapshot': context.installed_snapshot,
-                                         'activity_fixture': prepared['activity_fixture']}
+                    observed['setup'] = {'installed_snapshot': context.installed_snapshot}
+                    if prepared is not None and 'activity_fixture' in prepared:
+                        observed['setup']['activity_fixture'] = prepared['activity_fixture']
                 self.steps.append(observed)
                 self.progress(stage, observed)
                 pending = directory / 'setup-detached.reply.tmp'

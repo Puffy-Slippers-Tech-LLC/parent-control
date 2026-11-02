@@ -1318,7 +1318,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty."},
-          {"id": "step-2", "operation": "ui", "description": "Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used."},
+          {"id": "step-2", "operation": "ui", "description": "Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility."},
           {"id": "step-3", "operation": "ui", "description": "Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches."}
         ],
         "end": [

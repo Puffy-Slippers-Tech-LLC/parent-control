@@ -2324,6 +2324,16 @@ class RetainedAppVisitsQualification(KioskEntryQualification):
         return RetainedAppVisitsJourney(context, progress)
 
 
+class NativeDenialQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from native_denial import NativeDenialJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return NativeDenialJourney(context, progress)
+
+
 class NativeAppQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

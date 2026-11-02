@@ -433,10 +433,61 @@ sub native_usable_app {
         && defined($route) && ($route eq 'command' || $route eq 'grid')
         && (defined($desktop) || $route eq 'command')
         && ($child eq 'child' || $child eq 'other-child' || $child eq 'parent' && $route eq 'command')
-        && (!defined($role) || $role =~ /\A(?:A|S)\z/ && $child eq 'child' && $route eq 'command');
+        && (!defined($role) || $route eq 'command' &&
+            ($role =~ /\A(?:A|S)\z/ && $child eq 'child' || $role eq 'N' && $child eq 'other-child'));
     my $opened = $route eq 'command' ? native_open_command($journey, $desktop)
                                    : native_open_grid($journey, $desktop);
     return native_use_app($journey, $opened);
+}
+
+# FLOW08: native denial requires the attributed command witness.
+sub native_blocked_app {
+    onpc_progress::operation('Checking that the child cannot open the blocked app');
+    my ($journey, $role) = @_;
+    die 'native:denial-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && ($role eq 'H' || $role eq 'S');
+    return $journey->seen('command');
+}
+
+sub native_denial {
+    onpc_progress::operation('Checking the parent blocks apps before the child opens them');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'native:denial-arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'native-denial', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen('saved-settings');
+    $journey->seen('apps-page');
+    $journey->seen('initial-rows');
+    for my $edit (['A', 'match-precise', 'allowed', 'allowed'],
+                  ['H', 'match-hard-precise', 'permanent', 'hard'],
+                  ['S', 'match-soft-wildcard', 'conditional', 'soft']) {
+        my ($role, $draft, $access, $prefix) = @$edit;
+        my $app = 'parent-app-' . substr(Digest::SHA::sha256_hex(
+            'com.puffyslippers.ONPCTest.' . $role . '.desktop'), 0, 16);
+        edit_policy($journey, $app, $draft, $access, $prefix, []);
+    }
+    $journey->seen('parent-logout');
+    for my $entry ('first', 'independent') {
+        onpc_desktop_session::enter_desktop(
+            $journey, 'gdm', 'other-child', 'fresh', 'success', $entry . '-entry');
+        for my $role ('H', 'S') {
+            my $name = $role eq 'H' ? 'hard' : 'soft';
+            native_blocked_app($journey->scope($entry . '-' . $name), $role);
+        }
+        my $allowed = $journey->scope($entry . '-allowed');
+        native_usable_app($allowed, 'grid', $allowed->seen('desktop'), 'other-child');
+        native_finish_app($allowed);
+        my $other = $journey->scope($entry . '-nonmatching');
+        native_usable_app($other, 'command', $other->seen('desktop'), 'other-child', 'N');
+        native_finish_app($other);
+        $journey->seen($entry . '-logout');
+    }
+    $journey->finish();
 }
 
 # APP04: no hidden launch/input; the plan owns capture and compare endpoints.

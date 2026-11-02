@@ -24,7 +24,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Reuse 079d's native grid/command usable, hidden-launcher and explicit-denial projections. Add the prior-window-closure result to APP02/FLOW08. A hidden grid entry retains its separately declared command attempt to prove denied execution. APP03 runs only for usable access.
+Reuse 079d's unaffected native grid/command use and explicit command-denial projections. Add the prior-window-closure result to APP02/FLOW08. Native launcher visibility is outside acceptance; only Flatpak apps require hiding. APP03 runs only for usable access.
 
 Extend `InstalledJourney.check_activity` / `AppActivityObservation` with the
 declared earlier-window closure comparison and compose `AccessibleUI.native_app_closed`

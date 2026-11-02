@@ -1720,6 +1720,14 @@ guarded launch followed by independent window, Submit and submitted-draft
 observations. A refusal stops the probe without retrying input. It requires the
 fixture to be closed in the retained Riley desktop and supplies no acceptance credit.
 
+`tools/test-vm --vm NAME reproduce-native-denial` reuses
+`NativeDenialJourney` / `native_denial.PLAN`, including Parent's saved app rules
+and Jordan's fresh sign-in. It retains `first-hard-command`, attempts the declared
+blocked native command once and leaves that child session available for guarded
+probes. It uses the selected native fixture closure
+and the same owned maintenance envelope, with no acceptance credit. Finish with
+`tools/test-vm --vm NAME stop` before clean qualification.
+
 `tools/test-vm --vm NAME reproduce-riley-native-grid` uses
 `RileyNativeGridJourney` / `PLAN` with verified VM-bound fixture inputs and retains
 the second search at `repeat-refusals`, after the first grid launch, draft

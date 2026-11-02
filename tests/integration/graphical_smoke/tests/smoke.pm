@@ -751,6 +751,12 @@ sub run {
         onpc_app_rows::app_activity(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{native_denial}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::native_denial(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{native_app}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

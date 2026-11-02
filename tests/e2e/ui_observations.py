@@ -1984,8 +1984,9 @@ class UiObservations:
             expected['activity'] = {'draft': 'ONPC fixture draft',
                 'submitted': 'No submitted draft' if operation.endswith('native-opened') else 'ONPC fixture draft',
                 'score': 'Moves: 0; token: 0'}
-        if operation in accessible_ui.BASELINE_NATIVE_BINDINGS:
-            _role, action = accessible_ui.BASELINE_NATIVE_BINDINGS[operation]
+        policy_bindings = {**accessible_ui.BASELINE_NATIVE_BINDINGS, **accessible_ui.NATIVE_DENIAL_BINDINGS}
+        if operation in policy_bindings:
+            _role, action = policy_bindings[operation]
             if action in ('opened', 'submitted'):
                 expected['activity'] = {'draft': 'ONPC fixture draft',
                     'submitted': 'No submitted draft' if action == 'opened' else 'ONPC fixture draft',

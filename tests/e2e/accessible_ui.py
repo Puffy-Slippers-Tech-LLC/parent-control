@@ -207,6 +207,17 @@ BASELINE_NATIVE_BINDINGS = {
     for action in actions
 }
 BASELINE_NATIVE_BINDINGS['overlay-native-soft-locked-command-blocked'] = ('S', 'locked-command-blocked')
+NATIVE_DENIAL_BINDINGS = {
+    'native-' + name + '-' + action: (role, action)
+    for name, role, actions in (
+        ('hard', 'H', ('command-blocked',)),
+        ('soft', 'S', ('command-blocked',)),
+        ('nonmatching', 'N', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed')))
+    for action in actions
+}
+NATIVE_APP_OPERATIONS |= frozenset(NATIVE_DENIAL_BINDINGS)
+OPERATIONS |= frozenset(NATIVE_DENIAL_BINDINGS)
+STANDARD_OPERATIONS |= frozenset(NATIVE_DENIAL_BINDINGS)
 OVERLAY_NATIVE_OPERATIONS |= frozenset(BASELINE_NATIVE_BINDINGS)
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_NATIVE_OPERATIONS
 OVERLAY_ABOUT_OPERATIONS = frozenset({'overlay-about-open', 'overlay-license-read',
@@ -12731,8 +12742,9 @@ class AccessibleUI:
         never window acceptance; APP02 independently reads the public result.
         """
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(role is None or role in ('A', 'H', 'S') and child == CHILD
-                and fixture == 'policy' and (role != 'H' or blocked), 'ui:native-binding')
+        require(role is None or role in ('A', 'H', 'S', 'N') and child in (CHILD, EXISTING_CHILD)
+                and fixture == 'policy' and (role != 'H' or blocked)
+                and (role != 'N' or child == EXISTING_CHILD and not blocked), 'ui:native-binding')
         require(instance == ('secondary' if role == 'S' else 'primary'), 'ui:native-binding')
         require(type(locked) is bool and (not locked or role == 'S' and blocked),
                 'ui:native-binding')
@@ -12785,7 +12797,7 @@ class AccessibleUI:
         executable = ('/opt/onpc-test-fixtures-activity/native-fixture' if fixture == 'activity' else
             '/opt/onpc-test-fixtures/Applications/' + {
                 'A': 'Exact Fixture.AppImage', 'H': 'Path With Spaces.AppImage',
-                'S': 'Versioned/Lunar Client-3.7.17.AppImage'}[role or 'A'])
+                'S': 'Versioned/Lunar Client-3.7.17.AppImage', 'N': 'PrismLauncher.AppImage'}[role or 'A'])
         result = subprocess.run([
             '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
             *(['--wait', '--pipe'] if blocked else []),
@@ -12850,13 +12862,18 @@ class AccessibleUI:
                                        else 'operation-not-permitted')})
 
     def native_app_snapshot(self, submitted, *, pending=False, with_window=False,
-                            instance='primary', role=None):
+                            instance='primary', role=None, child=CHILD):
         """APP02/03: public owned window and finite independent activity projection."""
         require(submitted in ('No submitted draft', 'ONPC fixture draft'), 'ui:native-projection')
-        require(role is None and instance == 'primary' or role in ('A', 'S')
+        require(role is None and instance == 'primary' or role in ('A', 'S', 'N')
                 and instance == ('secondary' if role == 'S' else 'primary'), 'ui:native-binding')
         if role is not None:
-            self.require_child_overlay_session()
+            require(child in (CHILD, EXISTING_CHILD) and (role != 'N' or child == EXISTING_CHILD),
+                    'ui:native-child-binding')
+            if child == CHILD:
+                self.require_child_overlay_session()
+            else:
+                require_active_launch_session()
         scope = 'onpc-fixture-native-' + instance
         observation = None
         diagnostic = getattr(self, 'native_open_diagnostic', None)
@@ -12917,7 +12934,7 @@ class AccessibleUI:
 
     def native_app_owner(self, root, role, instance):
         """Bind the GUI child to its live native policy executable and account."""
-        require(role in ('A', 'S') and instance == ('secondary' if role == 'S' else 'primary'),
+        require(role in ('A', 'S', 'N') and instance == ('secondary' if role == 'S' else 'primary'),
                 'ui:native-binding')
         pid = root.get_process_id()
         require(type(pid) is int and pid > 0, 'ui:native-owner')
@@ -12928,7 +12945,8 @@ class AccessibleUI:
         owner = Path('/proc/' + fields[1])
         owner_stat = (owner / 'stat').read_text()
         expected = '/opt/onpc-test-fixtures/Applications/' + {
-            'A': 'Exact Fixture.AppImage', 'S': 'Versioned/Lunar Client-3.7.17.AppImage'}[role]
+            'A': 'Exact Fixture.AppImage', 'S': 'Versioned/Lunar Client-3.7.17.AppImage',
+            'N': 'PrismLauncher.AppImage'}[role]
         require(process.stat().st_uid == owner.stat().st_uid == os.getuid()
                 and str((owner / 'exe').readlink()) == expected
                 and (owner / 'cmdline').read_bytes().split(b'\0') ==
@@ -12940,17 +12958,17 @@ class AccessibleUI:
                 and fresh_owner[0] != 'Z' and fresh_owner[19] == owner_fields[19],
                 'ui:native-owner-changed')
 
-    def native_app_submit(self, instance='primary', *, submitted='No submitted draft', role=None):
+    def native_app_submit(self, instance='primary', *, submitted='No submitted draft', role=None, child=CHILD):
         """One normal public action; no replay after uncertain delivery."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(role is None and instance == 'primary' or role in ('A', 'S')
+        require(role is None and instance == 'primary' or role in ('A', 'S', 'N')
                 and instance == ('secondary' if role == 'S' else 'primary'), 'ui:native-binding')
-        if role is not None:
+        if role is not None and child == CHILD:
             self.require_child_overlay_session()
         # A provider can exit after desktop enumeration but before GetItems.
         # Reacquire the whole read-only preflight within the normal deadline;
         # a complete wrong activity/owner still refuses, and input stays outside.
-        self.wait(lambda: self.native_app_snapshot(submitted, instance=instance, role=role)
+        self.wait(lambda: self.native_app_snapshot(submitted, instance=instance, role=role, child=child)
                   if role is not None else self.native_app_snapshot(submitted), 'native-submit-ready',
                   prompt_in_predicate=True)
         self.activate_id('onpc-fixture-native-' + instance + '-submit')
@@ -12965,24 +12983,29 @@ class AccessibleUI:
         return node is None or not self.showing(node)
 
     def baseline_native_operation(self, operation):
-        """Finite A/S instance binding; legacy native operations keep their scope."""
-        require(operation in BASELINE_NATIVE_BINDINGS, 'ui:native-operation')
-        role, action = BASELINE_NATIVE_BINDINGS[operation]
+        """Finite policy bindings; each route retains its declared account."""
+        require(operation in BASELINE_NATIVE_BINDINGS or operation in NATIVE_DENIAL_BINDINGS,
+                'ui:native-operation')
+        child = CHILD if operation in BASELINE_NATIVE_BINDINGS else EXISTING_CHILD
+        role, action = (BASELINE_NATIVE_BINDINGS if child == CHILD else NATIVE_DENIAL_BINDINGS)[operation]
         instance = 'secondary' if role == 'S' else 'primary'
         if action in ('desktop', 'closed'):
             self.wait(lambda: self.native_app_closed(instance), 'native-closed')
             return None
         if action in ('command-launch', 'command-blocked', 'locked-command-blocked'):
-            return self.native_launch_command(instance, child=CHILD, role=role,
+            if operation in NATIVE_DENIAL_BINDINGS and action == 'command-blocked':
+                self.prepare_launch_desktop()
+                self.invalidate_observation()
+            return self.native_launch_command(instance, child=child, role=role,
                 blocked=action != 'command-launch', locked=action == 'locked-command-blocked')
         if action == 'submit':
-            return self.native_app_submit(instance, role=role)
+            return self.native_app_submit(instance, role=role, child=child)
         if action in ('opened', 'submitted'):
             return self.wait(lambda: self.native_app_snapshot(
                 'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
-                pending=True, instance=instance, role=role), 'native-' + action)
+                pending=True, instance=instance, role=role, child=child), 'native-' + action)
         require(not self.input_uncertain, 'ui:uncertain-input')
-        self.native_app_snapshot('ONPC fixture draft', instance=instance, role=role)
+        self.native_app_snapshot('ONPC fixture draft', instance=instance, role=role, child=child)
         self.activate_id('onpc-fixture-native-' + instance + '-close')
 
     def native_app_operation(self, operation, *, child=EXISTING_CHILD):
@@ -13567,7 +13590,8 @@ class AccessibleUI:
             overlay_native = operation in OVERLAY_NATIVE_OPERATIONS
             if overlay_native:
                 self.require_child_overlay_session(bound_child)
-            value = (self.baseline_native_operation(operation) if operation in BASELINE_NATIVE_BINDINGS else
+            value = (self.baseline_native_operation(operation)
+                     if operation in BASELINE_NATIVE_BINDINGS or operation in NATIVE_DENIAL_BINDINGS else
                      self.native_app_operation(operation.removeprefix('overlay-').removeprefix('parent-'),
                                              child=bound_child if overlay_native else
                                              PARENT if operation in PARENT_NATIVE_OPERATIONS else EXISTING_CHILD))

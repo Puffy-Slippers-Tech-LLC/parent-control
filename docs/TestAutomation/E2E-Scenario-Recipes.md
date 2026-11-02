@@ -1025,7 +1025,7 @@ permission changes. Each retained case must prove actual use or refusal and
 another child's unaffected access through the same route.
 
 1. P0 → FLOW02(control,usable time) → FLOW03(target access rule).
-2. C(fresh) → FLOW08(exact route, policy result). Hidden launcher: APP02(hidden) → FLOW08(explicit command route,denied).
+2. C(fresh) → FLOW08(exact route, policy result). Flatpak blocked-grid launchers must be hidden: APP02(hidden) → FLOW08(explicit command route,denied). Do not validate native or Snap launcher visibility; retain their declared execution-denial results.
 3. V(Riley,fresh) → FLOW08(same target, corresponding route,usable).
 
 Case 62 binds native fixture A (`Exact Fixture.AppImage`) and the precise match
@@ -1813,9 +1813,10 @@ their stable case IDs must not be reused.
  selected approver, including Jamie's later repeat. Initial exclusion keeps
  S unavailable; inclusion opens S and records a new activity; replacement
  exclusion requires that activity's closure.
- After each row A remains usable and a new H launch remains denied. If the
- blocked grid entry is hidden, observe that and use the recipe's explicit
- command denial witness; an included grid entry must become launchable.
+ After each row A remains usable and a new H launch remains denied. For a
+ blocked Flatpak grid entry, require hiding and the recipe's explicit command
+ denial witness. Do not validate native or Snap launcher visibility. An included
+ grid entry must become launchable.
 3. P → PARENT12(A,H,S) → UI12(original saved choices). Temporary approval
  must not rewrite the parent's access selections. Finish after the last
  excluded result; no natural wait for the long combined grant.

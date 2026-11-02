@@ -598,7 +598,7 @@ Variant: control: enabled; policy: allowed; route: native grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 ### Scenario 81
@@ -612,7 +612,7 @@ Variant: control: disabled; policy: allowed; route: native command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 ### Scenario 139
@@ -1613,7 +1613,7 @@ Variant: control: enabled; policy: hard blocked; route: native grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1633,7 +1633,7 @@ Variant: control: enabled; policy: soft blocked; route: native grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1653,7 +1653,7 @@ Variant: control: enabled; policy: allowed; route: native desktop
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1673,7 +1673,7 @@ Variant: control: enabled; policy: hard blocked; route: native desktop
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1693,7 +1693,7 @@ Variant: control: enabled; policy: soft blocked; route: native desktop
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1713,7 +1713,7 @@ Variant: control: enabled; policy: allowed; route: native file manager
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1733,7 +1733,7 @@ Variant: control: enabled; policy: hard blocked; route: native file manager
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1753,7 +1753,7 @@ Variant: control: enabled; policy: soft blocked; route: native file manager
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1773,7 +1773,7 @@ Variant: control: enabled; policy: allowed; route: native command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Consolidated into E2E-019/native-grid-allowed-enabled (case 62), which independently launches and uses both grid and command routes as each child, normally closing the grid app before the command launch. Historical selector excluded from E2E scheduling; no replacement task.
@@ -1793,7 +1793,7 @@ Variant: control: enabled; policy: hard blocked; route: native command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1813,7 +1813,7 @@ Variant: control: disabled; policy: hard blocked; route: native command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1833,7 +1833,7 @@ Variant: control: enabled; policy: soft blocked; route: native command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1853,7 +1853,7 @@ Variant: control: disabled; policy: soft blocked; route: native command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1873,7 +1873,7 @@ Variant: control: enabled; policy: allowed; route: snap grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1893,7 +1893,7 @@ Variant: control: enabled; policy: hard blocked; route: snap grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1913,7 +1913,7 @@ Variant: control: enabled; policy: soft blocked; route: snap grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1933,7 +1933,7 @@ Variant: control: enabled; policy: allowed; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1953,7 +1953,7 @@ Variant: control: disabled; policy: allowed; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1973,7 +1973,7 @@ Variant: control: enabled; policy: hard blocked; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1993,7 +1993,7 @@ Variant: control: disabled; policy: hard blocked; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2013,7 +2013,7 @@ Variant: control: enabled; policy: soft blocked; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2033,7 +2033,7 @@ Variant: control: disabled; policy: soft blocked; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2053,7 +2053,7 @@ Variant: control: enabled; policy: allowed; route: flatpak grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2073,7 +2073,7 @@ Variant: control: enabled; policy: hard blocked; route: flatpak grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2093,7 +2093,7 @@ Variant: control: enabled; policy: soft blocked; route: flatpak grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2113,7 +2113,7 @@ Variant: control: enabled; policy: allowed; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2133,7 +2133,7 @@ Variant: control: disabled; policy: allowed; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2153,7 +2153,7 @@ Variant: control: enabled; policy: hard blocked; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2173,7 +2173,7 @@ Variant: control: disabled; policy: hard blocked; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2193,7 +2193,7 @@ Variant: control: enabled; policy: soft blocked; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2213,7 +2213,7 @@ Variant: control: disabled; policy: soft blocked; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.

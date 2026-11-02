@@ -224,7 +224,8 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
             'journey:native-desktop-binding')
     require(child in ('parent', 'child', 'other-child') and
             (child != 'parent' or route == 'command'), 'journey:native-child-binding')
-    require(role is None or role in ('A', 'S') and child == 'child' and route == 'command',
+    require(role is None or route == 'command' and
+            (role in ('A', 'S') and child == 'child' or role == 'N' and child == 'other-child'),
             'journey:native-role-binding')
     stages = {
         **({'desktop': 'ui:native-desktop'} if desktop_observation else {}),
@@ -239,9 +240,16 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
     }
     operation = {'child': 'overlay-native-', 'parent': 'parent-native-', 'other-child': 'native-'}[child]
     if role is not None:
-        operation += {'A': 'allowed-', 'S': 'soft-'}[role]
+        operation += {'A': 'allowed-', 'S': 'soft-', 'N': 'nonmatching-'}[role]
     return {stage: tag.replace('ui:native-', 'ui:' + operation)
             for stage, tag in stages.items()}
+
+
+def native_blocked_app(role):
+    """FLOW08: Jordan's attributed native command denial, without a visibility claim."""
+    require(role in ('H', 'S'), 'journey:native-denial-binding')
+    name = {'H': 'hard', 'S': 'soft'}[role]
+    return {'command': 'ui:native-' + name + '-command-blocked'}
 
 
 def native_activity_entry(prefix, *, route='command', child='child', desktop_observation=True):

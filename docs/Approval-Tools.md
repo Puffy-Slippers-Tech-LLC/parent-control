@@ -296,6 +296,11 @@ Use Codex's ordinary escalation mechanism with the loaded helper prefix when
 local sockets, system D-Bus or root-owned metadata require execution outside its
 sandbox. Sandboxed owner remapping can look like an invalid installation; verify
 that context before reinstalling or interpreting it as a host-policy denial.
+The helper reports the observed UID and mode separately from an unsafe file type
+or writable mode. Ownership refusal never relaxes the guard or establishes a
+host installation defect. The [E2E launcher](../tests/README.md#scripted-e2e-implementation)
+can replace a stale agent once after its controller independently passes the
+same host checks, within the existing task session allowance.
 
 Development activation is `none`: installed helpers change on their next
 invocation, Polkit watches its rule directory, and Codex loads rules on restart.

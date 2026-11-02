@@ -354,6 +354,15 @@ do not recreate excluded non-product tests for task briefs or old qualifications
 This tools/write-e2e session stops at the phase boundary below.
 {vm_instructions}
 
+For a task requiring VM access, first check tools/test-vm --vm NAME status for
+the selected VM through its existing direct command grant. An ownership refusal
+can be sandbox owner mapping, not a broken host installation. Preserve the exact
+command, helper path and error in the blocker explanation and handoff; do not
+reinstall helpers, change ownership or add grants based on that observation.
+Return blocked with live_result not_run after owned cleanup. The controller
+independently checks host authorization and can continue once in a fresh process
+before presenting a developer question. A repeated refusal remains blocked.
+
 Treat staged code as the baseline. Do not analyze staged diffs or compare it to
 HEAD; read current source as needed. The launcher owns staging and commits after
 each completed task. Do not commit,
@@ -801,6 +810,40 @@ def retain_diagnostic_state(state, result):
     return state
 
 
+def recover_helper_context(state, result):
+    """Replace a stale agent once when the host independently accepts its helper."""
+    from dev_privileges import OWNERSHIP_ERROR, check
+    if (state['phase'] != 'blocked' or result['live_result'] != 'not_run'
+            or state.get('optimization_session') or state.get('helper_context_retried')
+            or task_session_limit_reached(state)):
+        return state
+    report = result['summary'] + '\n' + result['handoff']
+    if '/usr/local/libexec/onpc-test-runner' not in report:
+        return state
+    # Also recognize retained handoffs from agents using the former diagnostic.
+    if not any(error in report for error in (
+            OWNERSHIP_ERROR, 'development helper installation is unsafe')):
+        return state
+    try:
+        check('/usr/local/libexec/onpc-test-runner')
+    except (ValueError, OSError):
+        # A real host installation/authorization failure still needs intervention.
+        return state
+    state = dict(state, phase='recover', helper_context_retried=True, blocker=None)
+    state.pop('blocker_id', None)
+    state['handoff'] += ('\n\nThe launcher independently passed the installed helper safety and '
+                         'authorization checks on the host after the agent refusal. This is the '
+                         'single automatic fresh-process recovery for this task. Before further '
+                         'VM-dependent work, retry tools/test-vm --vm NAME status for the selected '
+                         'VM through its existing approved route. Preserve all work and acceptance '
+                         'requirements. Do not reinstall helpers or change grants based on the '
+                         'earlier sandbox ownership observation. If access still fails, report '
+                         'the exact command and error through the normal blocker route.\n')
+    print('write-e2e: host helper checks passed after the agent ownership refusal; '
+          'continuing once in a fresh agent session.', flush=True)
+    return state
+
+
 def wait_for_answer(run, state, progress_key, *, on_poll=lambda: None, root=None):
     """The detached owner waits; terminals may come and go without answering."""
     from launcher_progress import read_progress
@@ -1114,7 +1157,7 @@ def worker(root, run, owner, tasks, state_json):
                     if not state.get('optimization_session'):
                         completed += 1
                         budget.complete()
-                state = updated
+                state = recover_helper_context(updated, result)
                 state.pop('source_changed_result', None)
                 state.pop('result_recovery', None)
                 state.pop('worktree_before', None)
@@ -1264,7 +1307,7 @@ def worker(root, run, owner, tasks, state_json):
                 if not optimizing:
                     completed += 1
                     budget.complete()
-            state = updated
+            state = recover_helper_context(updated, result)
             state.pop('worktree_before', None)
             if state['phase'] == 'complete':
                 state['completed_at'] = time.time()

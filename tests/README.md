@@ -965,6 +965,15 @@ limit warns and finishes when the queue is exhausted. A task counts only after
 acceptance, queue close-out, successful staging, its completion commit and
 `git push`. An empty active queue stops the workflow. A task blocker pauses for
 your answer as described below.
+VM-dependent sessions check the selected VM's read-only status before task work.
+If an agent reports an installed test-runner ownership refusal before live
+acceptance, the controller independently runs the existing host helper safety
+and noninteractive authorization checks. When those pass, it retains the handoff
+and automatically starts one fresh agent for that task before asking a blocker
+question. This consumes the normal session allowance and never renews it; the
+retry flag survives restart. A repeated refusal, exhausted allowance or failed
+host check retains the normal intervention route. No helper installation,
+ownership change, grant expansion or VM operation occurs during this recovery.
 With a live run, an invocation without parameters attaches without changing the
 task limit. Explicit `--tasks`
 values replace the existing maximum: `--tasks 2` sets it to 2; `--tasks -1`

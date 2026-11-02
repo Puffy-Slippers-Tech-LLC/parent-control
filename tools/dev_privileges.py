@@ -7,6 +7,7 @@ import subprocess
 
 PROGRAMS = {'/usr/local/libexec/onpc-' + name: 'com.puffyslippers.onpc.development.' + name
             for name in ('test-runner', 'diagnostics', 'test-artifacts', 'export-screenshot', 'setup')}
+OWNERSHIP_ERROR = 'development helper root ownership is not visible'
 
 
 def check(program):
@@ -14,8 +15,14 @@ def check(program):
         raise ValueError('expected an installed development helper and unprivileged caller')
     path = Path(program)
     info = path.lstat()
-    if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+    if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o022:
         raise ValueError('development helper installation is unsafe; run ./setup.sh --test-tools-only')
+    if info.st_uid != 0:
+        raise ValueError(f'{OWNERSHIP_ERROR}: {program} uid={info.st_uid} '
+                         f'mode={stat.S_IMODE(info.st_mode):04o}; '
+                         'sandbox owner mapping can cause this refusal. Use the approved host route; '
+                         'after a rules refresh, start a fresh Codex process. '
+                         'Run ./setup.sh --test-tools-only only if the host check also fails')
     # This process is alive throughout the check; no host-wide process discovery.
     fields = Path('/proc/self/stat').read_text().rsplit(')', 1)[1].split()
     subject = f'{os.getpid()},{int(fields[19])},{os.getuid()}'

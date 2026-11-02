@@ -919,7 +919,6 @@ The current adapters use these components according to their workflow:
 | `run-tests` | Ownership lock primitives, output following, display, storage and retention | Selected suite inventory through its scheduler and test checkpoints; no Markdown task plan, agent composer or `--tasks` option |
 | `execute-plan` | Ordinary plan driver, task options/budgets, detached supervision and display | Caller-selected master, ordered queue and briefs through `PlanWorkflow`; shared per-task commit and push |
 | `reliability-plan` | The same ordinary plan driver and shared lifecycle | [VM reliability](Reliability-Plan.md), with registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
-| `broker` | The same ordinary plan driver and shared lifecycle | [Broker expiry TA](Broker-Expiry-Plan.md), with registered VM selection and a GPT-6.1 Sol High coordinator; engineering extensions at canonical owners, shared per-task commit and push |
 | `kiosk-prompt-new` | The same ordinary plan driver and shared lifecycle | [Remaining confinement improvements](Kiosk-Session-Confinement-New-Plan.md#execution), with its own master-path namespace, registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
 
 Run `tools/reliability-plan --check` to validate its plan, or

@@ -7,7 +7,7 @@ Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Reuse the [expiry migration allocation](../UI-and-E2E-Coverage.md#expiry-locking-migration-allocation): only fullscreen gameplay/lock-input composition is new here. Do not repeat generic expiry, service-fault or windowed-game qualification.
+Reuse the [expiry coverage allocation](../UI-and-E2E-Coverage.md#expiry-coverage-allocation): only fullscreen gameplay/lock-input composition is new here. Do not repeat generic expiry, service-fault or windowed-game qualification.
 
 Deliver **APP05/FLOW10 fullscreen play**. First scheduled consumer: [E2E-023, case 127](../E2E-Scenario-Recipes.md#e2e-023).
 Read the named [block contracts](../E2E-Building-Blocks.md#customer-terminal-files-and-application-use), [related block contracts](../E2E-Building-Blocks.md#reusable-journey-fragments) and only the selected consumer's recipe.

@@ -137,30 +137,29 @@ owners retain missing bindings. Every case still captures its original work,
 reaches real expiry, obtains real approval and independently observes recovery.
 No earlier qualification or lower-suite pass supplies those complete results.
 
-## Expiry locking migration allocation
+## Expiry coverage allocation
 
-The [broker expiry exploration](../SystemDesign/Broker-Expiry-Locking.md)
-is scheduled by the [execution plan](../Broker-Expiry-Plan.md), run by
-`tools/broker`. Its active queue owns bounded reviews; the missing engineering
-extensions below remain deferred until their delivery scope is ready.
-Customer scenarios retain their existing canonical tasks. This creates no
-parallel expiry scenario suite, duplicate qualification workers or second
-customer queue.
-This allocation owns cross-plan overlap; recipes still own finite data and
-ordered results. No status or executable binding changes through reconciliation.
+Customer scenarios retain their existing canonical tasks. The broker expiry
+exploration plan and optional-extension proposal have been removed. Unimplemented
+engineering extensions are merged into E2E queue tasks 172a–172l, with no current
+acceptance credit. Native-isolation research and proposal-specific handover are
+retired; existing production-path assertions remain.
+This allocation preserves coverage ownership and avoids duplicate qualification
+workers or a second customer queue. Recipes own finite data and ordered results;
+task status and executable bindings are unchanged.
 
 | Scope | Single delivery owner | Later work must not repeat |
 | --- | --- | --- |
-| Core approvals and extension-dependent convenience timing | Existing core/adapter owners retain arithmetic, identity and failure-refusal coverage. TIME01, REQUEST08 and FLOW05 retain public observations on their declared surfaces. Core independent GTK/kiosk approvals must work without the extension; precise countdown, desktop reminders and in-session overlay are qualified with the extension enabled or reenabled | An independent live-reader prerequisite, second timing ledger, copied status/approval journey or authentication matrix. Convenience absence while disabled is expected; existing core approval results still need their full recipe. Retiring the proposed reader grants no installed acceptance and removes no executable coverage. |
+| Approvals and extension-dependent timing | Existing core/adapter owners retain arithmetic, identity and failure-refusal coverage. TIME01, REQUEST08 and FLOW05 retain public observations on their declared surfaces. Current extension dependencies are documented in [Screen time](../SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement) | A second timing ledger, copied status/approval journey or authentication matrix. Retiring the proposals grants no installed acceptance and removes no executable coverage. |
 | Current daily/grant/combined natural locks, denial, retained work and peer activity | Existing cases 22, 25–29; shared TIME04, lock-input and activity observations | A new baseline expiry journey or unchanged provider matrix. Existing cases receive only affected regressions after actual code changes. |
 | Revocation at zero/positive daily time, Cancel, retained entry and peer continuity | Tasks 084/085, canonical cases 17/19; tasks 144/145 own the distinct supported multi-desktop cases 18/20 behind task 143 | A separate migration-only copy of these scenarios. They switch to Parent before revocation; foreground immediate-lock acceptance belongs to the installed residual below. Deliver each full case once. |
 | Daily balance outlasting a soft-app grant | Task 182 owns positive FLOW18 preparation; task 206/case 164 owns uninterrupted expiry/no-lock/soft-access results | Task 182 must not add its optional second expiry wait. Tasks 207–212/cases 165–170 reuse preparation/observation and own only their different post-expiry transitions. |
 | Idle and suspend before/after grant expiry | Task 164/case 122; LIFE03 tasks 166a/166; tasks 167/168/cases 124/125 | Another generic idle/suspend expiry suite. LIFE03 is implemented/qualified once; complete cases retain only their unique choices, policy, work and recovery composition. |
 | Real usage-read outage/recovery; zero-time entry exposure | Task 172 (engineering obligation 143) and task 171 (engineering obligation 142) under the installed session owners | A second identity-scoped reader-fault matrix or zero-time exposure qualifier under the migration. Retain unresolved before-access behavior and provider gates. |
-| Expiry-specific broker/timer/session-bus failure, hang, owner replacement, stale work, lock completion, foreground revocation and policy races | Migration extends the installed session owner `system_graphical_expiry.verify` under `test_session_expiry.test_kiosk_expiry_graphical_runtime` (system-282) for process/desktop effects; `test_core` owns deterministic broker ordering assertions and `test_private_dbus_service` owns service dispatch assertions | These expiry extensions are planned, with no current fault/foreground-revocation binding or acceptance credit. No future E2E engineering matrix or separate recovery framework. Tasks 169/170/173–175/178/179 retain their different residuals; tasks 171/172 own the exposure/reader residuals above, even if delivered in the same installed owner. |
+| Expiry-specific broker/timer/session-bus failure, hang, owner replacement, stale work, lock completion, foreground revocation and policy races | Tasks 172a–172l extend `system_graphical_expiry.verify` under `test_session_expiry.test_kiosk_expiry_graphical_runtime` (system-282); 172c adds only missing deterministic order assertions in `test_core` and service dispatch in `test_private_dbus_service` | Pending bindings, no acceptance credit. Reuse obligation 148’s existing concurrency assertions; no separate host preparation task or engineering suite. Tasks 169/170/173–175/178/179 retain their different residuals; tasks 171/172 own exposure/reader faults. |
 | Games/fullscreen, expired app exceptions, remembered choices, repeated household routines, natural midnight/DST | Their current canonical tasks/recipes | Generic expiry, service-fault or provider qualification added before each consumer. Keep the different interaction's required public result and reuse shared mechanics. |
 
-Migration work implementing a pending full scenario must use its stable case ID,
+Work implementing a pending full scenario must use its stable case ID,
 recipe and canonical task; register and accept that case rather than an alias.
 Close that row as part of the actual delivery, so it cannot be scheduled later
 as duplicate implementation. When a later selected task encounters an already
@@ -180,16 +179,51 @@ the distinct interaction, not a second generic expiry matrix. A native game
 retained across lock, app-policy restoration after unlock, or natural midnight
 is not supplied by a generic desktop lock pass. Current rows remain unchecked
 until their remaining outcomes actually pass. Existing checked rows stay done.
-The migration design is not a new task-selection pointer and does not advance
-or reorder the E2E queue.
+This allocation does not advance or reorder the E2E queue.
 
-Source destinations for the planned engineering extensions are
+Source destinations for any future engineering extensions are
 [installed graphical expiry](../../tests/integration/system_graphical_expiry.py),
 its [registered session test](../../tests/system/test_session_expiry.py),
 [broker core regressions](../../tests/unit/test_core.py) and
 [private D-Bus dispatch](../../tests/component/test_private_dbus_service.py).
 Sharing an installed attempt does not merge the distinct assertions or give
 obligations 142/143 completion credit before their own residuals pass.
+
+### Expiry engineering contract
+
+Tasks 172a–172l own only uncovered expiry effects at the existing installed
+session owner. Delivered panel-independent timed locking, fresh protected-input
+challenges, original-work recovery and foreground peer observations stay done;
+reuse those mechanics without rerunning unchanged qualification. Customer cases,
+entry exposure, reader faults and ordinary concurrency keep their owners above.
+Planned bindings are not executable selectors; register the actual affected
+selection before execution. This planning merge changes no scenario IDs or status.
+
+Every installed task requires Ubuntu 26.04 and Fedora 44. Follow the VM mandate’s
+[timing rules](../Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience) and
+[shared observer budgets](../../tests/support/README.md). Retain TIME04’s sample
+upper end plus 15 seconds and the existing engineering timed-lock bound. Declare
+fault, effect and recovery windows before injection; outage time counts against
+the original deadline. Prepare actors/observers before the measured boundary;
+controlled events and independent identities establish ordering, never lucky
+last-second actions. Do not reset allowance, usage or the grant clock to repair
+the observed history.
+
+Use maintained real-boundary fault injection and identity-recorded restoration,
+one condition per attempt. Protected input, retained work and unaffected peer
+input are independent observations; sent lock requests, hints, timer reads and
+restarted services alone cannot pass. Positive-entitlement controls stay usable.
+Restore only owned processes, sessions, grants, limits and fault state under the
+existing cleanup contract. No second ledger, provider matrix, fault framework,
+production hook, supervision policy or scheduler is introduced.
+
+Current production behavior is tested first. Missing supported fault ownership
+blocks a task. A production mismatch follows
+[failure handling](../../tests/README.md#handling-test-failures); record expected
+versus actual behavior and the return condition without weakening assertions.
+Task 172l may document an unsupported secure-lock boundary after actual attempts,
+but that is no passing protection result. No proposal-specific replacement or
+extension-disabled acceptance gate is imported into these current-path tasks.
 
 ## Complete scenario-family review
 

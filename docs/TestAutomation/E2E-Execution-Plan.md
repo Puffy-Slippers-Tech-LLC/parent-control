@@ -49,9 +49,10 @@ defines the existing graphical session boundary; the
 [remaining confinement plan](../Kiosk-Session-Confinement-New-Plan.md) owns the
 other later protections. It owns its targeted negative/normal-use tests.
 New general feature automation remains in this queue. The
-[expiry migration allocation](UI-and-E2E-Coverage.md#expiry-locking-migration-allocation)
-uses these same canonical rows for TA-first delivery; accepted work must not
-be implemented or run again under a migration-only task/selector. Distinct
+[expiry coverage allocation](UI-and-E2E-Coverage.md#expiry-coverage-allocation)
+uses these same canonical rows; tasks 172a–172l contain only uncovered engineering
+deltas merged from the removed broker plan. Accepted work must not be implemented
+or run again under another task/selector. Distinct
 remaining customer outcomes and current pending status are preserved. The
 [reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse) records the delivered
 shared fixture/core-effects work; duplicate tasks 313a/313 are no longer

@@ -81,17 +81,19 @@ failure-only qualification. The public trigger remains unresolved, and case
 only for a genuinely changed boundary; their installed profile qualification
 and later app/game journeys remain pending.
 
-## Expiry migration reuse
+## Expiry coverage reuse
 
-Apply the [expiry locking allocation](UI-and-E2E-Coverage.md#expiry-locking-migration-allocation)
-and the [migration design](../SystemDesign/Broker-Expiry-Locking.md) to all
-unfinished expiry consumers. Migration TA is delivered through the existing
+Apply the [expiry coverage allocation](UI-and-E2E-Coverage.md#expiry-coverage-allocation)
+to all unfinished expiry consumers. Expiry coverage is delivered through the existing
 canonical rows: 084/085/144/145 (revocation), 182/206 (daily time outlasting a
 grant), 164/166a/166/167/168 (idle/suspend), and 171/172 (entry exposure and
 usage-read faults). There is no second expiry implementation queue. Full-case
-delivery during migration closes that same row only after its normal acceptance;
+delivery closes that same row only after its normal acceptance;
 later work consumes accepted scope without repeating it. No row is completed
-or reordered by this documentation change.
+or reordered by this documentation change. Tasks 172a–172l merge only the removed
+broker plan's useful, uncovered current-path engineering deltas into this queue;
+they extend system-282 rather than copying these canonical scenarios. Native-only
+research, independent-reader proposals and proposal handover are not rescheduled.
 
 Tasks 182, 126/129 and later app, lifecycle, game and calendar cases reuse the
 shared expiry observations and add only their named distinct interaction.
@@ -699,6 +701,18 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 170 | [Preserve and qualify system obligation 141: broker startup](E2E-Tasks/170-system-141.md) | Baseline | System obligation 141 | 30–60 (exception) |
 | [ ] | 171 | [Preserve and qualify system obligation 142: zero-time exposure](E2E-Tasks/171-system-142.md) | Baseline | System obligation 142 | 30–60 (exception) |
 | [ ] | 172 | [Preserve and qualify system obligation 143: usage read](E2E-Tasks/172-system-143.md) | Baseline | System obligation 143 | 30–60 (exception) |
+| [ ] | 172a | [Check revocation on the active desktop](E2E-Tasks/172a-foreground-revoke.md) | 084, 085 | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
+| [ ] | 172b | [Keep expiry moving during approval](E2E-Tasks/172b-approval-expiry.md) | 172a | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
+| [ ] | 172c | [Apply the latest time decision at expiry](E2E-Tasks/172c-policy-expiry.md) | 172a | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
+| [ ] | 172d | [Keep old expiry callbacks away from replacement sessions](E2E-Tasks/172d-session-expiry.md) | 172c | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
+| [ ] | 172e | [Check expiry across a broker crash](E2E-Tasks/172e-broker-crash-expiry.md) | 172c | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
+| [ ] | 172f | [Check expiry while the broker is stopped](E2E-Tasks/172f-broker-stop-expiry.md) | 172e | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
+| [ ] | 172g | [Check expiry while the broker stalls](E2E-Tasks/172g-broker-stall-expiry.md) | 172e | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
+| [ ] | 172h | [Check expiry after timer replacement](E2E-Tasks/172h-timer-owner-expiry.md) | 172c, 172e, 172 | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
+| [ ] | 172i | [Check expiry after child bus replacement](E2E-Tasks/172i-session-bus-expiry.md) | 172c, 172e | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
+| [ ] | 172j | [Require confirmed secure lock completion](E2E-Tasks/172j-lock-completion.md) | 172c | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
+| [ ] | 172k | [Check lock-provider recovery](E2E-Tasks/172k-lock-provider.md) | 172c, 172j | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
+| [ ] | 172l | [Characterize unavailable secure locking](E2E-Tasks/172l-secure-lock-outage.md) | 172j, 172k | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
 | [ ] | 173 | [Preserve and qualify system obligation 144: kiosk authentication agent](E2E-Tasks/173-system-144.md) | Baseline | System obligation 144 | 30–60 (exception) |
 | [ ] | 174 | [Preserve and qualify system obligation 145: failed save](E2E-Tasks/174-system-145.md) | Baseline | System obligation 145 | 30–60 (exception) |
 | [ ] | 175 | [Preserve and qualify system obligation 146: stale identity](E2E-Tasks/175-system-146.md) | Baseline | System obligation 146 | 30–60 (exception) |

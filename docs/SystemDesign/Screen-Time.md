@@ -299,20 +299,10 @@ The broker owns product deadline arithmetic; the extension owns timing
 observations and countdown presentation. The extension is still required for
 the native timing bridge, existing product lock requests, session preparation
 and compatibility hooks. Broker calculation does not establish independent
-timing or broker-owned expiry scheduling. The
-[expiry exploration](Broker-Expiry-Locking.md) owns qualification of native
-locking and any demonstrated need for broker coordination.
-
-The [optional-extension goal](Optional-Child-Extension.md#destination-and-release-boundaries)
-removes core dependencies on the extension, while keeping desktop reminders,
-the in-session overlay and the precise countdown extension-dependent. It does
-not require replacing `Main.timeLimitsManager` or its convenience-reader bridge.
-Native GNOME retains activity tracking, recording and exhaustion locking when
-third-party extensions are disabled. Product approval, app-policy, admission and
-compatibility dependencies still need their own qualification before claiming
-that the core works without the extension; this design describes current code.
-When reenabled, convenience UI must refresh from current native state without
-resetting allowance or replaying an old grant.
+timing or broker-owned expiry scheduling. Native GNOME retains activity tracking,
+recording and exhaustion locking when third-party extensions are disabled;
+that alone does not establish extension-independent product approval,
+app-policy, admission or compatibility behavior.
 
 The retired reader investigation found that Malcontent's saved records omit
 unfinished activity, so repeatedly querying its estimate is not a drop-in live
@@ -597,7 +587,6 @@ interface is documented in [pam_systemd](https://github.com/systemd/systemd/blob
 
 ## Related design
 
-- [Optional child extension draft](Optional-Child-Extension.md): investigate native behavior and migrate essential responsibilities gradually; no change to current enforcement.
 - For authorization and grant commit/rollback order, read [Broker](Broker.md#authorization-and-grant-transactions).
 - For app-policy restoration after unlock, read [Application policy](Applications.md#session-entry-reconciliation).
 - For startup ordering or changed PAM/extension activation, read [Lifecycle](Lifecycle.md) and [Package update](../Publishing.md#package-update-activation).

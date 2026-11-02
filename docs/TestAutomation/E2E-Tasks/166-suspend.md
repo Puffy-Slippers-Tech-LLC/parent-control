@@ -14,7 +14,7 @@ Reuse the delivered scope of tasks **166a** under the
 
 ## Scope and prerequisites
 
-This is the sole shared post-deadline LIFE03 delivery for the [expiry migration allocation](../UI-and-E2E-Coverage.md#expiry-locking-migration-allocation). Add only this missing result to 166a's route; no second suspend worker or selector.
+This is the sole shared post-deadline LIFE03 delivery for the [expiry coverage allocation](../UI-and-E2E-Coverage.md#expiry-coverage-allocation). Add only this missing result to 166a's route; no second suspend worker or selector.
 
 Deliver **LIFE03**. First scheduled consumer: [E2E-022, case 125](../E2E-Scenario-Recipes.md#e2e-022).
 Read the named [block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lifecycle-boundaries) and only the selected consumer's recipe.

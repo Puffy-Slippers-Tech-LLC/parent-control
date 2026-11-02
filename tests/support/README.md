@@ -33,7 +33,7 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Graphical Perl helper probes | [perl.py](perl.py) | `run_perl` supplies the maintained library path, captured streams and a deadline. Tests declare their public testapi doubles and assert secret exclusion. |
 | Real needle pixel matching | [needle_matcher.py](needle_matcher.py) | `match_image` reuses the installed os-autoinst matcher for GDM and VT6 regressions. Synthetic mutations test refusals; they do not establish live input qualification. VT6 also requires its [exact pixel gate](../e2e/README.md#visible-vt6-installation-terminal). |
 | Simulated VM baseline and lease | [vm_baseline.py](vm_baseline.py), [vm_runner.py](vm_runner.py) | Real temporary files and mocked VM operations. Import both `rig` and `lease_rig` when using the latter. Direct simulated `Lease` constructors instead request the explicitly imported `local_preparation_source` fixture, so they hash archived sources without reading the development checkout. JUnit builders retain selected identities and intentional faults. |
-| Explicit extension-free engineering setup | [disable_extension.py](../../tools/disable_extension.py) | `apply(transport)` uses the test's existing guarded VM transport and lease, restarts the broker with the unshipped recovery bypass and disables eligible children's extensions. No restore or nested maintenance owner; ordinary attempt cleanup owns removal. See [development gate limits](../../docs/SystemDesign/Optional-Child-Extension.md#development-only-recovery-gate). |
+| Explicit extension-free engineering setup | [disable_extension.py](../../tools/disable_extension.py) | `apply(transport)` uses the test's existing guarded VM transport and lease, restarts the broker with the unshipped recovery bypass and disables eligible children's extensions. No restore or nested maintenance owner; ordinary attempt cleanup owns removal. See [development gate limits](#development-only-extension-isolation). |
 | Synthetic E2E evidence and provenance | [e2e_evidence.py](e2e_evidence.py), [e2e_provenance.py](e2e_provenance.py) | `attempt`, `source`, `assets` and `lease` exercise real validators with declared synthetic inputs. |
 | Offline asset transfer | [e2e_transfer.py](e2e_transfer.py) | `GuestFiles` uses pytest-private files for actual upload bytes, metadata, corruption and partial-failure tests. It acquires no VM or cleanup ownership. |
 | Recorder and offline credential fixtures | [e2e_recording.py](e2e_recording.py), [e2e_credentials.py](e2e_credentials.py) | Recorder `session` uses an imported evidence `attempt`; opt-in `collector_sync` checks real flushed bytes and collector sync order while dedicated collector tests retain physical sync coverage. Retention sync remains real. Credential `attempt` can be aliased locally. Preserve privacy canaries and cleanup results. |
@@ -43,6 +43,34 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Child indicator unit adapter | [indicator.mjs](../child/support/indicator.mjs) | Fresh Node VM context and explicit platform doubles; nested-Shell tests retain real lifecycle/input coverage. |
 | External desktop input delivery | [mutter_input.py](../ui/mutter_input.py) | Supporting desktop/provider operations retain their qualified input transport and owned session cleanup. Product panel and GTK controls use the Application UI API facade. |
 | Desktop input inside an installed check | [desktop_session.py](../e2e/desktop_session.py) `run_attached` | Reuse the caller's held running VNC lease and guarded transport with an existing journey plan. Credentials are verified read-only before input; the worker closes at the completed controller-stage boundary while the caller retains its session, watch and restoration. Pass the existing fixture context for activity/retained-work operations. Attach before any engineering password mutation; never reset credentials or session state to repair an observed history. This seam claims neither worker-module completion nor customer-journey acceptance. |
+
+## Development-only extension isolation
+
+`tools/disable-extension --vm NAME` accepts a registered VM name or ID in an
+existing owned, running app-snapshot maintenance instance. It uses the guarded
+`test-vm exec` transport, shared reservation and watch infrastructure; it never
+adopts a manually started guest, boots, restores or captures a snapshot.
+Tests may call `tools.disable_extension.apply(transport)` with their existing
+guarded transport and lease; ordinary tests do not invoke it implicitly.
+
+The helper deploys the unshipped [development launcher](../../tools/development_broker.py)
+and a root-owned service override, admits that exact launcher through a size/hash
+trust entry, restarts the broker with `--disable-child-extension-recovery`, and
+disables eligible children's extensions. Administrators and kiosk are excluded.
+Identical deployed files are reusable; unknown files, links, unsafe ownership or
+differing versions refuse. Partial failures require normal snapshot recovery.
+The override survives reboot within that development history; ordinary attempt
+cleanup owns its removal. These files are excluded from production manifests.
+
+The launcher suppresses enables at `ExtensionManager.set_enabled`, including
+startup, screen-limit, approval and recovery requests, and preserves GNOME's
+global extension-disable switch. Disable/cleanup calls still run. Suppression
+logs fixed development warnings without account identifiers. Successful callers
+do not prove extension readiness; suppressed enables skip per-activation payload
+validation. Ordinary launcher migration and trust guards still run.
+Timing, admission, session preparation, app policy and native enforcement retain
+their current dependencies. This bypass is engineering setup and cannot establish
+an unmodified installed-product acceptance result or extension independence.
 
 ## Frozen native fixture bundles
 

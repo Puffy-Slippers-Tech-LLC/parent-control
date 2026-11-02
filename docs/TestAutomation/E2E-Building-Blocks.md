@@ -2166,9 +2166,10 @@ chooser, attachment, editing and enforcement outcomes remain separate.
 
 ### Time and ordinary lifecycle boundaries
 
-The [expiry migration allocation](UI-and-E2E-Coverage.md#expiry-locking-migration-allocation)
+The [expiry coverage allocation](UI-and-E2E-Coverage.md#expiry-coverage-allocation)
 uses these same TIME04/LIFE03 operations and canonical scenario tasks. Extend
-the shared expiry observer to remove enforcement's panel dependency; do not
+the shared expiry observer only for missing assertions; reuse its delivered
+panel-independent observations and do not
 create a parallel migration expiry/suspend qualifier. Existing qualification
 status below is unchanged until the affected installed checks pass. FLOW18
 preparation stops at positive D>G>0; case 164 owns its uninterrupted expiry.

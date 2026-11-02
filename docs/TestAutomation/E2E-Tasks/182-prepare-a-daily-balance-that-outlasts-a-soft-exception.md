@@ -40,7 +40,7 @@ Use that owner's public G and D−G reserves to return with minutes available,
 then independently require D>G>0. FLOW18 must finish at that positive child
 witness. Stop qualification there: case 164/task 206 owns the original
 grant expiry/no-lock result, and cases 165–170 own their post-expiry actions
-under the [expiry allocation](../UI-and-E2E-Coverage.md#expiry-locking-migration-allocation).
+under the [expiry allocation](../UI-and-E2E-Coverage.md#expiry-coverage-allocation).
 Do not repeat that expiry wait in this preparation task or a migration wrapper.
 Defer settings/form/other-child tours until their owning
 post-expiry action. Wrong inequalities fail preparation; no relabeling, top-up

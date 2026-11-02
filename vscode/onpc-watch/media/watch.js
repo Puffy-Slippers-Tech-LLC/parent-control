@@ -688,7 +688,7 @@
         table.className = 'run-times';
         table.dataset.signature = signature;
         const heading = table.createTHead().insertRow();
-        for (const label of ['Case ID / Title', 'Category', 'VM name', 'Run Time', 'Description']) {
+        for (const label of ['Case ID / Title', 'VM name', 'Run Time', 'Description']) {
             const th = document.createElement('th');
             th.textContent = label;
             heading.append(th);
@@ -736,7 +736,9 @@
                 expand.className = 'vm-runs-toggle';
                 title.append(expand, ' ');
             }
-            link(title, Number.isInteger(row.id) ? `${row.id}: ${row.title}` : row.title, row.case_link);
+            const category = row.category === 'e2e' ? 'E2E' : row.category;
+            const caseTitle = Number.isInteger(row.id) ? `${row.id}: ${row.title}` : row.title;
+            link(title, `[${category}] ${caseTitle}`, row.case_link);
             const rootRecording = document.createElement('span');
             play(rootRecording, row);
             title.append(rootRecording);
@@ -766,7 +768,6 @@
                 toggle();
                 title.append(children);
             }
-            tr.insertCell().textContent = row.category === 'e2e' ? 'E2E' : row.category;
             tr.insertCell().textContent = row.vm;
             tr.insertCell().textContent = duration(row.seconds);
             const description = tr.insertCell();

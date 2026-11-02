@@ -127,7 +127,8 @@ The fixed **Run Time** tab follows **All**. It loads logged VM case durations on
 while selected, refreshes the data once per minute, and unloads its body when
 another tab is selected. Selecting it again loads fresh data immediately. The selectable,
 full-width table keeps one latest duration and recording per case/VM pair, folded
-into one row per case. **Case ID / Title** shows a **+** when multiple VMs exist.
+into one row per case. **Case ID / Title** uses `[category] ID: Title` and shows
+a **+** when multiple VMs exist.
 Click it to expand a tree of `VM name | Run Time | ▶` children; **-** collapses it.
 Children sort by their raw duration, longest first, before display rounding.
 The folded recording button and the row's **VM name** and **Run Time** columns

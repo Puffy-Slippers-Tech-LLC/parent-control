@@ -68,7 +68,7 @@ sub overlay_information {
 }
 
 sub overlay_prompt {
-    onpc_progress::operation('Qualifying one real Shell prompt and preserved form after Cancel');
+    onpc_progress::operation('Qualifying real Shell prompts and preserved request results');
     my ($exchange, $declared, $challenges, $approval) = @_;
     die 'overlay-prompt:arguments' unless (@_ == 3 || @_ == 4 && $approval =~ /\A(?:approval|rejection|approval-immediate|approval-translated|flow-rejection|flow-cancel)\z/) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
@@ -89,6 +89,21 @@ sub overlay_prompt {
     onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
     onpc_gdm::sign_in_challenge($journey, 'child-login',
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    if (!$approval) {
+        # Share installation and login, while every request opens its own form
+        # and obtains a fresh Shell challenge before its single Cancel input.
+        for my $request ('first', 'second') {
+            my $section = $journey->scope($request);
+            overlay_entry($section, 'direct', 'command');
+            $section->seen('wrong-surface-refused');
+            prepare($section, 'open', 'open', $request eq 'first' ? 'default' : 'selected',
+                'fixture-child', 'fixture-parent', 75, 1, 'overlay');
+            shell_cancel($section, 'shell-cancel-ready', 'shell-dismissed');
+            $section->seen($_) for qw(form-returned cancel returned);
+        }
+        $journey->finish();
+        return;
+    }
     my $activity;
     if ($approval && $approval ne 'rejection') {
         $activity = onpc_app_rows::native_activity_entry($journey, 'activity', 'command');
@@ -105,11 +120,7 @@ sub overlay_prompt {
         overlay_approve($journey, $approval eq 'approval-immediate' || $approval eq 'flow-cancel'
             ? 'immediate' : 'automatic');
     } else {
-        if ($approval) {
-            shell_reject($journey, 'rejection');
-        } else {
-            shell_cancel($journey, 'shell-cancel-ready', 'shell-dismissed');
-        }
+        shell_reject($journey, 'rejection');
         $journey->seen('form-returned');
         $journey->seen('cancel');
     }

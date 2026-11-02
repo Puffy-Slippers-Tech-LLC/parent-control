@@ -25,20 +25,20 @@ def installed_readiness():
     return cache(guest.installed)
 
 
-def test_installed_package(installed_readiness):
+def verify_package_readiness(installed_readiness):
     phase = os.environ['ONPC_SYSTEM_PHASE']
     assert phase in ('installed', 'rebooted')
     installed_readiness(reboot_required=phase == 'installed')
+    if phase == 'installed':
+        assert guest.reboot_requested()
+    else:
+        before = json.loads((guest.PAYLOAD / 'before.json').read_text())
+        assert before['boot_id'] != Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+        assert guest.reboot_cleared()
 
 
-def test_first_install_requests_reboot():
-    assert guest.reboot_requested()
-
-
-def test_reboot_applies_installation():
-    before = json.loads((guest.PAYLOAD / 'before.json').read_text())
-    assert before['boot_id'] != Path('/proc/sys/kernel/random/boot_id').read_text().strip()
-    assert guest.reboot_cleared()
+def test_installed_package(installed_readiness):
+    verify_package_readiness(installed_readiness)
 
 
 def test_previous_package_policy_preservation(record_testsuite_property):
@@ -80,6 +80,7 @@ def test_pam_environment_installation_variants(variant, record_testsuite_propert
 
 
 def test_kiosk_account_classification_survives_reboot(record_testsuite_property, installed_readiness):
+    verify_package_readiness(installed_readiness)
     from system_kiosk_accounts import exercise, verify_reboot
     from system_kiosk_admission import verify as verify_admission, verify_gates
     from system_kiosk_confinement import verify_session_composition

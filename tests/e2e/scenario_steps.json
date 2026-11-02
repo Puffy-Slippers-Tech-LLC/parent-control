@@ -18,7 +18,7 @@
   "E2E-004": {
     "expected": "A standard user cannot access parental management.",
     "summary": "Prevent a standard user from opening parental management.",
-    "steps": ["Sign in as a standard user and search for Parent.", "Check that parental management is unavailable."],
+    "steps": ["Sign in once as a standard user and search for Parent.", "Check that Parent has no launcher or management window.", "Invoke Parent directly as the same standard user, read the administrator-access denial and close it normally."],
     "variants": {"terminal": {"steps": ["Try opening Parent directly as a standard user.", "Read the access denial and check that management controls never open."]}}
   },
   "E2E-005": {
@@ -73,8 +73,8 @@
   },
   "E2E-015": {
     "expected": "The form returns to the correct desktop or sign-in screen; only approval adds time.",
-    "summary": "Exit a request safely by cancelling, pressing Escape or approving.",
-    "steps": ["Open the child overlay or request station and change request choices.", "Take the tested exit action.", "Check return to the same child work or sign-in screen, with added time only after approval."]
+    "summary": "Cancel, close and approve requests in one history on each surface.",
+    "steps": ["Enable daily time and leave recognizable child work beneath the overlay, or enter the station.", "Prepare choices and Cancel; check original usable work or sign-in.", "Reopen with remembered choices and close the form; check original usable work or sign-in again.", "Reopen and approve the same request, take its immediate exit and verify retained work and the resulting countdown."]
   },
   "E2E-016": {
     "expected": "The station offers requests without exposing a general desktop, terminal or parental management.",
@@ -94,7 +94,8 @@
   "E2E-019": {
     "expected": "The child's app access follows its rule on the tested launch route without restricting the other user.",
     "summary": "Enforce app rules through native, Snap and Flatpak launch routes.",
-    "steps": ["Set the tested app rule and screen-limit state for the child.", "Try the app through the selected launch route and check allowed use or blocking.", "Check that another standard user can still use the same app."]
+    "steps": ["Set the tested app rule and screen-limit state for the child.", "Try the app through the selected launch route and check allowed use or blocking.", "Check that another standard user can still use the same app."],
+    "variants": {"native-grid-allowed-enabled": {"steps": ["Save the enabled allowance and precise Allowed rule.", "Use the app through the grid, close it normally, then launch by command and use it again.", "Repeat both launches and usable submissions as the other child, closing the first app before the command launch."]}}
   },
   "E2E-020": {
     "expected": "Saving handles the changed app and preserves its intended rule across update or removal and reinstall.",
@@ -146,7 +147,7 @@
     "summary": "Prepare and review feedback without submitting it.",
     "steps": ["Compose a feedback draft and inspect Privacy.", "Exercise the selected draft, validation, attachment or diagnostic-download flow.", "Check the intended draft and files are preserved or discarded at the expected boundary."],
     "variants": {
-      "draft-reopen": {"steps": ["Write formatted feedback, a reply address and an attachment.", "Visit Privacy and reopen feedback; check the draft remains.", "Exit and restart Parent; check the draft is discarded."]},
+      "draft-reopen": {"steps": ["Reject an empty submission, enter body and reply, then reopen and verify recovered valid editing.", "Format that feedback and add an attachment.", "Visit Privacy and reopen feedback; check the draft remains.", "Exit and restart Parent; check the draft is discarded."]},
       "validation": {"steps": ["Try sending empty feedback and read the validation message.", "Enter feedback and a reply address.", "Reopen feedback and check the entered draft remains."]},
       "attachments": {"steps": ["Attach two files to feedback.", "Remove the unwanted file.", "Check only the intended attachment remains without sending."]},
       "diagnostic-export": {"steps": ["Prepare feedback and download its diagnostics.", "Cancel once and recover from an unwritable destination.", "Save a readable diagnostic archive and check the feedback draft remains."]}

@@ -42,11 +42,21 @@ sub run {
         $journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan-entry');
     my $jordan = $journey->scope('jordan-use');
     onpc_app_rows::native_usable_app($jordan, $route, $jordan->seen('desktop'), 'other-child');
+    if ($route eq 'grid') {
+        onpc_app_rows::native_finish_app($jordan);
+        my $command = $journey->scope('jordan-command');
+        onpc_app_rows::native_usable_app($command, 'command', $command->seen('desktop'), 'other-child');
+    }
     $journey->seen('jordan-logout');
     onpc_desktop_session::enter_desktop(
         $journey, 'gdm', 'child', 'fresh', 'success', 'riley-entry');
     my $riley = $journey->scope('riley-use');
     onpc_app_rows::native_usable_app($riley, $route, $riley->seen('desktop'), 'child');
+    if ($route eq 'grid') {
+        onpc_app_rows::native_finish_app($riley);
+        my $command = $journey->scope('riley-command');
+        onpc_app_rows::native_usable_app($command, 'command', $command->seen('desktop'), 'child');
+    }
     $journey->finish();
 }
 1;

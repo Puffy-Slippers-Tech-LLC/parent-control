@@ -972,8 +972,10 @@ new live pass.
 `policy_qualification.PLAN` / `check_e2e_policy` qualify Jordan/native A,
 both filters, `/opt/onpc-test-fixtures/Applications/*.AppImage` Hard→Soft→Allowed,
 unfiltered precise/Soft and independent entry/refusals.
-`AppPolicyJourney` adds explicit `check_balances`; case 80 owns its
-Jordan 1800/0/1800 setup and exact precise/Allowed results.
+`AppPolicyJourney` adds explicit `check_balances`; current case 62 owns its
+Jordan 1800/0/1800 setup, exact precise/Allowed results and independent grid and
+command use as each child, with normal app closure between routes. Historical
+case 80 is nonexecutable and points to case 62.
 Editing qualification does not establish enforcement or a complete case.
 
 Render qualification patterns against all declared fixture names without
@@ -1566,7 +1568,13 @@ are unnecessary.
 `overlay_prompt.PLAN` / `OverlayPromptJourney`,
 `onpc_request_flow::shell_cancel` and `check_e2e_overlay_prompt` qualify
 Riley/Jamie, custom 75 seconds, soft included after public 900-second allowance
-setup. Initial tuple: Ubuntu 26.04/Shell `50.1-0ubuntu1.2`,
+setup. The standalone check prepares once and runs two independently opened
+requests in the same child session. Each request retains its own fresh challenge,
+recipient/refusal proofs, password-free Cancel, unchanged usable form and desktop
+return; challenge IDs cannot be reused. The first checks fresh defaults and the
+second reads the remembered 75-second, soft-app-included choices before editing.
+The whole history receives credit only
+after owned restoration and cleanup. Initial tuple: Ubuntu 26.04/Shell `50.1-0ubuntu1.2`,
 `en_US.UTF-8`, `xkb/us`; [baseline renewal](#c04o-shared-overlay-renewal)
 owns the rebuilt both-target fixed scope.
 
@@ -2139,8 +2147,12 @@ removal, preview or rejection. Those require independent item/result projections
 
 #### Formatted one-file draft lifecycle
 
-`parent_feedback_draft.PLAN` (case 152) has a shortened qualified composition
-on Ubuntu 26.04/Fedora 44. `fixture_actions(('single',))` stages only the
+`parent_feedback_draft.PLAN` (case 152) now begins with the empty-submission
+rejection and recovered valid editing formerly scheduled as case 153, then
+continues the formatted draft history in the same worker. Case 153 is a
+nonexecutable historical selector. Existing qualification scopes below remain
+separate from live acceptance of this changed composition.
+`fixture_actions(('single',))` stages only the
 26-byte `Synthetic note.txt`; `supply_files(..., 'draft-chooser')` retains
 exact-directory/selection guards without qualifying Save or a new tuple.
 
@@ -2627,11 +2639,11 @@ and independent-entry checks.
 
 #### Complete local validation
 
-[`parent_feedback_validation.PLAN`](../../tests/e2e/parent_feedback_validation.py)
-composes the installed case 153 [sample](E2E-Scenario-Recipes.md#feedback-local-values)
-through `record_installed_journey`,
+Current case 152 composes `parent_feedback_draft.VALIDATION` before its formatted
+draft lifecycle through `record_installed_journey`,
 [`FeedbackValidationJourney`](../../tests/e2e/feedback_composition.py) and
-`onpc_feedback_privacy::run(exchange, 'validation')`. Repeated operations have
+`onpc_feedback_privacy::run(exchange, 'draft')`. Historical case 153's standalone
+binding remains nonexecutable. Repeated operations have
 unique invocation IDs. Public snapshots and guarded invalid-only rejection
 cover an empty send followed by body/reply editing and recovery after reopening.
 UI tests retain text/email, ASCII/emoji boundaries, SOH and excessive formatting,
@@ -3129,6 +3141,12 @@ refuse. `kiosk-approval-flow` uses separate single-use rejection/approval
 secret bindings. Other/repeated requests and complete scenarios remain separate.
 
 #### Prepared request qualification
+
+Current customer cases 46 and 49 compose Cancel, the legacy Escape surface-close
+route and immediate approved exit in one history per surface. Each exit retains
+its independent destination result; the overlay compares and resubmits the same
+original work after every exit. Cases 44/45/47/48 are nonexecutable historical
+selectors. This consolidation changes no capability's qualification claim.
 
 `request_flow.daily_station_entry` /
 `onpc_request_flow::daily_station_entry` share public selected-child enablement,
@@ -4760,7 +4778,9 @@ The qualified Ubuntu 26.04 search tuple is Shell `50.1-0ubuntu1.2`,
 `check_e2e_shell_search` covers administrator SEARCH05 launch/close and standard
 SEARCH01/03/04 independently entered unavailable-app readback.
 `parent_access.PLAN`/`onpc_parent_access::run` compose the standard
-`Oh No! Parent Control` app-grid journey.
+`Oh No! Parent Control` app-grid journey, independently record search denial,
+then invoke PARENT01 as the same standard account and require direct-command
+denial. Case 5 owns both outcomes; historical case 6 is nonexecutable.
 
 `check_e2e_parent_search_launch` qualifies `onpc_parent::open_from_app_grid`
 and independently supplied SEARCH06 consumption by `launch_search_result`.

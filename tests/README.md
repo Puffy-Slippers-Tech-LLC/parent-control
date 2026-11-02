@@ -405,6 +405,10 @@ existing passes remain saved and added checks run as pending work. Removed check
 and changed explicit selectors still refuse resume. New checkpoints record whether
 the original request selected the whole inventory; checkpoints without that
 provenance refuse changed selections.
+Saved results for system cases explicitly marked retired in the persistent case
+registry are removed on resume, and category completion is cleared. Valid passes
+remain saved; replacement cases receive no passing credit from retired results.
+Unknown case names and incompatible active cases still reach the inventory guard.
 Case IDs above the snapshot length limit are replayed rather than retained as
 passes. Resume repairs older checkpoints containing such IDs while keeping all
 other valid passes; malformed state and unsafe files still refuse execution.

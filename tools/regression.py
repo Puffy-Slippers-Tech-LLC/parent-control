@@ -1081,6 +1081,14 @@ class Run:
         # A checkpoint pools repeated categories. Remove only known sibling
         # passes; unknown IDs still reach the controller's inventory guard.
         passed = self.checkpoint.passed('system') - (siblings - selected)
+        unknown = passed - selected
+        if unknown:
+            # Retain the refusal, but identify the mismatched saved IDs before
+            # the controller starts. Case identities contain no guest secrets.
+            # Bound output even when a large checkpoint is incompatible.
+            print('System resume inventory mismatch: ' + json.dumps(dict(
+                vm=target.name, selected_count=len(selected), sibling_count=len(siblings),
+                unknown_count=len(unknown), unknown_ids=sorted(unknown)[:20])), flush=True)
         return selected, passed
 
     def resume_command(self, item, command):

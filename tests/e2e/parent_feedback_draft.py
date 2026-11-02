@@ -2,7 +2,7 @@
 from attachment_composition import file_handoff
 from feedback_composition import FeedbackDraftJourney, privacy_review, text_fragment
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import fresh_desktop, parent_management, parent_reopen
+from journey_blocks import fresh_desktop, parent_management, parent_reopen, prefixed_stages
 from synthetic_files import fixture_actions
 from window_switch import window_switch_entry
 
@@ -10,6 +10,15 @@ ENTRY = {
     **fresh_desktop('parent'), **parent_management(),
     **window_switch_entry(), 'feedback-open': 'ui:feedback-open',
 }
+VALIDATION = prefixed_stages('validation', {
+    'empty': 'ui:feedback-state-empty',
+    'rejection-empty-send': 'ui:rejection-empty-send',
+    'rejection-empty-read': 'ui:rejection-empty-read',
+    **text_fragment('body-first'), **text_fragment('reply-first'),
+    'recovery-close': 'ui:feedback-state-close',
+    'recovery-reopen': 'ui:feedback-state-reopen',
+    'review-valid': 'ui:feedback-state-valid',
+})
 EDIT = {
     **text_fragment('body-first'),
     **{stage: 'ui:' + stage for stage in (
@@ -31,11 +40,11 @@ REVIEW = {
     **parent_reopen(),
     'feedback-reopen': 'ui:draft-feedback-reopen',
 }
-SCREENS = {**ENTRY, **EDIT, **REVIEW}
+SCREENS = {**ENTRY, **VALIDATION, **EDIT, **REVIEW}
 PLAN = JourneyPlan(
     prefix='feedback-draft', worker_mode='feedback_draft', screen_tags=SCREENS,
     phases={'ready': 'setup', 'setup-detached': 'setup',
-            **{stage: 'step-1' for stage in (*ENTRY, *EDIT)}, 'installed-greeter': 'start',
+            **{stage: 'step-1' for stage in (*ENTRY, *VALIDATION, *EDIT)}, 'installed-greeter': 'start',
             **{stage: 'step-2' for stage in REVIEW}},
     advance_after={'feedback-draft': 'step-2'},
     stage_actions={'parent-selected': 'chooser-fixtures', 'feedback-reopen': 'chooser-cleanup'},

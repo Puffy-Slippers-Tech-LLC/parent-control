@@ -240,10 +240,11 @@ binding follows the form, Shell recipient, original activity and public countdow
 `OverlayChoicesQualification` binds `check_e2e_overlay_choices` to the same union
 before journey construction so its Cancel/Escape checks can compare the original
 child activity, with shared readiness and independent fixture readback before input.
-`E2E-015/child-overlay-cancel`,
-`E2E-015/child-overlay-escape` and `E2E-015/child-overlay-approved` select this same
-union under their own fixed caller identities before journey construction, so the
-original child activity can be verified and resumed after each exit. Each retains
+`E2E-015/child-overlay-approved` selects this same union under its fixed caller
+identity before journey construction, so the original child activity can be
+verified and resumed after Cancel, surface close and immediate approved exit in
+one history. The former Cancel/Escape selectors remain nonexecutable historical
+IDs pointing to this history. The executable retains
 the shared readiness and activity-file verification before input; preparation
 does not establish the case's customer result. `E2E-019/native-grid-allowed-enabled`
 also selects this qualified union under its own fixed caller identity. Setup
@@ -956,6 +957,15 @@ Prerequisite-only installation phases check package readiness before and after
 reboot, the initial reboot request and the changed boot with its cleared request.
 Comprehensive kiosk classification, metadata and graphical-entry assertions run
 when their package case is selected, rather than in every removal history.
+System 5 is the single selected fresh-install/reboot history, including the
+installed-component, initial restart-request and changed-boot assertions.
+System 1 combines the lightweight package/reboot checks formerly selected as
+systems 1–3; systems 2–3 remain reserved and retired. System 1 remains explicitly
+selectable, but is omitted as a selected case whenever system 5 is selected.
+Its prerequisite executions omit kiosk mutations and graphical activation, and
+reconstructing a dependent history cannot pull in selected system-5 behavior.
+The family queue therefore schedules one installation history while retaining
+each dependent history's readiness.
 
 `removal::test_aborted_cleanup_rollback_retry` is the focused aborted-cleanup
 rollback and owned-retry history. List it with
@@ -963,7 +973,7 @@ rollback and owned-retry history. List it with
 then execute that same selection with `--vm NAME` and without `--list`.
 It starts from the accepted product-free baseline, installs and reboots in one
 guarded attempt, and preserves the independently measured original PAM oracle
-in `before.json`. It has four package prerequisite executions and two recovery
+in `before.json`. It has two package prerequisite executions and two recovery
 executions. The logical phases `rollback-installed`, `rollback-rebooted`,
 `rollback` and `rollback-rearmed-rebooted` keep progress, JUnit and result
 identities distinct; package assertions
@@ -985,7 +995,7 @@ does not start from an app snapshot.
 
 `removal::test_interrupted_finalization_retry[denial-publication]` and
 `[account-finalization]` are separate continuous focused
-histories with the same baseline and four package prerequisites. Each uses its
+histories with the same baseline and two package prerequisites. Each uses its
 variant name for the first recovery phase and `<variant>-retry-rebooted` for
 the second; package phases are `<variant>-installed` and `<variant>-rebooted`.
 Selection, frozen inputs, JUnit identities, failure stopping and complete replay

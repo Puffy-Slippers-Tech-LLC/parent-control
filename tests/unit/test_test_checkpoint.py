@@ -629,7 +629,7 @@ def test_repair_replays_the_specific_case_even_after_a_passing_diagnostic():
 
 def test_system_resume_excludes_completed_independent_cases_and_preserves_lifecycle():
     import system_runner
-    inventories = dict(package=('test_installed_package',),
+    inventories = dict(package=('test_installed_package', system_runner.KIOSK_ACTIVATION_CASE),
                        removal=('test_remove_reboot_reinstall',), authorization=('test_a', 'test_b'),
                        enforcement=('test_enforcement',), session=('test_session',),
                        extension=('test_child_extension_monitor_native_recovery',),
@@ -641,6 +641,24 @@ def test_system_resume_excludes_completed_independent_cases_and_preserves_lifecy
     with pytest.raises(system_runner.Error, match='resume-inventory-changed'):
         system_runner.resume_selection(selection, {'authorization::unknown'})
     lifecycle = system_runner.resolve_selection('removal', inventories=inventories)
+    prerequisites = [item for item in lifecycle.executions if item.prerequisite]
+    assert len(prerequisites) == 2
+    assert {item.case_id for item in prerequisites} == {'test_installed_package'}
+    installed = system_runner.resolve_selection('package', inventories=inventories)
+    assert {item.case_id for item in installed.executions if not item.prerequisite} == {
+        system_runner.KIOSK_ACTIVATION_CASE}
+    full = system_runner.resolve_selection(inventories=inventories)
+    retained = {item.phase + '::' + item.case_id for item in full.executions
+                if item.case_id != 'test_remove_reboot_reinstall'}
+    removal = system_runner.resume_selection(full, retained)
+    assert system_runner.KIOSK_ACTIVATION_CASE not in {item.case_id for item in removal.executions}
+    assert {item.case_id for item in removal.executions if item.prerequisite} == {
+        'test_installed_package'}
+    explicit = system_runner.resolve_selection(recording_ids='1,6', inventories=inventories)
+    completed_readiness = {item.phase + '::' + item.case_id for item in explicit.executions
+                          if item.case_id == 'test_installed_package'}
+    retry = system_runner.resume_selection(explicit, completed_readiness)
+    assert len([item for item in retry.executions if item.case_id == 'test_installed_package']) == 2
     completed = {item.phase + '::' + item.case_id for item in lifecycle.executions[:-1]}
     assert system_runner.resume_selection(lifecycle, completed).executions == lifecycle.executions
     upgrade = system_runner.resolve_selection('authorization', inventories=inventories, fresh_install=True)

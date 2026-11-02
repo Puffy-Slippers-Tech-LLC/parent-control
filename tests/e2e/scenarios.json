@@ -476,8 +476,9 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Log in as a standard user and observe the desktop. For app-grid, open the app grid to test discovery restrictions. Case 6 retains the legacy terminal ID but opens no terminal."},
-          {"id": "step-2", "operation": "ui", "description": "For app-grid, search for Oh No! Parent Control and check that no Parent launcher or management window is available. Do not activate unrelated search results. For case 6, reuse PARENT01 to invoke oh-no-parent-control-parent directly as the standard desktop user and read its management-access denial; no management controls become available. Dismiss the denial and observe the desktop with management absent."}
+          {"id": "step-1", "operation": "ui", "description": "Log in once as a standard user and open the app grid."},
+          {"id": "step-2", "operation": "ui", "description": "Search for Oh No! Parent Control and independently require no Parent launcher or management window. Do not activate unrelated search results."},
+          {"id": "step-3", "operation": "ui", "description": "Reuse PARENT01 to invoke oh-no-parent-control-parent directly as the same standard desktop user. Independently read its management-access denial and administrator-sign-in explanation; no management controls become available. Dismiss the denial normally."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -489,7 +490,8 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-2", "description": "Parent management is unavailable through the selected normal launch route: the app-grid search exposes no Parent launcher, or direct command execution visibly denies management."}
+          {"id": "search-denied", "step_id": "step-2", "description": "The standard user's app search exposes neither a Parent launcher nor a management window."},
+          {"id": "visible-result", "step_id": "step-3", "description": "Direct command execution as the same standard user visibly denies management, explains administrator access and closes normally."}
         ],
         "backend": [],
         "other_user": []
@@ -505,7 +507,7 @@
       },
       "variants": [
         {"coverage_id": 5, "id": "app-grid", "owner": "parent-navigation", "parameters": {"launch": "app-grid"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_access.py", "test_id": "app-grid"}},
-        {"coverage_id": 6, "id": "terminal", "owner": "parent-navigation", "parameters": {"launch": "terminal"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_terminal.py", "test_id": "terminal"}}
+        {"coverage_id": 6, "id": "terminal", "owner": "parent-navigation", "parameters": {"launch": "terminal"}, "status": "pending", "pending_reason": "Consolidated into E2E-004/app-grid (case 5), which independently checks app-search unavailability and direct-command denial in the same standard-user session. Historical selector excluded from E2E scheduling; no replacement task.", "executable": null}
       ]
     },
     {
@@ -1088,8 +1090,10 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval."},
-          {"id": "step-2", "operation": "ui", "description": "Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time."}
+          {"id": "step-1", "operation": "ui", "description": "Enable a 15-minute daily allowance and read zero grant. Capture recognizable allowed work beneath the overlay, or enter the kiosk from sign-in."},
+          {"id": "step-2", "operation": "ui", "description": "Prepare the child, parent, 75-second and soft-app choices; Cancel with no authentication prompt open. Independently require the original usable overlay activity and retained draft submission, or usable sign-in after kiosk."},
+          {"id": "step-3", "operation": "ui", "description": "Reopen the form with remembered choices and take the guarded surface-close route (legacy Escape). Independently require the same original usable activity and draft submission, or usable sign-in."},
+          {"id": "step-4", "operation": "ui", "description": "Reopen and prepare the same request, obtain real parent approval, read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1101,7 +1105,9 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-2", "description": "Cancel, Escape and immediate approved exit reach the right surface. Overlay preserves underlying activity; automatic exit is covered by ordinary approvals."}
+          {"id": "cancel-result", "step_id": "step-2", "description": "Cancel returns to usable sign-in or the same original overlay activity with retained draft submission."},
+          {"id": "close-result", "step_id": "step-3", "description": "The guarded surface-close route returns to usable sign-in or the same original overlay activity with retained draft submission."},
+          {"id": "visible-result", "step_id": "step-4", "description": "Explicit approval and immediate exit preserve the original overlay activity or return through usable sign-in to the child; the public countdown agrees with the approved estimate."}
         ],
         "backend": [],
         "other_user": []
@@ -1116,14 +1122,14 @@
         "full_combinations": [
           ["surface", "exit"]
         ],
-        "rationale": "Fully combine both surfaces and three exits. Approved here owns the immediate exit action, avoiding duplicate automatic-exit coverage."
+        "rationale": "One bounded history per surface covers Cancel, guarded surface close and then immediate approved exit, with independent intermediate destination and retained-work results. Stable approved IDs 46 and 49 own these histories; 44,45,47,48 remain nonexecutable historical selectors. Automatic exit remains covered by ordinary approvals."
       },
       "variants": [
-        {"coverage_id": 44, "id": "child-overlay-cancel", "owner": "request-form", "parameters": {"surface": "child-overlay", "exit": "cancel"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/overlay_cancel.py", "test_id": "child-overlay-cancel"}},
-        {"coverage_id": 45, "id": "child-overlay-escape", "owner": "request-form", "parameters": {"surface": "child-overlay", "exit": "escape"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/overlay_cancel.py", "test_id": "child-overlay-escape"}},
+        {"coverage_id": 44, "id": "child-overlay-cancel", "owner": "request-form", "parameters": {"surface": "child-overlay", "exit": "cancel"}, "status": "pending", "pending_reason": "Consolidated into E2E-015/child-overlay-approved (case 46), which independently checks Cancel, surface close and approved exit with the same retained work. Historical selector excluded from E2E scheduling; no replacement task.", "executable": null},
+        {"coverage_id": 45, "id": "child-overlay-escape", "owner": "request-form", "parameters": {"surface": "child-overlay", "exit": "escape"}, "status": "pending", "pending_reason": "Consolidated into E2E-015/child-overlay-approved (case 46), which independently checks Cancel, surface close and approved exit with the same retained work. Historical selector excluded from E2E scheduling; no replacement task.", "executable": null},
         {"coverage_id": 46, "id": "child-overlay-approved", "owner": "request-form", "parameters": {"surface": "child-overlay", "exit": "approved"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/overlay_approved.py", "test_id": "child-overlay-approved"}},
-        {"coverage_id": 47, "id": "kiosk-cancel", "owner": "kiosk-form", "parameters": {"surface": "kiosk", "exit": "cancel"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/kiosk_cancel.py", "test_id": "kiosk-cancel"}},
-        {"coverage_id": 48, "id": "kiosk-escape", "owner": "kiosk-form", "parameters": {"surface": "kiosk", "exit": "escape"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/kiosk_escape.py", "test_id": "kiosk-escape"}},
+        {"coverage_id": 47, "id": "kiosk-cancel", "owner": "kiosk-form", "parameters": {"surface": "kiosk", "exit": "cancel"}, "status": "pending", "pending_reason": "Consolidated into E2E-015/kiosk-approved (case 49), which independently checks Cancel, surface close and approved exit. Historical selector excluded from E2E scheduling; no replacement task.", "executable": null},
+        {"coverage_id": 48, "id": "kiosk-escape", "owner": "kiosk-form", "parameters": {"surface": "kiosk", "exit": "escape"}, "status": "pending", "pending_reason": "Consolidated into E2E-015/kiosk-approved (case 49), which independently checks Cancel, surface close and approved exit. Historical selector excluded from E2E scheduling; no replacement task.", "executable": null},
         {"coverage_id": 49, "id": "kiosk-approved", "owner": "kiosk-form", "parameters": {"surface": "kiosk", "exit": "approved"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/kiosk_approved.py", "test_id": "kiosk-approved"}}
       ]
     },
@@ -1312,8 +1318,8 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty."},
-          {"id": "step-2", "operation": "ui", "description": "Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used."},
-          {"id": "step-3", "operation": "ui", "description": "Sign in as the unrelated standard user and launch and use the same app through the corresponding route."}
+          {"id": "step-2", "operation": "ui", "description": "Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used."},
+          {"id": "step-3", "operation": "ui", "description": "Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1354,7 +1360,7 @@
         {"coverage_id": 74, "id": "native-file-manager-allowed-enabled", "owner": "app-launch", "parameters": {"route": "native-file-manager", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 76, "id": "native-file-manager-hard-blocked-enabled", "owner": "app-launch", "parameters": {"route": "native-file-manager", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 78, "id": "native-file-manager-soft-blocked-enabled", "owner": "app-launch", "parameters": {"route": "native-file-manager", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 80, "id": "native-command-allowed-enabled", "owner": "app-launch", "parameters": {"route": "native-command", "policy": "allowed", "control": "enabled"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/app_launch.py", "test_id": "native-command-allowed-enabled"}},
+        {"coverage_id": 80, "id": "native-command-allowed-enabled", "owner": "app-launch", "parameters": {"route": "native-command", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Consolidated into E2E-019/native-grid-allowed-enabled (case 62), which independently launches and uses both grid and command routes as each child, normally closing the grid app before the command launch. Historical selector excluded from E2E scheduling; no replacement task.", "executable": null},
         {"coverage_id": 81, "id": "native-command-allowed-disabled", "owner": "app-launch", "parameters": {"route": "native-command", "policy": "allowed", "control": "disabled"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/app_launch.py", "test_id": "native-command-allowed-disabled"}},
         {"coverage_id": 82, "id": "native-command-hard-blocked-enabled", "owner": "app-launch", "parameters": {"route": "native-command", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 83, "id": "native-command-hard-blocked-disabled", "owner": "app-launch", "parameters": {"route": "native-command", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
@@ -1888,7 +1894,7 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Prepare a report for later review in Parent. Draft-reopen writes formatted synthetic text and a reply with one real attachment; validation refuses an empty submission and then authors body/reply; attachments chooses two real files; diagnostic-export downloads the prepared diagnostics for local inspection. Shared UI tests own the control and local input matrices."},
+          {"id": "step-1", "operation": "ui", "description": "Prepare a report for later review in Parent. Draft-reopen first refuses an empty submission, authors body/reply and independently checks recovered valid state after reopening; then it formats that work and adds one real attachment. Attachments chooses two real files; diagnostic-export downloads the prepared diagnostics for local inspection. Shared UI tests own the control and local input matrices."},
           {"id": "step-2", "operation": "ui", "description": "Draft-reopen preserves authored text, reply and file across Privacy and normal dialog reopening, then discards them on app exit. Validation recovers and preserves the entered body/reply on reopening. Attachments removes the unwanted file and retains the intended one. Diagnostic-export recovers from cancellation and an unwritable destination, producing a real readable ZIP while preserving the draft. No valid feedback is submitted."}
         ],
         "end": [
@@ -1913,11 +1919,11 @@
           "flow": ["draft-reopen", "validation", "attachments", "diagnostic-export"]
         },
         "full_combinations": [],
-        "rationale": "Four report-preparation histories own retained authored work, correction after rejected submission, intended real attachment selection and diagnostic export/recovery. Shared UI owns formatting, local input and chooser-control matrices; private bytes and diagnostic production stay engineering-owned."
+        "rationale": "Three executable report-preparation histories own rejection recovery followed by retained formatted work, intended real attachment selection and diagnostic export/recovery. Stable case 153 remains nonexecutable and points to case 152. Shared UI owns formatting, local input and chooser-control matrices; private bytes and diagnostic production stay engineering-owned."
       },
       "variants": [
         {"coverage_id": 152, "id": "draft-reopen", "owner": "parent-navigation", "parameters": {"flow": "draft-reopen"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_feedback_draft.py", "test_id": "draft-reopen"}},
-        {"coverage_id": 153, "id": "validation", "owner": "parent-navigation", "parameters": {"flow": "validation"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_feedback_validation.py", "test_id": "validation"}},
+        {"coverage_id": 153, "id": "validation", "owner": "parent-navigation", "parameters": {"flow": "validation"}, "status": "pending", "pending_reason": "Consolidated into E2E-031/draft-reopen (case 152), which rejects the empty submission and independently verifies editing/reopen recovery before its formatted file-bearing draft history. Historical selector excluded from E2E scheduling; no replacement task.", "executable": null},
         {"coverage_id": 154, "id": "attachments", "owner": "parent-navigation", "parameters": {"flow": "attachments"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_feedback_attachments.py", "test_id": "attachments"}},
         {"coverage_id": 155, "id": "diagnostic-export", "owner": "parent-navigation", "parameters": {"flow": "diagnostic-export"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_diagnostic_export.py", "test_id": "diagnostic-export"}}
       ]

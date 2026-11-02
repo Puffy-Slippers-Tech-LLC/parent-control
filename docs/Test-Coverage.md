@@ -10,13 +10,13 @@
 | Private D-Bus component | <span style="color: green">224</span>/<span style="color: gray">0</span>/224 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">294</span>/<span style="color: gray">0</span>/294 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">166</span>/<span style="color: gray">0</span>/166 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
+| Installed system | <span style="color: green">165</span>/<span style="color: gray">0</span>/165 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">59</span>/<span style="color: gray">137</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6498</span>/<span style="color: gray">137</span>/6635** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">52</span>/<span style="color: gray">144</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6490</span>/<span style="color: gray">144</span>/6634** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">58</span>/<span style="color: gray">137</span>/195 |
+| customer-journey | <span style="color: green">51</span>/<span style="color: gray">144</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -40,18 +40,13 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [3](#scenario-3) | Parent discovery and navigation (children: existing and new) | `E2E-003/existing-and-new` | ready |
 | [4](#scenario-4) | Parent discovery and navigation (children: none) | `E2E-003/none` | ready |
 | [5](#scenario-5) | Standard user cannot manage policy (launch: app grid) | `E2E-004/app-grid` | ready |
-| [6](#scenario-6) | Standard user cannot manage policy (launch: terminal) | `E2E-004/terminal` | ready |
 | [22](#scenario-22) | Natural daily exhaustion, retained unlock and fresh login denial | `E2E-008/fresh-login` | ready |
 | [25](#scenario-25) | Switch User while child time expires (foreground: parent) | `E2E-010/parent` | ready |
 | [26](#scenario-26) | Switch User while child time expires (foreground: other child) | `E2E-010/other-child` | ready |
 | [27](#scenario-27) | Plan child activity with the remaining-time countdown (time: daily only) | `E2E-011/daily-only` | ready |
 | [28](#scenario-28) | Plan child activity with the remaining-time countdown (time: grant only) | `E2E-011/grant-only` | ready |
 | [29](#scenario-29) | Plan child activity with the remaining-time countdown (time: combined) | `E2E-011/combined` | ready |
-| [44](#scenario-44) | Request surface exit behavior (exit: cancel; surface: child overlay) | `E2E-015/child-overlay-cancel` | ready |
-| [45](#scenario-45) | Request surface exit behavior (exit: escape; surface: child overlay) | `E2E-015/child-overlay-escape` | ready |
 | [46](#scenario-46) | Request surface exit behavior (exit: approved; surface: child overlay) | `E2E-015/child-overlay-approved` | ready |
-| [47](#scenario-47) | Request surface exit behavior (exit: cancel; surface: kiosk) | `E2E-015/kiosk-cancel` | ready |
-| [48](#scenario-48) | Request surface exit behavior (exit: escape; surface: kiosk) | `E2E-015/kiosk-escape` | ready |
 | [49](#scenario-49) | Request surface exit behavior (exit: approved; surface: kiosk) | `E2E-015/kiosk-approved` | ready |
 | [50](#scenario-50) | Restricted request station (request: approved) | `E2E-016/approved` | ready |
 | [51](#scenario-51) | Restricted request station (request: denied) | `E2E-016/denied` | ready |
@@ -66,12 +61,10 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [60](#scenario-60) | Remember each child's choices across both request forms (child: first; direction: kiosk to overlay) | `E2E-018/kiosk-to-overlay-first` | ready |
 | [61](#scenario-61) | Remember each child's choices across both request forms (child: second; direction: kiosk to overlay) | `E2E-018/kiosk-to-overlay-second` | ready |
 | [62](#scenario-62) | Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native grid) | `E2E-019/native-grid-allowed-enabled` | ready |
-| [80](#scenario-80) | Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native command) | `E2E-019/native-command-allowed-enabled` | ready |
 | [81](#scenario-81) | Use supported launch routes under each app rule (control: disabled; policy: allowed; route: native command) | `E2E-019/native-command-allowed-disabled` | ready |
 | [139](#scenario-139) | Install through remove, reinstall and purge | `E2E-027/continuous` | ready |
 | [151](#scenario-151) | Identify the installed product and return to management | `E2E-030/parent` | ready |
 | [152](#scenario-152) | Feedback drafts, validation and attachment review (flow: draft reopen) | `E2E-031/draft-reopen` | ready |
-| [153](#scenario-153) | Feedback drafts, validation and attachment review (flow: validation) | `E2E-031/validation` | ready |
 | [154](#scenario-154) | Feedback drafts, validation and attachment review (flow: attachments) | `E2E-031/attachments` | ready |
 | [155](#scenario-155) | Feedback drafts, validation and attachment review (flow: diagnostic export) | `E2E-031/diagnostic-export` | ready |
 | [158](#scenario-158) | Choose allowances and save edits (flow: boundaries) | `E2E-035/boundaries` | ready |
@@ -94,6 +87,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [260](#scenario-260) | Keep a child's request and saved work across Hebrew approval and English restoration | `E2E-059/overlay-hebrew` | ready |
 | [261](#scenario-261) | Keep the child's request language when the approving parent changes | `E2E-060/kiosk-hebrew` | ready |
 | [262](#scenario-262) | Language changes preserve countdown and natural expiry | `E2E-061/panel-expiry` | ready |
+| <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[7](#scenario-7)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-new`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[8](#scenario-8)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: retained; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-retained`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[9](#scenario-9)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-new`</span> | <span style="color: gray">pending</span> |
@@ -120,6 +114,10 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[41](#scenario-41)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: predefined; surface: kiosk)</span> | <span style="color: gray">`E2E-014/kiosk-predefined`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[42](#scenario-42)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: custom; surface: kiosk)</span> | <span style="color: gray">`E2E-014/kiosk-custom`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[43](#scenario-43)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: rest of day; surface: kiosk)</span> | <span style="color: gray">`E2E-014/kiosk-rest-of-day`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[44](#scenario-44)</span> | <span style="color: gray">Request surface exit behavior (exit: cancel; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-cancel`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[45](#scenario-45)</span> | <span style="color: gray">Request surface exit behavior (exit: escape; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-escape`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[47](#scenario-47)</span> | <span style="color: gray">Request surface exit behavior (exit: cancel; surface: kiosk)</span> | <span style="color: gray">`E2E-015/kiosk-cancel`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[48](#scenario-48)</span> | <span style="color: gray">Request surface exit behavior (exit: escape; surface: kiosk)</span> | <span style="color: gray">`E2E-015/kiosk-escape`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[64](#scenario-64)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[66](#scenario-66)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[68](#scenario-68)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-allowed-enabled`</span> | <span style="color: gray">pending</span> |
@@ -128,6 +126,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[74](#scenario-74)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-allowed-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[76](#scenario-76)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[78](#scenario-78)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[80](#scenario-80)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-allowed-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[82](#scenario-82)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[83](#scenario-83)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[84](#scenario-84)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
@@ -176,6 +175,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[136](#scenario-136)</span> | <span style="color: gray">Customer package update and activation (activation: process)</span> | <span style="color: gray">`E2E-026/process`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[137](#scenario-137)</span> | <span style="color: gray">Customer package update and activation (activation: session)</span> | <span style="color: gray">`E2E-026/session`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[138](#scenario-138)</span> | <span style="color: gray">Customer package update and activation (activation: reboot)</span> | <span style="color: gray">`E2E-026/reboot`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[153](#scenario-153)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: validation)</span> | <span style="color: gray">`E2E-031/validation`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[156](#scenario-156)</span> | <span style="color: gray">Send reviewed feedback and read service acceptance</span> | <span style="color: gray">`E2E-032/success`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[157](#scenario-157)</span> | <span style="color: gray">Recover feedback sending after reconnecting</span> | <span style="color: gray">`E2E-033/retry`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[160](#scenario-160)</span> | <span style="color: gray">Revoke when there is no active grant (balance: daily positive)</span> | <span style="color: gray">`E2E-036/daily-positive`</span> | <span style="color: gray">pending</span> |
@@ -298,21 +298,9 @@ Variant: launch: app grid
 
 **Steps:**
 
-- Log in as a standard user and observe the desktop. For app-grid, open the app grid to test discovery restrictions. Case 6 retains the legacy terminal ID but opens no terminal.
-- For app-grid, search for Oh No! Parent Control and check that no Parent launcher or management window is available. Do not activate unrelated search results. For case 6, reuse PARENT01 to invoke oh-no-parent-control-parent directly as the standard desktop user and read its management-access denial; no management controls become available. Dismiss the denial and observe the desktop with management absent.
-
-### Scenario 6
-
-**Standard user cannot manage policy (launch: terminal)**
-
-Case: `E2E-004/terminal` · Category: customer-journey · Status: **ready**
-
-Variant: launch: terminal
-
-**Steps:**
-
-- Log in as a standard user and observe the desktop. For app-grid, open the app grid to test discovery restrictions. Case 6 retains the legacy terminal ID but opens no terminal.
-- For app-grid, search for Oh No! Parent Control and check that no Parent launcher or management window is available. Do not activate unrelated search results. For case 6, reuse PARENT01 to invoke oh-no-parent-control-parent directly as the standard desktop user and read its management-access denial; no management controls become available. Dismiss the denial and observe the desktop with management absent.
+- Log in once as a standard user and open the app grid.
+- Search for Oh No! Parent Control and independently require no Parent launcher or management window. Do not activate unrelated search results.
+- Reuse PARENT01 to invoke oh-no-parent-control-parent directly as the same standard desktop user. Independently read its management-access denial and administrator-sign-in explanation; no management controls become available. Dismiss the denial normally.
 
 ### Scenario 22
 
@@ -401,32 +389,6 @@ Variant: time: combined
 - Lock and unlock the retained child desktop while time remains. Resume the same work and compare the refreshed countdown with the earlier balance and actual elapsed time; returning must not restart time.
 - Continue the activity through minute and final-second countdown changes until natural exhaustion locks the desktop. Compare the predicted remaining interval with the actual end of desktop access.
 
-### Scenario 44
-
-**Request surface exit behavior (exit: cancel; surface: child overlay)**
-
-Case: `E2E-015/child-overlay-cancel` · Category: customer-journey · Status: **ready**
-
-Variant: exit: cancel; surface: child overlay
-
-**Steps:**
-
-- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
-- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
-
-### Scenario 45
-
-**Request surface exit behavior (exit: escape; surface: child overlay)**
-
-Case: `E2E-015/child-overlay-escape` · Category: customer-journey · Status: **ready**
-
-Variant: exit: escape; surface: child overlay
-
-**Steps:**
-
-- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
-- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
-
 ### Scenario 46
 
 **Request surface exit behavior (exit: approved; surface: child overlay)**
@@ -437,34 +399,10 @@ Variant: exit: approved; surface: child overlay
 
 **Steps:**
 
-- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
-- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
-
-### Scenario 47
-
-**Request surface exit behavior (exit: cancel; surface: kiosk)**
-
-Case: `E2E-015/kiosk-cancel` · Category: customer-journey · Status: **ready**
-
-Variant: exit: cancel; surface: kiosk
-
-**Steps:**
-
-- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
-- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
-
-### Scenario 48
-
-**Request surface exit behavior (exit: escape; surface: kiosk)**
-
-Case: `E2E-015/kiosk-escape` · Category: customer-journey · Status: **ready**
-
-Variant: exit: escape; surface: kiosk
-
-**Steps:**
-
-- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
-- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
+- Enable a 15-minute daily allowance and read zero grant. Capture recognizable allowed work beneath the overlay, or enter the kiosk from sign-in.
+- Prepare the child, parent, 75-second and soft-app choices; Cancel with no authentication prompt open. Independently require the original usable overlay activity and retained draft submission, or usable sign-in after kiosk.
+- Reopen the form with remembered choices and take the guarded surface-close route (legacy Escape). Independently require the same original usable activity and draft submission, or usable sign-in.
+- Reopen and prepare the same request, obtain real parent approval, read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate.
 
 ### Scenario 49
 
@@ -476,8 +414,10 @@ Variant: exit: approved; surface: kiosk
 
 **Steps:**
 
-- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
-- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
+- Enable a 15-minute daily allowance and read zero grant. Capture recognizable allowed work beneath the overlay, or enter the kiosk from sign-in.
+- Prepare the child, parent, 75-second and soft-app choices; Cancel with no authentication prompt open. Independently require the original usable overlay activity and retained draft submission, or usable sign-in after kiosk.
+- Reopen the form with remembered choices and take the guarded surface-close route (legacy Escape). Independently require the same original usable activity and draft submission, or usable sign-in.
+- Reopen and prepare the same request, obtain real parent approval, read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate.
 
 ### Scenario 50
 
@@ -658,22 +598,8 @@ Variant: control: enabled; policy: allowed; route: native grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
-
-### Scenario 80
-
-**Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native command)**
-
-Case: `E2E-019/native-command-allowed-enabled` · Category: customer-journey · Status: **ready**
-
-Variant: control: enabled; policy: allowed; route: native command
-
-**Steps:**
-
-- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 ### Scenario 81
 
@@ -686,8 +612,8 @@ Variant: control: disabled; policy: allowed; route: native command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 ### Scenario 139
 
@@ -727,20 +653,7 @@ Variant: flow: draft reopen
 
 **Steps:**
 
-- Prepare a report for later review in Parent. Draft-reopen writes formatted synthetic text and a reply with one real attachment; validation refuses an empty submission and then authors body/reply; attachments chooses two real files; diagnostic-export downloads the prepared diagnostics for local inspection. Shared UI tests own the control and local input matrices.
-- Draft-reopen preserves authored text, reply and file across Privacy and normal dialog reopening, then discards them on app exit. Validation recovers and preserves the entered body/reply on reopening. Attachments removes the unwanted file and retains the intended one. Diagnostic-export recovers from cancellation and an unwritable destination, producing a real readable ZIP while preserving the draft. No valid feedback is submitted.
-
-### Scenario 153
-
-**Feedback drafts, validation and attachment review (flow: validation)**
-
-Case: `E2E-031/validation` · Category: customer-journey · Status: **ready**
-
-Variant: flow: validation
-
-**Steps:**
-
-- Prepare a report for later review in Parent. Draft-reopen writes formatted synthetic text and a reply with one real attachment; validation refuses an empty submission and then authors body/reply; attachments chooses two real files; diagnostic-export downloads the prepared diagnostics for local inspection. Shared UI tests own the control and local input matrices.
+- Prepare a report for later review in Parent. Draft-reopen first refuses an empty submission, authors body/reply and independently checks recovered valid state after reopening; then it formats that work and adds one real attachment. Attachments chooses two real files; diagnostic-export downloads the prepared diagnostics for local inspection. Shared UI tests own the control and local input matrices.
 - Draft-reopen preserves authored text, reply and file across Privacy and normal dialog reopening, then discards them on app exit. Validation recovers and preserves the entered body/reply on reopening. Attachments removes the unwanted file and retains the intended one. Diagnostic-export recovers from cancellation and an unwritable destination, producing a real readable ZIP while preserving the draft. No valid feedback is submitted.
 
 ### Scenario 154
@@ -753,7 +666,7 @@ Variant: flow: attachments
 
 **Steps:**
 
-- Prepare a report for later review in Parent. Draft-reopen writes formatted synthetic text and a reply with one real attachment; validation refuses an empty submission and then authors body/reply; attachments chooses two real files; diagnostic-export downloads the prepared diagnostics for local inspection. Shared UI tests own the control and local input matrices.
+- Prepare a report for later review in Parent. Draft-reopen first refuses an empty submission, authors body/reply and independently checks recovered valid state after reopening; then it formats that work and adds one real attachment. Attachments chooses two real files; diagnostic-export downloads the prepared diagnostics for local inspection. Shared UI tests own the control and local input matrices.
 - Draft-reopen preserves authored text, reply and file across Privacy and normal dialog reopening, then discards them on app exit. Validation recovers and preserves the entered body/reply on reopening. Attachments removes the unwanted file and retains the intended one. Diagnostic-export recovers from cancellation and an unwritable destination, producing a real readable ZIP while preserving the draft. No valid feedback is submitted.
 
 ### Scenario 155
@@ -766,7 +679,7 @@ Variant: flow: diagnostic export
 
 **Steps:**
 
-- Prepare a report for later review in Parent. Draft-reopen writes formatted synthetic text and a reply with one real attachment; validation refuses an empty submission and then authors body/reply; attachments chooses two real files; diagnostic-export downloads the prepared diagnostics for local inspection. Shared UI tests own the control and local input matrices.
+- Prepare a report for later review in Parent. Draft-reopen first refuses an empty submission, authors body/reply and independently checks recovered valid state after reopening; then it formats that work and adds one real attachment. Attachments chooses two real files; diagnostic-export downloads the prepared diagnostics for local inspection. Shared UI tests own the control and local input matrices.
 - Draft-reopen preserves authored text, reply and file across Privacy and normal dialog reopening, then discards them on app exit. Validation recovers and preserves the entered body/reply on reopening. Attachments removes the unwanted file and retains the intended one. Diagnostic-export recovers from cancellation and an unwritable destination, producing a real readable ZIP while preserving the draft. No valid feedback is submitted.
 
 ### Scenario 158
@@ -1054,6 +967,26 @@ Variant: history: panel expiry
 - Riley saves Hebrew and cancels back to the same usable app and draft; the translated panel follows real elapsed time without resetting it.
 - Riley restores English and cancels back to the same work and request choices; the panel retains the original time deadline.
 - Riley uses the app through minute and final-second progression until natural locking; harmless input remains owned by the lock, and Jamie verifies unchanged policy with no remaining time or grant.
+
+<div style="color: gray">
+
+### Scenario 6
+
+**Standard user cannot manage policy (launch: terminal)**
+
+Case: `E2E-004/terminal` · Category: customer-journey · Status: **pending**
+
+Variant: launch: terminal
+
+**Steps:**
+
+- Log in once as a standard user and open the app grid.
+- Search for Oh No! Parent Control and independently require no Parent launcher or management window. Do not activate unrelated search results.
+- Reuse PARENT01 to invoke oh-no-parent-control-parent directly as the same standard desktop user. Independently read its management-access denial and administrator-sign-in explanation; no management controls become available. Dismiss the denial normally.
+
+Pending: Consolidated into E2E-004/app-grid (case 5), which independently checks app-search unavailability and direct-command denial in the same standard-user session. Historical selector excluded from E2E scheduling; no replacement task.
+
+</div>
 
 <div style="color: gray">
 
@@ -1585,6 +1518,90 @@ Pending: Excluded from automation scheduling: native control-addressed double-cl
 
 <div style="color: gray">
 
+### Scenario 44
+
+**Request surface exit behavior (exit: cancel; surface: child overlay)**
+
+Case: `E2E-015/child-overlay-cancel` · Category: customer-journey · Status: **pending**
+
+Variant: exit: cancel; surface: child overlay
+
+**Steps:**
+
+- Enable a 15-minute daily allowance and read zero grant. Capture recognizable allowed work beneath the overlay, or enter the kiosk from sign-in.
+- Prepare the child, parent, 75-second and soft-app choices; Cancel with no authentication prompt open. Independently require the original usable overlay activity and retained draft submission, or usable sign-in after kiosk.
+- Reopen the form with remembered choices and take the guarded surface-close route (legacy Escape). Independently require the same original usable activity and draft submission, or usable sign-in.
+- Reopen and prepare the same request, obtain real parent approval, read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate.
+
+Pending: Consolidated into E2E-015/child-overlay-approved (case 46), which independently checks Cancel, surface close and approved exit with the same retained work. Historical selector excluded from E2E scheduling; no replacement task.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 45
+
+**Request surface exit behavior (exit: escape; surface: child overlay)**
+
+Case: `E2E-015/child-overlay-escape` · Category: customer-journey · Status: **pending**
+
+Variant: exit: escape; surface: child overlay
+
+**Steps:**
+
+- Enable a 15-minute daily allowance and read zero grant. Capture recognizable allowed work beneath the overlay, or enter the kiosk from sign-in.
+- Prepare the child, parent, 75-second and soft-app choices; Cancel with no authentication prompt open. Independently require the original usable overlay activity and retained draft submission, or usable sign-in after kiosk.
+- Reopen the form with remembered choices and take the guarded surface-close route (legacy Escape). Independently require the same original usable activity and draft submission, or usable sign-in.
+- Reopen and prepare the same request, obtain real parent approval, read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate.
+
+Pending: Consolidated into E2E-015/child-overlay-approved (case 46), which independently checks Cancel, surface close and approved exit with the same retained work. Historical selector excluded from E2E scheduling; no replacement task.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 47
+
+**Request surface exit behavior (exit: cancel; surface: kiosk)**
+
+Case: `E2E-015/kiosk-cancel` · Category: customer-journey · Status: **pending**
+
+Variant: exit: cancel; surface: kiosk
+
+**Steps:**
+
+- Enable a 15-minute daily allowance and read zero grant. Capture recognizable allowed work beneath the overlay, or enter the kiosk from sign-in.
+- Prepare the child, parent, 75-second and soft-app choices; Cancel with no authentication prompt open. Independently require the original usable overlay activity and retained draft submission, or usable sign-in after kiosk.
+- Reopen the form with remembered choices and take the guarded surface-close route (legacy Escape). Independently require the same original usable activity and draft submission, or usable sign-in.
+- Reopen and prepare the same request, obtain real parent approval, read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate.
+
+Pending: Consolidated into E2E-015/kiosk-approved (case 49), which independently checks Cancel, surface close and approved exit. Historical selector excluded from E2E scheduling; no replacement task.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 48
+
+**Request surface exit behavior (exit: escape; surface: kiosk)**
+
+Case: `E2E-015/kiosk-escape` · Category: customer-journey · Status: **pending**
+
+Variant: exit: escape; surface: kiosk
+
+**Steps:**
+
+- Enable a 15-minute daily allowance and read zero grant. Capture recognizable allowed work beneath the overlay, or enter the kiosk from sign-in.
+- Prepare the child, parent, 75-second and soft-app choices; Cancel with no authentication prompt open. Independently require the original usable overlay activity and retained draft submission, or usable sign-in after kiosk.
+- Reopen the form with remembered choices and take the guarded surface-close route (legacy Escape). Independently require the same original usable activity and draft submission, or usable sign-in.
+- Reopen and prepare the same request, obtain real parent approval, read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate.
+
+Pending: Consolidated into E2E-015/kiosk-approved (case 49), which independently checks Cancel, surface close and approved exit. Historical selector excluded from E2E scheduling; no replacement task.
+
+</div>
+
+<div style="color: gray">
+
 ### Scenario 64
 
 **Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native grid)**
@@ -1596,8 +1613,8 @@ Variant: control: enabled; policy: hard blocked; route: native grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1616,8 +1633,8 @@ Variant: control: enabled; policy: soft blocked; route: native grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1636,8 +1653,8 @@ Variant: control: enabled; policy: allowed; route: native desktop
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1656,8 +1673,8 @@ Variant: control: enabled; policy: hard blocked; route: native desktop
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1676,8 +1693,8 @@ Variant: control: enabled; policy: soft blocked; route: native desktop
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1696,8 +1713,8 @@ Variant: control: enabled; policy: allowed; route: native file manager
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1716,8 +1733,8 @@ Variant: control: enabled; policy: hard blocked; route: native file manager
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1736,10 +1753,30 @@ Variant: control: enabled; policy: soft blocked; route: native file manager
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 80
+
+**Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native command)**
+
+Case: `E2E-019/native-command-allowed-enabled` · Category: customer-journey · Status: **pending**
+
+Variant: control: enabled; policy: allowed; route: native command
+
+**Steps:**
+
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
+
+Pending: Consolidated into E2E-019/native-grid-allowed-enabled (case 62), which independently launches and uses both grid and command routes as each child, normally closing the grid app before the command launch. Historical selector excluded from E2E scheduling; no replacement task.
 
 </div>
 
@@ -1756,8 +1793,8 @@ Variant: control: enabled; policy: hard blocked; route: native command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1776,8 +1813,8 @@ Variant: control: disabled; policy: hard blocked; route: native command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1796,8 +1833,8 @@ Variant: control: enabled; policy: soft blocked; route: native command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1816,8 +1853,8 @@ Variant: control: disabled; policy: soft blocked; route: native command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1836,8 +1873,8 @@ Variant: control: enabled; policy: allowed; route: snap grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1856,8 +1893,8 @@ Variant: control: enabled; policy: hard blocked; route: snap grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1876,8 +1913,8 @@ Variant: control: enabled; policy: soft blocked; route: snap grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1896,8 +1933,8 @@ Variant: control: enabled; policy: allowed; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1916,8 +1953,8 @@ Variant: control: disabled; policy: allowed; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1936,8 +1973,8 @@ Variant: control: enabled; policy: hard blocked; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1956,8 +1993,8 @@ Variant: control: disabled; policy: hard blocked; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1976,8 +2013,8 @@ Variant: control: enabled; policy: soft blocked; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -1996,8 +2033,8 @@ Variant: control: disabled; policy: soft blocked; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -2016,8 +2053,8 @@ Variant: control: enabled; policy: allowed; route: flatpak grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -2036,8 +2073,8 @@ Variant: control: enabled; policy: hard blocked; route: flatpak grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -2056,8 +2093,8 @@ Variant: control: enabled; policy: soft blocked; route: flatpak grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -2076,8 +2113,8 @@ Variant: control: enabled; policy: allowed; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -2096,8 +2133,8 @@ Variant: control: disabled; policy: allowed; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -2116,8 +2153,8 @@ Variant: control: enabled; policy: hard blocked; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -2136,8 +2173,8 @@ Variant: control: disabled; policy: hard blocked; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -2156,8 +2193,8 @@ Variant: control: enabled; policy: soft blocked; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -2176,8 +2213,8 @@ Variant: control: disabled; policy: soft blocked; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -2715,6 +2752,25 @@ Variant: activation: reboot
 - Independently prove every affected user's apps usable again after the actual activation instructions. Read saved allowance/app rules before editing, installed version and positive reduced grant balance at the original deadline; verify allowed work and denied soft/hard launches. Reboot case 138 compares complete remembered choices on both forms; process/session cases 136/137 open affected forms and read readiness and intended target without repeating the full preference tour.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 153
+
+**Feedback drafts, validation and attachment review (flow: validation)**
+
+Case: `E2E-031/validation` · Category: customer-journey · Status: **pending**
+
+Variant: flow: validation
+
+**Steps:**
+
+- Prepare a report for later review in Parent. Draft-reopen first refuses an empty submission, authors body/reply and independently checks recovered valid state after reopening; then it formats that work and adds one real attachment. Attachments chooses two real files; diagnostic-export downloads the prepared diagnostics for local inspection. Shared UI tests own the control and local input matrices.
+- Draft-reopen preserves authored text, reply and file across Privacy and normal dialog reopening, then discards them on app exit. Validation recovers and preserves the entered body/reply on reopening. Attachments removes the unwanted file and retains the intended one. Diagnostic-export recovers from cancellation and an unwritable destination, producing a real readable ZIP while preserving the draft. No valid feedback is submitted.
+
+Pending: Consolidated into E2E-031/draft-reopen (case 152), which rejects the empty submission and independently verifies editing/reopen recovery before its formatted file-bearing draft history. Historical selector excluded from E2E scheduling; no replacement task.
 
 </div>
 

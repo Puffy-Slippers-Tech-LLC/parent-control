@@ -28,7 +28,22 @@ sub run {
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
     $journey->consume_observation('parent-selected', $selected);
     onpc_request_flow::daily_station_entry($journey);
-    onpc_request_flow::prepare($journey, 'open', 'open', 'default',
+    if ($exit eq 'approved') {
+        for my $route ('cancel', 'close') {
+            my $section = $journey->scope($route . '-exit');
+            onpc_request_flow::prepare($section, 'open',
+                $route eq 'cancel' ? 'open' : 'new',
+                $route eq 'cancel' ? 'default' : 'selected',
+                'fixture-child', 'fixture-parent', 75, 1);
+            if ($route eq 'cancel') {
+                $section->seen($_) for qw(cancel-action cancel-returned);
+            } else {
+                onpc_request_exit::escape($section);
+            }
+        }
+    }
+    onpc_request_flow::prepare($journey, 'open', $exit eq 'approved' ? 'new' : 'open',
+                               $exit eq 'approved' ? 'selected' : 'default',
                                'fixture-child', 'fixture-parent', 75, 1);
     if ($exit eq 'approved') {
         onpc_request_flow::approve($journey, 'fixture-child', 'fixture-parent', 75, 1, 'immediate');
@@ -66,8 +81,24 @@ sub overlay_cancel {
     onpc_gdm::sign_in_challenge($journey, 'child-login',
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
     my $activity = onpc_app_rows::native_activity_entry($journey, 'activity', 'command');
-    onpc_request_flow::overlay_entry($journey, 'direct', 'command');
-    onpc_request_flow::prepare($journey, 'open', 'open', 'default',
+    if ($exit eq 'approved') {
+        for my $route ('cancel', 'close') {
+            my $section = $journey->scope($route . '-exit');
+            onpc_request_flow::prepare($section, 'open', 'new',
+                $route eq 'cancel' ? 'default' : 'selected',
+                'fixture-child', 'fixture-parent', 75, 1, 'overlay');
+            if ($route eq 'cancel') {
+                $section->seen($_) for qw(cancel cancel-returned);
+            } else {
+                onpc_request_exit::escape($section);
+            }
+            onpc_app_rows::native_activity_resume($section, 'resumed');
+        }
+    } else {
+        onpc_request_flow::overlay_entry($journey, 'direct', 'command');
+    }
+    onpc_request_flow::prepare($journey, 'open', $exit eq 'approved' ? 'new' : 'open',
+        $exit eq 'approved' ? 'selected' : 'default',
         'fixture-child', 'fixture-parent', 75, 1, 'overlay');
     if ($exit eq 'approved') {
         onpc_request_flow::overlay_approve($journey, 'immediate');

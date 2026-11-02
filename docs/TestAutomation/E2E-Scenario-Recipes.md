@@ -417,16 +417,18 @@ Bindings: children = existing-and-new / none.
 
 ### E2E-004
 
-Implementation status: Cases 5 and 6 retain complete implementations,
-behavioral verification and ready inventory bindings.
+Case 5 combines search unavailability and direct-command denial in one
+standard-user session. Case 6 retains its historical ID with no executable and
+points to case 5; this creates no replacement scheduling task.
 
 **Standard user cannot manage policy.** Cases 5, 6.
 
 Bindings: launch = app-grid / terminal (the stable `terminal` ID now means
 direct command invocation, without opening Terminal).
 
-1. V(standard,fresh); app-grid alone then uses SEARCH01.
-2. Grid: UI21 → SEARCH03(full `Oh No! Parent Control` query once) → SEARCH04(unavailable product launcher and management window), no Enter. Unrelated web suggestions and intermediate split-query readbacks add no acceptance requirement. Case 6: PARENT01(denied) → UI11(management). Read **Administrator access required** and its administrator-sign-in explanation, require no management access, then close the denial normally. Generic startup errors or successful command submission cannot establish access denial; a separate clear-desktop assertion is unnecessary.
+1. V(standard,fresh) → SEARCH01.
+2. UI21 → SEARCH03(full `Oh No! Parent Control` query once) → SEARCH04(unavailable product launcher and management window), no Enter. Record that independent denial before continuing. Unrelated web suggestions and intermediate split-query readbacks add no acceptance requirement.
+3. PARENT01(denied) → UI11(management), as the same standard account. The shared command launcher closes Overview through its public API and observes closure before input. Read **Administrator access required** and its administrator-sign-in explanation, require no management access, then close the denial normally. Generic startup errors or successful command submission cannot establish access denial; a separate clear-desktop assertion is unnecessary.
 
 ### E2E-005
 
@@ -663,27 +665,28 @@ APP04 uses the shared `native-activity` public reader and
 window/activity capture before further edits. This supplies no complete overlay
 case or cross-user retention acceptance; those remain with their consumers.
 
-Implementation context: case 47 uses `kiosk_cancel.PLAN` / `onpc_kiosk_cancel::run`.
-Case 44 uses `overlay_cancel.PLAN` / `onpc_kiosk_cancel::run(exchange, 'overlay',...)`.
-Case 45 uses `overlay_cancel.ESCAPE_PLAN` /
-`onpc_kiosk_cancel::run(exchange, 'overlay-escape',...)` with the same preparation
-and retained-activity checks; its exit is shared `onpc_request_exit::escape`.
+Current executable histories are case 46, `overlay_approved.PLAN` /
+`onpc_kiosk_cancel::run(exchange, 'overlay-approved',...)`, and case 49,
+`kiosk_approved.PLAN` / `onpc_kiosk_cancel::run(exchange, 'approved',...)`.
+Each independently checks Cancel, guarded surface close (legacy Escape), then
+immediate approved exit, sharing one installed preparation and worker lifetime.
+Stable cases 44/45 and 47/48 remain nonexecutable historical selectors pointing
+to 46 and 49 respectively; they create no replacement scheduling tasks.
 Prepare Riley's enabled 15-minute daily allowance through Parent and independently
 read 900 daily seconds with zero grant before fresh child sign-in. Verify the
 baseline native fixtures through `fixture_actions(include_refusal=False)`, then
 launch/use the native Allowed app by command and capture its immutable public
-window/draft. Open the overlay once and prepare the qualified Jamie/custom
+window/draft. Open the overlay and prepare the qualified Jamie/custom
 75-second/soft-included choices with `entry=open, initial=default`; independently
-bound the estimate by the earlier balance and elapsed time. Invoke Cancel once
-for case 44, or invoke the owned request-surface API `close` for legacy exit
-binding `escape` in case 45. Require absent form and the original usable child desktop, and compare the exact
-window/draft with the capture before submitting the same draft again. Record the
-visible result only after that independent usable-app readback, then close the
-app normally. Qualification-only refusal and repeated-entry matrices stay in
-their capability owners.
-Case 48 uses `kiosk_escape.PLAN` / `onpc_kiosk_escape::run` and the shared
-`onpc_request_exit::escape` guard/input/return composition.
-Other exits and surfaces remain separate cases; runtime status is in the inventory.
+bound the estimate by the earlier balance and elapsed time. Invoke Cancel once;
+require absent form and the original usable child desktop, compare the exact
+window/draft with the capture and submit the same draft again. Reopen with
+`entry=new, initial=selected`, prepare the remembered request and invoke the
+owned request-surface API `close` through `onpc_request_exit::escape`. Repeat
+the independent destination, original-window/draft and usable submission checks
+before a third request obtains approval. Each intermediate result has its own
+assertion. Close the app normally only after the approved-exit checks below.
+Qualification-only refusal matrices stay in their capability owners.
 
 Overlay FLOW04 uses `request_flow.prepared_request(surface='overlay')` /
 `onpc_request_flow::prepare(..., 'overlay')`, composing the shared form leaves
@@ -692,7 +695,7 @@ with a fixed child and no child-selection input. The declared Riley/Jamie,
 and a new entry with remembered choices; see the
 [overlay qualification](E2E-Building-Blocks.md#overlay-flow04-invalid-submission-and-escape-qualification).
 `overlay_choices.PLAN` is the finite capability qualification, not a complete
-case wrapper. Cases 44/45 reuse `KioskRequestJourney`, shared declarations,
+case wrapper. Case 46 reuses `KioskRequestJourney`, shared declarations,
 `overlay_entry`, native activity endpoints and the normal installed-journey
 lifecycle, keeping their separate Cancel/normal-close result assertions. The
 stable `escape` binding names identify the latter API route. Mute and authenticated
@@ -707,8 +710,8 @@ usable no-error choices after rejection or password-free Cancel, leaving the
 form open. A subsequent FLOW05 requires a new challenge. See the
 [overlay composition qualification](E2E-Building-Blocks.md#overlay-immediate-exit-and-approval-compositions).
 Consumers compose these shared declarations/workers and activity comparisons;
-the qualification plans supply no complete-case acceptance. Case 46 uses
-`overlay_approved.PLAN` / `onpc_kiosk_cancel::run(exchange, 'overlay-approved',...)`:
+the qualification plans supply no complete-case acceptance. After the two
+unapproved exits, case 46 reopens with `entry=new, initial=selected`:
 take the immediate action after explicit success, independently compare the
 same usable child activity, submit the retained draft again and read the approved
 time through TIME01 before closing the app. `KioskRequestJourney` binds the
@@ -722,8 +725,11 @@ Case 49 uses `kiosk_approved.PLAN` / `onpc_kiosk_cancel::run(exchange, 'approved
 `approved_request(exit='immediate')` declaration and
 `onpc_request_flow::approve` with the qualified immediate-success/exit leaf.
 Prepare and independently read 900 daily seconds and zero grant through Parent;
-the child has not yet entered. Open the station once and prepare the same
-75-second, soft-app-included choices as cases 47/48. Read the 975-second estimate
+the child has not yet entered. Prepare the same 75-second, soft-app-included
+choices, Cancel and independently require absent form and usable GDM. Reenter
+with `entry=new, initial=selected`, prepare the remembered request, invoke one
+guarded surface close and independently require absent form and usable GDM again.
+Reenter and prepare the final request. Read the 975-second estimate
 and its guest monotonic timestamp before submitting. Observe explicit approval
 and invoke the offered immediate action once, then independently require absent
 form and usable GDM. Freshly sign in as the intended child and require its usable
@@ -733,21 +739,23 @@ minute flooring and the shared [sampling tolerance](E2E-Building-Blocks.md#child
 within 180 real elapsed
 seconds of the estimate; no grant, clock or private-state probe supplies it.
 
-**Request surface exit behavior.** Cases 44, 45, 46, 47, 48, 49.
+**Request surface exit behavior.** Executable cases 46 and 49 cover the outcomes
+formerly scheduled separately as cases 44–49.
 
 Bindings: surface = child-overlay / kiosk; exit = cancel / escape / approved.
 
-1. FLOW16 → C if overlay → FLOW08(allowed) → APP04 → FLOW04; kiosk uses G → FLOW04. Approved: REQUEST09 → AUTH02(correct) → REQUEST11.
-2. REQUEST12(cancel|escape|approved-immediate). Overlay APP04(compare) → APP03; kiosk GDM01. Approved enters child if needed → TIME01.
+1. FLOW16 → C if overlay → FLOW08(allowed) → APP04; kiosk uses G.
+2. FLOW04 → REQUEST12(cancel). Overlay APP04(compare) → APP03; kiosk GDM01.
+3. FLOW04(new, selected) → REQUEST12(escape). Repeat the independent destination and activity checks.
+4. FLOW04(new, selected) → REQUEST09 → AUTH02(correct) → REQUEST11 → REQUEST12(approved-immediate). Overlay APP04(compare) → APP03; kiosk GDM01 → child entry. TIME01 verifies approved time.
 
-Cases 47 and 48 prepare an enabled 15-minute daily allowance through Parent and read
+Case 49 prepares an enabled 15-minute daily allowance through Parent and reads
 the public balance before switching to GDM, using the shared
-`daily_station_entry` declaration/worker fragment also used by case 49.
-Enter the station once, then use
+`daily_station_entry` declaration/worker fragment. Initially enter the station, then use
 FLOW04 with `entry=open`, `initial=default`, explicit fixture child/parent,
 custom `1.25` minutes and soft apps included. Independently compare the estimate
-with that balance before Cancel (47) or one guarded API surface close (48); require the
-absent form and usable GDM.
+with that balance before each exit. The two unapproved exits precede approval
+and never reset the VM, policy, child usage or original work within the history.
 
 ### E2E-016
 
@@ -995,13 +1003,13 @@ Bindings: direction = overlay-to-kiosk / kiosk-to-overlay; child = first / secon
 
 ### E2E-019
 
-Implementation status: Case 80 is registered through `app_launch.PLAN` /
-`onpc_app_launch::run`.
+Case 62, `app_launch.GRID_PLAN` / `onpc_app_launch::run`, combines the enabled
+Allowed grid and command routes as each child. Stable case 80 is nonexecutable
+and points to 62; this creates no replacement scheduling task.
 Case 81 is registered through `app_launch.DISABLED_PLAN` and the same worker's
 explicit disabled binding.
 The [catalogue](E2E-Building-Blocks.md#application-routes-and-complete-customer-journeys)
-records accepted scopes. Case 62 is registered through `app_launch.GRID_PLAN`
-and the same worker's explicit enabled/grid binding. Other cases remain pending.
+records accepted scopes. Other cases remain pending.
 
 **Use supported launch routes under each app rule.** Cases 62, 64, 66, 68, 70, 72, 74, 76, 78, 80, 81, 82, 83, 84, 85, 86, 88, 90, 92, 93, 94, 95, 96, 97, 98, 100, 102, 104, 105, 106, 107, 108, 109.
 
@@ -1020,11 +1028,14 @@ another child's unaffected access through the same route.
 2. C(fresh) → FLOW08(exact route, policy result). Hidden launcher: APP02(hidden) → FLOW08(explicit command route,denied).
 3. V(Riley,fresh) → FLOW08(same target, corresponding route,usable).
 
-Case 80 binds native fixture A (`Exact Fixture.AppImage`) and the precise match
+Case 62 binds native fixture A (`Exact Fixture.AppImage`) and the precise match
 to public Allowed readback. Parent enables Jordan with 30 daily minutes and no
-one-time grant, then the shared native command/window/Submit/result operations
-prove use. Log out Jordan and enter Riley fresh; the same command and independent
-submitted-draft result prove unaffected access with Riley's policy untouched.
+one-time grant. Jordan launches through the grid and independently submits the
+normal draft, closes that app normally and observes its absence, then launches
+through the command and independently submits again. Log out Jordan and enter
+Riley fresh; repeat both routes and their independent submitted-draft results
+with Riley's policy untouched. Closing the first app prevents a surviving window
+from concealing a failed second launch.
 `AppPolicyJourney` owns saved time/match/access comparisons; the case owns account
 order and recorder phases. It prepares no approval and requires no retained work.
 
@@ -1035,14 +1046,13 @@ it does not enable limits or prepare an allowance or approval. Riley's policy
 and disabled limits remain untouched. The shared worker's disabled binding skips
 only the enabled-case allowance setup and its readback.
 
-Case 62 uses the same enabled setup, precise Allowed rule and Jordan/Riley order,
-but both children launch fixture A through native-grid exclusively. Each freshly
+The grid portion uses the same enabled setup, precise Allowed rule and Jordan/Riley order. Each freshly
 entered desktop searches `ONPC Allowed Fixture`, launches its intended window
 and submits the normal draft before independent result readback. The read-only
 `riley-grid` fixture profile verifies Riley's launcher for the shared executable;
 baseline preparation owns both children's launchers. Jordan binds `other-child`
 and Riley binds `child` in both declaration and worker. Riley's policy remains
-untouched; no approval, alternative launch or qualification refusal history is
+untouched; no approval, route fallback or qualification refusal history is
 part of the case.
 
 ### E2E-020
@@ -1257,14 +1267,17 @@ no link invocation or external-handler/license-opening obligation is required.
 Implementation status comes from the inventory. Shared attachment, Privacy and
 window-switch qualification does not replace complete customer composition.
 
-**Feedback drafts, validation and attachment review.** Cases 152, 153, 154, 155.
+**Feedback drafts, validation and attachment review.** Executable cases 152,
+154 and 155; historical case 153 points to 152 without a separate executable.
 
 Bindings: flow = draft-reopen / validation / attachments / diagnostic-export.
 
-1. P0; draft: FEED01 → UI16(body,email) → FEED04(bold) → UI16(emoji) → FEED06(single file) → FEED03; validation: FEED01 → FEED09(empty rejection) → UI16(body,email); attachments: FEED01 → FEED06(two files) → FEED07; export: FEED01 → FEED09(finished diagnostics and Download available) → FEED08 with chooser cancel/failure/success branches.
-2. Draft: DESK10(feedback) → FEED05 → FEED10(dialog,compare) → FEED10(app-exit,reset). Validation: FEED10(dialog) → FEED09(recovered valid state). Attachments: FEED13(remove one) → FEED07(remaining file). Never FEED11.
+1. P0; draft: FEED01 → FEED09(empty rejection) → UI16(body,email) → FEED10(dialog) → FEED09(recovered valid state) → FEED04(bold) → UI16(emoji) → FEED06(single file) → FEED03; attachments: FEED01 → FEED06(two files) → FEED07; export: FEED01 → FEED09(finished diagnostics and Download available) → FEED08 with chooser cancel/failure/success branches.
+2. Draft: DESK10(feedback) → FEED05 → FEED10(dialog,compare) → FEED10(app-exit,reset). Attachments: FEED13(remove one) → FEED07(remaining file). Never FEED11.
 
-Case 152 binds `parent_feedback_draft.PLAN`: type `body-first`, apply bold to
+Case 152 binds `parent_feedback_draft.PLAN`: first reject an empty send, author
+body/reply and independently read recovered valid state after normal reopening.
+Continue with that usable draft: type `body-first`, apply bold to
 `Synthetic`, then append the emoji through the shared `body-smoke` binding.
 The full formatting/removal/undo matrix stays in UI tests using the same worker
 composites. Supply the `single` fixture (`Synthetic note.txt`, 26 bytes)
@@ -1276,12 +1289,15 @@ Parent exits/relaunches, before any new input. That complete read proves reset;
 another unchanged empty-state read adds no result. Fresh diagnostics remain
 separate from the customer draft.
 
-Case 153 rejects an empty send, then types the shared ordinary body and reply.
+The validation portion formerly scheduled as case 153 rejects an empty send,
+then types the shared ordinary body and reply.
 Closing/reopening must retain the authored body/reply and recover the usable
 draft after the refused empty submission. The full ASCII/emoji, hidden-character,
 reply and excessive-formatting matrices stay in UI tests. No backend reset or
 valid submission is permitted. Stage bindings live in
-`parent_feedback_validation.PLAN`.
+`parent_feedback_draft.VALIDATION`, composed by the same draft worker through
+an existing scoped journey. `FeedbackDraftJourney` inherits the shared
+`FeedbackValidationJourney` checks before comparing the later formatted draft.
 The guarded invalid-only Send route supplies rejection evidence; FEED11 valid
 delivery remains outside this recipe. Error-report review on all three surfaces,
 diagnostic privacy, byte bounds and role authorization retain their separate

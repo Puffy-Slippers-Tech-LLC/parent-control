@@ -1,11 +1,12 @@
 {
   "1": {
-    "summary": "Verify the installed parental-control components and services.",
+    "summary": "Verify installed components and activation across the required restart.",
     "steps": [
       "Install parental control.",
-      "Check its installed components and required services before and after restarting."
+      "Check its installed components, required services and initial restart request.",
+      "Restart and verify the changed boot, cleared restart request and ready components."
     ],
-    "expected": "The installation is complete, protected files stay private, and services are ready."
+    "expected": "The installation is complete, protected files stay private, services are ready, and the required restart completes activation and clears its request."
   },
   "2": {
     "summary": "Request a restart after the first installation.",
@@ -33,13 +34,14 @@
     "expected": "Incomplete setup cannot expose an unrestricted request-station login; retry completes safely and preserves ordinary accounts."
   },
   "5": {
-    "summary": "Keep the request-station account visible and correctly routed after restarting.",
+    "summary": "Install and activate parental control with a visible, correctly routed request-station account.",
     "steps": [
+      "Install parental control and check its components, services and pending restart request.",
       "Check the request-station account's visibility and dedicated login route.",
       "Repair missing or hidden account information and retry interrupted repairs.",
-      "Restart and check the account and other users again."
+      "Restart, verify the new boot and cleared restart request, and check the account and other users again."
     ],
-    "expected": "The same request-station account remains visible with its dedicated session, and existing account information is preserved."
+    "expected": "The installation is complete before and after the required restart, its restart request clears, and the same request-station account remains visible with its dedicated session while existing account information is preserved."
   },
   "6": {
     "summary": "Remove, reinstall, and purge parental control without breaking ordinary access.",

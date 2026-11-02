@@ -134,10 +134,7 @@ COMMON_SELECTED_INPUTS = (
 )
 KIOSK_ACTIVATION_CASE = 'test_kiosk_account_classification_survives_reboot'
 EXTENSION_LOGIN_CASE = 'test_child_extension_login_unlock_recovery'
-PACKAGE_READINESS_CASES = (
-    'test_installed_package', 'test_first_install_requests_reboot',
-    'test_reboot_applies_installation',
-)
+PACKAGE_READINESS_CASES = ('test_installed_package',)
 # Host entry/transport and the public observer's embedded source closure. Keep
 # these identities separate from guest imports; no host module runs in the VM.
 KIOSK_ACTIVATION_HOST_INPUTS = (
@@ -429,8 +426,6 @@ def case_phases(area, case_id):
         **{history.case_id: history.phases for history in PAM_HISTORIES},
         FIRST_CONFIGURE_CASE: FIRST_CONFIGURE_PHASES,
         'test_installed_package': ('installed', 'rebooted'),
-        'test_first_install_requests_reboot': ('installed',),
-        'test_reboot_applies_installation': ('rebooted',),
         'test_kiosk_account_classification_survives_reboot': ('installed', 'rebooted'),
     }
     require(case_id in package, 'selection:unregistered-package-case')
@@ -498,6 +493,12 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
         chosen = {name: tuple(case for case in cases if (name, case) in selected)
                   for name, cases in chosen.items()}
         chosen = {name: cases for name, cases in chosen.items() if cases}
+    if KIOSK_ACTIVATION_CASE in chosen.get('package', ()):
+        # The comprehensive installation history includes the same readiness
+        # assertions. Keep readiness independently selectable and available as
+        # a lightweight prerequisite, without scheduling a duplicate history.
+        chosen['package'] = tuple(case for case in chosen['package']
+                                  if case not in PACKAGE_READINESS_CASES)
     # Qualification is an explicit, isolated old-package history. In particular,
     # --previous-artifacts alone must not add it to an upgrade suite.
     if test != TRUSTED_FIXTURES_CASE and not identities and 'package' in chosen:
@@ -535,7 +536,9 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
                 for case in cases:
                     if phase in case_phases(name, case):
                         executions.append(CaseExecution(phase, name, case, False))
-        if phase not in terminal_phases:
+        if phase not in terminal_phases or any(
+                item.phase == phase and item.case_id == KIOSK_ACTIVATION_CASE
+                for item in executions):
             for case in inventories['package']:
                 # Prerequisites establish package/reboot readiness. Full kiosk
                 # migration and graphical entry belong to their selected history.
@@ -618,8 +621,11 @@ def resume_selection(selection, completed, *, fresh_install=False):
     # A newly restored guest needs predecessors, never later lifecycle phases.
     # In particular, an installation case must not pull in removal histories
     # merely because they share that installation prerequisite.
+    histories = {item.case_id for item in remaining}
     remaining = tuple(item for item in selection.executions
-                      if item in remaining or item.phase in dependencies)
+                      if item in remaining or (item.phase in dependencies and
+                          (item.prerequisite or item.case_id in histories or
+                           item.case_id in PACKAGE_READINESS_CASES)))
     phases = tuple(phase for phase in selection.phases if any(item.phase == phase for item in remaining))
     return replace(selection, phases=phases, executions=remaining)
 
@@ -1700,7 +1706,7 @@ def stage_selected_inputs(selection, destination):
             'sources': {path: baseline.digest(ROOT / path) for path in (
                 'tests/e2e/accessible_ui.py', *UI_PROGRAM_SOURCES.values())},
         }}
-    if any(item.area == 'package' and item.case_id == KIOSK_ACTIVATION_CASE
+    if any(item.area == 'package' and item.case_id == KIOSK_ACTIVATION_CASE and not item.prerequisite
            for item in selection.executions):
         identity['host_files'] = kiosk_activation_host_inputs()
     if 'session' in selection.phases or 'extension-login' in selection.phases or any(
@@ -1756,7 +1762,7 @@ def kiosk_activation_host_inputs_unchanged(recorded):
 
 def observe_kiosk_activation(vm, lease, directory, selection, phase):
     """Extend only the declared continuous native activation history."""
-    if not any(item.area == 'package' and item.case_id == KIOSK_ACTIVATION_CASE
+    if not any(item.area == 'package' and item.case_id == KIOSK_ACTIVATION_CASE and not item.prerequisite
                for item in phase_executions(selection, phase)):
         return
     from kiosk_entry import observe_activation

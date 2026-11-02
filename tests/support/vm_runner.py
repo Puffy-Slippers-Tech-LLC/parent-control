@@ -91,8 +91,7 @@ INVENTORIES = {
     'removal': ('test_remove_reboot_reinstall',),
     'package': (
         'test_installed_package',
-        'test_first_install_requests_reboot',
-        'test_reboot_applies_installation',
+        runner.KIOSK_ACTIVATION_CASE,
     ),
     'authorization': (
         'test_method_role_matrix[ListManagedUsers-child1]',
@@ -108,11 +107,10 @@ INVENTORIES = {
     'startup': ('test_child_extension_startup_recovery',),
 }
 
-# Include the comprehensive activation case so selection checks distinguish
-# explicitly selected package coverage from lightweight removal prerequisites.
+# Comprehensive activation remains selected separately from lightweight
+# installation prerequisites; default selection schedules only the full history.
 RECOVERY_INVENTORIES = {
     **INVENTORIES,
-    'package': (*INVENTORIES['package'], runner.KIOSK_ACTIVATION_CASE),
     'removal': tuple(history.case_id for history in runner.REMOVAL_HISTORIES),
 }
 

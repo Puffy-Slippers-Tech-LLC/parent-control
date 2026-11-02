@@ -135,6 +135,12 @@ sub _draft {
     $journey->consume_observation('parent-selected', $selected);
     onpc_feedback_read::prepare_window_switch($journey);
     $journey->consume_observation('feedback-open', $journey->seen('feedback-open'));
+    my $validation = $journey->scope('validation');
+    onpc_feedback_states::rejection_observe($validation, $_)
+        for ('empty', 'rejection-empty-send', 'rejection-empty-read');
+    onpc_text::replace_text($validation, $_) for ('body-first', 'reply-first');
+    onpc_feedback_states::rejection_observe($validation, $_)
+        for ('recovery-close', 'recovery-reopen', 'review-valid');
     onpc_text::replace_text($journey, 'body-first');
     $journey->consume_observation('format-before', $journey->seen('format-before'));
     onpc_format::apply_bold($journey);

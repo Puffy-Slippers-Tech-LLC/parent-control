@@ -99,6 +99,17 @@ Prefer extending or replacing the owner's representative check over copying it
 into a new consumer-specific module. Do not build another checker, registry or
 test suite to enforce this mandate.
 
+For VM coverage, combine short, compatible validations of the same lifecycle or
+customer goal when that removes repeated snapshot restoration, installation,
+session preparation or cleanup. Check the public runner's actual scheduling:
+small assertions that already share an area attempt need no merger just to
+reduce case counts. Keep combinations bounded and retain each intermediate
+outcome, fresh input guard and useful failure diagnosis. Keep distinct destructive
+states, timing histories and recovery-after-reboot witnesses isolated when
+combining them could mask a failure. Preserve retired IDs and point their
+assertions to the surviving case; never claim measured time savings
+from case counts alone.
+
 Remove test-tool UI tests and redundant recursive checks rather than moving their entire
 matrices to another layer. Preserve any unique core guarantee with the smallest
 effective direct check; preserve required product coverage. A reduction does

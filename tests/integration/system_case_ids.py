@@ -26,7 +26,7 @@ class CaseIdentity:
 # Checked-in assignments are the authority, never a collected-list index.
 CASES = (
     CaseIdentity(1, 'package', 'test_installed_package',
-                 'Installed package'),
+                 'Installed package readiness and reboot activation'),
     CaseIdentity(2, 'package', 'test_first_install_requests_reboot',
                  'First install requests reboot'),
     CaseIdentity(3, 'package', 'test_reboot_applies_installation',
@@ -34,7 +34,7 @@ CASES = (
     CaseIdentity(4, 'package', 'test_first_configuration_interruption_retry',
                  'First configuration interruption retry'),
     CaseIdentity(5, 'package', 'test_kiosk_account_classification_survives_reboot',
-                 'Kiosk account classification survives reboot'),
+                 'Install, activate and preserve kiosk account classification across reboot'),
     CaseIdentity(6, 'removal', 'test_remove_reboot_reinstall',
                  'Remove reboot reinstall'),
     CaseIdentity(7, 'removal', 'test_aborted_cleanup_rollback_retry',
@@ -635,6 +635,8 @@ BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})
 # Equivalent authorization inputs retain their original IDs while representative
 # cases cover their permission classes. Never reuse these numeric IDs.
 UNBOUND_CASES = MappingProxyType({
+    **dict.fromkeys((2, 3), (
+        'retired', 'restart request and activation assertions combined in 1 and selected installation history 5')),
     **dict.fromkeys((35, 37), (
         'retired', 'parent/kiosk approver discovery remains in 177')),
     **dict.fromkeys((72, 79, 84, 98, 105, 133), (

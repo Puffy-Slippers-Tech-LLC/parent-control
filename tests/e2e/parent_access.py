@@ -1,4 +1,4 @@
-"""E2E-004/app-grid's standard-user actions and visible expectations."""
+"""Case 5: standard-user search and direct-command management denial."""
 
 from installed_journey import InstalledJourney, JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop
@@ -14,6 +14,10 @@ PLAN = JourneyPlan(
         "search-focused": "ui:standard-search-focused",
         "search-entered": "ui:standard-search-entered",
         "unavailable": "ui:standard-parent-unavailable",
+        "direct-desktop": "ui:standard-desktop",
+        "direct-parent-command": "ui:standard-parent-command-launch",
+        "direct-management-denied": "ui:standard-management-denied",
+        "direct-denial-closed": "ui:standard-parent-closed",
     },
     phases={
         "ready": "setup", "setup-detached": "setup",
@@ -24,8 +28,11 @@ PLAN = JourneyPlan(
         "search-focused": "step-2",
         "search-entered": "step-2",
         "unavailable": "step-2",
+        **{stage: 'step-3' for stage in ('direct-desktop', 'direct-parent-command',
+                                       'direct-management-denied', 'direct-denial-closed')},
     },
-    advance_after={"app-grid": "step-2"},
+    advance_after={"app-grid": "step-2", 'unavailable': 'step-3'},
+    assertions_after={'unavailable': 'search-denied', 'direct-denial-closed': 'visible-result'},
 )
 
 

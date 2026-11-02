@@ -67,7 +67,7 @@ class FeedbackValidationJourney(WindowSwitchJourney):
                         'feedback:preserved-draft')
 
 
-class FeedbackDraftJourney(WindowSwitchJourney):
+class FeedbackDraftJourney(FeedbackValidationJourney):
     """Compare complete independent file-bearing drafts and a fresh empty app."""
     def __init__(self, context, progress, plan, *, actions=None):
         super().__init__(context, progress, plan, actions=actions)

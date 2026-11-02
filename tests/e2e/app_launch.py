@@ -75,10 +75,15 @@ DISABLED_PLAN = replace(
 GRID_JORDAN = {
     'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
     **prefixed_stages('jordan-use', native_usable_app('grid', child='other-child')),
+    'jordan-use-close': 'ui:native-close', 'jordan-use-closed': 'ui:native-closed',
+    **prefixed_stages('jordan-command', native_usable_app('command', child='other-child')),
 }
 GRID_RILEY = {
     'jordan-logout': 'system:standard-logout', **RILEY_ENTRY,
     **prefixed_stages('riley-use', native_usable_app('grid', child='child')),
+    'riley-use-close': 'ui:overlay-native-close',
+    'riley-use-closed': 'ui:overlay-native-closed',
+    **prefixed_stages('riley-command', native_usable_app('command', child='child')),
 }
 GRID_PLAN = replace(
     PLAN, prefix='native-grid-allowed', worker_mode='native_grid_allowed',
@@ -87,6 +92,8 @@ GRID_PLAN = replace(
                if stage not in ('jordan-use-command', 'riley-use-command')},
             **{stage: 'step-2' for stage in GRID_JORDAN},
             **{stage: 'step-3' for stage in GRID_RILEY}},
+    advance_after={'installed-greeter': 'step-1', 'allowed-final-match': 'step-2',
+                   'jordan-command-submitted': 'step-3'},
 )
 
 

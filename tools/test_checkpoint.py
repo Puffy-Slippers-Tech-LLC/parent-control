@@ -263,6 +263,20 @@ class Checkpoint:
                            and not (kind == 'system' and additions))
                        for kind, args in logical.items()):
                     raise ValueError(RESUME_SELECTION_MISMATCH)
+                if resume and 'system' in logical and 'system' in state['categories']:
+                    from tests.integration.system_case_ids import UNBOUND_CASES, identity_for_event
+                    entry = state['categories']['system']
+                    retired = {node for node in entry['passed']
+                               if (identity := identity_for_event(node)) is not None
+                               and UNBOUND_CASES.get(identity.numeric_id, (None,))[0] == 'retired'}
+                    if retired:
+                        # Retired results cannot certify their replacement cases.
+                        # Keep valid passes and unknown IDs for the inventory guard,
+                        # and let current unfinished work run under its own identity.
+                        entry.update(passed=sorted(set(entry['passed']) - retired), complete=False)
+                        self.dirty = True
+                        print(f'run-tests: removed {len(retired)} explicitly retired system results '
+                              'from resume progress; current unfinished cases remain pending.', flush=True)
                 if additions:
                     state['categories']['system'].update(args=logical['system'], complete=False,
                                                         whole_inventory=True)

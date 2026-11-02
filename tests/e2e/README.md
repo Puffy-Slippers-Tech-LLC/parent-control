@@ -686,12 +686,15 @@ enforcement claimed.
 Its stale private grant/policy and
 other-user-state witnesses are outside customer scope; existing authorization
 and isolation regressions retain those obligations. This declaration correction
-earns no executed coverage. Case 6 keeps its stable `terminal` variant ID and
-`parent_terminal.PLAN` / `onpc_parent_terminal::run` binding, but opens no
-terminal. It reuses PARENT01 (`onpc_parent::launch`) to invoke the installed
+earns no executed coverage. Case 5 now continues from search unavailability to
+direct command denial in the same standard-user session. Case 6 keeps its stable
+`terminal` variant ID as a nonexecutable historical selector pointing to case 5.
+The combined `parent_access.PLAN` / `onpc_parent_access::run` reuses PARENT01
+(`onpc_parent::launch`) to invoke the installed
 `oh-no-parent-control-parent` command directly as the standard desktop user,
 observes the specific administrator-access denial and absence of management
-controls, then dismisses the denial and independently observes the desktop.
+controls, then dismisses the denial normally. Search and direct denial retain
+separate assertions. The shared command launcher closes Overview before input.
 Ordinary Parent feature cases, including About, use this same block with the
 management-window expectation. Only explicit app-grid discovery cases use
 search and open, under the [launch mandate](../../docs/Mandates/UI-Automation-Mandate.MD).

@@ -4,6 +4,7 @@ use warnings;
 use onpc_progress ();
 use onpc_journey ();
 use onpc_parent ();
+use onpc_window ();
 
 sub run {
     onpc_progress::operation('Checking Parent access from a standard account');
@@ -18,6 +19,12 @@ sub run {
     # Independently observe the actual query and Parent launcher/window absence
     # through public accessibility. Do not activate unrelated search results.
     $journey->seen('unavailable');
+    # The fixed command's shared launcher leaves Overview and independently
+    # observes its closure before submitting as this same standard account.
+    my $direct = $journey->scope('direct');
+    my $returned = $direct->seen('desktop');
+    my $denied = onpc_parent::launch($direct, $returned, 'denied');
+    onpc_window::close($direct, 'management-denied', $denied);
     $journey->finish();
 }
 

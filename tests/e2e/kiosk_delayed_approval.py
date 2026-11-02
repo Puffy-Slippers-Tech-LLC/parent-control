@@ -1,5 +1,6 @@
-"""Case 224: daily time pauses at the kiosk; two approvals each add 30 seconds."""
+"""Cases 224/230: daily time pauses, grants age, and two approvals add 30 seconds."""
 from copy import deepcopy
+from dataclasses import replace
 import time
 
 from countdown import CountdownObservation
@@ -7,6 +8,7 @@ from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (daily_time_profile, desktop_entry, fresh_desktop,
                             native_activity_entry, native_activity_resume, prefixed_stages)
 from native_fixtures import fixture_actions
+from kiosk_approved_flow import obtain_time
 from private_artifacts import require
 from real_interval import interval_action
 from request_composition import KioskRequestJourney
@@ -17,6 +19,8 @@ from ui_observations import SettingsObservation
 WAIT_SECONDS = 45
 ADDITION_SECONDS = 30
 MIN_REMAINING_SECONDS = 300
+INITIAL_GRANT_SECONDS = 1200
+DOMINANCE_SECONDS = 90
 CHOICES = dict(child='fixture-child', approver='fixture-parent',
                duration_seconds=ADDITION_SECONDS, allow_soft=False)
 SCREENS = {
@@ -80,8 +84,43 @@ PLAN = JourneyPlan(
 )
 
 
+# Ready the child's original activity and its observers before starting the
+# grant. The setup approval never replaces either measured 30-second request.
+_before = tuple(SCREENS).index('first-before')
+GRANT_SCREENS = {
+    **dict(list(SCREENS.items())[:_before]),
+    'setup-before': 'ui:time-explanation-refresh-read',
+    'profile-desktop': 'ui:desktop',
+    'profile-switch': 'system:parent-switch-user', 'profile-greeter': 'ui:gdm-returned',
+    **prefixed_stages('profile-request', obtain_time(initial='default', child='fixture-child',
+        approver='fixture-parent', duration_seconds=INITIAL_GRANT_SECONDS,
+        allow_soft=True, exit='automatic')),
+    **prefixed_stages('profile-return', desktop_entry('parent', source='gdm', entry='retained')),
+    **dict(list(SCREENS.items())[_before:]),
+}
+GRANT_SCREENS.update(daily_time_profile(source='desktop', entry='same-user', window='new',
+                                       initial_enabled=False, minutes=30))
+_grant_logins = {**LOGIN_GROUPS, 'profile-return': ('parent', 'profile-return-')}
+_grant_login_stages = {prefix + stage for role, prefix in _grant_logins.values()
+                       for stage in fresh_desktop(role)}
+GRANT_PLAN = replace(PLAN, worker_mode='kiosk_delayed_grant_approval', screen_tags=GRANT_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: PLAN.phases.get(stage, 'step-1') for stage in GRANT_SCREENS},
+            'installed-greeter': 'start'},
+    invocations=tuple(stage for stage in GRANT_SCREENS if stage in _grant_login_stages),
+    challenges={name: (role, prefix + ('recipient-qualified' if role == 'parent' else
+                                      'child-recipient-qualified'),
+                       prefix + ('recipient-rechecked' if role == 'parent' else
+                                  'child-recipient-rechecked'))
+                for name, (role, prefix) in _grant_logins.items()},
+    settings_checks={**PLAN.settings_checks,
+                     'profile-settings': SettingsObservation('fixture-child', True, ('30 minutes',))},
+    balance_checks={'profile-configured': 1800})
+
+
 class KioskDelayedApprovalJourney(KioskRequestJourney):
     tolerance = 2
+    balance_profile = 'daily-only'
 
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan, actions=actions if actions is not None else {
@@ -92,6 +131,8 @@ class KioskDelayedApprovalJourney(KioskRequestJourney):
         self.issuance = {}
         self.entries = {}
         self.success_at = None
+        self.setup_before = None
+        self.setup_issuance = None
 
     def cooldown(self, journey, guard):
         require(self.success_at is not None, 'kiosk-delayed:missing-success')
@@ -108,6 +149,23 @@ class KioskDelayedApprovalJourney(KioskRequestJourney):
         # grant. Its daily operand pauses away; only the grant ages at the kiosk.
         value = observed.get('ui', {}).get('valid_choice')
         if value is None:
+            return
+        if self.current_stage.startswith('profile-request-'):
+            if self.current_stage != 'profile-request-new-estimate':
+                return
+            require(self.balance_profile == 'grant-dominant' and self.setup_before is not None,
+                    'kiosk-delayed:unexpected-setup-request')
+            balance, earlier = self.setup_before
+            _, high = self.elapsed(earlier, tuple(self.ui.read_bounds))
+            precision = balance['daily']['precision_seconds'] + self.tolerance
+            require(value['request']['child'] == 'fixture-child'
+                    and value['request']['approver'] == 'fixture-parent'
+                    and value['request']['allow_soft'] is True
+                    and value['estimate']['kind'] == 'fixed'
+                    and abs(value['estimate']['seconds'] - balance['daily']['seconds']
+                            - INITIAL_GRANT_SECONDS) <= precision
+                    and balance['daily']['seconds'] - high >= MIN_REMAINING_SECONDS,
+                    'kiosk-delayed:setup-estimate')
             return
         request = 'first' if 'first' not in self.estimates else 'second'
         balance, earlier = self.before[request]
@@ -143,10 +201,17 @@ class KioskDelayedApprovalJourney(KioskRequestJourney):
                 and balance['total']['seconds'] >= MIN_REMAINING_SECONDS,
                 'kiosk-delayed:usable-margin')
         if request == 'first':
-            require(balance['one_time']['seconds'] == 0, 'kiosk-delayed:daily-only-entry')
+            if self.balance_profile == 'grant-dominant':
+                precision = max(balance[key]['precision_seconds'] for key in ('daily', 'one_time'))
+                require(balance['daily']['seconds'] >= MIN_REMAINING_SECONDS
+                        and balance['one_time']['seconds'] - balance['daily']['seconds']
+                            > DOMINANCE_SECONDS + precision, 'kiosk-delayed:grant-dominant-entry')
+            else:
+                require(balance['one_time']['seconds'] == 0, 'kiosk-delayed:daily-only-entry')
         self.before[request] = (deepcopy(balance), bounds)
 
     def check_settings(self, stage, observed):
+        self.current_stage = stage
         super().check_settings(stage, observed)
         request = stage.split('-')[0]
         if stage in ('first-retained-entry-guard', 'second-retained-entry-guard'):
@@ -159,8 +224,29 @@ class KioskDelayedApprovalJourney(KioskRequestJourney):
         if stage == 'profile-before':
             require(value['time_explanation']['one_time']['seconds'] == 0,
                     'kiosk-delayed:unexpected-initial-grant')
+        if stage == 'setup-before':
+            balance = value['time_explanation']
+            require(balance['child'] == 'fixture-child' and balance['one_time']['seconds'] == 0
+                    and balance['daily']['seconds'] >= MIN_REMAINING_SECONDS,
+                    'kiosk-delayed:setup-balances')
+            self.setup_before = (deepcopy(balance), bounds)
+        if stage == 'profile-request-approval-open':
+            self.setup_issuance = bounds
+        if stage == 'profile-request-approval-success':
+            self.setup_issuance = (self.setup_issuance[0], bounds[1])
         if stage == 'first-before':
             self.capture_before('first', value['time_explanation'], bounds)
+            if self.balance_profile == 'grant-dominant':
+                balance, _ = self.setup_before
+                low, high = self.elapsed(self.setup_issuance, bounds)
+                actual = value['time_explanation']
+                precision = (balance['daily']['precision_seconds']
+                             + actual['one_time']['precision_seconds'] + self.tolerance)
+                expected = balance['daily']['seconds'] + INITIAL_GRANT_SECONDS
+                require(expected - high - precision <= actual['one_time']['seconds']
+                        <= expected - low + precision
+                        and abs(actual['daily']['seconds'] - balance['daily']['seconds']) <= precision,
+                        'kiosk-delayed:setup-grant-increment')
         if stage in ('first-new-choices', 'second-new-choices'):
             self.choice_bounds = bounds
             if request == 'second':
@@ -173,6 +259,11 @@ class KioskDelayedApprovalJourney(KioskRequestJourney):
             _, high = self.elapsed(earlier, bounds)
             require(max(balance['daily']['seconds'], balance['one_time']['seconds'] - high)
                     >= MIN_REMAINING_SECONDS, 'kiosk-delayed:prompt-usable-margin')
+            if request == 'first' and self.balance_profile == 'grant-dominant':
+                require(balance['daily']['seconds'] >= MIN_REMAINING_SECONDS
+                        and balance['one_time']['seconds'] - high - balance['daily']['seconds']
+                            > DOMINANCE_SECONDS + self.tolerance,
+                        'kiosk-delayed:prompt-grant-dominance')
         if stage in ('first-approval-rechecked', 'second-approval-rechecked'):
             if request == 'first':
                 low, _ = self.elapsed(self.prompt_bounds, bounds)
@@ -212,11 +303,19 @@ class KioskDelayedApprovalJourney(KioskRequestJourney):
             if request == 'first':
                 estimate, estimated_at = self.estimates['first']
                 elapsed_low, _ = self.elapsed(estimated_at, bounds)
-                # The daily base is paused during the prompt. A grant started
-                # from the earlier estimate would wrongly consume the 45 s.
-                require(balance['one_time']['seconds'] - precision >
-                        estimate['estimate']['seconds'] - elapsed_low + self.tolerance,
-                        'kiosk-delayed:prompt-time-wrongly-consumed')
+                if self.balance_profile == 'grant-dominant':
+                    # A frozen estimate issued at authentication would add the
+                    # deliberate wait to the original grant's actual deadline.
+                    _, issued_high = self.elapsed(self.issuance['first'], bounds)
+                    require(balance['one_time']['seconds'] + precision
+                            < estimate['estimate']['seconds'] - issued_high - self.tolerance,
+                            'kiosk-delayed:frozen-estimate-not-distinguished')
+                else:
+                    # The daily base pauses away; starting that grant at the
+                    # earlier estimate would wrongly consume the prompt wait.
+                    require(balance['one_time']['seconds'] - precision >
+                            estimate['estimate']['seconds'] - elapsed_low + self.tolerance,
+                            'kiosk-delayed:prompt-time-wrongly-consumed')
                 self.capture_before('second', balance, bounds)
             observed.setdefault('comparison', {}).update(
                 independent_current_balance_increment=True, expected_grant_interval=[low, high],
@@ -230,4 +329,15 @@ def execute(recorder, context):
     record_installed_journey(recorder, context, PLAN, journey_type=KioskDelayedApprovalJourney)
 
 
-E2E_CASES = {'daily-only-kiosk': execute}
+class GrantDominantKioskJourney(KioskDelayedApprovalJourney):
+    balance_profile = 'grant-dominant'
+
+
+def execute_grant(recorder, context):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    context.fixture_subsets = ACTIVITY_SUBSETS
+    context.fixture_caller = 'E2E-048/grant-dominant-kiosk'
+    record_installed_journey(recorder, context, GRANT_PLAN, journey_type=GrantDominantKioskJourney)
+
+
+E2E_CASES = {'daily-only-kiosk': execute, 'grant-dominant-kiosk': execute_grant}

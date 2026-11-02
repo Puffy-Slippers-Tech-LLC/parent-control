@@ -260,8 +260,10 @@ sub kiosk_fresh_return {
 
 sub kiosk_delayed_approval {
     onpc_progress::operation('Approving two station requests while preserving [Child user] work');
-    my ($exchange, $declared, $challenges, $binding) = @_;
-    die 'kiosk-delayed:binding' unless @_ == 4 && ref($exchange) eq 'CODE'
+    my ($exchange, $declared, $challenges, $binding, $balance) = @_;
+    $balance //= 'daily-only';
+    die 'kiosk-delayed:binding' unless (@_ == 4 || @_ == 5) && ref($exchange) eq 'CODE'
+        && ($balance eq 'daily-only' || $balance eq 'grant-dominant')
         && ref($binding) eq 'ARRAY' && join(',', @$binding) eq 'child,parent,30,0';
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'kiosk-delayed-approval', review => 0);
     $journey->{kiosk_request} = $binding;
@@ -270,11 +272,18 @@ sub kiosk_delayed_approval {
     onpc_gdm::reattach_functional();
     onpc_gdm::sign_in_challenge($journey, 'parent-login',
         'installed-greeter', 'parent-focused', 'desktop');
-    onpc_parent::daily_time_profile($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0, 10);
+    onpc_parent::daily_time_profile($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0,
+        $balance eq 'grant-dominant' ? 30 : 10);
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'initial');
     onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
     $journey->seen($_) for qw(initial-switch-ready initial-switch initial-greeter);
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'balance');
+    if ($balance eq 'grant-dominant') {
+        $journey->seen($_) for qw(setup-before profile-desktop profile-switch profile-greeter);
+        obtain_time($journey->scope('profile-request'), 'default',
+            'fixture-child', 'fixture-parent', 1200, 1, 'automatic');
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'profile-return');
+    }
     $journey->seen('first-before');
     for my $request ('first', 'second') {
         my $section = $journey->scope($request);

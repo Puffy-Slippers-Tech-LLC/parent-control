@@ -35,7 +35,8 @@ def test_bound_prompt_wait_and_repeat_still_require_fresh_recipient_proofs(monke
     assert ui._observe.call_count == calls
 
 
-@pytest.mark.parametrize('mode', ['two-requests', 'replay', 'wrong-scope', 'wrong-child'])
+@pytest.mark.parametrize('mode', ['two-requests', 'replay', 'wrong-scope', 'wrong-child',
+                                 'profile-setup', 'profile-wrong-scope'])
 def test_composed_kiosk_secret_scope_and_single_use(mode):
     # Execute the real password guard; replace only the secret delivery sink.
     # No password is supplied, and each isolated Perl process owns its latch.
@@ -67,9 +68,18 @@ my $first = bless {prefix => 'kiosk-delayed-approval-first', stage_prefix => 'fi
 my $second = bless {%$first, prefix => 'kiosk-delayed-approval-second', stage_prefix => 'second-'}, 'onpc_journey';
 $first->{stage_prefix} = 'second-' if $mode eq 'wrong-scope';
 $first->{kiosk_request} = ['other-child', 'parent', 30, 0] if $mode eq 'wrong-child';
+if ($mode =~ /^profile-/) {
+    $first = bless {prefix => 'kiosk-delayed-approval-profile-request',
+        stage_prefix => $mode eq 'profile-setup' ? 'profile-request-' : 'first-',
+        review => 0}, 'onpc_journey';
+}
 my $ok = eval {
-    onpc_password::enter_kiosk_mate_password($first, 'bound-request');
-    onpc_password::enter_kiosk_mate_password($mode eq 'replay' ? $first : $second, 'bound-request');
+    if ($mode =~ /^profile-/) {
+        onpc_password::enter_kiosk_mate_password($first, 'request-1200');
+    } else {
+        onpc_password::enter_kiosk_mate_password($first, 'bound-request');
+        onpc_password::enter_kiosk_mate_password($mode eq 'replay' ? $first : $second, 'bound-request');
+    }
     1;
 };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
@@ -83,6 +93,12 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
         assert [event for event in value['events'] if event[0] == 'proof'] == [
             ['proof', request + '-approval-' + proof]
             for request in ('first', 'second') for proof in ('qualified', 'rechecked')]
+    elif mode == 'profile-setup':
+        assert value['ok'] == 1
+        assert deliveries == [['delivery', 'parent', 'profile-request-kiosk-mate-request-1200']]
+        assert [event for event in value['events'] if event[0] == 'proof'] == [
+            ['proof', 'profile-request-approval-' + proof]
+            for proof in ('qualified', 'rechecked')]
     else:
         assert value['ok'] == 0
         assert len(deliveries) == (1 if mode == 'replay' else 0)

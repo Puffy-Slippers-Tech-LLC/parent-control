@@ -23,7 +23,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **272 — [Approve two child requests while earlier extra time runs down](E2E-Tasks/272-case-230.md)**.
+Next task: **079d — [Observe native launch denial without a prior window](E2E-Tasks/079d-native-denial.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

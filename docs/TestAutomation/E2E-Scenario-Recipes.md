@@ -1700,8 +1700,8 @@ without a separate submission for former case 215.
 
 ### E2E-048
 
-Implementation status: Complete daily-only cases 223/224 and grant-only case 225
-passed on Ubuntu 26.04. Other cases pending.
+Implementation status: Complete daily-only cases 223/224, grant-only case 225
+and grant-dominant kiosk case 230 passed on Ubuntu 26.04. Other cases pending.
 
 **Approve after the displayed estimate has aged.** Cases 223–225, 227–228 and 230.
 
@@ -1720,7 +1720,8 @@ nor the six complete scenario passes; add no second wait framework.
 
 1. FLOW13 with the delayed-approval table below → P → PARENT09(capture D,G) → G.
  Overlay C → REQUEST02; station REQUEST01. FLOW04(entry=open,custom=0.5,
- soft=false,approver=Jamie for daily-only/grant-only, Sam otherwise) →
+ soft=false,approver=Jamie for daily-only/grant-only/grant-dominant,
+ Sam otherwise) →
  REQUEST08(capture estimate and time) → REQUEST09 → AUTH01.
 2. TIME03(45 seconds, same requesting session and prompt) → AUTH01(fresh) →
  AUTH02(correct) → REQUEST11(success) → REQUEST12(automatic).

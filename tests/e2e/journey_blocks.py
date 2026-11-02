@@ -42,7 +42,8 @@ def daily_time_settings(*, source, entry, window, initial_enabled, minutes):
     No revocation or approval is implicit.
     """
     require(window == 'new' and type(initial_enabled) is bool
-            and type(minutes) is int and minutes in (2, 4, 6, 10)
+            and type(minutes) is int and minutes in (2, 4, 6, 10, 30)
+            and (minutes != 30 or initial_enabled is False)
             and (source, entry) in (('gdm', 'fresh'), ('desktop', 'same-user')),
             'journey:daily-profile-binding')
     same = entry == 'same-user'
@@ -52,8 +53,9 @@ def daily_time_settings(*, source, entry, window, initial_enabled, minutes):
             **prefixed_stages('same', parent_management())} if same else {
                 **fresh_desktop('parent'), **parent_management()}),
         'profile-before': 'ui:time-explanation-reach-read',
-        'profile-configured': f'ui:time-explanation-daily-{minutes}-'
-                              + ('on' if initial_enabled else 'off') + '-read',
+        'profile-configured': ('ui:time-explanation-setup-thirty-read' if minutes == 30 else
+                              f'ui:time-explanation-daily-{minutes}-'
+                              + ('on' if initial_enabled else 'off') + '-read'),
         'profile-settings': 'ui:parent-selected',
     }
 

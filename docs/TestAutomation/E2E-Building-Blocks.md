@@ -1745,7 +1745,18 @@ and distinguish paused daily time from a grant started at the earlier estimate.
 Repeated desktop entries use the main journey's declared challenge identities;
 request-local scopes retain their separate approval proofs. Collection, worker
 shutdown, owned cleanup and baseline restoration passed; the VM was observed off.
-Other E2E-048 kiosk balance profiles remain separate complete cases.
+Complete grant-dominant kiosk case **230** passed on Ubuntu 26.04 in
+`20261102T185436Z-02fe3ad3`, through `kiosk_delayed_approval.GRANT_PLAN` /
+`GrantDominantKioskJourney` and the same worker's grant-dominant branch.
+It prepares thirty daily minutes and the original usable activity before a real
+twenty-minute setup addition. Fresh Parent balances establish G>D>0 with the
+declared usable-time and dominance margins. The same prompt's real 45-second
+wait, fresh recipient proofs and two thirty-second approvals preserve the
+original running grant arithmetic; independent countdowns and refreshed Parent
+balances distinguish both increments from omitted/doubled additions and a frozen
+estimate. Both retained-child returns preserve the original usable activity.
+Collection, worker shutdown, owned cleanup and baseline restoration passed;
+the VM was observed off. Other E2E-048 kiosk profiles remain separate cases.
 
 #### Overlay immediate exit and approval compositions
 
@@ -2930,6 +2941,13 @@ positive daily time, G=0, total 120/240 seconds and saved enabled 2/4-minute
 settings. A newly observed Parent desktop precedes Switch User/usable GDM.
 Other daily-only initial/account/window/minute bindings and complete scenarios
 remain separate. Grant-only qualification is scoped below.
+
+Case **230** additionally qualifies the same-user/new-window thirty-minute
+binding through `journey_blocks.daily_time_profile` and
+`onpc_parent::daily_time_profile`, reusing the existing public thirty-minute
+setup operation. Its initial no-grant gate, saved enabled allowance and positive
+daily balance passed before child activity and the separately approved setup
+grant. This extends the finite preparation binding, not the standalone matrix.
 
 #### Grant-only time profile qualification
 

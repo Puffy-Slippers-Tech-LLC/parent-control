@@ -109,7 +109,7 @@ def test_fixture_qualification_refuses_other_target_before_preparing(monkeypatch
 def test_transfer_freezes_exact_input_before_privileged_dispatch(
         monkeypatch, frozen_fixture_selection, category, arguments, vm, target):
     monkeypatch.setenv('ONPC_TEST_VM', vm)
-    families = json.loads((ROOT / 'config/test-vm.json').read_text())['families']
+    families = json.loads((ROOT / 'config/environment.json').read_text())['families']
     fixture_path = next(family['fixture_path'] for family in families
                         if any(entry['name'] == vm for entry in family['vms']))
     frozen_fixture_selection = replace(frozen_fixture_selection, target=target,
@@ -152,7 +152,7 @@ def test_transfer_refuses_unqualified_target_before_input_preparation(monkeypatc
 @pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 def test_serial_freezes_exact_input_and_refuses_unknown_target_before_preparation(
         monkeypatch, frozen_fixture_selection, category, arguments, vm, target):
-    families = json.loads((ROOT / 'config/test-vm.json').read_text())['families']
+    families = json.loads((ROOT / 'config/environment.json').read_text())['families']
     fixture_path = next(family['fixture_path'] for family in families
                         if any(entry['name'] == vm for entry in family['vms']))
     frozen_fixture_selection = replace(frozen_fixture_selection, target=target,
@@ -190,7 +190,7 @@ def test_serial_freezes_exact_input_and_refuses_unknown_target_before_preparatio
 def test_recorded_serial_freezes_exact_input_before_dispatch(
         monkeypatch, frozen_fixture_selection, suffix, vm, target):
     monkeypatch.setenv('ONPC_TEST_VM', vm)
-    families = json.loads((ROOT / 'config/test-vm.json').read_text())['families']
+    families = json.loads((ROOT / 'config/environment.json').read_text())['families']
     fixture_path = next(family['fixture_path'] for family in families
                         if any(entry['name'] == vm for entry in family['vms']))
     selector = 'check_fixture_recorded_serial' + suffix
@@ -579,7 +579,7 @@ def test_e2e_qualification_freezes_input_and_source_proof(monkeypatch, frozen_fi
 def test_installed_e2e_freezes_before_privileged_dispatch(
         monkeypatch, frozen_fixture_selection, category, arguments, vm, target):
     monkeypatch.setenv('ONPC_TEST_VM', vm)
-    families = json.loads((ROOT / 'config/test-vm.json').read_text())['families']
+    families = json.loads((ROOT / 'config/environment.json').read_text())['families']
     fixture_path = next(family['fixture_path'] for family in families
                         if any(entry['name'] == vm for entry in family['vms']))
     record = replace(frozen_fixture_selection, target=target,

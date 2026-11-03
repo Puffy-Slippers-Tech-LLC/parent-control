@@ -21,7 +21,7 @@ Usage: ./setup.sh [MODE] [--vm NAME]
   --codex-rules-only    Refresh shared Codex settings and machine-wide/checkout rules
   --bootstrap-tools     Install setup authorization once, or refresh its existing grant
   --replace-missing-baseline  Replace an explicitly deleted baseline from a prepared, off VM
-                             Requires --vm NAME or ID from config/test-vm.json
+                             Requires --vm NAME or ID from config/environment.json
   --install-extension   Install the development extension for the current user
   -h, --help            Show this help
 

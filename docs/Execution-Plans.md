@@ -738,7 +738,7 @@ retroactively committed by restart; preserve their changes for explicit close-ou
 
 After a launcher pushes a task, optimization or verified repair commit, shared
 Git infrastructure propagates its pinned pushed HEAD to every other branch listed in
-[`config/test-vm.json`](../config/test-vm.json). Entries in `branches` declare
+[`config/environment.json`](../config/environment.json). Entries in `branches` declare
 `name`, `host` and absolute `repo_root`. The source branch and resolved checkout
 must match their declaration. Branches assigned to the same host must be registered
 Git worktrees at the declared paths. Each receives the completed change; this is

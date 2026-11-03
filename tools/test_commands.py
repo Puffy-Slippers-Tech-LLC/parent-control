@@ -314,7 +314,7 @@ fresh. Source edits and historical logs are preserved. Conflicts with --resume,
 --stop requests cancellation of the active run and waits for owned cleanup.
 --reload refreshes a running launcher at safe boundaries and stays attached;
 when idle, the flag is ignored and execution starts normally.
-VM categories read config/test-vm.json and select VMs with enabled equal to
+VM categories read config/environment.json and select VMs with enabled equal to
 the string "true" on online hosts, using each host's concurrency limit. Queue
 selectors skip offline VMs/hosts; direct maintenance refuses them. Each family
 has one case queue: idle VMs atomically pull its next work, so every selected
@@ -371,7 +371,7 @@ Complete categories (combine in any order; execute host, system, e2e)
   Without host, VM categories prepare verified package inputs (reuse or build).
   Focused system --area AREA --test CASE also prepares inputs per VM when
   --artifacts is omitted. Each family must declare package_format (deb or rpm) in
-  config/test-vm.json; there is no default. Configured concurrency still applies.
+  config/environment.json; there is no default. Configured concurrency still applies.
   After host and e2e, system remains.
   Separate host and vm runs may execute in parallel, with independent locks,
   sessions and cancellation. Combined host/VM runs reserve both scopes.

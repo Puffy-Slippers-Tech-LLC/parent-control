@@ -89,7 +89,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         sys.path.pop(0)
     controls = argv[:argv.index('--')] if '--' in argv else argv
     argv, configured = vm_config.extract(argv, required='--list' not in controls,
-                                          path=root / 'config/test-vm.json')
+                                          path=root / 'config/environment.json')
     if configured is not None and '--list' not in controls:
         # Offline flags prohibit new work. Recorded stop/recovery still passes
         # its existing UUID, journal and lease checks before cleanup.
@@ -238,7 +238,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                                       'reproduce-natural-access', 'reproduce-countdown-grant',
                                                       'reproduce-overlay-activity', 'reproduce-overlay-return',
                                                       'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout'):
-            targets = vm_config.fixture_targets(root / 'config/test-vm.json')
+            targets = vm_config.fixture_targets(root / 'config/environment.json')
             if configured.name not in targets:
                 raise ValueError('test-runner:fixture-target-not-qualified')
             if args.fixture_selection is not None:
@@ -285,7 +285,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         serial = name in ('check_graphical_serial', 'check_fixture_serial')
         recorded_serial = name == 'check_fixture_recorded_serial'
         live_refresh = name == 'check_fixture_live_refresh'
-        if live_refresh and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
+        if live_refresh and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/environment.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
         if (args.fixture_refresh_phase is not None or args.fixture_replacement_selection is not None) and not live_refresh:
             raise ValueError('test-runner:unexpected-fixture-refresh-selection')
@@ -300,19 +300,19 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             sys.path.pop(0)
         installed_e2e = name in INSTALLED_E2E_FIXTURE_SELECTORS
         product_free_e2e = name in PRODUCT_FREE_E2E_FIXTURE_SELECTORS
-        if recorded_serial and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
+        if recorded_serial and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/environment.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
-        if serial and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
+        if serial and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/environment.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
-        if transfer and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
+        if transfer and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/environment.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
-        if (product_free_e2e or name == 'check_e2e_gdm_product_free') and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
+        if (product_free_e2e or name == 'check_e2e_gdm_product_free') and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/environment.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
-        if installed_e2e and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
+        if installed_e2e and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/environment.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
-        if installed and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
+        if installed and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/environment.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
-        if bootstrap and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
+        if bootstrap and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/environment.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
         if args.fixture_source_selection is not None and (
                 args.list or name not in ('check_fixture_system_product_free',
@@ -331,7 +331,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             finally:
                 sys.path.pop(0)
             selected = Selection.from_record(json.loads(args.fixture_selection))
-            targets = vm_config.fixture_targets(root / 'config/test-vm.json')
+            targets = vm_config.fixture_targets(root / 'config/environment.json')
             if targets.get(configured.name) != selected.target:
                 raise ValueError('test-runner:fixture-target-not-qualified')
             fixture_options = ['--fixture-selection', json.dumps(selected.record(), sort_keys=True)]
@@ -359,7 +359,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         target = confined_file(root, f'tests/integration/{name}.py')
         return ['/usr/bin/python3', '-B', str(target), *fixture_options]
     if args.category == 'e2e':
-        if (args.qualify_install or args.qualify_install_refusal) and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
+        if (args.qualify_install or args.qualify_install_refusal) and configured.name not in vm_config.fixture_targets(root / 'config/environment.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
         target = confined_file(root, 'tests/e2e/runner.py')
         options = [*vm_args, *(['--list'] if args.list else [])]
@@ -380,7 +380,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         if args.artifacts is not None:
             options.append('--artifacts=' + str(args.artifacts))
         if args.fixture_selection is not None:
-            if args.list or configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
+            if args.list or configured.name not in vm_config.fixture_targets(root / 'config/environment.json'):
                 raise ValueError('test-runner:unexpected-fixture-selection')
             if len(args.fixture_selection) > 8192:
                 raise ValueError('test-runner:invalid-fixture-selection')
@@ -390,7 +390,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             finally:
                 sys.path.pop(0)
             selected = Selection.from_record(json.loads(args.fixture_selection))
-            targets = vm_config.fixture_targets(root / 'config/test-vm.json')
+            targets = vm_config.fixture_targets(root / 'config/environment.json')
             if selected.target != targets.get(configured.name):
                 raise ValueError('test-runner:fixture-target-not-qualified')
             options += ['--fixture-selection', json.dumps(selected.record(), sort_keys=True)]
@@ -418,7 +418,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             sys.path.pop(0)
     command = ['/usr/bin/python3', '-B', str(target), *vm_args]
     if args.fixture_selection is not None:
-        targets = vm_config.fixture_targets(root / 'config/test-vm.json')
+        targets = vm_config.fixture_targets(root / 'config/environment.json')
         if args.list or configured.name not in targets:
             raise ValueError('test-runner:fixture-target-not-qualified')
         if len(args.fixture_selection) > 8192:
@@ -528,7 +528,7 @@ def run(root, argv, caller):
         argv = argv[1:]
         command = selection(root, argv)
         import vm_config
-        argv, configured = vm_config.extract(argv, path=root / 'config/test-vm.json')
+        argv, configured = vm_config.extract(argv, path=root / 'config/environment.json')
         if argv[0] not in ('system', 'e2e', 'appsnapshot') or '--list' in argv or '--probe' in argv:
             raise ValueError('test-runner:invalid-unattended-category')
         if retention_run and argv[0] == 'system' and len(argv) > 1 and argv[1].startswith('check_'):
@@ -565,7 +565,7 @@ def run(root, argv, caller):
     import vm_config
     controls = argv[:argv.index('--')] if '--' in argv else argv
     argv, configured = vm_config.extract(argv, required='--list' not in controls,
-                                          path=root / 'config/test-vm.json')
+                                          path=root / 'config/environment.json')
     environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
                    'HOME': caller.pw_dir, 'PYTHONDONTWRITEBYTECODE': '1'}
     if configured is not None:

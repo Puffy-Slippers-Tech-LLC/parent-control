@@ -36,7 +36,7 @@ def confined_file(root, relative):
 
 def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     """Read declarations only. Never import worker/VM code or create artifacts."""
-    argv, configured = vm_config.extract(argv, required=False, path=root / 'config/test-vm.json')
+    argv, configured = vm_config.extract(argv, required=False, path=root / 'config/environment.json')
     parser = ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--vm', help='required configured VM name or ID; optional for --list')
     parser.add_argument('--list', action='store_true')
@@ -58,11 +58,11 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
         raise ValueError('e2e:qualification-cannot-select-scenarios')
     fixture_selection = None
     serial = args.qualify_install or args.qualify_install_refusal
-    if serial and configured is not None and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
+    if serial and configured is not None and configured.name not in vm_config.fixture_targets(root / 'config/environment.json'):
         raise ValueError('fixtures:serial-target-not-qualified')
     if args.fixture_selection is not None:
         if (args.list
-                or configured is not None and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json')):
+                or configured is not None and configured.name not in vm_config.fixture_targets(root / 'config/environment.json')):
             raise ValueError('e2e:unexpected-fixture-selection')
         if len(args.fixture_selection) > 8192:
             raise ValueError('e2e:invalid-fixture-selection')
@@ -72,7 +72,7 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
         finally:
             sys.path.pop(0)
         selected = Selection.from_record(json.loads(args.fixture_selection))
-        targets = vm_config.fixture_targets(root / 'config/test-vm.json')
+        targets = vm_config.fixture_targets(root / 'config/environment.json')
         if (selected.target not in targets.values() or configured is not None
                 and selected.target != targets.get(configured.name)):
             raise ValueError('e2e:fixture-target-not-qualified')
@@ -82,7 +82,7 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     if serial and fixture_selection is None and not allow_missing_artifacts:
         raise ValueError('fixtures:execution-selection-required')
     if args.qualify_transfer:
-        if configured is not None and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
+        if configured is not None and configured.name not in vm_config.fixture_targets(root / 'config/environment.json'):
             raise ValueError('fixtures:transfer-target-not-qualified')
         if fixture_selection is None:
             if not allow_missing_artifacts:

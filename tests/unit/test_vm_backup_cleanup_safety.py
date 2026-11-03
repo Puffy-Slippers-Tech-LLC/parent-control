@@ -193,7 +193,7 @@ class Network:
 
 @pytest.fixture
 def backup_rig(rig, tmp_path, monkeypatch):
-    config = tmp_path / 'test-vm.json'
+    config = tmp_path / 'environment.json'
     state_root = tmp_path / 'state'
     state_root.mkdir(mode=0o700)
     config.write_text(json.dumps({'hosts': [
@@ -1453,7 +1453,7 @@ def test_scoped_setup_dispatcher_accepts_only_registered_queue(action, backup_ri
     checkout = tmp_path / 'checkout'
     (checkout / 'config').mkdir(parents=True)
     (checkout / 'tools').mkdir()
-    (checkout / 'config/test-vm.json').write_bytes(vm_config.CONFIG.read_bytes())
+    (checkout / 'config/environment.json').write_bytes(vm_config.CONFIG.read_bytes())
     (checkout / 'tools/vm_backup.py').write_text('')
     command = helper['command'](checkout, [action, '--vm', '9,12,Backup-guest'])
     assert command == ['/usr/bin/python3', '-B', str(checkout / 'tools/vm_backup.py'),
@@ -1499,7 +1499,7 @@ def test_moving_backup_root_does_not_invalidate_preparation_proof(tmp_path):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes((ROOT / relative).read_bytes())
     before = guest.preparation_digest(tmp_path)
-    config = tmp_path / 'config/test-vm.json'
+    config = tmp_path / 'config/environment.json'
     document = json.loads(config.read_text())
     document['hosts'][0]['backup_root'] = '/replacement-drive/backups'
     document['hosts'][0]['concurrency'] = 1

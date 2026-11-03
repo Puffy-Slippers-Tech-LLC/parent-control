@@ -24,7 +24,7 @@ Installed areas share real broker calls and snapshots through
 ## Environment and ownership
 
 Installed-system tests use the real package and operating-system services on
-the existing VM selected in [config/test-vm.json](../../config/test-vm.json).
+the existing VM selected in [config/environment.json](../../config/environment.json).
 They do not install the product or change
 accounts, PAM, Polkit, services or policy on the development host. An existing
 host product installation is preserved. Detailed identity, baseline and
@@ -63,7 +63,7 @@ tools/run-tests --vm NAME system 'check_e2e_policy'
 ```
 
 Replace `NAME` with the registered VM name or ID from
-[config/test-vm.json](../../config/test-vm.json).
+[config/environment.json](../../config/environment.json).
 
 For an independent host build, `tools/run-tests artifacts build` explicitly
 uses the Debian builder; `tools/run-tests artifacts prepare --for-vm --vm NAME`
@@ -373,7 +373,7 @@ This supplies no customer or E2E acceptance.
 Clean Fedora 44 graphical attempts use the same
 [product-free preparation boundary](#ubuntu-product-free-e2e-preparation),
 including distinct entry, package, upgrade and empty GDM histories. The selected
-VM must explicitly declare its package format in [the registry](../../config/test-vm.json);
+VM must explicitly declare its package format in [the registry](../../config/environment.json);
 Fedora declares `rpm`, with no default or fallback. Upgrade preparation verifies
 the pinned earlier Fedora release and current RPM sources, versions, architecture
 and exact bytes. Native provisioning preserves enforcing SELinux, exact finite

@@ -7,7 +7,7 @@ another baseline, download a new image, or create a replacement domain.
 
 ## Shared VM configuration
 
-[config/test-vm.json](../../config/test-vm.json) is the single configuration for
+[config/environment.json](../../config/environment.json) is the single configuration for
 guest preparation, host capture, installed-system/E2E runners and VM maintenance.
 Its tracked `hosts` array declares each host's unique `name`, `transport`
 (`local` or `ssh`), string `enabled`, positive integer `concurrency`, and optional
@@ -774,7 +774,7 @@ External firmware/TPM state outside the recorded snapshot contract is refused.
 
 The [`backupvm`](../../tools/backupvm) and
 [`restorevm`](../../tools/restorevm) commands read `backup_root` from
-[`config/test-vm.json`](../../config/test-vm.json). Run them as the unprivileged
+[`config/environment.json`](../../config/environment.json). Run them as the unprivileged
 local administrator after ordinary `./setup.sh` on a replacement host, or
 `./setup.sh --test-tools-only` to refresh existing development helpers.
 They accept the same `--vm` names, IDs, comma-separated lists, `all-enabled`

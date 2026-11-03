@@ -88,7 +88,7 @@ class Discovery:
             configured = {}
             for root in known:
                 try:
-                    configured[root] = registry(root / 'config/test-vm.json')
+                    configured[root] = registry(root / 'config/environment.json')
                 except (OSError, ValueError):
                     # An invalid registry must not keep stale VM tabs alive.
                     configured[root] = {}

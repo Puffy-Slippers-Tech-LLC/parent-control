@@ -17,7 +17,7 @@ grants or bypass a missing prerequisite or grant.
 
 ### Target selection
 
-Select from [the VM registry](../../config/test-vm.json) using the tool's supported
+Select from [the VM registry](../../config/environment.json) using the tool's supported
 selector. A VM is eligible only when both its own `enabled` and its host's
 `enabled` are the string `"true"`. Otherwise it is offline: every queue selector,
 including explicit lists and `all`, skips it. An empty selection or direct

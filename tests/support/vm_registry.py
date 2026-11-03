@@ -6,7 +6,7 @@ from tests.support.paths import ROOT
 
 
 def vm_entry(index=0):
-    document = json.loads((ROOT / 'config/test-vm.json').read_text())
+    document = json.loads((ROOT / 'config/environment.json').read_text())
     return [entry for family in document['families'] for entry in family['vms']][index]
 
 

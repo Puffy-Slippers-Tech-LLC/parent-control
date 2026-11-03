@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 
-CONFIG = Path(__file__).resolve().parents[2] / 'config/test-vm.json'
+CONFIG = Path(__file__).resolve().parents[2] / 'config/environment.json'
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / 'fixtures'
 URI = 'qemu:///system'
 STATE_ROOT = Path('/Data/virt-manager/oh-no-parent-control-baseline-state')
@@ -80,7 +80,7 @@ def read_document(path=None):
     try:
         document = json.loads(path.read_text(encoding='utf-8'), object_pairs_hook=unique_keys)
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise ValueError('vm-config:unreadable; check config/test-vm.json') from error
+        raise ValueError('vm-config:unreadable; check config/environment.json') from error
     if (not isinstance(document, dict) or not {'families'} <= set(document) or
             not set(document) <= {'families', 'concurrency', 'backup_root', 'hosts', 'branches'} or
             not isinstance(document['families'], list) or not document['families']):
@@ -292,7 +292,7 @@ def resolve(name, configured):
     for vm in configured.values():
         if name == vm.name or name == vm.id:
             return vm
-    raise ValueError('vm-config:unknown-vm; choose a name or id in config/test-vm.json')
+    raise ValueError('vm-config:unknown-vm; choose a name or id in config/environment.json')
 
 
 def execution(name=None, path=None):
@@ -310,7 +310,7 @@ def execution(name=None, path=None):
         for vm in vms:
             require_branch(vm, branch)
     if not vms:
-        raise ValueError('vm-config:no online enabled VMs available for this selection/branch in config/test-vm.json')
+        raise ValueError('vm-config:no online enabled VMs available for this selection/branch in config/environment.json')
     for vm in vms:
         require_online(vm)
     # Only the single local host can execute today. Offline/unselected host

@@ -59,7 +59,7 @@ def transaction_lock(root, run, *, git=git_output):
 
 
 def configured_targets(root, *, git=git_output):
-    path = root / 'config/test-vm.json'
+    path = root / 'config/environment.json'
     if not path.exists():
         return []
     if path.is_symlink() or not path.is_file():
@@ -71,7 +71,7 @@ def configured_targets(root, *, git=git_output):
     if not configured:
         return []
     if source is None or Path(source['repo_root']).resolve() != root.resolve():
-        raise ValueError('current branch/checkout must match config/test-vm.json branches')
+        raise ValueError('current branch/checkout must match config/environment.json branches')
     records = git(root, 'worktree', 'list', '--porcelain', '-z').stdout.split('\0\0')
     branches = {}
     for record in records:
@@ -110,9 +110,9 @@ def pull_targets(root, *, git=git_output):
     targets = []
     # configured_targets authenticates the current branch and configured path.
     configured_targets(root, git=git)
-    if (root / 'config/test-vm.json').exists():
+    if (root / 'config/environment.json').exists():
         from vm_selection import vm_config
-        if vm_config.branch_registry(vm_config.read_document(root / 'config/test-vm.json')):
+        if vm_config.branch_registry(vm_config.read_document(root / 'config/environment.json')):
             targets.insert(0, dict(path=str(root.resolve()),
                                   branch=_run(git, root, 'symbolic-ref', '--short', 'HEAD')))
     return [dict(item, pull_only=True) for item in targets]
@@ -124,7 +124,7 @@ def pull_at_boundary(root, run, state, *, git=git_output, checkpoint='checkpoint
     Retain the transaction inside the workflow checkpoint for ordinary recovery.
     The same stash/merge/restore resolver owns both kinds of synchronization.
     """
-    if not state.get('upstream_pull') and not (root / 'config/test-vm.json').exists():
+    if not state.get('upstream_pull') and not (root / 'config/environment.json').exists():
         return
     intent = state.get('commit_intent', {})
     if state.get('upstream_pull') and intent.get('commit'):

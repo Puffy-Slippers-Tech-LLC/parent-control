@@ -114,7 +114,7 @@ def choose_vm():
     ids = [vm.id or vm.name for vm in configured.values()]
     if sys.stdin.isatty() and sys.stdout.isatty() and os.environ.get('TERM', '') not in ('', 'dumb'):
         return names[interactive_choice(names, ids)]
-    print('Choose a VM from config/test-vm.json:')
+    print('Choose a VM from config/environment.json:')
     for identifier, name in zip(ids, names):
         print(f'  {identifier}. {name}')
     while True:
@@ -152,7 +152,7 @@ def choice_screen(screen, names, ids):
         height, width = screen.getmaxyx()
         if height < len(names) + 5 or width < 24:
             raise ValueError('VM chooser needs a larger terminal; use --vm NAME')
-        screen.addnstr(0, 0, 'Choose a VM from config/test-vm.json:', width - 1)
+        screen.addnstr(0, 0, 'Choose a VM from config/environment.json:', width - 1)
         for index, name in enumerate(names):
             label = f'  {ids[index]}. {name}'
             screen.addnstr(index + 1, 0, label, width - 1,
@@ -204,7 +204,7 @@ def interactive_choice(names, ids):
     finally:
         sys.stdout.write('\033[?1003l')
         sys.stdout.flush()
-    print('Choose a VM from config/test-vm.json:')
+    print('Choose a VM from config/environment.json:')
     for number, name in enumerate(names):
         line = f'  {ids[number]}. {name}'
         print('\033[1m' + line + '\033[0m' if number == index else line)

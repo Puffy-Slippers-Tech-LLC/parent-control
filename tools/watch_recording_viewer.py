@@ -17,7 +17,7 @@ def panel(root, *, prefix='', vm_names=None):
     import gi
     gi.require_version('Gtk', '4.0')
     from gi.repository import Gtk
-    configured = registry(root / 'config/test-vm.json')
+    configured = registry(root / 'config/environment.json')
     if vm_names is not None:
         configured = {name: vm for name, vm in configured.items() if name in vm_names}
 

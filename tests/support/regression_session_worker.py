@@ -19,7 +19,7 @@ from vm_selection import vm_config
 
 # Use the parent test's controlled registry when it supplies one. Selection in
 # both processes must see the same guests, independent of the checkout branch.
-config = Path(sys.argv[1]) / 'test-vm.json'
+config = Path(sys.argv[1]) / 'environment.json'
 if config.exists():
     vm_config.CONFIG = config
 

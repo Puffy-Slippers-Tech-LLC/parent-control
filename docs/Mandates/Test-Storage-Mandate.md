@@ -180,7 +180,7 @@ retention. No test payload, log, report or evidence belongs there. Unit tests
 inject private lock roots in their normal test scratch.
 
 Explicit VM disaster archives use `backup_root` in
-[`config/test-vm.json`](../../config/test-vm.json) through
+[`config/environment.json`](../../config/environment.json) through
 [`tools/backupvm`](../../tools/backupvm) and
 [`tools/restorevm`](../../tools/restorevm). This operator-owned durable storage
 is an exception to disposable test-output allocation, not a new test scratch

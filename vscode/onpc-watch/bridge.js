@@ -43,7 +43,7 @@ function configuration(values, root) {
 }
 
 function resourceConfiguration(root) {
-    const document = JSON.parse(fs.readFileSync(path.join(root, 'config/test-vm.json'), 'utf8'));
+    const document = JSON.parse(fs.readFileSync(path.join(root, 'config/environment.json'), 'utf8'));
     const hosts = document.hosts || [{ name: 'local', enabled: 'true', transport: 'local' }];
     if (!Array.isArray(hosts)) throw new Error('Watch host configuration must be an array.');
     const program = fs.readFileSync(path.join(root, 'tools/watch_model.py'), 'utf8');
@@ -54,7 +54,7 @@ function resourceConfiguration(root) {
                 !['local', 'ssh'].includes(host.transport) ||
                 (host.transport === 'ssh' && (typeof host.ssh_target !== 'string' ||
                     !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(host.ssh_target)))) {
-            throw new Error('Invalid Watch host in config/test-vm.json.');
+            throw new Error('Invalid Watch host in config/environment.json.');
         }
         names.add(host.name);
         return host.enabled === 'true';

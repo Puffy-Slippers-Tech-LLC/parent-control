@@ -57,7 +57,7 @@ LEGACY_SCRIPT_FILES = (
     "tests/fixtures/onpc_test_application.c",
     "tests/fixtures/gui_application.py",
     "common/oh_no_parent_control_ui/gtk_automation.py",
-    "config/test-vm.json",
+    "config/environment.json",
     "common/oh_no_parent_control_ui/test_identities.py",
 )
 
@@ -144,7 +144,7 @@ REQUIRED_CHECKOUT_ENTRIES = (
     "tests/integration/prepare_vm.py",
     "tests/integration/guest_test_dependencies.py",
     "tests/integration/vm_config.py",
-    "config/test-vm.json",
+    "config/environment.json",
 )
 
 # Each installed-state category has its own fail-closed probes so a partial or
@@ -343,7 +343,7 @@ def preparation_source_digest(read, files):
             raise PreparationError("guard:checkout", "preparation source is incomplete") from error
         if files == SCRIPT_FILES and relative in SNAPSHOT_SOURCE_SYMBOLS:
             contents = snapshot_source_projection(relative, contents)
-        if relative == 'config/test-vm.json':
+        if relative == 'config/environment.json':
             # Scheduling and selector aliases do not change the prepared guest.
             # Keep names, disks and other configuration in the proof, but do not
             # invalidate baselines when queue concurrency/enabled flags or IDs

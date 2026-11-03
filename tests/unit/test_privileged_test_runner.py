@@ -36,7 +36,7 @@ def checkout(tmp_path):
     shutil.copy2(root / 'tests/integration/vm_config.py', integration / 'vm_config.py')
     shutil.copy2(root / 'tests/integration/system_checks.py', integration / 'system_checks.py')
     (tmp_path / 'config').mkdir()
-    shutil.copy2(root / 'config/test-vm.json', tmp_path / 'config/test-vm.json')
+    shutil.copy2(root / 'config/environment.json', tmp_path / 'config/environment.json')
     (integration / 'check_future_feature.py').touch()
     (integration / 'system_runner.py').touch()
     unit = tmp_path / 'tests/unit'

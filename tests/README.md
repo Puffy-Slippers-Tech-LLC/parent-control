@@ -286,7 +286,7 @@ coverage and compatible overlap for the changed scope using the maintained
 launcher, without expanding validation to unrelated host categories.
 
 `system` and `e2e` remain sequential within each VM. VM tests default to every
-VM in `config/test-vm.json` whose `enabled` equals the string `"true"`.
+VM in `config/environment.json` whose `enabled` equals the string `"true"`.
 The [family configuration](integration/Environment.md#shared-vm-configuration)
 defines equivalent workers sharing package format and a fixture directory.
 Each host's positive integer `concurrency` limits active guests: 1 is serial, 2 permits
@@ -309,7 +309,7 @@ with `tools/prepare-vm` defaulting to `all` online VMs in both
 modes and app-snapshot preparation defaulting to enabled VMs; see the
 [VM mandate](../docs/Mandates/VM-Mandate.MD#authority-and-operation).
 All `--vm` options and Make `VM=` parameters accept either the exact configured
-name or its `id`. IDs resolve from the current `config/test-vm.json` on every
+name or its `id`. IDs resolve from the current `config/environment.json` on every
 invocation; changing or swapping them needs no helper refresh or baseline
 replacement. Active runs keep their canonical names, so attachment uses the
 current ID for the original guest. UUID pins, leases and journals remain scoped
@@ -1985,7 +1985,7 @@ Final WebMs live directly in the shared managed
 `output/test-runs/recordings/` directory, already gitignored by `output/`.
 It stays private to the unprivileged recording owner.
 Names contain the category, a stable case/VM owner key, and the VMs actually visible in
-the clip, ordered by numeric IDs in `config/test-vm.json`, with the common
+the clip, ordered by numeric IDs in `config/environment.json`, with the common
 `onpc-` prefix omitted. Each VM case attempt finishes and publishes independently,
 even if another VM is still running the same case. Integration qualifications
 use their stable check basename as the ID, including building-block qualifications

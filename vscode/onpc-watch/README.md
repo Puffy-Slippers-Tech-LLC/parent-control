@@ -193,7 +193,7 @@ Three icon buttons at the right end of the viewer tab row select the tile layout
 The tab remembers the selection. Overflowing tiles scroll in the chosen direction;
 overflowing tab headers scroll independently while the layout buttons stay pinned.
 
-The footer shows enabled hosts in `config/test-vm.json` order. Each host has a
+The footer shows enabled hosts in `config/environment.json` order. Each host has a
 server icon and hostname before its CPU, VM RAM and Disk readings and small
 filled history graphs. When the hosts do not fit side by side, they stack with
 one complete host per row. Extremely narrow views can scroll the readings horizontally.
@@ -239,7 +239,7 @@ No npm packages or compilation step are needed.
 With no configuration, Watch uses this checkout's local adapter as before. Set
 `onpc.watch.sources` in VS Code user or workspace settings to replace that default
 or combine sources. Source IDs must be unique and stable; labels identify hosts
-in run sections and viewer tabs. Footer hosts always follow `config/test-vm.json`.
+in run sections and viewer tabs. Footer hosts always follow `config/environment.json`.
 Click Reconnect after editing.
 
 ```json

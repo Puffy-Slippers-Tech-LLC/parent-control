@@ -35,9 +35,9 @@ def command(root, argv):
             if len(remaining) != 1:
                 raise ValueError('setup-helper: VM recovery accepts only --vm')
             _, vms = vm_config.execution(selector if selector is not None else 'all',
-                                        path=root / 'config/test-vm.json')
+                                        path=root / 'config/environment.json')
             for vm in vms:
-                vm_config.backup_root(root / 'config/test-vm.json', vm=vm)
+                vm_config.backup_root(root / 'config/environment.json', vm=vm)
             argv = remaining
             vm_args = ['--vm', ','.join(vm.name for vm in vms)]
         finally:
@@ -48,7 +48,7 @@ def command(root, argv):
             import vm_config
         finally:
             sys.path.pop(0)
-        argv, configured = vm_config.extract(argv, path=root / 'config/test-vm.json')
+        argv, configured = vm_config.extract(argv, path=root / 'config/environment.json')
         vm_config.require_online(configured)
         vm_args = ['--vm', configured.name]
     if argv and argv[0] == 'prepare-vm':

@@ -845,7 +845,7 @@ transcript. Setup refresh installs this route and any missing OpenSSH client via
 `./setup.sh --test-tools-only`, without new Polkit actions or general SSH grants.
 The direct `tools/test-vm` and `./tools/test-vm` prefixes already approve every
 guest command after `exec --`, including guest shells and interpreters, for
-current configured IDs and names. Probing eligible entries in `config/test-vm.json`
+current configured IDs and names. Probing eligible entries in `config/environment.json`
 has standing user authorization; both VM and host must have `enabled: "true"`;
 do not request command approval or developer confirmation. The installed
 test-runner Polkit rule grants the active local administrator automatically,
@@ -884,7 +884,7 @@ the current domain name when restoring those snapshots.
 Disk rename accepts no filename or path argument. Its private journal records
 exact original metadata before mutation and gates interrupted transactions.
 Checked failures roll back only the owned image and references. Update that
-entry's `disk_anchor` in `config/test-vm.json` immediately after success;
+entry's `disk_anchor` in `config/environment.json` immediately after success;
 the operation does not write checkout configuration as root. Internal snapshots
 are metadata-redefined without restoring or deleting them, retaining their
 current selection. Baseline proof and image bytes remain intact. Previously

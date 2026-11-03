@@ -141,7 +141,7 @@ def latest(root, category, nodeid):
     if identity is None:
         return None
     vm = selected(required=False)
-    names = [vm.name] if vm is not None else vm_config.registry(root / 'config/test-vm.json')
+    names = [vm.name] if vm is not None else vm_config.registry(root / 'config/environment.json')
     records = []
     for name in names:
         try:
@@ -186,7 +186,7 @@ def workflow_records(root, run, previous=()):
                   file=sys.stderr, flush=True)
     for record in candidates:
         try:
-            names = [record['vm']] if record.get('vm') else vm_config.registry(root / 'config/test-vm.json')
+            names = [record['vm']] if record.get('vm') else vm_config.registry(root / 'config/environment.json')
             for vm in names:
                 key = record['category'], record['id'], vm
                 try:
@@ -368,7 +368,7 @@ class Session:
         from recording_control import Publication
         try:
             from vm_selection import vm_config, execution_binding
-            configured = vm_config.registry(self.root / 'config/test-vm.json')
+            configured = vm_config.registry(self.root / 'config/environment.json')
             names = self.vm_names
             if names is None:
                 binding = execution_binding()

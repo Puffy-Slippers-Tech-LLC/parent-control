@@ -1,12 +1,45 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
+import vm from 'node:vm';
 import {diagnosticEnvelope} from '../../child/diagnosticEvents.mjs';
 import {createIndicator} from './support/indicator.mjs';
 import {remainingSeconds, shouldPrepareSession} from '../../child/indicatorLogic.mjs';
 
 const catalog = JSON.parse(readFileSync(new URL(
     '../../common/oh_no_parent_control_ui/diagnostic_catalog.json', import.meta.url)));
+
+test('lifecycle observations bound context and cannot interrupt enable/disable', () => {
+    const logs = [];
+    const emit = (event, fields) => logs.push(JSON.parse(diagnosticEnvelope(
+        catalog, event, JSON.parse(JSON.stringify(fields)))));
+    const context = vm.createContext({Extension: class {}, Main: {}, logInfo: emit});
+    vm.runInContext(readFileSync(new URL('../../child/extension.js', import.meta.url), 'utf8')
+        .replace(/^import .*;\n/gm, '')
+        .replace('export default class OhNoParentControlExtension', 'globalThis.App = class'), context);
+    const app = new context.App();
+    const recordLifecycleObservation = (sessionMode, phase, logger) => {
+        context.Main.sessionMode = sessionMode;
+        context.logInfo = logger;
+        app._recordLifecycle(phase);
+    };
+    recordLifecycleObservation({currentMode: 'unlock-dialog', isLocked: true, isGreeter: false},
+        'disable-start', emit);
+    assert.deepEqual(logs[0].fields, {
+        phase: 'disable-start', mode: 'unlock-dialog', locked: true, greeter: false});
+    const secret = 'private@example.test /home/private';
+    recordLifecycleObservation({currentMode: secret, isLocked: false, isGreeter: false},
+        'enable-start', emit);
+    assert.equal(logs[1].fields.mode, 'other');
+    assert.ok(!JSON.stringify(logs).includes(secret));
+    assert.throws(() => diagnosticEnvelope(catalog, 'child.lifecycle-context', {
+        ...logs[0].fields, mode: secret}));
+    assert.doesNotThrow(() => recordLifecycleObservation({
+        get currentMode() { throw new Error(secret); }}, 'disable-start', emit));
+    assert.doesNotThrow(() => recordLifecycleObservation({currentMode: 'user',
+        isLocked: false, isGreeter: false}, 'enable-start', () => { throw new Error(secret); }));
+    assert.equal(logs.length, 2);
+});
 
 test('preparation diagnostics connect failure and later success without changing reporting', async () => {
     const logs = [];

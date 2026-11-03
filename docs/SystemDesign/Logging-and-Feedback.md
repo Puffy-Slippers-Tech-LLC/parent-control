@@ -264,6 +264,11 @@ logout handoff and selector storage retain closed stages/outcomes rather than
 locale/job/path/UID values. Ordinary missing selector files remain first-run
 state. Observer failure never changes native behavior.
 
+Extension enable/disable entry observations retain the locked/greeter flags and
+a closed session-mode category, including unlock-dialog. These distinguish
+lifecycle context around indicator recreation; they attest neither completion
+nor the actor or reason for the lifecycle call. Custom mode names are excluded.
+
 Display collection uses fresh requesting-session Mutter state with a two-second
 timeout: bounded physical/logical dimensions, scales, primary boolean and status.
 No connectors, serials, positions, mode IDs or screen contents survive. Reminder

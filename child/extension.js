@@ -45,6 +45,7 @@ export default class OhNoParentControlExtension extends Extension {
     }
 
     _enable() {
+        this._recordLifecycle('enable-start');
         logInfo('child.enabled');
         this._startSessionMonitoring();
         this._lockedSessionFocus = new LockedSessionFocus(
@@ -162,7 +163,20 @@ export default class OhNoParentControlExtension extends Extension {
             () => this._refreshLanguage());
     }
 
+    _recordLifecycle(phase) {
+        try {
+            const mode = Main.sessionMode.currentMode;
+            const locked = Main.sessionMode.isLocked;
+            const greeter = Main.sessionMode.isGreeter;
+            if (typeof locked !== 'boolean' || typeof greeter !== 'boolean')
+                return;
+            logInfo('child.lifecycle-context', {phase, locked, greeter,
+                mode: ['user', 'unlock-dialog', 'gdm'].includes(mode) ? mode : 'other'});
+        } catch (_error) { /* diagnostics must not interrupt startup or teardown */ }
+    }
+
     disable() {
+        this._recordLifecycle('disable-start');
         if (this._requestWatch) Gio.bus_unwatch_name(this._requestWatch);
         this._requestWatch = 0;
         this._requestOwner = null;

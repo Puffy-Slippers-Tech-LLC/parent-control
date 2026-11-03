@@ -13,9 +13,7 @@ from ui_observations import SettingsObservation
 
 POLICY = policy_edit(MATCH_APP, 'match-precise', 'allowed', 'allowed')
 SETUP = {
-    **fresh_desktop('parent'), **parent_management(),
-    'child-picker-opened': 'ui:existing-child-picker-opened',
-    'child-choice-highlighted': 'ui:existing-child-choice-highlighted',
+    **fresh_desktop('parent'), **parent_management(child='existing'),
     'parent-selected': 'ui:existing-returned',
     'allowance-configured': 'ui:time-explanation-setup-thirty-read',
     'saved-settings': 'ui:existing-returned',
@@ -146,9 +144,7 @@ def execute(recorder, context, *, plan=PLAN):
 
 
 def execute_disabled(recorder, context):
-    record_installed_journey(recorder, context, DISABLED_PLAN, timeout=1800,
-                             actions=fixture_actions(include_refusal=False),
-                             journey_type=AppPolicyJourney)
+    execute(recorder, context, plan=DISABLED_PLAN)
 
 
 def execute_grid(recorder, context, *, plan=GRID_PLAN, case_id='native-grid-allowed-enabled'):
@@ -157,9 +153,7 @@ def execute_grid(recorder, context, *, plan=GRID_PLAN, case_id='native-grid-allo
     # runtime; the stage action independently verifies Jordan's catalogue.
     context.fixture_subsets = ACTIVITY_SUBSETS
     context.fixture_caller = 'E2E-019/' + case_id
-    record_installed_journey(recorder, context, plan, timeout=1800,
-                             actions=fixture_actions(include_refusal=False),
-                             journey_type=AppPolicyJourney)
+    execute(recorder, context, plan=plan)
 
 
 E2E_CASES = {'native-command-allowed-enabled': execute,

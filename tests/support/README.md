@@ -1198,13 +1198,21 @@ the [catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md) owns binding
 scope and qualification. Reuse these fragments in both cases and qualifications
 instead of copying their stage maps or creating a plan-only comparison subclass.
 
-Allowed native-launch histories compose `policy_edits.policy_edit` /
+Allowed and blocked native-launch histories compose `policy_edits.policy_edit` /
 `onpc_app_rows::edit_policy`, `journey_blocks.desktop_entry` /
 `onpc_desktop_session::enter_desktop` and `journey_blocks.native_usable_app` /
-`onpc_app_rows::native_usable_app`. Use `AppPolicyJourney` with caller-declared
+`onpc_app_rows::native_usable_app`. Blocked histories use
+`journey_blocks.native_blocked_app` / `onpc_app_rows::native_blocked_app`
+for the denied child, then the usable operation for the unaffected child.
+Bind Jordan's Parent selection with `parent_management(child='existing')`;
+retain the caller's `existing-returned` read for initial settings rather than
+copying the child-picker operations. Use `AppPolicyJourney` with caller-declared
 `settings_checks`, `balance_checks`, `match_checks` and `access_checks` rather
-than a case-local comparison class. Cases 62 and 80–81 share these operations and one
-worker; their recipes retain control state, account order and assertion phases.
+than a case-local comparison class. Keep one family execution function for
+the recorder, fixture actions and comparison class; grid callers add only their
+qualified fixture context before calling it. Cases 62, 64, 66 and 81–84 share
+these operations and one worker; their recipes retain control state, account
+order and assertion phases.
 The [catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#application-routes-and-complete-customer-journeys)
 owns the exact qualified fixture/route bindings.
 

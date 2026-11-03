@@ -38,6 +38,20 @@
       "repo_root": "/Data/Code/PST/parent-control-others"
     }
   ],
+  "launchers": [
+    {
+      "name": "fix-tests",
+      "default_branch": "main"
+    },
+    {
+      "name": "run-tests",
+      "default_branch": "main"
+    },
+    {
+      "name": "write-e2e",
+      "default_branch": "worktree"
+    }
+  ],
   "families": [
     {
       "family": "ubuntu26.04",

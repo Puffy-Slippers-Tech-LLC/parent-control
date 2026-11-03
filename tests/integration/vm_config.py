@@ -82,14 +82,36 @@ def read_document(path=None):
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise ValueError('vm-config:unreadable; check config/environment.json') from error
     if (not isinstance(document, dict) or not {'families'} <= set(document) or
-            not set(document) <= {'families', 'concurrency', 'backup_root', 'hosts', 'branches'} or
+            not set(document) <= {'families', 'concurrency', 'backup_root', 'hosts', 'branches', 'launchers'} or
             not isinstance(document['families'], list) or not document['families']):
         raise ValueError('vm-config:fields')
     if 'backup_root' in document:
         absolute_path(document['backup_root'], 'backup_root')
     host_registry(document)
     branch_registry(document)
+    launcher_registry(document)
     return document
+
+
+def launcher_registry(document):
+    """Optional launcher defaults reference the shared branch placement registry."""
+    branches = branch_registry(document)
+    entries = document.get('launchers', [])
+    if not isinstance(entries, list):
+        raise ValueError('vm-config:launchers must be an array')
+    launchers = {}
+    for entry in entries:
+        if (not isinstance(entry, dict) or 'name' not in entry
+                or not set(entry) <= {'name', 'default_branch'}):
+            raise ValueError('vm-config:launcher fields must be name and optional default_branch')
+        name = validate_name(entry['name'])
+        if name in launchers:
+            raise ValueError('vm-config:duplicate launcher')
+        branch = entry.get('default_branch')
+        if 'default_branch' in entry and (not isinstance(branch, str) or branch not in branches):
+            raise ValueError('vm-config:launcher default_branch must name a configured branch')
+        launchers[name] = dict(entry)
+    return launchers
 
 
 def branch_registry(document):

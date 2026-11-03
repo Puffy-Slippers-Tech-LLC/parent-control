@@ -299,7 +299,7 @@ def git_output(root, *arguments, check=True):
 
 def closeout_lock(root, run, state):
     """Serialize source Git writes with reverse-direction destination updates."""
-    if not (root / 'config/worktree.json').exists() and not state.get('worktree_propagation'):
+    if not (root / 'config/test-vm.json').exists() and not state.get('worktree_propagation'):
         return nullcontext()
     from launcher_worktrees import transaction_lock
     return transaction_lock(root, run)
@@ -307,7 +307,7 @@ def closeout_lock(root, run, state):
 
 def _propagate_worktrees(root, run, state, commit, *, git=None):
     """Shared post-push boundary for ordinary plans, E2E and verified repairs."""
-    if not (root / 'config/worktree.json').exists() and not state.get('worktree_propagation'):
+    if not (root / 'config/test-vm.json').exists() and not state.get('worktree_propagation'):
         return
     from launcher_worktrees import propagate
     propagate(root, run, state, commit, git=git or git_output)
@@ -335,10 +335,14 @@ def commit_push_propagate(root, run, state, paths, message, *, git=None):
             if head != commit and git(root, 'merge-base', '--is-ancestor', commit,
                                       head, check=False).returncode:
                 raise ValueError('HEAD changed after completion commit; inspect retained checkpoint before push')
-        pushed = git(root, 'push', check=False)
-        if pushed.returncode:
-            raise ValueError('completion push failed: ' + pushed.stderr.strip())
-        _propagate_worktrees(root, run, state, commit, git=git)
+        intent = state['commit_intent']
+        pushed_head = intent.get('pushed_head') or state.get('worktree_propagation', {}).get('commit')
+        if pushed_head is None:
+            from launcher_worktrees import push_source
+            pushed_head = push_source(root, run, state, commit, git=git)
+            intent['pushed_head'] = pushed_head
+            launcher.atomic(run / 'checkpoint.json', state)
+        _propagate_worktrees(root, run, state, pushed_head, git=git)
         return commit
 
 

@@ -30,6 +30,10 @@ class RestorationRequired(ValueError):
     """Saved active work still needs the existing restoration resolver."""
 
 
+class _PushAdvanced(Exception):
+    """A checked-out destination has a saved refetch/remerge retry."""
+
+
 @contextmanager
 def transaction_lock(root, run, *, git=git_output):
     """One reentrant source-closeout/propagation owner across all worktrees."""
@@ -55,17 +59,19 @@ def transaction_lock(root, run, *, git=git_output):
 
 
 def configured_targets(root, *, git=git_output):
-    path = root / 'config/worktree.json'
+    path = root / 'config/test-vm.json'
     if not path.exists():
         return []
     if path.is_symlink() or not path.is_file():
         raise ValueError('worktree configuration must be a regular file')
-    config = json.loads(path.read_text())
-    names = config.get('worktrees') if isinstance(config, dict) else None
-    if (not isinstance(names, list) or any(not isinstance(name, str) or not name
-            or name.startswith('-') or '\x00' in name for name in names)
-            or len(set(names)) != len(names)):
-        raise ValueError('config/worktree.json needs unique branch names in worktrees')
+    from vm_selection import vm_config
+    configured = vm_config.branch_registry(vm_config.read_document(path))
+    current = _run(git, root, 'symbolic-ref', '--quiet', '--short', 'HEAD')
+    source = configured.get(current)
+    if not configured:
+        return []
+    if source is None or Path(source['repo_root']).resolve() != root.resolve():
+        raise ValueError('current branch/checkout must match config/test-vm.json branches')
     records = git(root, 'worktree', 'list', '--porcelain', '-z').stdout.split('\0\0')
     branches = {}
     for record in records:
@@ -73,22 +79,105 @@ def configured_targets(root, *, git=git_output):
         if 'branch' in fields and 'worktree' in fields:
             branches[fields['branch'].removeprefix('refs/heads/')] = Path(fields['worktree']).resolve()
     targets = []
-    for name in names:
+    for name, entry in configured.items():
         if git(root, 'check-ref-format', 'refs/heads/' + name, check=False).returncode:
             raise ValueError(f'invalid configured worktree branch: {name}')
-        if name not in branches:
+        if name == current:
+            continue
+        if entry['host'] != source['host']:
             targets.append(dict(branch=name, remote_target=True))
-        elif branches[name] != root.resolve():
+        elif name not in branches or branches[name] != Path(entry['repo_root']).resolve():
+            raise ValueError(f'configured same-host branch needs its registered worktree: {name}')
+        else:
             targets.append(dict(path=str(branches[name]), branch=name))
     return targets
 
 
 def _configured(root, target, git):
+    if target.get('pull_only'):
+        # The registry itself may be conflicted during a resumed self-pull.
+        # Placement was checked before starting; retain checkout/branch identity.
+        return (target.get('path') == str(root.resolve())
+                and target['branch'] == _run(git, root, 'symbolic-ref', '--short', 'HEAD'))
     for item in configured_targets(root, git=git):
         if item['branch'] == target['branch']:
             return (item.get('remote_target') == target.get('remote_target')
                     and (item.get('remote_target') or item['path'] == target['path']))
     return False
+
+
+def pull_targets(root, *, git=git_output):
+    targets = []
+    # configured_targets authenticates the current branch and configured path.
+    configured_targets(root, git=git)
+    if (root / 'config/test-vm.json').exists():
+        from vm_selection import vm_config
+        if vm_config.branch_registry(vm_config.read_document(root / 'config/test-vm.json')):
+            targets.insert(0, dict(path=str(root.resolve()),
+                                  branch=_run(git, root, 'symbolic-ref', '--short', 'HEAD')))
+    return [dict(item, pull_only=True) for item in targets]
+
+
+def pull_at_boundary(root, run, state, *, git=git_output, checkpoint='checkpoint.json'):
+    """Refresh this controller's checkout before new work, never mid-closeout.
+
+    Retain the transaction inside the workflow checkpoint for ordinary recovery.
+    The same stash/merge/restore resolver owns both kinds of synchronization.
+    """
+    if not state.get('upstream_pull') and not (root / 'config/test-vm.json').exists():
+        return
+    intent = state.get('commit_intent', {})
+    if state.get('upstream_pull') and intent.get('commit'):
+        # The accepted completion was already committed. Resume its exact
+        # close-out before callers parse metadata that its merge may conflict.
+        from launcher_git import commit_push_propagate
+        commit_push_propagate(root, run, state, intent['paths'], intent['message'], git=git)
+        return
+    if (state.get('commit_intent') or state.get('pull_intent')
+            or state.get('pending_completion') or state.get('pending')
+            or state.get('worktree_propagation')):
+        return
+    _sync_current(root, run, state, git=git, checkpoint=checkpoint)
+
+
+def push_source(root, run, state, commit, *, git=git_output):
+    """Retry a rejected source push without changing its immutable task commit."""
+    if (state.get('commit_intent', {}).get('commit') != commit
+            or git(root, 'merge-base', '--is-ancestor', commit, 'HEAD', check=False).returncode):
+        raise ValueError('source push recovery needs the recorded completion commit')
+    if not state.get('upstream_pull'):
+        result = git(root, 'push', '--porcelain', check=False)
+        if not result.returncode:
+            return _head(git, root)
+        if not _push_advanced(result):
+            raise ValueError('completion push failed: ' + (result.stderr or result.stdout).strip())
+    # The completion commit is already written and verified. A retained self
+    # transaction can now merge/push its descendant, preserving the original
+    # commit intent and any active edits outside that commit.
+    _sync_current(root, run, state, git=git, push=True)
+    return _head(git, root)
+
+
+def _sync_current(root, run, state, *, git, checkpoint='checkpoint.json', push=False):
+    with transaction_lock(root, run, git=git):
+        before = _head(git, root)
+        pending = state.setdefault('upstream_pull', {})
+        def save():
+            launcher.atomic(run / checkpoint, state)
+        commit = pending.get('worktree_propagation', {}).get('commit') or _head(git, root)
+        targets = None if pending.get('worktree_propagation') else pull_targets(root, git=git)
+        if push and targets is not None:
+            if not targets:
+                raise ValueError('source push recovery needs a configured current branch')
+            for target in targets:
+                target['push_after_pull'] = True
+        propagate(root, run, pending, commit, git=git, targets=targets,
+                  checkpoint=checkpoint, save_state=save, pull=True)
+        state.pop('upstream_pull', None)
+        save()
+        if _head(git, root) != before:
+            from launcher_reload import request
+            request(launcher.propagation_source_run(root, run))
 
 
 def _remote_destination(git, root, branch):
@@ -215,10 +304,7 @@ def _push_remote(git, destination, target, save, resolve):
         if not result.returncode:
             target['pushed_head'] = head
             return
-        rejected = any(line.startswith('!\t') and line.endswith(
-            ('[rejected] (non-fast-forward)', '[rejected] (fetch first)'))
-            for line in result.stdout.splitlines())
-        if not rejected:
+        if not _push_advanced(result):
             raise ValueError(f'worktree propagation {destination}: git push failed: '
                              + (result.stderr or result.stdout).strip())
         target['phase'] = 'remote-refetch'
@@ -226,6 +312,41 @@ def _push_remote(git, destination, target, save, resolve):
         if attempt == 4:
             raise ValueError('remote branch kept advancing during propagation; retained transaction preserved')
         _refresh_remote(git, destination, target, save, resolve)
+
+
+def _push_advanced(result):
+    return any(line.startswith('!\t') and line.endswith(
+        ('[rejected] (non-fast-forward)', '[rejected] (fetch first)'))
+        for line in result.stdout.splitlines())
+
+
+def _push_local(git, destination, target, save):
+    result = git(destination, 'push', '--porcelain', check=False)
+    if not result.returncode:
+        return
+    if not _push_advanced(result):
+        raise ValueError('worktree propagation push failed: ' + (result.stderr or result.stdout).strip())
+    _identity(git, destination, target)
+    _idle(git, destination)
+    _verify_restored(git, destination, target)
+    # Active edits were restored before push. Save them again through the same
+    # transaction before merging the newly advanced remote. Keep earlier backup
+    # identities until this new restoration succeeds, including across restart.
+    backups = list(target.get('retired_stashes', []))
+    if target.get('stash'):
+        backups.append(dict(stash=target['stash'], marker=target['marker'],
+                            preserve=bool(target.get('preserve_stash') or target.get('reconciliation'))))
+    retry = dict(path=target['path'], branch=target['branch'], upstream=target['upstream'],
+                 head=_head(git, destination), phase='stash',
+                 marker='onpc-propagation-' + uuid.uuid4().hex,
+                 active=_active_snapshot(git, destination), retired_stashes=backups)
+    for flag in ('pull_only', 'push_after_pull'):
+        if target.get(flag):
+            retry[flag] = True
+    target.clear()
+    target.update(retry)
+    save()
+    raise _PushAdvanced()
 
 
 def _run(git, root, *args):
@@ -411,27 +532,48 @@ def _merge(git, root, target, incoming, resolve):
         raise ValueError('merge left uncommitted changes before stash restoration')
 
 
-def propagate(root, run, state, commit, *, git=git_output, resolve=None):
+def propagate(root, run, state, commit, *, git=git_output, resolve=None,
+              targets=None, checkpoint='checkpoint.json', save_state=None, pull=False):
+    """Retry advancing checked-out destinations through the retained transaction."""
+    for attempt in range(5):
+        try:
+            return _propagate_once(root, run, state, commit, git=git, resolve=resolve,
+                targets=targets, checkpoint=checkpoint, save_state=save_state, pull=pull)
+        except _PushAdvanced:
+            if attempt == 4:
+                raise ValueError('remote branch kept advancing during propagation; retained transaction preserved')
+
+
+def _propagate_once(root, run, state, commit, *, git=git_output, resolve=None,
+                    targets=None, checkpoint='checkpoint.json', save_state=None, pull=False):
     """Finish every destination before caller grants completion; save each write intent."""
     root, run = Path(root), Path(run)
     transaction = state.get('worktree_propagation')
     if transaction is None:
-        targets = configured_targets(root, git=git)
+        targets = configured_targets(root, git=git) if targets is None else targets
         if not targets:
             return
+        intent = state.get('commit_intent', {})
         if (not commit or (_head(git, root) != commit
-                           and state.get('commit_intent', {}).get('commit') != commit)):
+                           and commit not in (intent.get('commit'), intent.get('pushed_head')))):
             raise ValueError('worktree propagation requires the exact pushed completion commit')
         transaction = state['worktree_propagation'] = dict(commit=commit, targets=targets)
-        launcher.atomic(run / 'checkpoint.json', state)
+        if save_state is not None:
+            save_state()
+        else:
+            launcher.atomic(run / checkpoint, state)
     if (transaction['commit'] != commit
             or git(root, 'merge-base', '--is-ancestor', commit, 'HEAD', check=False).returncode):
         raise ValueError('worktree propagation source commit changed')
     resolve = resolve or (lambda target, phase, details: resolve_conflicts(
-        target, run, phase, dict(details, source_root=str(root.resolve()))))
+        target, run, phase, dict(details, source_root=str(root.resolve()), checkpoint=checkpoint,
+                                pull=pull)))
     with transaction_lock(root, run, git=git):
         def save():
-            launcher.atomic(run / 'checkpoint.json', state)
+            if save_state is not None:
+                save_state()
+            else:
+                launcher.atomic(run / checkpoint, state)
         for target in transaction['targets']:
             if target.get('phase') == 'done':
                 continue
@@ -479,7 +621,8 @@ def propagate(root, run, state, commit, *, git=git_output, resolve=None):
                 target['phase'] = 'merge'
                 save()
             if target['phase'] == 'merge':
-                _merge(git, destination, target, commit, resolve)
+                if not target.get('pull_only'):
+                    _merge(git, destination, target, commit, resolve)
                 target.update(phase='restore', merged_head=_head(git, destination))
                 save()
             head = _expect_head(git, destination, target['merged_head'], 'propagation restoration/push')
@@ -529,7 +672,8 @@ def propagate(root, run, state, commit, *, git=git_output, resolve=None):
                 if target.get('remote_target'):
                     _push_remote(git, destination, target, save, resolve)
                 else:
-                    _run(git, destination, 'push')
+                    if not target.get('pull_only') or target.get('push_after_pull'):
+                        _push_local(git, destination, target, save)
                 target['phase'] = 'drop'
                 save()
             if target['phase'] == 'drop':
@@ -548,13 +692,21 @@ def propagate(root, run, state, commit, *, git=git_output, resolve=None):
                             and subject.endswith(target['marker'])):
                         _run(git, destination, 'stash', 'drop', f'stash@{{{index}}}')
                         break
+                for backup in target.get('retired_stashes', []):
+                    if backup['preserve']:
+                        continue
+                    for index, (oid, subject) in enumerate(_stashes(git, destination)):
+                        if oid == backup['stash'] and subject.endswith(backup['marker']):
+                            _run(git, destination, 'stash', 'drop', f'stash@{{{index}}}')
+                            break
                 if target.get('remote_target'):
                     target['phase'] = 'remote-remove'
                     save()
                     _remove_remote(git, root, target)
                 target['phase'] = 'done'
                 save()
-            print(f"Propagated {commit[:12]} to {target['branch']} and pushed.", flush=True)
+            if not target.get('pull_only'):
+                print(f"Propagated {commit[:12]} to {target['branch']} and pushed.", flush=True)
 
 
 def _remove_remote(git, root, target):
@@ -605,7 +757,9 @@ def _resolve_once(root, run, phase, details):
     previous = session / 'propagation-owner.json'
     if previous.exists():
         recorded = launcher._start_record(previous)
-        targets = json.loads((run / 'checkpoint.json').read_text()).get('worktree_propagation', {}).get('targets', [])
+        saved = json.loads((run / details.get('checkpoint', 'checkpoint.json')).read_text())
+        targets = saved.get('worktree_propagation', {}).get('targets', [])
+        targets += saved.get('upstream_pull', {}).get('worktree_propagation', {}).get('targets', [])
         retired = (session / 'nested-closed').exists() and any(
             item.get('remote_target') and item.get('phase') == 'done'
             and item.get('path') == recorded['destination'] for item in targets)
@@ -616,6 +770,8 @@ def _resolve_once(root, run, phase, details):
     owner_info = (workflow.parent / 'owner').stat()
     launcher._publish_start(previous, dict(root=details['source_root'], run=str(run),
         destination=str(root.resolve()), identity=[source_info.st_dev, source_info.st_ino],
+        checkpoint=details.get('checkpoint', 'checkpoint.json'),
+        pull=details.get('pull', False),
         owner_identity=[owner_info.st_dev, owner_info.st_ino]))
     schema = dict(type='object', additionalProperties=False,
         properties=dict(status=dict(type='string', enum=['resolved', 'continue']),

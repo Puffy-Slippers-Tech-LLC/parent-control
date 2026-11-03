@@ -1121,6 +1121,10 @@ def worker(root, run, owner, tasks, state_json):
     try:
         if (run / 'cancel').exists():
             raise launcher.Stopped()
+        if state.get('upstream_pull'):
+            from launcher_worktrees import pull_at_boundary
+            pull_at_boundary(root, run, state)
+            reload_request.check()
         if state.get('source_changed_result') is not None:
             # The previous controller could not load changed validation code.
             # Replay its exact closed response under this fresh process without
@@ -1165,6 +1169,9 @@ def worker(root, run, owner, tasks, state_json):
         while not final_replayed_stall and not closeout_only:
             if (run / 'cancel').exists():
                 raise launcher.Stopped()
+            from launcher_worktrees import pull_at_boundary
+            pull_at_boundary(root, run, state)
+            reload_request.check()
             if state['phase'] == 'complete' and optimization_due(state):
                 state = start_optimization(state)
                 launcher.atomic(run / 'checkpoint.json', state)
@@ -1373,6 +1380,10 @@ def initial_state(root, directory, *, destination=None, defer_closeout=False):
     previous = launcher.current_run(directory)
     if previous and (previous / 'checkpoint.json').exists():
         state = json.loads((previous / 'checkpoint.json').read_text())
+        if state.get('upstream_pull'):
+            if state.get('pending_completion'):
+                state['closeout_recovery_run'] = str(previous)
+            return dict(state, recovery_run=str(previous))
         # Progress keys name frames in one launcher, unlike cumulative task sessions.
         for saved in [state, *state.get('suspended_tasks', {}).values()]:
             saved.pop('progress_keys', None)
@@ -1501,7 +1512,7 @@ def reconcile_queue(root, identity, *, check=False):
             state = json.loads(raw)
             saved = dict(state.get('suspended_tasks', {}))
             saved[state['task_id']] = state
-            transactions = ('pending_completion', 'commit_intent', 'worktree_propagation',
+            transactions = ('pending_completion', 'commit_intent', 'worktree_propagation', 'upstream_pull',
                             'result_recovery', 'source_changed_result', 'optimization_session',
                             'completion_recovery', 'closeout_recovery_run')
             if any(value.get(key) is not None and value.get(key) is not False
@@ -1616,7 +1627,7 @@ def select(root, argv):
             if not state.get('pending_completion') or not state.get('closeout_recovery_run'):
                 raise ValueError('--closeout-only requires a retained accepted completion')
             state['closeout_only'] = True
-        before = state['queue_before'] if state.get('result_recovery') else queue_state(root)[1]
+        before = state['queue_before'] if (state.get('result_recovery') or state.get('upstream_pull')) else queue_state(root)[1]
         remaining = sum(not done for done in before.values())
         initial_limits.update(tasks=task_limit(args.tasks), started=0, completed=0, remaining=remaining)
         warn_remaining(task_limit(args.tasks), remaining, label='write-e2e')

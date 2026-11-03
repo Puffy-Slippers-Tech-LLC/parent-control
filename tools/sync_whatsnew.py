@@ -226,6 +226,9 @@ def worker(root, run, owner, model, effort, subagents, batch_size):
         if (run / 'cancel').exists():
             raise launcher.Stopped()
         saved = json.loads(retained.read_text()) if retained.exists() else {}
+        from launcher_worktrees import pull_at_boundary
+        pull_at_boundary(root, run, saved, checkpoint='translation-state.json')
+        reload_request.check()
         release = catalogs.latest(root)
         if saved and (saved['source_digest'] != release.source_digest
                       or tuple(saved.get('languages', release.languages)) != release.languages):
@@ -244,6 +247,10 @@ def worker(root, run, owner, model, effort, subagents, batch_size):
             if (run / 'cancel').exists():
                 raise launcher.Stopped()
             reload_request.check()
+            pull_at_boundary(root, run, saved, checkpoint='translation-state.json')
+            reload_request.check()
+            if catalogs.latest(root) != release:
+                raise ValueError('English source changed at translation boundary; rerun')
             batch = {language: work[language] for language in languages[offset:offset + batch_size]}
             originals = {language: catalogs.fingerprint(catalogs.catalog_path(root, release, language))
                          for language in batch}
@@ -343,16 +350,28 @@ def main(argv=None):
             print(f'sync-whatsnew: prepared latest v{release.version}; {len(catalogs.pending(ROOT, release))} languages pending')
             return 0
 
+        pending_pull = None
         def start(run, owner):
-            release = catalogs.latest(ROOT)
-            work = catalogs.pending(ROOT, release)
+            nonlocal pending_pull
+            previous = launcher.current_run(storage_directory('sync-whatsnew', root=ROOT))
+            if previous is not None and (previous / 'translation-state.json').exists():
+                saved = json.loads((previous / 'translation-state.json').read_text())
+                if saved.get('upstream_pull'):
+                    pending_pull = saved
+            release = catalogs.latest(ROOT) if pending_pull is None else None
+            work = catalogs.pending(ROOT, release) if release is not None else {}
             if work:
                 available_model(args.model, args.effort)
                 agent_command(ROOT, run, args.model, args.effort, args.subagents)
             return [sys.executable, '-IBu', str(Path(__file__).resolve()), '--worker', str(ROOT),
                     str(run), str(owner), args.model, args.effort, str(args.subagents), str(args.batch_size)]
 
+        def resume_pull(run):
+            if pending_pull is not None:
+                launcher.atomic(run / 'translation-state.json', pending_pull)
+
         run, _started = launcher.select(ROOT, 'sync-whatsnew', start, stop=args.stop,
+                                       on_start=resume_pull,
                                        **({'reload': True} if args.reload else {}))
         if run is None:
             print('sync-whatsnew: no active translation session')

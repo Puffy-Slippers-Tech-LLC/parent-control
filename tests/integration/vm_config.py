@@ -82,13 +82,43 @@ def read_document(path=None):
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise ValueError('vm-config:unreadable; check config/test-vm.json') from error
     if (not isinstance(document, dict) or not {'families'} <= set(document) or
-            not set(document) <= {'families', 'concurrency', 'backup_root', 'hosts'} or
+            not set(document) <= {'families', 'concurrency', 'backup_root', 'hosts', 'branches'} or
             not isinstance(document['families'], list) or not document['families']):
         raise ValueError('vm-config:fields')
     if 'backup_root' in document:
         absolute_path(document['backup_root'], 'backup_root')
     host_registry(document)
+    branch_registry(document)
     return document
+
+
+def branch_registry(document):
+    """Branch placement is independent of VM/host online scheduling flags."""
+    hosts = host_registry(document)
+    entries = document.get('branches', [])
+    if not isinstance(entries, list):
+        raise ValueError('vm-config:branches must be an array')
+    branches, locations = {}, set()
+    for entry in entries:
+        if not isinstance(entry, dict) or set(entry) != {'name', 'host', 'repo_root'}:
+            raise ValueError('vm-config:branch fields must be name, host and repo_root')
+        name = entry['name']
+        if (not isinstance(name, str) or not name or name.startswith(('-', '/'))
+                or name.endswith(('/', '.')) or any(c.isspace() or ord(c) < 32 for c in name)
+                or any(c in name for c in '~^:?*[\\') or '..' in name or '@{' in name
+                or any(part.startswith('.') or part.endswith('.lock') or not part
+                       for part in name.split('/')) or name == '@'):
+            raise ValueError('vm-config:invalid branch name')
+        host = entry['host']
+        if not isinstance(host, str) or host not in hosts:
+            raise ValueError('vm-config:branch needs a configured host')
+        path = absolute_path(entry['repo_root'], 'branch repo_root')
+        location = (host, str(path))
+        if name in branches or location in locations:
+            raise ValueError('vm-config:duplicate branch or host checkout')
+        branches[name] = dict(entry)
+        locations.add(location)
+    return branches
 
 
 def host_registry(document):

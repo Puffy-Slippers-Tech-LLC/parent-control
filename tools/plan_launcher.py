@@ -242,7 +242,7 @@ def validate_task_metadata(plan, state):
 
 def refresh_live_plan(plan, state):
     """Follow the surviving queue; removed tasks need no recovery or credit."""
-    if state.get('git_reconciliation') or state.get('pull_intent'):
+    if state.get('git_reconciliation') or state.get('pull_intent') or state.get('upstream_pull'):
         return  # Finish the recorded Git transaction before reading conflicted metadata.
     try:
         tasks = plan.state(selected=state.get('selected_tasks', state.get('queue_before')))
@@ -317,6 +317,8 @@ def initial_state(plan, spec, directory, *, reloading=False):
     previous = launcher.current_run(directory)
     if previous and (previous / 'checkpoint.json').exists():
         state = json.loads((previous / 'checkpoint.json').read_text())
+        if state.get('upstream_pull'):
+            return dict(state, recovery_run=str(previous))
         refresh_live_plan(plan, state)
         # Old controllers could stop a completed task solely to archive reports.
         # Its saved successful result still owns completion; report lifetime does not.
@@ -572,7 +574,7 @@ def reconcile_plan(root, spec, identity, *, check=False, merge_tasks=(), base=No
                     or key != saved.get('task_id') or key != saved['task'].get('task_id')
                     or (key not in merges.values() and saved['task'].get('brief') != str(task.brief))
                     or any(saved.get(field) for field in ('pending_completion', 'commit_intent',
-                        'pull_intent', 'git_reconciliation', 'result_recovery', 'suspended_tasks', 'blocker'))):
+                        'pull_intent', 'upstream_pull', 'git_reconciliation', 'result_recovery', 'suspended_tasks', 'blocker'))):
                 raise ValueError('suspended task needs its original identity and no pending transaction')
             pending[key] = dict(saved, phase='recover', in_flight=False,
                                 consolidation_obligations=obligations,
@@ -694,7 +696,7 @@ def _closeout(plan, spec, run, state):
 
 def load_plan(root, path, state):
     if any(state.get(key) for key in ('git_reconciliation', 'pull_intent', 'result_recovery',
-                                     'evidence_renewal')):
+                                     'evidence_renewal', 'upstream_pull')):
         # The pull itself can leave conflicts in the master/queue. Retain their
         # validated identities so a restart can resolve them before parsing.
         master = local_path(root, path)
@@ -781,15 +783,18 @@ def worker(root, run, owner, spec, state, *, reloading=False):
     budget = TaskBudget(run)
     status, reason = 0, 'queue complete'
     reload = False
+    reload_request = ReloadRequest(run)
+    reload_reason = 'upstream changes or manual reload requested; reloading at a safe boundary'
     try:
         # exec retains ownership and this live checkpoint. Reloading code is
         # not a fresh admission: continue without replaying startup validation.
+        from launcher_worktrees import pull_at_boundary
+        if state.get('upstream_pull'):
+            pull_at_boundary(root, run, state)
+            reload_request.check()
         plan = load_plan(root, spec.plan, state)
         state.setdefault('selected_tasks', list(state.get('queue_before') or plan.state()))
         refresh_live_plan(plan, state)
-        reload_request = ReloadRequest(run)
-        reload_reason = ('manual reload requested; '
-                         'reloading controller and continuing the retained handoff')
         if state.get('recovery_run'):
             launcher.finish_nested(root, Path(state['recovery_run']))
         if reloading and (run / 'cancel').exists():
@@ -805,6 +810,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             if (run / 'stop').exists():
                 reason = 'stopped at a session boundary'
                 break
+            from launcher_worktrees import pull_at_boundary
+            pull_at_boundary(root, run, state)
             # A valid continuation can need new startup recovery just as a
             # rejected response can need repaired guards. Never spend another
             # session, select another task or wait for an answer under old code.
@@ -1135,6 +1142,7 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                 if (not initial.get('in_flight') and not initial.get('pending_completion')
                         and not initial.get('git_reconciliation') and not initial.get('pull_intent')
                         and not initial.get('result_recovery') and not initial.get('evidence_renewal')
+                        and not initial.get('upstream_pull')
                         and not capacity_session_recovery(initial)):
                     raise validation_error
                 remaining = sum(not done for done in initial['queue_before'].values())

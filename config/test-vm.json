@@ -16,6 +16,28 @@
       "concurrency": 6
     }
   ],
+  "branches": [
+    {
+      "name": "main",
+      "host": "local",
+      "repo_root": "/Data/Code/PST/parent-control"
+    },
+    {
+      "name": "worktree",
+      "host": "local",
+      "repo_root": "/Data/Code/PST/parent-control1"
+    },
+    {
+      "name": "test",
+      "host": "myserver",
+      "repo_root": "/Data/Code/PST/parent-control-test"
+    },
+    {
+      "name": "others",
+      "host": "myserver",
+      "repo_root": "/Data/Code/PST/parent-control-others"
+    }
+  ],
   "families": [
     {
       "family": "ubuntu26.04",

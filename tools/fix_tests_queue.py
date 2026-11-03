@@ -132,7 +132,7 @@ class RepairCoordinator:
     def recovery_state(saved):
         if saved.get('pending') is not None:
             return 'closeout'
-        if saved.get('repairs') or saved.get('queued_failure'):
+        if saved.get('repairs') or saved.get('queued_failure') or saved.get('upstream_pull'):
             return 'repair'
         return 'complete'
 

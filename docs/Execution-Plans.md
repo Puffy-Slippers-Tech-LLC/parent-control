@@ -737,14 +737,15 @@ retroactively committed by restart; preserve their changes for explicit close-ou
 ## Shared worktree propagation
 
 After a launcher pushes a task, optimization or verified repair commit, shared
-Git infrastructure propagates that exact commit to every other branch listed in
-[`config/worktree.json`](../config/worktree.json). Entries in `worktrees` are
-branch names. Checked-out branches resolve through Git's registered worktree
-inventory; exclude the current checkout by its resolved path. This is symmetric:
-with `main` and `worktree` configured, either checkout merges its completed work
-into the other.
-Additional configured worktrees receive the same change. A checkout without this
-configuration has no propagation destinations. A branch without a local checkout
+Git infrastructure propagates its pinned pushed HEAD to every other branch listed in
+[`config/test-vm.json`](../config/test-vm.json). Entries in `branches` declare
+`name`, `host` and absolute `repo_root`. The source branch and resolved checkout
+must match their declaration. Branches assigned to the same host must be registered
+Git worktrees at the declared paths. Each receives the completed change; this is
+symmetric in every direction. Branches on other hosts receive remote pushes,
+regardless of the host's VM scheduling `enabled` flag. Host names describe branch
+placement; they do not initiate SSH operations. A registry without branch entries
+has no propagation destinations. A branch on another host
 uses its configured remote upstream, or the same branch name on the sole matching
 remote when no upstream is configured. A detached checkout remains untouched.
 Missing or ambiguous remote destinations, existing Git operations or missing
@@ -770,8 +771,18 @@ a checkpointed refetch and merge in the same detached checkout, followed by a
 normal push. Recovery resumes interrupted merges and preserves both histories.
 Any conflicts enter the same unattended resolver before the controller commits
 the merge or retries the push; unresolved conflicts prevent completion.
-At most five push attempts run per invocation; other push failures retain the
-transaction immediately.
+Detached destinations allow at most five push attempts per invocation; other
+push failures retain the transaction immediately.
+
+Checked-out destinations use the same bounded refetch/merge retry on a rejected
+push. Their restored active edits are saved again through the existing stash
+transaction; earlier recorded backup stashes retire only after the new restore
+is verified and the push succeeds. Backups already marked for preservation remain.
+Source pushes also reconcile a remote advance through a retained self-merge.
+The original task commit stays immutable. Its commit intent records the actual
+successfully pushed HEAD, including any merge resolution, and propagation uses
+that pinned commit. A restart resumes that exact propagation before accepting
+completion; it does not repin a transaction with completed destinations.
 
 This boundary is shared by ordinary-plan launchers, `write-e2e` (including its
 optimization commits), and `fix-tests`. Every committing launcher must use
@@ -780,11 +791,27 @@ destination propagation operation. Commit creation and propagation helpers are
 private to the shared Git module; launchers must not import or call them or
 implement separate commit/push sequences. A repository regression check enforces
 that private-helper boundary. There is no commit-only or push-disabled close-out
-option. Callers retain acceptance, staging and source-pull policy, while the
+option. Callers retain acceptance and staging, while the
 shared operation owns the repository-wide lock and resumable Git writes.
-It adds no propagation operation to
-read-only checks or launchers that do not commit and push. Task completion and
+Task completion and
 selection of further work wait until every destination has been pushed.
+
+Plan and E2E controllers pull their current branch at session boundaries before
+new work. Repair controllers pull during fenced startup and before repair turns;
+translation controllers pull at startup and between batches. No timer runs and
+no pull mutates a checkout during its active child session or tests. Pending
+accepted close-out and commit/pull intents retain their existing recovery route.
+The shared pull uses the configured upstream with the same recorded stash,
+merge and index restoration mechanics, retaining its `upstream_pull` transaction
+inside the workflow checkpoint. Clean synchronization uses Git alone. An agent
+starts only for merge or saved-work restoration conflicts. Pulls do not push
+unpublished local work. An incoming HEAD change requests controller reload before
+new work so updated controller code takes effect too.
+
+Remote pushes update branch refs immediately. A physical checkout on another host
+receives those updates when its controller reaches a safe pull boundary; an
+inactive checkout receives them when its controller starts. No background service
+or remote checkout mutation is performed.
 
 For each destination, the controller records its branch, upstream, original
 HEAD and a unique stash identity. It stashes staged, unstaged and untracked work
@@ -923,7 +950,7 @@ presentation strategy directly and can customize their layout and progress.
 | [`detached_launcher.py`](../tools/detached_launcher.py) | Owner locks, detached sessions, supervised transport, nested-test cleanup, following | Worker command, validated namespace, lifecycle callbacks |
 | [`launcher_view.py`](../tools/launcher_view.py) / [`launcher_display.py`](../tools/launcher_display.py) / [`launcher_progress.py`](../tools/launcher_progress.py) | Synchronized panels, input routing, task formatting and durable completion rows | `ExecutionPlanView`: checkout/master data with shared plan wiring; `WorkflowView`: custom progress, layout options, questions and composer for other launchers |
 | [`launcher_session.py`](../tools/launcher_session.py) | Shared session transcript/composer layout, editor and caret geometry | Host supplies viewport, transcript, session state and authorized input callback in a launcher pane |
-| [`launcher_git.py`](../tools/launcher_git.py) / [`launcher_worktrees.py`](../tools/launcher_worktrees.py) | Upstream reconciliation, literal paths and mandatory commit/push/propagation close-out with recovery | Workflow owns source-pull policy and commit scope; shared Git owns commit, push, destination discovery, stash/merge/restore, automatic conflict resolution and recovery |
+| [`launcher_git.py`](../tools/launcher_git.py) / [`launcher_worktrees.py`](../tools/launcher_worktrees.py) | Upstream reconciliation, literal paths and mandatory commit/push/propagation close-out with recovery | Workflow owns safe pull boundaries and commit scope; shared Git owns pulls, commit, push, destination discovery, stash/merge/restore, automatic conflict resolution and recovery |
 
 The current adapters use these components according to their workflow:
 

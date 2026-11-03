@@ -75,8 +75,11 @@ def reload_controller(root, run, owner, *options, gate=None):
         if writers:
             atomic(run / 'repair-lease.json', dict(pid=os.getpid(), fds=writers))
         try:
+            checkpoint = run / 'checkpoint.json'
+            saved = json.loads(checkpoint.read_text()) if checkpoint.exists() else {}
+            mode = '--reload-worker' if saved.get('controller_restart', {}).get('runtime') else '--worker'
             replace_interpreter(['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
-                '--reload-worker', str(root), str(run), str(owner), *options], descriptors)
+                mode, str(root), str(run), str(owner), *options], descriptors)
         finally:
             os.environ.pop(STARTUP_SOURCE, None)
 
@@ -665,11 +668,35 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                 # admission. An empty ticket can precede begin() after a crash.
                 path = run / 'checkpoint.json'
                 retained = json.loads(path.read_text()) if path.exists() else {}
+                retained.setdefault('repairs', {})
                 retained_state = RepairCoordinator.recovery_state(retained)
                 with repair_gate.coordinator.state() as (waiting, pending_owner):
                     queued = repair_gate.ticket in waiting or pending_owner == repair_gate.ticket
                 if retained_state != 'complete' or queued:
                     repair_gate.acquire()
+                if ((retained_state == 'complete' and not os.environ.get(RECOVERY_ONLY))
+                        or retained.get('upstream_pull')):
+                    repair_gate.acquire()
+                    from launcher_worktrees import pull_at_boundary
+                    from launcher_git import git_output
+                    try:
+                        before_pull = git_output(root, 'rev-parse', 'HEAD').stdout
+                        pull_at_boundary(root, run, retained)
+                    except BaseException:
+                        repair_gate.release(unfinished=True)
+                        raise
+                    changed = git_output(root, 'rev-parse', 'HEAD').stdout != before_pull
+                    if changed:
+                        # Keep the writer lease through interpreter replacement.
+                        repair_gate.coordinator.finish(repair_gate.ticket, changed=True, unfinished=True)
+                        from launcher_reload import check
+                        check()
+                    retained_state = RepairCoordinator.recovery_state(retained)
+                    if retained_state == 'complete':
+                        repair_gate.release(changed=changed)
+                        if os.environ.get(RECOVERY_ONLY):
+                            status = 0
+                            return 0
                 if retained_state == 'complete' and repair_gate.fd is not None:
                     repair_gate.release()
                     if os.environ.get(RECOVERY_ONLY):
@@ -1426,6 +1453,13 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 progress(category, 'validating retained response', model=replay['model'], effort=replay['effort'])
                 replay = None  # Validation itself spends no model session.
             else:
+                from launcher_worktrees import pull_at_boundary
+                from launcher_git import git_output
+                before_pull = git_output(root, 'rev-parse', 'HEAD').stdout
+                pull_at_boundary(root, run, commits.state)
+                if git_output(root, 'rev-parse', 'HEAD').stdout != before_pull:
+                    repair_gate.coordinator.finish(repair_gate.ticket, changed=True, unfinished=True)
+                check_controller()
                 check_budget()
                 sessions = case_sessions.get(failure_key, 0) + 1
                 session_limit = case_limit()
@@ -1936,7 +1970,7 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
         if previous is not None and (previous / 'checkpoint.json').exists():
             retained_git = json.loads((previous / 'checkpoint.json').read_text())
             if (not retained_git['repairs'] and retained_git.get('pending') is None
-                    and not retained_git.get('failed_cases')):
+                    and not retained_git.get('failed_cases') and not retained_git.get('upstream_pull')):
                 retained_git = None  # Completed history stays with its original run.
             else:
                 # Keep active decisions and Git ownership, not historical reports.

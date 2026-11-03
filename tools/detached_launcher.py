@@ -926,7 +926,7 @@ def worktree_resolution_owner(root, session):
                   and len(workflow.parent.name) == 64
                   and all(c in '0123456789abcdef' for c in workflow.parent.name))
     if (not plan_owner and workflow.parent not in tuple(directory(kind, root=source_root)
-            for kind in ('write-e2e', 'fix-tests', 'fix-tests-host'))):
+            for kind in ('write-e2e', 'fix-tests', 'fix-tests-host', 'sync-whatsnew'))):
         raise ValueError('invalid propagation source launcher')
     private_directory(source)
     info = source.stat()
@@ -942,7 +942,12 @@ def worktree_resolution_owner(root, session):
                     or (session / 'cancel').exists()
                     or (session / 'nested-closed').exists()):
                 raise ValueError('propagation source no longer accepts test operations')
-            checkpoint = json.loads((source / 'checkpoint.json').read_text())
+            checkpoint_name = record.get('checkpoint', 'checkpoint.json')
+            if checkpoint_name not in ('checkpoint.json', 'translation-state.json'):
+                raise ValueError('invalid propagation checkpoint')
+            checkpoint = json.loads((source / checkpoint_name).read_text())
+            if record.get('pull'):
+                checkpoint = checkpoint.get('upstream_pull', {})
             targets = checkpoint.get('worktree_propagation', {}).get('targets', [])
             if not any(item['path'] == str(root.resolve()) and item.get('phase') in
                        ('upstream', 'merge', 'restoring') for item in targets):

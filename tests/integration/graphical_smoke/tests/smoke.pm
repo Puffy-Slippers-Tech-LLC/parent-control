@@ -754,6 +754,13 @@ sub run {
                             'enabled', 'command', 'hard-blocked');
         return;
     }
+    if ($ready->{native_command_hard_blocked_disabled}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
+                            'disabled', 'command', 'hard-blocked');
+        return;
+    }
     if ($ready->{native_command_allowed}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

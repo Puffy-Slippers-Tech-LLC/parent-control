@@ -1096,7 +1096,13 @@ Fresh Jordan entry attempts the exact command once and requires an attributed
 permission denial plus complete owned-window absence. After Jordan logs out,
 Riley enters fresh and launches and submits the same executable through the
 command route, with independent draft readback and Riley's policy untouched.
-Remaining bindings are pending.
+Case 83 uses `app_launch.HARD_COMMAND_DISABLED_PLAN` and the same worker's
+disabled, hard-blocked command binding. Parent independently reads Jordan's
+untouched limits-off/zero-allowance settings before saving the same precise
+permanent block. It prepares no allowance or approval. Fresh Jordan command
+execution must produce the attributed denial and complete owned-window absence;
+fresh Riley command launch/Submit/readback proves the same executable usable
+with Riley's policy and limits untouched. Remaining bindings are pending.
 
 **Use supported launch routes under each app rule.** Cases 62, 64, 66, 68, 70, 72, 74, 76, 78, 80, 81, 82, 83, 84, 85, 86, 88, 90, 92, 93, 94, 95, 96, 97, 98, 100, 102, 104, 105, 106, 107, 108, 109.
 

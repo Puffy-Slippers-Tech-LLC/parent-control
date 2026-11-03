@@ -3879,6 +3879,7 @@ or alternative launch substitutes for the declared route.
 | 80 / `app_launch.PLAN`, `onpc_app_launch::run` | Same enabled setup; Jordan then Riley freshly enter and use `Exact Fixture.AppImage` through the fixed command route. |
 | 81 / `app_launch.DISABLED_PLAN`, `run(..., 'disabled')` | Limits off/zero allowance; skip only enabled allowance setup/readback. Both children prove the same command target usable. |
 | 82 / `app_launch.HARD_COMMAND_PLAN`, `run(..., 'enabled', 'command', 'hard-blocked')` | 30 daily minutes/zero grant; Parent saves A's precise permanent block for Jordan. Fresh Jordan command execution requires an attributed permission denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same executable usable with Riley's policy untouched. |
+| 83 / `app_launch.HARD_COMMAND_DISABLED_PLAN`, `run(..., 'disabled', 'command', 'hard-blocked')` | Limits off/zero allowance; Parent reads Jordan's untouched settings, then saves A's precise permanent block without an allowance or approval. Fresh Jordan command execution requires attributed denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same target usable with Riley's policy untouched. |
 
 The Allowed native-A bindings are qualified on Ubuntu 26.04 and Fedora 44.
 Case 64 passed on Ubuntu 26.04 in `20261103T204515Z-ad6fb573`, including
@@ -3917,6 +3918,15 @@ The shared route composition's affected hard-blocked grid case 64 passed on
 Ubuntu 26.04 in `20261103T220811Z-8875890c`, including collection, worker shutdown,
 owned cleanup and baseline restoration. Coverage was regenerated after both
 passes, and the VM was observed off.
+
+Case 83 passed on Ubuntu 26.04 in `20261103T224128Z-9b8fc78c`, including
+Jordan's disabled-limits readback, saved precise permanent rule, attributed
+command denial and Riley's independent app use. Recording finalization,
+collection, owned cleanup and baseline restoration passed. The affected
+enabled-limits command case 82 passed separately in
+`20261103T224754Z-74511ec0` with the same completion and cleanup gates.
+Coverage was regenerated after each pass, and the VM ended off. Other families
+remain unqualified for this disabled hard-blocked command binding.
 
 ### Recovery, information and feedback
 

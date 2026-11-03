@@ -203,6 +203,8 @@ Routing policy lives in the reloadable `launcher_controller.py`; the stable
 bootstrap remains a trampoline. Reloading a retained observer stays attached to
 its original run rather than selecting a new branch. Inspection commands such as
 `--help` use the same branch selection and placement rules.
+Internal `run-tests CATEGORY --unattended` children stay in their controller's
+checkout and retain its activity ownership; public defaults are not reapplied.
 
 ```sh
 tools/execute-plan --plan 'docs/Example.md' --check

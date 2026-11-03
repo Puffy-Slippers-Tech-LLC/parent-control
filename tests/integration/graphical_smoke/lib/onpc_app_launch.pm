@@ -18,8 +18,8 @@ sub run {
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ($control eq 'enabled' || $control eq 'disabled')
         && ($route eq 'command' || ($route eq 'grid' && $control eq 'enabled'))
-        && ($policy eq 'allowed' || $control eq 'enabled'
-            && ($policy eq 'hard-blocked' || $policy eq 'soft-blocked' && $route eq 'grid'));
+        && ($policy eq 'allowed' || $policy eq 'hard-blocked'
+            || $policy eq 'soft-blocked' && $route eq 'grid' && $control eq 'enabled');
     my $rule = $policy eq 'allowed' ? 'allowed' : $policy eq 'hard-blocked' ? 'hard' : 'soft';
     my $access = $rule eq 'allowed' ? 'allowed' : $rule eq 'hard' ? 'permanent' : 'conditional';
     my $journey = onpc_journey->new(

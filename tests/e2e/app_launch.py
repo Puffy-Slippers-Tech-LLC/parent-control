@@ -98,9 +98,11 @@ GRID_PLAN = replace(
                    'jordan-command-submitted': 'step-3'},
 )
 
-def blocked_plan(rule, access, *, route='grid'):
+def blocked_plan(rule, access, *, route='grid', control='enabled'):
+    base = PLAN if control == 'enabled' else DISABLED_PLAN
     policy = policy_edit(MATCH_APP, 'match-precise', access, rule)
-    setup = {stage: tag for stage, tag in SETUP.items() if stage not in POLICY}
+    setup = {stage: tag for stage, tag in base.screen_tags.items()
+             if stage in SETUP and stage not in POLICY}
     setup.update(policy)
     jordan = {
         'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
@@ -111,7 +113,8 @@ def blocked_plan(rule, access, *, route='grid'):
         **prefixed_stages('riley-use', native_usable_app(route, child='child')),
     }
     return replace(
-        PLAN, prefix=f'native-{route}-{rule}-blocked', worker_mode=f'native_{route}_{rule}_blocked',
+        base, prefix=f'native-{route}-{rule}-blocked',
+        worker_mode=f'native_{route}_{rule}_blocked' + ('_disabled' if control == 'disabled' else ''),
         screen_tags={**setup, **jordan, **riley},
         phases={'ready': 'setup', 'setup-detached': 'setup',
                 **{stage: 'step-1' for stage in setup}, 'installed-greeter': 'start',
@@ -119,7 +122,7 @@ def blocked_plan(rule, access, *, route='grid'):
                 **{stage: 'step-3' for stage in riley}},
         advance_after={'installed-greeter': 'step-1', f'{rule}-final-match': 'step-2',
                        'jordan-denied-' + ('denied' if route == 'grid' else 'command'): 'step-3'},
-        child_bindings={'allowance-configured': 'existing', **{
+        child_bindings={**({'allowance-configured': 'existing'} if control == 'enabled' else {}), **{
             stage: 'existing' for stage in policy if stage != f'{rule}-found'}},
         match_checks={f'{rule}-{suffix}': MATCH_RULES[0] for suffix in
                       ('open', 'old', 'match', 'final-match')},
@@ -132,6 +135,7 @@ def blocked_plan(rule, access, *, route='grid'):
 HARD_GRID_PLAN = blocked_plan('hard', 'permanent')
 SOFT_GRID_PLAN = blocked_plan('soft', 'conditional')
 HARD_COMMAND_PLAN = blocked_plan('hard', 'permanent', route='command')
+HARD_COMMAND_DISABLED_PLAN = blocked_plan('hard', 'permanent', route='command', control='disabled')
 
 
 def execute(recorder, context, *, plan=PLAN):
@@ -164,4 +168,5 @@ E2E_CASES = {'native-command-allowed-enabled': execute,
                  plan=HARD_GRID_PLAN, case_id='native-grid-hard-blocked-enabled'),
              'native-grid-soft-blocked-enabled': partial(execute_grid,
                  plan=SOFT_GRID_PLAN, case_id='native-grid-soft-blocked-enabled'),
-             'native-command-hard-blocked-enabled': partial(execute, plan=HARD_COMMAND_PLAN)}
+             'native-command-hard-blocked-enabled': partial(execute, plan=HARD_COMMAND_PLAN),
+             'native-command-hard-blocked-disabled': partial(execute, plan=HARD_COMMAND_DISABLED_PLAN)}

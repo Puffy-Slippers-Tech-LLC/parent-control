@@ -58,6 +58,12 @@ def dispatch(entry):
         if forwarded['root'] != str(root) or forwarded['launcher'] != name or selected is not None:
             raise ValueError('forwarded launcher destination changed')
         _local_checkout(root, forwarded['branch'])
+    elif (name == 'run-tests' and len(arguments) > 1
+          and arguments[1] == '--unattended' and selected is None):
+        # Category children already belong to this checkout's controller and
+        # inherit its activity descriptors. Reapplying the public default can
+        # send selected work to another checkout (or fail its ownership guard).
+        pass
     else:
         from vm_selection import vm_config
         path = root / 'config/environment.json'

@@ -1192,9 +1192,15 @@ def test_release_isolation_and_interrupted_upload_resume(repository, tmp_path, m
             publish.publish(root)
         assert json.loads(path.read_text())['phase'] == 'push-started'
         assert uploads == []
-    with pytest.raises(KeyboardInterrupt):
+    with pytest.raises(KeyboardInterrupt) as interrupted:
         publish.publish(root)
-    assert len(uploads) == 1
+    # Keep unexpected interruptions visible instead of losing their origin
+    # when pytest.raises consumes them. Record frames only, without locals.
+    assert len(uploads) == 1, {
+        'pushes': len(pushes),
+        'interruption_frames': [(frame.name, frame.lineno + 1)
+                                for frame in interrupted.traceback][-12:],
+    }
     assert len(pushes) == (2 if interrupt_push else 1)
     assert json.loads(path.read_text())['phase'] == 'upload-started'
     assert git(remote, 'rev-parse', 'main') == base

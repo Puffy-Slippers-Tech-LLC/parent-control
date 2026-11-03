@@ -76,6 +76,7 @@ class _Watch:
     recoveries: int = 0
     healthy_since: float = 0
     observed_state: tuple | None = None
+    observed_selection: tuple | None = None
     diagnostic_decision: tuple | None = None
     hint: str = "initial"
     diagnostics: list | None = None
@@ -362,6 +363,21 @@ class ExtensionMonitor:
             return
         state = info["state"]
         now = time.monotonic()
+        # GNOME's public enabled detail is the effective selection after the
+        # global switch and both lists, not an attribution to a settings writer.
+        value = info.get("enabled")
+        selected = ("true" if value else "false") if type(value) is bool else "unknown"
+        selection = (enabled, selected)
+        if selection != watch.observed_selection:
+            previous = watch.observed_selection
+            change = ("first-observation" if previous is None else
+                      "global-and-selection" if previous[0] != enabled and previous[1] != selected else
+                      "global-switch" if previous[0] != enabled else "product-selection")
+            _record(watch, lambda previous=previous: LOG.info("extension-manager.monitor-selection", change=change,
+                previous_global=("unknown" if previous is None else "true" if previous[0] else "false"),
+                global_enabled=enabled, previous_selected="unknown" if previous is None else previous[1],
+                selected=selected, state=int(state)))
+            watch.observed_selection = selection
         observed = (state, enabled)
         if observed != watch.observed_state:
             previous = watch.observed_state

@@ -46,7 +46,7 @@ def test_recovery_contention_and_transitions_survive_export_without_private_data
     monitor.watches[1001] = watch
     monitor.manager.command_budget.return_value = nullcontext()
     watch.hint = "extension-signal"
-    info = {"state": 2, "name": SECRET, "error": SECRET}
+    info = {"state": 2, "enabled": False, "name": SECRET, "error": SECRET}
     monkeypatch.setattr(monitor, "_observe", lambda _watch: (info, False))
     emit = monitor_module.LOG.info
     def record_after_recovery(*args, **kwargs):
@@ -62,10 +62,14 @@ def test_recovery_contention_and_transitions_survive_export_without_private_data
     monitor.manager.set_enabled.side_effect = recover
     monitor._check(watch)
     assert broker.prepare_own_session(1001) is False
-    monitor._reconcile(watch, {"state": 1}, True)
+    monitor._reconcile(watch, {"state": 1, "enabled": True}, True)
     count = len(caplog.records)
-    monitor._reconcile(watch, {"state": 1}, True)
+    monitor._reconcile(watch, {"state": 1, "enabled": True}, True)
     assert len(caplog.records) == count  # Healthy observations do not spam.
+    # The public selection detail can change before state/global changes. Keep
+    # it distinct from the global switch, without querying private list values.
+    monitor._reconcile(watch, {"state": 1, "enabled": False}, True)
+    monitor._reconcile(watch, {"state": 1, "enabled": SECRET}, True)
     rows = [events.decode(record.onpc_payload) for record in caplog.records]
     busy = next(row["fields"] for row in rows if row["event"] == "core.transaction-busy")
     assert busy["requested"] == "session-prepare"
@@ -76,6 +80,13 @@ def test_recovery_contention_and_transitions_survive_export_without_private_data
         (0, 2, False), (2, 1, True)]
     decisions = [row["fields"]["outcome"] for row in rows if row["event"] == "extension-manager.monitor-decision"]
     assert decisions == ["started", "accepted", "unchanged"]
+    selections = [row["fields"] for row in rows if row["event"] == "extension-manager.monitor-selection"]
+    assert [row["change"] for row in selections] == [
+        "first-observation", "global-and-selection", "product-selection", "product-selection"]
+    assert [(row["previous_selected"], row["selected"]) for row in selections] == [
+        ("unknown", "false"), ("false", "true"), ("true", "false"), ("false", "unknown")]
+    assert selections[0]["previous_global"] == "unknown"
+    assert selections[1]["previous_global"] == "false" and selections[1]["global_enabled"]
     writer = DailyLogWriter(tmp_path / "logs")
     handler = BrokerFileHandler(writer)
     for record in caplog.records:
@@ -149,6 +160,9 @@ def test_shell_crash_and_extension_candidates_survive_export_without_identifiers
     assert [row["reason"] for row in markers] == ["extension-error"] * 17 + [
         "shell-exited", "disable-service-started", "disable-service-completed"]
     assert decoded[-1]["fields"] == {"count": 20, "outcome": "partial"}
+    scan = next(row["fields"] for row in decoded if row["event"] == "extension-manager.shell-history-scan")
+    assert scan == dict(matched_count=29, projected_count=28, rejected_count=1,
+                        clipped_count=8, limit_reached=False)
     writer = DailyLogWriter(tmp_path / "logs")
     handler = BrokerFileHandler(writer)
     for record in caplog.records:
@@ -158,6 +172,73 @@ def test_shell_crash_and_extension_candidates_survive_export_without_identifiers
     for forbidden in (SECRET, UUID, "private@example.test", str(uid), "/home/private-child/fake"):
         assert forbidden not in exported and forbidden not in caplog.text
     assert "disable-service-started" in exported
+
+
+def test_shell_failure_trigger_and_disable_service_outcomes_are_closed_and_queryable(tmp_path, caplog, monkeypatch):
+    import re
+    from oh_no_parent_control import dependency_diagnostics as dependency
+
+    uid = 987654
+    base = {"_UID": str(uid), "_TRANSPORT": "journal", "__REALTIME_TIMESTAMP": "1793400000000000",
+            "_EXE": "/usr/lib/systemd/systemd", "_COMM": "systemd"}
+    label = "org.gnome.Shell-disable-extensions.service - Disable GNOME Shell extensions after failure"
+    messages = [
+        ("org.gnome.Shell@user.service: Failed with result 'core-dump'.", "shell", "failed", "core-dump"),
+        ("org.gnome.Shell@user.service: Triggering OnFailure= dependencies.", "shell", "on-failure", "none"),
+        ("org.gnome.Shell@user.service: Deactivated successfully.", "shell", "deactivated", "success"),
+        (f"Starting {label}...", "disable-service", "starting", "none"),
+        (f"{label} was skipped because of an unmet condition check "
+         f"(ConditionPathExists=/run/user/{uid}/gnome-shell-disable-extensions).",
+         "disable-service", "skipped", "condition"),
+        ("org.gnome.Shell-disable-extensions.service: Failed with result 'exit-code'.",
+         "disable-service", "failed", "exit-code"),
+        ("org.gnome.Shell-disable-extensions.service: Failed with result 'private-result'.",
+         "disable-service", "failed", "other"),
+    ]
+    rows = [{**base, "MESSAGE": message} for message, *_expected in messages]
+    rows.extend([
+        {**base, "MESSAGE": "org.gnome.Shell-disable-extensions.service: Main process exited, code=exited, status=1/FAILURE"},
+        {**base, "_EXE": SECRET, "MESSAGE": messages[0][0]},
+        {**base, "MESSAGE": messages[0][0], "__REALTIME_TIMESTAMP": SECRET},
+    ])
+    query = Mock(return_value="\n".join(json.dumps(row) for row in rows))
+    monkeypatch.setattr(dependency, "_query", query)
+    with caplog.at_level("INFO"):
+        dependency.collect_gnome_shell_diagnostics([uid])
+    command = query.call_args.args[0]
+    pattern = next(arg.removeprefix("--grep=") for arg in command if arg.startswith("--grep="))
+    assert all(re.match(pattern, row["MESSAGE"]) for row in rows)
+    decoded = [events.decode(record.onpc_payload) for record in caplog.records]
+    lifecycle = [row["fields"] for row in decoded if row["event"] == "extension-manager.shell-lifecycle"]
+    assert [(row["unit"], row["action"], row["result"]) for row in lifecycle] == [row[1:] for row in messages]
+    exits = [row["fields"] for row in decoded if row["event"] == "extension-manager.shell-journal"]
+    assert exits[0]["reason"] == "disable-service-exited" and exits[0]["exit_status"] == 1
+    scan = next(row["fields"] for row in decoded if row["event"] == "extension-manager.shell-history-scan")
+    assert scan == dict(matched_count=10, projected_count=8, rejected_count=2,
+                        clipped_count=0, limit_reached=False)
+    writer = DailyLogWriter(tmp_path / "logs")
+    handler = BrokerFileHandler(writer)
+    for record in caplog.records:
+        handler.emit(record)
+    with ZipFile(BytesIO(validate_bundle(writer.snapshot()))) as archive:
+        exported = "".join(archive.read(name).decode() for name in archive.namelist())
+    assert "shell-lifecycle" in exported and "diagnostic.rejected" not in exported
+    for forbidden in (SECRET, str(uid), "private-result", "/run/user/"):
+        assert forbidden not in exported and forbidden not in caplog.text
+    # Newly retained normal shutdowns must not displace the causal crash.
+    caplog.clear()
+    crash = {**base, "MESSAGE": "org.gnome.Shell@user.service: Main process exited, code=dumped, status=11/SEGV"}
+    shutdown = {**base, "MESSAGE": "org.gnome.Shell@user.service: Deactivated successfully."}
+    query.return_value = "\n".join(json.dumps(row) for row in [crash] + [shutdown] * 20)
+    with caplog.at_level("INFO"):
+        dependency.collect_gnome_shell_diagnostics([uid])
+    decoded = [events.decode(record.onpc_payload) for record in caplog.records]
+    retained = [row for row in decoded if row["event"] in {
+        "extension-manager.shell-journal", "extension-manager.shell-lifecycle"}]
+    assert len(retained) == 20
+    assert retained[0]["fields"]["reason"] == "shell-exited"
+    assert retained[0]["fields"]["exit_status"] == 11
+    assert decoded[-1]["fields"] == {"count": 20, "outcome": "partial"}
 
 
 def test_shell_history_budget_and_unavailable_are_explicit(caplog, monkeypatch):

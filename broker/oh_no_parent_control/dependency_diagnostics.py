@@ -104,16 +104,53 @@ def _gnome_shell_event(item, uid):
         return None
     if (item.get("_EXE") in {"/usr/lib/systemd/systemd", "/usr/lib64/systemd/systemd"}
             and item.get("_COMM") == "systemd"):
+        label = ("org.gnome.Shell-disable-extensions.service - "
+                 "Disable GNOME Shell extensions after failure")
+        service_jobs = {
+            f"Starting {label}...": ("starting", "none"),
+            f"Failed to start {label}.": ("failed", "job-failed"),
+            f"Dependency failed for {label}.": ("failed", "dependency"),
+            f"Condition check resulted in {label} being skipped.": ("skipped", "condition"),
+            (f"{label} was skipped because of an unmet condition check "
+             f"(ConditionPathExists=/run/user/{uid}/gnome-shell-disable-extensions)."):
+                ("skipped", "condition"),
+        }
+        if message in service_jobs:
+            action, result = service_jobs[message]
+            return "extension-manager.shell-lifecycle", dict(unit="disable-service", action=action, result=result)
         if message == ("Started org.gnome.Shell-disable-extensions.service - "
                        "Disable GNOME Shell extensions after failure."):
-            return "disable-service-started", "none", "none", 256
+            return _shell_marker("disable-service-started")
         if message == "org.gnome.Shell-disable-extensions.service: Deactivated successfully.":
-            return "disable-service-completed", "none", "none", 0
+            return _shell_marker("disable-service-completed", exit_status=0)
         match = re.fullmatch(
-            r"org\.gnome\.Shell@(?:ubuntu|user|wayland|x11)\.service: Main process exited, "
+            r"(org\.gnome\.Shell@(?:ubuntu|user|wayland|x11)\.service|"
+            r"org\.gnome\.Shell-disable-extensions\.service): Main process exited, "
             r"code=(exited|killed|dumped), status=([0-9]{1,3})(?:/[A-Z0-9_-]+)?", message)
-        if match and int(match[2]) <= 255:
-            return "shell-exited", "none", match[1], int(match[2])
+        if match and int(match[3]) <= 255:
+            reason = "disable-service-exited" if "-disable-extensions" in match[1] else "shell-exited"
+            return _shell_marker(reason, exit_kind=match[2], exit_status=int(match[3]))
+        match = re.fullmatch(
+            r"(org\.gnome\.Shell@(?:ubuntu|user|wayland|x11)\.service|"
+            r"org\.gnome\.Shell-disable-extensions\.service): (.+)", message)
+        if match:
+            unit = "disable-service" if "-disable-extensions" in match[1] else "shell"
+            action, result = None, "none"
+            if match[2] == "Triggering OnFailure= dependencies.":
+                action = "on-failure"
+            elif match[2] == "Deactivated successfully.":
+                action, result = "deactivated", "success"
+            else:
+                failure = re.fullmatch(r"Failed with result '([a-z-]+)'\.", match[2])
+                skipped = re.fullmatch(r"Skipped due to '([a-z-]+)'\.", match[2])
+                if failure or skipped:
+                    action = "failed" if failure else "skipped"
+                    value = (failure or skipped)[1]
+                    result = value if value in {
+                        "resources", "timeout", "exit-code", "signal", "core-dump", "watchdog",
+                        "start-limit-hit", "oom-kill", "exec-condition"} else "other"
+            if action is not None:
+                return "extension-manager.shell-lifecycle", dict(unit=unit, action=action, result=result)
     if (item.get("_EXE") == "/usr/bin/gnome-shell" and
             item.get("_SYSTEMD_USER_UNIT") in {
                 "org.gnome.Shell@ubuntu.service", "org.gnome.Shell@user.service",
@@ -122,8 +159,14 @@ def _gnome_shell_event(item, uid):
                          r"([A-Za-z0-9@._+-]{1,255}): ", message)
         if match:
             from .extension_manager import UUID
-            return "extension-error", "our-extension" if match[1] == UUID else "other-extension", "none", 256
+            return _shell_marker("extension-error", candidate=(
+                "our-extension" if match[1] == UUID else "other-extension"))
     return None
+
+
+def _shell_marker(reason, *, candidate="none", exit_kind="none", exit_status=256):
+    return "extension-manager.shell-journal", dict(
+        reason=reason, candidate=candidate, exit_kind=exit_kind, exit_status=exit_status)
 
 
 def collect_gnome_shell_diagnostics(uids, *, operation_ids=None):
@@ -139,16 +182,19 @@ def collect_gnome_shell_diagnostics(uids, *, operation_ids=None):
                 output = _query([
                     "/usr/bin/journalctl", "--no-pager", "--quiet", "--output=json",
                     "--lines=200", "--since=-24hours",
-                    "--grep=^(org\\.gnome\\.Shell.*: (Main process exited|Deactivated successfully)|"
-                    "Started org\\.gnome\\.Shell-disable-extensions|"
+                    "--grep=^(org\\.gnome\\.Shell.*: (Main process exited|Deactivated successfully|"
+                    "Triggering OnFailure= dependencies|Failed with result|Skipped due to)|"
+                    "(Starting|Started|Failed to start|Dependency failed for|Condition check resulted in) "
+                    "org\\.gnome\\.Shell-disable-extensions|"
+                    "org\\.gnome\\.Shell-disable-extensions.* was skipped because of an unmet condition check|"
                     "(JS ERROR: )?(Extension |Could not load extension ))",
                     "--output-fields=MESSAGE,__REALTIME_TIMESTAMP,_UID,_TRANSPORT,_EXE,_COMM,_SYSTEMD_USER_UNIT",
                     "_UID=" + str(uid), "_COMM=systemd", "+",
                     "_UID=" + str(uid), "_EXE=/usr/bin/gnome-shell",
                 ], deadline, empty_match=True)
                 lines = output.splitlines()
-                selected, partial = [], len(lines) >= 200
-                for line in lines:
+                selected, partial, rejected = [], len(lines) >= 200, 0
+                for line in lines[-200:]:
                     try:
                         item = json.loads(line)
                         if type(item) is not dict:
@@ -156,6 +202,7 @@ def collect_gnome_shell_diagnostics(uids, *, operation_ids=None):
                         marker = _gnome_shell_event(item, uid)
                         if marker is None:
                             partial = True
+                            rejected += 1
                             continue
                         stamp = item.get("__REALTIME_TIMESTAMP")
                         if type(stamp) is not str or not re.fullmatch(r"[0-9]{1,17}", stamp):
@@ -164,15 +211,22 @@ def collect_gnome_shell_diagnostics(uids, *, operation_ids=None):
                         selected.append((marker, occurred.isoformat(timespec="milliseconds")))
                     except (ValueError, TypeError, OverflowError, OSError):
                         partial = True
-                # Keep crash/recovery witnesses when repeated extension errors
-                # would otherwise push them out of the retained tail.
-                indexed = list(enumerate(selected))
-                witnesses = [row for row in indexed if row[1][0][0] != "extension-error"][-20:]
-                errors = [row for row in indexed if row[1][0][0] == "extension-error"]
-                retained = witnesses + (errors[-(20 - len(witnesses)):] if len(witnesses) < 20 else [])
-                for _index, ((reason, candidate, exit_kind, exit_status), occurred) in sorted(retained):
-                    logger.warning("extension-manager.shell-journal", reason=reason, candidate=candidate,
-                                   exit_kind=exit_kind, exit_status=exit_status, occurred_at=occurred)
+                        rejected += 1
+                # Keep crash/recovery witnesses ahead of repeated extension
+                # errors and routine Shell shutdowns, then restore chronology.
+                witnesses, routine = [], []
+                for row in enumerate(selected):
+                    fields = row[1][0][1]
+                    ordinary = (fields.get("reason") == "extension-error" or
+                                fields.get("unit") == "shell" and fields.get("action") == "deactivated")
+                    (routine if ordinary else witnesses).append(row)
+                witnesses = witnesses[-20:]
+                retained = witnesses + (routine[-(20 - len(witnesses)):] if len(witnesses) < 20 else [])
+                for _index, ((event, fields), occurred) in sorted(retained):
+                    logger.warning(event, **fields, occurred_at=occurred)
+                logger.info("extension-manager.shell-history-scan", matched_count=min(200, len(lines)),
+                            projected_count=len(selected), rejected_count=rejected,
+                            clipped_count=len(selected) - len(retained), limit_reached=len(lines) >= 200)
                 logger.info("extension-manager.shell-history", count=min(20, len(selected)),
                             outcome="partial" if partial or len(selected) > 20 else "complete")
             except Exception:

@@ -191,7 +191,7 @@ An independent five-second journal read preserves GNOME Shell exits, its
 start/completion and Shell-reported extension errors even when Shell no longer
 runs. Queries cover the last 24 hours across retained boots, up to 200 entries
 and 20 markers per child; crash/recovery markers have priority over repeated
-extension errors. Trusted executable/account/manager provenance and reviewed
+extension errors and routine Shell deactivations. Trusted executable/account/manager provenance and reviewed
 GNOME 50 `@ubuntu`/`@user` instances constrain projection; older `@wayland`/`@x11`
 records remain readable. Source times, exit kind/status and our-extension versus
 other-extension categories exclude raw identifiers, error text and stacks.
@@ -199,6 +199,11 @@ A service start alone does not attest a committed switch change. Extension error
 witnesses are possible contributors, not proof that an extension crashed Shell;
 an external actor and the historical cause of a disabled switch can remain unknown.
 Missing/partial journal history is explicit and never establishes no crash.
+Service lifecycle witnesses also retain Shell's `OnFailure` dependency trigger,
+closed failure results, successful deactivation, and disable-service startup,
+exit and condition-skip outcomes. Independent scan counts distinguish matched,
+projected, rejected and clipped records, including the 200-entry limit. Zero
+matches describe this bounded query, not the absence of a historical failure.
 
 The live extension monitor records changes in validated public extension state
 and the global enable switch, coalesced check hints, and Shell-owner/bus-loss
@@ -207,6 +212,13 @@ confirmed failures, startup transitions, interrupted recovery, backoff and actua
 attempts with bounded elapsed/retry durations. Repeated unchanged states and
 decisions are suppressed. These observations do not identify the settings writer
 or turn bus loss into proof of a Shell crash.
+Selection observations distinguish the first sample, global-switch changes and
+product-selection changes, including changes before the runtime state settles.
+They reuse the public `GetExtensionInfo.enabled` detail, which GNOME derives
+from the global switch and enabled/disabled lists. Missing or malformed details
+remain unknown. This does not distinguish removal from one list from addition
+to the other; existing activation list reads supply membership observations when
+recovery runs, without additional diagnostic queries or writer attribution.
 State/decision records are buffered until the recovery scope and retry scheduling
 finish; their emission timestamps/order can follow intervening broker events
 and do not represent the exact action timestamps/order.

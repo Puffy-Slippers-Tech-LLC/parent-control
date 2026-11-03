@@ -261,6 +261,17 @@ def qualify():
         and original['extension'][0] + original['extension'][1] > int(time.time()) + 120
         and preferences['parent_control_enabled'] is True, 'engineering-live-grant-required')
 
+    # Correlate the observer's monotonic samples with the validated product
+    # events' UTC timestamps, without extra native reads or settling delays.
+    diagnostic['clock'] = {'monotonic_ns': time.monotonic_ns(), 'realtime_ns': time.time_ns()}
+    native_writes = diagnostic['native_writes'] = []
+
+    def write_started(name):
+        record = {'method': name, 'started_monotonic_ns': time.monotonic_ns()}
+        native_writes.append(record)
+        del native_writes[:-128]
+        return record
+
     class FaultAccounts:
         def __init__(self):
             self.fault = None
@@ -275,8 +286,11 @@ def qualify():
 
             def call(*arguments, **options):
                 self.calls.append(name)
+                write = write_started(name) if name.startswith('set_') else None
                 if self.fault == name + '_after_write' and not self.fired:
                     target(*arguments, **options)
+                    if write is not None:
+                        write['returned_monotonic_ns'] = time.monotonic_ns()
                     boundary('native-write')
                     self.fired = True
                     self.failure_index = len(self.calls) - 1
@@ -286,7 +300,8 @@ def qualify():
                     self.failure_index = len(self.calls) - 1
                     raise RuntimeError('injected-native-boundary-failure')
                 result = target(*arguments, **options)
-                if name.startswith('set_'):
+                if write is not None:
+                    write['returned_monotonic_ns'] = time.monotonic_ns()
                     boundary('native-write')
                 return result
             return call
@@ -394,7 +409,9 @@ def qualify():
         # Arm at its write so the initial state read remains genuine.
         schedule_set = native.set_daily_schedule
         def arm_after_write(*arguments):
+            write = write_started('set_daily_schedule')
             schedule_set(*arguments)
+            write['returned_monotonic_ns'] = time.monotonic_ns()
             boundary('native-write')
             accounts.fault = 'get_daily_schedule'
         accounts.set_daily_schedule = arm_after_write

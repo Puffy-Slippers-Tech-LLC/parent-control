@@ -260,7 +260,9 @@ def failed_verification(rows):
 # Run as the real child. A changed handler races actual enablement, rather than
 # returning a fabricated Shell reply or modifying installed product code.
 INTERFERENCE = '''
+import json
 import sys
+import time
 from gi.repository import Gio, GLib
 uuid, name, owner = sys.argv[1:]
 bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
@@ -268,14 +270,40 @@ bus.call_sync('org.freedesktop.DBus', '/org/freedesktop/DBus',
     'org.freedesktop.DBus', 'RequestName', GLib.Variant('(su)', (name, 4)),
     GLib.VariantType.new('(u)'), Gio.DBusCallFlags.NONE, 2000, None)
 settings = Gio.Settings.new('org.gnome.shell')
+trace = []
+trace_count = 0
+callback_depth = 0
+def observe(event, result=None):
+    global trace_count
+    trace_count += 1
+    if len(trace) < 256:
+        trace.append([time.monotonic(), event, result, callback_depth])
 def disable(*unused):
-    enabled = settings.get_strv('enabled-extensions')
-    if uuid in enabled:
-        settings.set_strv('enabled-extensions', [item for item in enabled if item != uuid])
-    disabled = settings.get_strv('disabled-extensions')
-    if uuid not in disabled:
-        settings.set_strv('disabled-extensions', disabled + [uuid])
-    Gio.Settings.sync()
+    global callback_depth
+    # set_strv emits changed synchronously for our own local writes. Do not
+    # reenter the mutation or wait for persistence inside a changed handler:
+    # sync blocked delivery of Shell's next settings notification until after
+    # the broker had already verified activation. The running main loop lets
+    # Gio send the writes without blocking further interference notifications.
+    if callback_depth:
+        observe('local-notification')
+        return
+    callback_depth += 1
+    try:
+        observe('notification' if unused else 'initial')
+        enabled = settings.get_strv('enabled-extensions')
+        observe('read-enabled', uuid in enabled)
+        if uuid in enabled:
+            result = settings.set_strv('enabled-extensions', [item for item in enabled if item != uuid])
+            observe('remove-enabled', result)
+        disabled = settings.get_strv('disabled-extensions')
+        observe('read-disabled', uuid in disabled)
+        if uuid not in disabled:
+            result = settings.set_strv('disabled-extensions', disabled + [uuid])
+            observe('add-disabled', result)
+        observe('writes-queued')
+    finally:
+        callback_depth -= 1
 settings.connect('changed::enabled-extensions', disable)
 settings.connect('changed::disabled-extensions', disable)
 loop = GLib.MainLoop()
@@ -285,20 +313,28 @@ bus.signal_subscribe(owner, 'org.onpc.ExtensionInterference', 'Stop',
 GLib.timeout_add_seconds(45, lambda: (loop.quit(), False)[1])
 disable()
 loop.run()
+# Flush only after notification dispatch has stopped, before the child exits.
+observe('sync-start')
+Gio.Settings.sync()
+observe('synced')
+print(json.dumps({'trace': trace, 'trace_count': trace_count}))
 '''
 
 
 def interfere(manager, account, shell, events, run, record):
     name = 'org.onpc.ExtensionInterference.r' + run
     errors = []
+    diagnostics = []
     def worker():
         try:
-            manager._run_command(account, ('/usr/bin/python3', '-B', '-c',
+            result = manager._run_command(account, ('/usr/bin/python3', '-B', '-c',
                 INTERFERENCE, UUID, name, shell.bus.get_unique_name()),
                 require_live=True, timeout=55)
+            diagnostics.append(json.loads(result.stdout))
         except Exception:
             errors.append(True)
     started = time.monotonic()
+    signal_index = len(shell.events)
     thread = threading.Thread(target=worker, name='extension-interference')
     thread.start()
     try:
@@ -317,6 +353,30 @@ def interfere(manager, account, shell, events, run, record):
         record('interference', {'failed_verification': failed_verification(rows),
                'attempts': len(attempts(rows)), 'finished': not thread.is_alive(),
                'child_command_succeeded': not errors})
+        # Only fixed labels, monotonic timestamps, booleans, counters and
+        # catalogue-validated broker fields leave the fixture. Membership reads
+        # are already needed by the fixture; no extra settings commands run.
+        record('interference-timing', {'started': started, 'stop_requested': stopped,
+               'fixture': diagnostics,
+               'native_signals': shell.events[signal_index:signal_index + 128],
+               'native_signal_count': len(shell.events) - signal_index,
+               # Keep the matching broker observations here too: later cycles
+               # can rotate them out of the bounded product log.
+               'broker_verifications': [
+                   [stamp, row['event'], row['fields'], row['operation']]
+                   for stamp, row in rows if row['event'] in {
+                       'extension-manager.activation-step',
+                       'extension-manager.command',
+                       'extension-manager.list-read',
+                       'extension-manager.runtime-observed',
+                       'extension-manager.runtime-verification',
+                       'extension-manager.setting-verification',
+                       'extension-manager.002',
+                       'extension-manager.009',
+                       'extension-manager.012',
+                       'extension-manager.rollback-result',
+                       'extension-manager.monitor-decision',
+                       'runtime.fault'}][:512]})
     guest.require(not thread.is_alive() and not errors, 'extension:interference-cleanup')
     guest.require(1 <= len(attempts(rows)) <= 12, 'extension:interference-attempt-bound')
     return stopped
@@ -511,9 +571,28 @@ def verify(publish):
         while time.monotonic() < deadline:
             guest.require(stable(), 'extension:quiet-not-healthy')
             time.sleep(0.25)
-        idle = commands(broker_events.since(quiet))
+        quiet_rows = broker_events.since(quiet)
+        # Opening the standard error report collects diagnostic snapshots for
+        # each child. Those read-only probes share the command event with
+        # recovery, but do not belong to the monitor. Identify them by their
+        # exact operation, never by a time window or by excluding all reads:
+        # a monitor regression which repeatedly reads settings must still fail.
+        diagnostic_operations = {row['operation'] for _stamp, row in quiet_rows
+                                 if row['event'] == 'extension-manager.diagnostic-snapshot'}
+        diagnostic_reads = [item for item in commands(quiet_rows)
+                            if item[1]['operation'] in diagnostic_operations and (
+                                (item[1]['fields']['tool'] == 'gsettings'
+                                 and item[1]['fields']['operation'] == 'get'
+                                 and item[1]['fields']['key'] in {
+                                     'enabled-extensions', 'disabled-extensions',
+                                     'disable-user-extensions'})
+                                or (item[1]['fields']['tool'] == 'gdbus'
+                                    and item[1]['fields']['operation'] == 'call'
+                                    and item[1]['fields']['key'] == 'none'))]
+        idle = [item for item in commands(quiet_rows) if item not in diagnostic_reads]
         record('quiet', {'healthy_seconds': round(time.monotonic() - quiet, 3),
-                         'broker_management_commands': len(idle)})
+                         'broker_management_commands': len(idle),
+                         'diagnostic_read_commands': len(diagnostic_reads)})
         guest.require(not idle, 'extension:idle-management-commands')
         rows = recovery('cooldown-reset', lambda:
             manager._run_as(account, 'gnome-extensions', 'disable', '--quiet', UUID))

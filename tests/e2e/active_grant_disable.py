@@ -133,6 +133,18 @@ records = sorted((record for rows in logs.values() for record in rows
     and record.get('timestamp', '') >= since),
     key=lambda record: (record['timestamp'], record['sequence']))
 total = len(records)
+# Keep child lock/deadline evidence separately: the service monitor can
+# reactivate the extension while the standalone engineering broker holds an
+# intermediate write. Broker activation logs alone cannot identify who locked.
+child_records = [record for record in records
+    if record['component'] == 'child' and (
+        record['level'] in ('WARNING', 'ERROR', 'CRITICAL')
+        or record['event'].startswith(('child.countdown-', 'child.lock', 'child.lifecycle-'))
+        or record['event'] in ('child.expiry', 'child.session-state'))]
+child_total = len(child_records)
+child_records = child_records[-120:]
+while len(json.dumps(child_records).encode()) > 32768:
+    child_records.pop(0)
 # Routine status polls and child restart events can fill the tail after the
 # failed verification. Keep the original readbacks and delayed observations,
 # not just the later rollback and error-report activity.
@@ -147,8 +159,10 @@ while len(json.dumps(records).encode()) > 65536:
     records.pop(0)
 print(json.dumps({'event': 'active-grant-disable-failure-logs',
     'window_seconds': 180, 'counts': info['counts'],
-    'omitted_records': total - len(records),
-    'omitted_relevant_records': relevant - len(records), 'records': records}), flush=True)
+    'omitted_records': total - len(records) - len(child_records),
+    'omitted_relevant_records': relevant - len(records), 'records': records,
+    'omitted_child_records': child_total - len(child_records),
+    'child_records': child_records}), flush=True)
 '''
             self.transport.call(['/usr/bin/python3', '-I', '-c', source, self.boot],
                                 timeout=20)

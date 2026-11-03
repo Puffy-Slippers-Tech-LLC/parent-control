@@ -9,6 +9,70 @@ use onpc_lifecycle ();
 use onpc_allowance_boundaries ();
 use onpc_allowance_selection ();
 use onpc_feedback_states ();
+use onpc_desktop_session ();
+use onpc_app_rows ();
+use Digest::SHA ();
+
+sub daily_only_new {
+    onpc_progress::operation('Checking daily time changes across fresh child sign-ins');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'daily-access:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'daily-access-case', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'initial',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    $journey->consume_observation('parent-selected', onpc_parent::select_child($journey, 'existing',
+        $journey->seen('child-picker-opened'), 'child-picker-opened', 'child-choice-highlighted', 'parent-selected'));
+    $journey->seen($_) for qw(initial-balance setup-enable);
+    onpc_allowance_boundaries::custom_value($journey, 'thirty', 30);
+    $journey->seen($_) for qw(setup-settings apps-page);
+    for my $edit (['A', 'match-precise', 'allowed', 'allowed'],
+                  ['H', 'match-hard-precise', 'permanent', 'hard']) {
+        my ($role, $draft, $access, $prefix) = @$edit;
+        my $app = 'parent-app-' . substr(Digest::SHA::sha256_hex(
+            'com.puffyslippers.ONPCTest.' . $role . '.desktop'), 0, 16);
+        onpc_app_rows::edit_policy($journey, $app, $draft, $access, $prefix, []);
+    }
+    $journey->seen($_) for qw(policy-screen setup-disable setup-off-settings setup-off-balance);
+    for my $name (qw(enabled forty zero off reenabled)) {
+        if ($name eq 'forty') {
+            onpc_allowance_boundaries::custom_value($journey, 'forty', 40);
+        } elsif ($name eq 'zero') {
+            onpc_allowance_selection::select($journey, 'zero', [0], 'confirm');
+        } else {
+            $journey->seen("$name-toggle");
+        }
+        $journey->seen($_) for ("$name-settings", "$name-balance");
+        my $leave = $journey->scope("$name-leave");
+        onpc_desktop_session::switch_user($leave, $leave->seen('desktop'));
+        my $denied = $name eq 'zero' || $name eq 'reenabled';
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh',
+            $denied ? 'time-denied' : 'success', "$name-entry");
+        if ($denied) {
+            onpc_gdm::return_from_time_denial($journey,
+                "$name-denial-denied-return-ready", "$name-denial-denied-return-state",
+                "$name-denial-denied-returned");
+        } else {
+            $journey->seen("$name-countdown");
+            if ($name eq 'enabled' || $name eq 'off') {
+                onpc_app_rows::native_blocked_app($journey->scope("$name-hard"), 'H');
+                my $allowed = $journey->scope("$name-allowed");
+                onpc_app_rows::native_usable_app($allowed, 'grid', $allowed->seen('desktop'), 'other-child');
+                onpc_app_rows::native_finish_app($allowed);
+            }
+            my $logout = $journey->scope("$name-logout");
+            onpc_desktop_session::log_out($logout, $logout->seen('desktop'));
+        }
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', "$name-return");
+        onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'existing', "$name-supplied", 0);
+        $journey->seen("$name-returned-balance");
+    }
+    $journey->finish();
+}
 
 sub run {
     onpc_progress::operation('Checking representative daily allowances and reopened saved values');

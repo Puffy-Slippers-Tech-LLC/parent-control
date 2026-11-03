@@ -432,7 +432,9 @@ direct command invocation, without opening Terminal).
 
 ### E2E-005
 
-Implementation status: All cases pending.
+Implementation status: Case 7 (`daily-only-new`) is implemented in
+`daily_access_case.DailyAccessJourney` and passed on Ubuntu 26.04. Other bindings
+remain pending.
 
 **Change screen limits while starting or returning to a child desktop.** Cases 7, 8, 9, 10, 11, 12.
 

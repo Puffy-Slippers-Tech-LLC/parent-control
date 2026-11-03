@@ -372,7 +372,7 @@ TEXT_VALUES = {
     'reply-clear': ('feedback-reply-email', ''),
     'reply-malformed': ('feedback-reply-email', 'invalid-reply'),
     **{'daily-' + str(value): ('parent-custom-daily-limit', str(value))
-       for value in (0, 1, 2, 3, 4, 5, 6, 7, 10, 15, 1439)},
+       for value in (0, 1, 2, 3, 4, 5, 6, 7, 10, 15, 30, 40, 1439)},
 }
 TEXT_VALUES.update({'daily-invalid-' + key: ('parent-custom-daily-limit', value)
                     for key, value in INVALID.items()})
@@ -531,7 +531,7 @@ def duration_projection(text, *, language='en'):
 
 CUSTOM_ALLOWANCE_OPERATIONS = {
     'custom-' + str(value) + '-' + action: (value, action)
-    for value in (0, 1, 2, 3, 4, 5, 6, 7, 15, 1439)
+    for value in (0, 1, 2, 3, 4, 5, 6, 7, 15, 30, 40, 1439)
     for action in ('open', 'saved', 'reopen')
 }
 CUSTOM_ALLOWANCE_OPERATIONS.update({
@@ -666,7 +666,7 @@ NAMED_CUSTOM_OPERATIONS = frozenset(
     operation for operation, (_, action) in CUSTOM_ALLOWANCE_OPERATIONS.items()
     if action in ('open', 'saved', 'reopen')) | frozenset(
     operation for operation, (binding, _) in TEXT_OPERATIONS.items()
-    if binding in ('daily-6', 'daily-7') or binding.startswith(('catalogue-', 'match-'))) | frozenset(FILTER_OPERATIONS) | MATCH_OPERATIONS | ACCESS_OPERATIONS | {
+    if binding in ('daily-6', 'daily-7', 'daily-30', 'daily-40') or binding.startswith(('catalogue-', 'match-'))) | frozenset(FILTER_OPERATIONS) | MATCH_OPERATIONS | ACCESS_OPERATIONS | {
         'parent-custom-events', 'parent-custom-trace-focus', 'parent-custom-saved-result',
         'parent-custom-trace-disabled-refused', 'named-custom-setup',
         'named-custom-wrong-child-refused', 'parent-trace-wrong-surface-refused',
@@ -677,8 +677,16 @@ NAMED_TIME_OPERATIONS = frozenset({
     'time-explanation-setup-thirty-read', 'time-explanation-read', 'time-explanation-refresh-read',
     'time-explanation-reach-read', 'time-explanation-positive-read',
     'time-explanation-config-wrong-child', 'time-explanation-config-wrong-state',
+    'time-explanation-zero-read', 'time-explanation-off-read',
 })
-NAMED_CHILD_OPERATIONS = NAMED_CUSTOM_OPERATIONS | NAMED_TIME_OPERATIONS | ALLOWANCE_KEYBOARD_OPERATIONS.keys()
+GDM_DENIAL_OPERATIONS = frozenset({
+    'gdm-child-time-denied', 'gdm-child-denied-return-ready',
+    'gdm-child-denied-return-state', 'gdm-child-denied-returned',
+})
+NAMED_CHILD_OPERATIONS = (NAMED_CUSTOM_OPERATIONS | NAMED_TIME_OPERATIONS
+                          | ALLOWANCE_KEYBOARD_OPERATIONS.keys() | RETAINED_PARENT_OPERATIONS
+                          | GDM_DENIAL_OPERATIONS | COUNTDOWN_OPERATIONS
+                          | {'parent-toggle-enabled', 'parent-toggle-disabled'})
 OPERATIONS |= NAMED_CUSTOM_OPERATIONS
 PARENT_SAVE_OPERATIONS = {
     'multiple-other-saved': {
@@ -5850,9 +5858,10 @@ class AccessibleUI:
                   prompt_in_predicate=True)
         return self.window_switch_proof(binding, projection=projection)
 
-    def retained_parent_operation(self, operation):
+    def retained_parent_operation(self, operation, *, child=CHILD):
         """FLOW01 existing window only; record the untouched child/page first."""
         require(operation in RETAINED_PARENT_OPERATIONS, 'ui:retained-parent-operation')
+        require(child in (CHILD, EXISTING_CHILD), 'ui:child-binding')
         self.desktop_result(PARENT, 'success')
         if operation == 'retained-parent-absent-refused':
             self.wait(self.parent_search_closed, 'retained-parent-closed', prompt_in_predicate=True)
@@ -5865,7 +5874,7 @@ class AccessibleUI:
             require(self.parent_search_closed(), 'ui:retained-parent-relaunched')
             return {'refused': True}
         window = self.window_switch_proof('parent')
-        require(self.parent_initial_selection() == CHILD_IDENTITIES[CHILD],
+        require(self.parent_initial_selection() == CHILD_IDENTITIES[child],
                 'ui:retained-parent-child')
         if operation == 'retained-parent-close':
             self.close_id('parent-window')
@@ -5874,7 +5883,7 @@ class AccessibleUI:
         require(page in ('screen-limits', 'app-limits'), 'ui:retained-parent-page')
         # Screen Limits controls are unavailable on App Limits. Never repair
         # child selection; navigate explicitly before the immutable read.
-        settings = self.parent_page(CHILD, 'Screen Limits')
+        settings = self.parent_page(child, 'Screen Limits')
         if operation == 'retained-parent-leave':
             self.set_value('parent-pages', 'app-limits')
             page = self.get_value('parent-pages')
@@ -6149,10 +6158,15 @@ class AccessibleUI:
                 'ui:toggle-state')
         return {'state': desired, 'activated': activated}
 
-    def parent_toggle_operation(self, operation):
+    def parent_toggle_operation(self, operation, *, child=CHILD):
         """Installed Parent binding and bounded refusal checks for UI17."""
         require(operation in TOGGLE_OPERATIONS, 'ui:toggle-operation')
+        require(child == CHILD or child == EXISTING_CHILD and operation in (
+            'parent-toggle-enabled', 'parent-toggle-disabled'), 'ui:toggle-child-binding')
         root = self.parent()
+        if child != CHILD:
+            # Bind the selected child and completed prior save before mutation.
+            self.parent_save_snapshot(child, operation == 'parent-toggle-disabled')
         if getattr(self, 'expected_trace_source', None) is not None:
             require(operation == 'parent-toggle-enabled', 'ui:trace-input-binding')
             self.parent_save_snapshot(CHILD, False)
@@ -6201,7 +6215,10 @@ class AccessibleUI:
                     'ui:toggle-hidden-state-changed')
             return {'refusal': 'hidden-control', 'state': False}
         desired = operation == 'parent-toggle-enabled'
-        return self.set_toggle('parent-screen-limit-toggle', desired, root=root)
+        result = self.set_toggle('parent-screen-limit-toggle', desired, root=root)
+        if child != CHILD:
+            self.parent_save_snapshot(child, desired)
+        return result
 
     def parent_trace_source(self, child=CHILD, surface='parent-window'):
         """Resolve the bounded public projection and pin its window/object owner."""
@@ -6744,7 +6761,7 @@ class AccessibleUI:
         presets. ``reopen-current`` keeps the existing custom selection, as
         autosave intentionally preserves the ongoing editor and its focus.
         """
-        require(type(minutes) is int and minutes in (0, 1, 2, 3, 4, 5, 6, 7, 10, 15, 1439)
+        require(type(minutes) is int and minutes in (0, 1, 2, 3, 4, 5, 6, 7, 10, 15, 30, 40, 1439)
                 and action in ('open', 'saved', 'reopen', 'reopen-current'),
                 'ui:allowance-binding')
         self.allowance_entry(child)
@@ -8919,7 +8936,8 @@ class AccessibleUI:
                 and not set(expected) & set(excluded),
                 'ui:gdm-account-binding')
         require(type(pending_child_prompt) is bool and (not pending_child_prompt
-                or expected == (PARENT, KIOSK, CHILD) and not excluded), 'ui:gdm-account-binding')
+                or expected in ((PARENT, KIOSK, CHILD), (PARENT, KIOSK, EXISTING_CHILD))
+                and not excluded), 'ui:gdm-account-binding')
         require(type(pending_missing) is bool, 'ui:gdm-account-binding')
         owner, nodes = self.gdm_semantic_nodes(protect_text=True)
         showing = [node for node in nodes if self.showing(node)]
@@ -8933,7 +8951,7 @@ class AccessibleUI:
             recipients = [self.gdm_semantic_name(node) for node in showing
                           if node.get_role_name() == 'label'
                           and self.gdm_semantic_name(node) in GREETER_IDENTITIES]
-            require(recipients == [CHILD] and len(fields) == 1, 'ui:gdm-denial-recipient')
+            require(recipients == [expected[-1]] and len(fields) == 1, 'ui:gdm-denial-recipient')
             return None
         require(not fields, 'ui:gdm-list-prompt-overlap')
 
@@ -9266,13 +9284,14 @@ class AccessibleUI:
         self.gdm_session_focus(name, 'cancel')
         return {**result, 'disposition': 'cancel-focused'}
 
-    def gdm_child_time_denied(self):
+    def gdm_child_time_denied(self, *, child=CHILD):
         """GDM06: exact English-GDM expiry explanation on the bound greeter bus.
 
         The provider's PAM account-expiry message is distinct from failed
         password authentication. Read only public labels, never password text.
         A fresh snapshot must still identify the child and hide the account list.
         """
+        require(child in (CHILD, EXISTING_CHILD), 'ui:child-binding')
         def denied():
             owner, nodes = self.gdm_semantic_nodes(protect_text=True)
             showing = [node for node in nodes if self.showing(node)]
@@ -9280,7 +9299,7 @@ class AccessibleUI:
                     'ui:gdm-denial-list-overlap')
             recipients = [node for node in showing if node.get_role_name() == 'label'
                           and self.gdm_semantic_name(node) in (PARENT, OTHER_PARENT, EXISTING_CHILD, CHILD)]
-            require(len(recipients) == 1 and self.gdm_semantic_name(recipients[0]) == CHILD,
+            require(len(recipients) == 1 and self.gdm_semantic_name(recipients[0]) == child,
                     'ui:gdm-denial-recipient')
             messages = [node for node in showing if node.get_role_name() == 'label'
                         and self.gdm_semantic_name(node) ==
@@ -9289,9 +9308,9 @@ class AccessibleUI:
             return bool(messages)
 
         self.wait(denied, 'gdm-child-time-denied', prompt_in_predicate=True)
-        return {'recipient': 'fixture-child', 'reason': 'time-limit', 'desktop_access': False}
+        return {'recipient': CHILD_IDENTITIES[child], 'reason': 'time-limit', 'desktop_access': False}
 
-    def gdm_denied_return_state(self):
+    def gdm_denied_return_state(self, *, child=CHILD):
         """Observe the list or guard the remaining empty child challenge.
 
         GNOME can cancel in-progress verification by beginning a new challenge
@@ -9299,10 +9318,11 @@ class AccessibleUI:
         never permission to retry a credential or accept the prompt as a list.
         """
         require(not self.input_uncertain, 'ui:uncertain-input')
-        rows = self.gdm_semantic_rows((PARENT, KIOSK, CHILD), pending_child_prompt=True)
+        require(child in (CHILD, EXISTING_CHILD), 'ui:child-binding')
+        rows = self.gdm_semantic_rows((PARENT, KIOSK, child), pending_child_prompt=True)
         if rows is not None:
             return 'account-list'
-        require(self.password_recipient(CHILD), 'ui:gdm-return-password-recipient')
+        require(self.password_recipient(child), 'ui:gdm-return-password-recipient')
         return 'child-prompt'
 
     def station_entry_branch(self, owner):
@@ -13637,13 +13657,13 @@ class AccessibleUI:
                 result['initial'] = self.cancel_initial_language()
         elif operation in GREETER_OPERATIONS:
             if operation in ('gdm-child-time-denied', 'gdm-child-denied-return-ready'):
-                result['denial'] = self.gdm_child_time_denied()
+                result['denial'] = self.gdm_child_time_denied(child=child)
             elif operation == 'gdm-child-denied-return-state':
-                result['return_state'] = self.wait(self.gdm_denied_return_state,
+                result['return_state'] = self.wait(lambda: self.gdm_denied_return_state(child=child),
                     'gdm-child-denied-return-state', prompt_in_predicate=True)
             elif operation == 'gdm-child-denied-returned':
-                self.wait(lambda: self.greeter_list(CHILD) if self.gdm_nonsecret_has_id_route()
-                          else self.gdm_semantic_rows((PARENT, KIOSK, CHILD), pending_child_prompt=True),
+                self.wait(lambda: self.greeter_list(child) if self.gdm_nonsecret_has_id_route()
+                          else self.gdm_semantic_rows((PARENT, KIOSK, child), pending_child_prompt=True),
                           'gdm-child-denied-returned', prompt_in_predicate=True)
             elif operation == 'gdm-installed-accounts':
                 self.gdm_semantic_rows((PARENT, OTHER_PARENT, EXISTING_CHILD, CHILD, KIOSK))
@@ -13737,7 +13757,9 @@ class AccessibleUI:
             result['session_countdown'] = self.child_countdown_session(
                 operation.removeprefix('child-countdown-session-'), self.expected_countdown_source)
         elif operation in COUNTDOWN_OPERATIONS:
-            result['countdown'] = self.child_countdown(operation == 'child-countdown-present', child=bound_child)
+            result['countdown'] = self.child_countdown(operation == 'child-countdown-present',
+                child=bound_child if getattr(self, 'kiosk_request', None) is not None
+                or getattr(self, 'overlay_request', None) is not None else child)
         elif operation in PANEL_ANIMATION_OPERATIONS:
             desired = (None if operation.endswith('-read') else operation.endswith('-on'))
             result['panel_animation'] = self.child_countdown_animation(desired)
@@ -13987,7 +14009,7 @@ class AccessibleUI:
                     if operation in ('parent-save-events', 'parent-custom-events')
                     else self.parent_checked_events(operation))
         elif operation in TOGGLE_OPERATIONS:
-            result['toggle'] = self.parent_toggle_operation(operation)
+            result['toggle'] = self.parent_toggle_operation(operation, child=child)
         elif operation in FILTER_OPERATIONS:
             kind, mask, action = FILTER_OPERATIONS[operation]
             result['filter'] = self.catalogue_filter(child, kind, mask, action)
@@ -14152,7 +14174,7 @@ class AccessibleUI:
         elif operation in FILE_REVIEW_OPERATIONS:
             result.update(self.attachment_review_operation(operation))
         elif operation in RETAINED_PARENT_OPERATIONS:
-            result.update(self.retained_parent_operation(operation))
+            result.update(self.retained_parent_operation(operation, child=child))
         elif operation in WINDOW_SWITCH_OPERATIONS:
             result['window'] = self.window_switch_operation(operation)
             if operation == 'switch-viewer-launch':
@@ -15123,7 +15145,8 @@ def main():
             CHILD_ACCOUNTS[kiosk_request_values(kiosk_request)[0]] if kiosk_request is not None else
             CHILD_ACCOUNTS[overlay_request_values(overlay_request)[0]] if overlay_request is not None else
             CHILD_ACCOUNTS[TRANSFER_OPERATIONS[sys.argv[1]][1]] if sys.argv[1] in TRANSFER_OPERATIONS else
-            (CHILD_ACCOUNTS[CHILD] if sys.argv[1] in CHILD_DESKTOP_OPERATIONS else
+            (CHILD_ACCOUNTS[NAMED_CUSTOM_CHILDREN[child] if child else CHILD]
+             if sys.argv[1] in CHILD_DESKTOP_OPERATIONS else
              'onpc-child-jordan' if sys.argv[1] in STANDARD_OPERATIONS else 'onpc-parent-jamie'))
     require(account.pw_uid > 0 and (greeter or account.pw_uid >= 1000), 'ui:fixture-identity')
     # Station entry is qualified by its public form. Bind the observation
@@ -15165,7 +15188,9 @@ def main():
         ui.native_open_diagnostic = {'event': 'ui-native-public-observation', 'complete_reads': 0}
     trace_argument = (sys.argv[1] in ACCESSIBILITY_TRACE_OPERATIONS or
                       sys.argv[1] == 'parent-toggle-enabled')
-    ui.trace_request = sys.argv[4] if len(sys.argv) >= 5 and trace_argument else None
+    # Named-child calls pad the optional source slot with an empty string.
+    # Only a nonempty source requests the separate trace-bound input guard.
+    ui.trace_request = (sys.argv[4] or None) if len(sys.argv) >= 5 and trace_argument else None
     ui.trace_boot = boot
     ui.expected_trace_source = (ui.trace_request if sys.argv[1] == 'parent-toggle-enabled' else None)
     diagnostic_binding = sys.argv[1] in KIOSK_DIAGNOSTIC_OPERATIONS - {'kiosk-diagnostic-error'}

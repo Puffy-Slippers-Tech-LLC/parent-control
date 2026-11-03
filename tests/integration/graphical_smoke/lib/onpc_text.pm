@@ -53,6 +53,7 @@ my %values = (
     'daily-1' => '1', 'daily-2' => '2', 'daily-3' => '3', 'daily-7' => '7',
     'daily-4' => '4', 'daily-5' => '5',
     'daily-0' => '0', 'daily-15' => '15', 'daily-1439' => '1439',
+    'daily-30' => '30', 'daily-40' => '40',
     'daily-invalid-empty' => '', 'daily-invalid-letters' => 'abc',
     'daily-invalid-negative' => '-1', 'daily-invalid-fraction' => '0.5',
     'daily-invalid-maximum' => '1440', 'daily-invalid-over' => '1441',

@@ -6,17 +6,17 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5743</span>/<span style="color: gray">0</span>/5743 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5752</span>/<span style="color: gray">0</span>/5752 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">224</span>/<span style="color: gray">0</span>/224 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">294</span>/<span style="color: gray">0</span>/294 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">92</span>/<span style="color: gray">0</span>/92 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
+| Installed system | <span style="color: green">91</span>/<span style="color: gray">0</span>/91 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">52</span>/<span style="color: gray">144</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6419</span>/<span style="color: gray">144</span>/6563** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">53</span>/<span style="color: gray">143</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6428</span>/<span style="color: gray">143</span>/6571** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">51</span>/<span style="color: gray">144</span>/195 |
+| customer-journey | <span style="color: green">52</span>/<span style="color: gray">143</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -40,6 +40,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [3](#scenario-3) | Parent discovery and navigation (children: existing and new) | `E2E-003/existing-and-new` | ready |
 | [4](#scenario-4) | Parent discovery and navigation (children: none) | `E2E-003/none` | ready |
 | [5](#scenario-5) | Standard user cannot manage policy (launch: app grid) | `E2E-004/app-grid` | ready |
+| [7](#scenario-7) | Change screen limits while starting or returning to a child desktop (session: new; time: daily only) | `E2E-005/daily-only-new` | ready |
 | [22](#scenario-22) | Natural daily exhaustion, retained unlock and fresh login denial | `E2E-008/fresh-login` | ready |
 | [25](#scenario-25) | Switch User while child time expires (foreground: parent) | `E2E-010/parent` | ready |
 | [26](#scenario-26) | Switch User while child time expires (foreground: other child) | `E2E-010/other-child` | ready |
@@ -88,7 +89,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [261](#scenario-261) | Keep the child's request language when the approving parent changes | `E2E-060/kiosk-hebrew` | ready |
 | [262](#scenario-262) | Language changes preserve countdown and natural expiry | `E2E-061/panel-expiry` | ready |
 | <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[7](#scenario-7)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-new`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[8](#scenario-8)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: retained; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-retained`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[9](#scenario-9)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-new`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[10](#scenario-10)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: retained; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-retained`</span> | <span style="color: gray">pending</span> |
@@ -301,6 +301,21 @@ Variant: launch: app grid
 - Log in once as a standard user and open the app grid.
 - Search for Oh No! Parent Control and independently require no Parent launcher or management window. Do not activate unrelated search results.
 - Reuse PARENT01 to invoke oh-no-parent-control-parent directly as the same standard desktop user. Independently read its management-access denial and administrator-sign-in explanation; no management controls become available. Dismiss the denial normally.
+
+### Scenario 7
+
+**Change screen limits while starting or returning to a child desktop (session: new; time: daily only)**
+
+Case: `E2E-005/daily-only-new` · Category: customer-journey · Status: **ready**
+
+Variant: session: new; time: daily only
+
+**Steps:**
+
+- Sign in as a parent, select the child and prepare the declared time profile using Screen Limits and actual requests. Set one app Always Allowed and another Hard Blocked. Finish preparation with limits off and no grant; retained cases also leave a usable child desktop open.
+- Enable the screen limit, read How it's calculated, then enter the child desktop through the declared fresh or retained route: positive daily time permits use and zero denies it. For grant-only or combined, obtain real request-station approval before the next allowance edit.
+- While limits stay on, daily-only and combined save 30, 40 and 0 minutes; grant-only saves 0, 30 and 0. Read the saved allowance and preserved grant deadline after each change; visit the child at positive and zero access boundaries. Zero daily time denies daily-only access while an active grant still permits use. App launches are sampled at enable/disable transitions.
+- Turn limits off and visit the child; then turn them on and revisit. Off removes the countdown and time restriction but keeps app blocks. On uses the saved allowance without restoring the old grant. Log out between new-session visits and Switch User for retained visits.
 
 ### Scenario 22
 
@@ -990,27 +1005,6 @@ Pending: Consolidated into E2E-004/app-grid (case 5), which independently checks
 
 <div style="color: gray">
 
-### Scenario 7
-
-**Change screen limits while starting or returning to a child desktop (session: new; time: daily only)**
-
-Case: `E2E-005/daily-only-new` · Category: customer-journey · Status: **pending**
-
-Variant: session: new; time: daily only
-
-**Steps:**
-
-- Sign in as a parent, select the child and prepare the declared time profile using Screen Limits and actual requests. Set one app Always Allowed and another Hard Blocked. Finish preparation with limits off and no grant; retained cases also leave a usable child desktop open.
-- Enable the screen limit, read How it's calculated, then enter the child desktop through the declared fresh or retained route: positive daily time permits use and zero denies it. For grant-only or combined, obtain real request-station approval before the next allowance edit.
-- While limits stay on, daily-only and combined save 4, 5 and 0 minutes; grant-only saves 0, 4 and 0. Read the saved allowance and preserved grant deadline after each change; visit the child at positive and zero access boundaries. Zero daily time denies daily-only access while an active grant still permits use. App launches are sampled at enable/disable transitions.
-- Turn limits off and visit the child; then turn them on and revisit. Off removes the countdown and time restriction but keeps app blocks. On uses the saved allowance without restoring the old grant. Log out between new-session visits and Switch User for retained visits.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
 ### Scenario 8
 
 **Change screen limits while starting or returning to a child desktop (session: retained; time: daily only)**
@@ -1023,7 +1017,7 @@ Variant: session: retained; time: daily only
 
 - Sign in as a parent, select the child and prepare the declared time profile using Screen Limits and actual requests. Set one app Always Allowed and another Hard Blocked. Finish preparation with limits off and no grant; retained cases also leave a usable child desktop open.
 - Enable the screen limit, read How it's calculated, then enter the child desktop through the declared fresh or retained route: positive daily time permits use and zero denies it. For grant-only or combined, obtain real request-station approval before the next allowance edit.
-- While limits stay on, daily-only and combined save 4, 5 and 0 minutes; grant-only saves 0, 4 and 0. Read the saved allowance and preserved grant deadline after each change; visit the child at positive and zero access boundaries. Zero daily time denies daily-only access while an active grant still permits use. App launches are sampled at enable/disable transitions.
+- While limits stay on, daily-only and combined save 30, 40 and 0 minutes; grant-only saves 0, 30 and 0. Read the saved allowance and preserved grant deadline after each change; visit the child at positive and zero access boundaries. Zero daily time denies daily-only access while an active grant still permits use. App launches are sampled at enable/disable transitions.
 - Turn limits off and visit the child; then turn them on and revisit. Off removes the countdown and time restriction but keeps app blocks. On uses the saved allowance without restoring the old grant. Log out between new-session visits and Switch User for retained visits.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1044,7 +1038,7 @@ Variant: session: new; time: grant only
 
 - Sign in as a parent, select the child and prepare the declared time profile using Screen Limits and actual requests. Set one app Always Allowed and another Hard Blocked. Finish preparation with limits off and no grant; retained cases also leave a usable child desktop open.
 - Enable the screen limit, read How it's calculated, then enter the child desktop through the declared fresh or retained route: positive daily time permits use and zero denies it. For grant-only or combined, obtain real request-station approval before the next allowance edit.
-- While limits stay on, daily-only and combined save 4, 5 and 0 minutes; grant-only saves 0, 4 and 0. Read the saved allowance and preserved grant deadline after each change; visit the child at positive and zero access boundaries. Zero daily time denies daily-only access while an active grant still permits use. App launches are sampled at enable/disable transitions.
+- While limits stay on, daily-only and combined save 30, 40 and 0 minutes; grant-only saves 0, 30 and 0. Read the saved allowance and preserved grant deadline after each change; visit the child at positive and zero access boundaries. Zero daily time denies daily-only access while an active grant still permits use. App launches are sampled at enable/disable transitions.
 - Turn limits off and visit the child; then turn them on and revisit. Off removes the countdown and time restriction but keeps app blocks. On uses the saved allowance without restoring the old grant. Log out between new-session visits and Switch User for retained visits.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1065,7 +1059,7 @@ Variant: session: retained; time: grant only
 
 - Sign in as a parent, select the child and prepare the declared time profile using Screen Limits and actual requests. Set one app Always Allowed and another Hard Blocked. Finish preparation with limits off and no grant; retained cases also leave a usable child desktop open.
 - Enable the screen limit, read How it's calculated, then enter the child desktop through the declared fresh or retained route: positive daily time permits use and zero denies it. For grant-only or combined, obtain real request-station approval before the next allowance edit.
-- While limits stay on, daily-only and combined save 4, 5 and 0 minutes; grant-only saves 0, 4 and 0. Read the saved allowance and preserved grant deadline after each change; visit the child at positive and zero access boundaries. Zero daily time denies daily-only access while an active grant still permits use. App launches are sampled at enable/disable transitions.
+- While limits stay on, daily-only and combined save 30, 40 and 0 minutes; grant-only saves 0, 30 and 0. Read the saved allowance and preserved grant deadline after each change; visit the child at positive and zero access boundaries. Zero daily time denies daily-only access while an active grant still permits use. App launches are sampled at enable/disable transitions.
 - Turn limits off and visit the child; then turn them on and revisit. Off removes the countdown and time restriction but keeps app blocks. On uses the saved allowance without restoring the old grant. Log out between new-session visits and Switch User for retained visits.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1086,7 +1080,7 @@ Variant: session: new; time: combined
 
 - Sign in as a parent, select the child and prepare the declared time profile using Screen Limits and actual requests. Set one app Always Allowed and another Hard Blocked. Finish preparation with limits off and no grant; retained cases also leave a usable child desktop open.
 - Enable the screen limit, read How it's calculated, then enter the child desktop through the declared fresh or retained route: positive daily time permits use and zero denies it. For grant-only or combined, obtain real request-station approval before the next allowance edit.
-- While limits stay on, daily-only and combined save 4, 5 and 0 minutes; grant-only saves 0, 4 and 0. Read the saved allowance and preserved grant deadline after each change; visit the child at positive and zero access boundaries. Zero daily time denies daily-only access while an active grant still permits use. App launches are sampled at enable/disable transitions.
+- While limits stay on, daily-only and combined save 30, 40 and 0 minutes; grant-only saves 0, 30 and 0. Read the saved allowance and preserved grant deadline after each change; visit the child at positive and zero access boundaries. Zero daily time denies daily-only access while an active grant still permits use. App launches are sampled at enable/disable transitions.
 - Turn limits off and visit the child; then turn them on and revisit. Off removes the countdown and time restriction but keeps app blocks. On uses the saved allowance without restoring the old grant. Log out between new-session visits and Switch User for retained visits.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1107,7 +1101,7 @@ Variant: session: retained; time: combined
 
 - Sign in as a parent, select the child and prepare the declared time profile using Screen Limits and actual requests. Set one app Always Allowed and another Hard Blocked. Finish preparation with limits off and no grant; retained cases also leave a usable child desktop open.
 - Enable the screen limit, read How it's calculated, then enter the child desktop through the declared fresh or retained route: positive daily time permits use and zero denies it. For grant-only or combined, obtain real request-station approval before the next allowance edit.
-- While limits stay on, daily-only and combined save 4, 5 and 0 minutes; grant-only saves 0, 4 and 0. Read the saved allowance and preserved grant deadline after each change; visit the child at positive and zero access boundaries. Zero daily time denies daily-only access while an active grant still permits use. App launches are sampled at enable/disable transitions.
+- While limits stay on, daily-only and combined save 30, 40 and 0 minutes; grant-only saves 0, 30 and 0. Read the saved allowance and preserved grant deadline after each change; visit the child at positive and zero access boundaries. Zero daily time denies daily-only access while an active grant still permits use. App launches are sampled at enable/disable transitions.
 - Turn limits off and visit the child; then turn them on and revisit. Off removes the countdown and time restriction but keeps app blocks. On uses the saved allowance without restoring the old grant. Log out between new-session visits and Switch User for retained visits.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.

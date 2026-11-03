@@ -535,6 +535,12 @@ sub run {
             \&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{jordan_daily_access}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_challenges::jordan_daily_access(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{fresh_child_denied}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
@@ -1234,6 +1240,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_time_explanation::run(\&exchange);
+        return;
+    }
+    if ($ready->{daily_access_case}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_allowance_case::daily_only_new(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{allowance_case}) {

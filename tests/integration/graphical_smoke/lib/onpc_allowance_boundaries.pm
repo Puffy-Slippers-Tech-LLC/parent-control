@@ -72,7 +72,7 @@ sub custom_value {
     my ($journey, $prefix, $minutes) = @_;
     die 'allowance:custom-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
         && defined($prefix) && $prefix =~ /\A[a-z][a-z0-9-]*\z/
-        && defined($minutes) && $minutes =~ /\A(?:0|1|4|5|6|7|15|1439)\z/;
+        && defined($minutes) && $minutes =~ /\A(?:0|1|4|5|6|7|15|30|40|1439)\z/;
     $journey->seen("$prefix-open");
     onpc_text::replace_text($journey, "daily-$minutes", "$prefix-text");
     $journey->seen("$prefix-saved");

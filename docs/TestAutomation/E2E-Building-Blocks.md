@@ -316,6 +316,49 @@ within the existing deadline. Persistent stale state, wrong/ambiguous owners or
 recipients refuse before input/acknowledgement. Never replay credentials or
 accept a prompt as the final destination. Retained lock/unlock remains separate.
 
+#### Jordan daily access qualification
+
+`check_e2e_jordan_daily_access` / `jordan_daily_access.PLAN` /
+`JordanDailyAccessJourney` and `onpc_challenges::jordan_daily_access` passed on
+Ubuntu 26.04 in `20261102T225510Z-19b1c92b`. Jamie saves Jordan's positive
+15-minute daily allowance with no grant; fresh Jordan entry reads a countdown
+against that public balance. Normal logout and retained Jamie entry preserve
+the original desktop, Parent endpoint/PID, selected Jordan, page and saved
+settings before further edits. Public zero-time setup then produces the specific
+English time-limit denial and usable account-list return twice, with the second
+valid entry supplied directly through the shared GDM challenge. Each entry
+requires two fresh Jordan recipient proofs and one correct-password submission.
+Finally, limits-off fresh access has stable countdown absence.
+
+The named observer binding is `JourneyPlan.child_bindings={stage: 'existing'}`
+for the declared denial/return, retained Parent, time and countdown operations;
+the entry role is `other-child`. `AccessibleUI.gdm_child_time_denied`,
+`gdm_denied_return_state` and `retained_parent_operation` accept the explicit
+child while retaining Riley as the default. Countdown dispatch binds Jordan's
+own session and canonical identity. Changed-child denial chains refuse before
+guest observation; existing credential/input and ownership guards remain.
+The public balance comparison allows a finite five-minute navigation bracket,
+the shared display/sampling tolerance and the existing 30-minute worker budget.
+No clock, policy, usage or grant injection supplies results.
+
+Affected default Riley denial, retained Parent and enabled/off countdown
+regressions passed in `20261102T230325Z-b850adb0`,
+`20261102T230816Z-557f8253` and `20261102T231524Z-079ad6fa`. Scoped host checks,
+collection, worker/callback shutdown, owned cleanup and baseline restoration
+passed. This qualifies only the stated Ubuntu named-child bindings; other
+bindings/platforms remain separate. The focused selector has no standalone
+system inventory registration and supplies no complete-case credit.
+
+Complete case 7, `daily_access_case.DailyAccessJourney` /
+`onpc_allowance_case::daily_only_new`, subsequently passed on Ubuntu 26.04 in
+`20261102T233931Z-67453a2e`. Its 30→40→0 daily-only history verifies fresh
+positive access/countdown, zero-time denial, retained Jamie/Parent window,
+limits-off access/countdown absence and Allowed/Hard app results. Shared custom
+input admits 30/40 minutes, and named Jordan toggles retain selected-child and
+save-completion guards. An empty optional trace-source slot is absence, not a
+request for the separate Riley trace guard. Collection, owned cleanup and
+baseline restoration passed. Other E2E-005 bindings remain separate.
+
 ### Harness transport and serial qualification
 
 These blocks serve **case 1's harness assertions**, not customer product
@@ -486,6 +529,11 @@ these shortened sequences still require live verification. Wrong child/page/
 settings/window/session, missing baseline and malformed observations refuse.
 Normal closure must make later absent-window entry refuse without relaunch.
 Second-parent management remains separately pending.
+
+Jordan-selected same-user retained-window read and original Jamie desktop/window
+comparison after normal Jordan logout are qualified by
+[Jordan daily access](#jordan-daily-access-qualification), using the same shared
+operations with the explicit named-child observer binding and no reselection.
 
 ### Both retained child desktops and explicit entry modes
 
@@ -2449,6 +2497,10 @@ The unchanged enabled/off bindings also have renewed both-target qualification.
 Local availability and explanations remain UI obligations rather than customer
 journey prerequisites; the installed session boundary is qualified below. Installed
 remaining-time, natural exhaustion and complete cases retain separate bindings.
+
+Jordan's fresh positive-balance presence and limits-off stable absence use the
+same observer with `child='existing'`; see the exact
+[Jordan daily access qualification](#jordan-daily-access-qualification).
 
 #### Locked and inactive child countdown qualification
 

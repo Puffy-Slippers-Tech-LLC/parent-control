@@ -135,7 +135,7 @@ def test_child_extension_monitor_recovers_public_signals_and_reports_failure_onc
             values["state"] = 3
             name("RequestName", "(su)", ("org.gnome.Shell", 0))
             spin_until(lambda: monitor.watches[1001].failures > 0)
-            assert monitor.watches[1001].healthy_since == 0
+            assert len(activations) == 2
             failures = monitor.watches[1001].failures
             values["state"] = 6
             signal_state()

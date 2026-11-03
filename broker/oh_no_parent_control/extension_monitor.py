@@ -25,7 +25,6 @@ LOG = get_logger("extension-manager")
 DEBOUNCE_SECONDS = 0.1
 MAX_BACKOFF_LEVEL = 7
 MAX_BACKOFF_SECONDS = 30
-QUIET_RESET_SECONDS = 60
 # GNOME keeps its startup crash-protection marker for sixty seconds.
 RECOVERY_GUARD_SECONDS = 60
 
@@ -73,8 +72,6 @@ class _Watch:
     failure_time: float = 0
     last_recovery: float = 0
     recovery_interrupted: bool = False
-    recoveries: int = 0
-    healthy_since: float = 0
     observed_state: tuple | None = None
     observed_selection: tuple | None = None
     diagnostic_decision: tuple | None = None
@@ -410,12 +407,6 @@ class ExtensionMonitor:
             except Exception:
                 pass
             watch.observed_state = observed
-        if watch.healthy_since and now - watch.healthy_since >= QUIET_RESET_SECONDS:
-            watch.recoveries = 0
-        if state != 1 or not enabled:
-            watch.healthy_since = 0
-        elif not watch.healthy_since:
-            watch.healthy_since = now
         if state in {3, 4}:
             fields = _load_error_fields(info)
             LOG.error("extension-manager.load-state", state=fields["state"],
@@ -448,21 +439,15 @@ class ExtensionMonitor:
             self._decision(watch, "changing-state", "wait")
             raise _ChangingState()
         if state != 1 or not enabled:
-            if watch.recoveries:
-                due = watch.last_recovery + _backoff_seconds(watch.recoveries)
-                if now < due:
-                    self._decision(watch, "backoff", "wait", delay_ms=min(30000, max(0, int((due - now) * 1000))))
-                    watch.next_check = max(watch.next_check, due)
-                    self._schedule(watch)
-                    return
+            # Repeated disablement in a running Shell is tampering. Successful
+            # restoration must not delay the next recovery; only failures retry
+            # with backoff. Retain this timestamp for Shell crash protection.
             watch.last_recovery = now
-            watch.recoveries = min(MAX_BACKOFF_LEVEL, watch.recoveries + 1)
             reason = "global-disabled" if not enabled else "extension-inactive"
             started = now
             self._decision(watch, reason, "started")
             try:
                 self.manager.set_enabled(watch.uid, True, recover_global_switch=True)
-                watch.healthy_since = time.monotonic()
             except ChildExtensionFailed:
                 self._decision(watch, reason, "failed", started=started)
                 self._fault(watch)
@@ -521,12 +506,9 @@ class ExtensionMonitor:
                 watch.failed = watch.reported = watch.report_pending = False
                 watch.last_recovery = 0
                 watch.recovery_interrupted = False
-                watch.recoveries = 0
-                watch.healthy_since = 0
             watch.failures = 0
         except _ChangingState:
             self._decision(watch, "changing-state", "wait")
-            watch.healthy_since = 0
             self._retry(watch)
         except Busy:
             self._decision(watch, "broker-busy", "wait", delay_ms=500)
@@ -536,7 +518,6 @@ class ExtensionMonitor:
             watch.next_check = time.monotonic() + 0.5
             self._schedule(watch)
         except Exception as error:
-            watch.healthy_since = 0
             stage = watch.probe_stage
             if stage != "none":
                 _record(watch, lambda: LOG.warning("extension-manager.probe-failed", stage=stage))

@@ -80,6 +80,7 @@ class _Watch:
     diagnostic_decision: tuple | None = None
     hint: str = "initial"
     diagnostics: list | None = None
+    probe_stage: str = "none"
 
 
 class ExtensionMonitor:
@@ -248,7 +249,7 @@ class ExtensionMonitor:
                     watch.subscriptions.append(connection.signal_subscribe(
                         SHELL, interface, member, path, arg0, Gio.DBusSignalFlags.NONE,
                         lambda *_args, hint=("extension-signal" if interface == INTERFACE else "properties-signal"):
-                            self._schedule(watch, hint=hint)))
+                            self._signal(watch, hint, _args[5])))
                 watch.subscriptions.append(connection.signal_subscribe(
                     DBUS, DBUS, "NameOwnerChanged", "/org/freedesktop/DBus", SHELL,
                     Gio.DBusSignalFlags.NONE,
@@ -324,6 +325,21 @@ class ExtensionMonitor:
             raise ValueError("oversized child session reply")
         return reply.unpack()
 
+    def _signal(self, watch, hint, parameters):
+        self._schedule(watch, hint=hint)
+        # Capture the public switch signal before coalesced recovery can replace
+        # its value. Never retain arbitrary changed properties or sender data.
+        try:
+            if (hint != "properties-signal" or parameters.get_size() > 65536 or
+                    parameters.get_type_string() != "(sa{sv}as)"):
+                return
+            interface, changed, _invalidated = parameters.unpack()
+            value = changed.get("UserExtensionsEnabled")
+            if interface == INTERFACE and type(value) is bool:
+                LOG.info("extension-manager.switch-signal", global_enabled=value)
+        except Exception:
+            pass
+
     @staticmethod
     def _fault(watch):
         watch.fault_generation += 1
@@ -341,10 +357,13 @@ class ExtensionMonitor:
         watch.report_pending = False
 
     def _observe(self, watch):
+        watch.probe_stage = "extension-info"
         info, = self._call(watch, SHELL, PATH, INTERFACE, "GetExtensionInfo",
                            GLib.Variant("(s)", (UUID,)), "(a{sv})")
+        watch.probe_stage = "global-switch"
         enabled, = self._call(watch, SHELL, PATH, PROPERTIES, "Get",
                              GLib.Variant("(ss)", (INTERFACE, "UserExtensionsEnabled")), "(v)")
+        watch.probe_stage = "validate-state"
         state = info.get("state")
         if type(enabled) is not bool or type(state) not in (int, float) or state not in {1, 2, 3, 4, 6, 7, 8}:
             raise ValueError("invalid child extension state")
@@ -352,6 +371,7 @@ class ExtensionMonitor:
             # GNOME sets ERROR before awaiting the extension's import. Only
             # its public error history distinguishes that loading sentinel
             # from a real failure, including an exception with empty text.
+            watch.probe_stage = "extension-errors"
             errors, = self._call(watch, SHELL, PATH, INTERFACE, "GetExtensionErrors",
                                 GLib.Variant("(s)", (UUID,)), "(as)")
             if not errors:
@@ -475,6 +495,7 @@ class ExtensionMonitor:
         # Emit new observations after policy/command-budget scopes and retry
         # scheduling finish. Slow diagnostic storage cannot change those decisions.
         watch.diagnostics = []
+        watch.probe_stage = "none"
         try:
             if watch.connection is None:
                 self._connect(watch)
@@ -490,6 +511,7 @@ class ExtensionMonitor:
             # These observations authorize nothing; the locked callback below
             # reloads the current account/roles/preferences before any effect.
             info, user_extensions_enabled = self._observe(watch)
+            watch.probe_stage = "none"
             with self.manager.command_budget(3, self._stopped):
                 enabled = self.broker.reconcile_enabled_child(watch.uid,
                     lambda: self._reconcile(watch, info, user_extensions_enabled),
@@ -515,6 +537,9 @@ class ExtensionMonitor:
             self._schedule(watch)
         except Exception as error:
             watch.healthy_since = 0
+            stage = watch.probe_stage
+            if stage != "none":
+                _record(watch, lambda: LOG.warning("extension-manager.probe-failed", stage=stage))
             LOG.warning("extension-manager.load-observation", outcome="unavailable")
             record_exception(error)
             self._retry(watch)

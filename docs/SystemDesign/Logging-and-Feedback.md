@@ -205,7 +205,14 @@ exit and condition-skip outcomes. Independent scan counts distinguish matched,
 projected, rejected and clipped records, including the 200-entry limit. Zero
 matches describe this bounded query, not the absence of a historical failure.
 
-The live extension monitor records changes in validated public extension state
+The live extension monitor records validated boolean global-switch signals
+on delivery, before coalesced
+recovery can replace their values. Signals identify neither the settings writer
+nor a Shell crash. Failed observations distinguish extension-info, global-switch,
+state-validation and extension-error reads; an empty startup reply can fail
+state validation without proving a broken extension. Failure provenance remains
+separate, and diagnostics never change retries or recovery.
+The monitor also records changes in validated public extension state
 and the global enable switch, coalesced check hints, and Shell-owner/bus-loss
 observations without retaining identities. Recovery decisions distinguish
 confirmed failures, startup transitions, interrupted recovery, backoff and actual

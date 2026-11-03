@@ -31,6 +31,54 @@ from tests.support.broker import make_broker
 SECRET = "Child Name /home/private-user/private-file private@example.test secret-token"
 
 
+def test_monitor_signal_and_probe_failure_are_private_and_survive_export(tmp_path, caplog, monkeypatch):
+    from oh_no_parent_control import extension_monitor as module
+
+    with monkeypatch.context() as patch:
+        patch.setattr(module.threading.Thread, "start", lambda _thread: None)
+        monitor = module.ExtensionMonitor(Mock(), Mock(), Mock())
+    watch = module._Watch(1001, connection=Mock(), shell_present=True)
+    monitor.watches[1001] = watch
+    monkeypatch.setattr(monitor, "_schedule", Mock())
+    monkeypatch.setattr(monitor, "_retry", Mock())
+    caplog.set_level(logging.INFO)
+    monitor._signal(watch, "properties-signal", GLib.Variant("(sa{sv}as)", (
+        module.INTERFACE, {"UserExtensionsEnabled": GLib.Variant("b", False),
+                           SECRET: GLib.Variant("s", SECRET)}, [SECRET])))
+    # Untrusted property values cannot become truthy switch observations.
+    monitor._signal(watch, "properties-signal", GLib.Variant("(sa{sv}as)", (
+        module.INTERFACE, {"UserExtensionsEnabled": GLib.Variant("s", SECRET)}, [])))
+    oversized = Mock()
+    oversized.get_size.return_value = 65537
+    monitor._signal(watch, "properties-signal", oversized)
+    oversized.unpack.assert_not_called()
+    monitor.broker.extension_reconciliation_busy.return_value = False
+    monkeypatch.setattr(monitor, "_call", Mock(side_effect=[({},), (True,)]))
+    monitor._check(watch)
+    rows = [events.decode(record.onpc_payload) for record in caplog.records]
+    assert [row["fields"] for row in rows if row["event"] == "extension-manager.switch-signal"] == [
+        {"global_enabled": False}]
+    assert [row["fields"] for row in rows if row["event"] == "extension-manager.probe-failed"] == [
+        {"stage": "validate-state"}]
+    monitor._retry.assert_called_once_with(watch)
+    monitor.manager.set_enabled.assert_not_called()
+    # Failed diagnostics must still schedule the normal observation.
+    monkeypatch.setattr(module.LOG, "info", Mock(side_effect=RuntimeError(SECRET)))
+    monitor._signal(watch, "properties-signal", GLib.Variant("(sa{sv}as)", (
+        module.INTERFACE, {"UserExtensionsEnabled": GLib.Variant("b", True)}, [])))
+    assert monitor._schedule.call_count == 4
+    writer = DailyLogWriter(tmp_path / "logs")
+    handler = BrokerFileHandler(writer)
+    for record in caplog.records:
+        handler.emit(record)
+    with ZipFile(BytesIO(validate_bundle(writer.snapshot()))) as archive:
+        exported = "".join(archive.read(name).decode() for name in archive.namelist())
+    assert "extension-manager.switch-signal" in exported
+    assert "extension-manager.probe-failed" in exported
+    assert "diagnostic.rejected" not in exported
+    assert SECRET not in exported and SECRET not in caplog.text
+
+
 def test_recovery_contention_and_transitions_survive_export_without_private_data(tmp_path, caplog, monkeypatch):
     from contextlib import nullcontext
     from oh_no_parent_control import extension_monitor as monitor_module

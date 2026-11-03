@@ -8,10 +8,10 @@
       "backup_root": "/Data/virt-manager/backups/onpc"
     },
     {
-      "name": "onpc-vm-host",
+      "name": "onpc-host",
       "enabled": "false",
       "transport": "ssh",
-      "ssh_target": "onpc-vm-host",
+      "ssh_target": "onpc-host",
       "backup_root": "/Data/virt-manager/backups/onpc",
       "concurrency": 6
     }

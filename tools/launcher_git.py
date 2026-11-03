@@ -35,11 +35,12 @@ Git ownership reconciliation takes priority before completing this same task:
 {state['git_reconciliation']['reason']}
 Retained acceptance evidence and close-out scope:
 {json.dumps(evidence, indent=2)}
-The original stage_baseline fingerprints and protected_staged paths still apply.
+The original unstaged stage_baseline fingerprints still apply. Pre-existing
+staged work joins the controller's completion commit under the shared policy.
 Inspect the reported paths against the retained baseline, current HEAD and index.
 Remove an unrelated path from stage_paths only if this task needs no change to it.
 Do not drop a required task edit to avoid the guard. Never clear or rewrite the
-ownership checkpoint, adopt uncommitted pre-existing work, stage or commit that
+ownership checkpoint, adopt unrelated unstaged work, stage or commit that
 work, or discard changes. A later commit touching a path alone does not prove
 that its captured contents were committed. If ownership cannot be established,
 restore the task's unchecked row, brief and pointer and return blocked with the
@@ -251,10 +252,10 @@ def committed_fingerprints(root, paths):
 
 
 def validate_closeout_ownership(root, paths, state):
-    """Protect pending work without pinning clean files to an old baseline."""
+    """Protect unstaged baseline work; staged work joins the completion commit."""
     baseline = state['stage_baseline']
     protected = set(state['protected_staged'])
-    overlap = set(paths) & protected
+    overlap = set()
     released = {}
     clean_paths = set()
     committed_paths = committed_fingerprints(root, set(baseline) - protected)
@@ -315,14 +316,20 @@ def _propagate_worktrees(root, run, state, commit, *, git=None):
 def commit_push_propagate(root, run, state, paths, message, *, git=None):
     """Finish launcher Git close-out; return only after every destination is pushed.
 
-    Callers own acceptance, staging and any source pull. Commit intent and
+    Callers stage accepted task paths. Shared close-out includes the existing
+    index without staging unrelated working-tree edits. Commit intent and
     propagation checkpoints remain intact on failure for the same retry route.
     """
     git = git or git_output
     with closeout_lock(root, run, state):
         if state.get('pull_intent') is not None:
             validate_pull_identity(root, state, git=git)
-        commit = _finish_commit(root, run, state, paths, message, git=git)
+        worktree_paths = paths
+        if state.get('commit_intent') is None:
+            staged = git(root, 'diff', '--cached', '--no-renames', '--name-only', '-z').stdout
+            paths = list(dict.fromkeys([*paths, *filter(None, staged.split('\0'))]))
+        commit = _finish_commit(root, run, state, paths, message, git=git,
+                                worktree_paths=worktree_paths)
         if state.get('pull_intent') is not None:
             _, head = validate_pull_identity(root, state, git=git)
             if head != commit and git(root, 'merge-base', '--is-ancestor', commit,
@@ -335,7 +342,7 @@ def commit_push_propagate(root, run, state, paths, message, *, git=None):
         return commit
 
 
-def _finish_commit(root, run, state, paths, message, *, git=None):
+def _finish_commit(root, run, state, paths, message, *, git=None, worktree_paths=None):
     """Checkpoint commit intent before writing Git, and recognize a completed write."""
     git = git or git_output
     head = git(root, 'rev-parse', '--verify', 'HEAD', check=False)
@@ -377,24 +384,26 @@ def _finish_commit(root, run, state, paths, message, *, git=None):
         entries = (git(root, '--literal-pathspecs', 'ls-files', '--stage', '-z',
                              '--', *paths).stdout if paths else '')
         state['commit_intent'] = {'parent': parent, 'message': message, 'paths': paths,
-                                  'entries': entries}
+                                  'entries': entries,
+                                  'worktree_paths': paths if worktree_paths is None else worktree_paths}
         launcher.atomic(run / 'checkpoint.json', state)
-    if paths:
-        entries = git(root, '--literal-pathspecs', 'ls-files', '--stage', '-z',
-                             '--', *paths).stdout
-        if (entries != state['commit_intent']['entries']
-                or git(root, '--literal-pathspecs', 'diff', '--quiet', '--',
-                              *paths, check=False).returncode != 0):
-            # No commit was written. Reuse the ordinary reconciliation loop to
-            # inspect current edits and renew acceptance before staging again.
-            state.pop('commit_intent')
-            launcher.atomic(run / 'checkpoint.json', state)
-            raise GitReconciliationRequired('Owned files changed after staging; reconcile and revalidate the task.')
-    # --only prevents unrelated pre-staged files from entering either commit.
+    worktree_paths = state['commit_intent'].get('worktree_paths', paths)
+    entries = (git(root, '--literal-pathspecs', 'ls-files', '--stage', '-z',
+                   '--', *paths).stdout if paths else '')
+    staged = set(filter(None, git(root, 'diff', '--cached', '--no-renames',
+                                   '--name-only', '-z').stdout.split('\0')))
+    if (entries != state['commit_intent']['entries']
+            or not staged.issubset(paths)
+            or worktree_paths and git(root, '--literal-pathspecs', 'diff', '--quiet', '--',
+                                       *worktree_paths, check=False).returncode != 0):
+        # No commit was written. Reuse the ordinary reconciliation loop to
+        # inspect current edits and renew acceptance before staging again.
+        state.pop('commit_intent')
+        launcher.atomic(run / 'checkpoint.json', state)
+        raise GitReconciliationRequired('Commit inputs changed after staging; reconcile and revalidate the task.')
+    # Commit the pinned index, preserving unstaged edits on staged-only paths.
     # An audit with no edits still records its completed checkpoint as an empty commit.
-    arguments = ['--literal-pathspecs', 'commit', '--only', '--allow-empty', '-m', message]
-    if paths:
-        arguments += ['--', *paths]
+    arguments = ['commit', '--allow-empty', '-m', message]
     result = git(root, *arguments, check=False)
     if result.returncode:
         raise ValueError('completion commit failed: ' + result.stderr.strip())

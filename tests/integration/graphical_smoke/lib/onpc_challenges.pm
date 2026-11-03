@@ -323,6 +323,49 @@ sub natural_access {
     $journey->finish();
 }
 
+sub jordan_daily_access {
+    onpc_progress::operation('Checking daily access for [Child user] across fresh sign-ins');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'jordan-daily-access:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'jordan-daily-access', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'initial',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    $journey->consume_observation('parent-selected', onpc_parent::select_child($journey, 'existing',
+        $journey->seen('child-picker-opened'), 'child-picker-opened', 'child-choice-highlighted', 'parent-selected'));
+    $journey->seen($_) for qw(allowance-configured before session-before);
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'positive');
+    $journey->seen('countdown');
+    my $logout = $journey->scope('logout');
+    onpc_desktop_session::log_out($logout, $logout->seen('desktop'));
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'return');
+    onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'existing', 'supplied', 0);
+    $journey->seen($_) for qw(session-returned zero-configured zero-before);
+    $journey->consume_observation('zero-desktop', $journey->seen('zero-desktop'));
+    $journey->seen($_) for qw(zero-switch zero-greeter);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'time-denied', 'denied');
+    onpc_gdm::return_from_time_denial($journey,
+        'first-denied-return-ready', 'first-denied-return-state', 'first-denied-returned');
+    $journey->consume_observation('independent-entry-guard', $journey->seen('independent-entry-guard'));
+    onpc_gdm::sign_in_challenge($journey, 'independent',
+        'independent-installed-greeter', 'independent-standard-focused', 'independent-denied');
+    onpc_gdm::return_from_time_denial($journey,
+        'second-denied-return-ready', 'second-denied-return-state', 'second-denied-returned');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'off-return');
+    onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'existing', 'off-supplied', 0);
+    $journey->seen($_) for qw(limits-disabled disabled-settings);
+    $journey->consume_observation('off-parent-desktop', $journey->seen('off-parent-desktop'));
+    $journey->seen($_) for qw(off-switch off-greeter);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'off');
+    $journey->seen('absent-countdown');
+    $journey->finish();
+}
+
 sub fresh_child_allowed {
     onpc_progress::operation('Qualifying fresh child login with saved daily time');
     my $ok = eval { _fresh_child_allowed(@_); 1 };

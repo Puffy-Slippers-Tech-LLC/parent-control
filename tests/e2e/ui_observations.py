@@ -770,6 +770,7 @@ class UiObservations:
         self.shell_request_binding = None
         self.progress = progress
         self.last_operation = None
+        self.last_child = None
         self.challenges = set()
         self.pending_challenge = None
         self.challenge_failed = False
@@ -1497,6 +1498,17 @@ class UiObservations:
                     and getattr(self, 'chinese_returned', False), 'ui:mate-fresh-session-order')
         require(child is None or (child in accessible_ui.NAMED_CUSTOM_CHILDREN and
                 operation in accessible_ui.NAMED_CHILD_OPERATIONS), 'ui:custom-child-binding')
+        if operation in accessible_ui.GDM_DENIAL_OPERATIONS:
+            previous = {
+                'gdm-child-time-denied': ('gdm-standard-recipient-rechecked' if child == 'existing'
+                                          else 'gdm-child-recipient-rechecked'),
+                'gdm-child-denied-return-ready': 'gdm-child-time-denied',
+                'gdm-child-denied-return-state': 'gdm-child-denied-return-ready',
+                'gdm-child-denied-returned': 'gdm-child-denied-return-state',
+            }
+            require(self.last_operation == previous[operation], 'ui:denial-order')
+            if operation != 'gdm-child-time-denied':
+                require(self.last_child == (child or 'child'), 'ui:denial-child-changed')
         import re
         # Qualifications lack a scenario recorder, but use the same existing
         # spectator command pane as customer cases. Keep private program/stdin
@@ -2022,7 +2034,8 @@ class UiObservations:
                 child=accessible_ui.CHILD_IDENTITIES[accessible_ui.kiosk_request_values(
                     self.kiosk_request)[0]] if self.kiosk_request is not None else
                     accessible_ui.CHILD_IDENTITIES[accessible_ui.overlay_request_values(
-                    self.overlay_request)[0]] if self.overlay_request is not None else 'fixture-child')
+                    self.overlay_request)[0]] if self.overlay_request is not None else
+                    accessible_ui.CHILD_IDENTITIES[accessible_ui.NAMED_CUSTOM_CHILDREN[child or 'child']])
         if operation in accessible_ui.PANEL_ANIMATION_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'panel_animation'}, 'ui:response')
             value = accessible_ui.validate_panel_animation(result['panel_animation'])
@@ -2510,6 +2523,8 @@ class UiObservations:
                         and value['page'] in ('screen-limits', 'app-limits'),
                         'ui:retained-parent-response')
                 SettingsObservation.from_settings(value['settings'])
+                require(value['settings']['child'] == accessible_ui.CHILD_IDENTITIES[
+                    accessible_ui.NAMED_CUSTOM_CHILDREN[child or 'child']], 'ui:retained-parent-child')
                 window = value['window']
                 require(type(window) is dict and set(window) == {'binding', 'pid', 'endpoint', 'available'}
                         and window['binding'] == 'parent' and window['available'] is True
@@ -2830,19 +2845,14 @@ class UiObservations:
         if operation in ('gdm-child-time-denied', 'gdm-child-denied-return-ready'):
             require(type(result) is dict and set(result) == {*expected, 'denial'}
                     and type(result['denial']) is dict
-                    and result['denial'] == {'recipient': 'fixture-child',
+                    and result['denial'] == {'recipient': accessible_ui.CHILD_IDENTITIES[
+                        accessible_ui.NAMED_CUSTOM_CHILDREN[child or 'child']],
                         'reason': 'time-limit', 'desktop_access': False}
                     and result['denial']['desktop_access'] is False, 'ui:time-denial')
             expected['denial'] = result['denial']
-            require(self.last_operation == ('gdm-child-recipient-rechecked'
-                    if operation == 'gdm-child-time-denied' else 'gdm-child-time-denied'),
-                    'ui:denial-order')
         if operation == 'gdm-child-denied-return-state':
-            require(self.last_operation == 'gdm-child-denied-return-ready', 'ui:denial-order')
             require(result.get('return_state') in ('account-list', 'child-prompt'), 'ui:denial-return-state')
             expected['return_state'] = result['return_state']
-        if operation == 'gdm-child-denied-returned':
-            require(self.last_operation == 'gdm-child-denied-return-state', 'ui:denial-order')
         require(result == expected, 'ui:response')
         if operation == 'gdm-wrong-recipient-refused':
             require(self.last_operation == 'gdm-other-focused', 'ui:recipient-order')
@@ -2877,6 +2887,7 @@ class UiObservations:
         elif operation in accessible_ui.BINDING_REMINDER_SELECTIONS:
             self.binding_reminder_source = None
         self.last_operation = operation
+        self.last_child = child or 'child'
         if operation == 'kiosk-approver-baseline':
             self.approver_uids = tuple(result.pop('approver_uids'))
             result['approver_present'] = True

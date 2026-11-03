@@ -554,13 +554,14 @@ changes, the launcher falls back to including all current checkout changes,
 including pre-existing dirty or staged work, after the repaired case passes.
 It reports that fallback and retains it across restart. At close-out it refreshes
 the list; if no changes remain because another owner already committed them,
-it completes successfully without a new commit or push. Outside this fallback, pre-existing
-work remains protected and overlapping close-out refuses rather than including it.
+it completes successfully without a new commit or push. Outside this fallback,
+unrelated unstaged work remains protected. Pre-existing staged work joins the
+repair commit under the [shared Git policy](../docs/Execution-Plans.md#git-close-out-and-recovery).
 Edits left by another repair or diagnostic in the retained launcher run recover
 automatically when recorded session changes and exact fingerprints trace the
 overlapping baseline back to a clean start. The original ownership checkpoints
-remain intact; unrelated edits, mismatched fingerprints and pre-existing staged
-work still refuse. Recovery grants no verification credit to the earlier case.
+remain intact; unrelated unstaged edits and mismatched fingerprints still refuse.
+Recovery grants no verification credit to the earlier case.
 Staging, commit or push failures stop advancement and retain the accepted repair.
 The next invocation with `--resume` retries that close-out before tests or agents, preserving
 branch/upstream identity and recognizing an already-created completion commit.
@@ -1012,13 +1013,12 @@ as `TA: Completed task ID`, then runs `git push` and completes
 [shared worktree propagation](../docs/Execution-Plans.md#shared-worktree-propagation)
 before selecting another task. Optimization commits use the same propagation.
 The push uses the checkout's existing Git remote and branch configuration.
-Git uses literal paths
-and `commit --only` so unrelated staged files remain outside the commit. Agents
-return explicit owned paths and never commit themselves. A path overlapping
-pre-existing staged work refuses close-out rather than committing that work.
-A retained overlap is released after an explicit check-in only when the file's
-working contents, executable mode and index all match HEAD. Uncommitted work
-remains protected. A pending accepted completion takes priority over an older
+Git uses literal task paths and the
+[shared Git policy](../docs/Execution-Plans.md#git-close-out-and-recovery):
+pre-existing staged work joins the completion commit, including on overlapping
+task paths. Other staged files use their index contents, preserving any unstaged
+edits. Agents return explicit owned paths and never commit themselves.
+A pending accepted completion takes priority over an older
 response rejection on restart, preserving its passing checks for Git-only recovery.
 Use `tools/write-e2e --closeout-only` to finish that retained accepted Git
 close-out and leave the next task ready without starting an agent session.

@@ -1357,7 +1357,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                          kiosk_eligible_choices, request_choices, kiosk_no_child,
                          kiosk_no_approver, repeated_operations, challenges)))),
             'smoke:product-free-entry-prerequisites')
-    require(challenge_profile in ('parent', 'fresh-child', 'fresh-child-denied',
+    require(challenge_profile in ('parent', 'fresh-child', 'fresh-child-denied', 'jordan-daily-access',
                                   'countdown-enabled', 'countdown-off', 'countdown-animation', 'countdown-minutes', 'countdown-ticks', 'countdown-session', 'natural-expiry', 'shell-panel',
                                   'overlay-valid-choices', 'overlay-choices', 'choices-overlay-to-kiosk', 'cross-surface', 'overlay-prompt', 'overlay-approved-exit', 'overlay-rejection', 'overlay-license',
                                   'overlay-approval-immediate', 'overlay-translated-approval', 'overlay-flow-rejection', 'overlay-flow-cancel',
@@ -1922,6 +1922,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = {'parent': 'installed-challenges-qualification',
                 'fresh-child': 'installed-fresh-child-allowed-qualification',
                 'fresh-child-denied': 'installed-fresh-child-denied-qualification',
+                'jordan-daily-access': 'installed-jordan-daily-access-qualification',
                 'countdown-enabled': 'installed-countdown-enabled-qualification',
                 'countdown-off': 'installed-countdown-off-qualification',
                 'countdown-animation': 'installed-countdown-animation-qualification',
@@ -2118,7 +2119,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     qualification_class = RepeatedOperationsQualification
                 if challenges:
                     from parent_setup_qualification import (ChallengesQualification,
-                        FreshChildAllowedQualification, FreshChildDeniedQualification,
+                        FreshChildAllowedQualification, FreshChildDeniedQualification, JordanDailyAccessQualification,
                         CountdownQualification, CountdownOffQualification, CountdownAnimationQualification, CountdownMinutesQualification,
                         CountdownTicksQualification, CountdownSessionQualification, NaturalExpiryQualification, ShellPanelQualification,
                         OverlayValidChoicesQualification, OverlayChoicesQualification, ChoicesOverlayToKioskQualification, CrossSurfaceQualification, OverlayLicenseQualification,
@@ -2132,6 +2133,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     qualification_class = {'parent': ChallengesQualification,
                         'fresh-child': FreshChildAllowedQualification,
                         'fresh-child-denied': FreshChildDeniedQualification,
+                        'jordan-daily-access': JordanDailyAccessQualification,
                         'countdown-enabled': CountdownQualification,
                         'countdown-off': CountdownOffQualification,
                         'countdown-animation': CountdownAnimationQualification,

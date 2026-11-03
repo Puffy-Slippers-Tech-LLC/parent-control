@@ -436,7 +436,9 @@ Implementation status: Cases 7 (`daily-only-new`) and 8 (`daily-only-retained`)
 are implemented through `daily_access_case.DailyAccessJourney`,
 `RetainedDailyAccessJourney` and the shared `onpc_allowance_case` worker.
 Both complete bindings passed on Ubuntu 26.04, including task 054's affected
-case-7 regression. Other bindings remain pending.
+case-7 regression. Case 9 (`grant-only-new`) also passed on Ubuntu 26.04 through
+`grant_access_case.GrantAccessJourney` and
+`onpc_allowance_case::grant_only_new`. Other bindings remain pending.
 
 **Change screen limits while starting or returning to a child desktop.** Cases 7, 8, 9, 10, 11, 12.
 
@@ -455,6 +457,15 @@ and Hard launches with limits on and off. The 40-minute allowance-only save
 reads saved settings/balances without another desktop visit. Zero and re-enabled
 zero require the specific retained sign-in time denial; limits off permits the
 same desktop with no countdown. No child logout or replacement desktop occurs.
+
+Case 9 obtains one real 20-minute Jamie approval for Jordan after the initial
+zero-time denial. Fresh Jordan entries at grant-only, 30-minute and zero-daily
+boundaries retain the original grant deadline. Each visit ends with normal
+logout and a return to the same Parent window/settings. Grant comparisons use
+the shared public `time-explanation-refresh-read` operation and controller read
+brackets, so Parent's cached periodic status is never treated as an exact
+current balance. Allowed/Hard launches are sampled with the grant and with
+limits off; off clears the grant and countdown, and re-enabled zero denies entry.
 
 ### E2E-006
 

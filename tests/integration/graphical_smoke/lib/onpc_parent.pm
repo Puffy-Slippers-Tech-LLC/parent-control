@@ -358,7 +358,8 @@ sub open_for_child {
     if (defined($window) && $window eq 'retained') {
         die 'parent:retained-binding' unless (@_ == 6 || @_ == 7) && ref($journey) eq 'onpc_journey'
             && $source eq 'desktop' && ($entry eq 'retained' || $entry eq 'same-user')
-            && $child eq 'child' && defined($invocation) && $invocation =~ /\A[a-z][a-z0-9-]*\z/
+            && ($child eq 'child' || $child eq 'existing')
+            && defined($invocation) && $invocation =~ /\A[a-z][a-z0-9-]*\z/
             && defined($desktop_observation) && $desktop_observation =~ /\A[01]\z/
             && ($desktop_observation || $entry eq 'same-user');
         if ($entry eq 'retained') {

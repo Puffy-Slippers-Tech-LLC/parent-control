@@ -373,6 +373,31 @@ the complete fresh-child history, collection, owned cleanup and baseline
 restoration. Task 054 is complete. Temporary logout diagnostics were removed;
 the earlier intermittent failure did not recur, and no causal fix is claimed.
 
+#### Jordan extra-time access
+
+Complete case 9, `grant_access_case.GrantAccessJourney` /
+`onpc_allowance_case::grant_only_new`, passed on Ubuntu 26.04 through
+`tools/run-tests --vm onpc-Ubuntu26.04 --resume e2e --id '9'` in
+`20261103T080858Z-d022996e`. Jamie's real 20-minute soft-included approval
+permits fresh Jordan entry at zero daily time. The 0→30→0 allowance history
+preserves the original grant deadline, with fresh child entries/countdowns,
+normal logout and the original Jamie/Parent window and settings after each
+visit. Allowed use/normal closure and Hard denial pass with the grant and with
+limits off. Disabling clears the grant and removes the countdown; re-enabling
+zero denies entry without restoring it. Collection, worker/callback shutdown,
+owned cleanup, baseline restoration and final off-state passed.
+
+Grant comparisons use `time-explanation-refresh-read`, which publicly reselects
+the guarded child through `AccessibleUI.reload_revoke_settings` before reading.
+Parent's 30-second periodic display is not an exact current operand. Immutable
+fresh balances and `UiObservations.read_bounds` bracket the actual loads on the
+controller; the original deadline and display precision remain unchanged.
+Approval-start comparisons also use the controller clock on both sides.
+The scoped Jordan/Jamie/1200/soft-included kiosk credential binding retains
+fresh recipient proofs and single-use submission. Host credential/source checks
+passed. Case 10's retained-child history and combined bindings remain pending;
+this complete case supplies no other-family acceptance.
+
 ### Harness transport and serial qualification
 
 These blocks serve **case 1's harness assertions**, not customer product

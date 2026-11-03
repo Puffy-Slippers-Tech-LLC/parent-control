@@ -1226,6 +1226,16 @@ class FreshChildDeniedQualification(ChallengesQualification):
         return FreshChildDeniedJourney(context, progress)
 
 
+class JordanDailyAccessQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from jordan_daily_access import JordanDailyAccessJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return JordanDailyAccessJourney(context, progress)
+
+
 class CountdownQualification(ChallengesQualification):
     present = True
 

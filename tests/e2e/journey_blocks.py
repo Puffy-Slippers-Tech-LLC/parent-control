@@ -357,7 +357,7 @@ def fresh_desktop(account, expected='success', *, product_free=False):
     """
     require(account in ('parent', 'other-child', 'child'), 'journey:desktop-binding')
     require(expected in ('success', 'time-denied') and
-            (expected == 'success' or account == 'child'), 'journey:desktop-result')
+            (expected == 'success' or account in ('child', 'other-child')), 'journey:desktop-result')
     require(type(product_free) is bool and (not product_free or expected == 'success'),
             'journey:desktop-product-binding')
     if account == 'child':
@@ -377,7 +377,8 @@ def fresh_desktop(account, expected='success', *, product_free=False):
                                  else 'ui:gdm-standard-focused'),
             'standard-recipient-qualified': 'ui:gdm-standard-recipient',
             'standard-recipient-rechecked': 'ui:gdm-standard-recipient-rechecked',
-            'desktop': 'ui:standard-desktop',
+            ('desktop' if expected == 'success' else 'denied'):
+                ('ui:standard-desktop' if expected == 'success' else 'ui:gdm-child-time-denied'),
         }
     return {
         'installed-greeter': 'ui:gdm-product-free-list' if product_free else 'ui:gdm-list',
@@ -392,7 +393,7 @@ def desktop_entry(account, *, source, entry, expected='success', source_account=
     """FLOW15 explicit fresh/retained/same/lock entry and independent result."""
     require(account in ('parent', 'child', 'other-child'), 'journey:entry-account')
     require(expected in ('success', 'time-denied') and
-            (expected == 'success' or account == 'child'), 'journey:entry-result')
+            (expected == 'success' or account in ('child', 'other-child')), 'journey:entry-result')
     require((entry == 'fresh' and source == 'gdm')
             or (entry == 'retained' and source in ('gdm', 'desktop'))
             or (entry == 'same' and source == 'desktop' and expected == 'success')

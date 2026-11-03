@@ -659,6 +659,8 @@ run exit cleanup.
 Pipes receive the same final recap as plain text and retain the same owner/result
 semantics.
 
+### Git close-out and recovery
+
 `--check` validates a plan and every unfinished brief without model sessions, VM
 operations or Git changes. The shared ordinary-plan driver first pulls the current
 branch's configured upstream with `git pull --no-rebase --ff --no-edit --no-autostash`,
@@ -682,8 +684,15 @@ to repair, retaining any written commit and its original pull identity. Recovery
 must restore that identity; observing another owner grants no adoption authority.
 Harmless additional response/check metadata is ignored; required result fields,
 passing checks and cleanup remain mandatory.
-Existing staged or unrelated work is excluded; conflicting ownership stops
-close-out with a retained checkpoint. A retained dirty-file baseline no longer
+All committing launchers include pre-existing staged work in the same completion
+commit through the shared Git helper. Stage only the task's explicit paths;
+include other staged files directly from the index, preserving their unstaged
+edits. A task edit on a pre-staged path includes both changes without an ownership
+refusal. The helper checkpoints the combined paths and index entries before
+committing and reuses that exact scope on recovery. Acceptance covers the task,
+not the additional staged work. Unrelated unstaged work remains excluded;
+conflicting unstaged ownership stops close-out with a retained checkpoint.
+A retained dirty-file baseline no longer
 protects a path when its exact captured contents are now committed in HEAD;
 new task edits on that path can close out normally, including after restart.
 An already clean path whose working contents, executable mode and index match
@@ -692,7 +701,7 @@ the captured baseline. Retained checkpoints do not lock clean files to an older
 version. Release these clean paths from inherited and suspended baselines before
 each agent session, including the first session after restart or a reviewed replan,
 before the task can edit them.
-Uncommitted baseline contents and pre-existing staged paths remain protected.
+Unstaged baseline contents on paths that were not pre-staged remain protected.
 Session changes are captured and checkpointed at each turn's exit, including the
 final turn and deleted task briefs, even when the response omits them from
 `stage_paths`. Close-out includes captured paths that still differ from the task's

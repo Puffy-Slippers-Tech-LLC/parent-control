@@ -125,8 +125,8 @@ class RepairCommits:
             if scope['stage_baseline'][path] in owned:
                 del scope['stage_baseline'][path]
                 recovered.append(path)
-        # Keep the original checkpoints as provenance for later repairs/restart.
-        # In particular, never release pre-existing staged work through this path.
+        # Keep original checkpoints as provenance for later repairs/restart.
+        # Shared close-out includes staged work without requiring provenance.
         validate_closeout_ownership(self.root, entry['stage_paths'], scope)
         if recovered:
             print('fix-tests: recovered launcher-owned overlap: ' + ', '.join(recovered), flush=True)

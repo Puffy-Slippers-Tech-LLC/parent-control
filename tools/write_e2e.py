@@ -23,8 +23,8 @@ from launcher_question import (BLOCKER_INSTRUCTIONS, allowance_blocker, validate
 from launcher_runtime import (SessionResultRejected, TaskBudget, add_options, read_session_result,
                               retain_result_rejection, result_recovery_instructions, task_limit,
                               validate_session_result, warn_remaining)
-from launcher_git import (closeout_lock, commit_push_propagate, committed_fingerprints,
-                          git_output, worktree_fingerprint, worktree_snapshot, session_changes)
+from launcher_git import (closeout_lock, commit_push_propagate,
+                          git_output, worktree_snapshot, session_changes)
 
 
 PLAN = 'docs/TestAutomation/E2E-Execution-Plan.md'
@@ -886,18 +886,6 @@ def stage_completion(root, state, result):
     changed = [path for path in state['stage_candidates']
                if path in current and current[path] != state.get('stage_baseline', {}).get(path)]
     paths = [*result['stage_paths'], *changed]
-    overlap = set(paths).intersection(state.get('protected_staged', []))
-    # An explicit check-in can settle the old ownership overlap. A saved path
-    # remains protected until both its working contents/mode and index match
-    # HEAD; merely touching the path in a later commit proves nothing.
-    if overlap and git_output(root, 'rev-parse', '--verify', 'HEAD', check=False).returncode == 0:
-        committed = committed_fingerprints(root, overlap)
-        indexed = set(filter(None, git_output(
-            root, 'diff', '--cached', '--no-renames', '--name-only', '-z', 'HEAD').stdout.split('\0')))
-        overlap = {path for path in overlap if committed[path] is None
-                   or worktree_fingerprint(root / path) != committed[path] or path in indexed}
-    if state.get('commit_required') and overlap:
-        raise ValueError('completion overlaps pre-existing staged work: ' + ', '.join(sorted(overlap)))
     return stage_task(root, paths,
                       require_closeout=not state.get('optimization_session'))
 

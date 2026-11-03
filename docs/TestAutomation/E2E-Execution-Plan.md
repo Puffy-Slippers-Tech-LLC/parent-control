@@ -23,7 +23,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **055 — [Check extra time across child sign-ins](E2E-Tasks/055-case-9.md)**.
+Next task: **056 — [Check extra time in the same child session](E2E-Tasks/056-case-10.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

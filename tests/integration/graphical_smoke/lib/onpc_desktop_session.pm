@@ -170,7 +170,8 @@ sub enter_desktop {
     my ($journey, $source, $account, $entry, $expected, $prefix, $source_account) = @_;
     die 'desk:entry-binding' unless (@_ == 6 || @_ == 7) && ref($journey) eq 'onpc_journey'
         && ($account eq 'parent' || $account eq 'child' || $account eq 'other-child')
-        && ($expected eq 'success' || $expected eq 'time-denied' && $account eq 'child')
+        && ($expected eq 'success' || $expected eq 'time-denied'
+            && ($account eq 'child' || $account eq 'other-child'))
         && $prefix =~ /\A[a-z][a-z0-9-]*\z/
         && (($entry eq 'fresh' && $source eq 'gdm')
             || ($entry eq 'retained' && ($source eq 'gdm' || $source eq 'desktop'))

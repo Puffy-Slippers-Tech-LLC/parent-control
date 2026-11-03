@@ -191,6 +191,19 @@ Report meaningful failures and unresolved work in the normal handoff.
 
 ## Common launcher interface
 
+Public commands using the shared controller accept `--branch NAME`, selecting a
+branch from `config/environment.json`. Without it, the matching `launchers` entry's
+`default_branch` wins, then the invoking checkout's current Git branch. An
+unregistered current branch runs in its invoking checkout. Local placement uses
+the branch's `host` and `repo_root`, verifies the branch is already checked out,
+and launches the destination checkout's controller there. It never switches Git
+branches. Host `enabled` flags govern VM scheduling, not controller placement.
+SSH controller dispatch is a stub that refuses with an explicit message.
+Routing policy lives in the reloadable `launcher_controller.py`; the stable
+bootstrap remains a trampoline. Reloading a retained observer stays attached to
+its original run rather than selecting a new branch. Inspection commands such as
+`--help` use the same branch selection and placement rules.
+
 ```sh
 tools/execute-plan --plan 'docs/Example.md' --check
 tools/execute-plan --plan 'docs/Example.md' --tasks 2

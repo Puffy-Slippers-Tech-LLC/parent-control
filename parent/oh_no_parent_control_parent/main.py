@@ -65,7 +65,8 @@ STATES = (
     {
         "id": "allowed",
         "label": m.ALWAYS_ALLOWED,
-        "icon": "emblem-ok-symbolic",
+        # Available in both Adwaita (Fedora) and Yaru (Ubuntu).
+        "icon": "object-select-symbolic",
         "css": "policy-allowed",
     },
     {

@@ -671,7 +671,7 @@ class ParentWindowTests(unittest.TestCase):
         self.assertEqual(
             [(state["id"], state["icon"], state["css"]) for state in STATES],
             [
-                ("allowed", "emblem-ok-symbolic", "policy-allowed"),
+                ("allowed", "object-select-symbolic", "policy-allowed"),
                 ("permanent", "window-close-symbolic", "policy-hard-blocked"),
                 ("conditional", "dialog-warning-symbolic", "policy-soft-blocked"),
             ],

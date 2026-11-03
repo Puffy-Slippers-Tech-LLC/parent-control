@@ -1087,7 +1087,16 @@ Parent saves `conditional` access instead of `permanent`; no approval is
 prepared. Jordan must still be denied and Riley must independently open and
 submit the same app through the grid.
 The [catalogue](E2E-Building-Blocks.md#application-routes-and-complete-customer-journeys)
-records accepted scopes. Other cases remain pending.
+records accepted scopes.
+
+Case 82 is registered through `app_launch.HARD_COMMAND_PLAN` and the same worker's
+enabled, hard-blocked command binding. Parent gives Jordan 30 daily minutes and
+saves fixture A's precise match with `permanent` access, without an approval.
+Fresh Jordan entry attempts the exact command once and requires an attributed
+permission denial plus complete owned-window absence. After Jordan logs out,
+Riley enters fresh and launches and submits the same executable through the
+command route, with independent draft readback and Riley's policy untouched.
+Remaining bindings are pending.
 
 **Use supported launch routes under each app rule.** Cases 62, 64, 66, 68, 70, 72, 74, 76, 78, 80, 81, 82, 83, 84, 85, 86, 88, 90, 92, 93, 94, 95, 96, 97, 98, 100, 102, 104, 105, 106, 107, 108, 109.
 

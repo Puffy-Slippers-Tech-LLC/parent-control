@@ -255,7 +255,9 @@ def native_blocked_app(role, *, route='command'):
                 if stage not in ('opened', 'submit', 'submitted')},
                 'denied': 'ui:native-grid-denied'}
     require(route == 'command', 'journey:native-route')
-    require(role in ('H', 'S'), 'journey:native-denial-binding')
+    require(role in ('A', 'H', 'S'), 'journey:native-denial-binding')
+    if role == 'A':
+        return {'command': 'ui:native-command-blocked'}
     name = {'H': 'hard', 'S': 'soft'}[role]
     return {'command': 'ui:native-' + name + '-command-blocked'}
 

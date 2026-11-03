@@ -98,29 +98,27 @@ GRID_PLAN = replace(
                    'jordan-command-submitted': 'step-3'},
 )
 
-BLOCKED_JORDAN = {
-    'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
-    **prefixed_stages('jordan-denied', native_blocked_app('A', route='grid')),
-}
-BLOCKED_RILEY = {
-    'jordan-logout': 'system:standard-logout', **RILEY_ENTRY,
-    **prefixed_stages('riley-use', native_usable_app('grid', child='child')),
-}
-
-
-def blocked_grid_plan(rule, access):
+def blocked_plan(rule, access, *, route='grid'):
     policy = policy_edit(MATCH_APP, 'match-precise', access, rule)
     setup = {stage: tag for stage, tag in SETUP.items() if stage not in POLICY}
     setup.update(policy)
+    jordan = {
+        'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
+        **prefixed_stages('jordan-denied', native_blocked_app('A', route=route)),
+    }
+    riley = {
+        'jordan-logout': 'system:standard-logout', **RILEY_ENTRY,
+        **prefixed_stages('riley-use', native_usable_app(route, child='child')),
+    }
     return replace(
-        PLAN, prefix=f'native-grid-{rule}-blocked', worker_mode=f'native_grid_{rule}_blocked',
-        screen_tags={**setup, **BLOCKED_JORDAN, **BLOCKED_RILEY},
+        PLAN, prefix=f'native-{route}-{rule}-blocked', worker_mode=f'native_{route}_{rule}_blocked',
+        screen_tags={**setup, **jordan, **riley},
         phases={'ready': 'setup', 'setup-detached': 'setup',
                 **{stage: 'step-1' for stage in setup}, 'installed-greeter': 'start',
-                **{stage: 'step-2' for stage in BLOCKED_JORDAN},
-                **{stage: 'step-3' for stage in BLOCKED_RILEY}},
+                **{stage: 'step-2' for stage in jordan},
+                **{stage: 'step-3' for stage in riley}},
         advance_after={'installed-greeter': 'step-1', f'{rule}-final-match': 'step-2',
-                       'jordan-denied-denied': 'step-3'},
+                       'jordan-denied-' + ('denied' if route == 'grid' else 'command'): 'step-3'},
         child_bindings={'allowance-configured': 'existing', **{
             stage: 'existing' for stage in policy if stage != f'{rule}-found'}},
         match_checks={f'{rule}-{suffix}': MATCH_RULES[0] for suffix in
@@ -131,12 +129,13 @@ def blocked_grid_plan(rule, access):
     )
 
 
-HARD_GRID_PLAN = blocked_grid_plan('hard', 'permanent')
-SOFT_GRID_PLAN = blocked_grid_plan('soft', 'conditional')
+HARD_GRID_PLAN = blocked_plan('hard', 'permanent')
+SOFT_GRID_PLAN = blocked_plan('soft', 'conditional')
+HARD_COMMAND_PLAN = blocked_plan('hard', 'permanent', route='command')
 
 
-def execute(recorder, context):
-    record_installed_journey(recorder, context, PLAN, timeout=1800,
+def execute(recorder, context, *, plan=PLAN):
+    record_installed_journey(recorder, context, plan, timeout=1800,
                              actions=fixture_actions(include_refusal=False),
                              journey_type=AppPolicyJourney)
 
@@ -164,4 +163,5 @@ E2E_CASES = {'native-command-allowed-enabled': execute,
              'native-grid-hard-blocked-enabled': partial(execute_grid,
                  plan=HARD_GRID_PLAN, case_id='native-grid-hard-blocked-enabled'),
              'native-grid-soft-blocked-enabled': partial(execute_grid,
-                 plan=SOFT_GRID_PLAN, case_id='native-grid-soft-blocked-enabled')}
+                 plan=SOFT_GRID_PLAN, case_id='native-grid-soft-blocked-enabled'),
+             'native-command-hard-blocked-enabled': partial(execute, plan=HARD_COMMAND_PLAN)}

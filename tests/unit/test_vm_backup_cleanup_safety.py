@@ -196,11 +196,19 @@ def backup_rig(rig, tmp_path, monkeypatch):
     config = tmp_path / 'test-vm.json'
     state_root = tmp_path / 'state'
     state_root.mkdir(mode=0o700)
-    config.write_text(json.dumps({'backup_root': str(tmp_path / 'backups'), 'concurrency': 2,
+    config.write_text(json.dumps({'hosts': [
+        {'name': 'local', 'transport': 'local', 'enabled': 'true', 'concurrency': 2,
+         'backup_root': str(tmp_path / 'backups')},
+        {'name': 'future', 'transport': 'ssh', 'enabled': 'false', 'concurrency': 6,
+         'ssh_target': 'future-vm-host', 'backup_root': '/remote/backups'}],
         'families': [{'family': 'backup fixture', 'package_format': 'deb',
                       'fixture_path': 'common/ubuntu/common',
-        'vms': [{'id': '9', 'name': 'Backup-guest', 'disk_anchor': str(rig.anchor), 'enabled': 'true'},
-                {'id': 12, 'name': 'Other-guest', 'disk_anchor': str(tmp_path / 'other.qcow2'), 'enabled': 'false'}]}]}))
+        'vms': [{'id': '9', 'name': 'Backup-guest', 'host': 'local',
+                 'disk_anchor': str(rig.anchor), 'enabled': 'true'},
+                {'id': 12, 'name': 'Other-guest', 'host': 'local',
+                 'disk_anchor': str(tmp_path / 'other.qcow2'), 'enabled': 'true'},
+                {'id': 13, 'name': 'Remote-guest', 'host': 'future',
+                 'disk_anchor': str(rig.anchor), 'enabled': 'true'}]}]}))
     monkeypatch.setattr(vm_config, 'CONFIG', config)
     monkeypatch.setattr(vm_config, 'STATE_ROOT', state_root)
     vm = vm_config.select('9')
@@ -857,7 +865,7 @@ def test_sparse_copy_preserves_bytes_without_inflating_holes(tmp_path):
 
 
 @pytest.mark.parametrize('selector,names', [(None, 'Backup-guest,Other-guest'),
-    ('all-enabled', 'Backup-guest'), ('9,Backup-guest,12', 'Backup-guest,Other-guest')])
+    ('all-enabled', 'Backup-guest,Other-guest'), ('9,Backup-guest,12', 'Backup-guest,Other-guest')])
 def test_backup_dispatches_serial_archive_without_guest_preparation(backup_rig, monkeypatch, selector, names):
     monkeypatch.setattr(launcher, 'check', Mock())
     run = Mock(return_value=SimpleNamespace(returncode=0))
@@ -950,9 +958,11 @@ def test_restore_prepares_auto_only_after_archive_success(backup_rig, monkeypatc
 @pytest.mark.parametrize('value', ['relative', '/', '/path/../backup', '/path//backup', None])
 def test_backup_root_validation_is_shared_with_other_registry_consumers(tmp_path, value):
     config = tmp_path / 'registry.json'
-    config.write_text(json.dumps({'backup_root': value, 'families': [
+    config.write_text(json.dumps({'hosts': [
+        {'name': 'local', 'transport': 'local', 'enabled': 'true', 'concurrency': 2,
+         'backup_root': value}], 'families': [
         {'family': 'fixture', 'package_format': 'deb', 'fixture_path': 'common/ubuntu/common',
-         'vms': [{'name': 'Guest', 'disk_anchor': '/disk'}]}]}))
+         'vms': [{'name': 'Guest', 'host': 'local', 'disk_anchor': '/disk'}]}]}))
     with pytest.raises(ValueError, match='backup_root'):
         vm_config.registry(config)
 
@@ -1127,7 +1137,7 @@ def test_archive_traversal_cannot_write_outside_registered_destinations(backup_r
     assert not rig.connection.definitions
 
 
-def test_vm_lease_refuses_contention_and_closes_owned_descriptors(backup_rig):
+def test_vm_lease_refuses_contention_and_closes_owned_descriptors(backup_rig, monkeypatch):
     commands = base.Commands()
     with recovery.lease(backup_rig.vm, commands):
         descriptor = commands.lock_fd
@@ -1138,6 +1148,32 @@ def test_vm_lease_refuses_contention_and_closes_owned_descriptors(backup_rig):
     assert commands.lock_fd is None and commands.compatibility_fd is None
     with pytest.raises(OSError):
         os.fstat(descriptor)
+    original = base.open_controller_lock
+    before = vm_config.CONFIG.read_text()
+    for field in ('vm', 'host'):
+        document = json.loads(before)
+        if field == 'host':
+            document['hosts'][0]['enabled'] = 'false'
+        else:
+            document['families'][0]['vms'][0]['enabled'] = 'false'
+        descriptors = []
+        with monkeypatch.context() as late:
+            def queued(*args, **kwargs):
+                descriptor = original(*args, **kwargs)
+                descriptors.append(descriptor)
+                vm_config.CONFIG.write_text(json.dumps(document))
+                return descriptor
+            late.setattr(base, 'open_controller_lock', queued)
+            try:
+                with pytest.raises(ValueError, match='offline'):
+                    with recovery.lease(backup_rig.vm, commands):
+                        pytest.fail('offline VM entered archive work after waiting')
+            finally:
+                vm_config.CONFIG.write_text(before)
+        assert commands.lock_fd is None and commands.compatibility_fd is None
+        for descriptor in descriptors:
+            with pytest.raises(OSError):
+                os.fstat(descriptor)
 
 
 def test_nested_preparation_descriptors_keep_outer_vm_lock(backup_rig):
@@ -1425,6 +1461,35 @@ def test_scoped_setup_dispatcher_accepts_only_registered_queue(action, backup_ri
     for args in ([action, '--path', '/etc'], [action, '--vm', 'Unknown'], [action, '--vm', '9', '--vm', '12']):
         with pytest.raises(ValueError):
             helper['command'](checkout, args)
+    # Both host and VM must be online before any selection can acquire it.
+    assert vm_config.execution('all')[0] == 2
+    assert [vm.name for vm in vm_config.execution('all')[1]] == ['Backup-guest', 'Other-guest']
+    assert vm_config.execution()[0] == 2
+    with pytest.raises(ValueError, match='no online enabled VMs'):
+        helper['command'](checkout, [action, '--vm', '13'])
+    with pytest.raises(ValueError, match='offline'):
+        vm_config.require_online(vm_config.registry()['Remote-guest'])
+    document = json.loads(vm_config.CONFIG.read_text())
+    document['hosts'][1]['enabled'] = 'true'
+    vm_config.CONFIG.write_text(json.dumps(document))
+    # Never let a remote selector reach this machine's libvirt or disks.
+    with pytest.raises(ValueError, match='SSH host execution is not implemented'):
+        vm_config.execution('13')
+    with pytest.raises(ValueError, match='SSH host execution is not implemented'):
+        vm_config.load('13')
+    assert vm_config.execution('9,12')[0] == 2
+    document['families'][0]['vms'][1]['enabled'] = 'false'
+    vm_config.CONFIG.write_text(json.dumps(document))
+    assert [vm.name for vm in vm_config.execution('9,12')[1]] == ['Backup-guest']
+    with pytest.raises(ValueError, match='VM Other-guest is offline'):
+        vm_config.require_online(vm_config.load('12'))
+    # Metadata for an owned stop/recovery remains resolvable while offline.
+    assert vm_config.extract(['--vm', '12', 'stop'])[1].name == 'Other-guest'
+    assert vm_config.selected().name == 'Other-guest'
+    vm_config.select('9')
+    document['hosts'][1]['enabled'] = 'false'
+    vm_config.CONFIG.write_text(json.dumps(document))
+    assert [vm.name for vm in vm_config.execution('all')[1]] == ['Backup-guest']
 
 
 def test_moving_backup_root_does_not_invalidate_preparation_proof(tmp_path):
@@ -1436,7 +1501,9 @@ def test_moving_backup_root_does_not_invalidate_preparation_proof(tmp_path):
     before = guest.preparation_digest(tmp_path)
     config = tmp_path / 'config/test-vm.json'
     document = json.loads(config.read_text())
-    document['backup_root'] = '/replacement-drive/backups'
+    document['hosts'][0]['backup_root'] = '/replacement-drive/backups'
+    document['hosts'][0]['concurrency'] = 1
+    document['hosts'][1]['enabled'] = 'true'
     config.write_text(json.dumps(document))
     assert guest.preparation_digest(tmp_path) == before
 

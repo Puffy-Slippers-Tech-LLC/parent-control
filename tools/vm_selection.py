@@ -18,7 +18,7 @@ VARIABLE = vm_config.VARIABLE
 BATCH = 'ONPC_TEST_VM_BATCH'
 WORKER = 'ONPC_TEST_VM_WORKER'
 SELECTOR_HELP = ('VM name or ID, comma-separated names/IDs, all-enabled (default), '
-                 'or all (including disabled VMs); owning_branch restrictions always apply; '
+                 'or all; offline VMs/hosts are always skipped; owning_branch restrictions always apply; '
                  'config concurrency limits active work')
 BASELINE_INSTRUCTIONS = (
     'When authorized baseline preparation is needed in launcher/session work, use '

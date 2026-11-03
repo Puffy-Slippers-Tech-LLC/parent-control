@@ -815,7 +815,7 @@ def test_replacement_or_unowned_attempt_never_receives_vm_actions(lease_rig, mut
     assert lease.source.domain.revertToSnapshot.call_count == 1
 
 
-def test_busy_controller_lock_refuses_even_with_valid_identity(lease_rig):
+def test_busy_controller_lock_refuses_even_with_valid_identity(lease_rig, monkeypatch):
     lease, _ = lease_rig
     lease.view.graphics_type = 'vnc'
     with patch('vm_probe.prepare_maintenance_transport'):
@@ -827,6 +827,36 @@ def test_busy_controller_lock_refuses_even_with_valid_identity(lease_rig):
     finally:
         concurrent.release()
         lease.release()
+    assert lease.source.domain.revertToSnapshot.call_count == 1
+
+    # Direct callers may have passed admission before blocking on this lock.
+    # Read eligibility again once they actually acquire it, before state writes.
+    from dataclasses import replace
+    config = runner.baseline.guest_contract.vm_config
+    selected = config.selected()
+    original = runner.baseline.open_controller_lock
+    journal = lease.journal.read_bytes()
+    for offline in (replace(selected, enabled=False),
+                    replace(selected, host=replace(selected.host, enabled=False))):
+        for admit in (lambda candidate: candidate.__enter__(), control.acquire_idle, control.resume):
+            candidate = reopened(lease)
+            descriptors = []
+            with monkeypatch.context() as late:
+                def queued(*args, **kwargs):
+                    descriptor = original(*args, **kwargs)
+                    descriptors.append(descriptor)
+                    late.setattr(config, 'selected', lambda *a, **k: offline)
+                    return descriptor
+                late.setattr(runner.baseline, 'open_controller_lock', queued)
+                try:
+                    with pytest.raises(ValueError, match='offline'):
+                        admit(candidate)
+                finally:
+                    candidate.release()
+            for descriptor in descriptors:
+                with pytest.raises(OSError):
+                    os.fstat(descriptor)
+    assert lease.journal.read_bytes() == journal
     assert lease.source.domain.revertToSnapshot.call_count == 1
 
 
@@ -855,7 +885,7 @@ def test_dispatcher_refuses_arbitrary_vm_selection_and_actions(argv):
         dispatcher['selection'](root, [*argv, *VM_ARGS])
 
 
-def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
+def test_dispatcher_supplies_installed_uuid_and_no_caller_uri(monkeypatch):
     root = Path(__file__).resolve().parents[2]
     dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
     select = dispatcher['selection']
@@ -893,6 +923,22 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
         for counts in (['0'], ['11'], ['1', '2']):
             with pytest.raises(ValueError):
                 select(root, ['vm', action, *counts, *VM_ARGS])
+
+
+    # New work requires both flags. Owned stop keeps the same downstream UUID,
+    # lease and journal checks even after either flag goes offline.
+    from dataclasses import replace
+    import vm_config
+    vm = vm_config.load(vm_name())
+    setup = runpy.run_path(str(root / 'tools/onpc-setup'))
+    for offline in (replace(vm, enabled=False), replace(vm, host=replace(vm.host, enabled=False))):
+        monkeypatch.setattr(vm_config, 'registry', lambda *args, entry=offline: {entry.name: entry})
+        with pytest.raises(ValueError, match='offline'):
+            select(root, ['vm', 'start', *VM_ARGS])
+        with pytest.raises(ValueError, match='offline'):
+            setup['command'](root, ['prepare-vm', '--mode', 'auto', *VM_ARGS])
+        assert select(root, ['vm', 'stop', *VM_ARGS])[3:] == [
+            *VM_ARGS, '--expected-uuid', UUID, 'stop']
 
 
 @pytest.mark.parametrize('boot', ['a' * 64, 'b' * 64])

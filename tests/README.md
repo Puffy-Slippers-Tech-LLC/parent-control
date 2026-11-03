@@ -289,21 +289,23 @@ launcher, without expanding validation to unrelated host categories.
 VM in `config/test-vm.json` whose `enabled` equals the string `"true"`.
 The [family configuration](integration/Environment.md#shared-vm-configuration)
 defines equivalent workers sharing package format and a fixture directory.
-Its positive integer `concurrency` limits active guests: 1 is serial, 2 permits
+Each host's positive integer `concurrency` limits active guests: 1 is serial, 2 permits
 two simultaneous guests. Every selected case runs once per selected family.
+VMs are eligible only when both VM and host have `enabled: "true"`. Every queue
+selection skips offline entries; direct maintenance refuses before access.
 Each available VM atomically claims the next pending work from its family's
 queue, including when the family has only one VM. Claims are recorded before
 execution, preventing concurrent duplicate cases; credit follows teardown and
 owned cleanup. Stateful histories remain indivisible, as do independent system
 area attempts that share preparation. Cancellation stops queued work and waits
 for active guests' cleanup. `--vm` accepts one name or ID, a comma-separated
-list, `all-enabled`, or `all`. Explicit entries and `all` include disabled VMs.
+list, `all-enabled`, or `all`. All selectors require both enabled flags.
 All queues omit VMs reserved for another Git branch through the optional
 per-VM `owning_branch` field; explicit mismatched names/IDs refuse checkout. An omitted
 or empty `owning_branch` permits any branch. See the
 [branch selection contract](../docs/Mandates/VM-Mandate.MD#target-selection).
 Baseline and app-snapshot preparation use the same selector and rolling scheduler,
-with `tools/prepare-vm` defaulting to `all` (including disabled VMs) in both
+with `tools/prepare-vm` defaulting to `all` online VMs in both
 modes and app-snapshot preparation defaulting to enabled VMs; see the
 [VM mandate](../docs/Mandates/VM-Mandate.MD#authority-and-operation).
 All `--vm` options and Make `VM=` parameters accept either the exact configured

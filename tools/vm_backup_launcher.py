@@ -30,12 +30,13 @@ def main(action, argv=None):
         'Restore complete VM backups, then run prepare-vm --mode auto.'), allow_abbrev=False)
     parser.add_argument('--vm', default='all', help=(
         'VM name or ID, comma-separated names/IDs, all-enabled, or all (default; '
-        'includes disabled VMs). Archive copying/restoration is serial; restored VM '
+        'offline VMs/hosts are skipped). Archive copying/restoration is serial; restored VM '
         'preparation uses registry concurrency.'))
     args = parser.parse_args(argv)
     try:
         _, vms = vm_config.execution(args.vm)
-        vm_config.backup_root()
+        for vm in vms:
+            vm_config.backup_root(vm=vm)
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
         check(HELPER)

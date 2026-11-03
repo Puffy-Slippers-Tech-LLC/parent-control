@@ -353,12 +353,16 @@ def preparation_source_digest(read, files):
             # Archive location is host-only and may change on a replacement
             # machine without changing any prepared guest input.
             document.pop('backup_root', None)
+            # Host availability, capacity, SSH aliases and archive locations
+            # describe the controller, not prepared guest contents.
+            document.pop('hosts', None)
             for family in document.get('families', []):
                 # Movable fixture selection belongs to runtime artifact inputs.
                 family.pop('fixture_path', None)
                 for entry in family['vms']:
                     entry.pop('id', None)
                     entry.pop('enabled', None)
+                    entry.pop('host', None)
             contents = json.dumps(document, sort_keys=True, separators=(',', ':')).encode('utf-8')
         digest.update(relative.encode("utf-8") + b"\0")
         digest.update(len(contents).to_bytes(8, "big"))

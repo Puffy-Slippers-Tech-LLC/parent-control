@@ -183,13 +183,15 @@ def checkout(vm):
         os.close(fd)
 
 
-def keep(vm, *, incoming=0, output=sys.stdout, wait=True):
+def keep(vm, *, incoming=0, output=sys.stdout, wait=True, ready=None):
     """Privileged keeper. EOF checks in; active commands retain their locks."""
     fd = None
     try:
         held = binding()
         token = held[1] if held else uuid.uuid4().hex
         fd = acquire(vm, wait=wait) if held else _take(vm, incoming, token, wait=wait)
+        if ready is not None:
+            ready()
         print(json.dumps({'checkout': vm + ':' + token}), file=output, flush=True)
         while os.read(incoming, 1):
             pass
@@ -210,6 +212,8 @@ def reservation(name, *, stopped=None, bind=True, wait=True):
     from vm_selection import vm_config
     configured = vm_config.load(name)
     held = binding()
+    if held is None:
+        vm_config.require_online(configured)
     if held is None and configured.owning_branch:
         vm_config.require_branch(configured, vm_config.current_branch())
     def cancelled():
@@ -306,6 +310,8 @@ def host_main(argv=None):
     parser.add_argument('--expected-uuid')
     parser.add_argument('--no-wait', action='store_true')
     args = parser.parse_args(argv)
+    if binding() is None:
+        vm_config.require_online(vm)
     import libvirt
     connection = libvirt.open(vm_config.URI)
     try:
@@ -314,7 +320,20 @@ def host_main(argv=None):
             raise ValueError('vm-pool: configured VM identity changed')
     finally:
         connection.close()
-    return keep(vm_uuid, wait=not args.no_wait)
+    def ready():
+        # Queueing is not acquisition: recheck eligibility before granting work.
+        current = vm_config.load(vm.name)
+        if binding() is None:
+            vm_config.require_online(current)
+            if current.owning_branch:
+                vm_config.require_branch(current, vm_config.current_branch())
+        verified = libvirt.open(vm_config.URI)
+        try:
+            if identity(verified.lookupByName(current.name).UUIDString()) != vm_uuid:
+                raise ValueError('vm-pool: configured VM identity changed while queued')
+        finally:
+            verified.close()
+    return keep(vm_uuid, wait=not args.no_wait, ready=ready)
 
 
 if __name__ == '__main__':

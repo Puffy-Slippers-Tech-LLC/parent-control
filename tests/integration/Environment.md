@@ -9,6 +9,32 @@ another baseline, download a new image, or create a replacement domain.
 
 [config/test-vm.json](../../config/test-vm.json) is the single configuration for
 guest preparation, host capture, installed-system/E2E runners and VM maintenance.
+Its tracked `hosts` array declares each host's unique `name`, `transport`
+(`local` or `ssh`), string `enabled`, positive integer `concurrency`, and optional
+absolute `backup_root` (required for backup/restore). Each VM's `host` names one
+of these entries. Only one host may use `local` transport. Disk paths and backup
+paths belong to the named host; disk anchors must be unique within that host.
+Host or VM `enabled: "false"` means offline: all queue selections, including
+explicit lists and `all`, skip such VMs. Direct maintenance refuses offline
+entries before VM access. Registry discovery remains read-only and
+includes offline hosts' VMs.
+An already-owned stop/recovery may resolve offline metadata and finish its
+identity-checked cleanup. Availability changes do not erase accepted UUID pins.
+
+SSH entries require `ssh_target`, a logical alias resolved through private
+OpenSSH configuration. Keep addresses, usernames, keys, passwords and `.envrc`
+outside Git; the registry contains no SSH credentials. SSH execution is not yet
+implemented: online SSH selections explicitly refuse instead of accessing local
+libvirt. The disabled SSH entry may remain tracked while the host is unavailable.
+Future SSH execution will use the same absolute checkout path on the VM host
+as on the initiating laptop; no separate remote checkout path is configured.
+Current execution supports the local host, with its own concurrency and backup
+root. Legacy registries without `hosts` retain their implicit local host and
+top-level concurrency/backup settings; do not mix the two layouts.
+The controller stays on the laptop. Future SSH hosts will run VM operations;
+scheduling, assertions, builds and coding agents remain local. Implementing that
+remote execution path is separate work when the new host is available.
+
 Its `families` array groups equivalent VMs. Each family has an opaque literal
 `family` label, an explicit `package_format` (`deb` or `rpm`), a `fixture_path`
 relative to `tests/fixtures`, and a `vms` array. Family names are not parsed or
@@ -25,7 +51,8 @@ Test and preparation selection follow the
 [VM mandate](../../docs/Mandates/VM-Mandate.MD#authority-and-operation): optional
 `--vm` accepts names/IDs, lists, `all-enabled`, or `all`, defaulting to enabled
 entries except `tools/prepare-vm`, which defaults to `all` in both modes,
-including disabled entries. The positive integer `concurrency` limits simultaneous operations,
+always requiring both VM and host enabled. The host's positive integer
+`concurrency` limits simultaneous operations,
 refilling each free slot immediately. Maintenance still requires one explicit
 selector, matching a configured name exactly, including case.
 Workers inherit validated selections; there is no
@@ -62,7 +89,7 @@ workflow and deletion of **all versioned app snapshots**, including release-deri
 names with or without the `v` prefix. By default, only an explicit `y` proceeds;
 `n` or end of input exits without guest or snapshot changes. `--y` suppresses
 the y/n prompt while retaining the warning and every safety check. An omitted
-`--vm` selects all registered VMs, including disabled entries, in both auto and
+`--vm` selects all eligible online VMs in both auto and
 manual modes; multiple VMs are confirmed together before work.
 After
 confirmation or `--y`, those app snapshots are deleted without recursively
@@ -738,8 +765,8 @@ The [`backupvm`](../../tools/backupvm) and
 local administrator after ordinary `./setup.sh` on a replacement host, or
 `./setup.sh --test-tools-only` to refresh existing development helpers.
 They accept the same `--vm` names, IDs, comma-separated lists, `all-enabled`
-and `all` selectors as baseline preparation. Their default is **all**, including
-disabled entries. IDs resolve from the current registry on every invocation.
+and `all` selectors as baseline preparation. Their default is **all** eligible
+online VMs. IDs resolve from the current registry on every invocation.
 
 ```sh
 tools/backupvm

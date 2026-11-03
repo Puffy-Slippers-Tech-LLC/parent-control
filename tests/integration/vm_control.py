@@ -48,6 +48,7 @@ def acquire_idle(lease):
     lease.compatibility_fd = base.compatibility_lock(lease.directory)
     lock = lease.capture.lock_path
     lease.fd = base.open_controller_lock(lock, vm_uuid=lease.source.uuid)
+    base.guest_contract.vm_config.require_online(base.guest_contract.vm_config.selected())
     base.identity(lock, private=True, mode=0o600)
     base.bind_controller(lease.commands, lease.fd, lease.compatibility_fd)
     lease.capture.state = lease.capture.read_state()
@@ -185,6 +186,8 @@ def resume(lease, *, stopping=False, recovery_instance=None, fixture_maintenance
     lease.compatibility_fd = base.compatibility_lock(lease.directory)
     lock = lease.capture.lock_path
     lease.fd = base.open_controller_lock(lock, vm_uuid=lease.source.uuid)
+    if not stopping and recovery_instance is None:
+        base.guest_contract.vm_config.require_online(base.guest_contract.vm_config.selected())
     base.identity(lock, private=True, mode=0o600)
     base.bind_controller(lease.commands, lease.fd, lease.compatibility_fd)
     lease.capture.state = lease.capture.read_state()
@@ -467,6 +470,9 @@ def main(argv=None):
         runner.require(os.geteuid() == os.getegid() == 0 and
                        Path.cwd() == runner.ROOT == runner.baseline.guest_contract.CHECKOUT,
                        'vm-control:root-checkout-required')
+        if args.action not in ('stop', 'recover-online'):
+            runner.baseline.guest_contract.vm_config.require_online(
+                runner.baseline.guest_contract.vm_config.selected())
         runner.require(re.fullmatch(r'[0-9a-f-]{36}', args.expected_uuid) and
                        ((args.action == 'send-key' and 1 <= len(args.keys) <= 16 and
                          all(1 <= key <= 255 for key in args.keys)) or

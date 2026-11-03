@@ -855,6 +855,7 @@ class Lease:
             self.capture.directory_identity = self.capture.private_directory()
             self.compatibility_fd = baseline.compatibility_lock(self.directory)
             self.fd = baseline.open_controller_lock(self.capture.lock_path, vm_uuid=self.source.uuid)
+            baseline.guest_contract.vm_config.require_online(baseline.guest_contract.vm_config.selected())
             baseline.identity(self.capture.lock_path, private=True, mode=0o600)
             baseline.bind_controller(self.commands, self.fd, self.compatibility_fd)
             from e2e_watch import begin

@@ -19,6 +19,16 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 @dataclass(frozen=True)
+class HostConfig:
+    name: str = 'local'
+    enabled: bool = True
+    transport: str = 'local'
+    concurrency: int = 1
+    backup_root: Path | None = None
+    ssh_target: str | None = None
+
+
+@dataclass(frozen=True)
 class VMConfig:
     name: str
     disk_anchor: Path
@@ -28,6 +38,7 @@ class VMConfig:
     family: str | None = None
     fixture_path: str | None = None
     owning_branch: str = ''
+    host: HostConfig = HostConfig()
 
     def require_package_format(self):
         # Consumers must never infer a format from a VM or family name.
@@ -71,12 +82,78 @@ def read_document(path=None):
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise ValueError('vm-config:unreadable; check config/test-vm.json') from error
     if (not isinstance(document, dict) or not {'families'} <= set(document) or
-            not set(document) <= {'families', 'concurrency', 'backup_root'} or
+            not set(document) <= {'families', 'concurrency', 'backup_root', 'hosts'} or
             not isinstance(document['families'], list) or not document['families']):
         raise ValueError('vm-config:fields')
     if 'backup_root' in document:
         absolute_path(document['backup_root'], 'backup_root')
+    host_registry(document)
     return document
+
+
+def host_registry(document):
+    """Validate tracked host metadata without contacting any host.
+
+    Older single-host registries remain readable for retained archives/fixtures.
+    SSH aliases resolve privately through the caller's OpenSSH configuration.
+    """
+    if 'hosts' not in document:
+        entries = [dict(name='local', enabled='true', transport='local',
+                        concurrency=document.get('concurrency', 1),
+                        **({'backup_root': document['backup_root']} if 'backup_root' in document else {}))]
+    else:
+        if 'concurrency' in document or 'backup_root' in document:
+            raise ValueError('vm-config:concurrency and backup_root belong to hosts')
+        entries = document['hosts']
+    if not isinstance(entries, list) or not entries:
+        raise ValueError('vm-config:hosts must be a nonempty array')
+    hosts = {}
+    for entry in entries:
+        if (not isinstance(entry, dict) or
+                not {'name', 'enabled', 'transport', 'concurrency'} <= set(entry) or
+                not set(entry) <= {'name', 'enabled', 'transport', 'concurrency', 'backup_root', 'ssh_target'}):
+            raise ValueError('vm-config:host fields')
+        name = validate_name(entry['name'])
+        if name in hosts:
+            raise ValueError('vm-config:duplicate-host')
+        if entry['enabled'] not in ('true', 'false'):
+            raise ValueError('vm-config:host enabled must be the string true or false')
+        concurrency = entry['concurrency']
+        if type(concurrency) is not int or concurrency < 1:
+            raise ValueError('vm-config:host concurrency must be a positive integer')
+        transport = entry['transport']
+        target = entry.get('ssh_target')
+        if transport not in ('local', 'ssh'):
+            raise ValueError('vm-config:host transport must be local or ssh')
+        if transport == 'ssh':
+            if not isinstance(target, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', target):
+                raise ValueError('vm-config:ssh_target must be an SSH configuration alias')
+        elif 'ssh_target' in entry:
+            raise ValueError('vm-config:local host cannot have ssh_target')
+        root = absolute_path(entry['backup_root'], 'backup_root') if 'backup_root' in entry else None
+        hosts[name] = HostConfig(name, entry['enabled'] == 'true', transport, concurrency, root, target)
+    if sum(host.transport == 'local' for host in hosts.values()) > 1:
+        raise ValueError('vm-config:only one local host is allowed')
+    return hosts
+
+
+def require_available(vm):
+    if not vm.host.enabled:
+        raise ValueError(f'vm-config:host {vm.host.name} is offline (VM {vm.name})')
+    if not vm.enabled:
+        raise ValueError(f'vm-config:VM {vm.name} is offline (enabled is false)')
+    return vm
+
+
+def require_online(vm):
+    return require_local(require_available(vm))
+
+
+def require_local(vm):
+    if vm.host.transport != 'local':
+        raise ValueError(f'vm-config:SSH host execution is not implemented: {vm.host.name}; '
+                         'refusing local VM access')
+    return vm
 
 
 def fixture_targets(path=None):
@@ -134,18 +211,19 @@ def absolute_path(value, field):
     return Path(value)
 
 
-def backup_root(path=None):
-    value = read_document(path).get('backup_root')
-    if value is None:
+def backup_root(path=None, *, vm=None):
+    hosts = host_registry(read_document(path))
+    host = hosts[vm.host.name] if vm is not None else next(
+        (host for host in hosts.values() if host.transport == 'local'), None)
+    if host is None or host.backup_root is None:
         raise ValueError('vm-config:backup_root is required for VM backup/restore')
-    return absolute_path(value, 'backup_root')
+    return host.backup_root
 
 
 def configuration(path=None):
     document = read_document(path)
-    concurrency = document.get('concurrency', 1)
-    if type(concurrency) is not int or concurrency < 1:
-        raise ValueError('vm-config:concurrency must be a positive integer')
+    hosts = host_registry(document)
+    concurrency = sum(host.concurrency for host in hosts.values() if host.enabled)
     result = {}
     anchors = set()
     ids = set()
@@ -156,11 +234,12 @@ def configuration(path=None):
             raise ValueError('vm-config:duplicate-family')
         families.add(family['family'])
         for entry in family['vms']:
-            configured = validate_entry(entry, family)
-            if configured.name in result or configured.disk_anchor in anchors:
+            configured = validate_entry(entry, family, hosts, explicit_hosts='hosts' in document)
+            anchor = (configured.host.name, configured.disk_anchor)
+            if configured.name in result or anchor in anchors:
                 raise ValueError('vm-config:duplicate-vm-or-disk')
             result[configured.name] = configured
-            anchors.add(configured.disk_anchor)
+            anchors.add(anchor)
             if configured.id is not None:
                 if configured.id in ids:
                     raise ValueError('vm-config:duplicate-id')
@@ -187,24 +266,26 @@ def resolve(name, configured):
 
 
 def execution(name=None, path=None):
-    """Resolve a finite queue; explicit selections also admit disabled entries."""
-    concurrency, configured = configuration(path)
+    """Only VMs whose own flag and host flag are true may be acquired."""
+    _, configured = configuration(path)
     branch = current_branch() if any(vm.owning_branch for vm in configured.values()) else None
-    if name is None or name == 'all-enabled':
+    if name is None or name in ('all-enabled', 'all'):
         vms = tuple(vm for vm in configured.values()
-                    if vm.enabled and (not vm.owning_branch or vm.owning_branch == branch))
-    elif name == 'all':
-        vms = tuple(vm for vm in configured.values()
-                    if not vm.owning_branch or vm.owning_branch == branch)
+                    if vm.host.enabled and vm.enabled and (not vm.owning_branch or vm.owning_branch == branch))
     else:
         # Resolve the whole request before work, deduplicating aliases in order.
         vms = tuple({vm.name: vm for vm in
                      (resolve(value, configured) for value in name.split(','))}.values())
+        vms = tuple(vm for vm in vms if vm.enabled and vm.host.enabled)
         for vm in vms:
             require_branch(vm, branch)
     if not vms:
-        raise ValueError('vm-config:no enabled VMs available for this branch in config/test-vm.json')
-    return min(concurrency, len(vms)), vms
+        raise ValueError('vm-config:no online enabled VMs available for this selection/branch in config/test-vm.json')
+    for vm in vms:
+        require_online(vm)
+    # Only the single local host can execute today. Offline/unselected host
+    # capacity must not increase its worker limit.
+    return min(vms[0].host.concurrency, len(vms)), vms
 
 
 def current_branch():
@@ -230,12 +311,16 @@ def require_branch(vm, branch):
                          f'current branch is {branch!r}')
 
 
-def validate_entry(document, family):
+def validate_entry(document, family, hosts=None, *, explicit_hosts=False):
     if (not isinstance(document, dict) or
             not {'name', 'disk_anchor'} <= set(document) or
-            not set(document) <= {'name', 'disk_anchor', 'enabled', 'id', 'owning_branch'}):
+            not set(document) <= {'name', 'disk_anchor', 'enabled', 'id', 'owning_branch', 'host'}):
         raise ValueError('vm-config:fields')
     name = validate_name(document['name'])
+    hosts = {'local': HostConfig()} if hosts is None else hosts
+    host_name = document.get('host', None if explicit_hosts else 'local')
+    if not isinstance(host_name, str) or host_name not in hosts:
+        raise ValueError('vm-config:VM host must name a configured host')
     value = document['disk_anchor']
     absolute_path(value, 'disk-anchor')
     enabled = document.get('enabled', 'false')
@@ -252,11 +337,13 @@ def validate_entry(document, family):
         if not isinstance(identifier, str) or not re.fullmatch(r'[1-9][0-9]*', identifier):
             raise ValueError('vm-config:id must be a positive decimal integer or string')
     return VMConfig(name, Path(value), enabled == 'true', identifier,
-                    family['package_format'], family['family'], family['fixture_path'], owning_branch)
+                    family['package_format'], family['family'], family['fixture_path'], owning_branch,
+                    hosts[host_name])
 
 
 def load(name=None, path=None):
-    return resolve(name, registry(path))
+    # Availability gates new work, never metadata needed for owned cleanup.
+    return require_local(resolve(name, registry(path)))
 
 
 def selected(*, required=True):

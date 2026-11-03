@@ -90,6 +90,17 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     controls = argv[:argv.index('--')] if '--' in argv else argv
     argv, configured = vm_config.extract(argv, required='--list' not in controls,
                                           path=root / 'config/test-vm.json')
+    if configured is not None and '--list' not in controls:
+        # Offline flags prohibit new work. Recorded stop/recovery still passes
+        # its existing UUID, journal and lease checks before cleanup.
+        cleanup = (argv[:2] in (['vm', 'stop'], ['vm', 'recover-online']) or
+                   (argv[:1] == ['system'] and len(argv) > 1 and
+                    argv[1].removesuffix('.py') in (
+                        'check_test_recovery', 'check_graphical_recovery', 'check_system_recovery')))
+        from vm_pool import binding
+        borrowing = argv[:1] == ['pool'] and binding() is not None
+        if not cleanup and not borrowing:
+            vm_config.require_online(configured)
     identity = VM_UUIDS.get(configured.name) if configured is not None else None
     vm_args = ['--vm', configured.name] if configured is not None else []
     if argv in (['pool'], ['pool', '--no-wait']):
@@ -497,6 +508,8 @@ def run(root, argv, caller):
             return control.run(command, cwd=root, env=environment, owned_group=True)
     if argv[:1] in (['pool'], ['disk']):
         environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}
+        if argv[:1] == ['pool']:
+            environment['PKEXEC_UID'] = str(caller.pw_uid)
         if vm_pool.VARIABLE in os.environ:
             environment[vm_pool.VARIABLE] = os.environ[vm_pool.VARIABLE]
         return subprocess.run(selection(root, argv), cwd=root, env=environment,
@@ -609,7 +622,7 @@ def main():
         return run(Path(CHECKOUT), sys.argv[1:], pwd.getpwuid(uid))
     except (ValueError, KeyError, OSError) as error:
         detail = str(error) if isinstance(error, ValueError) and str(error).startswith(
-            ('retention:', 'test-runner:')) else type(error).__name__
+            ('retention:', 'test-runner:', 'vm-config:')) else type(error).__name__
         print('test-runner: ' + detail, file=sys.stderr)
         return 2
 

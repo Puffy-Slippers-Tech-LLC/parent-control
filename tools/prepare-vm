@@ -25,7 +25,7 @@ def arguments(argv=None):
                         help='auto: restore baseline and update guest; manual: prepare current VM state')
     parser.add_argument('--vm', default='all',
                         help=SELECTOR_HELP.replace('all-enabled (default)', 'all-enabled').replace(
-                            'all (including disabled VMs)', 'all (default, including disabled VMs)'))
+                            'or all;', 'or all (default);'))
     parser.add_argument('--y', action='store_true',
                         help='proceed without y/n confirmation; use for authorized launcher/session work')
     parser.epilog = help_message()

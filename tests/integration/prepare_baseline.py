@@ -1064,6 +1064,7 @@ class Capture:
                                     for item in _pool_descriptors.values()),
                 'state:busy-controller; nested stages must borrow controller_scope')
         with nullcontext() if borrowing else checkout(vm_uuid):
+            guest_contract.vm_config.require_online(guest_contract.vm_config.selected())
             return self.run_owned(replace_missing=replace_missing, refresh=refresh,
                                   mode=mode, confirm=confirm)
 
@@ -1084,6 +1085,7 @@ class Capture:
         try:
             vm_uuid = getattr(self.source, 'uuid', None) or self.source.snapshot()[0]['uuid']
             fd = open_controller_lock(self.lock_path, vm_uuid=vm_uuid)
+            guest_contract.vm_config.require_online(guest_contract.vm_config.selected())
             identity(self.lock_path, private=True, mode=0o600)
             bind_controller(self.commands, fd, compatibility)
             from e2e_watch import begin
@@ -1400,6 +1402,7 @@ def main(argv=None):
             log("tools:available")
             return 0
         require(os.geteuid() == os.getegid() == 0, "guard:root; run tools/prepare-vm on the development host")
+        guest_contract.vm_config.require_online(guest_contract.vm_config.selected())
         # libvirt requires continuous event dispatch to answer server keepalives,
         # including during hashing, libguestfs inspection and QEMU checks.
         # The process-lifetime daemon also drains callbacks after close().

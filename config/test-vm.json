@@ -1,6 +1,21 @@
 {
-  "concurrency": 2,
-  "backup_root": "/Data/virt-manager/backups/onpc",
+  "hosts": [
+    {
+      "name": "local",
+      "enabled": "true",
+      "transport": "local",
+      "concurrency": 2,
+      "backup_root": "/Data/virt-manager/backups/onpc"
+    },
+    {
+      "name": "onpc-vm-host",
+      "enabled": "false",
+      "transport": "ssh",
+      "ssh_target": "onpc-vm-host",
+      "backup_root": "/Data/virt-manager/backups/onpc",
+      "concurrency": 6
+    }
+  ],
   "families": [
     {
       "family": "ubuntu26.04",
@@ -11,6 +26,7 @@
           "id": "10",
           "name": "onpc-Ubuntu26.04",
           "enabled": "true",
+          "host": "local",
           "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04.qcow2",
           "owning_branch": ""
         }
@@ -25,6 +41,7 @@
           "id": "20",
           "name": "onpc-Fedora44",
           "enabled": "true",
+          "host": "local",
           "disk_anchor": "/Data/virt-manager/onpc-Fedora44.qcow2",
           "owning_branch": ""
         }

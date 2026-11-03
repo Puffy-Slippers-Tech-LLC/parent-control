@@ -311,9 +311,10 @@ adding general snapshot or libvirt permissions.
 Automation and agent sessions include `--y` for authorized preparation.
 Manual work omits `--y` to confirm before preparation. Selection and rolling
 concurrency follow the [VM mandate](Mandates/VM-Mandate.MD#authority-and-operation),
-including lists, `all-enabled` and `all`. Omitting `--vm` selects `all`, including
-disabled VMs, for baseline preparation in both modes; app-snapshot preparation
-defaults to enabled VMs. The flag preserves all authorization, lease, ownership and validation checks.
+including lists, `all-enabled` and `all`. Omitting `--vm` selects `all` eligible
+online VMs for baseline preparation in both modes; app-snapshot preparation
+uses the same eligibility rule. Both VM and host enabled flags must be true.
+The flag preserves all authorization, lease, ownership and validation checks.
 Standalone app snapshots are always online; there is no `--mode` parameter.
 `--overwrite` defaults to `true`; supplying the flag without a value also means
 `true`. Automation and agent sessions must explicitly pass `--overwrite true`
@@ -834,8 +835,8 @@ transcript. Setup refresh installs this route and any missing OpenSSH client via
 `./setup.sh --test-tools-only`, without new Polkit actions or general SSH grants.
 The direct `tools/test-vm` and `./tools/test-vm` prefixes already approve every
 guest command after `exec --`, including guest shells and interpreters, for
-current configured IDs and names. Probing any entry in `config/test-vm.json`
-has standing user authorization, including entries disabled for test scheduling;
+current configured IDs and names. Probing eligible entries in `config/test-vm.json`
+has standing user authorization; both VM and host must have `enabled: "true"`;
 do not request command approval or developer confirmation. The installed
 test-runner Polkit rule grants the active local administrator automatically,
 with the designated headless account additionally permitted by the explicit

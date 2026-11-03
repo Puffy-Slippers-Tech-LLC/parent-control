@@ -288,6 +288,7 @@ def lease(vm, commands, *, vm_uuid=None):
                 finally:
                     source.close()
         fd = base.open_controller_lock(vm.baseline_directory / '.lock', vm_uuid=vm_uuid)
+        vm_config.require_online(vm_config.load(vm.name))
         base.identity(vm.baseline_directory / '.lock', private=True, mode=0o600)
         base.bind_controller(commands, fd, compatibility)
         # Use the normal persistent off-VM display feed. Viewing never controls
@@ -1155,7 +1156,9 @@ def main(argv=None):
         require(os.geteuid() == os.getegid() == 0 and int(os.environ.get('PKEXEC_UID', '0')) > 0,
                 'use-tools-backupvm-or-restorevm')
         _, vms = vm_config.execution(args.vm)
-        root = vm_config.backup_root()
+        # Execution currently admits only the single local host. Validate its
+        # configured archive root before importing APIs or opening any disks.
+        root = vm_config.backup_root(vm=vms[0])
         require(all(root != vm.disk_anchor.parent and not vm.disk_anchor.parent.is_relative_to(root)
                     for vm in vms) and root != vm_config.STATE_ROOT and
                     not root.is_relative_to(vm_config.STATE_ROOT) and

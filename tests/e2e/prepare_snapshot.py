@@ -57,6 +57,7 @@ def probe(expected_uuid, *, overwrite=True):
     source = None
     try:
         fd = base.open_controller_lock(lock_path, vm_uuid=expected_uuid)
+        base.guest_contract.vm_config.require_online(base.guest_contract.vm_config.selected())
         source, _ = open_source()
         check_identity(source, expected_uuid)
         package_format = preparation_format(source, commands)

@@ -192,6 +192,23 @@ def test_receipt_can_rejoin_idle_vm_but_never_a_newer_checkout(pool, monkeypatch
         os.close(vm_pool.acquire(A))
     finally:
         finish(replacement)
+    import io
+    output = io.StringIO()
+    incoming, writer = os.pipe()
+    os.close(writer)
+    def refused():
+        raise ValueError('offline after admission')
+    try:
+        with pytest.raises(ValueError, match='offline after admission'):
+            vm_pool.keep(A, incoming=incoming, output=output, ready=refused)
+        assert output.getvalue() == ''
+    finally:
+        os.close(incoming)
+    successor = launch(pool)
+    try:
+        assert ready(successor) == b'acquired\n'
+    finally:
+        finish(successor)
 
 
 def test_owned_host_command_retains_checkout_after_controller_exit(pool, tmp_path):

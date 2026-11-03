@@ -18,8 +18,14 @@ grants or bypass a missing prerequisite or grant.
 ### Target selection
 
 Select from [the VM registry](../../config/test-vm.json) using the tool's supported
-selector. The enabled default means entries whose `enabled` is the string
-`"true"`; an explicit name/ID or `all` also includes disabled entries.
+selector. A VM is eligible only when both its own `enabled` and its host's
+`enabled` are the string `"true"`. Otherwise it is offline: every queue selector,
+including explicit lists and `all`, skips it. An empty selection or direct
+maintenance of one offline VM refuses before access.
+Already-owned stop/recovery retains its guarded cleanup route after a flag is
+disabled; it does not authorize starting new work on that VM.
+The [host configuration](../../tests/integration/Environment.md#shared-vm-configuration)
+owns transport availability and the tracked/private configuration boundary.
 
 Each VM may specify `owning_branch`: omitted or `""` allows any branch; a nonempty
 value reserves that VM for the exact Git branch name in the invoking checkout
@@ -35,9 +41,9 @@ and cleanup.
 | Tool | Explicit selector | When omitted | Scheduling |
 | --- | --- | --- | --- |
 | `tools/run-tests`, `tools/fix-tests` | Name/ID, comma-separated list, `all-enabled`, `all` | Enabled queue for VM work | Registry concurrency cap |
-| `tools/prepare-vm` | Same queue selectors | `all`, including disabled entries, in both modes | Registry concurrency cap; isolated workers |
+| `tools/prepare-vm` | Same queue selectors | `all` online entries, in both modes | Registry concurrency cap; isolated workers |
 | `tools/prepare-appsnapshot` | Same queue selectors | Enabled queue | Registry concurrency cap; isolated workers |
-| `tools/backupvm`, `tools/restorevm` | Same queue selectors | `all`, including disabled entries | Archive work is serial; preparation after restore uses registry concurrency |
+| `tools/backupvm`, `tools/restorevm` | Same queue selectors | `all` online entries | Archive work is serial; preparation after restore uses registry concurrency |
 | `tools/write-e2e` | One registered name or ID | Enabled queue | Registry concurrency cap |
 | `tools/cleanup-e2e` | Same queue selectors, or `--host-only` for no VM access | Enabled queue | Serial; stops on a cleanup failure |
 | `tools/test-vm` maintenance | One registered name or ID | Refuses maintenance without an explicit target | One owned target |
@@ -51,7 +57,7 @@ Controllers retain canonical names for leases, UUID pins and active-run ownershi
 never a saved ID mapping. Queue selectors do not imply that every Make entry
 point accepts a queue; use the public launcher's help.
 
-The positive integer `concurrency` caps parallel queue operations with or without
+The host's positive integer `concurrency` caps parallel queue operations with or without
 `--vm`. Tests use one pending case queue per selected family: an available VM
 atomically claims its next case, so each case executes once per family. The same
 pull mechanism serves one or more VMs. Claims cannot overlap on a case identity;
@@ -117,8 +123,8 @@ arguments and root privileges apply only in the guest. Reuse its private SSH
 identity, guarded transport, exclusive lease and observation; never restore the
 guest to inspect it or adopt another controller's running instance.
 
-Probing every registered VM has standing authorization, including entries disabled
-for test scheduling. Direct `tools/test-vm` guest commands, including guest shells
+Probing every eligible registered VM has standing authorization. Offline entries
+must first be enabled together with their host. Direct `tools/test-vm` guest commands, including guest shells
 and interpreters, require no additional command approval or developer confirmation.
 The installed helper's Polkit grant is automatic for the active local administrator
 or the explicitly configured [headless automation account](../Approval-Tools.md#one-time-setup);

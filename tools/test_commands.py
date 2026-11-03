@@ -315,11 +315,12 @@ fresh. Source edits and historical logs are preserved. Conflicts with --resume,
 --reload refreshes a running launcher at safe boundaries and stays attached;
 when idle, the flag is ignored and execution starts normally.
 VM categories read config/test-vm.json and select VMs with enabled equal to
-the string "true", using at most concurrency VMs simultaneously. Each family
+the string "true" on online hosts, using each host's concurrency limit. Queue
+selectors skip offline VMs/hosts; direct maintenance refuses them. Each family
 has one case queue: idle VMs atomically pull its next work, so every selected
 case runs once per family. One VM uses the same queue as multiple workers.
 --vm accepts a name or ID, a comma-separated list, all-enabled, or all.
-Explicit names/IDs and all include disabled entries. Free slots refill immediately.
+Every selection skips offline VMs/hosts. Free slots refill immediately.
 VM owning_branch restrictions always apply: empty or omitted owning_branch allows any branch;
 otherwise only the exact current Git branch can check out that VM.
 Each invocation resolves IDs

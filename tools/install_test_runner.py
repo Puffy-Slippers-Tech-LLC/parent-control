@@ -259,7 +259,9 @@ def main():
     root = Path(__file__).resolve().parents[1]
     headless = sys.argv[1:] == ['--headless']
     headless_data = headless_rule(root) if headless else None
-    identity = {name: pinned_vm_uuid(name=name) for name in vm_config.registry()}
+    # Offline flags do not erase accepted local identities used by owned cleanup.
+    identity = {name: pinned_vm_uuid(vm.baseline_directory)
+                for name, vm in vm_config.registry().items() if vm.host.transport == 'local'}
     pins = [value for value in identity.values() if value is not None]
     if len(pins) != len(set(pins)):
         raise ValueError('test-runner-install:duplicate-baseline-uuid')

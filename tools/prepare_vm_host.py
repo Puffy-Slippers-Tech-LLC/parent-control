@@ -162,6 +162,7 @@ def main(argv=None):
         uid = int(os.environ.get('PKEXEC_UID', '0'))
         baseline.require(os.geteuid() == os.getegid() == 0 and uid > 0,
                          'guard:root; use tools/prepare-vm')
+        vm_config.require_online(vm)
         return prepare(args.mode, args.y, vm, pwd.getpwuid(uid))
     except (Exception, KeyboardInterrupt) as error:
         category = str(error) if isinstance(error, (baseline.CaptureError, ValueError)) else type(error).__name__

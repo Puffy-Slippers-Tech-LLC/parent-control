@@ -137,6 +137,8 @@ if __name__ == '__main__':
             runpy.run_path(str(Path(__file__).with_name('onpc-test-runner')))['selection'](
                 Path(__file__).resolve().parents[1], ['vm', *args])
             sys.exit(0)
+        if args[:1] not in (['stop'], ['recover-online']):
+            vm_config.require_online(configured)
         from vm_pool import binding
         controls = args[:args.index('--')] if '--' in args else args
         if (configured.owning_branch and binding() is None

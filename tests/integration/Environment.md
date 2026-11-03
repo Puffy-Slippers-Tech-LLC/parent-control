@@ -209,6 +209,7 @@ still require shared environment preparation before use.
 | Fedora terminal shortcut | `prepare_vm.configure_terminal_shortcut` gives each fixed test account a permanent Ctrl+Alt+T custom binding to `/usr/bin/ptyxis --new-window`, with readback; other custom bindings are preserved. The shared guest dependency inventory supplies Ptyxis. Ubuntu retains its existing shortcut. Qualification only exercises the prepared binding and never configures it. |
 | Stable fixture folder names across desktop-language changes | `baseline_environment.desktop_settings_files`: per-fixture `Hidden=true` XDG autostart override and empty regular systemd user-unit mask for the optional GTK folder renamer; the baseline reconciler owns placement and read-only verification |
 | Stable Ubuntu package inputs during execution | `baseline_environment.automatic_update_files`: empty regular system-unit masks for `apt-daily.service`, `apt-daily.timer`, `apt-daily-upgrade.service` and `apt-daily-upgrade.timer`; the baseline reconciler owns placement and read-only verification. Fedora has no APT masks. |
+| Native monitoring ready before GDM session startup | `baseline_environment.native_policy_files`: shared Ubuntu/Fedora display-manager ordering and a bounded public fapolicyd status handshake; reconciled and verified with the persistent environment files. Every case inherits the gate, including after product removal. |
 | No background GNOME Software downloads in fixed test accounts | `prepare_vm.disable_software_updates`: set `org.gnome.software download-updates` to false as each fixed account, with independent readback, when the optional schema is installed. This prevents automatic Flatpak metadata refreshes from requesting administrator authentication while an account is inactive. Explicit preparation updates and prompt-refusal guards remain in place. |
 | Serial getty and the 600-second console login window | [baseline_console.py](baseline_console.py); attempts only verify |
 | A/H/S/N GUI binaries, shared Python/GTK runtime and four child launchers | Legacy captures: [baseline_assets.py](../fixtures/baseline_assets.py), installed by [baseline_fixtures.py](baseline_fixtures.py). Clean Ubuntu/Fedora: host-owned, pending runner qualification. |
@@ -289,6 +290,18 @@ reconciled offline before baseline capture, without stopping a transaction or
 repairing settings in a test. Preparation still performs its explicit APT/DNF
 updates through the maintained auto-mode route. The existing fixture ownership,
 interruption and stale-baseline checks apply to these four files.
+
+Both baselines start fapolicyd before GDM and require its public `--check-status`
+handshake before session startup. Native monitoring beginning midway through an
+ELF startup can trigger the stock `pattern=ld_so` rule; a controlled product-free
+Fedora probe reproduced the denial and GDM's unregistered-session exit. Service
+ordering alone is insufficient for Ubuntu's Type=forking daemon, so the shared
+pre-start helper retries only the native tool's exact report-wait timeout within
+GDM's 180-second startup budget. Other native errors stop startup. The gate
+changes no native rules or product policy, survives product removal, and is
+owned by baseline preparation rather than individual cases. Existing clean
+environment records can add only these two declared files; foreign destinations
+still refuse. Test execution verifies prepared files and never installs the gate.
 
 Idempotence does not suppress auto-mode system updates or the documented snapshot
 replacement. It does not authorize adopting an unknown file or bypassing the

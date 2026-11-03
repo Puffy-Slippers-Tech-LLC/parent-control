@@ -967,6 +967,8 @@ verification, reinstall, package-delivered purge and a fresh reinstall in one
 guarded attempt on either distribution.
 The same case executes across five explicit lifecycle phases; a failed phase
 stops later transitions. Package checks are its installation prerequisites.
+Desktop health waits for logind to leave its opening state within the existing
+deadline before requiring an active scope and a responsive GNOME Shell.
 Prerequisite-only installation phases check package readiness before and after
 reboot, the initial reboot request and the changed boot with its cleared request.
 Comprehensive kiosk classification, metadata and graphical-entry assertions run

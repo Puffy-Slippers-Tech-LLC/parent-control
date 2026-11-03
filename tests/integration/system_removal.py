@@ -116,14 +116,18 @@ def session_for(uid):
         session = row.split()[0]
         props = dict(line.split('=', 1) for line in guest.run([
             'loginctl', 'show-session', session, '-p', 'User', '-p', 'Class',
-            '-p', 'Type', '-p', 'Service', '-p', 'Remote', '-p', 'Scope']).splitlines())
+            '-p', 'Type', '-p', 'Service', '-p', 'Remote', '-p', 'Scope', '-p', 'State']).splitlines())
         if props.get('User') == str(uid) and props.get('Class') == 'user':
             guest.require(props.get('Type') in ('wayland', 'x11') and
                           props.get('Service') == 'gdm-autologin' and
-                          props.get('Remote') == 'no', 'removal:unexpected-desktop')
+                          props.get('Remote') == 'no' and
+                          props.get('State') in ('opening', 'online', 'active', 'closing'),
+                          'removal:unexpected-desktop')
             found.append(props)
     guest.require(len(found) <= 1, 'removal:duplicate-desktop')
-    return found[0] if found else None
+    # As in session_control.source_identity, an opening logind record is not
+    # a usable desktop yet: its transient scope can still be queued to start.
+    return found[0] if found and found[0]['State'] in ('online', 'active') else None
 
 
 def extension_lists(uid):
@@ -172,7 +176,7 @@ def desktop_health(uid):
         if session is not None:
             break
         if time.monotonic() >= deadline:
-            desktop_failure_diagnostics(uid)
+            desktop_startup_diagnostics(uid, state='not-created')
             raise guest.GuestError('removal:desktop-not-created')
         time.sleep(0.25)
     guest.require(guest.run(['systemctl', 'is-active', session['Scope']]) == 'active',
@@ -190,21 +194,33 @@ def desktop_health(uid):
         if guest.commands.last_returncode == 0:
             guest.require(reply.strip() in (b'(true,)', b'(false,)'),
                           'removal:desktop-response')
+            desktop_startup_diagnostics(uid, state='ready')
             return
         guest.require(time.monotonic() < deadline, 'removal:desktop-unavailable')
         time.sleep(0.25)
 
 
-def desktop_failure_diagnostics(uid):
-    """Keep the failed login's cause in existing private command artifacts."""
+def desktop_startup_diagnostics(uid, *, state):
+    """Retain comparable boot ordering even when the desktop check succeeds."""
     previous_returncode = guest.commands.last_returncode
     probes = (
         ('services', ['systemctl', 'show', 'gdm.service', f'user@{uid}.service',
-                      '--property=ActiveState,SubState,Result,ExecMainStatus']),
-        ('journal', ['journalctl', '--boot', '--no-pager', '--lines=200',
+                      'fapolicyd.service',
+                      '--property=Id,ActiveState,SubState,Result,ExecMainCode,ExecMainStatus,'
+                      'ExecMainStartTimestampMonotonic,ExecMainExitTimestampMonotonic,'
+                      'ActiveEnterTimestampMonotonic,InactiveEnterTimestampMonotonic']),
+        ('journal', ['journalctl', '--boot', '--no-pager', '--lines=400',
                      '--output=short-monotonic', f'_UID={uid}', '+',
                      f'_SYSTEMD_UNIT=user@{uid}.service', '+',
-                     '_SYSTEMD_UNIT=gdm.service', '+', '_TRANSPORT=audit']),
+                     f'UNIT=user@{uid}.service', '+',
+                     '_SYSTEMD_UNIT=gdm.service', '+',
+                     '_SYSTEMD_UNIT=systemd-logind.service', '+',
+                     '_SYSTEMD_UNIT=fapolicyd.service', '+', '_TRANSPORT=audit']),
+        # Kernel, crash-handler and system-manager failures can be emitted
+        # outside the child's UID and the services above. Keep this separate
+        # so boot noise cannot evict the scoped startup ordering evidence.
+        ('boot-errors', ['journalctl', '--boot', '--no-pager', '--lines=100',
+                         '--priority=warning', '--output=short-monotonic']),
     )
     try:
         for name, arguments in probes:
@@ -215,7 +231,8 @@ def desktop_failure_diagnostics(uid):
                 outcome = 'collected' if guest.commands.last_returncode == 0 else 'failed'
             except Exception:
                 outcome = 'unavailable'
-            print(f'onpc-system: stage=removal-desktop-{name} outcome={outcome}', flush=True)
+            print(f'onpc-system: stage=removal-desktop-{name} desktop={state} outcome={outcome}',
+                  flush=True)
     finally:
         guest.commands.last_returncode = previous_returncode
 

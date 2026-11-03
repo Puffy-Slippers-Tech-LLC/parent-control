@@ -36,8 +36,10 @@ NATIVE_RULES_SOURCE_PATTERN = (
 
 
 def environment_files(identities, os_id='ubuntu'):
-    from tests.fixtures.baseline_environment import desktop_settings_files, automatic_update_files
-    return desktop_settings_files(identities) | automatic_update_files(os_id)
+    from tests.fixtures.baseline_environment import (
+        desktop_settings_files, automatic_update_files, native_policy_files)
+    return (desktop_settings_files(identities) | automatic_update_files(os_id)
+            | native_policy_files(os_id))
 
 
 def _clean_declaration(g):
@@ -279,6 +281,7 @@ def _retirement_plan(g, script_digest, *, publish=True):
 
 def reconcile_clean(g, script_digest=None):
     """Environment reconciliation and resumable exact legacy retirement."""
+    from tests.fixtures.baseline_environment import NATIVE_POLICY_FILES
     identities, declaration = _clean_declaration(g)
     previous = None
     if _present(g, RECORD):
@@ -298,7 +301,9 @@ def reconcile_clean(g, script_digest=None):
     else:
         require(previous is None or (type(previous) is dict and set(previous) == {'purpose', 'files', 'pending'}
                 and previous['purpose'] == CLEAN_PURPOSE and previous['pending'] is None
-                and set(previous['files']) == set(declaration)), 'environment-record')
+                and set(previous['files']) in (
+                    set(declaration), set(declaration) - set(NATIVE_POLICY_FILES))),
+                'environment-record')
         require(not any(_present(g, path) for path in
                         (*movable_files(g), TRUST_RECORD, TRUST_FILE, TRUST_PENDING)),
                 'clean-fixture-collision')
@@ -358,11 +363,22 @@ def reconcile_clean(g, script_digest=None):
     return declaration
 
 
-def verify_clean(g, *, compiled=True):
+def verify_clean(g, *, compiled=True, allow_prior_native_policy=False):
     """Read-only proof of persistent settings and complete movable absence."""
+    from tests.fixtures.baseline_environment import NATIVE_POLICY_FILES
     identities, declaration = _clean_declaration(g)
     regular(g, RECORD, 0, 0, 0o600)
     record = json.loads(g.read_file(RECORD))
+    # Owned restoration must still inspect a captured baseline from before
+    # this gate existed. New execution/capture keeps the exact current set.
+    if (allow_prior_native_policy and type(record) is dict and
+            type(record.get('files')) is dict and
+            set(record['files']) == set(declaration) - set(NATIVE_POLICY_FILES)):
+        require(not any(_present(g, path) for name in NATIVE_POLICY_FILES
+                        for path in (name, name + '.onpc-baseline-new')),
+                'environment-collision')
+        declaration = {name: spec for name, spec in declaration.items()
+                       if name not in NATIVE_POLICY_FILES}
     require(type(record) is dict and set(record) == {'purpose', 'files', 'pending'}
             and record['purpose'] == CLEAN_PURPOSE and record['pending'] is None
             and set(record['files']) == set(declaration), 'environment-record')

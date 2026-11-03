@@ -6,6 +6,7 @@ import json
 import math
 import os
 import runpy
+import sys
 import time
 import uuid
 
@@ -57,7 +58,11 @@ def metadata(root, category, nodeid):
     identifier, title = identity
     description = ''
     if category == 'system' and not nodeid.startswith('check_'):
-        from tests.integration.system_case_ids import identity_for_event
+        sys.path.insert(0, str(root / 'tests/integration'))
+        try:
+            from system_case_ids import identity_for_event
+        finally:
+            sys.path.pop(0)
         case = identity_for_event(nodeid)
         function = case.case_id.split('[')[0]
         # Locate the registered function without importing executable guest code.

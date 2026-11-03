@@ -7,6 +7,8 @@ can be omitted; an in-flight case is deliberately never committed as passed.
 import hashlib
 import json
 import os
+from pathlib import Path
+import sys
 import time
 import re
 
@@ -264,7 +266,12 @@ class Checkpoint:
                        for kind, args in logical.items()):
                     raise ValueError(RESUME_SELECTION_MISMATCH)
                 if resume and 'system' in logical and 'system' in state['categories']:
-                    from tests.integration.system_case_ids import UNBOUND_CASES, identity_for_event
+                    # Isolated launcher workers expose tools/, not the tests package.
+                    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests/integration'))
+                    try:
+                        from system_case_ids import UNBOUND_CASES, identity_for_event
+                    finally:
+                        sys.path.pop(0)
                     entry = state['categories']['system']
                     retired = {node for node in entry['passed']
                                if (identity := identity_for_event(node)) is not None

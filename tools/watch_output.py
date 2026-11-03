@@ -97,10 +97,12 @@ def active_run(base, *, workflow=False, reader=None, include_idle=False):
     return run if include_idle else None
 
 
-def active_launchers(root, reader, *, include_idle=False):
+def active_launchers(root, reader, *, include_idle=False, workflows_only=False):
     """Discover live publications, optionally including retained idle runs."""
     for kind in ('fix-tests', 'fix-tests-host', 'write-e2e', 'sync-whatsnew',
                  'plans', 'sessions-host', 'sessions'):
+        if workflows_only and kind in ('sessions-host', 'sessions'):
+            continue
         try:
             base = directory(kind, root=root, create=False)
             bases = sorted(base.iterdir()) if kind == 'plans' else [base]
@@ -127,8 +129,9 @@ def active_launchers(root, reader, *, include_idle=False):
 
 
 class Output:
-    def __init__(self, root=None, *, terminal_size=None, show_log=True):
+    def __init__(self, root=None, *, terminal_size=None, show_log=True, launcher_base=None):
         self.root = root or Path(__file__).resolve().parents[1]
+        self.launcher_base = launcher_base
         self.terminal_size = terminal_size
         self.show_log = show_log
         self.decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
@@ -321,7 +324,8 @@ class Output:
             return 'incomplete'
 
     def discover(self):
-        return next(active_launchers(self.root, self.reader), (None, ''))
+        return next(((run, name) for run, name in active_launchers(self.root, self.reader)
+                     if self.launcher_base is None or run.parent == self.launcher_base), (None, ''))
 
     def poll(self, *, progress=True):
         run, label = self.discover()
@@ -334,6 +338,8 @@ class Output:
                 # current publication without treating it as live authority.
                 latest = -1
                 for candidate, name in active_launchers(self.root, self.reader, include_idle=True):
+                    if self.launcher_base is not None and candidate.parent != self.launcher_base:
+                        continue
                     try:
                         modified = candidate.lstat().st_mtime_ns
                     except OSError:
@@ -401,7 +407,8 @@ class SessionOutput:
                 owner = None
             owners = [owner] if owner == self.owner_run else []
             return self.discover_sessions(owners)
-        owners = [run for run, _name in active_launchers(self.output.root, self.reader)]
+        owners = [run for run, _name in active_launchers(self.output.root, self.reader)
+                  if self.output.launcher_base is None or run.parent == self.output.launcher_base]
         if not owners and self.run is None and self.output.run is not None:
             # Restore a retained transcript read-only after Watch reconnects.
             _, run, state, source = self.discover_sessions([self.output.run])

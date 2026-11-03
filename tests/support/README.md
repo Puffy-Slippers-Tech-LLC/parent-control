@@ -299,6 +299,14 @@ names for the shared worker. Approval qualifications use this argument instead
 of copying and overwriting the child-selection map. Request choices, allowance
 values, recorder phases and assertions stay with their callers.
 
+Parent and child returns to the greeter reuse
+`onpc_desktop_session::switch_user` with the caller's scoped desktop receipt.
+The declared system operation binds the account; the helper consumes that
+receipt, performs the switch and independently observes the greeter. Retained
+daily-access histories use this same operation for both accounts instead of
+spelling out the child switch separately. Session/work comparisons and the
+decision to switch or log out remain in each history.
+
 TIME02 minute and final-second consumers reuse `countdown.CountdownSample`,
 `check_countdown_progress` and `await_countdown_progress`. Each sample copies the
 public countdown, controller monotonic read brackets and boot identity; comparisons
@@ -799,6 +807,13 @@ owner/PID pins last for the catalog lifetime and require deliberate rebinding
 after a product restart.
 
 ## Extend without hiding the scenario
+
+When composing a named-child observer call, inspect the complete controller-to-guest
+argument list, including padded optional slots. An empty trace-source slot means
+no trace request, as in the named-child Parent toggle; normalize it at the shared
+decoder before enabling a trace-bound guard. Preserve nonempty source validation
+and child/save guards. Direct helper calls alone do not exercise that dispatch
+boundary; use the existing installed consumer for affected validation.
 
 Graphical qualification workers must load their helper modules with compile-time
 `use`, alongside the existing imports in `smoke.pm`. The loader's temporary Perl

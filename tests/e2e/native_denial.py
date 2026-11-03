@@ -15,9 +15,7 @@ EDITS = (('A', 'match-precise', 'allowed', 'allowed'),
 POLICIES = {prefix: policy_edit(MATCH_APPS[role], draft, access, prefix)
             for role, draft, access, prefix in EDITS}
 SETUP = {
-    **fresh_desktop('parent'), **parent_management(),
-    'child-picker-opened': 'ui:existing-child-picker-opened',
-    'child-choice-highlighted': 'ui:existing-child-choice-highlighted',
+    **fresh_desktop('parent'), **parent_management(child='existing'),
     'parent-selected': 'ui:existing-returned',
     'allowance-configured': 'ui:time-explanation-setup-thirty-read',
     'saved-settings': 'ui:existing-returned', 'apps-page': 'ui:existing-apps',

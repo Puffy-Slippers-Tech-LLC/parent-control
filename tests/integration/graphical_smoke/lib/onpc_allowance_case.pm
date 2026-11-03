@@ -55,8 +55,7 @@ sub daily_only {
         onpc_app_rows::native_activity_entry($journey, 'original', 'grid', 'other-child');
         $journey->seen('original-session');
         my $child_leave = $journey->scope('prepare-child-leave');
-        $child_leave->consume_observation('desktop', $child_leave->seen('desktop'));
-        $child_leave->seen($_) for qw(switch-user gdm-switched);
+        onpc_desktop_session::switch_user($child_leave, $child_leave->seen('desktop'));
         onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'prepare-return');
         $journey->consume_observation('prepared-parent-retained',
             onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'existing', 'prepared', 0));
@@ -94,8 +93,7 @@ sub daily_only {
             }
             if ($retained) {
                 my $child_leave = $journey->scope("$name-child-leave");
-                $child_leave->consume_observation('desktop', $child_leave->seen('desktop'));
-                $child_leave->seen($_) for qw(switch-user gdm-switched);
+                onpc_desktop_session::switch_user($child_leave, $child_leave->seen('desktop'));
             } else {
                 my $logout = $journey->scope("$name-logout");
                 onpc_desktop_session::log_out($logout, $logout->seen('desktop'));

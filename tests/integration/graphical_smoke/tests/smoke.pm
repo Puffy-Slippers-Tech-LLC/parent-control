@@ -1242,11 +1242,16 @@ sub run {
         onpc_time_explanation::run(\&exchange);
         return;
     }
-    if ($ready->{grant_access_case}) {
+    if ($ready->{grant_access_case} || $ready->{grant_retained_access_case}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
-        onpc_allowance_case::grant_only_new(\&exchange, $ready->{invocations},
-            $ready->{challenge_bindings}, $ready->{kiosk_request});
+        if ($ready->{grant_retained_access_case}) {
+            onpc_allowance_case::grant_only_retained(\&exchange, $ready->{invocations},
+                $ready->{challenge_bindings}, $ready->{kiosk_request});
+        } else {
+            onpc_allowance_case::grant_only_new(\&exchange, $ready->{invocations},
+                $ready->{challenge_bindings}, $ready->{kiosk_request});
+        }
         return;
     }
     if ($ready->{daily_access_case} || $ready->{daily_retained_access_case}) {

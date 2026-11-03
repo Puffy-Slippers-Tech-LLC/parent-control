@@ -438,7 +438,10 @@ are implemented through `daily_access_case.DailyAccessJourney`,
 Both complete bindings passed on Ubuntu 26.04, including task 054's affected
 case-7 regression. Case 9 (`grant-only-new`) also passed on Ubuntu 26.04 through
 `grant_access_case.GrantAccessJourney` and
-`onpc_allowance_case::grant_only_new`. Other bindings remain pending.
+`onpc_allowance_case::grant_only_new`. Case 10 (`grant-only-retained`) is
+implemented through `grant_access_case.RetainedGrantAccessJourney` and
+`onpc_allowance_case::grant_only_retained` and passed on Ubuntu 26.04.
+The combined bindings remain pending.
 
 **Change screen limits while starting or returning to a child desktop.** Cases 7, 8, 9, 10, 11, 12.
 
@@ -466,6 +469,16 @@ the shared public `time-explanation-refresh-read` operation and controller read
 brackets, so Parent's cached periodic status is never treated as an exact
 current balance. Allowed/Hard launches are sampled with the grant and with
 limits off; off clears the grant and countdown, and re-enabled zero denies entry.
+
+Case 10 starts Jordan once with limits off and captures an Allowed app's usable
+work before returning to Jamie's original Parent window. Enabling zero denies
+the retained child entry. One real 20-minute approval restores access to that
+same desktop and original work; the case resumes and closes the work normally
+before sampling Allowed/Hard launches. Subsequent 30-minute and zero-daily
+returns compare the original desktop and grant deadline through the same public
+refresh/read brackets as case 9. Every child departure uses Switch User.
+Disabling clears the grant and countdown while preserving app blocks; re-enabled
+zero denies retained access again. No child logout or replacement desktop occurs.
 
 ### E2E-006
 

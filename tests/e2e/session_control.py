@@ -157,10 +157,12 @@ def sessions(*, diagnostic=None):
         current = session_scan()
         scans.append(current)
         if current == previous:
+            if callable(diagnostic):
+                diagnostic(scans)
             # The failing switch is intermittent. Retain its convergent reads
             # too, so a passing diagnostic can show session churn and which
             # side of the single submission observed it. No extra reads.
-            if diagnostic is not None:
+            elif diagnostic is not None:
                 print('session-switch-observation: ' + json.dumps(
                     {'phase': diagnostic, 'scans': scans}, sort_keys=True), file=sys.stderr)
             # logind's closing state means logged out with leftover processes.
@@ -173,8 +175,11 @@ def sessions(*, diagnostic=None):
     # Private engineering evidence. Keep the existing four-scan bound and
     # refusal; never resubmit input or accept a torn scan.
     # These are public logind IDs/properties, without names or credentials.
+    if callable(diagnostic):
+        diagnostic(scans)
     print('session-unstable-observation: ' + json.dumps(
-        {'phase': diagnostic, 'scans': scans}, sort_keys=True), file=sys.stderr)
+        {'phase': 'logout-diagnostic' if callable(diagnostic) else diagnostic,
+         'scans': scans}, sort_keys=True), file=sys.stderr)
     raise SessionError('session:unstable-observation')
 
 
@@ -478,8 +483,10 @@ def entry_identity(current, uid, mode):
     return hashlib.sha256(json.dumps(identity).encode()).hexdigest()
 
 
-def execute(binding):
+def execute(binding, *, diagnostic=False):
     require(binding in BINDINGS and os.geteuid() == 0, 'binding')
+    require(type(diagnostic) is bool and (not diagnostic or binding == 'standard-logout'),
+            'diagnostic-binding')
     role, action = BINDINGS[binding]
     account = pwd.getpwnam(ACCOUNTS[role])
     require(account.pw_uid >= 1000, 'fixture-identity')
@@ -540,7 +547,21 @@ def execute(binding):
         require(False, 'wrong-entry-accepted')
     locked = action == 'return-greeter'
     switch_diagnostic = binding == 'parent-switch-user'
-    current = sessions(diagnostic='source' if switch_diagnostic else None)
+    last_scans = None
+    trace_count = 0
+
+    def logout_trace(scans):
+        nonlocal last_scans, trace_count
+        changed = last_scans is None or scans[-1] != last_scans[-1]
+        last_scans = scans
+        if changed and trace_count < 24:
+            trace_count += 1
+            print('session-logout-observation: ' + json.dumps({
+                'monotonic_ns': time.monotonic_ns(), 'observer_uid': os.geteuid(),
+                'scans': scans}, sort_keys=True), file=sys.stderr)
+
+    current = sessions(diagnostic=logout_trace if diagnostic else
+                       'source' if switch_diagnostic else None)
     if locked and any(local_graphical(item) and item['Active'] == 'yes'
                       and item['Class'] == 'greeter' for item in current.values()):
         # Natural expiry can already have returned to GDM. Confirm the same
@@ -570,7 +591,8 @@ def execute(binding):
     os.environ.update(env)
     # Recheck after changing identity, immediately before the single submission.
     require(source_session(sessions(
-        diagnostic='before-submit' if switch_diagnostic else None),
+        diagnostic=logout_trace if diagnostic else
+                   'before-submit' if switch_diagnostic else None),
         account.pw_uid, locked=locked) == source, 'source-changed')
     if action == 'continuous-activity':
         previous = prepare_continuous_activity()
@@ -586,11 +608,16 @@ def execute(binding):
         require(source_session(sessions(), account.pw_uid) == source, 'source-changed')
         return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
                 'administrator': True, 'package_sha256': digest}
+    if diagnostic:
+        print('session-logout-submit: ' + json.dumps({
+            'monotonic_ns': time.monotonic_ns(), 'source': source,
+            'observer_uid': os.geteuid()}), file=sys.stderr)
     submit(action)
     deadline = time.monotonic() + 45
     while True:
         try:
-            current = sessions(diagnostic='after-submit' if switch_diagnostic else None)
+            current = sessions(diagnostic=logout_trace if diagnostic else
+                               'after-submit' if switch_diagnostic else None)
         except SessionError as error:
             if str(error) != 'session:unstable-observation':
                 raise
@@ -600,6 +627,10 @@ def execute(binding):
         else:
             if destination(current, source, account.pw_uid, action):
                 break
+        if diagnostic and time.monotonic() >= deadline:
+            print('session-logout-deadline: ' + json.dumps({
+                'monotonic_ns': time.monotonic_ns(), 'source': source,
+                'scans': last_scans}, sort_keys=True), file=sys.stderr)
         require(time.monotonic() < deadline, 'destination-timeout')
         time.sleep(.2)
     return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
@@ -607,13 +638,16 @@ def execute(binding):
             'destination': 'locked' if action == 'lock' else 'greeter'}
 
 
-def observe(transport, binding):
+def observe(transport, binding, *, diagnostic=False):
     """Shared controller leaf; the transport already binds the owned VM/attempt."""
     import watch_activity
     require(binding in BINDINGS, 'binding')
+    require(type(diagnostic) is bool and (not diagnostic or binding == 'standard-logout'),
+            'diagnostic-binding')
     role, action = BINDINGS[binding]
     with watch_activity.operation(LABELS[action] + ' [' + role + ']'):
-        raw = transport.call(['/usr/bin/python3', '-I', '-', binding],
+        raw = transport.call(['/usr/bin/python3', '-I', '-', binding,
+                              *(['--diagnostic'] if diagnostic else [])],
                              input=Path(__file__).read_bytes(), timeout=90)
     require(type(raw) is bytes and 0 < len(raw) <= 1024, 'response-bound')
     result = json.loads(raw)
@@ -676,8 +710,8 @@ if __name__ == '__main__':
         if len(sys.argv) == 4 and sys.argv[1] == 'maintenance-logout':
             result = maintenance_logout(int(sys.argv[2]), sys.argv[3])
         else:
-            require(len(sys.argv) == 2, 'arguments')
-            result = execute(sys.argv[1])
+            require(len(sys.argv) in (2, 3) and sys.argv[2:] in ([], ['--diagnostic']), 'arguments')
+            result = execute(sys.argv[1], diagnostic=len(sys.argv) == 3)
         print(json.dumps(result, sort_keys=True))
     except SessionError as error:
         print(str(error), file=sys.stderr)

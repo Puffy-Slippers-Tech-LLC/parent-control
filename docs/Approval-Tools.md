@@ -808,6 +808,16 @@ replacement by name alone.
 | `tools/test-vm --vm NAME reset` | Restore the accepted outer baseline while idle, leaving the VM off |
 | `tools/test-vm --vm NAME recover-online ID` | After explicit authorization of the inspected instance, restore its baseline and leave it off. A fully recorded maintenance instance requires its exact saved owner, run and instance, even if SSH credentials are unavailable; an interrupted online start retains matching private snapshot and isolation proofs. |
 
+`tools/test-vm --vm NAME reproduce-grant-logout` replays case 9's shared
+Parent saves, real 20-minute approval, fresh Jordan entry and native app checks
+in the owned online maintenance guest. At the first grant-active logout it
+submits the shared operation once while the worker remains active, records
+bounded session diagnostics without advancing that stage, then closes the
+worker and retains the resulting scene for guarded `exec` diagnosis followed
+by `stop`. The diagnostic also samples guest memory, swap counters and host VM
+RSS throughout its replay. It requires the maintained fixture-bound named
+package input and supplies no acceptance credit.
+
 Every mutation shares the runner's nonblocking exclusive lock. Reopened
 maintenance operations require a matching root-private ownership record,
 run/domain instance, original configuration, baseline digest and snapshot digest.
@@ -919,6 +929,8 @@ Other fixed reads are `disks`, `mounts`, `memory`, `cpu`, `kernel`, `network`,
 list-units, list-unit-files, is-active and is-enabled. Journal options only
 select units, date bounds, boot, kernel, output format and line count. Commands
 disable pagers/authentication requests and have a bounded execution timeout.
+`processes` includes resident memory (RSS) and proportional resident memory
+(PSS), both in KiB, alongside process identity.
 Raw source output is for local inspection; only redacted evidence is shared.
 
 `applications UID` lists only immediate filenames, types, modes and sizes in

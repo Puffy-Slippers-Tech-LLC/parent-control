@@ -395,8 +395,25 @@ controller; the original deadline and display precision remain unchanged.
 Approval-start comparisons also use the controller clock on both sides.
 The scoped Jordan/Jamie/1200/soft-included kiosk credential binding retains
 fresh recipient proofs and single-use submission. Host credential/source checks
-passed. Case 10's retained-child history and combined bindings remain pending;
-this complete case supplies no other-family acceptance.
+passed. Combined bindings remain pending; these complete cases supply no
+other-family acceptance.
+
+Complete case 10, `grant_access_case.RetainedGrantAccessJourney` /
+`onpc_allowance_case::grant_only_retained`, passed on Ubuntu 26.04 in
+`20261103T154435Z-e7bf7779`. Jordan's original desktop and usable Allowed work
+survived zero-time enablement, specific retained-entry denial and one real
+20-minute Jamie approval. The original work was compared, resumed and normally
+closed before new Allowed/Hard launch checks. The 0→30→0 allowance history
+preserved the original grant deadline and desktop; every child departure used
+Switch User. Limits off cleared the grant/countdown while preserving app blocks;
+re-enabled zero denied retained access without restoring the grant. The same
+Jamie/Parent window and settings, collection, worker/callback shutdown, owned
+cleanup and baseline restoration passed. Both grant-only bindings share the
+finite plan builder and worker, including the unchanged scoped credential route.
+The affected fresh-entry case 9 regression passed on Ubuntu 26.04 in
+`20261103T171608Z-3d785f9b`, including all four normal child logouts and
+independent usable-greeter returns, the original grant across allowance edits,
+limits-off clearing, re-enabled denial, collection and owned cleanup.
 
 ### Harness transport and serial qualification
 

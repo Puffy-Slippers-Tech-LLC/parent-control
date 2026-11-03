@@ -454,7 +454,7 @@ def main(argv=None):
                                           'probe-retained-app-launch',
                                           'reproduce-transfer-refusal', 'probe-transfer-refusal',
                                           'reproduce-riley-native-grid', 'probe-riley-native-grid',
-                                          'reproduce-native-denial',
+                                          'reproduce-native-denial', 'reproduce-grant-logout',
                                           'reproduce-overlay-activity', 'probe-overlay-activity',
                                           'reproduce-overlay-return',
                                           'reproduce-system-graphical-expiry',
@@ -488,7 +488,7 @@ def main(argv=None):
         runner.require((args.action in ('sync-fixtures', 'reproduce-baseline-restoration',
                                        'reproduce-natural-access', 'reproduce-countdown-grant',
                                        'reproduce-overlay-activity', 'reproduce-overlay-return',
-                                       'reproduce-system-graphical-expiry', 'reproduce-native-denial'))
+                                       'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout'))
                        == (args.fixture_selection is not None),
                        'vm-control:arguments')
         if args.new_name is not None:
@@ -540,10 +540,10 @@ def main(argv=None):
             rename_disk(lease)
         elif args.action in ('reproduce-baseline-restoration', 'reproduce-natural-access',
                              'reproduce-countdown-grant', 'reproduce-overlay-activity', 'reproduce-overlay-return',
-                             'reproduce-system-graphical-expiry'):
+                             'reproduce-system-graphical-expiry', 'reproduce-grant-logout'):
             from vm_probe import (reproduce_baseline_restoration, reproduce_natural_access,
                                   reproduce_countdown_grant, reproduce_overlay_activity, reproduce_overlay_return,
-                                  reproduce_system_graphical_expiry)
+                                  reproduce_system_graphical_expiry, reproduce_grant_logout)
             resume(lease)
             try:
                 reproduce = {'reproduce-natural-access': reproduce_natural_access,
@@ -551,7 +551,8 @@ def main(argv=None):
                              'reproduce-countdown-grant': reproduce_countdown_grant,
                              'reproduce-overlay-activity': reproduce_overlay_activity,
                              'reproduce-overlay-return': reproduce_overlay_return,
-                             'reproduce-system-graphical-expiry': reproduce_system_graphical_expiry}[args.action]
+                             'reproduce-system-graphical-expiry': reproduce_system_graphical_expiry,
+                             'reproduce-grant-logout': reproduce_grant_logout}[args.action]
                 reproduce(lease, fixture_selection)
             except BaseException:
                 if getattr(lease, 'maintenance_rebind_pending', False):

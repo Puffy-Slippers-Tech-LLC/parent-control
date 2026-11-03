@@ -1055,6 +1055,105 @@ def reproduce_native_denial(lease, fixture_selection):
         boundary_operation='native-hard-command-blocked', fixture_selection=selection, timeout=1800)
 
 
+@contextmanager
+def memory_samples(lease, transport, directory):
+    """Measure the owned guest and its host RSS alongside this diagnostic."""
+    import threading
+    import time
+    import libvirt
+    from owned_commands import Commands
+    from vm_transport import Transport
+
+    private = directory / 'memory-commands'
+    private.mkdir(mode=0o700)
+    commands = Commands()
+    commands.directory = private
+    commands.lock_fd = transport.commands.lock_fd
+    sampler = Transport(dict(transport.config), commands, guard=transport.guard)
+    stop, ready = threading.Event(), threading.Event()
+    rows, errors = [], []
+    program = '''import json,pathlib,time
+m={p[0].rstrip(':'):int(p[1]) for line in pathlib.Path('/proc/meminfo').read_text().splitlines()
+   if len(p:=line.split())>1 and p[1].isdigit()}
+v=dict(line.split() for line in pathlib.Path('/proc/vmstat').read_text().splitlines())
+keys=('MemTotal','MemAvailable','MemFree','Cached','Buffers','SReclaimable','Shmem','SwapTotal','SwapFree')
+print(json.dumps({'guest_monotonic_ns':time.monotonic_ns(),
+ 'meminfo_kib':{key:m[key] for key in keys},
+ 'swap_pages':{key:int(v[key]) for key in ('pswpin','pswpout')}}))
+'''
+
+    def run():
+        try:
+            with (directory / 'memory-samples.jsonl').open('x') as stream:
+                while not stop.is_set():
+                    system.require(len(rows) < 400, 'memory:sample-bound')
+                    raw = sampler.call(['/usr/bin/python3', '-I', '-c', program], timeout=20)
+                    system.require(len(raw) <= 4096, 'memory:output-bound')
+                    row = json.loads(raw)
+                    domain = lease.source.domain
+                    instance = domain.ID()
+                    reports = domain.connect().domainListGetStats([domain],
+                        libvirt.VIR_DOMAIN_STATS_BALLOON,
+                        libvirt.VIR_CONNECT_GET_ALL_DOMAINS_STATS_NOWAIT)
+                    stats = reports[0][1] if reports else {}
+                    system.require(instance == sampler.config['domain_id'] == domain.ID()
+                        and type(stats.get('balloon.rss')) is int, 'memory:instance-or-stats')
+                    row.update(host_monotonic_ns=time.monotonic_ns(),
+                        host_rss_kib=stats['balloon.rss'],
+                        balloon_kib={key: stats[key] for key in ('balloon.current', 'balloon.maximum')
+                                     if key in stats})
+                    rows.append(row)
+                    stream.write(json.dumps(row, sort_keys=True) + '\n')
+                    stream.flush()
+                    ready.set()
+                    stop.wait(5)
+        except BaseException as error:
+            errors.append(type(error).__name__)
+            ready.set()
+
+    thread = threading.Thread(target=run, name='guest-memory-sampler')
+    thread.start()
+    try:
+        system.require(ready.wait(25) and rows and not errors, 'memory:not-ready')
+        yield
+    finally:
+        original = sys.exc_info()[1]
+        stop.set()
+        thread.join()  # The command owner bounds and cleans its own SSH child.
+        (directory / 'memory-result.json').write_text(json.dumps({
+            'outcome': 'failed' if errors else 'captured', 'errors': errors,
+            'samples': len(rows), 'interval_seconds': 5,
+            'peak_host_rss_kib': max((row['host_rss_kib'] for row in rows), default=None),
+            'peak_guest_used_kib': max((row['meminfo_kib']['MemTotal'] -
+                row['meminfo_kib']['MemAvailable'] for row in rows), default=None),
+            'minimum_guest_available_kib': min((row['meminfo_kib']['MemAvailable']
+                                               for row in rows), default=None)}))
+        if errors and original is None:
+            raise RuntimeError('memory:capture-failed')
+
+
+def reproduce_grant_logout(lease, fixture_selection):
+    """Observe case 9's immediate logout once, retaining the resulting scene."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from grant_access_case import GrantAccessJourney, PLAN
+    from e2e_fixture_preparation import validate_input
+    from system_fixture_preparation import guest_target
+    from tools.test_storage import named_input
+
+    system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
+                   'fixtures:e2e-installed-clean-baseline-required')
+    selection = validate_input(fixture_selection,
+                              target=guest_target(lease.capture.state['guest']))
+    name, xml, _record = attested_online_snapshot(lease)
+    lease.installed_name, lease.installed_xml = name, xml
+    lease.online_pending, lease.online_bootstrap = False, None
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, GrantAccessJourney, PLAN,
+        'grant-logout-logout', 'grant-logout', assets=assets,
+        boundary_operation='system:standard-logout', fixture_selection=selection, timeout=1800)
+
+
 def reproduce_riley_native_grid(lease):
     """Retain Riley's second grid entry after the actual first launch/use/close."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1210,6 +1309,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from overlay_approved_exit import OverlayApprovedExitJourney, TRANSLATED_PLAN
         from approval_return import ApprovalReturnJourney, NEW_PLAN
         from native_denial import NativeDenialJourney, PLAN as NATIVE_DENIAL_PLAN
+        from grant_access_case import GrantAccessJourney, PLAN as GRANT_ACCESS_PLAN
         restoration = (surface == 'baseline-restoration'
             and journey_type is BaselineJourney and plan is PLAN
             and boundary == 'restore-saved' and boundary_operation == 'parent-save-disabled'
@@ -1229,7 +1329,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         native_denial = (surface == 'native-denial'
             and journey_type is NativeDenialJourney and plan is NATIVE_DENIAL_PLAN
             and boundary == 'first-hard-command' and boundary_operation == 'native-hard-command-blocked')
-        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or native_denial)
+        grant_logout = (surface == 'grant-logout'
+            and journey_type is GrantAccessJourney and plan is GRANT_ACCESS_PLAN
+            and boundary == 'grant-logout-logout' and boundary_operation == 'system:standard-logout')
+        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or native_denial or grant_logout)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1243,8 +1346,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
     system_boundary = (boundary_operation is not None
                        and boundary_operation.startswith('system:'))
     if system_boundary:
-        system.require(surface == 'baseline-auth-pause' and boundary == 'return-entry-guard'
-            and boundary_operation == 'system:parent-entry-retained'
+        system.require(((surface == 'baseline-auth-pause' and boundary == 'return-entry-guard'
+                         and boundary_operation == 'system:parent-entry-retained')
+                        or (surface == 'grant-logout' and boundary == 'grant-logout-logout'
+                            and boundary_operation == 'system:standard-logout'))
             and plan is not None and plan.screen_tags.get(boundary) == boundary_operation,
             'diagnosis:system-boundary-binding')
 
@@ -1268,8 +1373,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if selected_setup:
             from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS
             context.fixture_selection = fixture_selection
-            context.fixture_subsets = ('native',) if surface == 'native-denial' else ACTIVITY_SUBSETS
+            context.fixture_subsets = ('native',) if surface in ('native-denial', 'grant-logout') else ACTIVITY_SUBSETS
             context.fixture_caller = ({'native-denial': None,
+                                       'grant-logout': 'E2E-005/grant-only-new',
                                        'natural-access': 'E2E-008/fresh-login',
                                        'countdown-grant': 'E2E-011/grant-only',
                                        'overlay-activity': 'check_e2e_overlay_translated_approval',
@@ -1365,7 +1471,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                     try:
                         if system_boundary:
                             from session_control import observe as observe_session
-                            observed = observe_session(transport, boundary_operation.removeprefix('system:'))
+                            observed = observe_session(transport, boundary_operation.removeprefix('system:'),
+                                **({'diagnostic': True} if surface == 'grant-logout' else {}))
                         else:
                             # This diagnostic must retain the already qualified
                             # prompt identity and normal fresh-proof deadline.
@@ -1386,7 +1493,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             return False
 
         try:
-            with kiosk_native_evidence(lease, transport, directory) if native_log else nullcontext():
+            with (kiosk_native_evidence(lease, transport, directory) if native_log else nullcontext()), (
+                    memory_samples(lease, transport, directory) if surface == 'grant-logout' else nullcontext()):
                 result = e2e_worker.run_distribution(directory, lease, system.RunLedger(),
                     expected_inputs=expected_inputs, observe=lambda: None, validate=validate,
                     guarded_observe=observe, credentials=credentials, maintenance=True, timeout=timeout)

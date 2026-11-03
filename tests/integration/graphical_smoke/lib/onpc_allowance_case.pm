@@ -22,9 +22,18 @@ sub daily_only_retained {
 }
 
 sub grant_only_new {
-    onpc_progress::operation('Checking extra time across fresh child sign-ins and allowance changes');
-    my ($exchange, $declared, $challenges, $request) = @_;
-    die 'grant-access:arguments' unless @_ == 4 && ref($exchange) eq 'CODE'
+    return grant_only(@_, 0);
+}
+
+sub grant_only_retained {
+    return grant_only(@_, 1);
+}
+
+sub grant_only {
+    onpc_progress::operation('Checking extra time across child visits and allowance changes');
+    my ($exchange, $declared, $challenges, $request, $retained) = @_;
+    die 'grant-access:arguments' unless @_ == 5 && ref($exchange) eq 'CODE'
+        && defined($retained) && $retained =~ /\A[01]\z/
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
     require onpc_request_flow;
@@ -48,6 +57,18 @@ sub grant_only_new {
         onpc_app_rows::edit_policy($journey, $app, $draft, $access, $prefix, []);
     }
     $journey->seen($_) for qw(policy-screen setup-disable setup-off-settings setup-off-balance);
+    if ($retained) {
+        my $leave = $journey->scope('prepare-leave');
+        onpc_desktop_session::switch_user($leave, $leave->seen('desktop'));
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'prepare-entry');
+        onpc_app_rows::native_activity_entry($journey, 'original', 'grid', 'other-child');
+        $journey->seen('original-session');
+        my $child_leave = $journey->scope('prepare-child-leave');
+        onpc_desktop_session::switch_user($child_leave, $child_leave->seen('desktop'));
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'prepare-return');
+        $journey->consume_observation('prepared-parent-retained',
+            onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'existing', 'prepared', 0));
+    }
     for my $name (qw(enabled grant positive zero off reenabled)) {
         if ($name eq 'grant') {
             my $leave = $journey->scope('approval-leave');
@@ -69,7 +90,7 @@ sub grant_only_new {
         my $leave = $journey->scope("$name-leave");
         onpc_desktop_session::switch_user($leave, $leave->seen('desktop'));
         my $denied = $name eq 'enabled' || $name eq 'reenabled';
-        onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh',
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', $retained ? 'retained' : 'fresh',
             $denied ? 'time-denied' : 'success', "$name-entry");
         if ($denied) {
             onpc_gdm::return_from_time_denial($journey,
@@ -78,13 +99,22 @@ sub grant_only_new {
         } else {
             $journey->seen("$name-countdown");
             if ($name eq 'grant' || $name eq 'off') {
+                if ($retained && $name eq 'grant') {
+                    onpc_app_rows::native_activity_resume($journey, 'grant-original');
+                    onpc_app_rows::native_finish_app($journey->scope('grant-original'));
+                }
                 onpc_app_rows::native_blocked_app($journey->scope("$name-hard"), 'H');
                 my $allowed = $journey->scope("$name-allowed");
                 onpc_app_rows::native_usable_app($allowed, 'grid', $allowed->seen('desktop'), 'other-child');
                 onpc_app_rows::native_finish_app($allowed);
             }
-            my $logout = $journey->scope("$name-logout");
-            onpc_desktop_session::log_out($logout, $logout->seen('desktop'));
+            if ($retained) {
+                my $child_leave = $journey->scope("$name-child-leave");
+                onpc_desktop_session::switch_user($child_leave, $child_leave->seen('desktop'));
+            } else {
+                my $logout = $journey->scope("$name-logout");
+                onpc_desktop_session::log_out($logout, $logout->seen('desktop'));
+            }
         }
         onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', "$name-return");
         onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'existing', "$name-supplied", 0);

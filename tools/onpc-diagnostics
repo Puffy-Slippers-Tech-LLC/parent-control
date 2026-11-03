@@ -92,7 +92,7 @@ def command(args):
             result.append('--dmesg')
         return result
     return {
-        'processes': ['/usr/bin/ps', '-eo', 'pid,ppid,uid,stat,etime,comm'],
+        'processes': ['/usr/bin/ps', '-eo', 'pid,ppid,uid,stat,etime,rss,pss,comm'],
         'disks': ['/usr/bin/lsblk', '--json', '--output', 'NAME,TYPE,SIZE,FSTYPE,MOUNTPOINTS'],
         'mounts': ['/usr/bin/findmnt', '--json', '--output', 'TARGET,SOURCE,FSTYPE'],
         'memory': ['/usr/bin/free', '--bytes'],

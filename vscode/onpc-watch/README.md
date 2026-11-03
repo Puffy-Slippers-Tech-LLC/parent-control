@@ -97,8 +97,10 @@ Only completed messages enter the saved transcript. Launcher status metadata and
 structured workflow results wait for completion before being interpreted.
 Command and tool result bodies are hidden in
 both modes; activity names remain visible and saved transcripts retain results.
-Simplified mode collapses command activity to one clipped line; turn it off to
-see each activity with its original line breaks. Successful Read/Search exploration shows
+Simplified mode pins the latest command activity to one clipped line above the
+chatbox, with a divider separating it from the conversation. Each new activity
+replaces the previous one; earlier activities stay out of the conversation.
+Turn it off to see each activity with its original line breaks. Successful Read/Search exploration shows
 the activity only; file contents and search matches stay out of both views.
 The toggle also works on the retained transcript after the launcher finishes.
 Click **Status** to return to run status and its waiting countdown.

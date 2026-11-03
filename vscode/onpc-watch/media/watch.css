@@ -76,7 +76,12 @@ nav button[aria-pressed="true"] {
 @media (prefers-reduced-motion: reduce) { .waiting-input { animation: none; } }
 .session-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .session-output { flex: 1; }
-.session-output .session-activity { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session-activity {
+    flex: 0 0 auto; min-width: 0; margin: 0; padding: 8px;
+    border-top: 1px solid var(--vscode-panel-border);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font: var(--vscode-editor-font-size) var(--vscode-editor-font-family);
+}
 .session-composer { margin: 0 8px; }
 .session-prompt {
     display: flex; align-items: flex-start; gap: 10px; padding: 4px 0;

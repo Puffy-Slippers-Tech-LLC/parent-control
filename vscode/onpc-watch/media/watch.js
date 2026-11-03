@@ -91,7 +91,9 @@
         copy.addEventListener('click', () => {
             const body = { status: section.content, launcher: section.launcher,
                 error: section.errorStatus, session: section.output }[section.view];
-            vscode.postMessage({ type: 'copy', root: entry.id, text: body.innerText });
+            const activity = section.view === 'session' && !section.activity.hidden ?
+                `\n${section.activity.innerText}` : '';
+            vscode.postMessage({ type: 'copy', root: entry.id, text: body.innerText + activity });
         });
         const links = element('span', 'run-links', section.heading);
         for (const [view, label] of [['status', 'Status'], ['launcher', 'Launcher'], ['error', 'Error'], ['session', 'Session']]) {
@@ -152,6 +154,8 @@
         const session = element('div', 'session-view', body);
         session.hidden = true;
         const output = element('pre', 'run-status session-output', session);
+        const activity = element('pre', 'session-activity', session);
+        activity.hidden = true;
         const composer = element('div', 'session-composer', session);
         const working = element('div', '', composer);
         const prompt = element('div', 'session-prompt', composer);
@@ -180,7 +184,7 @@
         const model = element('span', 'session-model', footer);
         const simplified = element('label', 'session-simplified', footer);
         simplified.append('Simplified ');
-        const section = { session, output, composer, working, input, error, model, fitInput, inputObserver };
+        const section = { session, output, activity, composer, working, input, error, model, fitInput, inputObserver };
         section.toggle = element('button', 'session-toggle', simplified);
         section.toggle.type = 'button';
         section.toggle.setAttribute('role', 'switch');
@@ -198,12 +202,24 @@
     }
 
     function sessionRows(section, view) {
-        const signature = JSON.stringify(view.rows);
+        const signature = JSON.stringify([view.rows, view.simplified]);
         if (signature !== section.outputSignature) {
             const follow = section.output.scrollHeight - section.output.clientHeight - section.output.scrollTop < 24;
-            section.output.replaceChildren(...view.rows.map(row => {
+            const rows = [];
+            let latest = null;
+            for (const row of view.rows) {
+                if (view.simplified && row.some(part => part.compact)) {
+                    latest = row;
+                    while (rows.length && rows[rows.length - 1].every(part => !part.text.trim())) rows.pop();
+                } else {
+                    rows.push(row);
+                }
+            }
+            section.activity.replaceChildren();
+            section.activity.hidden = !latest;
+            for (const part of latest || []) runSpan(section.activity, part);
+            section.output.replaceChildren(...rows.map(row => {
                 const line = document.createElement('div');
-                line.classList.toggle('session-activity', row.some(part => part.compact));
                 if (!row.length) line.textContent = '\u00a0';
                 for (const part of row) {
                     runSpan(line, part);
@@ -541,6 +557,8 @@
             if (entry.session_view) sessionRows(section, entry.session_view);
             else if (!entry.session) {
                 section.output.textContent = 'No active session';
+                section.activity.replaceChildren();
+                section.activity.hidden = true;
                 section.outputSignature = undefined;
                 section.input.disabled = true;
                 section.toggle.disabled = true;

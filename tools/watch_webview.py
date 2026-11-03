@@ -23,7 +23,7 @@ from e2e_watch_viewer import AsyncFeed, Feed, activity_text, progress_text, WAIT
 from ui_watch_transport import Feeds, label
 from watch_checkouts import Discovery, checkout, identity
 from watch_model import ResourceUsage, VMMemory, viewer_entries
-from watch_output import Output, SessionOutput, TAIL_BYTES
+from watch_output import Output, SessionOutput, JsonReader, active_launchers, TAIL_BYTES
 from tests.integration.watch_activity import TerminalControls
 
 
@@ -153,7 +153,7 @@ class Viewer:
         self.configured = {}
         self.images = {}
         self.outputs = {}
-        self.last_output = root
+        self.launcher_reader = JsonReader()
         self.status_cache = {}
         self.launcher_logs = {}
         self.launcher_controls = {}
@@ -228,10 +228,57 @@ class Viewer:
     def run_status(self, session_root=None):
         from launcher_render import clean
         sections = []
-        for root, branch in self.roots.items():
-            if root not in self.outputs:
-                self.outputs[root] = Output(root, show_log=False)
-            output = self.outputs[root]
+        workflow_roots = {run: root for root in self.roots
+                          for run, _name in active_launchers(root, self.launcher_reader,
+                              include_idle=True, workflows_only=True)}
+        workflow_bases = {run.parent: run for run in workflow_roots}
+
+        def supervisor(run):
+            if run is None:
+                return None
+            try:
+                record = self.launcher_reader.read(run.parent / 'current.json', 4096)
+                observer = Path(record['observer'])
+                if record['run'] == run.name:
+                    if observer.name.startswith('pipeline-'):
+                        observer = observer.parent
+                    if re.fullmatch('[0-9a-f]{32}', observer.name):
+                        # A newer parent run can precede its replacement child.
+                        return workflow_bases.get(observer.parent)
+            except (OSError, ValueError, KeyError, TypeError):
+                pass
+            return None
+
+        def observe(root, run):
+            owner = supervisor(run)
+            if owner is not None:
+                root, run = workflow_roots[owner], owner
+            if run.parent not in self.outputs:
+                self.outputs[run.parent] = Output(root, show_log=False, launcher_base=run.parent)
+
+        for checkout_root in self.roots:
+            # Child runners can be dispatched into another worktree. Their
+            # progress already appears in the controlling workflow's section.
+            live = list(active_launchers(checkout_root, self.launcher_reader))
+            candidates = live
+            if not live and not any(output.root == checkout_root for output in self.outputs.values()):
+                retained = []
+                for run, name in active_launchers(checkout_root, self.launcher_reader, include_idle=True):
+                    try:
+                        retained.append((run.stat().st_mtime_ns, run, name))
+                    except OSError:
+                        continue
+                if retained:
+                    _modified, run, name = max(retained)
+                    candidates = [(run, name)]
+            for run, _name in candidates:
+                observe(checkout_root, run)
+        # Discovery may learn a child's checkout before its parent's checkout.
+        for output in tuple(self.outputs.values()):
+            if output.run is not None:
+                observe(output.root, output.run)
+        for root, output in self.outputs.items():
+            branch = self.roots[output.root]
             label, active, reset, data = output.poll(progress=False)
             if reset or root not in self.launcher_logs:
                 self.launcher_logs[root] = ''
@@ -243,8 +290,8 @@ class Viewer:
                 self.sessions[root] = SessionOutput(output, None, embedded=True)
             session = self.sessions[root]
             session.poll()
-            if active:
-                self.last_output = root
+            if supervisor(output.run) is not None:
+                continue
             status = '' if active else output.completion_status()
             lines = []
             error_lines = []
@@ -347,7 +394,7 @@ class Viewer:
                 session_view = session.panel.webview()
                 session_view['rows'] = status_spans(session_view.pop('lines'))
                 session_view['input_enabled'] = session.input_enabled
-            sections.append(dict(id=str(root), label=f'[{branch}]' +
+            sections.append(dict(id=str(root), checkout=str(output.root), label=f'[{branch}]' +
                 (f' {label}' + (f' ({status})' if status else '') if label else ''),
                 active=active or session.active, status=status, rows=self.status_cache[root][1],
                 run=str(output.run) if output.run is not None else None,
@@ -361,7 +408,7 @@ class Viewer:
         # Exiting one launcher must not remove its tabs while another checkout
         # is still active. Retain observed runs for this reader's lifetime.
         retained = [section for section in sections if section['run'] or section['session']]
-        return retained or [section for section in sections if section['id'] == str(self.last_output)]
+        return retained
 
     def close(self):
         self.discovery.close()
@@ -505,7 +552,7 @@ class Viewer:
         runs = self.run_status(request.get('session_root'))
         # Follow the displayed terminal sections, including changes on refresh.
         # Checkouts without a displayed run follow in discovery order.
-        ordered_roots = dict.fromkeys([section['id'] for section in runs] +
+        ordered_roots = dict.fromkeys([section['checkout'] for section in runs] +
                                      [str(root) for root in self.roots])
         root_order = {root: index for index, root in enumerate(ordered_roots)}
         values, shown = [], set()

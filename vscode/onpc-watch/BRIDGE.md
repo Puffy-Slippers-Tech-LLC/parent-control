@@ -51,7 +51,9 @@ selection means no viewer pixels are requested (metadata still returns). An empt
 the adapter may use paths internally, but the renderer must not interpret them.
 IDs are nonempty strings of at most 4096 characters, unique within each array.
 Checkout IDs cannot be `all`; viewer IDs cannot be `all` or `__hidden__` (the
-bridge's no-pixels selection). Run IDs that refer to a checkout use its ID.
+bridge's no-pixels selection). Run IDs identify launcher sections independently
+of checkout IDs, allowing concurrent launchers in one checkout. The local
+adapter also publishes `checkout` on each run for viewer ordering.
 Every snapshot includes current metadata for the selected scope, even when
 pixels or transcript bodies are omitted. Viewers outside `scope` may be omitted.
 

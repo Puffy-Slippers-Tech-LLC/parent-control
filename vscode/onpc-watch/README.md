@@ -18,8 +18,13 @@ the tab remembers its ratio. Focus the divider and use the arrow keys to resize
 with the keyboard, or double-click it to restore 30:70.
 
 The left panel shows **Run Status** across related Git worktrees, using shared
-runner discovery and the pipeline dashboard. Active worktrees
-share the panel in equal sections initially. The horizontal dividers can be
+runner discovery and the pipeline dashboard. Each concurrent launcher gets its
+own section, including launchers in the same worktree. Sections
+share the panel in equal sections initially. A `run-tests` child that publishes
+its controlling launcher is shown through that launcher's progress, even across
+worktrees. Independent runners keep their own sections. Older child runs without
+that publication remain visible until their next normal start.
+The horizontal dividers can be
 dragged to resize adjacent sections, or focused
 and adjusted with Up/Down. The icon immediately before each copy button toggles
 **Collapse** / **Expand**. Collapsing leaves only that launcher's title bar, tabs

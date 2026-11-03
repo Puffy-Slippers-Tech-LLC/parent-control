@@ -1151,10 +1151,14 @@ alone supplies no complete qualification. This is authentication-harness
 qualification, separate from customer product acceptance.
 
 The adapter reconnects the existing `sut` console after controller readiness,
-before its first input or recipient proof, then sends Ctrl+Alt+F6 once. A live
-Fedora probe reproduced lost keyboard delivery with a VNC connection held across
-boot; a fresh connection delivered the same chord. This rebind is separate from
-HAR01's ordinary selection and never retries uncertain input. Getty executable
+before its first input or recipient proof. At `vt6-provider-inspected`, the
+controller selects VT6 once with `vt6_authentication.select_console` through
+the owned SSH transport and the public `chvt` command. A Fedora failure retained
+an unchanged active console and blank VT6 after Ctrl+Alt+F6 even with a fresh VNC
+connection. Console navigation therefore uses the system command; login and the
+independently verified shell command still require real VNC keyboard input.
+The rebind remains separate from HAR01's ordinary selection. Neither action
+retries uncertain input or grants recipient authority. Getty executable
 checks resolve both the running and expected paths, preserving exact identity
 on Fedora's merged `/usr/sbin` layout. Advisory `ready` and
 `vt6-provider-inspected` observations remain separate from input authority.

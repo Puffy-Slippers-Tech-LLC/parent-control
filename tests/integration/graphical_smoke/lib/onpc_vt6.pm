@@ -71,7 +71,8 @@ sub authenticate_text {
         die 'vt6:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
         die 'vt6:video-policy' unless testapi::get_var('NOVIDEO', 0) eq '1';
         select_boot_console();
-        testapi::send_key('ctrl-alt-f6');
+        # The controller selects VT6 with its guarded system command. Do not
+        # send a keyboard chord as well or retry uncertain console navigation.
         $exchange->('vt6-provider-inspected', undef);
         my $boot;
         _text_receipt($exchange, 'vt6-login-ready', \$boot,

@@ -41,6 +41,16 @@ REFUSALS = frozenset('vt6-auth:' + code + '-refused'
                     for code in (*BOUNDARIES, *CAPTURE_PREDICATES))
 
 
+def select_console(transport):
+    """Select VT6 once through the owned transport before recipient proofs.
+
+    Console navigation is setup, separate from the real keyboard login. The
+    caller's one-use stage owns this action; never retry an uncertain command.
+    Command completion grants no account or password input authority.
+    """
+    transport.call(['/usr/bin/chvt', '6'], timeout=30)
+
+
 class Authentication:
     def __init__(self, directory, observer, verified, *, on_diagnostic=None, logical_text=False):
         require(type(logical_text) is bool, 'vt6-auth:protocol')

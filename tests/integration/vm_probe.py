@@ -1531,7 +1531,8 @@ def probe_vt6_input(lease, *, reboot=False, authenticate=False):
     from fixture_credentials import FixtureCredentials
     from observation_transport import ReadOnlyObservations
     from qualification_storage import recovery_session, allocate
-    with operation('Probing one VNC Ctrl+Alt+F6 chord on the live VM'), recovery_session(
+    with operation('Probing terminal authentication on the live VM' if authenticate else
+                   'Probing one VNC Ctrl+Alt+F6 chord on the live VM'), recovery_session(
             check='probe_vt6_input', inputs={'reboot': reboot, 'authenticate': authenticate},
             lease=lease, live=True):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-vt6-input-diagnosis-'))
@@ -1545,7 +1546,7 @@ def probe_vt6_input(lease, *, reboot=False, authenticate=False):
         authentication = verified = None
         if authenticate:
             from provenance import VerifiedInputs
-            from vt6_authentication import Authentication, TEXT_STAGES
+            from vt6_authentication import Authentication, TEXT_STAGES, select_console
             verified = VerifiedInputs(lease=lease)
             authentication = Authentication(directory, observer, verified, logical_text=True)
             stages = ('ready', 'vt6-provider-inspected', *TEXT_STAGES)
@@ -1567,6 +1568,8 @@ def probe_vt6_input(lease, *, reboot=False, authenticate=False):
             if authentication is not None and stage in TEXT_STAGES:
                 result = authentication.observe(stage, None, guard)
             else:
+                if authentication is not None and stage == 'vt6-provider-inspected':
+                    select_console(transport)
                 result = observer.read('vt6-selected-provider-diagnostic' if observations
                                        else 'vt6-provider-diagnostic')
             observations.append({'stage': stage, **result})

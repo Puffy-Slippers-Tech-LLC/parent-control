@@ -45,7 +45,7 @@ from ui_observations import UiObservations
 from installation_boundary import InstallationBoundary
 import installation_observations
 from vt6_authentication import (Authentication as VT6Authentication, TEXT_STAGES as VT6_LOGIN_STAGES,
-                                REFUSALS as VT6_AUTH_REFUSALS)
+                                REFUSALS as VT6_AUTH_REFUSALS, select_console as select_vt6_console)
 sys.path.pop(0)
 STAGES = ('ready', 'gdm', 'selected', 'dismissed')
 VT6_PROMPT_STAGES = (*STAGES, 'vt6-ready', 'vt6-login-screen', 'vt6-prompt-ready', 'vt6-prompt-screen')
@@ -286,9 +286,11 @@ class Smoke:
                 reply['assets'] = self.transfer.observe(self.vm)
         elif self.vt6_auth and stage == 'vt6-provider-inspected':
             require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
-            # An advisory observation after one nonsecret console switch. It
-            # grants no account/password input and cannot satisfy a login stage.
-            with watch_operation('Inspecting the selected terminal without entering an account or password'):
+            # Select once through the guarded system command, then observe
+            # independently. The keyboard chord can be lost across GDM startup.
+            # Neither command success nor this diagnostic authorizes login input.
+            with watch_operation('Selecting the terminal without entering an account or password'):
+                select_vt6_console(self.transport)
                 reply = {'vt6_provider_diagnostic': self.vm.read('vt6-selected-provider-diagnostic')}
         elif self.vt6_auth and stage in VT6_LOGIN_STAGES:
             try:

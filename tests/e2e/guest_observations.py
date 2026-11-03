@@ -92,7 +92,13 @@ def call(*args):
     return subprocess.run(args, capture_output=True, text=True, check=True, timeout=10).stdout
 deadline = time.monotonic() + 90
 while time.monotonic() < deadline:
-    active = call('systemctl', 'is-active', 'display-manager').strip() == 'active'
+    # SSH can become ready before the display manager. Status 3 means the
+    # service is not active yet; keep polling within the original deadline.
+    manager = subprocess.run(('systemctl', 'is-active', 'display-manager'),
+                             capture_output=True, text=True, timeout=10)
+    if manager.returncode not in (0, 3):
+        manager.check_returncode()
+    active = manager.returncode == 0 and manager.stdout.strip() == 'active'
     user_session = False
     greeter = False
     for row in call('loginctl', 'list-sessions', '--no-legend', '--no-pager').splitlines():

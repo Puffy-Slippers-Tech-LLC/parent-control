@@ -66,7 +66,7 @@ The response contains these fields:
 | `entries` | Viewer entries described below, including idle configured viewers. |
 | `resources` | Readable resource summary for the source host. |
 | `resource_sample` | Sample identity, compared only within this source. |
-| `resource_charts` | Array of `{label, text, segments}` for CPU, Memory and Disk; empty if unavailable. |
+| `resource_charts` | Array of `{label, text, segments}` for CPU, VM RAM and Disk; empty if unavailable. VM RAM reports total host RAM charged to system libvirt QEMU VM scopes, including overhead, in GB rounded to one decimal place; its chart uses the percentage of host RAM. |
 | `session_result` | Optional `{id, ok, error?}` acknowledging the requested action. |
 | `run_times` | Optional array, populated only for `selected: "run-time"`: `{id, title, category, vm, seconds, completed_at, case_file, description, steps?, expected?, case_link, recording}`. Each case/VM pair keeps its latest execution; the UI groups pairs into a case row and orders children by raw seconds. Description is a one-line summary; optional steps are plain-text strings and expected is a plain-text outcome. Links are published artifact references; recording may be null. |
 

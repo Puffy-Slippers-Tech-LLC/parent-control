@@ -192,7 +192,7 @@ The tab remembers the selection. Overflowing tiles scroll in the chosen directio
 overflowing tab headers scroll independently while the layout buttons stay pinned.
 
 The footer shows enabled hosts in `config/test-vm.json` order. Each host has a
-server icon and hostname before its CPU, Memory and Disk percentages and small
+server icon and hostname before its CPU, VM RAM and Disk readings and small
 filled history graphs. When the hosts do not fit side by side, they stack with
 one complete host per row. Extremely narrow views can scroll the readings horizontally.
 Host configuration is read when Watch opens or reconnects, independently of viewer
@@ -203,6 +203,15 @@ hosts retain their name without stale readings.
 The graphs reuse the once-per-second samples, show the last minute on a fixed
 0–100% scale, and retain history only in memory. Closing and reopening Watch or
 reconnecting its reader starts fresh; pauses leave gaps rather than joined curves.
+
+**VM RAM** sums cgroup v2 `memory.current` for all system libvirt QEMU VM scopes
+on that host, including VMs outside the configured test inventory. It includes
+guest RAM, QEMU overhead, helper processes, charged kernel memory and file cache,
+without counting descendant groups twice. It shows decimal GB rounded to one
+decimal place; the graph uses the percentage of total host RAM. Swap is excluded. With no
+VM scopes it shows zero; unavailable accounting shows **—**. Stopping VMs removes
+their scopes from the total. The change in overall host memory use can differ
+because reclaimable cache may remain and other host activity continues.
 
 **Disk** reports the busiest physical disk's elapsed I/O busy time, matching
 `iostat %util`. It avoids adding overlapping request durations. This measures

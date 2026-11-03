@@ -223,7 +223,7 @@ footer { display: flex; flex-shrink: 0; gap: 8px; align-items: center; padding: 
 .host-status { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .host-status svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 .host-status.disconnected { color: var(--vscode-errorForeground); }
-.percentage { width: 4ch; white-space: pre; text-align: right; }
+.percentage { min-width: 4ch; flex: 0 0 auto; white-space: pre; text-align: right; }
 .resource-chart { width: 70px; height: 22px; border-radius: 3px; }
 #restart { border: 0; padding: 4px 8px; background: var(--vscode-button-secondaryBackground); }
 @container (max-width: 650px) {

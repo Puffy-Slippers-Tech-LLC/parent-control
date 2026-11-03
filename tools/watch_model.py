@@ -51,13 +51,41 @@ class VMMemory:
 class ResourceUsage:
     """Host utilization sampled once per second, without external commands."""
 
-    def __init__(self, proc=Path('/proc'), block=Path('/sys/block'), clock=time.monotonic):
+    def __init__(self, proc=Path('/proc'), block=Path('/sys/block'), clock=time.monotonic,
+                 cgroups=Path('/sys/fs/cgroup')):
         self.proc, self.block, self.clock = proc, block, clock
+        self.cgroups = cgroups
         self.previous_cpu = self.previous_disks = None
         self.last = None
         self.label = ''
         self.history = deque(maxlen=60)
         self.charts = []
+
+    def vm_ram(self):
+        """Bytes charged to all system libvirt QEMU VMs, including overhead."""
+        if 'memory' not in (self.cgroups / 'cgroup.controllers').read_text().split():
+            raise ValueError('cgroup v2 memory accounting unavailable')
+        machines = self.cgroups / 'machine.slice'
+        try:
+            scopes = list(machines.iterdir())
+        except FileNotFoundError:
+            return 0
+        total = 0
+        for scope in scopes:
+            if not (scope.name.startswith('machine-qemu') and scope.name.endswith('.scope')):
+                continue
+            try:
+                # Includes descendant emulator/vCPU/helper groups exactly once,
+                # guest RAM, QEMU allocations, charged cache and kernel memory.
+                current = int((scope / 'memory.current').read_text())
+            except FileNotFoundError:
+                if not scope.exists():  # VM stopped during this sample.
+                    continue
+                raise
+            if current < 0:
+                raise ValueError('invalid VM memory accounting')
+            total += current
+        return total
 
     def text(self):
         now = self.clock()
@@ -66,6 +94,7 @@ class ResourceUsage:
         interval = now - self.last if self.last is not None else 0
         self.last = now
         cpu = memory = disk = None
+        vm_bytes = None
         try:
             # Guest counters are already included in user/nice; count them once.
             ticks = list(map(int, (self.proc / 'stat').read_text().splitlines()[0].split()[1:9]))
@@ -81,7 +110,8 @@ class ResourceUsage:
             values = {key: int(value.split()[0]) for key, value in
                       (row.split(':', 1) for row in (self.proc / 'meminfo').read_text().splitlines())}
             if values['MemTotal'] > 0:
-                memory = 100 * (1 - values['MemAvailable'] / values['MemTotal'])
+                vm_bytes = self.vm_ram()
+                memory = 100 * vm_bytes / (values['MemTotal'] * 1024)
         except (OSError, ValueError, IndexError, KeyError):
             pass
         try:
@@ -108,7 +138,7 @@ class ResourceUsage:
             return f'{max(0, min(100, value)):3.0f}%' if value is not None else '   —'
         self.history.append((now, cpu, memory, disk))
         self.charts = []
-        for index, (name, value) in enumerate(zip(('CPU', 'Memory', 'Disk'), (cpu, memory, disk)), 1):
+        for index, (name, value) in enumerate(zip(('CPU', 'VM RAM', 'Disk'), (cpu, memory, disk)), 1):
             segments, segment, previous = [], [], None
             for sample in self.history:
                 stamp, reading = sample[0], sample[index]
@@ -123,7 +153,10 @@ class ResourceUsage:
                 previous = stamp
             if segment:
                 segments.append(segment)
-            self.charts.append(dict(label=name, text=percentage(value), segments=segments))
+            text = percentage(value)
+            if name == 'VM RAM' and value is not None:
+                text = f'{vm_bytes / 1e9:.1f} GB'
+            self.charts.append(dict(label=name, text=text, segments=segments))
         self.label = ' | '.join(f'{chart["label"]}: {chart["text"]}' for chart in self.charts)
         return self.label
 

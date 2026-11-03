@@ -528,16 +528,18 @@ def verify(publish):
         recovery('global-recovery', global_disable)
         cycles = []
         for number in range(8):
-            rows = recovery('individual-' + str(number + 1), lambda:
+            global_switch = bool(number % 2)
+            label = ('global-' if global_switch else 'individual-') + str(number + 1)
+            recovery(label, global_disable if global_switch else lambda:
                 manager._run_as(account, 'gnome-extensions', 'disable', '--quiet', UUID))
-            cycles.append(attempts(rows)[0])
-        intervals = [round(right - left, 3) for left, right in zip(cycles, cycles[1:])]
-        record('backoff', {'native_attempt_intervals_seconds': intervals,
-                          'disablements': 8, 'cap_seconds': 30})
-        # Native daemon command timestamps exclude all host SSH delay. Five
-        # seconds cover bounded command/notification work around the 30s wait.
-        guest.require(all(29 <= value <= 35 for value in intervals[-2:]),
-                      'extension:backoff-not-capped-at-thirty')
+            latency = observations[-1][1]['native_signal_seconds']
+            cycles.append(latency)
+            # Native Shell signals exclude host SSH and preservation checks.
+            # Keep ample command/notification headroom while rejecting the
+            # increasing cooldown formerly added after successful recovery.
+            guest.require(latency < 10, 'extension:' + label + '-recovery-delayed')
+        record('repeated-recovery', {'native_signal_seconds': cycles,
+                                    'disablements': 8, 'response_bound_seconds': 10})
         time.sleep(2)
         quiet = time.monotonic()
         deadline = quiet + 65
@@ -567,12 +569,11 @@ def verify(publish):
                          'broker_management_commands': len(idle),
                          'diagnostic_read_commands': len(diagnostic_reads)})
         guest.require(not idle, 'extension:idle-management-commands')
-        rows = recovery('cooldown-reset', lambda:
+        recovery('post-quiet-recovery', lambda:
             manager._run_as(account, 'gnome-extensions', 'disable', '--quiet', UUID))
-        # The native signal measurement, not pytest/SSH latency, distinguishes
-        # a reset cooldown from the previously observed thirty-second delay.
+        # Healthy idle remains event-driven and leaves recovery responsive.
         latest = observations[-1][1]
-        guest.require(latest['native_signal_seconds'] < 10, 'extension:quiet-did-not-reset')
+        guest.require(latest['native_signal_seconds'] < 10, 'extension:post-quiet-recovery-delayed')
         accepted(call(accounts['parent'], 'SetParentControl', '(ubu)', (child, False, 1440)))
         off = time.monotonic()
         global_disable()

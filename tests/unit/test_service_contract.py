@@ -37,17 +37,16 @@ def test_extension_monitor_coalesces_untrusted_hints_and_bounds_failed_work():
         monitor._schedule(watch)
     monitor._later.assert_called_once()
     # Owning/replacing Shell's name is also under child control. Those bus
-    # hints cannot bypass the existing probe deadline or recovery throttle.
+    # hints cannot bypass the existing probe or failure retry deadline.
     watch.source = None
     watch.next_check = 15
-    watch.recoveries = MAX_BACKOFF_LEVEL
     monitor._later.reset_mock()
     with mock.patch("oh_no_parent_control.extension_monitor.time.monotonic", return_value=10):
         for _ in range(100):
             monitor._shell_changed(watch, GLib.Variant("(sss)", ("org.gnome.Shell", "", ":1.42")))
     monitor._later.assert_called_once()
     assert monitor._later.call_args.args[0] == 5
-    assert watch.next_check == 15 and watch.recoveries == MAX_BACKOFF_LEVEL
+    assert watch.next_check == 15
     monitor._later.reset_mock()
     watch.failures = 0
     monitor._stopped.set()
@@ -191,13 +190,13 @@ def test_explicit_recovery_rearms_without_a_healthy_observation_and_keeps_deferr
         monitor._check(watch)
         assert watch.failed and watch.report_pending == deferred
         watch.recovery_interrupted = True
-        watch.last_recovery, watch.recoveries, watch.next_check = 80, 2, 101
+        watch.last_recovery, watch.next_check = 80, 101
         monitor.recovered(1001)
         assert watch.failed  # The service thread cannot mutate the watch.
         monitor._later.call_args.args[1]()
         assert not watch.failed and watch.report_pending == deferred
         assert watch.recovery_interrupted
-        assert (watch.last_recovery, watch.recoveries, watch.next_check) == (80, 2, 101)
+        assert (watch.last_recovery, watch.next_check) == (80, 101)
         # Deliberately skip healthy: disablement is the first observation after
         # trusted parent recovery, matching coalesced native Shell signals.
         monitor._observe.return_value = ({"state": 2}, True)
@@ -317,7 +316,7 @@ def test_explicit_recovery_notification_is_safe_when_watch_goes_away(unavailable
     monitor._later.assert_not_called()
 
 
-def test_extension_monitor_slows_successful_repeated_disables_and_resets_after_healthy_quiet():
+def test_extension_monitor_recovers_repeated_individual_and_global_disables_without_cooldown():
     import threading
 
     monitor = ExtensionMonitor.__new__(ExtensionMonitor)
@@ -326,21 +325,18 @@ def test_extension_monitor_slows_successful_repeated_disables_and_resets_after_h
     monitor._schedule = mock.Mock()
     watch = _Watch(1001)
     clock = [100.0]
-    expected_delays = (0.5, 1, 2, 4, 8, 16, 30, 30, 30, 30)
     with mock.patch("oh_no_parent_control.extension_monitor.time.monotonic", side_effect=lambda: clock[0]):
-        for count, delay in enumerate(expected_delays, 1):
-            monitor._reconcile(watch, {"state": 2}, True)
+        for count in range(1, 13):
+            # Alternate individual/global disablement without waiting for a
+            # healthy observation; native signals can coalesce that transition.
+            monitor._reconcile(watch, {"state": 2}, bool(count % 2))
             assert monitor.manager.set_enabled.call_count == count
-            clock[0] += 0.01
-            monitor._reconcile(watch, {"state": 2}, True)
-            assert monitor.manager.set_enabled.call_count == count
-            assert watch.next_check - watch.last_recovery == delay
-            clock[0] = watch.next_check
-        monitor._reconcile(watch, {"state": 1}, True)
-        clock[0] += 61
-        monitor._reconcile(watch, {"state": 2}, True)
-    assert monitor.manager.set_enabled.call_count == len(expected_delays) + 1
-    assert watch.recoveries == 1
+            assert watch.last_recovery == clock[0]
+            assert watch.next_check == 0
+            clock[0] += 0.5
+    monitor._schedule.assert_not_called()
+    assert monitor.manager.set_enabled.call_args_list == [
+        mock.call(1001, True, recover_global_switch=True)] * 12
     monitor.manager.report_failure.assert_not_called()
 
 

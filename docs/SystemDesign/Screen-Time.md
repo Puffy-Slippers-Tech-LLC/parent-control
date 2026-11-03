@@ -234,10 +234,11 @@ Recovery is asynchronous and cannot prohibit a settings write in the child's
 own GNOME session. It restores attempted disablement while the broker and Shell
 are available; this is not a fine-grained administrator-only GNOME settings lock
 or protection against a compromised compositor. Without a confirmed extension
-error or crash-protection hold, recovery keeps retrying indefinitely with delays
-capped at 30 seconds. Rapid successful disable/recovery cycles also back off;
-60 seconds of verified healthy quiet resets that cooldown. Healthy sessions
-otherwise remain event-driven. A detected product-extension error suppresses repeated enable attempts
+error or crash-protection hold, repeated individual or global disablement in a
+running Shell is treated as tampering and recovered promptly. Successful
+recoveries add no cooldown. Failed recovery attempts keep retrying indefinitely
+with delays capped at 30 seconds. Healthy sessions remain event-driven.
+A detected product-extension error suppresses repeated enable attempts
 and opens the existing Child App error report when a graphical session is
 available. Opening a report sends nothing, and repeated observations do not
 continually reopen the same failure. A Shell crash alone does not identify the
@@ -245,8 +246,8 @@ extension responsible.
 
 GNOME also uses its error state while asynchronously importing an extension.
 The public `GetExtensionErrors` history distinguishes that loading placeholder
-from a confirmed failure: an empty history stays pending without a report or
-healthy cooldown credit. Recorded exceptions remain failures even when their
+from a confirmed failure: an empty history stays pending without a report.
+Recorded exceptions remain failures even when their
 message is empty. Both automatic monitoring and explicit recovery use this
 distinction.
 
@@ -276,7 +277,7 @@ The maintained standalone system checks own the engineering fault histories:
 
 | Boundary | Existing test owner |
 | --- | --- |
-| Individual/global disablement, repeated interference and bounded backoff | System 295 in [monitor checks](../../tests/system/test_extension_monitor.py) |
+| Prompt repeated individual/global recovery, interference and bounded failure backoff | System 295 in [monitor checks](../../tests/system/test_extension_monitor.py) |
 | Session-bus/Shell replacement, logout, contention and owned shutdown | System 296 in monitor checks |
 | Confirmed extension errors, standard reporting without automatic submission and crash protection | System 297 in monitor checks |
 | Broker startup, offline persistence, cold boot and startup failure isolation | System 298 in [startup checks](../../tests/system/test_extension_startup.py) |

@@ -359,6 +359,20 @@ save-completion guards. An empty optional trace-source slot is absence, not a
 request for the separate Riley trace guard. Collection, owned cleanup and
 baseline restoration passed. Other E2E-005 bindings remain separate.
 
+Complete case 8, `daily_access_case.RetainedDailyAccessJourney` /
+`onpc_allowance_case::daily_only_retained`, passed on Ubuntu 26.04 in
+`20261103T022318Z-7d29f9c0`. The same Jordan desktop and original usable work
+survived enablement; the original app was compared, used and closed before
+Hard denial. The 30→40→0 history, same Jamie/Parent window, zero-time retained
+denial, limits-off countdown absence/access and Allowed/Hard results, and
+re-enabled zero-time denial all passed, including collection, worker/callback
+shutdown, owned cleanup and baseline restoration. Coverage was regenerated.
+The affected case-7 regression passed on Ubuntu 26.04 in
+`20261103T045224Z-b071f5e9`, including the enabled child's normal logout,
+the complete fresh-child history, collection, owned cleanup and baseline
+restoration. Task 054 is complete. Temporary logout diagnostics were removed;
+the earlier intermittent failure did not recur, and no causal fix is claimed.
+
 ### Harness transport and serial qualification
 
 These blocks serve **case 1's harness assertions**, not customer product

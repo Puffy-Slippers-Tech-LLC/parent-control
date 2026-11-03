@@ -1,14 +1,17 @@
-"""Case 7: Jordan's daily allowance across fresh child sign-ins."""
+"""Cases 7/8: Jordan's daily allowance across fresh or retained child visits."""
 from copy import deepcopy
+from dataclasses import replace
 
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
 from countdown import CountdownObservation, check_countdown_balance
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (allowance_selection, custom_allowance, desktop_entry,
                             fresh_desktop, native_blocked_app, native_usable_app,
+                            native_activity_entry, native_activity_resume,
                             parent_management, prefixed_stages, rejected_gdm_return,
                             retained_parent_entry)
 from native_fixtures import fixture_actions
+from journey_checks import RetainedDesktopJourney
 from policy_edits import AppPolicyJourney, policy_edit
 from private_artifacts import require
 from ui_observations import SettingsObservation
@@ -110,6 +113,83 @@ PLAN = JourneyPlan(
 )
 
 
+# The retained binding shares the allowance history and public operations, but
+# starts Jordan once, proves his original work survives enablement, and never
+# logs him out. Close that work normally before testing new native launches.
+RETAINED_PREPARATION = {
+    **SETUP,
+    **prefixed_stages('prepare-leave', {
+        'desktop': 'ui:desktop', 'switch-user': 'system:parent-switch-user',
+        'gdm-switched': 'ui:gdm-returned'}),
+    **prefixed_stages('prepare-entry', desktop_entry('other-child', source='gdm', entry='fresh')),
+    **native_activity_entry('original', route='grid', child='other-child'),
+    'original-session': 'system:standard-entry-same',
+    **prefixed_stages('prepare-child-leave', {
+        'desktop': 'ui:standard-desktop', 'switch-user': 'system:standard-switch-user',
+        'gdm-switched': 'ui:gdm-returned'}),
+    **prefixed_stages('prepare-return', desktop_entry('parent', source='gdm', entry='retained')),
+    'prepared-parent-retained': 'ui:retained-parent-read',
+}
+RETAINED_SCREENS = dict(RETAINED_PREPARATION)
+RETAINED_PHASES = {stage: 'step-1' for stage in RETAINED_PREPARATION}
+RETAINED_SAVED = {**SAVED, 'prepared-parent-retained': (False, 30)}
+for name in TRANSITIONS:
+    group = {stage: tag for stage, tag in SCREENS.items() if stage.startswith(name + '-')}
+    if name == 'forty':
+        # An allowance-only edit needs its saved value/balances, not another tour.
+        group = {stage: tag for stage, tag in group.items()
+                 if stage in custom_allowance('forty', 40) or stage in ('forty-settings', 'forty-balance')}
+    else:
+        group = {stage: tag for stage, tag in group.items()
+                 if not stage.startswith((name + '-hard-', name + '-allowed-', name + '-logout-'))}
+        group[name + '-entry-entry-guard'] = 'system:standard-entry-retained'
+        if name in ('enabled', 'off'):
+            return_start = name + '-return-entry-guard'
+            before = list(group).index(return_start)
+            items = list(group.items())
+            apps = {
+                **({**native_activity_resume('enabled-original', child='other-child'),
+                    'enabled-original-close': 'ui:native-close',
+                    'enabled-original-closed': 'ui:native-closed'} if name == 'enabled' else {}),
+                **{stage: tag for stage, tag in SCREENS.items()
+                   if stage.startswith(name + '-hard-')},
+                **{stage: tag for stage, tag in SCREENS.items()
+                   if stage.startswith(name + '-allowed-')},
+            }
+            leave = prefixed_stages(name + '-child-leave', {
+                'desktop': 'ui:standard-desktop', 'switch-user': 'system:standard-switch-user',
+                'gdm-switched': 'ui:gdm-returned'})
+            group = dict(items[:before] + list(apps.items()) + list(leave.items()) + items[before:])
+    RETAINED_SCREENS.update(group)
+    RETAINED_PHASES.update({stage: PHASES.get(stage,
+        'step-2' if name == 'enabled' else 'step-4') for stage in group})
+
+RETAINED_LOGIN_PREFIXES = ('prepare-entry', 'prepare-return', *(
+    prefix for name in ('enabled', 'zero', 'off', 'reenabled')
+    for prefix in (name + '-entry', name + '-return')))
+RETAINED_LOGIN_STAGES = set(fresh_desktop('parent')) | DENIAL_STAGES | {
+    stage for prefix in RETAINED_LOGIN_PREFIXES for stage in prefixed_stages(
+        prefix, fresh_desktop('parent' if prefix.endswith('-return') else 'other-child',
+            'time-denied' if prefix in ('zero-entry', 'reenabled-entry') else 'success'))}
+RETAINED_PLAN = replace(PLAN,
+    prefix='daily-retained-access-case', worker_mode='daily_retained_access_case',
+    screen_tags=RETAINED_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup', **RETAINED_PHASES, 'installed-greeter': 'start'},
+    advance_after={'installed-greeter': 'step-1', 'prepared-parent-retained': 'step-2',
+                   'enabled-returned-balance': 'step-3', 'zero-returned-balance': 'step-4'},
+    child_bindings={stage: 'existing' for stage, tag in RETAINED_SCREENS.items()
+                    if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
+    invocations=tuple(stage for stage in RETAINED_SCREENS if stage in RETAINED_LOGIN_STAGES),
+    challenges={'initial': PLAN.challenges['initial'], **{
+        prefix: ('parent' if prefix.endswith('-return') else 'other-child',
+            prefix + ('-recipient-qualified' if prefix.endswith('-return') else '-standard-recipient-qualified'),
+            prefix + ('-recipient-rechecked' if prefix.endswith('-return') else '-standard-recipient-rechecked'))
+        for prefix in RETAINED_LOGIN_PREFIXES}},
+    activity_entries={'enabled-entry-entry-guard': 'original-capture'},
+    activity_checks={'enabled-original-opened': ('original-capture', 'same')},
+)
+
+
 class DailyAccessJourney(AppPolicyJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan,
@@ -120,8 +200,9 @@ class DailyAccessJourney(AppPolicyJourney):
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
-        if stage in SAVED:
-            enabled, minutes = SAVED[stage]
+        saved_states = RETAINED_SAVED if self.plan is RETAINED_PLAN else SAVED
+        if stage in saved_states:
+            enabled, minutes = saved_states[stage]
             value = observed['ui']['retained_parent']
             require(value['page'] == 'screen-limits' and value['settings'] == {
                 'child': 'existing-fixture-child', 'limit_enabled': enabled,
@@ -144,7 +225,9 @@ class DailyAccessJourney(AppPolicyJourney):
             if stage in ('initial-balance', 'setup-off-balance') or stage.startswith(('zero-', 'off-', 'reenabled-')):
                 require(value['total']['seconds'] == 0, 'daily-access:expected-zero-time')
             elif stage == 'enabled-balance':
-                require(abs(value['total']['seconds'] - 1800) < value['total']['precision_seconds'],
+                require(0 < value['total']['seconds'] <= 1800 and
+                        (self.plan is RETAINED_PLAN or
+                         abs(value['total']['seconds'] - 1800) < value['total']['precision_seconds']),
                         'daily-access:initial-daily-balance')
             elif stage == 'forty-balance':
                 before = self.balances['enabled-returned-balance']
@@ -170,4 +253,17 @@ def execute(recorder, context):
                              journey_type=DailyAccessJourney)
 
 
-E2E_CASES = {'daily-only-new': execute}
+class RetainedDailyAccessJourney(RetainedDesktopJourney, DailyAccessJourney):
+    def __init__(self, context, progress, plan=RETAINED_PLAN, *, actions=None):
+        super().__init__(context, progress, plan, actions=actions,
+            parent_expected={}, parent_checks={}, window_checks={},
+            session_checks={name + '-entry-entry-guard': 'original-session'
+                            for name in ('enabled', 'zero', 'off', 'reenabled')})
+
+
+def execute_retained(recorder, context):
+    record_installed_journey(recorder, context, RETAINED_PLAN, timeout=1800,
+                             journey_type=RetainedDailyAccessJourney)
+
+
+E2E_CASES = {'daily-only-new': execute, 'daily-only-retained': execute_retained}

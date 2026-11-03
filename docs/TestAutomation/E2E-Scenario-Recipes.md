@@ -432,9 +432,11 @@ direct command invocation, without opening Terminal).
 
 ### E2E-005
 
-Implementation status: Case 7 (`daily-only-new`) is implemented in
-`daily_access_case.DailyAccessJourney` and passed on Ubuntu 26.04. Other bindings
-remain pending.
+Implementation status: Cases 7 (`daily-only-new`) and 8 (`daily-only-retained`)
+are implemented through `daily_access_case.DailyAccessJourney`,
+`RetainedDailyAccessJourney` and the shared `onpc_allowance_case` worker.
+Both complete bindings passed on Ubuntu 26.04, including task 054's affected
+case-7 regression. Other bindings remain pending.
 
 **Change screen limits while starting or returning to a child desktop.** Cases 7, 8, 9, 10, 11, 12.
 
@@ -444,6 +446,15 @@ Bindings: time = daily-only / grant-only / combined; session = new / retained.
 2. UI17(on) → PARENT08 → PARENT09 → C(variant entry, expected access) → access-check. Grant profiles: G → FLOW06(short grant) → P(retained) → PARENT09.
 3. Save the positive allowance edit and then zero through PARENT06 → PARENT08 → PARENT09, comparing the saved allowance, actual balances and preserved grant deadline. Visit C at the positive and zero boundaries to require the declared access result. Leave through the declared route before returning to P; sample app launches at the enable/disable transitions.
 4. Repeat(off,on): UI17 → PARENT08 → PARENT09 → C → access-check → leave-child. Read saved settings in Parent at finish.
+
+Case 8 starts Jordan with limits off, captures an Allowed app's usable work and
+returns to Jamie's original Parent window through Switch User. Each child visit
+compares the original desktop identity. The first enabled return also compares
+and uses the original app, then closes it normally before sampling new Allowed
+and Hard launches with limits on and off. The 40-minute allowance-only save
+reads saved settings/balances without another desktop visit. Zero and re-enabled
+zero require the specific retained sign-in time denial; limits off permits the
+same desktop with no countdown. No child logout or replacement desktop occurs.
 
 ### E2E-006
 

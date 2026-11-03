@@ -3,6 +3,7 @@
 // Controller-independent stdio bridge. Local and SSH sources use identical RPCs.
 const { spawn } = require('node:child_process');
 const path = require('node:path');
+const fs = require('node:fs');
 
 const VERSION = 1;
 const MAX_RESPONSE = 96 * 1024 * 1024;
@@ -39,6 +40,26 @@ function configuration(values, root) {
         if (typeof label !== 'string' || label.length > 128) throw new Error('Watch source label is too long.');
         return { id: value.id, label, transport, host: value.host, root: sourceRoot, command };
     });
+}
+
+function resourceConfiguration(root) {
+    const document = JSON.parse(fs.readFileSync(path.join(root, 'config/test-vm.json'), 'utf8'));
+    const hosts = document.hosts || [{ name: 'local', enabled: 'true', transport: 'local' }];
+    if (!Array.isArray(hosts)) throw new Error('Watch host configuration must be an array.');
+    const program = fs.readFileSync(path.join(root, 'tools/watch_model.py'), 'utf8');
+    const names = new Set();
+    return hosts.filter(host => {
+        if (!host || typeof host.name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$/.test(host.name) ||
+                names.has(host.name) || !['true', 'false'].includes(host.enabled) ||
+                !['local', 'ssh'].includes(host.transport) ||
+                (host.transport === 'ssh' && (typeof host.ssh_target !== 'string' ||
+                    !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(host.ssh_target)))) {
+            throw new Error('Invalid Watch host in config/test-vm.json.');
+        }
+        names.add(host.name);
+        return host.enabled === 'true';
+    }).map(host => ({ id: host.name, label: host.name, transport: host.transport,
+        host: host.ssh_target, root, command: ['/usr/bin/python3', '-u', '-B', '-c', program] }));
 }
 
 function validate(snapshot) {
@@ -241,7 +262,7 @@ class Source {
 }
 
 class Bridge {
-    constructor(configs, log, changed = () => {}) {
+    constructor(configs, log, changed = () => {}, resourceConfigs = configs) {
         this.revision = 0;
         this.results = [];
         this.sources = configs.map(config => {
@@ -253,6 +274,11 @@ class Bridge {
             source.results = this.results;
             return source;
         });
+        this.resourceSources = resourceConfigs === configs ? this.sources : resourceConfigs.map(config =>
+            new Source(config, log, () => {
+                this.revision++;
+                queueMicrotask(() => { if (!this.closed) changed(); });
+            }));
         this.displayedFrames = new Map();
         this.links = new Map();
         this.roots = new Map();
@@ -260,7 +286,7 @@ class Bridge {
 
     close() {
         this.closed = true;
-        for (const source of this.sources) {
+        for (const source of new Set([...this.sources, ...this.resourceSources])) {
             source.stop();
             source.pending?.reject?.(new Error('Watch closed.'));
             source.artifactRequest?.reject(new Error('Watch closed.'));
@@ -282,6 +308,11 @@ class Bridge {
     }
 
     tick(request) {
+        for (const source of this.resourceSources) {
+            if (this.sources.includes(source)) continue;
+            try { source.tick({}); }
+            catch (error) { source.fail(error.message); }
+        }
         for (const source of this.sources) {
             const route = this.roots.get(request.session_root);
             const scope = this.roots.get(request.scope);
@@ -331,10 +362,6 @@ class Bridge {
                 this.links.set(token, { source, uri: part.link });
                 return { ...part, link: token };
             }));
-            hosts.push({ id, label, show_label: labelSources, status: source.status, connected,
-                resources: connected ? value?.resources || '' : '',
-                sample: connected ? value?.resource_sample : null,
-                charts: connected ? value?.resource_charts || [] : [] });
             for (const checkout of value?.checkouts || []) {
                 const route = key(id, checkout.id);
                 this.roots.set(route, { source, id: checkout.id });
@@ -372,6 +399,13 @@ class Bridge {
                     ...(shown && changed ? { screen: frame || null } : {}) });
             }
         }
+        for (const source of this.resourceSources) {
+            const connected = source.status === 'Connected';
+            hosts.push({ id: source.config.id, label: source.config.label, status: source.status, connected,
+                resources: connected ? source.snapshot?.resources || '' : '',
+                sample: connected ? source.snapshot?.resource_sample : null,
+                charts: connected ? source.snapshot?.resource_charts || [] : [] });
+        }
         for (const id of this.displayedFrames.keys()) if (!visible.has(id)) this.displayedFrames.delete(id);
         const latestTimes = new Map();
         for (const row of run_times) {
@@ -393,4 +427,4 @@ class Bridge {
     }
 }
 
-module.exports = { Bridge, configuration };
+module.exports = { Bridge, configuration, resourceConfiguration };

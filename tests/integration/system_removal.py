@@ -171,7 +171,9 @@ def desktop_health(uid):
         session = session_for(uid)
         if session is not None:
             break
-        guest.require(time.monotonic() < deadline, 'removal:desktop-not-created')
+        if time.monotonic() >= deadline:
+            desktop_failure_diagnostics(uid)
+            raise guest.GuestError('removal:desktop-not-created')
         time.sleep(0.25)
     guest.require(guest.run(['systemctl', 'is-active', session['Scope']]) == 'active',
                   'removal:desktop-scope-inactive')
@@ -191,6 +193,31 @@ def desktop_health(uid):
             return
         guest.require(time.monotonic() < deadline, 'removal:desktop-unavailable')
         time.sleep(0.25)
+
+
+def desktop_failure_diagnostics(uid):
+    """Keep the failed login's cause in existing private command artifacts."""
+    previous_returncode = guest.commands.last_returncode
+    probes = (
+        ('services', ['systemctl', 'show', 'gdm.service', f'user@{uid}.service',
+                      '--property=ActiveState,SubState,Result,ExecMainStatus']),
+        ('journal', ['journalctl', '--boot', '--no-pager', '--lines=200',
+                     '--output=short-monotonic', f'_UID={uid}', '+',
+                     f'_SYSTEMD_UNIT=user@{uid}.service', '+',
+                     '_SYSTEMD_UNIT=gdm.service', '+', '_TRANSPORT=audit']),
+    )
+    try:
+        for name, arguments in probes:
+            try:
+                # The normal collector redacts these private artifacts. Never
+                # forward journal text or identities to the progress stream.
+                guest.commands.run(arguments, check=False, timeout=10, merge_stderr=True)
+                outcome = 'collected' if guest.commands.last_returncode == 0 else 'failed'
+            except Exception:
+                outcome = 'unavailable'
+            print(f'onpc-system: stage=removal-desktop-{name} outcome={outcome}', flush=True)
+    finally:
+        guest.commands.last_returncode = previous_returncode
 
 
 def verify_removed(state, *, purged=False, record=None):

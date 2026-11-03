@@ -152,3 +152,19 @@ def viewer_entries(entries, *, scope='all', vm_ids=None, current_vms=None):
             ids.get(item[0]) is None, int(ids.get(item[0]) or 0))):
         result[entry] = value
     return result
+
+
+if __name__ == '__main__':
+    # A resource-only bridge, also sent over SSH without a remote checkout.
+    import json
+    import sys
+
+    usage = ResourceUsage()
+    for line in sys.stdin:
+        request = json.loads(line)
+        if request.get('protocol') != 1:
+            raise ValueError('Watch protocol 1 required')
+        print(json.dumps(dict(protocol=1, entries=[], runs=[], checkouts=[],
+                              capabilities=dict(sessions=False, artifacts=False),
+                              resources=usage.text(), resource_sample=usage.last,
+                              resource_charts=usage.charts)), flush=True)

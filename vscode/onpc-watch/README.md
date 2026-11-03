@@ -184,8 +184,16 @@ Three icon buttons at the right end of the viewer tab row select the tile layout
 The tab remembers the selection. Overflowing tiles scroll in the chosen direction;
 overflowing tab headers scroll independently while the layout buttons stay pinned.
 
-The footer shows CPU, Memory and Disk percentages beside small filled history
-graphs. They reuse the once-per-second samples, show the last minute on a fixed
+The footer shows enabled hosts in `config/test-vm.json` order. Each host has a
+server icon and hostname before its CPU, Memory and Disk percentages and small
+filled history graphs. When the hosts do not fit side by side, they stack with
+one complete host per row. Extremely narrow views can scroll the readings horizontally.
+Host configuration is read when Watch opens or reconnects, independently of viewer
+source settings. SSH hosts use their configured `ssh_target` with existing keys
+and verified host keys; a read-only Python sampler runs in memory without requiring
+a remote checkout. Connection details appear on the hostname tooltip; unavailable
+hosts retain their name without stale readings.
+The graphs reuse the once-per-second samples, show the last minute on a fixed
 0–100% scale, and retain history only in memory. Closing and reopening Watch or
 reconnecting its reader starts fresh; pauses leave gaps rather than joined curves.
 
@@ -213,7 +221,8 @@ No npm packages or compilation step are needed.
 With no configuration, Watch uses this checkout's local adapter as before. Set
 `onpc.watch.sources` in VS Code user or workspace settings to replace that default
 or combine sources. Source IDs must be unique and stable; labels identify hosts
-in run sections, viewer tabs and resource readings. Click Reconnect after editing.
+in run sections and viewer tabs. Footer hosts always follow `config/test-vm.json`.
+Click Reconnect after editing.
 
 ```json
 "onpc.watch.sources": [

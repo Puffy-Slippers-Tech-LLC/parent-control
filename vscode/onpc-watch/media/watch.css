@@ -206,9 +206,12 @@ nav button[aria-pressed="true"] {
 .vm-memory { flex-shrink: 0; padding-left: 8px; font-size: .9em; }
 .ssh-control { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; padding: 4px 8px; white-space: nowrap; }
 footer { display: flex; flex-shrink: 0; gap: 8px; align-items: center; padding: 4px 8px; border-top: 1px solid var(--vscode-panel-border); }
-#resources { display: flex; flex: 1; flex-wrap: wrap; justify-content: flex-end; gap: 6px 16px; min-width: 0; font-family: var(--vscode-editor-font-family); font-size: .9em; }
+#resources { display: flex; flex: 1; justify-content: safe flex-end; gap: 6px 16px; min-width: 0; overflow-x: auto; font-family: var(--vscode-editor-font-family); font-size: .9em; }
+#resources.stacked { flex-direction: column; align-items: safe flex-end; }
 .resource { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-.host-resources { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+.host-resources { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px 16px; width: max-content; border-left: 1px solid var(--vscode-panel-border); padding-left: 16px; }
+.host-status { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.host-status svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 .host-status.disconnected { color: var(--vscode-errorForeground); }
 .percentage { width: 4ch; white-space: pre; text-align: right; }
 .resource-chart { width: 70px; height: 22px; border-radius: 3px; }

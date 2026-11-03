@@ -6,7 +6,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { randomBytes } = require('node:crypto');
 const { fileURLToPath } = require('node:url');
-const { Bridge, configuration } = require('./bridge');
+const { Bridge, configuration, resourceConfiguration } = require('./bridge');
 
 function checkout(folder) {
     if (folder.uri.scheme !== 'file') return undefined;
@@ -161,7 +161,8 @@ function activate(context) {
             reset = true;
             try {
                 const values = vscode.workspace.getConfiguration('onpc.watch', vscode.Uri.file(root)).get('sources', []);
-                bridge = new Bridge(configuration(values, root), message => output.appendLine(message), publish);
+                bridge = new Bridge(configuration(values, root), message => output.appendLine(message), publish,
+                    resourceConfiguration(root));
             } catch (error) { failure(error.message); return; }
             timer = setInterval(poll, 200);
             poll();

@@ -609,6 +609,13 @@
         runDividers();
     }
 
+    function layoutResources() {
+        const rows = Array.from(resources.children);
+        const width = rows.reduce((total, row) => total + row.offsetWidth, 0) + Math.max(0, rows.length - 1) * 16;
+        resources.classList.toggle('stacked', width > resources.clientWidth);
+    }
+    new ResizeObserver(layoutResources).observe(resources);
+
     function resourceCharts(snapshot) {
         const ids = new Set(snapshot.hosts.map(host => host.id));
         for (const node of Array.from(resources.children)) {
@@ -619,13 +626,22 @@
             if (!row) {
                 row = element('span', 'host-resources', resources);
                 row.dataset.source = host.id;
-                element('span', 'host-status', row);
+                const status = element('span', 'host-status', row);
+                const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                icon.setAttribute('viewBox', '0 0 20 20');
+                icon.setAttribute('aria-hidden', 'true');
+                const outline = document.createElementNS(icon.namespaceURI, 'path');
+                outline.setAttribute('d', 'M3 3h14v6H3z M3 11h14v6H3z M5 6h2 M5 14h2 M11 6h4 M11 14h4');
+                icon.append(outline);
+                status.append(icon);
+                element('strong', 'host-name', status);
             }
-            const signature = JSON.stringify([host.sample, host.status]);
+            resources.append(row);
+            const signature = JSON.stringify([host.sample, host.status, host.label]);
             if (resourceSamples.get(host.id) === signature) continue;
             resourceSamples.set(host.id, signature);
             const status = row.querySelector('.host-status');
-            status.textContent = host.show_label || !host.connected ? `${host.label}: ${host.status}` : '';
+            status.querySelector('.host-name').textContent = host.label;
             status.title = `${host.label}: ${host.status}`;
             status.classList.toggle('disconnected', !host.connected);
             row.setAttribute('aria-label', `${host.label}: ${host.status}. ${host.resources}`);
@@ -651,6 +667,7 @@
             });
             for (const group of groups.slice(host.charts.length)) group.remove();
         }
+        layoutResources();
     }
 
     function drawChart(canvas, segments, color) {

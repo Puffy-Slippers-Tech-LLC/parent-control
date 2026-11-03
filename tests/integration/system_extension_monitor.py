@@ -13,7 +13,6 @@ from pathlib import Path
 import re
 import stat
 import sys
-import threading
 import time
 
 import system_guest as guest
@@ -257,111 +256,81 @@ def failed_verification(rows):
                for _stamp, row in rows)
 
 
-# Run as the real child. A changed handler races actual enablement, rather than
-# returning a fabricated Shell reply or modifying installed product code.
-INTERFERENCE = '''
-import json
-import sys
-import time
-from gi.repository import Gio, GLib
-uuid, name, owner = sys.argv[1:]
-bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-bus.call_sync('org.freedesktop.DBus', '/org/freedesktop/DBus',
-    'org.freedesktop.DBus', 'RequestName', GLib.Variant('(su)', (name, 4)),
-    GLib.VariantType.new('(u)'), Gio.DBusCallFlags.NONE, 2000, None)
-settings = Gio.Settings.new('org.gnome.shell')
-trace = []
-trace_count = 0
-callback_depth = 0
-def observe(event, result=None):
-    global trace_count
-    trace_count += 1
-    if len(trace) < 256:
-        trace.append([time.monotonic(), event, result, callback_depth])
-def disable(*unused):
-    global callback_depth
-    # set_strv emits changed synchronously for our own local writes. Do not
-    # reenter the mutation or wait for persistence inside a changed handler:
-    # sync blocked delivery of Shell's next settings notification until after
-    # the broker had already verified activation. The running main loop lets
-    # Gio send the writes without blocking further interference notifications.
-    if callback_depth:
-        observe('local-notification')
-        return
-    callback_depth += 1
-    try:
-        observe('notification' if unused else 'initial')
-        enabled = settings.get_strv('enabled-extensions')
-        observe('read-enabled', uuid in enabled)
-        if uuid in enabled:
-            result = settings.set_strv('enabled-extensions', [item for item in enabled if item != uuid])
-            observe('remove-enabled', result)
-        disabled = settings.get_strv('disabled-extensions')
-        observe('read-disabled', uuid in disabled)
-        if uuid not in disabled:
-            result = settings.set_strv('disabled-extensions', disabled + [uuid])
-            observe('add-disabled', result)
-        observe('writes-queued')
-    finally:
-        callback_depth -= 1
-settings.connect('changed::enabled-extensions', disable)
-settings.connect('changed::disabled-extensions', disable)
-loop = GLib.MainLoop()
-bus.signal_subscribe(owner, 'org.onpc.ExtensionInterference', 'Stop',
-    '/org/onpc/ExtensionInterference', None, Gio.DBusSignalFlags.NONE,
-    lambda *unused: loop.quit())
-GLib.timeout_add_seconds(45, lambda: (loop.quit(), False)[1])
-disable()
-loop.run()
-# Flush only after notification dispatch has stopped, before the child exits.
-observe('sync-start')
-Gio.Settings.sync()
-observe('synced')
-print(json.dumps({'trace': trace, 'trace_count': trace_count}))
-'''
+def interfere(manager, account, shell, events, activate, record):
+    """Hold native persistence unavailable before making the child eligible.
 
-
-def interfere(manager, account, shell, events, run, record):
-    name = 'org.onpc.ExtensionInterference.r' + run
-    errors = []
-    diagnostics = []
-    def worker():
-        try:
-            result = manager._run_command(account, ('/usr/bin/python3', '-B', '-c',
-                INTERFERENCE, UUID, name, shell.bus.get_unique_name()),
-                require_live=True, timeout=55)
-            diagnostics.append(json.loads(result.stdout))
-        except Exception:
-            errors.append(True)
+    Shell may enable the extension immediately, but independent gsettings
+    readers must still see its disabled durable state. Directory permissions
+    prevent dconf's atomic replacement for the entire observation window;
+    no notification handler has to outrun activation or verification.
+    """
+    home = Path(account.pw_dir)
+    directory = home / '.config' / 'dconf'
+    for path in (home, home / '.config', directory):
+        info = path.lstat()
+        guest.require(stat.S_ISDIR(info.st_mode) and info.st_uid == account.pw_uid,
+                      'extension:unsafe-settings-directory')
+    database = directory / 'user'
+    original = database.lstat()
+    guest.require(stat.S_ISREG(original.st_mode) and original.st_uid == account.pw_uid
+                  and original.st_nlink == 1, 'extension:unsafe-settings-database')
+    guest.require(UUID not in manager._list(account, 'enabled-extensions')
+                  and UUID in manager._list(account, 'disabled-extensions')
+                  and shell.info().get('state') == 6,
+                  'extension:interference-not-initially-disabled')
+    descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    pinned = os.fstat(descriptor)
+    mode = stat.S_IMODE(pinned.st_mode)
+    injected = mode & ~0o222
     started = time.monotonic()
     signal_index = len(shell.events)
-    thread = threading.Thread(target=worker, name='extension-interference')
-    thread.start()
+    rows = []
     try:
-        wait_for(lambda: shell.owner(name), 'extension:interference-not-ready', timeout=10)
-        wait_for(lambda: failed_verification(events.since(started)),
-                 'extension:interference-did-not-fail-verification', timeout=35)
+        os.fchmod(descriptor, injected)
+        guest.require(stat.S_IMODE(directory.lstat().st_mode) == injected,
+                      'extension:interference-permissions-not-held')
+        # Snapshot after establishing the hold: unrelated desktop writes during
+        # fixture discovery must not look like writes through the held fault.
+        original = database.lstat()
+        digest = hashlib.sha256(database.read_bytes()).hexdigest()
+        activate()
+        def repeated_failure():
+            nonlocal rows
+            rows = events.since(started)
+            failed = {item[1]['operation'] for item in rows if failed_verification([item])}
+            completed = {row['operation'] for _stamp, row in rows
+                         if row['event'] == 'extension-manager.monitor-decision'
+                         and row['fields']['outcome'] == 'failed'}
+            # A verification failure precedes rollback. Release only after two
+            # complete failed checks, not in the middle of their restoration.
+            return len(failed & completed) >= 2 and len(attempts(rows)) >= 2
+        wait_for(repeated_failure, 'extension:interference-did-not-fail-verification', timeout=90)
+        current = database.lstat()
+        guest.require((current.st_dev, current.st_ino) == (original.st_dev, original.st_ino)
+                      and hashlib.sha256(database.read_bytes()).hexdigest() == digest,
+                      'extension:interference-durable-settings-changed')
+        guest.require(not any(row['event'] == 'extension-manager.012'
+                              and row['fields']['enabled'] for _stamp, row in rows),
+                      'extension:interference-accepted-activation')
     finally:
-        # This public signal is consumed only by our bounded child fixture.
-        # No process discovery or inferred PID signalling is involved.
-        stopped = time.monotonic()
-        shell.bus.emit_signal(None, '/org/onpc/ExtensionInterference',
-                              'org.onpc.ExtensionInterference', 'Stop', None)
-        shell.bus.flush_sync(None)
-        thread.join(timeout=60)
-        rows = events.since(started)
+        # Restore the exact pinned directory even when observation fails. The
+        # runner's restored-VM lifetime remains the outer failure boundary.
+        try:
+            current = directory.lstat()
+            guest.require((current.st_dev, current.st_ino, current.st_uid, current.st_gid)
+                          == (pinned.st_dev, pinned.st_ino, pinned.st_uid, pinned.st_gid)
+                          and stat.S_IMODE(current.st_mode) in (mode, injected),
+                          'extension:interference-directory-replaced')
+            os.fchmod(descriptor, mode)
+            guest.require(stat.S_IMODE(directory.lstat().st_mode) == mode,
+                          'extension:interference-permissions-not-restored')
+        finally:
+            os.close(descriptor)
         record('interference', {'failed_verification': failed_verification(rows),
-               'attempts': len(attempts(rows)), 'finished': not thread.is_alive(),
-               'child_command_succeeded': not errors})
-        # Only fixed labels, monotonic timestamps, booleans, counters and
-        # catalogue-validated broker fields leave the fixture. Membership reads
-        # are already needed by the fixture; no extra settings commands run.
-        record('interference-timing', {'started': started, 'stop_requested': stopped,
-               'fixture': diagnostics,
+               'attempts': len(attempts(rows)), 'permissions_restored': True})
+        record('interference-timing', {'started': started,
                'native_signals': shell.events[signal_index:signal_index + 128],
                'native_signal_count': len(shell.events) - signal_index,
-               # Keep the matching broker observations here too: later cycles
-               # can rotate them out of the bounded product log.
                'broker_verifications': [
                    [stamp, row['event'], row['fields'], row['operation']]
                    for stamp, row in rows if row['event'] in {
@@ -377,9 +346,13 @@ def interfere(manager, account, shell, events, run, record):
                        'extension-manager.rollback-result',
                        'extension-manager.monitor-decision',
                        'runtime.fault'}][:512]})
-    guest.require(not thread.is_alive() and not errors, 'extension:interference-cleanup')
-    guest.require(1 <= len(attempts(rows)) <= 12, 'extension:interference-attempt-bound')
-    return stopped
+    guest.require(2 <= len(attempts(rows)) <= 12, 'extension:interference-attempt-bound')
+    # Failed commits can leave Shell active with durable selection still off;
+    # an individual disable can then be a settings no-op. The previously false
+    # global switch supplies a real durable transition, regardless of Shell's
+    # local selection. Only the broker may clear it and verify activation.
+    manager._run_as(account, 'gsettings', 'set', 'org.gnome.shell',
+                    'disable-user-extensions', 'true')
 
 
 def verify(publish):
@@ -547,10 +520,10 @@ def verify(publish):
                 guest.require(account_property(child, interface, 'Language') == language,
                               'extension:desktop-language-not-restored')
 
-        recovery('initialized-recovery', initialize_policy, initialized=True)
-        stopped = interfere(manager, account, shell, broker_events, marker['run'], record)
-        wait_for(lambda: completed_recovery(stopped),
-                 'extension:interference-not-recovered', timeout=90)
+        def initialize_with_interference():
+            interfere(manager, account, shell, broker_events, initialize_policy, record)
+
+        recovery('initialized-recovery', initialize_with_interference, initialized=True)
         preserved()
         recovery('global-recovery', global_disable)
         cycles = []

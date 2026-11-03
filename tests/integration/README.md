@@ -1206,8 +1206,15 @@ installed preference store so startup and explicit recovery cannot satisfy the
 monitor checks. A temporary, exactly restored AccountsService desktop-language
 change supplies the initial discovery hint for the never-loaded instance;
 subsequent disablement uses GNOME's public settings and extension interfaces.
-Individual/global disablement, repeated interference, cooldown
-and the public parent-off action run against the same broker invocation.
+Before staging saved-enabled policy, the test removes write permission from
+the child's pinned dconf directory. This holds the initially disabled durable
+settings through at least two failed activation verifications, independently of
+observer scheduling. It waits for both failed checks to finish rollback,
+restores the exact directory mode in `finally`, sets the previously clear global
+disable switch, and requires automatic recovery. This real settings transition
+also works when failed commits left Shell active with durable selection off.
+Individual/global disablement, cooldown and the public parent-off
+action run against the same broker invocation.
 Native recovery timing is recorded inside the guest, separately from command
 and VM preparation time. The ordinary guarded runner restores the VM after the
 complete history; no expiry or authenticated approval history is repeated.

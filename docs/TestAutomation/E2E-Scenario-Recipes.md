@@ -444,7 +444,10 @@ implemented through `grant_access_case.RetainedGrantAccessJourney` and
 Case 11 (`combined-new`) is registered through
 `grant_access_case.GrantAccessJourney` / `COMBINED_PLAN` and
 `onpc_allowance_case::combined_new` and passed on Ubuntu 26.04.
-Case 12's retained combined binding remains pending.
+Case 12 (`combined-retained`) is registered through
+`grant_access_case.COMBINED_RETAINED_PLAN` / `RetainedGrantAccessJourney` and
+`onpc_allowance_case::combined_retained` and passed on Ubuntu 26.04, along with
+the affected case-11 fresh-session regression.
 
 **Change screen limits while starting or returning to a child desktop.** Cases 7, 8, 9, 10, 11, 12.
 
@@ -493,6 +496,15 @@ Every successful child visit ends with normal logout and return to the same Pare
 window. Disabling clears the grant and countdown while app blocks remain; enabling
 the saved zero allowance again denies fresh entry. Controller read brackets and
 public refreshes bound grant comparisons independently of the guest clock.
+
+Case 12 prepares Jordan's original desktop and usable Allowed work with limits
+off. The first enabled return compares, resumes and normally closes that work
+before checking Allowed/Hard launches. One real 20-minute addition and the
+30→40→0 daily history preserve the original grant deadline and child desktop;
+the 40-minute allowance-only save adds no child visit. Every child departure uses
+Switch User and returns to Jamie's original Parent window/settings. Limits off
+clears the grant/countdown while retaining app blocks; enabling the saved zero
+again denies retained access without replacing the desktop or restoring the grant.
 
 ### E2E-006
 

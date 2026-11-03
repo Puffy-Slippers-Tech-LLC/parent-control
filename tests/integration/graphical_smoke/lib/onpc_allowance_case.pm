@@ -32,13 +32,17 @@ sub combined_new {
     return grant_only(@_, 0, 1);
 }
 
+sub combined_retained {
+    return grant_only(@_, 1, 1);
+}
+
 sub grant_only {
     onpc_progress::operation('Checking extra time across child visits and allowance changes');
     my ($exchange, $declared, $challenges, $request, $retained, $combined) = @_;
     $combined //= 0;
     die 'grant-access:arguments' unless (@_ == 5 || @_ == 6) && ref($exchange) eq 'CODE'
         && defined($retained) && $retained =~ /\A[01]\z/
-        && $combined =~ /\A[01]\z/ && !($retained && $combined)
+        && $combined =~ /\A[01]\z/
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
     require onpc_request_flow;
@@ -108,9 +112,9 @@ sub grant_only {
         } else {
             $journey->seen("$name-countdown");
             if ($name eq ($combined ? 'enabled' : 'grant') || $name eq 'off') {
-                if ($retained && $name eq 'grant') {
-                    onpc_app_rows::native_activity_resume($journey, 'grant-original');
-                    onpc_app_rows::native_finish_app($journey->scope('grant-original'));
+                if ($retained && $name eq ($combined ? 'enabled' : 'grant')) {
+                    onpc_app_rows::native_activity_resume($journey, "$name-original");
+                    onpc_app_rows::native_finish_app($journey->scope("$name-original"));
                 }
                 onpc_app_rows::native_blocked_app($journey->scope("$name-hard"), 'H');
                 my $allowed = $journey->scope("$name-allowed");

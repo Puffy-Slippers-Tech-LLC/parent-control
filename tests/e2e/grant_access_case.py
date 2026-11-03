@@ -1,4 +1,4 @@
-"""Cases 9/10/11: real extra time survives child visits and daily edits."""
+"""Cases 9–12: real extra time survives child visits and daily edits."""
 from copy import deepcopy
 import time
 
@@ -41,7 +41,8 @@ def setup(*, combined=False):
     }
 
 
-def visit(name, logins, denials, *, retained=False, denied=False, apps=False):
+def visit(name, logins, denials, *, retained=False, denied=False, apps=False,
+          resume_original=False):
     """Finite case ordering over the shared entry, app and logout operations."""
     expected = 'time-denied' if denied else 'success'
     logins[name + '-entry'] = ('other-child', name + '-entry-', expected)
@@ -61,11 +62,11 @@ def visit(name, logins, denials, *, retained=False, denied=False, apps=False):
         screens[name + '-countdown'] = ('ui:child-countdown-absent' if name == 'off'
                                        else 'ui:child-countdown-present')
         if apps:
-            if retained and name == 'grant':
+            if resume_original:
                 screens.update({
-                    **native_activity_resume('grant-original', child='other-child'),
-                    'grant-original-close': 'ui:native-close',
-                    'grant-original-closed': 'ui:native-closed'})
+                    **native_activity_resume(name + '-original', child='other-child'),
+                    name + '-original-close': 'ui:native-close',
+                    name + '-original-closed': 'ui:native-closed'})
             screens.update(prefixed_stages(name + '-hard', native_blocked_app('H')))
             screens.update(prefixed_stages(name + '-allowed', {
                 **native_usable_app('grid'), 'close': 'ui:native-close',
@@ -96,9 +97,9 @@ COMBINED_TRANSITIONS = (
 
 
 def make_plan(*, retained=False, combined=False):
-    require(not (retained and combined), 'grant-access:unimplemented-binding')
     screens = setup(combined=combined)
     daily_minutes = 30 if combined else 0
+    original_visit = 'enabled' if combined else 'grant'
     saved = {'setup-settings': (True, daily_minutes),
              'setup-off-settings': (False, daily_minutes)}
     logins = {'initial': ('parent', '', 'success')}
@@ -119,7 +120,7 @@ def make_plan(*, retained=False, combined=False):
         })
         logins.update({'prepare-entry': ('other-child', 'prepare-entry-', 'success'),
                        'prepare-return': ('parent', 'prepare-return-', 'success')})
-        saved['prepared-parent-retained'] = (False, 0)
+        saved['prepared-parent-retained'] = (False, daily_minutes)
     phases = {stage: 'step-1' for stage in screens}
     for name, phase, enabled, minutes in (COMBINED_TRANSITIONS if combined else TRANSITIONS):
         if name == 'grant':
@@ -144,9 +145,10 @@ def make_plan(*, retained=False, combined=False):
                  **({} if combined and name == 'positive' else
                     visit(name, logins, denials, retained=retained,
                           denied=name == 'reenabled' or (name == 'enabled' and not combined),
-                          apps=name in (('enabled', 'off') if combined else ('grant', 'off'))))}
+                          apps=name in (original_visit, 'off'),
+                          resume_original=retained and name == original_visit))}
         if combined and name == 'enabled':
-            # Capture current daily time after logout, before the real addition.
+            # Capture current daily time after the visit, before the real addition.
             group['enabled-returned-balance'] = 'ui:time-explanation-refresh-read'
         screens.update(group)
         phases.update({stage: phase for stage in group})
@@ -156,10 +158,11 @@ def make_plan(*, retained=False, combined=False):
 
     login_stages = {prefix + stage for role, prefix, expected in logins.values()
                     for stage in fresh_desktop(role, expected)}
-    # All three bindings use the same qualified, fixed kiosk credential route.
+    # All four bindings use the same qualified, fixed kiosk credential route.
     plan = JourneyPlan(
         prefix='grant-access-case',
-        worker_mode=('combined_access_case' if combined else
+        worker_mode=('combined_retained_access_case' if combined and retained else
+                     'combined_access_case' if combined else
                      'grant_retained_access_case' if retained else 'grant_access_case'), screen_tags=screens,
         phases={'ready': 'setup', 'setup-detached': 'setup', **phases, 'installed-greeter': 'start'},
         advance_after={'installed-greeter': 'step-1',
@@ -182,8 +185,8 @@ def make_plan(*, retained=False, combined=False):
                                prefix + ('recipient-rechecked' if role == 'parent'
                                           else 'standard-recipient-rechecked'))
                     for key, (role, prefix, _expected) in logins.items()},
-        activity_entries={'grant-entry-entry-guard': 'original-capture'} if retained else {},
-        activity_checks={'grant-original-opened': ('original-capture', 'same')} if retained else {},
+        activity_entries={original_visit + '-entry-entry-guard': 'original-capture'} if retained else {},
+        activity_checks={original_visit + '-original-opened': ('original-capture', 'same')} if retained else {},
         kiosk_request=('other-child', 'parent', 1200, True),
     )
     return plan, saved
@@ -192,6 +195,7 @@ def make_plan(*, retained=False, combined=False):
 PLAN, SAVED = make_plan()
 RETAINED_PLAN, RETAINED_SAVED = make_plan(retained=True)
 COMBINED_PLAN, COMBINED_SAVED = make_plan(combined=True)
+COMBINED_RETAINED_PLAN, COMBINED_RETAINED_SAVED = make_plan(retained=True, combined=True)
 
 
 class GrantAccessJourney(AppPolicyJourney):
@@ -203,12 +207,13 @@ class GrantAccessJourney(AppPolicyJourney):
         self.balances = {}
         self.approval_started = None
         self.original_grant = None
-        self.combined = plan is COMBINED_PLAN
+        self.combined = plan in (COMBINED_PLAN, COMBINED_RETAINED_PLAN)
         self.before_approval = None
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
-        saved_states = (COMBINED_SAVED if self.combined else
+        saved_states = (COMBINED_RETAINED_SAVED if self.plan is COMBINED_RETAINED_PLAN else
+                        COMBINED_SAVED if self.combined else
                         RETAINED_SAVED if self.plan is RETAINED_PLAN else SAVED)
         if stage in saved_states:
             enabled, minutes = saved_states[stage]
@@ -326,7 +331,9 @@ class RetainedGrantAccessJourney(RetainedDesktopJourney, GrantAccessJourney):
         super().__init__(context, progress, plan, actions=actions,
             parent_expected={}, parent_checks={}, window_checks={},
             session_checks={name + '-entry-entry-guard': 'original-session'
-                            for name, _phase, _enabled, _minutes in TRANSITIONS})
+                            for name, _phase, _enabled, _minutes in (
+                                COMBINED_TRANSITIONS if plan is COMBINED_RETAINED_PLAN else TRANSITIONS)
+                            if name + '-entry-entry-guard' in plan.screen_tags})
 
 
 def execute_retained(recorder, context):
@@ -339,5 +346,13 @@ def execute_combined(recorder, context):
                              journey_type=GrantAccessJourney)
 
 
+def execute_combined_retained(recorder, context):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    context.fixture_subsets = ACTIVITY_SUBSETS
+    context.fixture_caller = 'E2E-005/combined-retained'
+    record_installed_journey(recorder, context, COMBINED_RETAINED_PLAN, timeout=1800,
+                             journey_type=RetainedGrantAccessJourney)
+
+
 E2E_CASES = {'grant-only-new': execute, 'grant-only-retained': execute_retained,
-             'combined-new': execute_combined}
+             'combined-new': execute_combined, 'combined-retained': execute_combined_retained}

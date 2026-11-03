@@ -567,7 +567,7 @@
         {"coverage_id": 9, "id": "grant-only-new", "owner": "parent-policy", "parameters": {"time": "grant-only", "session": "new"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/grant_access_case.py", "test_id": "grant-only-new"}},
         {"coverage_id": 10, "id": "grant-only-retained", "owner": "parent-policy", "parameters": {"time": "grant-only", "session": "retained"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/grant_access_case.py", "test_id": "grant-only-retained"}},
         {"coverage_id": 11, "id": "combined-new", "owner": "parent-policy", "parameters": {"time": "combined", "session": "new"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/grant_access_case.py", "test_id": "combined-new"}},
-        {"coverage_id": 12, "id": "combined-retained", "owner": "parent-policy", "parameters": {"time": "combined", "session": "retained"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 12, "id": "combined-retained", "owner": "parent-policy", "parameters": {"time": "combined", "session": "retained"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/grant_access_case.py", "test_id": "combined-retained"}}
       ]
     },
     {

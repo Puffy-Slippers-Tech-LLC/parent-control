@@ -395,7 +395,7 @@ controller; the original deadline and display precision remain unchanged.
 Approval-start comparisons also use the controller clock on both sides.
 The scoped Jordan/Jamie/1200/soft-included kiosk credential binding retains
 fresh recipient proofs and single-use submission. Host credential/source checks
-passed. The retained combined binding remains pending; these complete cases supply no
+passed. All four extra-time bindings are implemented; these complete cases supply no
 other-family acceptance.
 
 Complete case 10, `grant_access_case.RetainedGrantAccessJourney` /
@@ -426,7 +426,22 @@ desktop visit. Public refreshes and controller read brackets retain the original
 grant deadline. The affected case 9 regression passed in
 `20261103T180811Z-05fe9e3a`. Scoped host checks, collection, worker shutdown,
 owned cleanup, baseline restoration and final VM off-state passed; coverage
-was regenerated after each case. Case 12's retained combined history remains separate.
+was regenerated after each case.
+
+Complete case 12, `grant_access_case.COMBINED_RETAINED_PLAN` /
+`RetainedGrantAccessJourney` / `onpc_allowance_case::combined_retained`, passed
+on Ubuntu 26.04 in `20261103T190153Z-e4325f90`. Jordan's original desktop and
+usable Allowed work survived enabling the 30-minute allowance; the original
+work was compared, resumed and normally closed before new Allowed/Hard launch
+checks. One real 20-minute addition and the 30→40→0 daily edits preserved the
+original grant deadline and desktop, including access at daily zero. Every child
+departure used Switch User and returned to Jamie's original Parent window/settings.
+Disabling cleared the grant/countdown while app blocks remained; enabling zero
+again denied retained entry without restoring the grant. The activity fixture
+closure is explicitly bound to this consumer before journey construction.
+Affected fresh-session case 11 passed in `20261103T192331Z-635cf4fc`.
+Scoped host checks, collection, worker/callback shutdown, owned cleanup, baseline
+restoration and final VM off-state passed; coverage was regenerated after both cases.
 
 ### Harness transport and serial qualification
 

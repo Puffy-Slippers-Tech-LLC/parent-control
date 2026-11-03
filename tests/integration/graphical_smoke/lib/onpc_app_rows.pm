@@ -2,6 +2,7 @@ package onpc_app_rows;
 use strict;
 use warnings;
 use Digest::SHA qw(sha256_hex);
+use JSON::PP ();
 use testapi ();
 use onpc_progress ();
 use onpc_gdm ();
@@ -447,12 +448,21 @@ sub native_usable_app {
     return native_use_app($journey, $opened);
 }
 
-# FLOW08: native denial requires the attributed command witness.
+# FLOW08: exact command denial, or the declared grid attempt/result operation.
 sub native_blocked_app {
     onpc_progress::operation('Checking that the child cannot open the blocked app');
-    my ($journey, $role) = @_;
-    die 'native:denial-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
-        && ($role eq 'H' || $role eq 'S');
+    my ($journey, $role, $route) = @_;
+    $route //= 'command';
+    die 'native:denial-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
+        && ($route eq 'command' && ($role eq 'H' || $role eq 'S')
+            || $route eq 'grid' && $role eq 'A');
+    if ($route eq 'grid') {
+        my $entry = native_search($journey, $journey->seen('desktop'));
+        $journey->consume_observation('app-grid', $entry);
+        die 'native:denial-entry' unless JSON::PP::is_bool($entry->{grid_launch_required});
+        testapi::send_key('ret') if $entry->{grid_launch_required};
+        return $journey->seen('denied');
+    }
     return $journey->seen('command');
 }
 

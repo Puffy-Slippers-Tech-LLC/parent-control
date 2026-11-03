@@ -1,7 +1,8 @@
-"""Allowed native routes: saved policy, actual use and independent child access."""
+"""Native routes: saved policy, actual access and independent child use."""
 from dataclasses import replace
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import fresh_desktop, parent_management, desktop_entry, native_usable_app, prefixed_stages
+from journey_blocks import (fresh_desktop, parent_management, desktop_entry,
+                            native_blocked_app, native_usable_app, prefixed_stages)
 from native_fixtures import fixture_actions
 from policy_edits import policy_edit, AppPolicyJourney
 from accessible_ui import MATCH_APP
@@ -96,6 +97,35 @@ GRID_PLAN = replace(
                    'jordan-command-submitted': 'step-3'},
 )
 
+HARD_POLICY = policy_edit(MATCH_APP, 'match-precise', 'permanent', 'hard')
+HARD_SETUP = {stage: tag for stage, tag in SETUP.items() if stage not in POLICY}
+HARD_SETUP.update(HARD_POLICY)
+HARD_JORDAN = {
+    'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
+    **prefixed_stages('jordan-denied', native_blocked_app('A', route='grid')),
+}
+HARD_RILEY = {
+    'jordan-logout': 'system:standard-logout', **RILEY_ENTRY,
+    **prefixed_stages('riley-use', native_usable_app('grid', child='child')),
+}
+HARD_GRID_PLAN = replace(
+    PLAN, prefix='native-grid-hard-blocked', worker_mode='native_grid_hard_blocked',
+    screen_tags={**HARD_SETUP, **HARD_JORDAN, **HARD_RILEY},
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' for stage in HARD_SETUP}, 'installed-greeter': 'start',
+            **{stage: 'step-2' for stage in HARD_JORDAN},
+            **{stage: 'step-3' for stage in HARD_RILEY}},
+    advance_after={'installed-greeter': 'step-1', 'hard-final-match': 'step-2',
+                   'jordan-denied-denied': 'step-3'},
+    child_bindings={'allowance-configured': 'existing', **{
+        stage: 'existing' for stage in HARD_POLICY if stage != 'hard-found'}},
+    match_checks={stage: MATCH_RULES[0] for stage in
+                  ('hard-open', 'hard-old', 'hard-match', 'hard-final-match')},
+    access_checks={'hard-access': 'permanent'},
+    # E2E-019 declares one combined visible-result in step-3. The terminal
+    # matched-screens evidence requires both Jordan's denial and Riley's use.
+)
+
 
 def execute(recorder, context):
     record_installed_journey(recorder, context, PLAN, timeout=1800,
@@ -120,6 +150,16 @@ def execute_grid(recorder, context):
                              journey_type=AppPolicyJourney)
 
 
+def execute_hard_grid(recorder, context):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    context.fixture_subsets = ACTIVITY_SUBSETS
+    context.fixture_caller = 'E2E-019/native-grid-hard-blocked-enabled'
+    record_installed_journey(recorder, context, HARD_GRID_PLAN, timeout=1800,
+                             actions=fixture_actions(include_refusal=False),
+                             journey_type=AppPolicyJourney)
+
+
 E2E_CASES = {'native-command-allowed-enabled': execute,
              'native-command-allowed-disabled': execute_disabled,
-             'native-grid-allowed-enabled': execute_grid}
+             'native-grid-allowed-enabled': execute_grid,
+             'native-grid-hard-blocked-enabled': execute_hard_grid}

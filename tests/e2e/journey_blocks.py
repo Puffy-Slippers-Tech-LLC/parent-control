@@ -245,8 +245,16 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
             for stage, tag in stages.items()}
 
 
-def native_blocked_app(role):
-    """FLOW08: Jordan's attributed native command denial, without a visibility claim."""
+def native_blocked_app(role, *, route='command'):
+    """FLOW08: Jordan's native denial, without a launcher-visibility assertion."""
+    if route == 'grid':
+        require(role == 'A', 'journey:native-denial-binding')
+        stages = native_usable_app('grid', child='other-child')
+        return {**{stage: ('ui:native-grid-blocked' if stage == 'app-grid' else tag)
+                for stage, tag in stages.items()
+                if stage not in ('opened', 'submit', 'submitted')},
+                'denied': 'ui:native-grid-denied'}
+    require(route == 'command', 'journey:native-route')
     require(role in ('H', 'S'), 'journey:native-denial-binding')
     name = {'H': 'hard', 'S': 'soft'}[role]
     return {'command': 'ui:native-' + name + '-command-blocked'}

@@ -727,6 +727,13 @@ sub run {
         onpc_parent_search_launch::run(\&exchange);
         return;
     }
+    if ($ready->{native_grid_hard_blocked}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
+                            'enabled', 'grid', 'hard-blocked');
+        return;
+    }
     if ($ready->{native_grid_allowed}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

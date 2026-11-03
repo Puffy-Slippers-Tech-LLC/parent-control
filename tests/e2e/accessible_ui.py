@@ -170,7 +170,8 @@ NATIVE_APP_OPERATIONS = frozenset('native-' + suffix for suffix in (
     'desktop', 'search-ready', 'search-focused', 'search-entered', 'grid',
     'grid-refusals', 'command-launch', 'command-refusals', 'wrong-entry',
     'opened', 'submit', 'resubmit', 'submitted', 'close', 'closed',
-    'activity', 'activity-wrong-entry', 'command-blocked', 'activity-launch'))
+    'activity', 'activity-wrong-entry', 'command-blocked', 'activity-launch',
+    'grid-blocked', 'grid-denied'))
 OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 PARENT_NATIVE_OPERATIONS = frozenset('parent-native-' + suffix for suffix in (
@@ -13102,6 +13103,40 @@ class AccessibleUI:
             self.search_ready('overview', focused=True)
         elif operation == 'native-search-entered':
             self.wait_search(lambda: self.search_query(NATIVE_PRODUCT), 'native-search-query')
+        elif operation == 'native-grid-blocked':
+            require(child == EXISTING_CHILD, 'ui:native-child-binding')
+            require(not self.input_uncertain, 'ui:uncertain-input')
+            # A complete, settled search chooses the route before input. Native
+            # launcher visibility is not an acceptance condition. Hidden entries
+            # need an attributed execution-denial witness for this same target.
+            stable = time.monotonic()
+            def search_result():
+                require_active_launch_session()
+                require(self.native_app_closed(desktop=False), 'ui:native-window-exists')
+                require(self.search_query(NATIVE_PRODUCT), 'ui:native-search-query')
+                target = self.launchable_result(NATIVE_PRODUCT)
+                return (target,) if target is not None or time.monotonic() - stable >= 2 else False
+            target, = self.wait(search_result, 'native-blocked-grid', prompt_in_predicate=True)
+            if target is None:
+                self.prepare_launch_desktop()
+                self.invalidate_observation()
+                self.native_launch_command(child=child, blocked=True)
+                return False
+            else:
+                # Shell launchers need the same guarded focus + worker Enter
+                # route as usable grid launches; they need not expose Action.
+                self.focus_search_result(NATIVE_PRODUCT)
+                return True
+        elif operation == 'native-grid-denied':
+            require(child == EXISTING_CHILD, 'ui:native-child-binding')
+            stable = time.monotonic()
+            def denied():
+                require_active_launch_session()
+                require(self.native_app_closed(desktop=False), 'ui:native-blocked-window')
+                return time.monotonic() - stable >= 15
+            self.wait(denied, 'native-blocked-absence', prompt_in_predicate=True)
+            self.prepare_launch_desktop()
+            self.wait(self.native_app_closed, 'native-blocked-desktop')
         elif operation in ('native-grid', 'native-grid-refusals'):
             if operation == 'native-grid-refusals' and child == CHILD:
                 # Wrong declared result and uncertain input refuse before any
@@ -13657,7 +13692,9 @@ class AccessibleUI:
                      self.native_app_operation(operation.removeprefix('overlay-').removeprefix('parent-'),
                                              child=bound_child if overlay_native else
                                              PARENT if operation in PARENT_NATIVE_OPERATIONS else EXISTING_CHILD))
-            if value is not None:
+            if operation == 'native-grid-blocked':
+                result['grid_launch_required'] = value
+            elif value is not None:
                 result['activity'] = value
             if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals'):
                 result['provider'] = self.shell_provider_metadata()

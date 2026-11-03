@@ -1071,6 +1071,16 @@ Allowed grid and command routes as each child. Stable case 80 is nonexecutable
 and points to 62; this creates no replacement scheduling task.
 Case 81 is registered through `app_launch.DISABLED_PLAN` and the same worker's
 explicit disabled binding.
+Case 64 is registered through `app_launch.HARD_GRID_PLAN` and the worker's
+`hard-blocked` grid binding. It uses fixture A and the precise match with
+`permanent` access, Jordan's enabled 30-minute daily allowance and no approval.
+The shared grid operation focuses the exact public launcher when offered, then
+the worker sends Enter once and independently requires window absence. When the completed search hides it, the
+same executable's guarded command-denial leaf supplies the extra refusal
+witness. Launcher visibility itself is not asserted. Riley enters fresh and
+opens and submits the same target through the grid with Riley's policy untouched.
+The family's combined `visible-result` uses the complete ordered observation
+record, including Jordan's independent denial and Riley's submitted draft.
 The [catalogue](E2E-Building-Blocks.md#application-routes-and-complete-customer-journeys)
 records accepted scopes. Other cases remain pending.
 

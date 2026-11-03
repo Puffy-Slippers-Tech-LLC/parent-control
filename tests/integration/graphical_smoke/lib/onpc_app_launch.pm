@@ -9,16 +9,19 @@ use onpc_desktop_session ();
 use onpc_app_rows ();
 
 sub run {
-    onpc_progress::operation('Using the allowed native route independently as both children');
-    my ($exchange, $declared, $challenges, $control, $route) = @_;
+    onpc_progress::operation('Checking the parent rule and independent native access for both children');
+    my ($exchange, $declared, $challenges, $control, $route, $policy) = @_;
     $control = 'enabled' unless defined($control);
     $route = 'command' unless defined($route);
-    die 'app-launch:arguments' unless (@_ == 3 || @_ == 4 || @_ == 5) && ref($exchange) eq 'CODE'
+    $policy //= 'allowed';
+    die 'app-launch:arguments' unless (@_ >= 3 && @_ <= 6) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ($control eq 'enabled' || $control eq 'disabled')
-        && ($route eq 'command' || ($route eq 'grid' && $control eq 'enabled'));
+        && ($route eq 'command' || ($route eq 'grid' && $control eq 'enabled'))
+        && ($policy eq 'allowed' || $policy eq 'hard-blocked' && $route eq 'grid');
+    my $rule = $policy eq 'allowed' ? 'allowed' : 'hard';
     my $journey = onpc_journey->new(
-        exchange => $exchange, prefix => "native-$route-allowed", review => 0);
+        exchange => $exchange, prefix => "native-$route-$policy", review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -34,13 +37,17 @@ sub run {
     }
     $journey->seen('apps-page');
     onpc_app_rows::edit_policy($journey, onpc_app_rows::fixture_app('A'),
-        'match-precise', 'allowed', 'allowed', []);
+        'match-precise', $rule eq 'allowed' ? 'allowed' : 'permanent', $rule, []);
     $journey->seen('parent-logout');
     onpc_desktop_session::enter_desktop(
         $journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan-entry');
-    my $jordan = $journey->scope('jordan-use');
-    onpc_app_rows::native_usable_app($jordan, $route, $jordan->seen('desktop'), 'other-child');
-    if ($route eq 'grid') {
+    my $jordan = $journey->scope($policy eq 'allowed' ? 'jordan-use' : 'jordan-denied');
+    if ($policy eq 'allowed') {
+        onpc_app_rows::native_usable_app($jordan, $route, $jordan->seen('desktop'), 'other-child');
+    } else {
+        onpc_app_rows::native_blocked_app($jordan, 'A', 'grid');
+    }
+    if ($route eq 'grid' && $policy eq 'allowed') {
         onpc_app_rows::native_finish_app($jordan);
         my $command = $journey->scope('jordan-command');
         onpc_app_rows::native_usable_app($command, 'command', $command->seen('desktop'), 'other-child');
@@ -50,7 +57,7 @@ sub run {
         $journey, 'gdm', 'child', 'fresh', 'success', 'riley-entry');
     my $riley = $journey->scope('riley-use');
     onpc_app_rows::native_usable_app($riley, $route, $riley->seen('desktop'), 'child');
-    if ($route eq 'grid') {
+    if ($route eq 'grid' && $policy eq 'allowed') {
         onpc_app_rows::native_finish_app($riley);
         my $command = $journey->scope('riley-command');
         onpc_app_rows::native_usable_app($command, 'command', $command->seen('desktop'), 'child');

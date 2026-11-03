@@ -15,8 +15,8 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">58</span>/<span style="color: gray">138</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6445</span>/<span style="color: gray">138</span>/6583** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">59</span>/<span style="color: gray">137</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6446</span>/<span style="color: gray">137</span>/6583** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">57</span>/<span style="color: gray">138</span>/195 |
+| customer-journey | <span style="color: green">58</span>/<span style="color: gray">137</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -67,6 +67,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [60](#scenario-60) | Remember each child's choices across both request forms (child: first; direction: kiosk to overlay) | `E2E-018/kiosk-to-overlay-first` | ready |
 | [61](#scenario-61) | Remember each child's choices across both request forms (child: second; direction: kiosk to overlay) | `E2E-018/kiosk-to-overlay-second` | ready |
 | [62](#scenario-62) | Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native grid) | `E2E-019/native-grid-allowed-enabled` | ready |
+| [64](#scenario-64) | Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native grid) | `E2E-019/native-grid-hard-blocked-enabled` | ready |
 | [81](#scenario-81) | Use supported launch routes under each app rule (control: disabled; policy: allowed; route: native command) | `E2E-019/native-command-allowed-disabled` | ready |
 | [139](#scenario-139) | Install through remove, reinstall and purge | `E2E-027/continuous` | ready |
 | [151](#scenario-151) | Identify the installed product and return to management | `E2E-030/parent` | ready |
@@ -118,7 +119,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[45](#scenario-45)</span> | <span style="color: gray">Request surface exit behavior (exit: escape; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-escape`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[47](#scenario-47)</span> | <span style="color: gray">Request surface exit behavior (exit: cancel; surface: kiosk)</span> | <span style="color: gray">`E2E-015/kiosk-cancel`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[48](#scenario-48)</span> | <span style="color: gray">Request surface exit behavior (exit: escape; surface: kiosk)</span> | <span style="color: gray">`E2E-015/kiosk-escape`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[64](#scenario-64)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[66](#scenario-66)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[68](#scenario-68)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-allowed-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[70](#scenario-70)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
@@ -684,6 +684,20 @@ Variant: child: second; direction: kiosk to overlay
 Case: `E2E-019/native-grid-allowed-enabled` · Category: customer-journey · Status: **ready**
 
 Variant: control: enabled; policy: allowed; route: native grid
+
+**Steps:**
+
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
+
+### Scenario 64
+
+**Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native grid)**
+
+Case: `E2E-019/native-grid-hard-blocked-enabled` · Category: customer-journey · Status: **ready**
+
+Variant: control: enabled; policy: hard blocked; route: native grid
 
 **Steps:**
 
@@ -1561,26 +1575,6 @@ Variant: exit: escape; surface: kiosk
 - Reopen and prepare the same request, obtain real parent approval, read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate.
 
 Pending: Consolidated into E2E-015/kiosk-approved (case 49), which independently checks Cancel, surface close and approved exit. Historical selector excluded from E2E scheduling; no replacement task.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 64
-
-**Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native grid)**
-
-Case: `E2E-019/native-grid-hard-blocked-enabled` · Category: customer-journey · Status: **pending**
-
-Variant: control: enabled; policy: hard blocked; route: native grid
-
-**Steps:**
-
-- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 

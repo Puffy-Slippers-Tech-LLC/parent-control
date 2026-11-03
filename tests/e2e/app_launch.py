@@ -1,5 +1,6 @@
 """Native routes: saved policy, actual access and independent child use."""
 from dataclasses import replace
+from functools import partial
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (fresh_desktop, parent_management, desktop_entry,
                             native_blocked_app, native_usable_app, prefixed_stages)
@@ -146,31 +147,13 @@ def execute_disabled(recorder, context):
                              journey_type=AppPolicyJourney)
 
 
-def execute_grid(recorder, context):
+def execute_grid(recorder, context, *, plan=GRID_PLAN, case_id='native-grid-allowed-enabled'):
     from e2e_fixture_preparation import ACTIVITY_SUBSETS
     # Reuse the qualified union: setup verifies Riley's catalogue and shared
     # runtime; the stage action independently verifies Jordan's catalogue.
     context.fixture_subsets = ACTIVITY_SUBSETS
-    context.fixture_caller = 'E2E-019/native-grid-allowed-enabled'
-    record_installed_journey(recorder, context, GRID_PLAN, timeout=1800,
-                             actions=fixture_actions(include_refusal=False),
-                             journey_type=AppPolicyJourney)
-
-
-def execute_hard_grid(recorder, context):
-    from e2e_fixture_preparation import ACTIVITY_SUBSETS
-    context.fixture_subsets = ACTIVITY_SUBSETS
-    context.fixture_caller = 'E2E-019/native-grid-hard-blocked-enabled'
-    record_installed_journey(recorder, context, HARD_GRID_PLAN, timeout=1800,
-                             actions=fixture_actions(include_refusal=False),
-                             journey_type=AppPolicyJourney)
-
-
-def execute_soft_grid(recorder, context):
-    from e2e_fixture_preparation import ACTIVITY_SUBSETS
-    context.fixture_subsets = ACTIVITY_SUBSETS
-    context.fixture_caller = 'E2E-019/native-grid-soft-blocked-enabled'
-    record_installed_journey(recorder, context, SOFT_GRID_PLAN, timeout=1800,
+    context.fixture_caller = 'E2E-019/' + case_id
+    record_installed_journey(recorder, context, plan, timeout=1800,
                              actions=fixture_actions(include_refusal=False),
                              journey_type=AppPolicyJourney)
 
@@ -178,5 +161,7 @@ def execute_soft_grid(recorder, context):
 E2E_CASES = {'native-command-allowed-enabled': execute,
              'native-command-allowed-disabled': execute_disabled,
              'native-grid-allowed-enabled': execute_grid,
-             'native-grid-hard-blocked-enabled': execute_hard_grid,
-             'native-grid-soft-blocked-enabled': execute_soft_grid}
+             'native-grid-hard-blocked-enabled': partial(execute_grid,
+                 plan=HARD_GRID_PLAN, case_id='native-grid-hard-blocked-enabled'),
+             'native-grid-soft-blocked-enabled': partial(execute_grid,
+                 plan=SOFT_GRID_PLAN, case_id='native-grid-soft-blocked-enabled')}

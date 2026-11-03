@@ -1,17 +1,10 @@
 """035c: native Allowed fixture, grid launch and ordinary public draft submission."""
 from installed_journey import InstalledJourney, JourneyPlan
-from journey_blocks import fresh_desktop
+from journey_blocks import fresh_desktop, native_usable_app
 
 
 ENTRY = {
-    'desktop': 'ui:native-desktop',
-    'search-ready': 'ui:native-search-ready',
-    'search-focused': 'ui:native-search-focused',
-    'search-entered': 'ui:native-search-entered',
-    'app-grid': 'ui:native-grid',
-    'opened': 'ui:native-opened',
-    'submit': 'ui:native-submit',
-    'submitted': 'ui:native-submitted',
+    **native_usable_app('grid'),
     'close': 'ui:native-close',
     'closed': 'ui:native-closed',
 }

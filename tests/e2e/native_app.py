@@ -1,15 +1,11 @@
 """035: verified native command launch, independently observed ordinary use."""
 from installed_journey import InstalledJourney, JourneyPlan
-from journey_blocks import fresh_desktop
+from journey_blocks import fresh_desktop, native_usable_app
 from native_fixtures import fixture_actions
 
 
 ENTRY = {
-    'desktop': 'ui:native-desktop',
-    'command': 'ui:native-command-launch',
-    'opened': 'ui:native-opened',
-    'submit': 'ui:native-submit',
-    'submitted': 'ui:native-submitted',
+    **native_usable_app('command'),
     'close': 'ui:native-close',
     'closed': 'ui:native-closed',
 }

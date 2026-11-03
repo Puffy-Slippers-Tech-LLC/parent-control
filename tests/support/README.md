@@ -1208,6 +1208,11 @@ worker; their recipes retain control state, account order and assertion phases.
 The [catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#application-routes-and-complete-customer-journeys)
 owns the exact qualified fixture/route bindings.
 
+The standalone command and grid qualifications in `native_app` and
+`native_grid_usable` also compose `journey_blocks.native_usable_app`; their
+independent-entry/refusal order and normal close checks remain local. Reuse this
+same declaration instead of copying its launch/use stage map into a qualifier.
+
 For the clean disabled binding, compose `onpc_parent::open_for_child` and check
 the selected child's untouched limits-off/zero-allowance result before editing
 app policy. The enabled binding instead uses `onpc_parent::set_allowance` and

@@ -5200,6 +5200,14 @@ account/profile, execution order, independent result endpoints and failure stop
 before later input. Inspect shared consumers when their contract changes;
 unchanged transport, decoding and recording need no renewed qualification.
 
+Check the reused external-provider helper's supported action before composing
+its caller; a discovered launcher does not imply that the provider offers an
+activation action. Reuse the qualified search/input/result operation. Also match
+every emitted recorder assertion ID to the scenario family's declaration. When
+the family declares only `visible-result`, keep the shared final assertion rather
+than inventing intermediate result names; preserve the ordered independent
+observations that establish that result.
+
 Inspect the final resolved phase map: merging a screen group's phases must not
 overwrite the initial greeter's `start` phase. For a language-changing history,
 trace each entry's current form language through the shared declaration's allowed

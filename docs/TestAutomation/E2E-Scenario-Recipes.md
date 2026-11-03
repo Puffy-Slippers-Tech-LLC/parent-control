@@ -441,7 +441,10 @@ case-7 regression. Case 9 (`grant-only-new`) also passed on Ubuntu 26.04 through
 `onpc_allowance_case::grant_only_new`. Case 10 (`grant-only-retained`) is
 implemented through `grant_access_case.RetainedGrantAccessJourney` and
 `onpc_allowance_case::grant_only_retained` and passed on Ubuntu 26.04.
-The combined bindings remain pending.
+Case 11 (`combined-new`) is registered through
+`grant_access_case.GrantAccessJourney` / `COMBINED_PLAN` and
+`onpc_allowance_case::combined_new` and passed on Ubuntu 26.04.
+Case 12's retained combined binding remains pending.
 
 **Change screen limits while starting or returning to a child desktop.** Cases 7, 8, 9, 10, 11, 12.
 
@@ -479,6 +482,17 @@ returns compare the original desktop and grant deadline through the same public
 refresh/read brackets as case 9. Every child departure uses Switch User.
 Disabling clears the grant and countdown while preserving app blocks; re-enabled
 zero denies retained access again. No child logout or replacement desktop occurs.
+
+Case 11 starts with 30 daily minutes and no grant, checks fresh Jordan access
+and Allowed/Hard launches, then obtains one real 20-minute Jamie approval.
+The request estimate and issued grant include the actual remaining daily time;
+the total is max(D,G). Fresh child visits after approval and at daily zero retain
+the original grant deadline and matching countdown. The 40-minute allowance-only
+save checks the increased daily balance and original grant without another visit.
+Every successful child visit ends with normal logout and return to the same Parent
+window. Disabling clears the grant and countdown while app blocks remain; enabling
+the saved zero allowance again denies fresh entry. Controller read brackets and
+public refreshes bound grant comparisons independently of the guest clock.
 
 ### E2E-006
 

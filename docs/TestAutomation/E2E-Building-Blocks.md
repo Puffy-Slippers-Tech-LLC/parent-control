@@ -395,7 +395,7 @@ controller; the original deadline and display precision remain unchanged.
 Approval-start comparisons also use the controller clock on both sides.
 The scoped Jordan/Jamie/1200/soft-included kiosk credential binding retains
 fresh recipient proofs and single-use submission. Host credential/source checks
-passed. Combined bindings remain pending; these complete cases supply no
+passed. The retained combined binding remains pending; these complete cases supply no
 other-family acceptance.
 
 Complete case 10, `grant_access_case.RetainedGrantAccessJourney` /
@@ -414,6 +414,19 @@ The affected fresh-entry case 9 regression passed on Ubuntu 26.04 in
 `20261103T171608Z-3d785f9b`, including all four normal child logouts and
 independent usable-greeter returns, the original grant across allowance edits,
 limits-off clearing, re-enabled denial, collection and owned cleanup.
+
+Complete case 11, `grant_access_case.COMBINED_PLAN` / `GrantAccessJourney` /
+`onpc_allowance_case::combined_new`, passed on Ubuntu 26.04 in
+`20261103T174911Z-66957224`. Initial 30-minute daily access, Allowed use/Hard
+denial, a real 20-minute addition to the observed daily remainder, the original
+grant across 30→40→0 edits and fresh child visits, normal logouts, retained
+Parent settings, limits-off grant clearing/countdown absence and re-enabled
+zero-time denial all passed. The 40-minute allowance-only save requires no extra
+desktop visit. Public refreshes and controller read brackets retain the original
+grant deadline. The affected case 9 regression passed in
+`20261103T180811Z-05fe9e3a`. Scoped host checks, collection, worker shutdown,
+owned cleanup, baseline restoration and final VM off-state passed; coverage
+was regenerated after each case. Case 12's retained combined history remains separate.
 
 ### Harness transport and serial qualification
 

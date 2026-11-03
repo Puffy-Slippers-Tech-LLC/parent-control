@@ -29,11 +29,17 @@ sub grant_only_retained {
     return grant_only(@_, 1);
 }
 
+sub combined_new {
+    return grant_only(@_, 0, 1);
+}
+
 sub grant_only {
     onpc_progress::operation('Checking extra time across child visits and allowance changes');
-    my ($exchange, $declared, $challenges, $request, $retained) = @_;
-    die 'grant-access:arguments' unless @_ == 5 && ref($exchange) eq 'CODE'
+    my ($exchange, $declared, $challenges, $request, $retained, $combined) = @_;
+    $combined //= 0;
+    die 'grant-access:arguments' unless (@_ == 5 || @_ == 6) && ref($exchange) eq 'CODE'
         && defined($retained) && $retained =~ /\A[01]\z/
+        && $combined =~ /\A[01]\z/ && !($retained && $combined)
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
     require onpc_request_flow;
@@ -47,7 +53,11 @@ sub grant_only {
     $journey->consume_observation('parent-selected', onpc_parent::select_child($journey, 'existing',
         $journey->seen('child-picker-opened'), 'child-picker-opened', 'child-choice-highlighted', 'parent-selected'));
     $journey->seen($_) for qw(initial-balance setup-enable);
-    onpc_allowance_selection::select($journey, 'setup-zero', [0], 'confirm');
+    if ($combined) {
+        onpc_allowance_boundaries::custom_value($journey, 'setup-thirty', 30);
+    } else {
+        onpc_allowance_selection::select($journey, 'setup-zero', [0], 'confirm');
+    }
     $journey->seen($_) for qw(setup-settings apps-page);
     for my $edit (['A', 'match-precise', 'allowed', 'allowed'],
                   ['H', 'match-hard-precise', 'permanent', 'hard']) {
@@ -80,16 +90,17 @@ sub grant_only {
             onpc_request_flow::approve($approval, 'existing-fixture-child', 'fixture-parent', 1200, 1, 'automatic');
             onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'approval-return');
         } elsif ($name eq 'positive') {
-            onpc_allowance_boundaries::custom_value($journey, 'positive', 30);
+            onpc_allowance_boundaries::custom_value($journey, 'positive', $combined ? 40 : 30);
         } elsif ($name eq 'zero') {
             onpc_allowance_selection::select($journey, 'zero', [0], 'confirm');
         } else {
             $journey->seen("$name-toggle");
         }
         $journey->seen($_) for ("$name-settings", "$name-balance");
+        next if $combined && $name eq 'positive';
         my $leave = $journey->scope("$name-leave");
         onpc_desktop_session::switch_user($leave, $leave->seen('desktop'));
-        my $denied = $name eq 'enabled' || $name eq 'reenabled';
+        my $denied = ($name eq 'enabled' && !$combined) || $name eq 'reenabled';
         onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', $retained ? 'retained' : 'fresh',
             $denied ? 'time-denied' : 'success', "$name-entry");
         if ($denied) {
@@ -98,7 +109,7 @@ sub grant_only {
                 "$name-denial-denied-returned");
         } else {
             $journey->seen("$name-countdown");
-            if ($name eq 'grant' || $name eq 'off') {
+            if ($name eq ($combined ? 'enabled' : 'grant') || $name eq 'off') {
                 if ($retained && $name eq 'grant') {
                     onpc_app_rows::native_activity_resume($journey, 'grant-original');
                     onpc_app_rows::native_finish_app($journey->scope('grant-original'));

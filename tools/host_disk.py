@@ -1,7 +1,8 @@
 """FIFO admission for expensive disk work on the VM/build host.
 
 The root-owned VM pool runtime is shared by users and checkouts. Each admitted
-request has a kernel-locked ticket. Only the oldest live ticket may execute;
+request has a kernel-locked ticket on the host doing the work. Only that host's
+oldest live ticket may execute; different hosts have independent queues;
 unlocked tickets are abandoned requests, never expired or stolen owners.
 Durable workflow journals remain their existing owners' responsibility.
 """
@@ -175,7 +176,7 @@ def _host(*, stopped=None, incoming=None):
 
 @contextmanager
 def _remote(*, stopped=None):
-    """The existing privileged dispatcher owns the one host queue."""
+    """The local privileged dispatcher owns this machine's queue."""
     if __package__:
         from .dev_privileges import check
     else:
@@ -209,6 +210,8 @@ def _reserve(*, stopped=None):
 def operation(label, *, stopped=None):
     """Borrow in-process nesting; never acquire a VM or child controller here.
 
+    Acquire on the machine doing the disk work, inside host-side helpers for
+    remote VM operations. Never wrap their SSH dispatch in a local reservation.
     Queue time is outside the operation's existing command timeout. Callers keep
     their identity guards and revalidate after admission before mutating state.
     """

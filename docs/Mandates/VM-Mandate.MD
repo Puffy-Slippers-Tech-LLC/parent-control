@@ -197,6 +197,9 @@ ownership.
 
 The shared [disk admission helper](../../tools/host_disk.py) serializes expensive
 disk operations across all participating VMs, users and checkouts on the host.
+Each physical host has its own FIFO queue and admits one operation at a time.
+Operations on different hosts proceed independently; the controller must not
+reserve its own disk slot for work performed on an SSH host.
 Actual snapshot creation/restoration, guest product package transactions, host
 package builds and disaster-recovery file copies use this same queue. VM
 reservations remain independent; other work on a reserved VM can proceed while
@@ -211,8 +214,9 @@ availability does not identify a human caller; this is an entry-point contract.
 The human route does not release an inherited slot or bypass VM ownership,
 storage or package validation guards.
 
-Root-owned tickets under `/run/onpc-vm-pool/disk/` establish strict FIFO order at
-admission. Pending operations wait without expiring or stealing a live ticket.
+Root-owned tickets under `/run/onpc-vm-pool/disk/` on each executing host establish
+strict FIFO order at admission. Pending operations wait without expiring or
+stealing a live ticket.
 Kernel locks and inherited command descriptors retain the slot until its last
 owned command finishes. Cancelled or crashed requests are retired only after
 the kernel proves their ticket unowned. Queue records are ephemeral coordination;
@@ -226,7 +230,11 @@ or host product installation is involved. Setup refreshes that dispatcher throug
 Acquire VM checkout, activity, controller and archive ownership before disk
 admission. Hold the slot only across the finite disk operation, never while
 requesting another VM or waiting for a child controller that needs those locks.
-In-process nested work borrows its slot. Spawned commands must inherit both
+In-process nested work borrows its slot. Acquire admission on the machine doing
+the disk work: host-side snapshot helpers use their own host's queue, and local
+builders use the build host's queue. Do not wrap remote helper dispatch in a
+controller-local reservation. Descriptors cannot be inherited across SSH;
+remote helpers acquire their own tickets. Spawned commands on the same host must inherit both
 `host_disk.descriptors()` and `host_disk.environment()` so nested builders borrow
 the same lifetime instead of queuing behind their parent. Independent parallel
 builders each request their own ticket; cancellation prevents pending builders

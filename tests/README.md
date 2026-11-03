@@ -332,6 +332,8 @@ Expensive disk stages additionally share the host-wide
 [FIFO disk queue](../docs/Mandates/VM-Mandate.MD#host-disk-queue).
 Package builds, guest product transactions, snapshot creation/restoration and
 VM disaster-recovery copies run one at a time across users and checkouts.
+This limit applies separately to each physical host; different hosts do not
+throttle each other. Admission lives on the host performing the disk operation.
 Other work retains its existing parallel scheduling and resource admission.
 The portable COPR RPM backend remains independent of local development helpers;
 its host-facing Make, artifact and publishing callers own disk admission.

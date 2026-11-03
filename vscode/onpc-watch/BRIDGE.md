@@ -137,6 +137,28 @@ unknown; inspect the authoritative transcript before submitting again. Exactly
 once delivery across a client reboot is not claimed. Snapshot polling and
 reconnection must never replay an action, start, stop or restore test execution.
 
+## Run time deletion
+
+Adapters may advertise optional `capabilities.delete_run_times: true` and publish
+a `delete_token` on each run time entry (64 lowercase hexadecimal characters in
+the local adapter). The bridge qualifies tokens by source and retains duplicates
+behind each displayed row. Older adapters remain readable with deletion disabled.
+After a modal confirmation showing the selected row count, the extension sends:
+
+```json
+{"protocol":1,"delete_run_times":["published-token"]}
+```
+
+The request contains 1–4096 tokens, takes the same single-request connection slot,
+and returns `{"protocol":1,"delete_result":{"ok":true}}` or an `ok: false`
+result with a readable `error`. Only tokens currently published by that reader
+are accepted. The local adapter resolves their checkout/case/VM internally,
+serializes deletion with timing publication, refuses newer timing records, and
+removes matching current and legacy timing files without deleting recordings.
+It invalidates its timing cache even on failure. Batches can partially complete
+before a refusal; refresh reflects the remaining records. Deletions are never
+automatically retried after connection loss.
+
 ## Artifacts
 
 Artifacts use the same connection and one-request flow control, on demand:

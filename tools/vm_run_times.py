@@ -1,6 +1,7 @@
 """Local latest VM case timings; no inventory entries or repair-session clocks."""
 
 import ast
+import fcntl
 import hashlib
 import json
 import math
@@ -118,6 +119,7 @@ def save(root, record):
     fd = test_retention.directory(directory)
     temporary = '.vm-time-' + uuid.uuid4().hex
     try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
         test_retention.private(os.fstat(fd))
         name = _name(record['category'], record['id'], record['vm'])
         try:
@@ -131,6 +133,36 @@ def save(root, record):
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, name, src_dir_fd=fd, dst_dir_fd=fd)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def delete(root, record):
+    """Remove a published pair's timings, preserving newer runs and recordings."""
+    directory = test_storage.directory('state', root=root, create=False)
+    fd = test_retention.directory(directory)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        test_retention.private(os.fstat(fd))
+        candidates = []
+        for name in (_name(record['category'], record['id']),
+                     _name(record['category'], record['id'], record['vm'])):
+            try:
+                before = os.stat(name, dir_fd=fd, follow_symlinks=False)
+                saved = _read(fd, name)
+            except FileNotFoundError:
+                continue
+            if any(saved[key] != record[key] for key in ('category', 'id', 'vm')):
+                continue  # A legacy record may belong to another VM.
+            if saved['completed_at'] > record['completed_at']:
+                raise ValueError('Run time changed; refresh the table before deleting it.')
+            candidates.append((name, before))
+        for name, before in candidates:
+            current = os.stat(name, dir_fd=fd, follow_symlinks=False)
+            if (current.st_dev, current.st_ino) != (before.st_dev, before.st_ino):
+                raise ValueError('Run time file changed; refresh before deleting it.')
+            os.unlink(name, dir_fd=fd)
         os.fsync(fd)
     finally:
         os.close(fd)

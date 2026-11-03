@@ -7,6 +7,7 @@ The extension requests at most one snapshot at a time over its private stdio.
 
 import argparse
 import base64
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -164,6 +165,24 @@ class Viewer:
         self.run_times = None
         self.run_times_scope = None
         self.run_times_at = 0
+        self.timing_records = {}
+
+    def delete_run_times(self, tokens):
+        from vm_run_times import delete
+        try:
+            if not tokens or any(token not in self.timing_records for token in tokens):
+                raise ValueError('Run times are no longer published; refresh before deleting.')
+            for token in dict.fromkeys(tokens):
+                root, record = self.timing_records[token]
+                if root not in self.roots:
+                    raise ValueError('Checkout is no longer available.')
+                delete(root, record)
+            return dict(ok=True)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            return dict(ok=False, error=str(error))
+        finally:
+            self.run_times = None
+            self.timing_records.clear()
 
     def artifact(self, request):
         """Serve only artifacts published by this reader, never arbitrary paths."""
@@ -512,7 +531,14 @@ class Viewer:
             selection = tuple(root for root in self.roots if scope in ('all', str(root)))
             now = time.monotonic()
             if self.run_times is None or selection != self.run_times_scope or now - self.run_times_at >= 60:
-                self.run_times = [row for root in selection for row in load(root)]
+                self.run_times = []
+                self.timing_records.clear()
+                for root in selection:
+                    for row in load(root):
+                        token = hashlib.sha256(json.dumps([str(root), row['category'], row['id'],
+                            row['vm'], row['completed_at']]).encode()).hexdigest()
+                        self.timing_records[token] = root, dict(row)
+                        self.run_times.append(dict(row, delete_token=token))
                 self.run_times_scope, self.run_times_at = selection, now
             run_times = self.run_times
             for row in run_times:
@@ -521,7 +547,8 @@ class Viewer:
         else:
             self.run_times = None
             self.run_times_scope = None
-        return dict(protocol=1, capabilities=dict(sessions=True, artifacts=True),
+            self.timing_records.clear()
+        return dict(protocol=1, capabilities=dict(sessions=True, artifacts=True, delete_run_times=True),
                     scope=scope, selected=selected, entries=values,
                     run_times=run_times,
                     runs=runs, session_result=result,
@@ -547,6 +574,14 @@ def main():
             request = json.loads(line)
             if type(request) is not dict or request.get('protocol', 1) != 1:
                 raise ValueError('watch: incompatible bridge protocol')
+            if 'delete_run_times' in request:
+                tokens = request['delete_run_times']
+                if (set(request) - {'protocol', 'delete_run_times'} or type(tokens) is not list
+                        or not 0 < len(tokens) <= 4096 or any(type(token) is not str
+                            or not re.fullmatch(r'[a-f0-9]{64}', token) for token in tokens)):
+                    raise ValueError('watch: invalid timing deletion request')
+                print(json.dumps(dict(protocol=1, delete_result=viewer.delete_run_times(tokens))), flush=True)
+                continue
             if 'artifact' in request:
                 artifact = request['artifact']
                 if (set(request) - {'protocol', 'artifact'} or type(artifact) is not dict

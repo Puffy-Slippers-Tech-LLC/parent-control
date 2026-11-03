@@ -222,8 +222,31 @@ function activate(context) {
                 poll();
             } else if (message?.type === 'openRunFile' && typeof message.uri === 'string') {
                 void openArtifact(message.uri);
+            } else if (message?.type === 'deleteRunTimes' && Array.isArray(message.tokens) &&
+                       message.tokens.length > 0 && message.tokens.length <= 4096 &&
+                       message.tokens.every(token => typeof token === 'string' && bridge?.timings.has(token)) &&
+                       Number.isInteger(message.rows) && message.rows > 0 && message.rows <= message.tokens.length) {
+                void deleteRunTimes(message);
             }
         });
+        let deletingRunTimes = false;
+        async function deleteRunTimes(message) {
+            if (deletingRunTimes) return;
+            deletingRunTimes = true;
+            const current = bridge;
+            try {
+                const answer = await vscode.window.showWarningMessage(
+                    `Delete run time records for ${message.rows} selected ${message.rows === 1 ? 'row' : 'rows'}?`,
+                    { modal: true, detail: 'This removes all saved VM timings in these rows. Recordings are kept.' }, 'Delete');
+                if (answer !== 'Delete' || !current || current !== bridge || disposed) return;
+                await current.deleteRunTimes(message.tokens);
+            } catch (error) {
+                void vscode.window.showErrorMessage(`Cannot delete run times: ${error.message}`);
+            } finally {
+                deletingRunTimes = false;
+                poll();
+            }
+        }
         async function openArtifact(token) {
             try {
                 const { result, remote } = await bridge.artifact(token);

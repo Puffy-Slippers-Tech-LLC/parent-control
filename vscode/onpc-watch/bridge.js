@@ -229,13 +229,13 @@ class Source {
             for (const id of this.frames.keys()) if (!ids.has(id)) this.frames.delete(id);
             this.snapshot = value;
             if (value.session_result) this.results.push(value.session_result);
-        } else if (!value.artifact_result) throw new Error('Missing artifact response.');
+        } else if (!value[pending.response || 'artifact_result']) throw new Error('Missing Watch response.');
         clearTimeout(this.timeout);
         this.pending = undefined;
         this.status = 'Connected';
         this.retryAt = 0;
         this.backoff = 1000;
-        pending.resolve?.(value.artifact_result);
+        pending.resolve?.(value[pending.response || 'artifact_result']);
         this.changed();
     }
 
@@ -243,9 +243,9 @@ class Source {
         if (!this.child && Date.now() >= this.retryAt) this.start();
         if (!this.child || this.pending) return;
         if (this.artifactRequest) {
-            const { uri, ...pending } = this.artifactRequest;
+            const { uri, request: operation, ...pending } = this.artifactRequest;
             this.artifactRequest = undefined;
-            this.send({ artifact: { uri, inline: this.config.transport === 'ssh' } }, pending);
+            this.send(operation || { artifact: { uri, inline: this.config.transport === 'ssh' } }, pending);
             return;
         }
         const action = this.actions.shift();
@@ -258,6 +258,15 @@ class Source {
         if (!this.snapshot.capabilities.artifacts) return Promise.reject(new Error('This adapter does not support artifacts.'));
         if (this.artifactRequest || this.pending?.resolve) return Promise.reject(new Error('Another artifact is being opened.'));
         return new Promise((resolve, reject) => { this.artifactRequest = { uri, resolve, reject }; });
+    }
+
+    deleteRunTimes(tokens) {
+        if (!this.child || this.status !== 'Connected') return Promise.reject(new Error('Source disconnected.'));
+        if (!this.snapshot.capabilities.delete_run_times) return Promise.reject(new Error('Update this source adapter to delete run times.'));
+        if (this.artifactRequest || this.pending?.resolve) return Promise.reject(new Error('Another Watch operation is in progress.'));
+        return new Promise((resolve, reject) => {
+            this.artifactRequest = { request: { delete_run_times: tokens }, response: 'delete_result', resolve, reject };
+        });
     }
 }
 
@@ -282,6 +291,7 @@ class Bridge {
         this.displayedFrames = new Map();
         this.links = new Map();
         this.roots = new Map();
+        this.timings = new Map();
     }
 
     close() {
@@ -338,7 +348,7 @@ class Bridge {
         const selected = request.selected === 'run-time' || awaitingSelection || this.sources.some(source => (!scope || scope.source === source) &&
             source.snapshot?.entries.some(entry => key(source.config.id, entry.id) === request.selected)) ? request.selected : 'all';
         const visible = new Set();
-        this.links.clear(); this.roots.clear();
+        this.links.clear(); this.roots.clear(); this.timings.clear();
         const labelSources = this.sources.length > 1 || this.sources[0].config.transport === 'ssh';
         for (const source of this.sources) {
             const { id, label } = source.config;
@@ -352,7 +362,10 @@ class Bridge {
                         this.links.set(token, { source, uri });
                         return token;
                     };
-                    run_times.push({ ...row, source_id: id, case_link: routeLink(row.case_link),
+                    const deletion = typeof row.delete_token === 'string' && /^[a-f0-9]{64}$/.test(row.delete_token)
+                        && value.capabilities.delete_run_times ? key(id, row.delete_token) : null;
+                    if (deletion) this.timings.set(deletion, { source, token: row.delete_token });
+                    run_times.push({ ...row, delete_token: deletion, source_id: id, case_link: routeLink(row.case_link),
                         recording: routeLink(row.recording) });
                 }
             }
@@ -411,7 +424,10 @@ class Bridge {
         for (const row of run_times) {
             const id = JSON.stringify([row.source_id, row.category, row.id, row.vm]);
             const previous = latestTimes.get(id);
-            if (!previous || row.completed_at > previous.completed_at) latestTimes.set(id, row);
+            const delete_tokens = [...(previous?.delete_tokens || []), ...(row.delete_token ? [row.delete_token] : [])];
+            const latest = !previous || row.completed_at > previous.completed_at ? row : previous;
+            latestTimes.set(id, { ...latest, delete_tokens,
+                deletable: (previous?.deletable ?? true) && Boolean(row.delete_token) });
         }
         const times = [...latestTimes.values()].sort((a, b) => b.seconds - a.seconds || a.title.localeCompare(b.title));
         return { entries, runs, checkouts, hosts, run_times: times,
@@ -424,6 +440,24 @@ class Bridge {
         const route = this.links.get(token);
         if (!route) throw new Error('Artifact is no longer published by the displayed source.');
         return { result: await route.source.artifact(route.uri), remote: route.source.config.transport === 'ssh' };
+    }
+
+    async deleteRunTimes(tokens) {
+        if (!Array.isArray(tokens) || !tokens.length || tokens.length > 4096 ||
+                tokens.some(token => !this.timings.has(token))) throw new Error('Run times changed; refresh before deleting.');
+        const groups = new Map();
+        for (const token of new Set(tokens)) {
+            const route = this.timings.get(token);
+            if (!groups.has(route.source)) groups.set(route.source, []);
+            groups.get(route.source).push(route.token);
+        }
+        for (const [source, ids] of groups) {
+            const result = await source.deleteRunTimes(ids);
+            // Do not publish the old rows while awaiting the next fresh snapshot.
+            source.snapshot.run_times = [];
+            this.revision++;
+            if (result.ok !== true) throw new Error(result.error || 'Cannot delete run times.');
+        }
     }
 }
 

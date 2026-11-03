@@ -141,6 +141,13 @@ bound when preparation was omitted. Repair sessions and earlier retries
 are excluded; system lifecycle phases in one execution attempt are added together.
 New lifecycle recordings join those phases into one video instead of retaining
 only the final phase. Existing short recordings require a new execution to replace them.
+The first column selects case rows; its header checkbox selects all available
+rows. The footer shows the selected and total row counts. The trash button above
+the table deletes selected rows, and each row's final trash button deletes that
+row. Both require confirmation; bulk confirmation includes the selected row count.
+Deletion removes saved timing records for all VMs in those rows, including older
+duplicates in the displayed scope, while preserving recordings. Updated timings
+require a refresh before deletion. Older source adapters disable deletion until updated.
 Rows update only after all selected phases of a case finish. Unfinished attempts
 publish no partial row; an earlier completed duration remains until replaced.
 Case links open the existing case file in a new editor tab. The recording icon

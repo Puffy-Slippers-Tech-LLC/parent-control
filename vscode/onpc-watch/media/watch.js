@@ -21,6 +21,7 @@
     let sessionRoot = '';
     const actions = new Map();
     const expandedRunTimes = new Set();
+    const selectedRunTimes = new Set();
 
     function countdown(node) {
         const remaining = Math.max(0, Math.ceil(Number(node.dataset.deadline) - Date.now() / 1000));
@@ -705,11 +706,20 @@
         table.className = 'run-times';
         table.dataset.signature = signature;
         const heading = table.createTHead().insertRow();
+        const selectHeading = document.createElement('th');
+        const selectAll = document.createElement('input');
+        selectAll.type = 'checkbox';
+        selectAll.setAttribute('aria-label', 'Select all run time rows');
+        selectHeading.append(selectAll);
+        heading.append(selectHeading);
         for (const label of ['Case ID / Title', 'VM name', 'Run Time', 'Description']) {
             const th = document.createElement('th');
             th.textContent = label;
             heading.append(th);
         }
+        const deleteHeading = document.createElement('th');
+        deleteHeading.setAttribute('aria-label', 'Delete');
+        heading.append(deleteHeading);
         const body = table.createTBody();
         const link = (cell, text, uri) => {
             const a = document.createElement('a');
@@ -742,9 +752,64 @@
         }
         const ordered = [...groups.entries()].sort((a, b) =>
             b[1][0].seconds - a[1][0].seconds || a[1][0].title.localeCompare(b[1][0].title));
+        for (const key of selectedRunTimes) if (!groups.has(key)) selectedRunTimes.delete(key);
+        const controls = table.createTHead().insertRow(0).insertCell();
+        controls.colSpan = 6;
+        const deleteButton = (label, action) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'delete-run-time';
+            button.title = label;
+            button.setAttribute('aria-label', label);
+            const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            icon.setAttribute('viewBox', '0 0 20 20');
+            icon.setAttribute('aria-hidden', 'true');
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', 'M3 5h14M7 5V2h6v3M5 5l1 13h8l1-13M8 8v7M12 8v7');
+            icon.append(path);
+            button.append(icon);
+            button.onclick = action;
+            return button;
+        };
+        const requestDelete = keys => {
+            const tokens = [...new Set(keys.flatMap(key => groups.get(key).flatMap(row => row.delete_tokens || [])))];
+            vscode.postMessage({ type: 'deleteRunTimes', tokens, rows: keys.length });
+        };
+        const bulkDelete = deleteButton('Delete selected run time rows', () => requestDelete([...selectedRunTimes]));
+        controls.append(bulkDelete);
+        const footer = table.createTFoot().insertRow().insertCell();
+        footer.colSpan = 6;
+        const checkboxes = new Map();
+        const eligible = key => groups.get(key).every(row => row.deletable);
+        for (const key of selectedRunTimes) if (!eligible(key)) selectedRunTimes.delete(key);
+        const updateSelection = () => {
+            const keys = [...groups.keys()].filter(eligible);
+            selectAll.disabled = !keys.length;
+            selectAll.checked = keys.length > 0 && keys.every(key => selectedRunTimes.has(key));
+            selectAll.indeterminate = selectedRunTimes.size > 0 && !selectAll.checked;
+            for (const [key, checkbox] of checkboxes) checkbox.checked = selectedRunTimes.has(key);
+            bulkDelete.disabled = !selectedRunTimes.size;
+            footer.textContent = `${selectedRunTimes.size} of ${groups.size} rows selected`;
+        };
+        selectAll.onchange = () => {
+            selectedRunTimes.clear();
+            if (selectAll.checked) for (const key of groups.keys()) if (eligible(key)) selectedRunTimes.add(key);
+            updateSelection();
+        };
         for (const [key, variants] of ordered) {
             const row = variants[0];
             const tr = body.insertRow();
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.disabled = !eligible(key);
+            checkbox.setAttribute('aria-label', `Select ${row.title}`);
+            checkbox.onchange = () => {
+                if (checkbox.checked) selectedRunTimes.add(key);
+                else selectedRunTimes.delete(key);
+                updateSelection();
+            };
+            checkboxes.set(key, checkbox);
+            tr.insertCell().append(checkbox);
             const title = tr.insertCell();
             let expand;
             if (variants.length > 1) {
@@ -788,6 +853,7 @@
             tr.insertCell().textContent = row.vm;
             tr.insertCell().textContent = duration(row.seconds);
             const description = tr.insertCell();
+            description.className = 'run-description';
             const summary = document.createElement('div');
             summary.textContent = row.description;
             description.append(summary);
@@ -835,7 +901,11 @@
                 summary.append(' ', toggle);
                 description.append(text);
             }
+            const remove = deleteButton(`Delete run times for ${row.title}`, () => requestDelete([key]));
+            remove.disabled = !eligible(key);
+            tr.insertCell().append(remove);
         }
+        updateSelection();
         grid.append(table);
     }
 

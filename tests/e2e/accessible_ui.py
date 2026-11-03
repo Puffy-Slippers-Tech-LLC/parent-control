@@ -241,6 +241,7 @@ OPERATIONS |= frozenset({'gdm-product-free-provider', 'parent-desktop-provider'}
 PRODUCT = 'Oh No! Parent Control'
 FEEDBACK_READ_OPERATIONS = frozenset({
     'feedback-open', 'feedback-read', 'feedback-close',
+    'feedback-close-ready',
     'feedback-wrong-entry', 'feedback-reopen', 'feedback-reread', 'feedback-finished',
 })
 OPERATIONS |= FEEDBACK_READ_OPERATIONS
@@ -2853,6 +2854,10 @@ class AccessibleUI:
         """Dispatch exactly one guarded product setter; callers own result checks."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         node = self.id_target(identity, sensitive=True, showing=False)
+        selector_before = None
+        if identity == 'parent-child-selector':
+            snapshot = node.snapshot()
+            selector_before = {key: snapshot.get(key) for key in ('visible', 'enabled')}
         self.input_uncertain = True
         try:
             node.setValue(value)
@@ -2872,6 +2877,36 @@ class AccessibleUI:
                 except Exception:
                     pass  # Diagnostic failure cannot replace the first refusal.
                 error.add_note('ui:child-choice-after-failure:' + state)
+                # Distinguish a busy/hidden control or modal surface from a
+                # failed selection. Read only the original pinned endpoint;
+                # keep the uncertain-input latch and original exception.
+                diagnostic = {'event': 'child-selector-refusal-state',
+                              'before': selector_before, 'choice_after': state}
+                try:
+                    current = node.ui_element.snapshot()
+                    diagnostic['after'] = {
+                        **{key: current.get(key) for key in ('visible', 'enabled')},
+                        'setter_available': 'setValue' in current.get('operations', ()),
+                        'requested_selected': current.get('value') == value,
+                    }
+                except Exception:
+                    diagnostic['control_read_failed'] = True
+                try:
+                    surfaces = node.client.listSurfaces()
+                    known = ('parent-window', 'language-dialog', 'whats-new-dialog',
+                             'about-dialog', 'feedback-dialog', 'parent-revoke-dialog',
+                             'parent-match-rule-dialog')
+                    diagnostic['surfaces_after'] = [
+                        {'id': surface['id'] if surface.get('id') in known else 'other',
+                         **{key: surface.get(key) for key in ('visible', 'enabled', 'modal')}}
+                        for surface in surfaces[:16]]
+                    diagnostic['surfaces_truncated'] = len(surfaces) > 16
+                except Exception:
+                    diagnostic['surface_read_failed'] = True
+                try:
+                    print(json.dumps(diagnostic, sort_keys=True), file=sys.stderr, flush=True)
+                except Exception:
+                    pass  # Preserve the first refusal even if diagnostics fail.
             raise
         self.input_uncertain = False
         return node
@@ -5276,6 +5311,13 @@ class AccessibleUI:
         require(operation in FEEDBACK_READ_OPERATIONS, 'ui:feedback-operation')
         if operation in ('feedback-open', 'feedback-reopen'):
             return self.open_feedback()
+        if operation == 'feedback-close-ready':
+            # Automatic error reports have generated drafts. Qualify their
+            # owned surface without applying a synthetic feedback draft check.
+            self.wait(lambda: self.snapshot_owned_target('feedback-dialog', check_prompt=True),
+                      'feedback-report-visible')
+            self.window_ready_to_close('feedback')
+            return {'report_visible': True}
         if operation in ('feedback-close', 'feedback-finished'):
             self.feedback_snapshot()
             self.activate_id('feedback-close')

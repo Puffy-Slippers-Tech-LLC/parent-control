@@ -47,6 +47,12 @@ for phase, child in (('healthy', 'child'), ('unavailable', 'existing'), ('restor
         SCREENS.update(custom_child_selection('restored-selected-away', 'child'))
     SCREENS.update(custom_child_selection(phase + '-selected', child))
     SCREENS[phase + '-balance'] = 'ui:time-explanation-reach-read'
+    if phase == 'unavailable':
+        # Selecting the enabled child tries extension recovery against the
+        # deliberately missing home. The documented error report is modal;
+        # observe and close it before leaving this fault phase.
+        SCREENS[phase + '-report'] = 'ui:feedback-close-ready'
+        SCREENS[phase + '-report-closed'] = 'ui:feedback-draft-closed'
     SCREENS[phase + '-switch'] = 'system:parent-switch-user'
     SCREENS[phase + '-greeter'] = 'ui:gdm-returned'
 SCREENS.update(prefixed_stages('reentry', {**station_entry(),
@@ -72,6 +78,17 @@ class ChildIsolationJourney(InstalledJourney):
     def __init__(self, context, progress):
         super().__init__(context, progress, PLAN)
         self.estimates = {}
+
+    def collect_failure(self):
+        if self.transport is None or getattr(self, 'failure_collected', False):
+            return
+        try:
+            from child_isolation_fault import ChildIsolationFault
+            # Use the existing guarded guest transport and validated product
+            # export. Its bounded reply stays in the private command log.
+            ChildIsolationFault(self, self.context.lease).call('failure-diagnostics')
+        finally:
+            super().collect_failure()
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)

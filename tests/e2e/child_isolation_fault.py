@@ -48,7 +48,7 @@ def guest_operation(action, token, receipt):
         # D-Bus structs unpack as tuples; receipts cross the JSON transport.
         return json.loads(json.dumps(values))
 
-    def diagnostics():
+    def diagnostics(*, failure_context=False):
         # Use the product's bounded, validated export and canonical reader.
         sys.path.insert(0, '/usr/lib/oh-no-parent-control')
         from common.oh_no_parent_control_ui.diagnostic_bundle import validate_bundle
@@ -57,8 +57,24 @@ def guest_operation(action, token, receipt):
         require(0 < len(data) <= 16 * 1024 * 1024, 'diagnostic-bound')
         with ZipFile(BytesIO(validate_bundle(data))) as archive:
             logs, _ = read_report(archive)
+        if failure_context:
+            # A modal blocked the retained Parent after fault restoration.
+            # Preserve its initiating error before teardown, without
+            # dismissing it or accepting changed behavior.
+            # Records have passed both canonical validators; no raw journal,
+            # exception text, account value or feedback draft is returned.
+            return {component: [record
+                    for name, records in sorted(logs.items())
+                    if name.startswith(component + '/')
+                    for record in records
+                    if record['level'] in ('WARNING', 'ERROR')][-64:]
+                    for component in ('parent', 'broker')}
         return [record for name, records in logs.items() if name.startswith('broker/')
                 for record in records]
+
+    if action == 'failure-diagnostics':
+        return {'event': 'child-isolation-failure-diagnostics',
+                'records': diagnostics(failure_context=True)}
 
     def inactive():
         sessions = call('ListSessions', destination='org.freedesktop.login1',
@@ -176,6 +192,7 @@ class ChildIsolationFault:
                 'install': 'Making the inactive fixture child home unavailable',
                 'startup': 'Checking isolated broker startup and unchanged child policy',
                 'verify-refusal': 'Checking refused approval preserved child policy and native enforcement',
+                'failure-diagnostics': 'Collecting the errors behind the blocked Parent control',
                 'restore': 'Restoring the exact fixture home and retrying broker startup'}[action]):
             raw = self.journey.transport.call([
                 'env', 'ONPC_EXPECTED_RUN=' + self.lease.state['run'],
@@ -198,5 +215,6 @@ class ChildIsolationFault:
 
 
 if __name__ == '__main__':
-    require(len(sys.argv) == 4 and sys.argv[1] in ('install', 'startup', 'verify-refusal', 'restore'), 'arguments')
+    require(len(sys.argv) == 4 and sys.argv[1] in (
+        'install', 'startup', 'verify-refusal', 'restore', 'failure-diagnostics'), 'arguments')
     print(json.dumps(guest_operation(sys.argv[1], sys.argv[2], json.loads(sys.argv[3])), sort_keys=True))

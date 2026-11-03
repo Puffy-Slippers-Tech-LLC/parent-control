@@ -45,7 +45,11 @@ sub run {
         onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', "$phase-parent");
         onpc_allowance_boundaries::select_child($journey, 'restored-selected-away') if $phase eq 'restored';
         onpc_allowance_boundaries::select_child($journey, "$phase-selected");
-        $journey->seen("$phase-$_") for qw(balance switch greeter);
+        $journey->seen("$phase-balance");
+        if ($phase eq 'unavailable') {
+            $journey->seen("$phase-$_") for qw(report report-closed);
+        }
+        $journey->seen("$phase-$_") for qw(switch greeter);
     }
     my $reentry = $journey->scope('reentry');
     onpc_gdm::enter_station($reentry, '');

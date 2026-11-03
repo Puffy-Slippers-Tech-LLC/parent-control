@@ -389,6 +389,7 @@ OPERATION_LABELS.update({
     'feedback-read': 'Reading the initial synthetic feedback draft',
     'feedback-collection-ready': 'Waiting for finished diagnostics and available Download',
     'feedback-close': 'Closing the owned feedback dialog',
+    'feedback-close-ready': 'Checking the automatic error report before closing it',
     'feedback-wrong-entry': 'Refusing a feedback read outside its dialog',
     'feedback-reopen': 'Independently opening Parent feedback again',
     'feedback-reread': 'Comparing the independently observed synthetic draft',
@@ -2485,6 +2486,10 @@ class UiObservations:
                         and value['choice'] in accessible_ui.ACCESS_CHOICES, 'ui:access-response')
             require(set(result) == {*expected, 'access'}, 'ui:access-response')
             expected['access'] = value
+        if operation == 'feedback-close-ready':
+            require(result == {**expected, 'feedback': {'report_visible': True}},
+                    'ui:feedback-report-response')
+            expected['feedback'] = result['feedback']
         if operation in ('feedback-open', 'feedback-read', 'feedback-reopen', 'feedback-reread',
                          'feedback-draft', 'feedback-draft-reopen', 'feedback-draft-reread',
                          'feedback-privacy-returned'):

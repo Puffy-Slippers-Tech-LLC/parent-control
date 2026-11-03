@@ -205,6 +205,8 @@ its original run rather than selecting a new branch. Inspection commands such as
 `--help` use the same branch selection and placement rules.
 Internal `run-tests CATEGORY --unattended` children stay in their controller's
 checkout and retain its activity ownership; public defaults are not reapplied.
+Repair-runner invocations carrying `ONPC_RUNNER_INVOCATION` likewise stay in
+their repair controller's checkout, so verification executes the repaired source.
 
 ```sh
 tools/execute-plan --plan 'docs/Example.md' --check

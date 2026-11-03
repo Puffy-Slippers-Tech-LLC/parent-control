@@ -1102,7 +1102,14 @@ untouched limits-off/zero-allowance settings before saving the same precise
 permanent block. It prepares no allowance or approval. Fresh Jordan command
 execution must produce the attributed denial and complete owned-window absence;
 fresh Riley command launch/Submit/readback proves the same executable usable
-with Riley's policy and limits untouched. Remaining bindings are pending.
+with Riley's policy and limits untouched.
+Case 84 uses `app_launch.SOFT_COMMAND_PLAN` and the same worker's enabled,
+soft-blocked command binding. Parent gives Jordan 30 daily minutes and saves
+the same precise target with `conditional` access, without an approval.
+Fresh Jordan command execution must produce the attributed permission denial
+and complete owned-window absence. Fresh Riley command launch, Submit and
+independent draft readback prove the same executable usable with Riley's
+policy and limits untouched. Remaining bindings are pending.
 
 **Use supported launch routes under each app rule.** Cases 62, 64, 66, 68, 70, 72, 74, 76, 78, 80, 81, 82, 83, 84, 85, 86, 88, 90, 92, 93, 94, 95, 96, 97, 98, 100, 102, 104, 105, 106, 107, 108, 109.
 

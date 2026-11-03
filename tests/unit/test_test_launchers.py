@@ -1510,6 +1510,21 @@ def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
     import test_account_password
     password = Mock(return_value='fixture-password')
     monkeypatch.setattr(test_account_password, 'read_password', password)
+    # Keep this refusal check independent of real scenarios becoming ready.
+    inventory_path = ROOT / 'tests/e2e/scenarios.json'
+    document = json.loads(inventory_path.read_bytes())
+    variant = next(variant for scenario in document['scenarios']
+                   for variant in scenario['variants'] if variant['coverage_id'] == 66)
+    variant.update(status='pending', pending_reason='Controlled pending selection', executable=None)
+    inventory_bytes = json.dumps(document).encode()
+    read_bytes = type(ROOT).read_bytes
+
+    def read_inventory(path):
+        if path == inventory_path:
+            return inventory_bytes
+        return read_bytes(path)
+
+    monkeypatch.setattr(type(ROOT), 'read_bytes', read_inventory)
     with pytest.raises(ValueError, match='selection:pending'):
         commands.plan(ROOT, 'e2e', ['--id=66', '--artifacts=/tmp/onpc-future'])
     password.assert_called_once_with(ROOT)

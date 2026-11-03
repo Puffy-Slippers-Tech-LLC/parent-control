@@ -136,6 +136,7 @@ HARD_GRID_PLAN = blocked_plan('hard', 'permanent')
 SOFT_GRID_PLAN = blocked_plan('soft', 'conditional')
 HARD_COMMAND_PLAN = blocked_plan('hard', 'permanent', route='command')
 HARD_COMMAND_DISABLED_PLAN = blocked_plan('hard', 'permanent', route='command', control='disabled')
+SOFT_COMMAND_PLAN = blocked_plan('soft', 'conditional', route='command')
 
 
 def execute(recorder, context, *, plan=PLAN):
@@ -169,4 +170,5 @@ E2E_CASES = {'native-command-allowed-enabled': execute,
              'native-grid-soft-blocked-enabled': partial(execute_grid,
                  plan=SOFT_GRID_PLAN, case_id='native-grid-soft-blocked-enabled'),
              'native-command-hard-blocked-enabled': partial(execute, plan=HARD_COMMAND_PLAN),
-             'native-command-hard-blocked-disabled': partial(execute, plan=HARD_COMMAND_DISABLED_PLAN)}
+             'native-command-hard-blocked-disabled': partial(execute, plan=HARD_COMMAND_DISABLED_PLAN),
+             'native-command-soft-blocked-enabled': partial(execute, plan=SOFT_COMMAND_PLAN)}

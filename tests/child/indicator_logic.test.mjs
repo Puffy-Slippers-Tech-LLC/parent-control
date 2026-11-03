@@ -3,6 +3,10 @@ import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {createIndicator} from './support/indicator.mjs';
+import {diagnosticEnvelope} from '../../child/diagnosticEvents.mjs';
+
+const diagnosticCatalog = JSON.parse(readFileSync(new URL(
+    '../../common/oh_no_parent_control_ui/diagnostic_catalog.json', import.meta.url)));
 
 import {
     busyRetryDelay,
@@ -733,4 +737,114 @@ test('prepares a session only once it is usable', () => {
     assert.equal(shouldPrepareSession(usable), true);
     assert.equal(shouldPrepareSession({...usable, locked: true}), false);
     assert.equal(shouldPrepareSession({...usable, prepared: true}), false);
+});
+
+function preparationHarness() {
+    const timers = new Map(), delays = [], reports = [], records = [];
+    let brokenLog = null;
+    const mode = {isLocked: false, isGreeter: false};
+    class BusError extends Error {}
+    let nextId = 0, calls = 0;
+    let failure = new BusError('private details');
+    failure.remote = 'com.puffyslippers.OhNoParentControl1.Error.Busy';
+    const indicator = createIndicator({
+        shouldPrepareSession, busyRetryDelay,
+        Main: {sessionMode: mode},
+        Gio: {DBusError: {get_remote_error: error => error.remote}},
+        GLib: {Error: BusError, get_monotonic_time: () => 0,
+            PRIORITY_DEFAULT: 0, SOURCE_REMOVE: false,
+            timeout_add(_priority, delay, callback) {
+                delays.push(delay);
+                timers.set(++nextId, callback);
+                return nextId;
+            }, source_remove: id => timers.delete(id)},
+        prepareOwnSession: async () => { calls++; if (failure) throw failure; return false; },
+        logInfo(event, fields) {
+            if (event === brokenLog) throw new Error('private logging failure');
+            records.push(JSON.parse(diagnosticEnvelope(diagnosticCatalog, event,
+                JSON.parse(JSON.stringify(fields)))));
+        }, logWarning() {}, logDebug() {},
+    });
+    Object.assign(indicator, {_onError: error => reports.push(error), _signals: [],
+        _clearTimeout() {}, _clearFlash() {}, _destroyContextMenu() {}});
+    return {indicator, timers, delays, reports, records, mode, calls: () => calls,
+        breakLogging: event => { brokenLog = event; },
+        fail: value => { failure = value; },
+        failRemote: remote => {
+            failure = new BusError('private details');
+            failure.remote = remote;
+            return failure;
+        },
+        async retry() {
+            const [id, callback] = [...timers][0];
+            timers.delete(id);
+            callback();
+            await new Promise(setImmediate);
+        }};
+}
+
+test('session preparation waits out extension recovery without reporting transient contention', async () => {
+    const h = preparationHarness();
+    await h.indicator._prepareSession();
+    for (let tick = 0; tick < 20; tick++)
+        await h.indicator._prepareSession();
+    assert.equal(h.calls(), 1, 'display updates cannot bypass the pending retry');
+    assert.equal(h.timers.size, 1);
+    assert.deepEqual(h.records.find(row => row.event === 'child.session-prepare-retry').fields,
+        {attempt: 1, retry: 1, delay_ms: 100});
+    h.breakLogging('child.session-prepare-retry');
+    await h.retry();
+    h.fail(null);
+    await h.retry();
+    assert.equal(h.indicator._sessionPrepared, true);
+    assert.equal(h.indicator._sessionPrepareRetries, 0);
+    assert.deepEqual(h.reports, []);
+    assert.deepEqual(h.delays, [100, 250]);
+    assert.equal(h.timers.size, 0);
+    assert.ok(!JSON.stringify(h.records).includes('private'));
+    assert.throws(() => diagnosticEnvelope(diagnosticCatalog, 'child.session-prepare-retry',
+        {attempt: 1, retry: 1, delay_ms: 100, message: 'private'}));
+    assert.throws(() => diagnosticEnvelope(diagnosticCatalog, 'child.session-prepare-retry',
+        {attempt: 1, retry: 6, delay_ms: 100}));
+});
+
+test('session preparation reports persistent contention and non-busy errors', async () => {
+    const h = preparationHarness();
+    await h.indicator._prepareSession();
+    while (h.timers.size) await h.retry();
+    assert.equal(h.calls(), 6);
+    assert.deepEqual(h.delays, [100, 250, 500, 1000, 2000]);
+    assert.equal(h.reports.length, 1);
+    const errors = preparationHarness();
+    const foreignBusy = errors.failRemote('org.example.Error.Busy');
+    await errors.indicator._prepareSession();
+    assert.equal(errors.reports.at(-1), foreignBusy, 'only the exact broker Busy error is retried');
+    assert.equal(errors.timers.size, 0);
+    const denied = new Error('private denial');
+    errors.fail(denied);
+    await errors.indicator._prepareSession();
+    assert.equal(errors.reports.at(-1), denied);
+    assert.equal(errors.indicator._sessionPrepared, undefined);
+    assert.equal(errors.timers.size, 0);
+});
+
+test('preparation retry respects locking and disposal, including in-flight replies', async () => {
+    const h = preparationHarness();
+    await h.indicator._prepareSession();
+    h.mode.isLocked = true;
+    await h.retry();
+    assert.equal(h.calls(), 1);
+    h.mode.isLocked = false;
+    await h.indicator._prepareSession();
+    h.indicator._disposeResources();
+    assert.equal(h.timers.size, 0);
+    await h.indicator._prepareSession();
+    assert.equal(h.calls(), 2);
+
+    const late = preparationHarness();
+    const pending = late.indicator._prepareSession();
+    late.indicator._disposeResources();
+    await pending;
+    assert.equal(late.timers.size, 0);
+    assert.deepEqual(late.reports, []);
 });

@@ -639,7 +639,14 @@ reconciliation in [Application policy](Applications.md#session-entry-reconciliat
 the unprivileged component neither decides whether a grant is current nor
 signals processes itself.
 Session preparation is asynchronous: it is not a compositor admission barrier.
-Failures are reported and preparation is retried while the desktop is usable.
+The broker's exact `Error.Busy` refusal is retried after 100, 250, 500, 1000
+and 2000 milliseconds before reporting failure. One pending retry prevents
+display updates from bypassing the delay; disposal cancels it, and a locked
+or greeter session defers preparation until the desktop is usable. Other
+failures are reported immediately. Successful preparation resets the retry budget.
+Retry diagnostics identify the local attempt, retry number and scheduled delay
+after the exact broker `Busy` response. Existing attempt outcomes record
+completion, failure or disposal; scheduling alone does not establish success.
 
 Administrative access to an existing user bus must also work at zero time.
 Systemd's `systemctl --user --machine=UID@` transport starts a transient system

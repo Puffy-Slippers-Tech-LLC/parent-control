@@ -17,6 +17,7 @@ import {RemainingTimeNotifications} from './remainingTimeNotifications.js';
 import {ResumeEstimateRefresh} from './resumeEstimateRefresh.js';
 import {logDebug, logInfo, logWarning} from './logger.js';
 import {
+    busyRetryDelay,
     displayState,
     formatRemainingTime,
     remainingSeconds,
@@ -175,6 +176,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._brokerOwner = null;
         this._sessionPreparePending = false;
         this._sessionPrepared = false;
+        this._sessionPrepareRetryId = 0;
+        this._sessionPrepareRetries = 0;
         this._resumeEstimateRefresh = this._preview ? null : new ResumeEstimateRefresh(
             Main.timeLimitsManager, error => this._onError?.(error, 'resume-refresh'));
         this._vertical = null;
@@ -493,6 +496,10 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             return;
         this._destroyed = true;
         this._cancelRefreshRetry();
+        if (this._sessionPrepareRetryId) {
+            GLib.source_remove(this._sessionPrepareRetryId);
+            this._sessionPrepareRetryId = 0;
+        }
         this._resumeEstimateRefresh?.close();
         this._resumeEstimateRefresh = null;
         this._notifications?.close();
@@ -738,7 +745,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         if (!shouldPrepareSession({
             preview: this._preview,
             destroyed: this._destroyed,
-            pending: this._sessionPreparePending,
+            pending: this._sessionPreparePending || Boolean(this._sessionPrepareRetryId),
             prepared: this._sessionPrepared,
             locked: Main.sessionMode.isLocked,
             greeter: Main.sessionMode.isGreeter,
@@ -761,11 +768,33 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                 return;
             }
             this._sessionPrepared = true;
+            this._sessionPrepareRetries = 0;
             this._recordPreparation(attempt, started, reconciled ? 'reconciled' : 'unchanged');
             logInfo('child.prepared', {reconciled});
         } catch (error) {
             this._recordPreparation(attempt, started, this._destroyed ? 'disposed' : 'failed');
             if (!this._destroyed) {
+                // Enabling the extension can recreate this indicator before
+                // the broker releases its recovery transaction. Retry only
+                // that exact transient refusal, without blocking Shell or
+                // allowing display ticks to bypass the delay.
+                const remote = error instanceof GLib.Error
+                    ? Gio.DBusError.get_remote_error(error) : null;
+                const delay = remote === `${BROKER_NAME}.Error.Busy`
+                    ? busyRetryDelay(remote, this._sessionPrepareRetries ?? 0) : undefined;
+                if (delay !== undefined) {
+                    this._sessionPrepareRetries = (this._sessionPrepareRetries ?? 0) + 1;
+                    this._sessionPrepareRetryId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
+                        this._sessionPrepareRetryId = 0;
+                        this._prepareSession();
+                        return GLib.SOURCE_REMOVE;
+                    });
+                    try {
+                        logInfo('child.session-prepare-retry', {attempt,
+                            retry: this._sessionPrepareRetries, delay_ms: delay});
+                    } catch (_error) { /* logging cannot interrupt the scheduled retry */ }
+                    return;
+                }
                 logWarning('child.prepare-failed');
                 this._onError?.(error, 'session-prepare');
             }

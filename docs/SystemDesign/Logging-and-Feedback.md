@@ -233,6 +233,10 @@ Broker contention records the requested operation and an advisory, non-atomic
 snapshot of the holder's closed operation category and bounded elapsed duration;
 an unavailable holder stays unknown. Session-preparation events pair local
 attempt numbers with completion, failure or disposal and elapsed duration.
+An exact broker `Busy` response additionally records the scheduled retry number
+and delay, distinguishing transient contention from terminal failure without
+retaining exception text. Scheduling does not attest completion. Identical
+retry observations remain subject to normal duplicate suppression.
 Those numbers reset when the indicator is recreated; disposal does not cancel
 broker work. Diagnostics do not change locking, retries, recovery or reporting.
 

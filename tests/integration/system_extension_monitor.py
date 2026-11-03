@@ -439,6 +439,23 @@ def verify(publish):
             guest.require(disabled_at is not None and active_at is not None,
                           'extension:native-transition-missing')
             guest.require(attempts(rows), 'extension:no-root-live-enable')
+            # Both global and individual disablement recreate the indicator
+            # while recovery may still own the broker transaction. Preparation
+            # must finish after any Busy retry without opening an error report.
+            # Broker completions carry distinct operation IDs. Child success
+            # observations can be deduplicated across recreated indicators.
+            wait_for(lambda: any(row['event'] == 'service.008' and
+                                 row['fields']['method'] == 'PrepareOwnSession'
+                                 for _stamp, row in broker_events.since(started)),
+                     'extension:' + label + '-preparation-incomplete', timeout=30)
+            # Check the whole history so repeated failures suppressed within
+            # sixty seconds cannot disappear from a later recovery's verdict.
+            guest.require(not any(row['event'] == 'child.failure' and
+                                  row['fields']['operation'] == 'session-prepare'
+                                  for row in BrokerEvents.read('child')
+                                  if row['segment'] == broker_events.segment and
+                                  broker_events.origin + row['elapsed_ms'] / 1000 >= began),
+                          'extension:' + label + '-preparation-reported-error')
             preserved()
             return rows
 

@@ -10,9 +10,16 @@ use onpc_parent ();
 use onpc_text ();
 use onpc_feedback_privacy ();
 
-my $policy_app = 'parent-app-' . substr(sha256_hex('com.puffyslippers.ONPCTest.A.desktop'), 0, 16);
 my %policy_apps = map { $_ => 'parent-app-' . substr(sha256_hex(
     'com.puffyslippers.ONPCTest.' . $_ . '.desktop'), 0, 16) } qw(A H S);
+my $policy_app = $policy_apps{A};
+
+# Keep fixture identity mechanics here; callers own their rules and edit order.
+sub fixture_app {
+    my ($role) = @_;
+    die 'policy:fixture-role' unless @_ == 1 && defined($role) && exists($policy_apps{$role});
+    return $policy_apps{$role};
+}
 
 sub run {
     onpc_progress::operation('Qualifying complete App Limits row observations');
@@ -467,9 +474,7 @@ sub native_denial {
                   ['H', 'match-hard-precise', 'permanent', 'hard'],
                   ['S', 'match-soft-wildcard', 'conditional', 'soft']) {
         my ($role, $draft, $access, $prefix) = @$edit;
-        my $app = 'parent-app-' . substr(Digest::SHA::sha256_hex(
-            'com.puffyslippers.ONPCTest.' . $role . '.desktop'), 0, 16);
-        edit_policy($journey, $app, $draft, $access, $prefix, []);
+        edit_policy($journey, fixture_app($role), $draft, $access, $prefix, []);
     }
     $journey->seen('parent-logout');
     for my $entry ('first', 'independent') {

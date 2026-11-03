@@ -1,7 +1,6 @@
 package onpc_baseline_app_effects;
 use strict;
 use warnings;
-use Digest::SHA qw(sha256_hex);
 use onpc_progress ();
 use onpc_journey ();
 use onpc_gdm ();
@@ -23,12 +22,11 @@ sub run {
     $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
         $journey, 'gdm', 'parent', 'fresh', 'new', 'child', 0, 0, 1));
     $journey->seen($_) for qw(saved-settings apps-page);
-    my %apps = map { $_ => 'parent-app-' . substr(sha256_hex(
-        "com.puffyslippers.ONPCTest.$_.desktop"), 0, 16) } qw(A H S);
     for my $edit (['A', 'match-precise', 'allowed', 'allowed'],
                   ['H', 'match-hard-precise', 'permanent', 'hard'],
                   ['S', 'match-soft-wildcard', 'conditional', 'soft']) {
-        onpc_app_rows::edit_policy($journey, $apps{$edit->[0]}, @$edit[1 .. 3], []);
+        onpc_app_rows::edit_policy($journey, onpc_app_rows::fixture_app($edit->[0]),
+            @$edit[1 .. 3], []);
     }
     onpc_text::replace_text($journey, 'catalogue-clear', 'setup-clear');
     $journey->seen($_) for qw(saved-policy switch-ready switch-user gdm-switched);
@@ -53,7 +51,8 @@ sub run {
         $journey, 'desktop', 'same-user', 'retained', 'child', 'restored'));
     $journey->seen('restore-apps');
     for my $edit (['H', 'match-hard-precise', 'restore-hard'], ['S', 'match-soft-wildcard', 'restore-soft']) {
-        onpc_app_rows::edit_policy($journey, $apps{$edit->[0]}, $edit->[1], 'allowed', $edit->[2], []);
+        onpc_app_rows::edit_policy($journey, onpc_app_rows::fixture_app($edit->[0]),
+            $edit->[1], 'allowed', $edit->[2], []);
     }
     onpc_text::replace_text($journey, 'catalogue-clear', 'restore-clear');
     $journey->seen($_) for qw(restore-screen restore-disabled restore-saved restore-settings restore-balance);

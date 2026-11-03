@@ -285,6 +285,11 @@ supplies snapshot infrastructure acceptance only.
 
 ## Host and guest boundaries
 
+Native policy workers reuse `onpc_app_rows::fixture_app(role)` for the fixed
+Allowed/Hard/Soft fixture app IDs, matching the controller's `MATCH_APPS`.
+Do not copy the desktop-ID hashing into another worker. Each consumer retains
+its finite role/rule list, edit order, public readbacks and assertions.
+
 Fixture provisioning qualifications reuse
 `system_fixture_preparation.register_staging`, as do system, standalone and E2E
 preparation through `system_fixture_preparation.provision`. The shared writer
@@ -312,6 +317,7 @@ TIME02 minute and final-second consumers reuse `countdown.CountdownSample`,
 public countdown, controller monotonic read brackets and boot identity; comparisons
 retain both immutable endpoints. `UiObservations.observe` brackets each TIME01
 read on the controller, independently of the guest's monotonic freshness marker.
+Subtract only timestamps from the same clock.
 The wait reacquires only public child reads under the original 90-second bound
 and TIME03 `interval_action`, retaining attempt ownership/deadline/cancellation.
 Unchanged reads supply no separate assertion; the changed endpoint must decrease
@@ -439,7 +445,11 @@ finish after readback without waiting for the twenty-minute grant to expire. The
 four-minute daily/two-minute addition binding passed on Ubuntu 26.04.
 Countdown cases 28 and 29 explicitly override the standalone duration with
 600 and 240 seconds respectively. Comparisons carry the actual earlier D,
-elapsed time and display precision; the configured allowance is not a fresh bank.
+elapsed time and display precision. For a daily-plus-extra-time history, capture
+the actual daily remainder after the child leaves and before approval; the
+configured daily allowance is not that remainder. Compare the issued grant to
+that captured remainder plus the requested addition, then preserve its original
+deadline across later policy edits and child visits.
 `request_initial='selected'` requires a saved 75-second, soft-included request,
 as supplied by `revocation_entry`; it does not accept arbitrary remembered choices.
 Choose this argument from the preceding request history, independently of
@@ -849,6 +859,7 @@ waits, check when the public status was actually loaded; an independent API read
 can still return a cached displayed balance. Reuse the guarded reload inside the
 read bracket for this binding. Selector navigation changes neither grant nor
 saved policy; elapsed limits and mutation/refusal assertions remain unchanged.
+The grant-access cases use `time-explanation-refresh-read` for the same reason.
 These operations add no process, storage, bus,
 display or cleanup owner. Renamed-endpoint, immutable-window and durable-reply
 regressions use the existing private recorder fixtures; existing unit/cleanup/

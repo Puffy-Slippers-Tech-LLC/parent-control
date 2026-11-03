@@ -11,7 +11,6 @@ use onpc_allowance_selection ();
 use onpc_feedback_states ();
 use onpc_desktop_session ();
 use onpc_app_rows ();
-use Digest::SHA ();
 
 sub daily_only_new {
     return daily_only(@_, 0);
@@ -62,9 +61,8 @@ sub grant_only {
     for my $edit (['A', 'match-precise', 'allowed', 'allowed'],
                   ['H', 'match-hard-precise', 'permanent', 'hard']) {
         my ($role, $draft, $access, $prefix) = @$edit;
-        my $app = 'parent-app-' . substr(Digest::SHA::sha256_hex(
-            'com.puffyslippers.ONPCTest.' . $role . '.desktop'), 0, 16);
-        onpc_app_rows::edit_policy($journey, $app, $draft, $access, $prefix, []);
+        onpc_app_rows::edit_policy($journey, onpc_app_rows::fixture_app($role),
+            $draft, $access, $prefix, []);
     }
     $journey->seen($_) for qw(policy-screen setup-disable setup-off-settings setup-off-balance);
     if ($retained) {
@@ -156,9 +154,8 @@ sub daily_only {
     for my $edit (['A', 'match-precise', 'allowed', 'allowed'],
                   ['H', 'match-hard-precise', 'permanent', 'hard']) {
         my ($role, $draft, $access, $prefix) = @$edit;
-        my $app = 'parent-app-' . substr(Digest::SHA::sha256_hex(
-            'com.puffyslippers.ONPCTest.' . $role . '.desktop'), 0, 16);
-        onpc_app_rows::edit_policy($journey, $app, $draft, $access, $prefix, []);
+        onpc_app_rows::edit_policy($journey, onpc_app_rows::fixture_app($role),
+            $draft, $access, $prefix, []);
     }
     $journey->seen($_) for qw(policy-screen setup-disable setup-off-settings setup-off-balance);
     if ($retained) {

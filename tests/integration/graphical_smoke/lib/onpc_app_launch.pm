@@ -1,7 +1,6 @@
 package onpc_app_launch;
 use strict;
 use warnings;
-use Digest::SHA qw(sha256_hex);
 use onpc_progress ();
 use onpc_journey ();
 use onpc_gdm ();
@@ -34,8 +33,7 @@ sub run {
             $journey, 'gdm', 'fresh', 'new', 'existing'));
     }
     $journey->seen('apps-page');
-    my $app = 'parent-app-' . substr(sha256_hex('com.puffyslippers.ONPCTest.A.desktop'), 0, 16);
-    onpc_app_rows::edit_policy($journey, $app,
+    onpc_app_rows::edit_policy($journey, onpc_app_rows::fixture_app('A'),
         'match-precise', 'allowed', 'allowed', []);
     $journey->seen('parent-logout');
     onpc_desktop_session::enter_desktop(

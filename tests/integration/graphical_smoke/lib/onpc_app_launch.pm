@@ -18,8 +18,10 @@ sub run {
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ($control eq 'enabled' || $control eq 'disabled')
         && ($route eq 'command' || ($route eq 'grid' && $control eq 'enabled'))
-        && ($policy eq 'allowed' || $policy eq 'hard-blocked' && $route eq 'grid');
-    my $rule = $policy eq 'allowed' ? 'allowed' : 'hard';
+        && ($policy eq 'allowed' || ($policy eq 'hard-blocked' || $policy eq 'soft-blocked')
+            && $route eq 'grid');
+    my $rule = $policy eq 'allowed' ? 'allowed' : $policy eq 'hard-blocked' ? 'hard' : 'soft';
+    my $access = $rule eq 'allowed' ? 'allowed' : $rule eq 'hard' ? 'permanent' : 'conditional';
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => "native-$route-$policy", review => 0);
     $journey->declare_invocations($declared);
@@ -37,7 +39,7 @@ sub run {
     }
     $journey->seen('apps-page');
     onpc_app_rows::edit_policy($journey, onpc_app_rows::fixture_app('A'),
-        'match-precise', $rule eq 'allowed' ? 'allowed' : 'permanent', $rule, []);
+        'match-precise', $access, $rule, []);
     $journey->seen('parent-logout');
     onpc_desktop_session::enter_desktop(
         $journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan-entry');

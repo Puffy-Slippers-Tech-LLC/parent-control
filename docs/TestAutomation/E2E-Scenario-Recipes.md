@@ -1081,6 +1081,11 @@ witness. Launcher visibility itself is not asserted. Riley enters fresh and
 opens and submits the same target through the grid with Riley's policy untouched.
 The family's combined `visible-result` uses the complete ordered observation
 record, including Jordan's independent denial and Riley's submitted draft.
+Case 66 uses `app_launch.SOFT_GRID_PLAN` and the worker's `soft-blocked` grid
+binding with the same target, precise match, allowance and fresh child entries.
+Parent saves `conditional` access instead of `permanent`; no approval is
+prepared. Jordan must still be denied and Riley must independently open and
+submit the same app through the grid.
 The [catalogue](E2E-Building-Blocks.md#application-routes-and-complete-customer-journeys)
 records accepted scopes. Other cases remain pending.
 

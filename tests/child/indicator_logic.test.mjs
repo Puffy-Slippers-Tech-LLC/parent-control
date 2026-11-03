@@ -495,6 +495,7 @@ test('countdown hides on lock and greeter and resumes only with time remaining',
     });
     Object.assign(indicator, {
         _preview: false, _deadlineUsec: 220_000_000, _statusLoaded: true,
+        _refreshSerial: 0, _deadlineSerial: 0,
         _recordCountdownState() {}, _prepareSession() {},
         _clearTimeout() { scheduled = null; }, _stopRequestIconSpin() {},
         _setShown(value) { shown = value; },
@@ -583,6 +584,77 @@ test('panel API becomes unavailable at lock or greeter before actors are hidden'
     manager.dailyLimitEnabled = true;
     adapter.close();
     assert.throws(() => adapter.nativeAllowanceDeadline(), /unavailable/);
+});
+
+test('locking waits for the latest balance through coalesced reads and refresh failure', async () => {
+    let now = 100;
+    let locks = 0;
+    let shown;
+    let displayed;
+    const replies = [], reports = [], retries = new Map();
+    let nextId = 0;
+    const indicator = createIndicator({
+        displayState, remainingSeconds,
+        Main: {sessionMode: {isLocked: false, isGreeter: false}, timeLimitsManager: {
+            getCurrentTime: () => now, dailyLimitEnabled: true, dailyLimitTime: 700,
+        }},
+        GLib: {get_monotonic_time: () => now * 1_000_000,
+            PRIORITY_DEFAULT: 0, SOURCE_REMOVE: false,
+            timeout_add(_priority, _delay, callback) {
+                retries.set(++nextId, callback);
+                return nextId;
+            }, source_remove: id => retries.delete(id)},
+        queryEstimatedTimes: async () => ({'': [false, 0, 700]}),
+        calculateOwnDeadline: () => new Promise((resolve, reject) => replies.push({resolve, reject})),
+        timerErrorCategory: () => 'other', logInfo() {}, logWarning() {},
+    });
+    Object.assign(indicator, {
+        _preview: false, _deadlineUsec: 0, _statusLoaded: true,
+        _refreshSerial: 0, _deadlineSerial: 0,
+        _recordCountdownState() {}, _recordCountdownRefresh() {}, _prepareSession() {},
+        _clearTimeout() {}, _stopRequestIconSpin() {}, _schedule() {},
+        _setShown(value) { shown = value; },
+        _updateLabel(value) { displayed = value; },
+        _lockSession() { locks++; }, _onError: error => reports.push(error),
+    });
+
+    const pending = indicator._refreshEstimate();
+    await new Promise(setImmediate);
+    indicator._sync(); // Native state changed while the old cached balance is zero.
+    assert.equal(locks, 0, 'an old zero cannot lock while its replacement is pending');
+    indicator.refreshEstimate(); // A newer change supersedes the pending read.
+    replies.shift().resolve(100_000_000);
+    await pending;
+    assert.equal(locks, 0, 'the gap before a coalesced replacement cannot lock');
+    await new Promise(setImmediate);
+    indicator._sync();
+    assert.equal(locks, 0);
+    replies.shift().resolve(160_000_000);
+    await new Promise(setImmediate);
+    assert.equal(locks, 0, 'fresh usable time preserves the desktop');
+    assert.equal(shown, true);
+    assert.equal(displayed, 60);
+
+    now = 160;
+    indicator._sync();
+    assert.equal(locks, 1, 'normal expiry locks without another balance read');
+    assert.equal(replies.length, 0);
+
+    const failed = indicator._refreshEstimate();
+    await new Promise(setImmediate);
+    replies.shift().reject(new Error('balance unavailable'));
+    await failed;
+    indicator._sync();
+    assert.equal(locks, 1, 'a failed refresh cannot confirm the old expired balance');
+    assert.equal(reports.length, 1);
+    assert.equal(retries.size, 1, 'existing recovery remains scheduled');
+    const [id, retry] = [...retries][0];
+    retries.delete(id);
+    retry();
+    await new Promise(setImmediate);
+    replies.shift().resolve(160_000_000);
+    await new Promise(setImmediate);
+    assert.equal(locks, 2, 'a fresh zero balance locks after successful recovery');
 });
 
 function refreshHarness({loaded = true} = {}) {

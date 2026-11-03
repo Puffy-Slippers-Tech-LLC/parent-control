@@ -171,6 +171,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._refreshPending = false;
         this._refreshAgain = false;
         this._refreshSerial = 0;
+        this._deadlineSerial = null;
         this._refreshRetryId = 0;
         this._refreshRetries = 0;
         this._brokerOwner = null;
@@ -648,6 +649,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             this._recordCountdownRefresh({estimate, currentTime, managerLimit,
                 deadline, refreshStarted, brokerStarted});
             this._deadlineUsec = deadline;
+            this._deadlineSerial = serial;
             this._statusLoaded = true;
             this._refreshRetries = 0;
             logInfo('child.estimate', {remaining: diagnosticSeconds(this._remainingSeconds())});
@@ -869,7 +871,11 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             this._clearTimeout();
             this._stopRequestIconSpin();
             this._setShown(false);
+            // A source change invalidates the cached balance for locking,
+            // including between coalesced reads and after a failed refresh.
+            // Display ticks can still expire a deadline from the current read.
             if (!this._preview && this._statusLoaded &&
+                this._deadlineSerial === this._refreshSerial &&
                 manager.dailyLimitEnabled && state.shouldLock)
                 this._lockSession();
             return;

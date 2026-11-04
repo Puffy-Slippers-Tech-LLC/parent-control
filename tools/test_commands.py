@@ -194,6 +194,7 @@ def execution_selections(root, selections):
 
 def repair_inventory(root, requested, *, inventory=None):
     """Expand repair selections using the runner's categories and parser."""
+    requested = [arg for arg in requested if arg != '--reverse']
     inventory = suite_inventory(inventory=inventory)
     if not requested:
         return inventory
@@ -251,8 +252,8 @@ def execution_arguments(argv):
         if not resume or len(replay) != 1:
             raise ValueError('--resume-case requires --resume and one case')
         completed_cases(json.dumps(replay))
-    argv = [arg for arg in argv if arg not in ('--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')]
-    if resume and not argv:
+    argv = [arg for arg in argv if arg not in ('--reverse', '--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')]
+    if not argv:
         argv = ['all']
     stop = argv[:1] == ['--stop-on-error']
     args = argv[1:] if stop else argv
@@ -264,7 +265,7 @@ def execution_arguments(argv):
 def vm_request(argv):
     from vm_selection import vm_config, execution_selection, extract_execution, selected
     args, selector = vm_config.extract_selector(argv)
-    request = [arg for arg in args if arg not in ('--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')]
+    request = [arg for arg in args if arg not in ('--reverse', '--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')]
     if request[:1] == ['--stop-on-error']:
         request = request[1:]
     vm_artifacts = request[:3] == ['artifacts', 'prepare', '--for-vm']
@@ -292,7 +293,7 @@ def usage():
     listing = '\n'.join(f'  {name:<{width}}  {CATEGORIES[name].description}' for name in inventory)
     helpers = '\n'.join(f'  {name:<{width}}  {spec.description}'
                         for name, spec in CATEGORIES.items() if name not in inventory)
-    return f'''Usage: tools/run-tests [--vm NAME] [--resume | --reset] [--stop-on-error] [category [args ...]] ...
+    return f'''Usage: tools/run-tests [--vm NAME] [--resume | --reset] [--reverse] [--stop-on-error] [category [args ...]] ...
        tools/run-tests --help
        tools/run-tests --list
        tools/run-tests --stop
@@ -303,6 +304,9 @@ over new execution categories; no arguments can replay an unread failed result.
 An idle successful run starts fresh. Attach to a
 configured queue without --vm; narrowed runs require their original --vm NAME.
 Help, listing and collection return immediately without attaching.
+--reverse reverses cases within each category (JS: file order). Pytest and JS
+files run serially; VM workers claim cases backwards, retaining lifecycle
+prerequisites. Category/preparation order is unchanged. Bare --resume restores it.
 --resume inherits the previous selection and options, skipping completed cases
 and retrying failed or interrupted cases. Explicit parameters must be compatible;
 VM names and IDs resolving to the same VMs are equivalent. Incompatible parameters
@@ -993,8 +997,11 @@ def plan(root, category, argv):
             if not valid:
                 raise ValueError('child test filename belongs to a different runner')
             files.append(str(root / item))
+        reverse = os.environ.get('ONPC_TEST_REVERSE') == '1'
+        if reverse:
+            files.reverse()
         if category == 'child-node':
-            return [['/usr/bin/node', '--test', '--test-concurrency=2', *files]], False
+            return [['/usr/bin/node', '--test', '--test-concurrency=1' if reverse else '--test-concurrency=2', *files]], False
         return [['/usr/bin/gjs', '-m', path] for path in files], False
     if category in ('static', 'traceability'):
         choice = argv[0] if argv else ('all' if category == 'static' else 'stage')
@@ -1093,6 +1100,9 @@ def plan(root, category, argv):
 
 def _main(argv=None, *, detached=False, checkpoint=None, reloading=False):
     argv = list(sys.argv[1:] if argv is None else argv)
+    if '--reverse' in argv:
+        os.environ['ONPC_TEST_REVERSE'] = '1'
+        argv = [arg for arg in argv if arg != '--reverse']
     if is_inspection(argv):
         argv = [arg for arg in argv if arg != '--resume']
     try:
@@ -1300,7 +1310,7 @@ def host_only_request(argv):
     from vm_selection import extract_execution as extract
     args, _ = extract(argv, required=False)
     args = args or ['all']
-    args = [arg for arg in args if arg not in ('--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')] or ['all']
+    args = [arg for arg in args if arg not in ('--reverse', '--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')] or ['all']
     if args[:1] == ['--stop-on-error']:
         args = args[1:] or ['all']
     category = args[0]
@@ -1359,6 +1369,8 @@ def main(argv=None):
         if not (test_activity.descriptors() or test_activity.VARIABLE in os.environ
                 or 'ONPC_RUNNER_INVOCATION' in os.environ):
             argv = resume_arguments(Path(__file__).resolve().parents[1], argv)
+        if '--reverse' in argv:
+            os.environ['ONPC_TEST_REVERSE'] = '1'
         vm_request(argv)
     except ValueError as error:
         print('run-tests: ' + str(error), file=sys.stderr)

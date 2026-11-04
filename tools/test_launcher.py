@@ -133,7 +133,7 @@ def environment(root, *, scratch=True):
     allowed = ('HOME', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'TERM', 'COLORTERM',
                'DISPLAY', 'WAYLAND_DISPLAY', 'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRESS',
                'XDG_RUNTIME_DIR', 'XDG_SESSION_TYPE', 'XDG_CURRENT_DESKTOP',
-               'PYTEST_DISABLE_PLUGIN_AUTOLOAD')
+               'PYTEST_DISABLE_PLUGIN_AUTOLOAD', 'ONPC_TEST_REVERSE')
     result = {key: os.environ[key] for key in allowed if key in os.environ}
     from test_checkpoint import EXCLUDE, ONLY, completed_cases
     if 'ONPC_REPAIR_FAILED_CASES' in os.environ:

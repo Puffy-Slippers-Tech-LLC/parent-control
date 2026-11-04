@@ -1354,6 +1354,10 @@ class Run:
         """Share module isolation and scheduling across host and selected runs."""
         if inventory.state == 'Passed' and not inventory.total:
             return []
+        if os.environ.get('ONPC_TEST_REVERSE') == '1':
+            # One worker recollects the original selection and reverses it once.
+            return [Job(kind, inventory, self.command(kind, *args),
+                        events=True)] if inventory.nodeids else []
         buckets = {'ui': ui_buckets, 'unit': unit_buckets}[kind](
             (*inventory.nodeids, *inventory.resumed_nodeids))
         retained = set(inventory.resumed_nodeids)

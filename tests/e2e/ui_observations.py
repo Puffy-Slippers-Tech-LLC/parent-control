@@ -543,18 +543,29 @@ class AppRowsObservation:
 
 @dataclass(frozen=True)
 class AppActivityObservation:
-    """APP04 immutable public window identity and recognizable native activity."""
+    """Immutable public activity, or complete absence in its bound desktop."""
 
     binding: str
-    pid: int
-    endpoint: tuple
-    state: tuple
+    pid: int | None
+    endpoint: tuple | None
+    state: tuple | None
+    owner: tuple | None = None
 
     @classmethod
-    def from_value(cls, value):
-        require(type(value) is dict and set(value) == {'binding', 'pid', 'endpoint', 'state'}
-                and value['binding'] == 'native-primary'
-                and type(value['pid']) is int and value['pid'] > 0
+    def from_value(cls, value, *, closed=False):
+        fields = {'binding', 'pid', 'endpoint', 'state'}
+        require(type(closed) is bool and type(value) is dict and set(value) in (fields, fields | {'owner'})
+                and value['binding'] == 'native-primary', 'ui:app-activity')
+        owner = value.get('owner')
+        require('owner' not in value or type(owner) is list and len(owner) == 2
+                and type(owner[0]) is int and owner[0] >= 1000
+                and type(owner[1]) is str and re.fullmatch(r'[0-9a-f]{64}', owner[1]),
+                'ui:app-activity-owner')
+        if closed:
+            require(owner is not None and value['pid'] is value['endpoint'] is value['state'] is None,
+                    'ui:app-activity')
+            return cls(value['binding'], None, None, None, tuple(owner))
+        require(type(value['pid']) is int and value['pid'] > 0
                 and type(value['endpoint']) is list and len(value['endpoint']) == 2
                 and all(type(part) is str and 0 < len(part) <= 256 for part in value['endpoint'])
                 and value['endpoint'][0].startswith(':') and value['endpoint'][1].startswith('/')
@@ -562,13 +573,24 @@ class AppActivityObservation:
                     'draft': 'ONPC fixture draft', 'submitted': 'ONPC fixture draft',
                     'score': 'Moves: 0; token: 0'}, 'ui:app-activity')
         return cls(value['binding'], value['pid'], tuple(value['endpoint']),
-                   tuple(value['state'][key] for key in ('draft', 'submitted', 'score')))
+                   tuple(value['state'][key] for key in ('draft', 'submitted', 'score')),
+                   tuple(owner) if owner is not None else None)
 
 
 def compare_app_activity(observed, expected, *, result='same'):
     """UI12: compare explicit observations; replacement never proves retention."""
     require(type(observed) is AppActivityObservation and type(expected) is AppActivityObservation
-            and result in ('same', 'replaced'), 'ui:app-comparison-binding')
+            and result in ('same', 'replaced', 'closed'), 'ui:app-comparison-binding')
+    if result == 'closed':
+        require(observed.binding == expected.binding and expected.pid is not None
+                and expected.owner is not None and observed.owner == expected.owner,
+                'ui:app-closure-binding')
+        require(observed.pid is observed.endpoint is observed.state is None,
+                'ui:app-window-not-closed')
+        return {'earlier_window_closed': True, 'outcome': 'passed'}
+    require(observed.pid is not None and expected.pid is not None,
+            'ui:app-comparison-binding')
+    require(observed.owner == expected.owner, 'ui:app-activity-owner-changed')
     same_window = (observed.binding, observed.pid, observed.endpoint) == (
         expected.binding, expected.pid, expected.endpoint)
     require(same_window if result == 'same' else not same_window, 'ui:app-window-changed')
@@ -2007,9 +2029,15 @@ class UiObservations:
                 expected['activity'] = {'draft': 'ONPC fixture draft',
                     'submitted': 'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
                     'score': 'Moves: 0; token: 0'}
-        if operation in ('native-activity', 'overlay-native-activity', 'parent-native-activity'):
+        if operation in ('native-activity', 'overlay-native-activity', 'parent-native-activity',
+                         'native-policy-activity', 'native-policy-closed'):
             require(type(result) is dict and set(result) == {*expected, 'activity'}, 'ui:response')
-            AppActivityObservation.from_value(result['activity'])
+            activity = AppActivityObservation.from_value(result['activity'],
+                                                         closed=operation == 'native-policy-closed')
+            require((activity.pid is None) == (operation == 'native-policy-closed'),
+                    'ui:app-activity-result')
+            if operation.startswith('native-policy-'):
+                require(activity.owner is not None, 'ui:app-activity-owner')
             expected['activity'] = result['activity']
         if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals', 'native-alias-grid'):
             expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))

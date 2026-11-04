@@ -2344,6 +2344,16 @@ class NativeDenialQualification(ChallengesQualification):
         return NativeDenialJourney(context, progress)
 
 
+class NativePolicyClosureQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from native_policy_closure import NativePolicyClosureJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return NativePolicyClosureJourney(context, progress)
+
+
 class SharedTargetLaunchersQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):

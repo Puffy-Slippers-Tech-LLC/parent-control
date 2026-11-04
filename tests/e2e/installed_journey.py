@@ -131,16 +131,23 @@ class JourneyPlan:
         used = set()
         stages = list(self.screen_tags)
         require(all(stage in stages and self.screen_tags[stage] in (
-                    'ui:native-activity', 'ui:overlay-native-activity', 'ui:parent-native-activity')
+                    'ui:native-activity', 'ui:overlay-native-activity', 'ui:parent-native-activity',
+                    'ui:native-policy-activity', 'ui:native-policy-closed')
                     and type(binding) is tuple and len(binding) == 2
                     and binding[0] in stages and stages.index(binding[0]) < stages.index(stage)
-                    and self.screen_tags[binding[0]] == self.screen_tags[stage]
-                    and binding[1] in ('same', 'replaced')
+                    and ((binding[1] in ('same', 'replaced')
+                          and self.screen_tags[binding[0]] == self.screen_tags[stage]
+                          and self.screen_tags[stage] != 'ui:native-policy-closed')
+                         or binding[1] == 'closed'
+                         and self.screen_tags[stage] == 'ui:native-policy-closed'
+                         and self.screen_tags[binding[0]] == 'ui:native-policy-activity')
                     for stage, binding in self.activity_checks.items()),
                 self.prefix + ':activity-plan')
+        require(all(stage in self.activity_checks for stage, tag in self.screen_tags.items()
+                    if tag == 'ui:native-policy-closed'), self.prefix + ':activity-closure-plan')
         require(all(stage in stages and capture in stages and stages.index(capture) < stages.index(stage)
                     and self.screen_tags[capture] in ('ui:native-activity', 'ui:overlay-native-activity',
-                                                       'ui:parent-native-activity')
+                                                       'ui:parent-native-activity', 'ui:native-policy-activity')
                     for stage, capture in self.activity_entries.items()), self.prefix + ':activity-entry-plan')
         require(all(stage in stages and type(seconds) is int and seconds >= 0
                     for stage, seconds in self.balance_checks.items()),
@@ -538,10 +545,12 @@ class InstalledJourney:
 
     def check_activity(self, stage, observed):
         """Capture/compare before the worker can receive a durable reply."""
-        if self.plan.screen_tags.get(stage) not in ('ui:native-activity', 'ui:overlay-native-activity', 'ui:parent-native-activity'):
+        if self.plan.screen_tags.get(stage) not in ('ui:native-activity', 'ui:overlay-native-activity',
+                'ui:parent-native-activity', 'ui:native-policy-activity', 'ui:native-policy-closed'):
             return
         require(stage not in self.activity_observations, 'ui:app-activity-replay')
-        current = AppActivityObservation.from_value(observed.get('ui', {}).get('activity'))
+        current = AppActivityObservation.from_value(observed.get('ui', {}).get('activity'),
+            closed=self.plan.screen_tags[stage] == 'ui:native-policy-closed')
         binding = self.plan.activity_checks.get(stage)
         if binding is not None:
             earlier, result = binding

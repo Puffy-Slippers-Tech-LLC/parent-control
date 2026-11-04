@@ -811,6 +811,12 @@ sub run {
         onpc_app_rows::native_denial(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{native_policy_closure}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::native_policy_closure(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{native_app}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

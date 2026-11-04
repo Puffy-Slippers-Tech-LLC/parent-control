@@ -537,6 +537,50 @@ sub native_denial {
     $journey->finish();
 }
 
+sub native_policy_closure {
+    onpc_progress::operation('Checking that a parent block closes the child original app');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'native:closure-arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'native-policy-closure', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen($_) for qw(saved-settings apps-page initial-rows);
+    for my $name ('hard', 'soft') {
+        if ($name eq 'soft') {
+            onpc_desktop_session::enter_desktop(
+                $journey, 'gdm', 'parent', 'retained', 'success', 'restore-parent');
+            $journey->seen('restore-apps');
+            edit_policy($journey, fixture_app('A'), 'match-precise', 'allowed', 'restore', []);
+        }
+        $journey->seen($name . '-leave-parent-' . $_) for qw(desktop switch greeter);
+        onpc_desktop_session::enter_desktop(
+            $journey, 'gdm', 'other-child', 'fresh', 'success', $name . '-fresh');
+        my $activity = $journey->scope($name . '-activity');
+        native_usable_app($activity, $name eq 'hard' ? 'grid' : 'command',
+                          $activity->seen('desktop'), 'other-child');
+        native_read_activity($journey, $name . '-capture');
+        onpc_desktop_session::enter_desktop(
+            $journey, 'desktop', 'parent', 'retained', 'success', $name . '-parent', 'other-child');
+        $journey->seen($name . '-apps');
+        edit_policy($journey, fixture_app('A'), 'match-precise',
+                    $name eq 'hard' ? 'permanent' : 'conditional', $name . '-block', []);
+        onpc_desktop_session::enter_desktop(
+            $journey, 'desktop', 'other-child', 'retained', 'success', $name . '-return', 'parent');
+        # Compare the original capture before any new launch can conceal closure.
+        native_read_activity($journey, $name . '-closed');
+        native_blocked_app($journey->scope($name . '-denied'), 'A');
+        my $other = $journey->scope($name . '-unaffected');
+        native_usable_app($other, 'command', $other->seen('desktop'), 'other-child', 'N');
+        native_finish_app($other);
+        $journey->seen($name . '-logout');
+    }
+    $journey->finish();
+}
+
 # APP04: no hidden launch/input; the plan owns capture and compare endpoints.
 sub native_read_activity {
     onpc_progress::operation('Independently reading the owned native activity');

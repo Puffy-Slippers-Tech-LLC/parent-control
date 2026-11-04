@@ -172,7 +172,7 @@ NATIVE_APP_OPERATIONS = frozenset('native-' + suffix for suffix in (
     'grid-refusals', 'command-launch', 'command-refusals', 'wrong-entry',
     'opened', 'submit', 'resubmit', 'submitted', 'close', 'closed',
     'activity', 'activity-wrong-entry', 'command-blocked', 'activity-launch',
-    'grid-blocked', 'grid-denied'))
+    'grid-blocked', 'grid-denied', 'policy-activity', 'policy-closed'))
 NATIVE_APP_OPERATIONS |= frozenset('native-alias-' + suffix for suffix in (
     'search-ready', 'search-focused', 'search-entered', 'grid', 'command-blocked',
     'grid-blocked', 'grid-denied'))
@@ -12937,11 +12937,13 @@ class AccessibleUI:
                                        else 'operation-not-permitted')})
 
     def native_app_snapshot(self, submitted, *, pending=False, with_window=False,
-                            instance='primary', role=None, child=CHILD):
+                            instance='primary', role=None, child=CHILD, implicit_instance=False):
         """APP02/03: public owned window and finite independent activity projection."""
         require(submitted in ('No submitted draft', 'ONPC fixture draft'), 'ui:native-projection')
         require(role is None and instance == 'primary' or role in ('A', 'S', 'N')
                 and instance == ('secondary' if role == 'S' else 'primary'), 'ui:native-binding')
+        require(type(implicit_instance) is bool and (not implicit_instance or role == 'A'),
+                'ui:native-binding')
         if role is not None:
             require(child in (CHILD, EXISTING_CHILD) and (role != 'N' or child == EXISTING_CHILD),
                     'ui:native-child-binding')
@@ -12978,7 +12980,7 @@ class AccessibleUI:
         require(root is not None and self.surface_available(root),
                 'ui:native-entry')
         if role is not None:
-            self.native_app_owner(root, role, instance)
+            self.native_app_owner(root, role, instance, implicit_instance=implicit_instance)
         try:
             from fixture_ui import FixtureUI
         except ModuleNotFoundError as error:
@@ -13007,9 +13009,11 @@ class AccessibleUI:
                     'endpoint': [bus, path], 'state': value}
         return value
 
-    def native_app_owner(self, root, role, instance):
+    def native_app_owner(self, root, role, instance, *, implicit_instance=False):
         """Bind the GUI child to its live native policy executable and account."""
         require(role in ('A', 'S', 'N') and instance == ('secondary' if role == 'S' else 'primary'),
+                'ui:native-binding')
+        require(type(implicit_instance) is bool and (not implicit_instance or role == 'A'),
                 'ui:native-binding')
         pid = root.get_process_id()
         require(type(pid) is int and pid > 0, 'ui:native-owner')
@@ -13025,7 +13029,8 @@ class AccessibleUI:
         require(process.stat().st_uid == owner.stat().st_uid == os.getuid()
                 and str((owner / 'exe').readlink()) == expected
                 and (owner / 'cmdline').read_bytes().split(b'\0') ==
-                    [expected.encode(), b'--instance', instance.encode(), b''], 'ui:native-owner')
+                    [expected.encode(), *([] if implicit_instance else
+                      [b'--instance', instance.encode()]), b''], 'ui:native-owner')
         fresh = (process / 'stat').read_text().rsplit(')', 1)[1].split()
         owner_fields = owner_stat.rsplit(')', 1)[1].split()
         fresh_owner = (owner / 'stat').read_text().rsplit(')', 1)[1].split()
@@ -13048,14 +13053,33 @@ class AccessibleUI:
                   prompt_in_predicate=True)
         self.activate_id('onpc-fixture-native-' + instance + '-submit')
 
-    def native_app_closed(self, instance='primary', *, desktop=True):
+    def native_app_closed(self, instance='primary', *, desktop=True, complete_absence=False):
         """Complete owned absence; closure also recognizes the stable desktop."""
-        require(instance in ('primary', 'secondary') and type(desktop) is bool, 'ui:native-binding')
+        require(instance in ('primary', 'secondary') and type(desktop) is bool
+                and type(complete_absence) is bool, 'ui:native-binding')
         if desktop:
             self.standard_shell_desktop(no_prompt=True)
         node = self.snapshot_owned_target('onpc-fixture-native-' + instance, showing=False,
                                           check_prompt=True)
-        return node is None or not self.showing(node)
+        return node is None or not complete_absence and not self.showing(node)
+
+    def native_policy_activity(self, *, closed=False):
+        """APP02: bind public presence/complete absence to the same child session."""
+        uid = os.getuid()
+        require(uid == pwd.getpwnam(CHILD_ACCOUNTS[EXISTING_CHILD]).pw_uid == os.geteuid(),
+                'ui:native-activity-owner')
+        owner = session_control.entry_identity(session_control.sessions(), uid, 'same')
+        if closed:
+            self.wait(lambda: self.native_app_closed(complete_absence=True), 'native-policy-closed')
+            value = {'binding': 'native-primary', 'pid': None, 'endpoint': None, 'state': None}
+        else:
+            value = self.wait(lambda: self.native_app_snapshot(
+                'ONPC fixture draft', with_window=True, role='A', child=EXISTING_CHILD,
+                implicit_instance=True),
+                'native-policy-activity', prompt_in_predicate=True)
+        require(session_control.entry_identity(session_control.sessions(), uid, 'same') == owner,
+                'ui:native-activity-owner-changed')
+        return {**value, 'owner': [uid, owner]}
 
     def baseline_native_operation(self, operation):
         """Finite policy bindings; each route retains its declared account."""
@@ -13090,6 +13114,8 @@ class AccessibleUI:
             require(child == EXISTING_CHILD, 'ui:native-child-binding')
             product = NATIVE_ALIAS_PRODUCT
             operation = operation.replace('native-alias-', 'native-', 1)
+        if operation in ('native-policy-activity', 'native-policy-closed'):
+            return self.native_policy_activity(closed=operation == 'native-policy-closed')
         if operation in ('native-desktop', 'native-closed'):
             self.wait(self.native_app_closed, 'native-closed')
         elif operation == 'native-command-launch':

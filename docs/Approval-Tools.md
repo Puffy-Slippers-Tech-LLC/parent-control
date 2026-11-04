@@ -121,9 +121,11 @@ Historical personal grants for unrelated projects, raw VM commands and privilege
 utilities are not imported: maintained project guards and diagnostics remain the
 authority. Obsolete `.codex-staged-*` snapshots are ignored and unused.
 
-Provision Git identity, signing configuration/private keys, SSH/Git credentials,
+Provision signing configuration/private keys, SSH/Git credentials,
 Codex login, plugin account connections and `.envrc` secrets separately on each
-host. Setup preserves existing Git settings and reports missing identity/upstream;
+host. Server setup supplies missing checkout-local Git identity as described below;
+other modes only report missing identity. Setup preserves existing Git settings
+and reports missing upstream;
 it never copies authentication, private keys, session history or personal trust
 lists. See [signing setup](Publishing.md#noninteractive-signing) for publishing.
 
@@ -191,9 +193,14 @@ headless bootstrap.
 Headless setup shares the development/build/UI-test dependencies and prepares
 the caller-owned Fedora RPM builder. It disables APT recommendations to avoid
 pulling in a desktop through optional dependencies; GNOME/Mutter/GTK libraries
-needed by isolated UI tests are still installed. It preserves Git identity,
-signing configuration, remotes and credentials, reporting missing identity or
-branch upstream as actions needed. It checks Git remote read access without
+needed by isolated UI tests are still installed. For each missing or empty Git
+`user.name` or `user.email`, it sets a checkout-local default of
+`Puffy Slippers Tech LLC` or `dev@tech.puffyslippers.com`, respectively, matching
+this project's commit identity. Existing effective values are preserved. These
+defaults also apply to linked worktrees of the same clone; account-wide Git
+configuration and unrelated clones are unchanged. It preserves signing
+configuration, remotes and credentials, reporting any remaining unusable identity
+or missing branch upstream as actions needed. It checks Git remote read access without
 prompting; push permissions must be configured separately before using committing launchers.
 Headless setup validates the tracked Codex command rules but does not install or
 authenticate the Codex CLI. It installs neither VS Code nor its Watch extension.

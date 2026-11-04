@@ -8,7 +8,8 @@ if (( $# > 1 )) || { (( $# == 1 )) && [[ "$1" != '--ui-tests-only' && "$1" != '-
     exit 2
 fi
 
-# Identity, signing keys and credentials are provisioned separately on every host.
+# Server setup supplies missing checkout-local identity; keys and credentials
+# are provisioned separately on every host.
 
 ui_venv="$script_dir/.venv/onpc-ui-tests"
 /usr/bin/python3 -m venv --system-site-packages "$ui_venv"
@@ -16,7 +17,19 @@ ui_venv="$script_dir/.venv/onpc-ui-tests"
     --require-hashes -r "$script_dir/tests/ui/requirements.txt"
 
 if [[ ${1-} != --ui-tests-only ]]; then
-    # Inspect only: automation must not replace identity, signing or credentials.
+    if [[ ${1-} == --headless ]]; then
+        # Preserve effective values, including account-wide and worktree settings.
+        # Local defaults are shared by this clone's linked worktrees, without
+        # changing the automation account's identity for unrelated repositories.
+        if [[ -z $(git -C "$script_dir" config --get user.name) ]]; then
+            git -C "$script_dir" config --local user.name 'Puffy Slippers Tech LLC'
+            echo 'setup: configured checkout-local Git user.name: Puffy Slippers Tech LLC'
+        fi
+        if [[ -z $(git -C "$script_dir" config --get user.email) ]]; then
+            git -C "$script_dir" config --local user.email 'dev@tech.puffyslippers.com'
+            echo 'setup: configured checkout-local Git user.email: dev@tech.puffyslippers.com'
+        fi
+    fi
     if ! git -C "$script_dir" var GIT_AUTHOR_IDENT >/dev/null 2>&1 ||
        ! git -C "$script_dir" var GIT_COMMITTER_IDENT >/dev/null 2>&1; then
         echo 'setup: action needed: configure Git user.name and user.email for the automation account'
@@ -24,7 +37,7 @@ if [[ ${1-} != --ui-tests-only ]]; then
     if ! git -C "$script_dir" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1; then
         echo 'setup: action needed: configure the automation branch upstream before launcher commit/push operations'
     fi
-    echo 'setup: Git identity/signing settings and credentials preserved; push access is not tested'
+    echo 'setup: existing Git identity, signing settings and credentials preserved; push access is not tested'
     if [[ ${1-} != --headless ]]; then
         echo 'setup: remote Git authentication is not tested in this mode'
     fi

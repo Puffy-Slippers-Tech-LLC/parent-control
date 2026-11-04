@@ -9,7 +9,8 @@ usage() {
     cat <<'USAGE'
 Usage: ./setup.sh [MODE] [--vm NAME]
   (no mode)             Set up/refresh an Ubuntu or Fedora 44 development machine (no VMs needed)
-  --headless            Set up an Ubuntu 26.04+ automation server (no VM hosting or Codex CLI)
+  --headless            Set up an Ubuntu 26.04+ SSH automation server; disable sleep
+                       No VM hosting or Codex CLI installation
   --dependencies-only   Install development, build and UI/GUI-fixture dependencies
   --vm-host-only        Add VM host dependencies and refresh development helpers/policies
   --ppa-build-tools     Install clean local PPA build prerequisites
@@ -147,7 +148,7 @@ case "$mode" in
         /bin/bash "$script_dir/tools/setup_checkout.sh" --headless
         # Do not run the VM-host AppArmor policy installer or desktop extension.
         install_codex_rules
-        echo 'setup: headless environment installed; Git credentials, Codex CLI and VM hosting are managed separately'
+        echo 'setup: headless SSH environment installed; client keys, Git credentials, Codex CLI and VM hosting are managed separately'
         ;;
     --watch) install_watch_extension ;;
     --ui-tests-only)

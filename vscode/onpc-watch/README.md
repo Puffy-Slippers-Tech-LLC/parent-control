@@ -281,6 +281,17 @@ contain a compatible adapter and its prerequisites. Authentication/host-key
 refusals require fixing access and clicking Reconnect; transient disconnections
 retry automatically with a 1–15 second backoff.
 
+On an Ubuntu 26.04+ remote host, rerun `./setup.sh --headless` as the checkout
+owner to prepare the test environment, enable SSH and prevent server sleep,
+including on a desktop laptop. Follow the printed host-key and connection details;
+see [headless setup](../../docs/Approval-Tools.md#one-time-setup) for firewall,
+credentials and power-management behavior. On the client, configure the SSH alias,
+authorize its public key, and verify `ssh -o BatchMode=yes myserver true` before
+adding the source. Set `root` to the actual remote checkout path. Start
+`tools/fix-tests unit` in that checkout over SSH after configuring the remote
+account's Codex login and Git access. The launcher owns detached execution;
+Watch connects to observe it independently.
+
 Each source can optionally specify a `command` argv array instead of the default
 Python reader. A future Kubernetes adapter can run on the SSH host and implement
 the same protocol, without changes to the bridge or UI. That backend is outside

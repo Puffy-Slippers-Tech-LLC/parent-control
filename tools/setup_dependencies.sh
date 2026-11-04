@@ -67,6 +67,43 @@ install_rpm_build_tools() {
 }
 
 "${apt_get[@]}" update
+if [[ ${1-} == --headless ]]; then
+    echo 'setup: [stage:remote-access]'
+    "${apt_get[@]}" install -y openssh-server
+    # Keep existing authentication policy and host keys. Validate before enabling
+    # the service; sshd's configuration check requires its runtime directory.
+    install -d -m 0755 '/run/sshd'
+    /usr/sbin/sshd -t
+    ssh_configuration=$(/usr/sbin/sshd -T)
+    # Do not enable a firewall or change unrelated rules. Honor custom SSH ports
+    # instead of assuming that the OpenSSH UFW profile still matches sshd.
+    if command -v ufw >/dev/null 2>&1; then
+        firewall_status=$(LC_ALL=C ufw status)
+        if [[ $firewall_status == 'Status: active'* ]]; then
+            while read -r setting value; do
+                if [[ $setting == port ]]; then
+                    ufw allow "$value/tcp" comment 'ONPC headless SSH'
+                fi
+            done <<< "$ssh_configuration"
+        fi
+    fi
+    systemctl enable --now 'ssh.service'
+    systemctl is-active --quiet 'ssh.service'
+    # A desktop laptop used as a server must stay available after idle/lid sleep
+    # requests. These persistent masks also apply before anyone logs in.
+    systemctl mask 'sleep.target' 'suspend.target' 'hibernate.target' \
+        'hybrid-sleep.target' 'suspend-then-hibernate.target'
+    echo 'setup: SSH enabled; automatic suspend/hibernation disabled for server use'
+    echo 'setup: SSH ports and server host-key fingerprints (verify from the client):'
+    while read -r setting value; do
+        if [[ $setting == port ]]; then
+            printf '  SSH port: %s\n' "$value"
+        fi
+    done <<< "$ssh_configuration"
+    for host_key in /etc/ssh/ssh_host_*_key.pub; do
+        ssh-keygen -lf "$host_key"
+    done
+fi
 if [[ "${1-}" == '--ppa-build-tools' ]]; then
     install_ppa_build_tools
     exit 0

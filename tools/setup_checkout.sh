@@ -8,6 +8,22 @@ if (( $# > 1 )) || { (( $# == 1 )) && [[ "$1" != '--ui-tests-only' && "$1" != '-
     exit 2
 fi
 
+if [[ ${1-} == --headless ]]; then
+    echo 'setup: remote connection details:'
+    printf '  Account: %s\n' "$(id -un)"
+    printf '  Hostname: %s\n' "$(hostname)"
+    printf '  Addresses: %s\n' "$(hostname -I)"
+    printf '  Checkout: %s\n' "$script_dir"
+    echo 'setup: next: verify the host key, install your client public key with ssh-copy-id, and verify BatchMode SSH access'
+    echo 'setup: on the client, configure an SSH alias and ONPC Watch SSH source using the checkout path above'
+    echo 'setup: use a router DHCP reservation for a stable Wi-Fi address; keep the server on external power'
+    if ! command -v codex >/dev/null 2>&1; then
+        echo 'setup: action needed: install the Codex CLI for this account before using tools/fix-tests'
+    else
+        echo 'setup: action needed: verify Codex CLI login for this account before using tools/fix-tests'
+    fi
+fi
+
 # Identity, signing keys and credentials are provisioned separately on every host.
 
 ui_venv="$script_dir/.venv/onpc-ui-tests"

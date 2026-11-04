@@ -197,8 +197,31 @@ branch upstream as actions needed. It does not test remote authentication or
 push access. Configure those separately before using committing launchers.
 Headless setup validates the tracked Codex command rules but does not install or
 authenticate the Codex CLI. It installs neither VS Code nor its Watch extension.
-An editor connection, SSH server provisioning and account credential management
-remain administrator responsibilities.
+Headless setup installs OpenSSH Server, validates the existing sshd configuration,
+and enables/starts `ssh.service`. It preserves host keys and authentication policy.
+If UFW is already active, setup allows TCP access to the ports reported by
+`sshd -T`; it neither enables UFW nor changes unrelated firewall rules. Other
+firewalls and network/router access remain administrator responsibilities.
+Setup prints SSH ports, server host-key fingerprints, the account, current network
+addresses and checkout path for client configuration. Verify the fingerprint from
+the client before accepting the host key and use `ssh-copy-id` to authorize the
+client's public key. Never copy private keys between hosts. Confirm
+`ssh -o BatchMode=yes myserver true` succeeds before configuring a
+[Watch SSH source](../vscode/onpc-watch/README.md#local-and-ssh-sources).
+The client SSH alias and Watch source settings remain client-owned.
+
+For unattended availability, headless setup persistently masks `sleep.target`,
+`suspend.target`, `hibernate.target`, `hybrid-sleep.target` and
+`suspend-then-hibernate.target`. This also prevents ordinary idle/lid-triggered
+suspend on a desktop laptop acting as a server, without restarting its desktop
+session. Keep it on external power; battery exhaustion and network loss remain
+possible. Reserve its Wi-Fi address in the router's DHCP configuration.
+To restore normal sleep when retiring the server role, an administrator can run
+`sudo systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target`.
+Account credentials, Codex installation/login and editor connections remain
+administrator responsibilities. Setup reports absent Codex CLI as an action needed.
+Rerunning `./setup.sh --headless` applies these additions to an already configured
+host through its existing noninteractive grant; no fresh bootstrap is required.
 
 This mode does not install VM hosting, virt-manager or libvirt/QEMU, change VM
 networking/storage or graphical-host AppArmor policy, or create/prepare VMs and

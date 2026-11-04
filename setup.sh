@@ -11,6 +11,7 @@ Usage: ./setup.sh [MODE] [--vm NAME]
   (no mode)             Set up/refresh an Ubuntu or Fedora 44 development machine (no VMs needed)
   --server              Set up an Ubuntu 26.04+ SSH automation server; disable sleep
                        No VM hosting or Codex CLI installation
+  --connect-server      Interactively configure private client SSH access and a Watch workspace
   --dependencies-only   Install development, build and UI/GUI-fixture dependencies
   --vm-host-only        Add VM host dependencies and refresh development helpers/policies
   --ppa-build-tools     Install clean local PPA build prerequisites
@@ -37,7 +38,7 @@ fi
 readonly mode="${1-}"
 readonly vm_name="${3-}"
 case "$mode" in
-    ''|--server|--dependencies-only|--vm-host-only|--ppa-build-tools|--rpm-build-tools|--test-tools-only|--ui-tests-only|--watch|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
+    ''|--server|--connect-server|--dependencies-only|--vm-host-only|--ppa-build-tools|--rpm-build-tools|--test-tools-only|--ui-tests-only|--watch|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -132,6 +133,10 @@ install_watch_extension() {
 }
 
 case "$mode" in
+    --connect-server)
+        /usr/bin/python3 -IB "$script_dir/tools/setup_server_connection.py"
+        install_watch_extension
+        ;;
     --server)
         # Internal headless operation names/arguments remain stable so existing
         # installed dispatchers can refresh through their original grant.

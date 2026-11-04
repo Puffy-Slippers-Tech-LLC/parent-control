@@ -193,8 +193,8 @@ the caller-owned Fedora RPM builder. It disables APT recommendations to avoid
 pulling in a desktop through optional dependencies; GNOME/Mutter/GTK libraries
 needed by isolated UI tests are still installed. It preserves Git identity,
 signing configuration, remotes and credentials, reporting missing identity or
-branch upstream as actions needed. It does not test remote authentication or
-push access. Configure those separately before using committing launchers.
+branch upstream as actions needed. It checks Git remote read access without
+prompting; push permissions must be configured separately before using committing launchers.
 Headless setup validates the tracked Codex command rules but does not install or
 authenticate the Codex CLI. It installs neither VS Code nor its Watch extension.
 Headless setup installs OpenSSH Server, validates the existing sshd configuration,
@@ -202,13 +202,57 @@ and enables/starts `ssh.service`. It preserves host keys and authentication poli
 If UFW is already active, setup allows TCP access to the ports reported by
 `sshd -T`; it neither enables UFW nor changes unrelated firewall rules. Other
 firewalls and network/router access remain administrator responsibilities.
-Setup prints SSH ports, server host-key fingerprints, the account, current network
-addresses and checkout path for client configuration. Verify the fingerprint from
+Setup prints the active SSH ports. Its checkout stage ends with a connection
+summary containing server host-key fingerprints, the account, current network
+addresses, checkout path and registered Git worktrees. It checks Codex login
+when the CLI is installed and performs a read-only Git remote probe. These
+checks have 15-second and 20-second limits respectively, never prompt for login,
+and report missing readiness without discarding successful setup. Resolve any
+action-needed items before starting a launcher. The summary stays in terminal
+output, outside Git. Verify the fingerprint from
 the client before accepting the host key and use `ssh-copy-id` to authorize the
 client's public key. Never copy private keys between hosts. Confirm
 `ssh -o BatchMode=yes myserver true` succeeds before configuring a
 [Watch SSH source](../vscode/onpc-watch/README.md#local-and-ssh-sources).
 The client SSH alias and Watch source settings remain client-owned.
+
+On the development computer, run `./setup.sh --connect-server` in a terminal
+to automate client onboarding. It reads SSH hosts and their branches from
+`config/environment.json`, including hosts disabled for VM scheduling. A single
+server is selected automatically; multiple servers offer a name selection.
+The alias is always `host.name`. The public `ssh_port` is an integer from 1 to
+65535, defaulting to 22 when omitted. Onboarding writes that port into the local
+SSH profile; rerun it after changing the configured port.
+The first branch entry for the selected host supplies the starting checkout;
+all configured branch paths are displayed without asking for them again.
+Only the private address/hostname and login username are prompted for, using
+the server setup summary, with saved local values offered on subsequent runs.
+Connection details stay out of command history and tracked files.
+Only one starting checkout is needed per server: Watch discovers the other
+registered Git worktrees through Git metadata. Server setup lists those
+worktrees automatically. Independent clones are not
+discovered through that relationship and require separate Watch sources.
+Before SSH asks to trust a host key, onboarding points to the server setup
+summary's public host-key fingerprints for comparison.
+It creates a dedicated Ed25519 client key and SSH profile under `~/.ssh/onpc/`,
+adds a leading Include to `~/.ssh/config` while preserving existing content,
+and uses OpenSSH's normal host-key and password prompts through `ssh-copy-id`.
+It also prepends `IgnoreUnknown UseKeychain` so Linux OpenSSH accepts existing
+macOS keychain settings. Failed commands report their setup step and exit status;
+SSH diagnostics remain visible without including command arguments in setup errors.
+Compare the host-key fingerprint with the server setup output before accepting.
+Existing host-key refusals are never overridden. Key passphrases remain managed
+by OpenSSH; if BatchMode verification fails because the key is locked, use
+`ssh-add` with the generated key and rerun setup.
+
+After verifying noninteractive SSH and the remote Watch reader's prerequisites,
+setup writes `~/.config/onpc/ALIAS.code-workspace` with local and SSH Watch sources
+and installs the Watch extension. Open that workspace using the printed command,
+then use **ONPC: Watch**. Repeating onboarding reuses its key/profile and offers
+the saved connection values. Profiles and the workspace are owner-private and
+outside Git; usernames, addresses and keys must never be copied into tracked
+configuration or examples. Remote checkout paths may be public. This mode starts
+no tests and does not provision remote Git credentials or Codex login.
 
 For unattended availability, headless setup persistently masks `sleep.target`,
 `suspend.target`, `hibernate.target`, `hybrid-sleep.target` and

@@ -200,7 +200,7 @@ def backup_rig(rig, tmp_path, monkeypatch):
         {'name': 'local', 'transport': 'local', 'enabled': 'true', 'concurrency': 2,
          'backup_root': str(tmp_path / 'backups')},
         {'name': 'future', 'transport': 'ssh', 'enabled': 'false', 'concurrency': 6,
-         'ssh_target': 'future-vm-host', 'backup_root': '/remote/backups'}],
+         'backup_root': '/remote/backups'}],
         'families': [{'family': 'backup fixture', 'package_format': 'deb',
                       'fixture_path': 'common/ubuntu/common',
         'vms': [{'id': '9', 'name': 'Backup-guest', 'host': 'local',

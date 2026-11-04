@@ -11,7 +11,7 @@
       "name": "myserver",
       "enabled": "false",
       "transport": "ssh",
-      "ssh_target": "myserver",
+      "ssh_port": 22,
       "backup_root": "/Data/virt-manager/backups/onpc",
       "concurrency": 6
     }

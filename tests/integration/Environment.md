@@ -21,8 +21,10 @@ includes offline hosts' VMs.
 An already-owned stop/recovery may resolve offline metadata and finish its
 identity-checked cleanup. Availability changes do not erase accepted UUID pins.
 
-SSH entries require `ssh_target`, a logical alias resolved through private
-OpenSSH configuration. Keep addresses, usernames, keys, passwords and `.envrc`
+For SSH entries, `name` is also the alias resolved through private OpenSSH
+configuration. The optional public `ssh_port` is an integer from 1 to 65535,
+defaulting to 22; `./setup.sh --connect-server` applies it to the local SSH profile.
+Keep addresses, usernames, keys, passwords and `.envrc`
 outside Git; the registry contains no SSH credentials. SSH execution is not yet
 implemented: online SSH selections explicitly refuse instead of accessing local
 libvirt. The disabled SSH entry may remain tracked while the host is unavailable.

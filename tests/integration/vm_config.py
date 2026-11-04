@@ -25,7 +25,7 @@ class HostConfig:
     transport: str = 'local'
     concurrency: int = 1
     backup_root: Path | None = None
-    ssh_target: str | None = None
+    ssh_port: int = 22
 
 
 @dataclass(frozen=True)
@@ -163,7 +163,7 @@ def host_registry(document):
     for entry in entries:
         if (not isinstance(entry, dict) or
                 not {'name', 'enabled', 'transport', 'concurrency'} <= set(entry) or
-                not set(entry) <= {'name', 'enabled', 'transport', 'concurrency', 'backup_root', 'ssh_target'}):
+                not set(entry) <= {'name', 'enabled', 'transport', 'concurrency', 'backup_root', 'ssh_port'}):
             raise ValueError('vm-config:host fields')
         name = validate_name(entry['name'])
         if name in hosts:
@@ -174,16 +174,15 @@ def host_registry(document):
         if type(concurrency) is not int or concurrency < 1:
             raise ValueError('vm-config:host concurrency must be a positive integer')
         transport = entry['transport']
-        target = entry.get('ssh_target')
+        port = entry.get('ssh_port', 22)
         if transport not in ('local', 'ssh'):
             raise ValueError('vm-config:host transport must be local or ssh')
-        if transport == 'ssh':
-            if not isinstance(target, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', target):
-                raise ValueError('vm-config:ssh_target must be an SSH configuration alias')
-        elif 'ssh_target' in entry:
-            raise ValueError('vm-config:local host cannot have ssh_target')
+        if type(port) is not int or not 1 <= port <= 65535:
+            raise ValueError('vm-config:ssh_port must be an integer between 1 and 65535')
+        if transport == 'local' and 'ssh_port' in entry:
+            raise ValueError('vm-config:local host cannot have ssh_port')
         root = absolute_path(entry['backup_root'], 'backup_root') if 'backup_root' in entry else None
-        hosts[name] = HostConfig(name, entry['enabled'] == 'true', transport, concurrency, root, target)
+        hosts[name] = HostConfig(name, entry['enabled'] == 'true', transport, concurrency, root, port)
     if sum(host.transport == 'local' for host in hosts.values()) > 1:
         raise ValueError('vm-config:only one local host is allowed')
     return hosts

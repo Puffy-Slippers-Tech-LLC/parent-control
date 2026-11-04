@@ -8,22 +8,6 @@ if (( $# > 1 )) || { (( $# == 1 )) && [[ "$1" != '--ui-tests-only' && "$1" != '-
     exit 2
 fi
 
-if [[ ${1-} == --headless ]]; then
-    echo 'setup: remote connection details:'
-    printf '  Account: %s\n' "$(id -un)"
-    printf '  Hostname: %s\n' "$(hostname)"
-    printf '  Addresses: %s\n' "$(hostname -I)"
-    printf '  Checkout: %s\n' "$script_dir"
-    echo 'setup: next: verify the host key, install your client public key with ssh-copy-id, and verify BatchMode SSH access'
-    echo 'setup: on the client, configure an SSH alias and ONPC Watch SSH source using the checkout path above'
-    echo 'setup: use a router DHCP reservation for a stable Wi-Fi address; keep the server on external power'
-    if ! command -v codex >/dev/null 2>&1; then
-        echo 'setup: action needed: install the Codex CLI for this account before using tools/fix-tests'
-    else
-        echo 'setup: action needed: verify Codex CLI login for this account before using tools/fix-tests'
-    fi
-fi
-
 # Identity, signing keys and credentials are provisioned separately on every host.
 
 ui_venv="$script_dir/.venv/onpc-ui-tests"
@@ -40,5 +24,41 @@ if [[ ${1-} != --ui-tests-only ]]; then
     if ! git -C "$script_dir" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1; then
         echo 'setup: action needed: configure the automation branch upstream before launcher commit/push operations'
     fi
-    echo 'setup: Git identity/signing settings and credentials preserved; remote authentication and push access are not tested'
+    echo 'setup: Git identity/signing settings and credentials preserved; push access is not tested'
+    if [[ ${1-} != --headless ]]; then
+        echo 'setup: remote Git authentication is not tested in this mode'
+    fi
+fi
+
+if [[ ${1-} == --headless ]]; then
+    echo 'setup: server connection summary (keep this output for client onboarding; do not commit it):'
+    printf '  Account: %s\n' "$(id -un)"
+    printf '  Hostname: %s\n' "$(hostname)"
+    printf '  Addresses: %s\n' "$(hostname -I)"
+    printf '  Checkout: %s\n' "$script_dir"
+    echo 'setup: public SSH host-key fingerprints (compare with the client SSH prompt):'
+    for host_key in /etc/ssh/ssh_host_*_key.pub; do
+        [[ -f "$host_key" ]] || continue
+        ssh-keygen -lf "$host_key"
+    done
+    echo 'setup: registered Git worktrees (Watch discovers these from the starting checkout):'
+    git -C "$script_dir" worktree list
+    if ! command -v codex >/dev/null 2>&1; then
+        echo 'setup: action needed: install the Codex CLI for this account before using tools/fix-tests'
+    elif timeout 15s codex login status >/dev/null 2>&1; then
+        echo 'setup: Codex login verified for the automation account'
+    else
+        echo 'setup: action needed: run codex login for this account, then rerun ./setup.sh --server'
+    fi
+    # Read-only and bounded: never prompt, accept a new Git host key, or push.
+    if timeout 20s env GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false GCM_INTERACTIVE=Never \
+        GIT_SSH_COMMAND='ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10' \
+        git -C "$script_dir" ls-remote >/dev/null 2>&1; then
+        echo 'setup: Git remote read access verified; push permissions must be configured separately'
+    else
+        echo 'setup: action needed: configure Git remote read access for this account, then rerun ./setup.sh --server'
+    fi
+    echo 'setup: next: on the client, run ./setup.sh --connect-server using this summary'
+    echo 'setup: the client reads host names, SSH ports and checkout paths from config/environment.json; addresses and usernames stay private'
+    echo 'setup: use a router DHCP reservation for a stable Wi-Fi address; keep the server on external power'
 fi

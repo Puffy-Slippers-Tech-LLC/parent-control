@@ -52,14 +52,14 @@ function resourceConfiguration(root) {
         if (!host || typeof host.name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$/.test(host.name) ||
                 names.has(host.name) || !['true', 'false'].includes(host.enabled) ||
                 !['local', 'ssh'].includes(host.transport) ||
-                (host.transport === 'ssh' && (typeof host.ssh_target !== 'string' ||
-                    !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(host.ssh_target)))) {
+                (host.ssh_port !== undefined && (host.transport !== 'ssh' ||
+                    !Number.isInteger(host.ssh_port) || host.ssh_port < 1 || host.ssh_port > 65535))) {
             throw new Error('Invalid Watch host in config/environment.json.');
         }
         names.add(host.name);
         return host.enabled === 'true';
     }).map(host => ({ id: host.name, label: host.name, transport: host.transport,
-        host: host.ssh_target, root, command: ['/usr/bin/python3', '-u', '-B', '-c', program] }));
+        host: host.name, root, command: ['/usr/bin/python3', '-u', '-B', '-c', program] }));
 }
 
 function validate(snapshot) {

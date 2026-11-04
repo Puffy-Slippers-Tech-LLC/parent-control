@@ -217,7 +217,7 @@ server icon and hostname before its CPU, VM RAM and Disk readings and small
 filled history graphs. When the hosts do not fit side by side, they stack with
 one complete host per row. Extremely narrow views can scroll the readings horizontally.
 Host configuration is read when Watch opens or reconnects, independently of viewer
-source settings. SSH hosts use their configured `ssh_target` with existing keys
+source settings. SSH hosts use their configured `name` as the SSH alias with existing keys
 and verified host keys; a read-only Python sampler runs in memory without requiring
 a remote checkout. Connection details appear on the hostname tooltip; unavailable
 hosts retain their name without stale readings.
@@ -254,6 +254,21 @@ its readers/connections. Nothing is installed in the product or in a guest VM.
 No npm packages or compilation step are needed.
 
 ## Local and SSH sources
+
+For interactive client onboarding, run `./setup.sh --connect-server`. It configures
+key access, verifies noninteractive SSH, installs Watch and prints a command to
+open a private workspace with local and SSH sources. Connection details live in
+your home directory, outside Git. See the [setup contract](../../docs/Approval-Tools.md#one-time-setup)
+for host-key verification and key-agent requirements.
+The command selects from configured SSH hosts, uses `host.name` as the alias,
+and reads `ssh_port` and remote branch paths from `config/environment.json`.
+Only the private address and login username need to be entered. The first
+configured remote checkout is the starting point; Watch discovers related
+registered worktrees automatically. `./setup.sh --server` prints a connection
+summary with the account, addresses, host-key fingerprints and registered worktrees,
+and checks Codex login and Git remote read access. Use that summary during client
+onboarding; no separate server inspection commands are needed. Independent clones
+require separate sources.
 
 With no configuration, Watch uses this checkout's local adapter as before. Set
 `onpc.watch.sources` in VS Code user or workspace settings to replace that default

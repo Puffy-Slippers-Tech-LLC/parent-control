@@ -98,10 +98,35 @@ def _compiled_retirement_record(g, identities):
     movable = movable_files(g)
     base = set(movable) | {TRUST_RECORD, TRUST_FILE}
     generated = {NATIVE_RULES_COMPILED, NATIVE_RULES_BACKUP}
-    require((set(record['files']) - generated) in
-            (set(), base, base - set(native_assets.NATIVE_POLICY_PATHS))
-            and (bool(set(record['files']) - generated) or not record['files']),
-            'retirement-record')
+    # Completed clean captures retain historical retirement receipts. These
+    # predate the Alias launcher and the move of H into Whitespace (tasks
+    # 229a and 227); changing movable fixtures must not invalidate clean stock
+    # compiler witnesses. Recognize only those exact earlier inventories.
+    alias = '/home/onpc-child-jordan/.local/share/applications/com.puffyslippers.ONPCTest.Alias.desktop'
+    whitespace = '/opt/onpc-test-fixtures/Applications/Whitespace/'
+    old_h = '/opt/onpc-test-fixtures/Applications/Path With Spaces.AppImage'
+    before_alias = base - {alias}
+    before_whitespace = (before_alias - {
+        whitespace + 'Path With Spaces.AppImage', whitespace + 'gtk_automation.py',
+        whitespace + 'onpc-test-gui.py'}) | {old_h}
+    historical = (before_alias, before_whitespace,
+                  before_alias - set(native_assets.NATIVE_POLICY_PATHS),
+                  before_whitespace - set(native_assets.NATIVE_POLICY_PATHS))
+    recorded = set(record['files']) - generated
+    require(recorded in (set(), base, base - set(native_assets.NATIVE_POLICY_PATHS), *historical)
+            and (bool(recorded) or not record['files']), 'retirement-record')
+    if recorded in historical:
+        # Historical receipts are read-only clean-output evidence, never new
+        # deletion authority. An unfinished legacy retirement still requires
+        # the exact current closure in _retirement_plan.
+        regular(g, RECORD, 0, 0, 0o600)
+        clean = json.loads(g.read_file(RECORD))
+        require(type(clean) is dict and set(clean) == {'purpose', 'files', 'pending'}
+                and clean['purpose'] == CLEAN_PURPOSE and type(clean['files']) is dict
+                and clean['pending'] is None, 'retirement-record')
+        require(not any(_present(g, path) for path in
+                        (base | recorded | {old_h})), 'retirement-incomplete')
+        movable[old_h] = (None, 0o755, 'other')
     for path, spec in record['files'].items():
         require(type(spec) is dict and set(spec) == {'sha256', 'mode', 'uid', 'gid'}
                 and type(spec['sha256']) is str

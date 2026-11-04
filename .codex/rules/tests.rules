@@ -1,0 +1,275 @@
+# The installed root-owned helper validates paths and creates only new PNG exports.
+prefix_rule(
+    pattern = ["pkexec", "--keep-cwd", "/usr/local/libexec/onpc-export-screenshot"],
+    decision = "allow",
+    justification = "Export a validated graphical test PNG to a new caller-owned /tmp/onpc-*.png file.",
+    match = ["pkexec --keep-cwd /usr/local/libexec/onpc-export-screenshot /tmp/onpc-graphical-smoke-example/testresults/smoke-2.png /tmp/onpc-example.png"],
+    not_match = ["pkexec /usr/bin/install -o edgar -g edgar -m 600 /tmp/source.png /tmp/onpc-example.png"],
+)
+
+# All test artifact formats and future run names share one installed validator.
+prefix_rule(
+    pattern = ["pkexec", "--keep-cwd", "/usr/local/libexec/onpc-test-artifacts"],
+    decision = "allow",
+    justification = "Inspect project test files, results, logs and images, or create new caller-owned exports, through a path-confined helper.",
+    match = [
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts read /tmp/onpc-system-example/input/selected-inputs.json --bytes 8000",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts list /tmp/onpc-future-run",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts tail /var/log/oh-no-parent-control/daemon/2026-09-06.log",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts export /tmp/onpc-future-run/results/image.webp",
+    ],
+    not_match = ["pkexec /usr/bin/cp /etc/shadow /tmp/onpc-copy", "pkexec /tmp/onpc-test-artifacts read /etc/shadow"],
+)
+
+# These checkout-resolving helpers require --keep-cwd before the executable.
+# Keep the complete prefix: allowing pkexec or pkexec --keep-cwd alone would
+# authorize arbitrary privileged programs. Codex allow rules select host execution.
+# This root-owned dispatcher resolves the invoking checkout and pins the test VM.
+# Trust includes future check_*.py tests and edits to their imported code.
+prefix_rule(
+    pattern = ["pkexec", "--keep-cwd", "/usr/local/libexec/onpc-test-runner", ["system", "e2e", "vm", "graphical-worker", "package-notice"]],
+    decision = "allow",
+    justification = "Run project test categories through the installed dispatcher, with validated selection and automatic unprivileged cleanup prerequisites.",
+    match = [
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner graphical-worker",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner system check_future_feature",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner system --area authorization --list",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner e2e --list",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner vm reboot",
+    ],
+    not_match = [
+        "pkexec /usr/bin/python3 -B /tmp/random.py",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner arbitrary-category",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner --command id",
+    ],
+)
+
+# Operator authorization: direct execution of every executable project tool
+# is preapproved, with validated arguments.
+# Setup expands this placeholder to exact tools/ and ./tools/ paths.
+# Run from the project root so these grants work in every checkout/worktree.
+# Prefix rules have no filename glob; new executables need a rules refresh.
+# This trusts the tools and their future edits. It does not validate arguments
+# or grant unrelated task scope, general interpreters, shells or root wrappers.
+# VM exec arguments after -- run only inside the configured, pinned guest.
+# Guest shells/interpreters are covered by this same direct launcher allowance;
+# they are not host commands and need no additional interpreter or shell grant.
+prefix_rule(
+    pattern = [[
+        "tools/backupvm",
+        "./tools/backupvm",
+        "tools/build_package.py",
+        "./tools/build_package.py",
+        "tools/cleanup-e2e",
+        "./tools/cleanup-e2e",
+        "tools/cleanup-screenshots",
+        "./tools/cleanup-screenshots",
+        "tools/diagnose",
+        "./tools/diagnose",
+        "tools/disable-extension",
+        "./tools/disable-extension",
+        "tools/execute-plan",
+        "./tools/execute-plan",
+        "tools/fix-tests",
+        "./tools/fix-tests",
+        "tools/generate_test_coverage.sh",
+        "./tools/generate_test_coverage.sh",
+        "tools/kiosk-prompt-new",
+        "./tools/kiosk-prompt-new",
+        "tools/onpc-diagnostics",
+        "./tools/onpc-diagnostics",
+        "tools/prepare-appsnapshot",
+        "./tools/prepare-appsnapshot",
+        "tools/prepare-e2e-needle",
+        "./tools/prepare-e2e-needle",
+        "tools/prepare-vm",
+        "./tools/prepare-vm",
+        "tools/publish.py",
+        "./tools/publish.py",
+        "tools/publishing/signing.py",
+        "./tools/publishing/signing.py",
+        "tools/read-only",
+        "./tools/read-only",
+        "tools/reliability-plan",
+        "./tools/reliability-plan",
+        "tools/restorevm",
+        "./tools/restorevm",
+        "tools/run-tests",
+        "./tools/run-tests",
+        "tools/run-ui-tests",
+        "./tools/run-ui-tests",
+        "tools/run-unit-tests",
+        "./tools/run-unit-tests",
+        "tools/sync-whatsnew",
+        "./tools/sync-whatsnew",
+        "tools/test-vm",
+        "./tools/test-vm",
+        "tools/vm-pool",
+        "./tools/vm-pool",
+        "tools/write-e2e",
+        "./tools/write-e2e"
+    ]],
+    decision = "allow",
+    justification = "The user preapproves direct execution of this project's tools, without repeated command approval.",
+    match = [
+        "tools/run-unit-tests 'tests/unit/test_*cleanup_safety.py' -q",
+        "./tools/cleanup-e2e",
+        "./tools/prepare-vm",
+        "./tools/prepare-appsnapshot --overwrite false",
+        "tools/publishing/signing.py --help",
+        "tools/cleanup-screenshots /tmp/onpc-selected.png",
+        "tools/run-tests component 'tests/component/test_*.py' -q",
+        "tools/run-tests child-node 'tests/child/**/*.test.mjs'",
+        "tools/run-tests static all",
+        "tools/run-tests artifacts build",
+        "tools/run-tests fast --component broker",
+        "tools/run-tests all",
+        "tools/run-ui-tests --timeout 360s 'tests/ui/test_*.py' -q",
+        "tools/diagnose journal --unit 'oh-no-parent-control*' --lines 500",
+        "tools/test-vm send-key 28",
+        "tools/test-vm --vm 2 exec -- python3 -c 'print(1)'",
+        "./tools/test-vm --vm onpc-Fedora44 exec -- sh -c 'printf probe'",
+        "tools/test-vm --vm 1 exec --timeout 30 -- journalctl --no-pager -n 100",
+        "tools/read-only search --fixed-strings test_runner tests tools",
+        "tools/read-only links docs/TestAutomation/E2E-Building-Blocks.md tests/e2e/README.md",
+        "tools/read-only words --after '## Ordered building-block catalogue' docs/TestAutomation/E2E-Building-Blocks.md",
+        "tools/read-only fetch 'https://example.com/path?key=value'",
+    ],
+    not_match = ["tools/random-script", "pkexec tools/test-vm start", "bash -lc 'tools/run-tests all'"],
+)
+
+prefix_rule(
+    pattern = ["pkexec", "/usr/local/libexec/onpc-diagnostics"],
+    decision = "allow",
+    justification = "Run fixed read-only diagnostics without general root utilities or pagers.",
+    match = ["pkexec /usr/local/libexec/onpc-diagnostics journal --kernel"],
+    not_match = ["pkexec /usr/bin/journalctl --vacuum-time=1s"],
+)
+
+# Routine Git development is preapproved for this trusted project's checkouts.
+# Select the checkout with the command tool's working directory. Prefix rules
+# do not enforce cwd or validate trailing arguments; preserve unrelated work
+# and use these commands only within the authorized development task.
+# Existing machine-wide rules already allow git status.
+prefix_rule(
+    pattern = [["git", "/usr/bin/git"],
+               ["diff", "log", "show", "blame", "ls-files", "rev-parse",
+                "branch", "switch", "checkout", "restore", "add", "commit",
+                "fetch", "pull", "push", "merge", "rebase", "cherry-pick",
+                "revert", "stash", "tag", "worktree", "remote"]],
+    decision = "allow",
+    justification = "The user preapproves routine Git development for this repository, including syncing, staging, committing and pushing.",
+    match = [
+        "git diff --cached", "git log -5 --oneline", "git add -- README.md",
+        "git commit -m 'Update documentation'", "git fetch origin",
+        "git pull --rebase", "git push origin HEAD", "/usr/bin/git push",
+        "git switch -c feature/example", "git merge feature/example",
+        "git worktree add ../parent-control-feature -b feature/example",
+    ],
+    not_match = [
+        "git", "git clean -fd", "git reset --hard", "git config --global core.editor sh",
+        "git -C /tmp/other-repository push", "bash -lc 'git push'",
+    ],
+)
+
+# Restrictive project overrides also take precedence over old global allow
+# entries. An allow cannot cancel a prompt. Use the validated entry points above.
+# Machine-wide ordinary read allowances are maintained separately by setup.
+prefix_rule(
+    pattern = [["virsh", "/usr/bin/virsh", "virt-manager", "/usr/bin/virt-manager"]],
+    decision = "prompt",
+    justification = "Use tools/test-vm for the pinned guest; raw libvirt commands can target other VMs or redefine host resources.",
+)
+prefix_rule(
+    pattern = [["python3", "/usr/bin/python3", "python", "/usr/bin/python",
+                ".venv/onpc-ui-tests/bin/python"]],
+    decision = "prompt",
+    justification = "Use direct project tools for tests, document checks and slice controls, or native apply_patch for edits; general Python can execute arbitrary code.",
+)
+# Routine Make targets are explicitly authorized in this trusted checkout.
+# A blanket make prompt would override both this rule and saved target allows.
+# This is a prefix grant, not argument validation: it also matches trailing
+# arguments and trusts the Makefile and environment. Use tools/run-tests when
+# selection/options need validation; do not add a generic make or shell allow.
+prefix_rule(
+    pattern = [["make", "/usr/bin/make"],
+               ["check", "check-release-version", "check-unit",
+                "check-component", "check-test-fixtures", "check-child-node",
+                "check-child-gjs", "check-child-shell", "check-shell",
+                "check-gjs", "check-static", "test-all", "test-all-verify"]],
+    decision = "allow",
+    justification = "Run the trusted checkout's routine check targets without repeated approval.",
+    match = ["make check", "/usr/bin/make check", "make check-component"],
+    not_match = ["make", "make build", "make check-system", "make install", "make -f /tmp/Makefile check", "bash -lc 'make check'"],
+)
+# Human package wrappers intentionally skip disk admission. Never use them from
+# an agent; the default queued script is also covered by the tools inventory.
+prefix_rule(
+    pattern = [["make", "/usr/bin/make"],
+               ["build", "updateversion", "build-rpm", "srpm", "rpm-source"]],
+    decision = "forbidden",
+    justification = "These package Make targets are human-only and skip disk admission. Use tools/build_package.py in its default queued mode.",
+    match = ["make build", "/usr/bin/make build", "make updateversion", "make build-rpm", "make srpm", "make rpm-source"],
+    not_match = ["make check", "make check-release-version", "tools/build_package.py", "make _build-package"],
+)
+prefix_rule(
+    pattern = [["make", "/usr/bin/make"],
+               ["check-system", "install", "uninstalldeb", "prepare-baseline", "prepare-vm"]],
+    decision = "prompt",
+    justification = "Use tools/run-tests system, tools/prepare-vm or setup.sh for validated system tests and setup; package installation/removal needs separate authorization.",
+    match = ["make check-system LIST=1", "make install", "make prepare-vm"],
+    not_match = ["make check", "make build"],
+)
+prefix_rule(
+    pattern = [["env", "/usr/bin/env", "bash", "/bin/bash", "/usr/bin/bash", "sh", "/bin/sh", "/usr/bin/sh"]],
+    decision = "prompt",
+    justification = "Use direct approved commands; tools/read-only handles quoted --path-glob searches, links and words, and native apply_patch handles workspace edits. General shell scripts need separate approval.",
+)
+prefix_rule(
+    pattern = [["gzip", "/usr/bin/gzip",
+                "wget", "/usr/bin/wget"]],
+    decision = "prompt",
+    justification = "Use tools/read-only for searches, filters and HTTPS reads; unrestricted arguments can run preprocessors, overwrite files, or send modifying network requests.",
+    not_match = ["curl -fsSL 'https://example.com/path?key=value'"],
+)
+# Setup reproduces the user's curl -fsSL allow in codex-read-only.rules. A blanket
+# curl prompt overrides it even for a quoted, direct public GET. Do not duplicate
+# that grant here. It is a prefix, not trailing-argument validation: use it only
+# for trusted public reads, and use tools/read-only fetch for untrusted inputs.
+# Preserve the maintained sort/uniq reader allows too: ordinary pipelines are explicitly
+# authorized across paths, filters and counts. Do not shadow them with a prompt
+# or add duplicate allows. Prefix grants do not validate trailing output options;
+# use tools/read-only for untrusted arguments or argument-confined operations.
+# The user explicitly authorizes rg -n and rg --files across all paths. A blanket rg prompt
+# overrides that machine-wide allow, so keep direct execution options separate.
+# Prefix rules cannot validate trailing options: use tools/read-only search for
+# untrusted arguments and use the direct allowance only for ordinary reads.
+prefix_rule(
+    pattern = [["rg", "/usr/bin/rg"], ["--pre", "--hostname-bin"]],
+    decision = "prompt",
+    justification = "These ripgrep options execute another program; ordinary rg -n searches and rg --files discovery are allowed globally.",
+)
+prefix_rule(
+    pattern = [["sed", "/usr/bin/sed"], ["-i", "--in-place"]],
+    decision = "prompt",
+    justification = "In-place editing needs separate authorization; ordinary sed -n file reads are allowed globally.",
+)
+prefix_rule(
+    pattern = ["pkexec", ["make", "/usr/bin/make", "/usr/bin/python3", "/bin/bash", "/usr/bin/bash",
+                         "/bin/sh", "/usr/bin/sh", "/usr/bin/virsh", "/usr/bin/journalctl",
+                         "/usr/bin/systemctl", "/usr/bin/head", "/usr/bin/tail", "/usr/bin/cat",
+                         "/usr/bin/ls", "/bin/ls", "/usr/bin/stat", "/usr/bin/wc",
+                         "/usr/bin/readlink", "/usr/bin/grep"]],
+    decision = "prompt",
+    justification = "Use the installed test, artifact or diagnostics helper for validated privileged operations.",
+)
+prefix_rule(
+    pattern = [["journalctl", "/usr/bin/journalctl", "systemctl", "/usr/bin/systemctl"]],
+    decision = "prompt",
+    justification = "Use tools/diagnose; unrestricted options can modify the system or launch a pager.",
+)
+prefix_rule(
+    pattern = ["gdbus", "call"],
+    decision = "prompt",
+    justification = "D-Bus calls can mutate system state; use supported diagnostic or test entry points.",
+)

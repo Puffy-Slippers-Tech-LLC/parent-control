@@ -18,7 +18,6 @@ Usage: ./setup.sh [MODE] [--vm NAME]
                        Includes guarded root guest commands through tools/test-vm exec
   --ui-tests-only       Prepare this checkout's UI test environment using installed host packages
   --watch               Install/update only the ONPC Watch VS Code editor extension
-  --codex-rules-only    Refresh shared Codex settings and machine-wide/checkout rules
   --bootstrap-tools     Install setup authorization once, or refresh its existing grant
   --replace-missing-baseline  Replace an explicitly deleted baseline from a prepared, off VM
                              Requires --vm NAME or ID from config/environment.json
@@ -37,7 +36,7 @@ fi
 readonly mode="${1-}"
 readonly vm_name="${3-}"
 case "$mode" in
-    ''|--headless|--dependencies-only|--vm-host-only|--ppa-build-tools|--rpm-build-tools|--test-tools-only|--ui-tests-only|--watch|--codex-rules-only|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
+    ''|--headless|--dependencies-only|--vm-host-only|--ppa-build-tools|--rpm-build-tools|--test-tools-only|--ui-tests-only|--watch|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -167,7 +166,6 @@ case "$mode" in
         run_root vm-host /bin/bash "$script_dir/tools/setup_dependencies.sh" --vm-host-only
         install_test_tools
         ;;
-    --codex-rules-only) install_codex_rules ;;
     --test-tools-only) install_test_tools ;;
     --bootstrap-tools)
         bootstrap_tools

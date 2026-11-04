@@ -93,29 +93,26 @@ no infrastructure/source edits, setup, staging, installation or publication.
 ### Portable Codex configuration
 
 Clone the repository and run `./setup.sh` on a supported desktop, or
-`./setup.sh --headless` on a supported automation server. Both install the
-tracked command policies and render project configuration from
-[`config/codex-project.toml`](../config/codex-project.toml). On an already
-configured host, `./setup.sh --codex-rules-only` refreshes the same settings
-without installing dependencies. Trust the checkout in Codex and restart Codex
-after setup. Setup does not silently mark other directories as trusted.
+`./setup.sh --headless` on a supported automation server. Both install host
+read policies and validate the tracked [project configuration](../.codex/config.toml)
+and [command rules](../.codex/rules/tests.rules). Trust each checkout in Codex
+and restart Codex after setup or tracked rule changes. Setup never marks
+directories trusted automatically.
 
-The generated `.codex/config.toml` and `.codex/rules/tests.rules` are ignored by
-Git. Setup owns these files and replaces them on refresh; make shared changes
-in the tracked templates, not the generated files. Checkout paths are rendered
-for each clone/worktree, including paths containing spaces or quotes. The shared
-defaults include model, reasoning effort, service tier, terminal preferences and
-the checkout write root. Existing personal configuration and credentials under
-`~/.codex` are preserved; project defaults override corresponding personal
-defaults only in this trusted project.
+These portable files arrive with every clone/worktree. They contain no absolute
+checkout paths, credentials or personal state. The current workspace is writable
+under Codex's workspace-write sandbox without an additional absolute write root.
+Other files under `.codex/` remain ignored. Setup validates shared files without
+rewriting them; unchanged host rules and user configuration are left untouched.
 
-Desktop setup adds [`config/codex-desktop.toml`](../config/codex-desktop.toml)
-when the calling account's bundled app marketplace exists, resolving its location
-from `CODEX_HOME` or `~/.codex`. This reproduces desktop preferences and enabled
-bundled plugins. Initialize the separately installed desktop app, then rerun the
-Codex refresh if setup reported missing desktop integrations. Explicit headless
-setup omits them. App-owned MCP/browser process wiring, generated version paths
-and plugin caches are supplied by that app, not copied from another computer.
+Desktop setup adds absent tables from
+[`config/codex-desktop.toml`](../config/codex-desktop.toml) to the user's
+`CODEX_HOME/config.toml` (default `~/.codex/config.toml`) when the bundled
+marketplace exists. Existing personal tables are preserved. The resolved local
+marketplace path stays outside Git. These defaults apply to other projects for
+that user too. Initialize the desktop app, then rerun `./setup.sh --test-tools-only`
+if integrations were unavailable. Headless setup does not add desktop settings.
+App-owned MCP/browser wiring and caches remain managed by the app.
 
 The tracked machine read policy now includes ordinary file readers, pipeline
 filters, checksums and public `curl -fsSL` fetches previously dependent on saved
@@ -130,11 +127,29 @@ host. Setup preserves existing Git settings and reports missing identity/upstrea
 it never copies authentication, private keys, session history or personal trust
 lists. See [signing setup](Publishing.md#noninteractive-signing) for publishing.
 
+### Local state and worktree portability
+
+Besides `.envrc`, keep `.aws/`, Codex login/trust/plugin caches, SSH/signing keys
+and `~/.config/copr` credentials local. Only the two allowlisted `.codex/` files
+are shared. Git configuration (identity, signing and publishing-checkout selection),
+hooks and worktree metadata also belong to the host, not the source tree.
+
+The tracked `config/environment.json` is operational configuration, not a portable
+machine template: branch `repo_root`, backup paths, VM disk anchors and SSH host
+selections must match the destination host. Check these before running launchers;
+a new worktree does not provision equivalent VMs or remote aliases. Keep
+credentials out of that file.
+
+Recreate `.venv/` environments with setup instead of copying them. Builder images,
+installed helpers/Polkit grants and registered VMs are host resources. Runner
+`artifacts/`, `output/`, diagnostic downloads, caches and generated locale files
+remain ignored runtime/build state. Obsolete `.codex-staged-*` snapshots are unused.
+
 ### Setup modes and activation
 
 Run `./setup.sh --test-tools-only`, then restart Codex with this checkout trusted.
 Setup installs root-owned helpers and scoped Polkit rules, pins the finalized
-test baseline's VM UUID, and renders portable project-relative command prefixes.
+test baseline's VM UUID, and validates tracked project-relative command prefixes.
 Installed helpers resolve the invoking repository root at execution time, rather
 than retaining the installation checkout. Launchers select their repository root
 and preserve it through `pkexec --keep-cwd`. Direct artifact and screenshot helper
@@ -146,7 +161,7 @@ argument prefix with the loaded rule. A command missing its allow can run inside
 the sandbox even when other approved commands run on the host; inspecting
 `/proc/self/status` with a separately allowed read does not inspect the failed
 command's context. Do not infer a broken host installation from that error alone.
-After a maintained rule correction, run `./setup.sh --codex-rules-only` and start
+After a tracked project rule correction, start
 a fresh Codex process. Each launcher agent is a fresh process, so its next session
 loads refreshed rules; an already-running agent keeps its original policy.
 The embedded resolver checks repository markers, ownership, permissions and
@@ -156,8 +171,8 @@ authentication to establish the grant. Repeated bootstrap and routine refreshes
 reuse the dedicated `onpc-setup` helper without asking for authentication.
 Repair of an existing denied installation requires running that setup mode from
 an administrator-authorized root session; it never falls back after denial. For Codex-only
-changes, use `./setup.sh --codex-rules-only`. Repeat setup after moving the
-checkout or changing installed helpers; adding tests within a supported category
+host read-policy changes, use `./setup.sh --test-tools-only`. Repeat setup after
+changing installed helpers; adding tests within a supported category
 does not require new approvals. A clean machine uses full `./setup.sh` for
 dependencies and host policies on Ubuntu or Fedora Workstation 44, from a host
 terminal rather than a Flatpak runtime. Ordinary setup does not require VMs.
@@ -180,7 +195,7 @@ needed by isolated UI tests are still installed. It preserves Git identity,
 signing configuration, remotes and credentials, reporting missing identity or
 branch upstream as actions needed. It does not test remote authentication or
 push access. Configure those separately before using committing launchers.
-Headless setup renders the existing Codex command rules but does not install or
+Headless setup validates the tracked Codex command rules but does not install or
 authenticate the Codex CLI. It installs neither VS Code nor its Watch extension.
 An editor connection, SSH server provisioning and account credential management
 remain administrator responsibilities.
@@ -238,9 +253,9 @@ unprivileged mode changes neither host package versions nor Git configuration;
 missing system prerequisites still require the normal dependency setup route.
 For two server worktrees, reserve different branches/checkouts for `fix-tests`
 and other task launchers. Run full `--headless` setup once; in the second
-user-owned worktree run `./setup.sh --ui-tests-only` and
-`./setup.sh --codex-rules-only`. The account grant and builder images are shared;
-checkout environments, rules and launcher state are separate. Completed commits
+user-owned worktree run `./setup.sh --ui-tests-only`. The account grant and
+builder images are shared; checkout environments and launcher state are separate.
+Tracked Codex settings and rules arrive with the worktree. Completed commits
 still follow [configured branch propagation](Execution-Plans.md#shared-worktree-propagation),
 which can merge into the other checkout. Worktrees do not reserve independent
 VMs; existing host-wide VM leases remain authoritative.
@@ -254,13 +269,14 @@ the Command Palette in a trusted checkout; see the
 The [rules renderer](../tools/install_codex_rules.py) validates its required
 launcher inventory, then discovers every regular executable under `tools/`
 without following symlinks. The user preapproves direct project-tool execution;
-setup renders one allow rule containing the exact `tools/` and `./tools/`
+the tracked generated rule contains the exact `tools/` and `./tools/`
 executable paths. Run these commands with the intended checkout root as the
 working directory; the same rules then apply across worktrees and local
 enlistments without embedding checkout locations. Installed system helpers keep
 their fixed absolute paths. This includes validated launcher actions and
-argument orders. A new executable joins the grant at the next rules refresh;
-removed or nonexecutable tools leave it. Codex matches literal argument tokens,
+argument orders. After adding/removing executable tools or editing the rule template,
+regenerate with `python3 -IB tools/install_codex_rules.py --write-rules` and commit
+`.codex/rules/tests.rules` alongside the change. Setup validates the inventory. Codex matches literal argument tokens,
 so a `tools/*` string is not a directory-wide grant. General shells/interpreters
 and arbitrary privileged wrappers retain their restrictions. The tools' own
 argument validation, task authorization and VM/Polkit guards still apply.
@@ -366,7 +382,7 @@ requires explicit task authorization. This grant does not cover blanket Git
 execution, `git clean`, `git reset`, arbitrary configuration or global options
 before the subcommand. It does not authorize product publication.
 
-Refresh with `./setup.sh --codex-rules-only`, then restart Codex with this
+Restart Codex with this
 checkout trusted to load the updated rules.
 
 ## Publishing
@@ -651,8 +667,7 @@ For package builds, agents and automation use `tools/build_package.py` directly
 package Make targets are human-only wrappers that skip disk admission; do not
 invoke them from tools. The script performs the same version consistency check
 and accepts `--format`, `--architecture` and `--rpm-release` selections.
-Its executable grant is rendered by the normal tools inventory at the next
-`./setup.sh --codex-rules-only` refresh and Codex restart.
+Its executable grant is included in the tracked tools inventory.
 The maintained rules forbid direct `make build`, `make updateversion`,
 `make build-rpm`, `make srpm` and `make rpm-source` requests, overriding older
 allows. These prefix rules protect those command shapes, not arbitrary Make
@@ -673,7 +688,7 @@ The former blanket `make` prompt overrode even a saved `make check` allow,
 because the strictest matching rule wins. Do not restore that blanket prompt.
 Codex splits a simple `/bin/bash -lc 'make check'` invocation and evaluates the
 inner command, so it needs no shell allowance. Complex scripts retain the shell
-prompt. After changing rules, run `./setup.sh --codex-rules-only` and restart
+prompt. After changing tracked rules, restart
 Codex with this checkout trusted. Setup maintains these target grants for clean
 machines without changing personal user rules.
 
@@ -982,8 +997,8 @@ allowance remains effective for direct public reads with a quoted literal URL:
 `curl -fsSL 'https://example.com/path?query=value'`. Setup preserves that personal
 rule without adding a duplicate or broader allowance. A blanket project `curl`
 prompt previously overrode it even when the URL was correctly quoted; keep that
-override removed. Refresh changed project rules through
-`./setup.sh --codex-rules-only`, then restart Codex to load them.
+override removed. Restart Codex after tracked project rule changes. Refresh host
+read policies through `./setup.sh --test-tools-only` before restarting Codex.
 
 Ordinary `rg -n`, `rg --files` and `sed -n` reads are explicitly allowed machine-wide across
 all paths. Project prompt rules must not blanket-match `rg` or `sed`, since

@@ -1,7 +1,8 @@
 #!/usr/bin/python3 -IB
-"""Install machine-wide reads and render portable project Codex settings/rules."""
+"""Install host rules and validate the tracked portable Codex files."""
 import json
 import os
+import re
 from pathlib import Path
 import sys
 import stat
@@ -90,25 +91,59 @@ def main():
     if sys.argv[1:] == ['--system'] and os.geteuid() == 0:
         install_system_rules(root)
         return
-    if sys.argv[1:] not in ([], ['--headless']):
-        raise ValueError('run through ./setup.sh --codex-rules-only')
+    if sys.argv[1:] not in ([], ['--headless'], ['--check'], ['--write-rules']):
+        raise ValueError('use setup.sh, --check or --write-rules')
     source = render(root)
-    configuration = (root / 'config/codex-project.toml').read_text().replace(
-        '"@CHECKOUT@"', json.dumps(str(root)))
+    destination = root / '.codex/rules/tests.rules'
+    if sys.argv[1:] == ['--write-rules']:
+        write_checkout_file(destination, source)
+        return
+    if destination.read_text() != source:
+        raise ValueError('tracked rules are stale; regenerate with python3 -IB tools/install_codex_rules.py --write-rules and commit them')
+    tomllib.loads((root / '.codex/config.toml').read_text())
+    if sys.argv[1:] == ['--check']:
+        print('codex-rules-install: tracked settings and tool inventory valid')
+        return
     codex_home = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex')))
     marketplace = codex_home / '.tmp/bundled-marketplaces/openai-bundled'
     if '--headless' not in sys.argv and marketplace.is_dir():
-        configuration += '\n' + (root / 'config/codex-desktop.toml').read_text().replace(
+        desktop = (root / 'config/codex-desktop.toml').read_text().replace(
             '"@MARKETPLACE@"', json.dumps(str(marketplace)))
+        install_desktop_defaults(codex_home / 'config.toml', desktop)
     else:
         print('codex-rules-install: desktop integrations omitted; run setup again after desktop app initialization if needed')
-    tomllib.loads(configuration)
-    write_checkout_file(root / '.codex/config.toml', configuration)
-    write_checkout_file(root / '.codex/rules/tests.rules', source)
-    print('codex-rules-install: project settings installed; trust this checkout in Codex and restart')
+    print('codex-rules-install: tracked project settings ready; trust this checkout in Codex and restart')
 
 
-def write_checkout_file(destination, source):
+def install_desktop_defaults(destination, desktop):
+    """Add absent desktop tables to user config, preserving personal settings."""
+    if any(path.is_symlink() for path in (destination, *destination.parents)):
+        raise ValueError('symlink in user configuration path')
+    existing = destination.read_text() if destination.exists() else ''
+    parsed = tomllib.loads(existing)
+    additions = []
+    for block in re.split(r'\n(?=\[)', desktop):
+        table = tomllib.loads(block)
+        current = parsed
+        # Each template block is one table; inspect its complete dotted path.
+        while len(table) == 1:
+            key, value = next(iter(table.items()))
+            if not isinstance(value, dict):
+                break
+            if key not in current:
+                additions.append(block)
+                break
+            current = current[key]
+            if not isinstance(current, dict):
+                raise ValueError('conflicting desktop configuration table')
+            table = value
+    if additions:
+        configuration = existing.rstrip() + '\n\n' + '\n\n'.join(additions) + '\n'
+        tomllib.loads(configuration)
+        write_checkout_file(destination, configuration, mode=0o600)
+
+
+def write_checkout_file(destination, source, mode=0o644):
     """Replace only managed checkout files, refusing redirected destinations."""
     if any(path.is_symlink() for path in (destination, *destination.parents)):
         raise ValueError('symlink in checkout configuration path')
@@ -124,7 +159,7 @@ def write_checkout_file(destination, source):
         with os.fdopen(descriptor, 'w') as stream:
             stream.write(source)
             stream.flush()
-            os.fchmod(stream.fileno(), 0o644)
+            os.fchmod(stream.fileno(), mode)
             os.fsync(stream.fileno())
         os.replace(temporary, destination)
     finally:

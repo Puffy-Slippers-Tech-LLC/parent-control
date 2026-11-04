@@ -1,7 +1,11 @@
 .envrc
 /.aws
-# Rendered by setup from config/codex-*. Keep host paths and private state local.
-/.codex/
+# Track only portable defaults and rules; private state stays local.
+/.codex/*
+!/.codex/config.toml
+!/.codex/rules/
+/.codex/rules/*
+!/.codex/rules/tests.rules
 /.codex-staged-*
 # Independent development checkouts are not source inputs for this checkout.
 /.worktrees/

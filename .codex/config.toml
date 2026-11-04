@@ -1,11 +1,9 @@
-# Managed by ./setup.sh; machine-specific values are rendered into .codex/config.toml.
+# Portable project defaults. Keep credentials, trust and desktop paths in CODEX_HOME.
 model = "gpt-6.1-sol"
 model_reasoning_effort = "low"
 service_tier = "default"
 
-[sandbox_workspace_write]
-writable_roots = ["@CHECKOUT@"]
-
+# workspace-write already permits the current workspace; no absolute root needed.
 [tui]
 fullscreen_transcript = false
 resume_cwd = "current"

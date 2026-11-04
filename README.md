@@ -69,7 +69,6 @@ version control.
 | Add optional VM host tools and policies | `./setup.sh --vm-host-only` |
 | Refresh test helpers and policies | `./setup.sh --test-tools-only` |
 | Prepare UI tests in another worktree | `./setup.sh --ui-tests-only` |
-| Refresh shared Codex settings and rules | `./setup.sh --codex-rules-only` |
 | Show all setup modes | `./setup.sh --help` |
 
 Open **ONPC: Watch** from the VS Code Command Palette to view run status,
@@ -79,8 +78,8 @@ full setup and `--test-tools-only` also install it when a VS Code CLI is availab
 Closing the tab leaves tests running.
 
 Restart Codex after refreshing rules; trust this checkout.
-Shared settings and command approvals are maintained in Git and rendered for
-each machine by setup. For a server, use `./setup.sh --headless`. See
+Portable project settings and command approvals are tracked in `.codex/` and
+arrive with every worktree. Setup installs host policies automatically. For a server, use `./setup.sh --headless`. See
 [portable Codex configuration](docs/Approval-Tools.md#portable-codex-configuration)
 for desktop integrations and separately provisioned credentials, signing keys
 and account authentication.

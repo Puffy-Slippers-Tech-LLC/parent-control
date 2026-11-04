@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 
@@ -28,9 +29,36 @@ def _local_checkout(root, branch):
 
 
 def _remote(host, branch, arguments):
-    """Future SSH controller transport; never fall back to local execution."""
-    raise ValueError(f'SSH controller launch is not implemented: host {host.name}, '
-                     f'branch {branch["name"]}, checkout {branch["repo_root"]}')
+    """Let SSH carry the terminal and exit status; never execute locally."""
+    # OpenSSH passes a command string to the remote shell. Quote every token,
+    # including the Python bootstrap and opaque user arguments, exactly once.
+    # Use the established destination marker rather than importing a new helper
+    # from the server: an older checkout with controller admission can receive it.
+    # The destination consumes this PID-bound marker and verifies Git itself.
+    bootstrap = '''import json, os, sys
+from pathlib import Path
+root = Path(sys.argv[1]).resolve()
+branch, name = sys.argv[2:4]
+command = root / 'tools' / name
+if Path(name).name != name or not command.is_file() or command.is_symlink():
+    sys.exit('launcher: launcher is missing from configured checkout')
+os.chdir(root)
+os.environ['ONPC_LAUNCHER_DESTINATION'] = json.dumps(dict(
+    root=str(root), branch=branch, launcher=name, pid=os.getpid()))
+os.execve('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(command),
+          *sys.argv[4:]], dict(os.environ))
+'''
+    remote = shlex.join(['/usr/bin/python3', '-IBu', '-c', bootstrap,
+                         branch['repo_root'], branch['name'],
+                         Path(sys.argv[0]).name, *arguments])
+    command = ['ssh', '-t' if sys.stdin.isatty() and sys.stdout.isatty() else '-T',
+               '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
+               '-o', 'IgnoreUnknown=UseKeychain', '-o', 'ConnectTimeout=10',
+               '-o', 'ServerAliveInterval=30', '-o', 'ServerAliveCountMax=3',
+               '-p', str(host.ssh_port), host.name, remote]
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os.execvp(command[0], command)
 
 
 def dispatch(entry):
@@ -59,10 +87,11 @@ def dispatch(entry):
             raise ValueError('forwarded launcher destination changed')
         _local_checkout(root, forwarded['branch'])
     elif (name == 'run-tests' and selected is None
-          and (os.environ.get('ONPC_RUNNER_INVOCATION')
+          and (os.environ.get('ONPC_LAUNCHER_CONTROLLER_ROOT') == str(root)
+               or os.environ.get('ONPC_RUNNER_INVOCATION')
                or len(arguments) > 1 and arguments[1] == '--unattended')):
-        # Repair attempts and category children already belong to this
-        # checkout's controller. Reapplying the public default can verify
+        # Internal inventory calls, repair attempts and category children belong
+        # to this checkout's controller. Reapplying the public default can verify
         # another checkout instead of the repair (or fail ownership guards).
         pass
     else:

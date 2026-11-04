@@ -124,6 +124,9 @@ def environment():
                  'ONPC_LAUNCHER_RELOAD_BASELINE', 'ONPC_VM_RELOAD_KEEPER'):
         result.pop(name, None)
     result['PYTHONUNBUFFERED'] = '1'
+    # Internal runner calls, including inventory discovery before a repair
+    # invocation exists, belong to this controller's checkout.
+    result['ONPC_LAUNCHER_CONTROLLER_ROOT'] = str(Path(__file__).resolve().parents[1])
     return result
 
 

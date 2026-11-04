@@ -198,7 +198,16 @@ unregistered current branch runs in its invoking checkout. Local placement uses
 the branch's `host` and `repo_root`, verifies the branch is already checked out,
 and launches the destination checkout's controller there. It never switches Git
 branches. Host `enabled` flags govern VM scheduling, not controller placement.
-SSH controller dispatch is a stub that refuses with an explicit message.
+SSH placement uses the configured host name as a private OpenSSH alias and its
+`ssh_port`. It runs the selected checkout's launcher on that server, verifies
+the checked-out branch, and pins the destination without reapplying remote
+launcher defaults. Arguments are shell-quoted; stdin/stdout/stderr and exit status
+travel through SSH, with a remote terminal only for interactive callers.
+Authentication is noninteractive and requires an already trusted host key;
+connection failures never fall back to local execution. Run `./setup.sh --server`
+on the server and `./setup.sh --connect-server` on the client first. No additional
+controller service is needed. Source and credentials remain host-local; dispatch
+does not synchronize checkouts or forward the client's environment.
 Routing policy lives in the reloadable `launcher_controller.py`; the stable
 bootstrap remains a trampoline. Reloading a retained observer stays attached to
 its original run rather than selecting a new branch. Inspection commands such as
@@ -207,6 +216,9 @@ Internal `run-tests CATEGORY --unattended` children stay in their controller's
 checkout and retain its activity ownership; public defaults are not reapplied.
 Repair-runner invocations carrying `ONPC_RUNNER_INVOCATION` likewise stay in
 their repair controller's checkout, so verification executes the repaired source.
+The shared detached-controller environment also pins internal `run-tests` calls
+to that controller's root, including inventory discovery before a repair
+invocation exists. Explicit `--branch` still overrides this internal default.
 
 ```sh
 tools/execute-plan --plan 'docs/Example.md' --check

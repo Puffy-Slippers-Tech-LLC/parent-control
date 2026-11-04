@@ -203,8 +203,7 @@ def main():
     print('Then use ONPC: Watch. Repeating this setup reuses the client key and profile.')
     print('Resolve any action-needed items in the server setup summary before starting fix-tests.')
     print('Launch remotely with:')
-    print('  ssh -t ' + shlex.quote(alias) + ' ' + shlex.quote(
-        'cd ' + shlex.quote(remote_root) + ' && tools/fix-tests unit'))
+    print('  ' + shlex.join(['tools/fix-tests', '--branch', branches[0]['name'], 'unit']))
 
 
 if __name__ == '__main__':

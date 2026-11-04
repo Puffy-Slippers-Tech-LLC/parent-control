@@ -250,6 +250,8 @@ disable qualification callers and `E2E-015/child-overlay-cancel`, after online
 resume/credential rebind or explicit offline restoration, before setup releases
 scenario input. Its
 preparation-only selector retains separate proof of both restore branches.
+The named app-set qualification selects just native/baseline-child under its
+fixed caller, with independent Riley launcher verification before product input.
 Ubuntu's [product-free E2E preparation](../integration/README.md#ubuntu-product-free-e2e-preparation)
 and the same [Fedora boundary](../integration/README.md#fedora-product-free-e2e-preparation)
 provision the native closure after owned SSH readiness and before package-only

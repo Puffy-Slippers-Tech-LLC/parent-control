@@ -220,6 +220,10 @@ reboot preserves the selected bytes and scenario mutations.
 
 Clean Ubuntu 26.04 and Fedora 44 installed E2E attempts select their immutable runtime
 input before VM acquisition. Unrelated callers retain the `native` closure.
+`NamedAppSetQualification` binds `check_e2e_compose_a_named_app_rule_set`
+to the existing `native`, `baseline-child` union so Riley's four catalogue
+launchers are present and independently verified before Parent edits her rules.
+This preparation needs no activity files or child app launches.
 `BaselineJourneyQualification` and `ActiveGrantDisableQualification` bind
 `check_e2e_baseline_journey` and `check_e2e_active_grant_disable`, respectively,
 to the finite `native`, `activity` and `baseline-child` union. The last subset supplies

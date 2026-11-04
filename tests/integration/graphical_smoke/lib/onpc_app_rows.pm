@@ -328,7 +328,7 @@ sub edit_policy {
         && (($app eq $policy_app && $draft =~ /\Amatch-(?:(?:precise|wildcard)(?:-basename)?|wildcard-appimages)\z/)
             || ($app eq $policy_apps{H} && $draft eq 'match-hard-precise')
             || ($app eq $policy_apps{Alias} && $draft eq 'match-alias-precise')
-            || ($app eq $policy_apps{S} && $draft eq 'match-soft-wildcard'))
+            || ($app eq $policy_apps{S} && $draft =~ /\Amatch-soft-(?:wildcard|precise)\z/))
         && $access =~ /\A(?:allowed|permanent|conditional)\z/
         && $prefix =~ /\A[a-z][a-z0-9-]*\z/ && ref($filters) eq 'ARRAY' && @$filters <= 2;
     my %used;
@@ -379,6 +379,94 @@ sub policy_edit {
     for my $stage ('final-screen', 'final-entry', 'final-match', 'final-access') {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
+    $journey->finish();
+}
+
+# FLOW19: explicit entry and finite app list. Caller owns the current ledger,
+# independent return and exact saved-row comparisons on the controller.
+sub named_app_set {
+    onpc_progress::operation('Saving the declared app rules for [Child user]');
+    my ($journey, $source, $entry, $window, $child, $apps, $prefix) = @_;
+    die 'app-set:binding' unless @_ == 7 && ref($journey) eq 'onpc_journey'
+        && ($child eq 'child' || $child eq 'existing')
+        && (($source eq 'gdm' && $entry eq 'fresh' && $window eq 'new')
+            || ($source eq 'desktop' && $entry eq 'same-user'
+                && $window eq 'retained'))
+        && ref($apps) eq 'ARRAY' && @$apps && @$apps <= 4;
+    my %used;
+    for my $app (@$apps) {
+        die 'app-set:apps' unless ref($app) eq 'ARRAY' && @$app == 3
+            && exists($policy_apps{$app->[0]}) && !$used{$app->[0]}++
+            && (($app->[0] eq 'A' && $app->[1] =~ /\Amatch-(?:(?:precise|wildcard)(?:-basename)?|wildcard-appimages)\z/)
+                || ($app->[0] eq 'H' && $app->[1] eq 'match-hard-precise')
+                || ($app->[0] eq 'S' && $app->[1] =~ /\Amatch-soft-(?:wildcard|precise)\z/)
+                || ($app->[0] eq 'Alias' && $app->[1] eq 'match-alias-precise'))
+            && $app->[2] =~ /\A(?:allowed|permanent|conditional)\z/;
+    }
+    my $section = $journey->scope($prefix);
+    my $stage = $entry eq 'fresh' ? 'parent-selected' : 'entry-parent-retained';
+    if ($entry eq 'fresh') {
+        $journey->consume_observation('parent-selected',
+            onpc_parent::open_for_child($journey, $source, $entry, $window, $child));
+    } else {
+        $section->consume_observation($stage,
+            onpc_parent::open_for_child($section, $source, $entry, $window, $child, 'entry'));
+    }
+    $section->consume_observation('apps-page', $section->seen('apps-page'));
+    for my $index (0 .. $#$apps) {
+        my ($role, $draft, $access) = @{$apps->[$index]};
+        edit_policy($section, fixture_app($role), $draft, $access, 'edit-' . $index, [], 1);
+    }
+    onpc_text::replace_text($section, 'catalogue-clear', 'clear');
+    saved_rows($section, $apps, 'saved');
+    $section->consume_observation($_, $section->seen($_)) for qw(before session);
+    # DESK03 keeps the original desktop and independently observes GDM.
+    require onpc_desktop_session;
+    return onpc_desktop_session::switch_user(
+        $section, $section->seen('repeat-desktop'), 'repeat-desktop');
+}
+
+sub saved_rows {
+    onpc_progress::operation('Comparing every saved app rule');
+    my ($journey, $apps, $prefix) = @_;
+    die 'app-set:read-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && ref($apps) eq 'ARRAY' && @$apps
+        && $prefix =~ /\A[a-z][a-z0-9-]*\z/;
+    for my $app (@$apps) {
+        my $role = lc($app->[0]);
+        for my $kind ('match', 'access') {
+            my $stage = "$prefix-$role-$kind";
+            $journey->consume_observation($stage, $journey->seen($stage));
+        }
+    }
+}
+
+sub qualify_named_app_set {
+    onpc_progress::operation('Checking saved child app rules after Parent returns');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'app-set:qualification' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'named-app-set', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    my $apps = [['A', 'match-precise', 'allowed'], ['H', 'match-hard-precise', 'permanent'],
+                ['S', 'match-soft-wildcard', 'conditional']];
+    my $smaller = [['A', 'match-precise', 'conditional'], ['S', 'match-soft-precise', 'allowed']];
+    require onpc_desktop_session;
+    onpc_gdm::reattach_functional();
+    named_app_set($journey, 'gdm', 'fresh', 'new', 'child', $apps, 'first');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'return');
+    $journey->consume_observation('returned-session', $journey->seen('returned-session'));
+    $journey->consume_observation('returned-parent-retained',
+        onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'child', 'returned'));
+    $journey->consume_observation('returned-apps', $journey->seen('returned-apps'));
+    saved_rows($journey, $apps, 'returned');
+    named_app_set($journey, 'desktop', 'same-user', 'retained', 'child', $smaller, 'smaller');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'final-return');
+    $journey->consume_observation('final-session', $journey->seen('final-session'));
+    $journey->consume_observation('final-parent-retained',
+        onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'child', 'final'));
+    $journey->consume_observation('final-apps', $journey->seen('final-apps'));
+    saved_rows($journey, $smaller, 'final');
     $journey->finish();
 }
 

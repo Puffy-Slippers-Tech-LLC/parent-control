@@ -1155,6 +1155,12 @@ sub run {
         onpc_app_rows::match_save_cancel(\&exchange);
         return;
     }
+    if ($ready->{named_app_set}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::qualify_named_app_set(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{policy_edit}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

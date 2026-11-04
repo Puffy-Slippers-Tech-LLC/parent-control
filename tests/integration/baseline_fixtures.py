@@ -102,13 +102,14 @@ def _compiled_retirement_record(g, identities):
     # predate the Alias launcher and the move of H into Whitespace (tasks
     # 229a and 227); changing movable fixtures must not invalidate clean stock
     # compiler witnesses. Recognize only those exact earlier inventories.
-    alias = '/home/onpc-child-jordan/.local/share/applications/com.puffyslippers.ONPCTest.Alias.desktop'
-    whitespace = '/opt/onpc-test-fixtures/Applications/Whitespace/'
-    old_h = '/opt/onpc-test-fixtures/Applications/Path With Spaces.AppImage'
+    alias = (identities['other'].pw_dir + '/.local/share/applications/'
+             + assets.desktop_id('Alias'))
+    whitespace = assets.PREFIX + '/Whitespace/'
+    old_h = assets.PREFIX + '/Path With Spaces.AppImage'
     before_alias = base - {alias}
     before_whitespace = (before_alias - {
-        whitespace + 'Path With Spaces.AppImage', whitespace + 'gtk_automation.py',
-        whitespace + 'onpc-test-gui.py'}) | {old_h}
+        whitespace + 'Path With Spaces.AppImage',
+        *(whitespace + name for name in assets.GUI_FILES)}) | {old_h}
     historical = (before_alias, before_whitespace,
                   before_alias - set(native_assets.NATIVE_POLICY_PATHS),
                   before_whitespace - set(native_assets.NATIVE_POLICY_PATHS))
@@ -120,6 +121,7 @@ def _compiled_retirement_record(g, identities):
         # deletion authority. An unfinished legacy retirement still requires
         # the exact current closure in _retirement_plan.
         regular(g, RECORD, 0, 0, 0o600)
+        require(g.filesize(RECORD) <= 1024 * 1024, 'retirement-record')
         clean = json.loads(g.read_file(RECORD))
         require(type(clean) is dict and set(clean) == {'purpose', 'files', 'pending'}
                 and clean['purpose'] == CLEAN_PURPOSE and type(clean['files']) is dict

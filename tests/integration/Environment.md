@@ -410,6 +410,11 @@ are audited. Only complete receipt-bound legacy fixture admissions and their
 proven generated outputs may be retired before compilation; ambiguous files
 refuse. A bounded clean-output witness in the existing retirement record preserves
 authenticated stock backups across package updates and interrupted retries.
+Completed clean captures may retain the exact older retirement inventory from
+before the H executable moved into `Whitespace/` and Jordan gained the Alias
+launcher. Readback preserves that receipt and requires every historical and
+current fixture path to be absent, with the original owner/mode checks intact;
+it does not authorize migration or deletion from that older inventory.
 
 `tools/run-tests system --vm onpc-Fedora44 check_fixture_snapshots`
 qualifies actual clean baseline/app captures, retained source and archived input

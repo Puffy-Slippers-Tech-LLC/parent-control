@@ -30,6 +30,7 @@ ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',
                     'E2E-019/native-grid-soft-blocked-enabled')
 LIFECYCLE_SUBSETS = ('native', 'baseline-child')
 LIFECYCLE_CALLER = 'E2E-027/continuous'
+APP_SET_CALLER = 'check_e2e_compose_a_named_app_rule_set'
 
 
 def qualified_subsets(subsets=SUBSETS, *, caller=None, product_free=False):
@@ -38,7 +39,8 @@ def qualified_subsets(subsets=SUBSETS, *, caller=None, product_free=False):
             (subsets != SUBSETS and not (subsets == ACTIVITY_SUBSETS
              and caller in ACTIVITY_CALLERS and not product_free)
              and not (subsets == LIFECYCLE_SUBSETS
-                      and caller == LIFECYCLE_CALLER and product_free))):
+                      and ((caller == LIFECYCLE_CALLER and product_free)
+                           or (caller == APP_SET_CALLER and not product_free))))):
         raise ValueError('fixtures:e2e-profile-not-qualified')
     return subsets
 
@@ -98,7 +100,8 @@ def prepare(vm, lease, directory, selection, *, product_free=False,
 def asset_hashes(selection, *, subsets=SUBSETS, caller=None, child=False, product_free=False):
     """Bind legacy public observation keys to the selected runtime bytes."""
     subsets = qualified_subsets(subsets, caller=caller, product_free=product_free)
-    if type(child) is not bool or (child and subsets != ACTIVITY_SUBSETS):
+    if type(child) is not bool or (child and not (subsets == ACTIVITY_SUBSETS
+            or subsets == LIFECYCLE_SUBSETS and caller == APP_SET_CALLER and not product_free)):
         raise ValueError('fixtures:e2e-profile-not-qualified')
     manifest = fixture_execution.verify(selection_record(selection))
     from tests.fixtures import native_assets

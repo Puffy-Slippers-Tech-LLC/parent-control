@@ -365,10 +365,11 @@ def prepare_installed_setup(context, transport, guard, *, observer=None):
             prepared['child_fixture'] = NativeFixtures(
                 transport, context.verified, profile='baseline-child').verify()
         guard()
-        with timed_stage('setup-activity-fixture-verification'):
-            prepared['activity_fixture'] = NativeFixtures(
-                transport, context.verified, profile='activity').verify()
-        guard()
+        if 'activity' in subsets:
+            with timed_stage('setup-activity-fixture-verification'):
+                prepared['activity_fixture'] = NativeFixtures(
+                    transport, context.verified, profile='activity').verify()
+            guard()
     if getattr(context, 'asset_transfer', None) is not None:
         context.asset_transfer.provision_installed(context.lease, transport)
     if clean:

@@ -2274,6 +2274,19 @@ class PolicyQualification(KioskEntryQualification):
         return journey(context, progress)
 
 
+class NamedAppSetQualification(KioskEntryQualification):
+    fixture_subsets = ('native', 'baseline-child')
+    fixture_caller = 'check_e2e_compose_a_named_app_rule_set'
+
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from named_app_set import NamedAppSetJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return NamedAppSetJourney(context, progress)
+
+
 class PolicyLegendQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

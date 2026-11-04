@@ -23,7 +23,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **079b — [Compose a named app-rule set](E2E-Tasks/079b-compose-a-named-app-rule-set.md)**.
+Next task: **080 — [Check app rule changes with time limits on](E2E-Tasks/080-case-13.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

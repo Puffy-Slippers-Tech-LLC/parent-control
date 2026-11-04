@@ -764,7 +764,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          upgrade_assets=False, package_upgrade=False, chinese_kiosk_lifecycle=False,
          package_install=False, customer_reboot=False, app_row_observations=False, native_fixtures=False,
          catalogue_search=False, catalogue_filters=False, policy_legend=False, match_save_cancel=False,
-         match_editor=False, access_choices=False, policy_edit=False, rejected_parent_rule=False,
+         match_editor=False, access_choices=False, policy_edit=False, named_app_set=False, rejected_parent_rule=False,
          feedback_read=False, text_qualification=False, allowance_presets=False, allowance=False,
          time_explanation=False, revoke_cancel=False, revocation=False, set_allowance=False, app_restart=False,
          allowance_boundaries=False, kiosk_valid_duration=False, request_duration=False,
@@ -1021,6 +1021,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             (native_fixtures and not catalogue_search and not catalogue_filters
              and not policy_legend and not match_save_cancel and not match_editor
              and not access_choices)), 'smoke:policy-prerequisites')
+    require(type(named_app_set) is bool and (not named_app_set or
+            (native_fixtures and not any((catalogue_search, catalogue_filters, policy_legend,
+                match_save_cancel, match_editor, access_choices, policy_edit, rejected_parent_rule)))),
+            'smoke:named-app-set-prerequisites')
     require(type(access_choices) is bool and (not access_choices or
             (native_fixtures and not catalogue_search and not catalogue_filters
              and not policy_legend and not match_save_cancel and not match_editor)),
@@ -1043,7 +1047,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         and fresh_desktop is None and approval_flow is None
         and not any(value for name, value in locals().items()
                     if name not in ('assets', 'provision_credentials', 'app_row_observations',
-                                    'native_fixtures', 'catalogue_search', 'catalogue_filters', 'policy_legend', 'match_save_cancel', 'match_editor', 'access_choices', 'policy_edit', 'rejected_parent_rule') and isinstance(value, bool)))),
+                                    'native_fixtures', 'catalogue_search', 'catalogue_filters', 'policy_legend', 'match_save_cancel', 'match_editor', 'access_choices', 'policy_edit', 'named_app_set', 'rejected_parent_rule') and isinstance(value, bool)))),
         'smoke:native-fixtures-prerequisites')
     require(type(public_connectivity_controls) is bool and (not public_connectivity_controls or (
         assets is not None and provision_credentials and parent_toggle
@@ -1806,6 +1810,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-access-choices-qualification'
         if policy_edit:
             result['scope'] = 'installed-policy-qualification'
+        if named_app_set:
+            result['scope'] = 'installed-named-app-set-qualification'
         if feedback_read:
             result['scope'] = 'installed-feedback-read-qualification'
         if file_chooser:
@@ -2356,6 +2362,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if policy_edit:
                     from parent_setup_qualification import PolicyQualification
                     qualification_class = PolicyQualification
+                if named_app_set:
+                    from parent_setup_qualification import NamedAppSetQualification
+                    qualification_class = NamedAppSetQualification
                 if feedback_read:
                     from parent_setup_qualification import FeedbackReadQualification
                     qualification_class = FeedbackReadQualification

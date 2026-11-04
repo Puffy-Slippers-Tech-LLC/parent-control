@@ -1,4 +1,5 @@
 .envrc
+/.aws
 # Rendered by setup from config/codex-*. Keep host paths and private state local.
 /.codex/
 /.codex-staged-*

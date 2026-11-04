@@ -75,9 +75,10 @@ def expected_admissions(members, accounts, os_id):
                    for role in ('A', 'H', 'S', 'N')]
     gui = [by_path[native_assets.PREFIX + '/' + name]['sha256']
            for name in native_assets.GUI_FILES]
-    for name, digest in zip(native_assets.GUI_FILES, gui):
-        system.require(by_path[native_assets.PREFIX + '/Versioned/' + name]['sha256'] == digest,
-                       'fixture-provisioning:runtime-alias')
+    for directory in native_assets.GUI_DIRECTORIES:
+        for name, digest in zip(native_assets.GUI_FILES, gui):
+            system.require(by_path[native_assets.PREFIX + '/' + directory + name]['sha256'] == digest,
+                           'fixture-provisioning:runtime-alias')
     subject = ','.join(str(uid) for uid in sorted(accounts[role]['uid'] for role in ('child', 'other')))
     return {path: '# Finite reusable fixture admission; inputs remain untrusted.\n' + ''.join(
         f'allow perm={permission} uid={subject} : sha256hash={digest} trust=0\n' for digest in hashes)

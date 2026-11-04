@@ -28,7 +28,7 @@ from typing import Mapping
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from tests.fixtures.native_assets import (ASSETS as NATIVE_ASSETS, TRUSTED_NATIVE,
+from tests.fixtures.native_assets import (ASSETS as NATIVE_ASSETS, TRUSTED_NATIVE, GUI_DIRECTORIES,
     LEGACY_S, desktop_id, desktop_entry, executable_path, version_pattern)
 SOURCE = Path(__file__).with_name("onpc_test_application.c")
 GUI_SOURCE = Path(__file__).with_name("gui_application.py")
@@ -41,7 +41,7 @@ INSTALL_PREFIX = Path("opt/onpc-test-fixtures")
 READY_MARKER = "ONPC_TEST_APPLICATION_READY"
 NATIVE_NAMES = (
     "Exact Fixture.AppImage",
-    "Path With Spaces.AppImage",
+    "Whitespace/Path With Spaces.AppImage",
     "Lunar Client-3.7.17.AppImage",
     "Lunar Client-3.8.0.AppImage",
     "PrismLauncher.AppImage",
@@ -198,10 +198,11 @@ def _build_native_layout(output: Path, native: Path) -> None:
     image = output / "image-root"
     applications = image / INSTALL_PREFIX / "Applications"
     applications.mkdir(parents=True, exist_ok=True)
-    _copy_gui_runtime(applications)
-    (applications / 'Versioned').mkdir()
-    (applications / 'Versioned').chmod(0o755)
-    _copy_gui_runtime(applications / 'Versioned')
+    for directory in GUI_DIRECTORIES:
+        adjacent = applications / directory
+        adjacent.mkdir(exist_ok=True)
+        adjacent.chmod(0o755)
+        _copy_gui_runtime(adjacent)
     identities = {asset[1]: asset[0] for asset in NATIVE_ASSETS}
     identities[LEGACY_S] = 'S'
     identities[NATIVE_NAMES[3]] = 'S-update'

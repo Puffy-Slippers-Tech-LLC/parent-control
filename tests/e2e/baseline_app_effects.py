@@ -167,7 +167,7 @@ class BaselineAppEffectsJourney(GrantAppEffectsJourney):
                                 r'onpc-test-native-[0-9a-f]{32}\.service', unit) is None
                                 or executable not in (
                                     '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
-                                    '/opt/onpc-test-fixtures/Applications/Path With Spaces.AppImage',
+                                    '/opt/onpc-test-fixtures/Applications/Whitespace/Path With Spaces.AppImage',
                                     '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage')):
                             continue
                         message = entry.get('MESSAGE')

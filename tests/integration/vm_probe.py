@@ -1055,6 +1055,29 @@ def reproduce_native_denial(lease, fixture_selection):
         boundary_operation='native-hard-command-blocked', fixture_selection=selection, timeout=1800)
 
 
+def reproduce_match_editor(lease, fixture_selection):
+    """Retain the saved wildcard/hard block before the next editor opening."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from match_editor_case import PLAN
+    from policy_edits import AppPolicyJourney
+    from e2e_fixture_preparation import validate_input
+    from system_fixture_preparation import guest_target
+    from tools.test_storage import named_input
+
+    system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
+                   'fixtures:e2e-installed-clean-baseline-required')
+    selection = validate_input(fixture_selection,
+                              target=guest_target(lease.capture.state['guest']))
+    name, xml, _record = attested_online_snapshot(lease)
+    lease.installed_name, lease.installed_xml = name, xml
+    lease.online_pending, lease.online_bootstrap = False, None
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, AppPolicyJourney, PLAN,
+        'rejected-open', 'match-editor', assets=assets,
+        boundary_operation='match-open', fixture_selection=selection, timeout=1800)
+
+
 @contextmanager
 def memory_samples(lease, transport, directory):
     """Measure the owned guest and its host RSS alongside this diagnostic."""
@@ -1310,6 +1333,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from approval_return import ApprovalReturnJourney, NEW_PLAN
         from native_denial import NativeDenialJourney, PLAN as NATIVE_DENIAL_PLAN
         from grant_access_case import GrantAccessJourney, PLAN as GRANT_ACCESS_PLAN
+        from match_editor_case import PLAN as MATCH_EDITOR_PLAN
+        from policy_edits import AppPolicyJourney
         restoration = (surface == 'baseline-restoration'
             and journey_type is BaselineJourney and plan is PLAN
             and boundary == 'restore-saved' and boundary_operation == 'parent-save-disabled'
@@ -1332,7 +1357,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         grant_logout = (surface == 'grant-logout'
             and journey_type is GrantAccessJourney and plan is GRANT_ACCESS_PLAN
             and boundary == 'grant-logout-logout' and boundary_operation == 'system:standard-logout')
-        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or native_denial or grant_logout)
+        match_editor = (surface == 'match-editor'
+            and journey_type is AppPolicyJourney and plan is MATCH_EDITOR_PLAN
+            and boundary == 'rejected-open' and boundary_operation == 'match-open')
+        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or native_denial or grant_logout or match_editor)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1373,8 +1401,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if selected_setup:
             from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS
             context.fixture_selection = fixture_selection
-            context.fixture_subsets = ('native',) if surface in ('native-denial', 'grant-logout') else ACTIVITY_SUBSETS
+            context.fixture_subsets = ('native',) if surface in ('native-denial', 'grant-logout', 'match-editor') else ACTIVITY_SUBSETS
             context.fixture_caller = ({'native-denial': None,
+                                       'match-editor': None,
                                        'grant-logout': 'E2E-005/grant-only-new',
                                        'natural-access': 'E2E-008/fresh-login',
                                        'countdown-grant': 'E2E-011/grant-only',
@@ -1453,6 +1482,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                 stream.write(json.dumps({'stage': stage, 'observed': observed}) + '\n')
             print(surface + '-diagnosis: ' + stage, file=sys.stderr, flush=True)
 
+        if surface == 'match-editor':
+            from native_fixtures import fixture_actions
+            actions = fixture_actions(include_refusal=False)
         journey = Reproduction(context, progress,
                                **({'plan': plan} if plan is not None else {}),
                                **({'actions': actions} if actions is not None else {}))
@@ -1478,7 +1510,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                             # prompt identity and normal fresh-proof deadline.
                             observer = (journey.ui if surface == 'delayed-approval'
                                         else UiObservations(transport))
-                            observed = observer.observe(boundary_operation)
+                            observed = observer.observe(boundary_operation, **(
+                                {'child': plan.child_bindings[boundary]}
+                                if plan is not None and boundary in plan.child_bindings else {}))
                     except Exception as error:
                         observed = {'outcome': 'refused', 'error_type': type(error).__name__}
                         # Capture before guard probes can replace the SSH status.

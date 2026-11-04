@@ -7,11 +7,11 @@ except ImportError:
     from tests.fixtures.baseline_environment import desktop_settings_files, automatic_update_files
 
 try:
-    from native_assets import (ASSETS, GUI_FILES, PREFIX, TRUSTED_NATIVE, ACTIVITY_PREFIX,
+    from native_assets import (ASSETS, GUI_FILES, GUI_DIRECTORIES, PREFIX, TRUSTED_NATIVE, ACTIVITY_PREFIX,
                                ACTIVITY_EXECUTABLE, trusted_file_modes, desktop_entry, desktop_id,
                                legacy_executable_paths)
 except ImportError:
-    from tests.fixtures.native_assets import (ASSETS, GUI_FILES, PREFIX, TRUSTED_NATIVE,
+    from tests.fixtures.native_assets import (ASSETS, GUI_FILES, GUI_DIRECTORIES, PREFIX, TRUSTED_NATIVE,
         ACTIVITY_PREFIX, ACTIVITY_EXECUTABLE, trusted_file_modes, desktop_entry, desktop_id,
         legacy_executable_paths)
 
@@ -38,7 +38,7 @@ def native_files(accounts):
         files[PREFIX + '/' + filename] = (role, 0o755, 'other')
     for path in legacy_executable_paths():
         files[path] = ('S', 0o755, 'other')
-    for directory in ('', 'Versioned/'):
+    for directory in GUI_DIRECTORIES:
         for filename in GUI_FILES:
             files[PREFIX + '/' + directory + filename] = (filename, 0o644, 'other')
     files[ACTIVITY_EXECUTABLE] = ('trusted-activity', 0o755, 'system')

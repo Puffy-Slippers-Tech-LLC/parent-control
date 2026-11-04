@@ -1741,6 +1741,14 @@ finish with `tools/test-vm stop`; this route supplies no acceptance credit.
 observer on that retained entry, without launching the fixture or advancing the
 journey.
 
+`tools/test-vm --vm NAME reproduce-match-editor` reuses case 185's
+`AppPolicyJourney` / `match_editor_case.PLAN` through the saved wildcard and
+Hard Blocked choice for Jordan. It attempts the next guarded `match-open`
+once and retains the Parent scene at `rejected-open`, recording the result in
+`boundary-observation.json`. Inspect it with guarded `exec` probes; finish with
+`tools/test-vm --vm NAME stop` before clean acceptance. This route uses the
+selected native fixture closure and supplies diagnostic evidence only.
+
 `SecretVariables` freezes controller-supplied fixture passwords for the fixed
 `parent`, `child`, `other-parent` and `other-child` roles. It accepts only 1–256
 printable ASCII characters, rejecting control characters that could submit a

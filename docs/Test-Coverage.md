@@ -10,13 +10,13 @@
 | Private D-Bus component | <span style="color: green">224</span>/<span style="color: gray">0</span>/224 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">294</span>/<span style="color: gray">0</span>/294 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">91</span>/<span style="color: gray">0</span>/91 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
+| Installed system | <span style="color: green">50</span>/<span style="color: gray">0</span>/50 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">64</span>/<span style="color: gray">132</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6451</span>/<span style="color: gray">132</span>/6583** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">65</span>/<span style="color: gray">131</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6411</span>/<span style="color: gray">131</span>/6542** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">63</span>/<span style="color: gray">132</span>/195 |
+| customer-journey | <span style="color: green">64</span>/<span style="color: gray">131</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -82,6 +82,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [158](#scenario-158) | Choose allowances and save edits (flow: boundaries) | `E2E-035/boundaries` | ready |
 | [159](#scenario-159) | Choose allowances and save edits (flow: save order) | `E2E-035/save-order` | ready |
 | [184](#scenario-184) | Search the app list and edit match rules (flow: search filters) | `E2E-041/search-filters` | ready |
+| [185](#scenario-185) | Search the app list and edit match rules (flow: match editor) | `E2E-041/match-editor` | ready |
 | [191](#scenario-191) | Read Help, About and command usage on each surface (surface: child overlay) | `E2E-042/child-overlay` | ready |
 | [192](#scenario-192) | Read Help, About and command usage on each surface (surface: kiosk) | `E2E-042/kiosk` | ready |
 | [193](#scenario-193) | Read Help, About and command usage on each surface (surface: command help) | `E2E-042/command-help` | ready |
@@ -197,7 +198,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[180](#scenario-180)</span> | <span style="color: gray">Refresh accounts and remembered selections after account changes (change: remove selected)</span> | <span style="color: gray">`E2E-040/remove-selected`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[181](#scenario-181)</span> | <span style="color: gray">Refresh accounts and remembered selections after account changes (change: remove last child)</span> | <span style="color: gray">`E2E-040/remove-last-child`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[182](#scenario-182)</span> | <span style="color: gray">Refresh accounts and remembered selections after account changes (change: ineligible approver)</span> | <span style="color: gray">`E2E-040/ineligible-approver`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[185](#scenario-185)</span> | <span style="color: gray">Search the app list and edit match rules (flow: match editor)</span> | <span style="color: gray">`E2E-041/match-editor`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[186](#scenario-186)</span> | <span style="color: gray">Search the app list and edit match rules (flow: match reopen)</span> | <span style="color: gray">`E2E-041/match-reopen`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[187](#scenario-187)</span> | <span style="color: gray">Search the app list and edit match rules (flow: shared launchers)</span> | <span style="color: gray">`E2E-041/shared-launchers`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[188](#scenario-188)</span> | <span style="color: gray">Search the app list and edit match rules (flow: special paths)</span> | <span style="color: gray">`E2E-041/special-paths`</span> | <span style="color: gray">pending</span> |
@@ -891,6 +891,20 @@ Variant: flow: save order
 Case: `E2E-041/search-filters` · Category: customer-journey · Status: **ready**
 
 Variant: flow: search filters
+
+**Steps:**
+
+- Give the child usable time and open App Limits with the declared assets. Read the child-specific list, including an app installed only for that child.
+- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests cover representative query/filter combinations and local editor boundaries by final results. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
+- Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
+
+### Scenario 185
+
+**Search the app list and edit match rules (flow: match editor)**
+
+Case: `E2E-041/match-editor` · Category: customer-journey · Status: **ready**
+
+Variant: flow: match editor
 
 **Steps:**
 
@@ -3118,26 +3132,6 @@ Variant: change: ineligible approver
 - Use this case's disposable spare accounts. For remove-selected, prepare Jordan and Riley once with distinct saved allowances and request choices; leave Parent selecting Jordan and let the station remember Jordan before exiting it normally. Other branches select their declared child or approver and read its choices.
 - Through shared system-account commands, remove the selected logged-out spare child exactly once while Parent stays open, remove the last spare child, or change the spare remembered approver to standard. Close request forms before changing their accounts and retain the active administrator.
 - For remove-selected, independently check automatic Parent fallback to Riley in the same window with Riley's own settings, then reopen the station and check automatic fallback to Riley with Riley's own duration, custom value and soft-app choice before any edit or request. Do not reset preparation between results. Other branches check the empty explanation or eligible approver fallback.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 185
-
-**Search the app list and edit match rules (flow: match editor)**
-
-Case: `E2E-041/match-editor` · Category: customer-journey · Status: **pending**
-
-Variant: flow: match editor
-
-**Steps:**
-
-- Give the child usable time and open App Limits with the declared assets. Read the child-specific list, including an app installed only for that child.
-- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests cover representative query/filter combinations and local editor boundaries by final results. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
-- Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 

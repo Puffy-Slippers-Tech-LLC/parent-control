@@ -1249,7 +1249,7 @@ content based:
 | Role | Target and rule | Instance |
 | --- | --- | --- |
 | Allowed A | `/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage`, precise | Primary |
-| Permanent H | `/opt/onpc-test-fixtures/Applications/Path With Spaces.AppImage`, precise | Distinct executable bytes |
+| Permanent H | `/opt/onpc-test-fixtures/Applications/Whitespace/Path With Spaces.AppImage`, precise | Distinct executable bytes |
 | Conditional S | `/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage`, wildcard `/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-*.AppImage` | Secondary |
 
 Builder declarations, baseline inventory, guarded verifier, Parent preview,
@@ -1257,9 +1257,9 @@ policy/launch/owner/denial bindings and command text must agree on full targets.
 Preparation leaves every launcher Allowed; the customer history sets policy
 through Parent. Preserve the original S payload as an owned untrusted
 compatibility file. Do not move fixtures during the history or weaken renderer
-warnings/refusals. The source declaration has twelve exact keys: four
-executables, four adjacent GUI files and four launchers; Riley's projection
-verifies nine while retaining Jordan's runtime ownership and Riley's A launcher.
+warnings/refusals. The source declaration has fourteen exact keys: four
+executables, six adjacent GUI files and four launchers; Riley's projection
+verifies eleven while retaining Jordan's runtime ownership and Riley's A launcher.
 
 Source-bound input selection includes package and fixture source. Changed
 builder/native/GUI bytes select a fresh immutable bundle; old manifests and
@@ -3554,24 +3554,33 @@ launchers Allowed; policy setup remains a customer action.
 | Role | Desktop ID suffix (`com.puffyslippers.ONPCTest.`) | Executable below `/opt/onpc-test-fixtures/Applications` | Visible name | Description | Default match |
 | --- | --- | --- | --- | --- | --- |
 | A | `A.desktop` | `Exact Fixture.AppImage` | ONPC Allowed Fixture | Exact native catalogue fixture | precise |
-| H | `H.desktop` | `Path With Spaces.AppImage` | ONPC Hard Fixture | Whitespace native catalogue fixture | precise |
+| H | `H.desktop` | `Whitespace/Path With Spaces.AppImage` | ONPC Hard Fixture | Whitespace native catalogue fixture | precise |
 | S | `S.desktop` | `Versioned/Lunar Client-3.7.17.AppImage` | ONPC Soft Fixture | Versioned native catalogue fixture | pattern (`Versioned/Lunar Client-*.AppImage`) |
 | N | `N.desktop` | `PrismLauncher.AppImage` | ONPC Nonmatching Fixture | Unrelated native catalogue fixture | precise |
 
-S's adjacent GUI/automation modules live in `Applications/Versioned`; A/H/N
-use those in `Applications`. The original root-level S remains an untrusted
+S's adjacent GUI/automation modules live in `Applications/Versioned`; H uses
+`Applications/Whitespace`, and A/N use `Applications`. Isolating H preserves
+the unrelated whitespace executable without making A's `Exact*` wildcard
+unrepresentable. The original root-level S remains an untrusted
 compatibility control with identical bytes. The pinned Versioned directory is
 Jordan-owned 0755 and contains only S and its two modules. Extra/stale files,
 links, changed bytes/modes or foreign ownership refuse. Active and legacy S
 remain excluded from file trust.
 
-The current native profile has 12 active source keys; Riley uses eight runtime
-files plus its own A launcher. Earlier ten/seven-file qualifications do not
-verify the expanded twelve/nine-file profiles. The
+The current native profile has 14 active source keys; Riley uses ten runtime
+files plus its own A launcher. Earlier ten/seven-file and twelve/nine-file
+qualifications do not verify this changed placement. The
 [compatible fixture scope](#c04p1-compatible-fixture-applicability) and
 [core-effects scope](#c04p-time-and-app-effects-applicability) distinguish current
-both-target full-profile qualification from still-unrenewed Riley-grid and
-copy/update/nonmatch histories.
+historical both-target full-profile qualification from the specific route and
+placement each later history needs.
+
+Task 227's H isolation and current fourteen/eleven-file profiles passed on
+Ubuntu 26.04 through complete case 185 (`20261104T005309Z-44b93576`), the
+affected native-denial qualification (`20261104T010024Z-cd54129c`) and both-child
+case 62 (`20261104T011050Z-5742fb1e`). Collection, owned cleanup and baseline
+restoration passed. This records the selected Ubuntu placement; it supplies no
+new Fedora qualification.
 
 `native_launch_command` and public activity readers bind A to primary and S to
 secondary for the delivered finite C04p core-effects history; those exact

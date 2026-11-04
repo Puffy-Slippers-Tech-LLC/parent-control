@@ -17,7 +17,8 @@ def baseline_restoration(args, configured):
     """Freeze the diagnostic's selected fixtures for its exact VM and lifetime."""
     actions = ('reproduce-baseline-restoration', 'reproduce-natural-access',
                'reproduce-countdown-grant', 'reproduce-overlay-activity', 'reproduce-overlay-return',
-               'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout')
+               'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
+               'reproduce-match-editor')
     if not args or args[0] not in actions:
         return None
     targets = vm_config.fixture_targets()
@@ -34,7 +35,7 @@ def baseline_restoration(args, configured):
         store = Store(directory('state') / ('retention-baseline-restoration-' + configured.name))
         with store.session():
             if args[0] in ('reproduce-overlay-return', 'reproduce-system-graphical-expiry',
-                           'reproduce-native-denial', 'reproduce-grant-logout'):
+                           'reproduce-native-denial', 'reproduce-grant-logout', 'reproduce-match-editor'):
                 from test_storage import named_input
                 assets = named_input(vm_source=True, package_source=True, fixture_source=True)
                 if not assets.is_dir():

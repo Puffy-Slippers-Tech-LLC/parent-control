@@ -345,7 +345,7 @@ TEXT_VALUES = {
     'catalogue-identifier': ('parent-app-search', 'com.puffyslippers.ONPCTest.A.desktop'),
     'catalogue-hard': ('parent-app-search', 'com.puffyslippers.ONPCTest.H.desktop'),
     'catalogue-soft': ('parent-app-search', 'com.puffyslippers.ONPCTest.S.desktop'),
-    'match-hard-precise': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Path With Spaces.AppImage'),
+    'match-hard-precise': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Whitespace/Path With Spaces.AppImage'),
     'match-soft-wildcard': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-*.AppImage'),
     'catalogue-absent': ('parent-app-search', 'ONPC Absent Catalogue Fixture 077b'),
     'catalogue-clear': ('parent-app-search', ''),
@@ -606,7 +606,7 @@ MATCH_OTHER_APP = 'parent-app-' + hashlib.sha256(b'com.puffyslippers.ONPCTest.N.
 MATCH_RULES = ('/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
                '/opt/onpc-test-fixtures/Applications/Exact*.AppImage',
                '/opt/onpc-test-fixtures/Applications/*.AppImage',
-               '/opt/onpc-test-fixtures/Applications/Path With Spaces.AppImage',
+               '/opt/onpc-test-fixtures/Applications/Whitespace/Path With Spaces.AppImage',
                '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-*.AppImage')
 BASELINE_POLICY_DRAFTS = {'match-hard-precise': MATCH_APPS['H'],
                           'match-soft-wildcard': MATCH_APPS['S']}
@@ -12859,7 +12859,7 @@ class AccessibleUI:
         self.input_uncertain = True
         executable = ('/opt/onpc-test-fixtures-activity/native-fixture' if fixture == 'activity' else
             '/opt/onpc-test-fixtures/Applications/' + {
-                'A': 'Exact Fixture.AppImage', 'H': 'Path With Spaces.AppImage',
+                'A': 'Exact Fixture.AppImage', 'H': 'Whitespace/Path With Spaces.AppImage',
                 'S': 'Versioned/Lunar Client-3.7.17.AppImage', 'N': 'PrismLauncher.AppImage'}[role or 'A'])
         result = subprocess.run([
             '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
@@ -14713,7 +14713,7 @@ def native_execution_journal_diagnostic(unit, *, executable='/opt/onpc-test-fixt
     diagnostic = {'status': 'unavailable', 'entries': 0, 'exec_errors': []}
     if executable not in (
             '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
-            '/opt/onpc-test-fixtures/Applications/Path With Spaces.AppImage',
+            '/opt/onpc-test-fixtures/Applications/Whitespace/Path With Spaces.AppImage',
             '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage'):
         return diagnostic
     if type(unit) is not str or re.fullmatch(r'onpc-test-native-[0-9a-f]{32}\.service', unit) is None:

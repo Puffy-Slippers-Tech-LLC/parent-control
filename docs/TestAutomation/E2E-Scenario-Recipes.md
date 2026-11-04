@@ -1596,7 +1596,10 @@ is part of case acceptance. Shared code reuse never reuses another case's state.
 ### E2E-041
 
 Implementation context: The search/filter composition is implemented in
-[search_filters.py](../../tests/e2e/search_filters.py); other matching flows remain pending.
+[search_filters.py](../../tests/e2e/search_filters.py). Case 185 composes saved
+matching, rejection and child launches in
+[match_editor_case.py](../../tests/e2e/match_editor_case.py) through
+`onpc_fresh_thirty_allowance::match_editor_case`; other matching flows remain pending.
 
 **Search the app list and edit match rules.** Cases 184, 185, 186, 187, 188, 189.
 
@@ -2133,7 +2136,7 @@ saved rows and, when stated, using the app as the child.
 | Case | Exact block/data expansion |
 | --- | --- |
 | 184 search-filters | PARENT10 exact-name query → PARENT11 precise plus Allowed → UI13/UI12 exact expected intersection of the real declared catalogue; clear query/restore filters and compare PARENT12 initial policies. Compose `onpc_app_rows::search` / `filter` / `read_rows` with caller-owned stages and `journey_blocks.filter_screens`; use `native_fixtures.catalogue_rows` for the exact expected set. The native profile is Jordan-bound (`existing` text/filter child bindings and `existing-parent-app-rows`); unprefixed rows target Riley. A fresh case plan owns its lifecycle, rather than inheriting `CatalogueJourney`. UI's `test_preview_smoke.py::test_catalogue_query_and_representative_filter_results` checks each query source, individual categories, empty sets and representative query/filter intersections, without multiplying independent choices. |
-| 185 match-editor | PARENT13 → UI16 → PARENT15 saves a same-directory wildcard. Save a wildcard for a different directory and observe the real broker's failed-save report, close it and reread confirmed choices. UI qualification owns the precise target/basename, empty/unrelated input, Cancel and Reset matrix, including exact explanations and unchanged values. Real saved-rule and enforcement observations remain E2E. |
+| 185 match-editor | FLOW16 gives Jordan 30 daily minutes. Read A's precise rule; PARENT13 → UI16 → PARENT15 saves `Applications/Exact*.AppImage`, then PARENT16 sets Hard Blocked. Save `/opt/onpc-test-fixtures/Rejected/*.AppImage` and observe the real broker's failed-save report; close it with `parent_reports.report_close` before comparing the exact confirmed wildcard and Hard Blocked access. Log out Parent, enter Jordan's fresh desktop, then FLOW08 proves A's command launch denied with no window and N's unrelated command launch usable through Submit and normal closure. UI qualification owns the precise target/basename, empty/unrelated input, Cancel and Reset matrix, including exact explanations and unchanged values. |
 | 186 match-reopen | Save custom same-directory wildcard; change access to Allowed; LIFE01 → PARENT02 → PARENT12 verifies remembered custom wildcard. Save precise on an app with a suggested pattern; reselect the child and reopen Parent, reading the documented suggested pattern each time. Reselect precise before a subsequent save. Repeat restoration after a customer-rejected pattern save, closing its report before reading. This records the current limitation, not desired new behavior. |
 | 187 shared-launchers | Two visible launchers for one supported app: PARENT16(first,Hard) → PARENT16(second,Allowed); C → FLOW08(each supported launch,denied). P → allow first → C → FLOW08(each,usable). Reverse which launcher holds the block and repeat. No claim of independent rules overriding the shared target. |
 | 188 special-paths | For a known native app whose displayed precise path contains a space, then a comma, FILE05 copies its executable to the declared second name/location. PARENT16(Hard) → C → FLOW08(original and identical copy,denied), with existing distinct N usable. Repeat under Soft with no exception. These supported path cases do not assert universal copied-program control. |

@@ -454,7 +454,7 @@ def main(argv=None):
                                           'probe-retained-app-launch',
                                           'reproduce-transfer-refusal', 'probe-transfer-refusal',
                                           'reproduce-riley-native-grid', 'probe-riley-native-grid',
-                                          'reproduce-native-denial', 'reproduce-grant-logout',
+                                          'reproduce-native-denial', 'reproduce-grant-logout', 'reproduce-match-editor',
                                           'reproduce-overlay-activity', 'probe-overlay-activity',
                                           'reproduce-overlay-return',
                                           'reproduce-system-graphical-expiry',
@@ -488,7 +488,8 @@ def main(argv=None):
         runner.require((args.action in ('sync-fixtures', 'reproduce-baseline-restoration',
                                        'reproduce-natural-access', 'reproduce-countdown-grant',
                                        'reproduce-overlay-activity', 'reproduce-overlay-return',
-                                       'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout'))
+                                       'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
+                                       'reproduce-match-editor'))
                        == (args.fixture_selection is not None),
                        'vm-control:arguments')
         if args.new_name is not None:
@@ -567,10 +568,12 @@ def main(argv=None):
                               type(cleanup_error).__name__ + '); preserve controller state',
                               file=sys.stderr, flush=True)
                 raise
-        elif args.action == 'reproduce-native-denial':
-            from vm_probe import reproduce_native_denial
+        elif args.action in ('reproduce-native-denial', 'reproduce-match-editor'):
+            from vm_probe import reproduce_native_denial, reproduce_match_editor
             resume(lease)
-            reproduce_native_denial(lease, fixture_selection)
+            reproduce = (reproduce_native_denial if args.action == 'reproduce-native-denial'
+                         else reproduce_match_editor)
+            reproduce(lease, fixture_selection)
         elif args.action in ('reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval',
                              'reproduce-kiosk-preferences',
                              'reproduce-station-shortcuts',

@@ -7,6 +7,7 @@ use onpc_journey ();
 use onpc_parent ();
 use onpc_app_rows ();
 use onpc_feedback_privacy ();
+use onpc_desktop_session ();
 
 sub run {
     onpc_progress::operation('Qualifying fresh thirty-minute daily allowance setup');
@@ -45,6 +46,38 @@ sub search_filters {
     $journey->finish();
 }
 # Parent app-policy/report case composition; mechanics remain in shared leaves.
+sub match_editor_case {
+    onpc_progress::operation('Checking saved app matching and rejection before child app use');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'match-case:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'match-editor-case', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    for my $stage ('saved-settings', 'apps-page', 'initial-rule') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    onpc_app_rows::match_edit($journey, 'match-wildcard', 'confirmed',
+        'confirmed-open', 'confirmed-read', 'confirmed-rule');
+    onpc_app_rows::access_choice($journey, 'block-save', 'blocked-access');
+    onpc_app_rows::match_edit($journey, 'match-rejected-directory', 'rejected',
+        'rejected-open', 'rejected-read', undef);
+    onpc_feedback_privacy::close_parent_report($journey, 'rejected');
+    for my $stage ('restored-rule', 'restored-access', 'parent-logout') {
+        $journey->seen($stage);
+    }
+    onpc_desktop_session::enter_desktop(
+        $journey, 'gdm', 'other-child', 'fresh', 'success', 'child-entry');
+    onpc_app_rows::native_blocked_app($journey->scope('blocked'), 'A');
+    my $other = $journey->scope('nonmatching');
+    onpc_app_rows::native_usable_app($other, 'command', $other->seen('desktop'), 'other-child', 'N');
+    onpc_app_rows::native_finish_app($other);
+    $journey->finish();
+}
+
 sub parent_error_report {
     onpc_progress::operation('Reviewing and closing reports from rejected Parent match rules');
     my ($exchange) = @_;

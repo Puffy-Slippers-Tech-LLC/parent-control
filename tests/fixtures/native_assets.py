@@ -16,11 +16,13 @@ NATIVE_STOCK_RULE_NAMES = (
     '70-trusted-lang.rules', '72-shell.rules', '90-deny-execute.rules', '95-allow-open.rules')
 ASSETS = (
     ('A', 'Exact Fixture.AppImage', 'ONPC Allowed Fixture', 'Exact native catalogue fixture', 'precise'),
-    ('H', 'Path With Spaces.AppImage', 'ONPC Hard Fixture', 'Whitespace native catalogue fixture', 'precise'),
+    ('H', 'Whitespace/Path With Spaces.AppImage', 'ONPC Hard Fixture', 'Whitespace native catalogue fixture', 'precise'),
     ('S', 'Versioned/Lunar Client-3.7.17.AppImage', 'ONPC Soft Fixture', 'Versioned native catalogue fixture', 'pattern'),
     ('N', 'PrismLauncher.AppImage', 'ONPC Nonmatching Fixture', 'Unrelated native catalogue fixture', 'precise'),
 )
 GUI_FILES = ('onpc-test-gui.py', 'gtk_automation.py')
+# Keep unrepresentable whitespace nonmatches outside A and S wildcard groups.
+GUI_DIRECTORIES = ('', 'Versioned/', 'Whitespace/')
 # Keep the earlier generated/baseline S file as an untrusted compatibility
 # control. The active launcher and policy pattern use only Versioned.
 LEGACY_S = 'Lunar Client-3.7.17.AppImage'
@@ -74,9 +76,9 @@ def executable_sources():
 
 
 def gui_sources():
-    """Both adjacent runtimes are exact source keys, including duplicate bytes."""
+    """Adjacent runtimes are exact source keys, including duplicate bytes."""
     return tuple('fixtures/image-root' + PREFIX + '/' + directory + filename
-                 for directory in ('', 'Versioned/') for filename in GUI_FILES)
+                 for directory in GUI_DIRECTORIES for filename in GUI_FILES)
 
 
 def launcher_sources():
@@ -111,9 +113,9 @@ def riley_grid_sources():
 def native_policy_files(expected, child_uids):
     """Closed Fedora baseline admissions; product denials precede these rules.
 
-    Only the two prepared children may open the two shared Python runtimes or
+    Only the two prepared children may open the shared Python runtimes or
     execute the four active native payloads. These inputs remain untrusted.
-    Source keys bind both copies of each runtime to identical expected bytes.
+    Source keys bind every copy of each runtime to identical expected bytes.
     """
     required = runtime_sources()
     if (type(expected) is not dict or set(expected) not in
@@ -127,7 +129,7 @@ def native_policy_files(expected, child_uids):
         raise ValueError('native:baseline-policy-inputs')
     executables = [expected[key] for key in executable_sources()]
     gui = [expected[key] for key in gui_sources()]
-    if (len(set(executables)) != 4 or gui[:2] != gui[2:]
+    if (len(set(executables)) != 4 or gui != gui[:len(GUI_FILES)] * len(GUI_DIRECTORIES)
             or len(set(gui)) != 2 or set(gui) & set(executables)):
         raise ValueError('native:baseline-policy-inputs')
     subject = ','.join(str(uid) for uid in sorted(child_uids))

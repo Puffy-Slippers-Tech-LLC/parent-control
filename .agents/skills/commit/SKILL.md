@@ -29,6 +29,14 @@ requests the full workflow, subject to existing execution permissions.
    push each, preserving local and remote work. Do not force-push, invent missing
    branches or alter Git configuration. Reuse an applicable maintained public
    workflow when available; do not invoke private launcher helpers ad hoc.
+   For final remote verification, use direct `git fetch --no-tags REMOTE REF`
+   commands under the existing Git grant, then check that `FETCH_HEAD` contains
+   the pinned commit with `git merge-base --is-ancestor`. Set the command tool's
+   working directory to the checkout. Do not substitute `git ls-remote`, global
+   `git -C` options, shell loops or interpreter wrappers: these do not match the
+   approved network-command prefix and can run inside the sandbox, where SSH
+   may report misleading system-config ownership errors. Correct the command
+   shape without changing SSH files, authentication or approval rules.
 5. Only if a merge or saved-work restoration conflict occurs, read
    [conflict resolution](references/conflict-resolution.md) and delegate automatic
    resolution to a subagent. Overlap with active worktree edits alone does not

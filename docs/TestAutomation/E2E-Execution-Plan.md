@@ -23,7 +23,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **101b — [Check app blocking until approval with time limits off](E2E-Tasks/101b-case-85.md)**.
+Next task: **227 — [Check app matching and rejected rule changes](E2E-Tasks/227-case-185.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

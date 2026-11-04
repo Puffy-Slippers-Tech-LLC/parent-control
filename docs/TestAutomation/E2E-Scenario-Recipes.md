@@ -1109,7 +1109,14 @@ the same precise target with `conditional` access, without an approval.
 Fresh Jordan command execution must produce the attributed permission denial
 and complete owned-window absence. Fresh Riley command launch, Submit and
 independent draft readback prove the same executable usable with Riley's
-policy and limits untouched. Remaining bindings are pending.
+policy and limits untouched.
+Case 85 uses `app_launch.SOFT_COMMAND_DISABLED_PLAN` and the same worker's
+disabled, soft-blocked command binding. Parent reads Jordan's untouched
+limits-off/zero-allowance settings, then saves the same precise conditional
+block without an allowance or approval. Fresh Jordan command execution must
+produce the attributed denial and complete owned-window absence. Fresh Riley
+command launch, Submit and independent draft readback prove the same executable
+usable with Riley's policy and limits untouched. Remaining bindings are pending.
 
 **Use supported launch routes under each app rule.** Cases 62, 64, 66, 68, 70, 72, 74, 76, 78, 80, 81, 82, 83, 84, 85, 86, 88, 90, 92, 93, 94, 95, 96, 97, 98, 100, 102, 104, 105, 106, 107, 108, 109.
 

@@ -3881,6 +3881,7 @@ or alternative launch substitutes for the declared route.
 | 82 / `app_launch.HARD_COMMAND_PLAN`, `run(..., 'enabled', 'command', 'hard-blocked')` | 30 daily minutes/zero grant; Parent saves A's precise permanent block for Jordan. Fresh Jordan command execution requires an attributed permission denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same executable usable with Riley's policy untouched. |
 | 83 / `app_launch.HARD_COMMAND_DISABLED_PLAN`, `run(..., 'disabled', 'command', 'hard-blocked')` | Limits off/zero allowance; Parent reads Jordan's untouched settings, then saves A's precise permanent block without an allowance or approval. Fresh Jordan command execution requires attributed denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same target usable with Riley's policy untouched. |
 | 84 / `app_launch.SOFT_COMMAND_PLAN`, `run(..., 'enabled', 'command', 'soft-blocked')` | 30 daily minutes/zero grant; Parent saves A's precise conditional block without approval. Fresh Jordan command execution requires attributed denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same target usable with Riley's policy and limits untouched. |
+| 85 / `app_launch.SOFT_COMMAND_DISABLED_PLAN`, `run(..., 'disabled', 'command', 'soft-blocked')` | Limits off/zero allowance; Parent reads Jordan's untouched settings, then saves A's precise conditional block without an allowance or approval. Fresh Jordan command execution requires attributed denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same target usable with Riley's policy and limits untouched. |
 
 The Allowed native-A bindings are qualified on Ubuntu 26.04 and Fedora 44.
 Case 64 passed on Ubuntu 26.04 in `20261103T204515Z-ad6fb573`, including
@@ -3940,6 +3941,18 @@ both children's independent outcomes, collection, worker shutdown, owned
 cleanup and baseline restoration. Coverage was regenerated after both passes;
 host ownership/source checks, inventory listing and Markdown links passed,
 and the VM ended off.
+
+Case 85 passed on Ubuntu 26.04 in `20261103T235708Z-3da23929`, including
+Jordan's limits-off/zero-allowance readback, saved precise conditional block,
+attributed command denial, complete owned-window absence and Riley's independent
+submitted draft. Collection, worker shutdown, owned cleanup and baseline
+restoration passed; coverage was regenerated. This disabled soft-blocked command
+binding remains unqualified on other families.
+The affected enabled-limits command case 84 passed on Ubuntu 26.04 in
+`20261104T000340Z-a474825d`, including both children's independent results,
+collection, worker shutdown, owned cleanup and baseline restoration. Coverage
+was regenerated after each pass. Scoped host ownership/source checks, inventory
+listing and Markdown links passed; the VM ended off.
 
 ### Recovery, information and feedback
 

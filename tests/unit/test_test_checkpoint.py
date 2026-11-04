@@ -643,7 +643,7 @@ def test_system_resume_excludes_completed_independent_cases_and_preserves_lifecy
     lifecycle = system_runner.resolve_selection('removal', inventories=inventories)
     prerequisites = [item for item in lifecycle.executions if item.prerequisite]
     assert len(prerequisites) == 2
-    assert {item.case_id for item in prerequisites} == {'test_installed_package'}
+    assert {item.case_id for item in prerequisites} == {'test_remove_reboot_reinstall'}
     installed = system_runner.resolve_selection('package', inventories=inventories)
     assert {item.case_id for item in installed.executions if not item.prerequisite} == {
         system_runner.KIOSK_ACTIVATION_CASE}
@@ -653,7 +653,12 @@ def test_system_resume_excludes_completed_independent_cases_and_preserves_lifecy
     removal = system_runner.resume_selection(full, retained)
     assert system_runner.KIOSK_ACTIVATION_CASE not in {item.case_id for item in removal.executions}
     assert {item.case_id for item in removal.executions if item.prerequisite} == {
-        'test_installed_package'}
+        'test_remove_reboot_reinstall'}
+    completed_removal = {item.phase + '::' + item.case_id for item in full.executions
+                         if item.case_id != system_runner.KIOSK_ACTIVATION_CASE}
+    installation = system_runner.resume_selection(full, completed_removal)
+    assert {item.case_id for item in installation.executions} == {system_runner.KIOSK_ACTIVATION_CASE}
+    assert not any(item.prerequisite for item in installation.executions)
     explicit = system_runner.resolve_selection(recording_ids='1,6', inventories=inventories)
     completed_readiness = {item.phase + '::' + item.case_id for item in explicit.executions
                           if item.case_id == 'test_installed_package'}

@@ -21,6 +21,39 @@ class SystemWatchProgress(WatchProgress):
             cases.append(dict(case_id=nodeid, coverage_id=identity.numeric_id,
                               title=identity.title))
         super().__init__(cases, suite='system')
+        self.attempt_final = None
+        self.pending_finish = None
+        self.continuous_attempt = False
+
+    def prepare_attempt(self, executions):
+        """Keep the last case's recording open through owned attempt cleanup."""
+        final = executions[-1]
+        self.attempt_final = final.phase + '::' + final.case_id
+        self.pending_finish = None
+        self.continuous_attempt = len({item.case_id for item in executions}) == 1
+        self.prepare_execution(executions[0])
+        write_event(sys.stdout, kind='prepared',
+                    nodeid=executions[0].phase + '::' + executions[0].case_id,
+                    envelope=self.continuous_attempt)
+
+    def defer_finished(self, event):
+        if event['nodeid'] != self.attempt_final:
+            if self.continuous_attempt:
+                # Checkpoints still receive phase completion. Recording and
+                # timing stay open across the owning history's reboot gaps.
+                event['envelope_pending'] = True
+            return False
+        # The guest clock stops before collection/restoration. Omitting its
+        # timestamp makes the timing owner use its existing host start instead.
+        self.pending_finish = {key: value for key, value in event.items()
+                               if key != 'monotonic_ns'}
+        return True
+
+    def complete_attempt(self):
+        """Called only after successful restoration, release and final audits."""
+        if self.pending_finish is not None:
+            write_event(sys.stdout, **self.pending_finish)
+            self.pending_finish = None
 
     def prepare_execution(self, item):
         self.prepare(item.phase + '::' + item.case_id)
@@ -116,6 +149,8 @@ class Progress:
                         self.operation.__enter__()
                     elif kind == 'finished':
                         self.close(finished=True)
+                        if self.watch is not None and self.watch.defer_finished(result):
+                            continue
                 if kind == 'failure':
                     result['detail'] = ('Installed test failed; traceback is flushed in '
                                         'guest results/regression-failures.jsonl and collected '

@@ -903,9 +903,11 @@
                 const expectedLabel = document.createElement('p');
                 expectedLabel.textContent = 'Expected:';
                 const expected = document.createElement('ul');
-                const item = document.createElement('li');
-                item.textContent = row.expected;
-                expected.append(item);
+                for (const outcome of Array.isArray(row.expected) ? row.expected : [row.expected]) {
+                    const item = document.createElement('li');
+                    item.textContent = outcome;
+                    expected.append(item);
+                }
                 text.append(expectedLabel, expected);
             }
             toggle.onclick = () => {

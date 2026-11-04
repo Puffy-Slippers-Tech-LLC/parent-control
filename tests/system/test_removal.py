@@ -4,6 +4,8 @@ import os
 
 import pytest
 
+import system_guest as guest
+from system_assertions import verify_package_readiness
 from system_removal import (remove, removed_rebooted, reinstalled_rebooted,
                             purged_rebooted, purge_reinstalled_rebooted,
                             aborted_cleanup_rollback_retry, rollback_rearmed_rebooted,
@@ -18,7 +20,19 @@ from system_removal_identity import IDENTITY_FILESYSTEM_GROUPS
 pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
 
 
+def _package_readiness_phase():
+    """Keep installation witnesses and preparation under this history's ID."""
+    if os.environ['ONPC_SYSTEM_PHASE'] not in ('installed', 'rebooted'):
+        return False
+    guest.guard()
+    guest.enable_diagnostics()
+    verify_package_readiness(guest.installed)
+    return True
+
+
 def test_remove_reboot_reinstall(record_testsuite_property):
+    if _package_readiness_phase():
+        return
     phase = os.environ['ONPC_SYSTEM_PHASE']
     {'removal': remove, 'removed-rebooted': removed_rebooted,
      'reinstalled-rebooted': reinstalled_rebooted, 'purged-rebooted': purged_rebooted,
@@ -26,12 +40,16 @@ def test_remove_reboot_reinstall(record_testsuite_property):
 
 
 def test_aborted_cleanup_rollback_retry(record_testsuite_property):
+    if _package_readiness_phase():
+        return
     {'rollback': aborted_cleanup_rollback_retry,
      'rollback-rearmed-rebooted': rollback_rearmed_rebooted}[
          os.environ['ONPC_SYSTEM_PHASE']](record_testsuite_property)
 
 
 def test_rpm_posterase_recovery(record_testsuite_property):
+    if _package_readiness_phase():
+        return
     {'rpm-posterase': rpm_posterase_recovery,
      'rpm-posterase-reinstalled-rebooted': rpm_posterase_reinstalled_rebooted}[
          os.environ['ONPC_SYSTEM_PHASE']](record_testsuite_property)
@@ -39,6 +57,8 @@ def test_rpm_posterase_recovery(record_testsuite_property):
 
 @pytest.mark.parametrize('variant', ['denial-publication', 'account-finalization'])
 def test_interrupted_finalization_retry(record_testsuite_property, variant):
+    if _package_readiness_phase():
+        return
     {variant: interrupted_finalization_retry,
      variant + '-retry-rebooted': finalization_retry_rebooted}[
          os.environ['ONPC_SYSTEM_PHASE']](record_testsuite_property, variant)
@@ -46,6 +66,8 @@ def test_interrupted_finalization_retry(record_testsuite_property, variant):
 
 @pytest.mark.parametrize('variant', tuple(OWNERSHIP_GROUPS))
 def test_ownership_refusal_retry(record_testsuite_property, variant):
+    if _package_readiness_phase():
+        return
     phase = os.environ['ONPC_SYSTEM_PHASE']
     variants = OWNERSHIP_GROUPS[variant]
     for index, current in enumerate(variants):
@@ -62,6 +84,8 @@ def test_ownership_refusal_retry(record_testsuite_property, variant):
 
 @pytest.mark.parametrize('variant', tuple(IDENTITY_FILESYSTEM_GROUPS))
 def test_identity_filesystem_refusal_retry(record_testsuite_property, variant):
+    if _package_readiness_phase():
+        return
     phase = os.environ['ONPC_SYSTEM_PHASE']
     variants = IDENTITY_FILESYSTEM_GROUPS[variant]
     for index, current in enumerate(variants):

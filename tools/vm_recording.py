@@ -100,6 +100,8 @@ def report_event(root, category, event):
         if not any(_phase_nodes.get(phase_key, {}).values()):
             _phase_nodes.pop(phase_key, None)
             _phase_attempts.pop(phase_key, None)
+        if event.get('envelope_pending') is True:
+            return None
     reply = request(json.loads(endpoint), dict(op='event', vm=vm.name, category=category,
         id=identity[0], title=identity[1], kind=event['kind'], at_ns=time.monotonic_ns(),
         more_phases=bool(pending) if event['kind'] == 'finished' else False,

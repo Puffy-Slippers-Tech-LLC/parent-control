@@ -59,6 +59,7 @@ def run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, 
     # Count every selected/prerequisite execution in its actual attempt order.
     executions = tuple(item for selected, _ in planned for item in selected.executions)
     with watching(executions, suite.lease) as progress:
+        suite.system_progress = progress
         options = ({'fixture_selection': fixture_selection,
                     'preparation_only': preparation_only,
                     'preparation_observer': preparation_observer}
@@ -81,7 +82,7 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
     results.mkdir(mode=0o700)
     prepared = []
     for index, (selected, installed) in enumerate(planned):
-        progress.prepare_execution(selected.executions[0])
+        progress.prepare_attempt(selected.executions)
         attempt = directory / ('attempt-' + selected.phases[0])
         attempt.mkdir(mode=0o700)
         inputs = directory / 'input'
@@ -174,6 +175,10 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
                         shutil.copyfile(path, results / path.name)
         if suite.verified is not None:
             suite.verified.recheck()
+        if index + 1 < len(planned):
+            progress.complete_attempt()
+        # The final attempt waits for Suite.close and the controller's host
+        # preservation/evidence audits before publishing its last finish.
     return prepared if preparation_only else None
 
 

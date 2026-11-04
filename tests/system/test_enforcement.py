@@ -25,6 +25,17 @@ def run_checks(record, checks):
 
 
 def test_kiosk_execution_confinement(record_testsuite_property):
+    """Run every finite enforcement validation on one prepared live guest."""
+    run_checks(record_testsuite_property, (
+        ('kiosk-integration', _kiosk_execution_confinement),
+        ('native-command-policy', _native_command_policy_is_uid_scoped),
+        ('native-probe-lifecycle', _native_probe_systemd_lifecycle),
+        ('pattern-and-launcher-retention', _native_future_pattern_is_uid_scoped),
+        ('offline-expiry-and-pam', _kiosk_expiry_installed_runtime),
+    ))
+
+
+def _kiosk_execution_confinement(record_testsuite_property):
     # Stable ID 267 now observes the selected session composition. Reachable
     # escape attempts remain separate pending engineering obligations.
     from system_kiosk_confinement import verify_session_composition
@@ -37,7 +48,7 @@ def test_kiosk_execution_confinement(record_testsuite_property):
     ))
 
 
-def test_native_command_policy_is_uid_scoped(record_testsuite_property):
+def _native_command_policy_is_uid_scoped(record_testsuite_property):
     from system_caller import PersistentCaller
     native_accounts = provision_native()
 
@@ -55,7 +66,7 @@ def test_native_command_policy_is_uid_scoped(record_testsuite_property):
         ))
 
 
-def test_native_probe_systemd_lifecycle(record_testsuite_property):
+def _native_probe_systemd_lifecycle(record_testsuite_property):
     # One continuous scenario also proves a settled refusal permits a fresh
     # independent generation; retain each stage's distinct evidence.
     from system_probe_sandbox import native_probe_broker_sandbox
@@ -69,17 +80,17 @@ def test_native_probe_systemd_lifecycle(record_testsuite_property):
     ))
 
 
-def test_native_future_pattern_is_uid_scoped(record_testsuite_property):
-    accounts = provision_native('pattern')
-    native_policy_transition(accounts, record_testsuite_property, variant='pattern')
+def _native_future_pattern_is_uid_scoped(record_testsuite_property):
+    """Keep pattern growth and missing-launcher persistence in one finite case."""
+    run_checks(record_testsuite_property, (
+        ('future-pattern', lambda record: native_policy_transition(
+            provision_native('pattern'), record, variant='pattern')),
+        ('missing-launcher', lambda record: native_policy_transition(
+            provision_native('retention'), record, variant='retention')),
+    ))
 
 
-def test_native_missing_launcher_retains_policy(record_testsuite_property):
-    accounts = provision_native('retention')
-    native_policy_transition(accounts, record_testsuite_property, variant='retention')
-
-
-def test_kiosk_expiry_installed_runtime(record_testsuite_property):
+def _kiosk_expiry_installed_runtime(record_testsuite_property):
     import json
     import re
     import system_guest as guest

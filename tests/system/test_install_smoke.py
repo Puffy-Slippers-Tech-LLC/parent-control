@@ -1,13 +1,12 @@
 """Execute only in the guarded VM via make check-system, never on the host."""
 
-import json
 import os
 from functools import cache
-from pathlib import Path
 
 import pytest
 
 import system_guest as guest
+from system_assertions import verify_package_readiness
 
 pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
 
@@ -23,18 +22,6 @@ def installed_readiness():
     # Each pytest invocation handles one phase. Guarded test bodies share only
     # the unchanged readiness observation, not the kiosk's mutations or results.
     return cache(guest.installed)
-
-
-def verify_package_readiness(installed_readiness):
-    phase = os.environ['ONPC_SYSTEM_PHASE']
-    assert phase in ('installed', 'rebooted')
-    installed_readiness(reboot_required=phase == 'installed')
-    if phase == 'installed':
-        assert guest.reboot_requested()
-    else:
-        before = json.loads((guest.PAYLOAD / 'before.json').read_text())
-        assert before['boot_id'] != Path('/proc/sys/kernel/random/boot_id').read_text().strip()
-        assert guest.reboot_cleared()
 
 
 def test_installed_package(installed_readiness):

@@ -11,6 +11,7 @@ from pathlib import Path
 import sys
 import time
 import re
+import shlex
 
 if __package__:
     from .regression_events import completed_cases
@@ -128,25 +129,98 @@ def request_record(root, namespace, value=None):
             return json.load(stream)
 
 
+def incompatible_resume(previous):
+    return ValueError('new parameters are not compatible with --resume; previous parameters: '
+                      + shlex.join(previous))
+
+
+def compatible_vm(selector, previous):
+    """Compare registry identities without acquiring or operating any VM."""
+    from vm_selection import vm_config
+    if previous is None:
+        return False
+    configured = vm_config.registry()
+    def names(value):
+        if value in ('all', 'all-enabled'):
+            return {vm.name for vm in vm_config.execution(value)[1]}
+        return {vm_config.resolve(token, configured).name for token in value.split(',')}
+    try:
+        return names(selector) == names(previous)
+    except ValueError:
+        return False
+
+
+def compatible_arguments(supplied, saved):
+    """Compare repeated arguments in groups, inheriting omitted saved arguments."""
+    def normalized(values):
+        return [part for value in values for part in
+                (value.split('=', 1) if value.startswith('--') and '=' in value
+                 and not value.startswith('--ignore=') else [value])]
+    supplied, saved = normalized(supplied), normalized(saved)
+    if '--stop-on-error' in supplied and '--stop-on-error' not in saved:
+        return False
+    supplied = [arg for arg in supplied if arg != '--stop-on-error']
+    saved = [arg for arg in saved if arg != '--stop-on-error']
+    if not supplied:
+        return True
+    if saved and saved[0] in ('unit', 'component', 'ui'):
+        from test_launcher import _arguments
+        category = saved[0]
+        if not supplied[0].startswith('-'):
+            if supplied[0] != category:
+                return False
+            supplied = supplied[1:]
+        ignores = [arg for arg in supplied if arg.startswith('--ignore=')]
+        old_ignores = [arg for arg in saved if arg.startswith('--ignore=')]
+        if ignores and set(ignores) != set(old_ignores):
+            return False
+        supplied = [arg for arg in supplied if not arg.startswith('--ignore=')]
+        try:
+            targets, options, timeout = _arguments(supplied, category)
+            old_targets, old_options, old_timeout = _arguments(
+                [arg for arg in saved[1:] if not arg.startswith('--ignore=')], category)
+        except ValueError:
+            return False
+        keys = {option.partition('=')[0] for option in options}
+        return (((targets == [f'tests/{category}'] and f'tests/{category}' not in supplied)
+                 or targets == old_targets)
+                and (timeout is None or timeout == old_timeout)
+                and all([option for option in options if option.partition('=')[0] == key]
+                        == [option for option in old_options if option.partition('=')[0] == key]
+                        for key in keys))
+    # Check each repeated option together with its values, never token membership
+    # (which could accept a value belonging to a different option).
+    def groups(values):
+        result = [[]]
+        for token in values:
+            if token.startswith('-'):
+                result.append([])
+            result[-1].append(token)
+        return result
+    supplied, saved = groups(supplied), groups(saved)
+    return (saved[0][:len(supplied[0])] == supplied[0]
+            and all(any(old[:len(group)] == group for old in saved[1:])
+                    and all(old[:len(group)] == group for old in saved[1:] if old[0] == group[0])
+                    for group in supplied[1:]))
+
+
 def resume_arguments(root, argv):
     if '--resume' not in argv or any(arg in ('--help', '-h', '--list', '--stop', '--collect-only') for arg in argv):
         return argv
     from vm_selection import vm_config
     args, selector = vm_config.extract_selector(argv)
-    if any(arg not in ('--resume', '--stop-on-error') for arg in args):
-        return argv
     previous = request_record(root, 'run-tests')
     if previous is None:
         return argv
-    saved, _ = vm_config.extract_selector(previous['argv'])
-    if selector is None:
-        saved = previous['argv']
-    else:
-        saved = [*saved, '--vm', selector]
+    saved, binding = vm_config.extract_selector(previous['argv'])
+    controls = [arg for arg in args if arg in ('--resume-case-only', '--resume-area-only')
+                or arg.startswith('--resume-case=')]
+    supplied = [arg for arg in args if arg not in ('--resume', *controls)]
     saved = [arg for arg in saved if arg != '--resume']
-    if '--stop-on-error' in args and '--stop-on-error' not in saved:
-        saved.insert(0, '--stop-on-error')
-    return ['--resume', *saved]
+    if (not compatible_arguments(supplied, saved)
+            or selector is not None and not compatible_vm(selector, binding)):
+        raise incompatible_resume(previous['argv'])
+    return ['--resume', *saved, *controls, *(['--vm', binding] if binding is not None else [])]
 
 
 class Checkpoint:

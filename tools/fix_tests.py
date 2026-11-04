@@ -2042,7 +2042,8 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
         TaskBudget(run).initialize(tasks)
         save_binding(run, name)
         from test_checkpoint import request_record
-        request_record(root, 'fix-tests', dict(categories=list(categories), rounds=rounds, vm=name))
+        request_record(root, 'fix-tests', dict(categories=list(categories), rounds=rounds, vm=name,
+                                             model=model, effort=effort, tasks=tasks))
     def attached(run):
         check_binding(run, name, stopping=stop)
         if tasks is not None:
@@ -2051,6 +2052,12 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
             if 'remaining' in budget.read():
                 warn_remaining(limit, budget.read()['remaining'], label='fix-tests')
             print(f"fix-tests: limits now tasks={limit if limit is not None else 'all'}", flush=True)
+            from test_checkpoint import request_record
+            saved = request_record(root, 'fix-tests')
+            if (saved is not None and saved.get('vm') == name
+                    and saved.get('categories') == list(categories)):
+                saved['tasks'] = tasks
+                request_record(root, 'fix-tests', saved)
     return detached_launcher.select(root, kind, command, stop=stop,
         on_attach=attached, launcher_name='fix-tests',
         on_start=started, **({'reload': True} if reload else {}))
@@ -2092,7 +2099,8 @@ def main(argv=None):
     parser.add_argument('--vm', help=SELECTOR_HELP)
     add_options(parser, stop_help='stop active runs in this checkout; categories or --vm narrow the scope')
     parser.add_argument('--resume', action='store_true',
-                        help='preserve saved progress, repairs, queues and pending close-out; '
+                        help='inherit saved options; explicit parameters must be compatible; '
+                             'preserve saved progress, repairs, queues and pending close-out; '
                              'without it, an idle launcher starts fresh')
     parser.add_argument('--reset', action='store_true',
                         help='stop checkout test/repair owners, recover leftovers and clear saved progress '
@@ -2112,16 +2120,47 @@ def main(argv=None):
                        or any(arg.startswith('--resume-') for arg in categories)):
         parser.error('--reset conflicts with --resume, --stop and --reload')
     root = Path(__file__).resolve().parents[1]
-    if args.resume and not categories and not args.stop:
-        from test_checkpoint import request_record
+    if args.resume and not args.stop:
+        from test_checkpoint import (request_record, compatible_arguments, compatible_vm,
+                                     incompatible_resume)
         previous_request = request_record(root, 'fix-tests')
         if previous_request is not None:
+            binding = previous_request['vm']
+            binding = ','.join(binding['vms']) if isinstance(binding, dict) else binding
+            previous_parameters = list(previous_request['categories'])
+            for key in ('rounds', 'model', 'effort', 'tasks'):
+                value = previous_request.get(key)
+                if value is not None:
+                    previous_parameters.extend(('--' + key, str(value)))
+            if binding is not None:
+                previous_parameters.extend(('--vm', binding))
+            def compatible_option(key):
+                supplied, saved = getattr(args, key), previous_request.get(key)
+                if key == 'model':
+                    saved = saved or DEFAULT_MODEL
+                if key == 'effort' and saved is None:
+                    inventory = requested_inventory(root, previous_request['categories'])
+                    defaults = {initial_model(category=category)[1] for category in inventory}
+                    return defaults == {supplied}
+                if key == 'tasks':
+                    supplied = supplied if supplied is not None and supplied > 0 else None
+                    saved = saved if saved is not None and saved > 0 else None
+                return supplied == saved
+            try:
+                if (not compatible_arguments(categories, previous_request['categories'])
+                        or args.vm is not None and not compatible_vm(args.vm, binding)
+                        or any(getattr(args, key) is not None
+                               and not compatible_option(key)
+                               for key in ('rounds', 'model', 'effort', 'tasks')
+                               if key in previous_request)):
+                    raise incompatible_resume(previous_parameters)
+            except ValueError as error:
+                parser.error(str(error))
             categories = previous_request['categories']
-            if args.rounds is None:
-                args.rounds = previous_request['rounds']
-            if args.vm is None:
-                binding = previous_request['vm']
-                args.vm = ','.join(binding['vms']) if isinstance(binding, dict) else binding
+            for key in ('rounds', 'model', 'effort', 'tasks'):
+                if getattr(args, key) is None:
+                    setattr(args, key, previous_request.get(key))
+            args.vm = binding
     args.categories = categories
     if args.rounds is None:
         args.rounds = 1

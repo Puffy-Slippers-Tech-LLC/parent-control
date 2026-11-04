@@ -95,8 +95,14 @@ def _select(root, argv, *, reload=False):
     from vm_selection import vm_config
     _, selector = vm_config.extract_selector(requested)
     vms = vm_config.execution(selector)[1] if selector is not None and not host_only else ()
+    session_vm = vms[0].name if len(vms) == 1 else None
+    if '--resume' in argv:
+        from test_checkpoint import request_record
+        previous = request_record(root, 'run-tests')
+        if previous is not None:
+            session_vm = previous.get('session_vm', session_vm)
     directory = prepare(root, host_only=host_only,
-                        vm_name=vms[0].name if len(vms) == 1 else None)
+                        vm_name=session_vm)
     with lock(directory / 'gate') as gate:
         fcntl.flock(gate, fcntl.LOCK_EX)
         run, active = current_session(directory)
@@ -188,9 +194,13 @@ def _select(root, argv, *, reload=False):
                 environment.pop(WORKFLOW_DIRECTORY, None)
                 with nested_operation(root, run):
                     from test_checkpoint import request_record
-                    request_record(root, 'run-tests', {'argv': [arg for arg in requested
-                                   if arg not in ('--resume-case-only', '--resume-area-only')
-                                   and not arg.startswith('--resume-case=')]})
+                    remembered = [arg for arg in requested
+                                  if arg not in ('--resume', '--resume-case-only', '--resume-area-only')
+                                  and not arg.startswith('--resume-case=')]
+                    if not host_only and configured is None:
+                        from vm_selection import execution_arguments
+                        remembered.extend(execution_arguments())
+                    request_record(root, 'run-tests', {'argv': remembered, 'session_vm': session_vm})
                     subprocess.Popen(command, cwd=root, env=environment,
                                      stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
                                      start_new_session=True,

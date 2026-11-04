@@ -378,13 +378,17 @@ files, including a shell containing only an empty private `tmp/` directory.
 Scratch containing payloads or ownership records retains its existing protections.
 Reset never discards source changes or unknown files.
 
-`tools/run-tests --resume` restores the latest public selection and retries its
+`tools/run-tests --resume` restores the latest public selection and all its options and retries its
 failed or interrupted category and cases. It can also accompany the original
 categories and selectors, for example `tools/run-tests --resume --stop-on-error
 unit 'tests/unit/test_core.py' -q`. A new execution without `--resume` resets the
 checkpoint for the selected categories and starts that selection from the beginning;
 other categories in the same scope retain their progress. Attachment to a live
 owner keeps that owner's options; inspection never changes checkpoints.
+Explicit resume parameters must match the saved request; omitted options are
+inherited. VM names and IDs are compatible when they resolve to the same VM set.
+Incompatible parameters fail before attachment or execution and report the previous
+parameters. This compatibility check also applies to `fix-tests --resume`.
 An idle successful owner starts a fresh execution even if its result was not
 previously viewed. With no arguments, an unread failed result remains available
 for reconnection; an explicit selection starts fresh subject to normal recovery
@@ -403,7 +407,7 @@ owner/machine failure can lose the last one-second checkpoint interval, causing
 those cases to run again. A failed final controller/cleanup audit repeats a case
 so an empty selection cannot certify recovery. Changed selectors refuse resume;
 start without the option to reset. Host and individual VM checkpoints remain
-separate, and a retry can narrow an aggregate to an original category.
+separate. Internal repair retries can narrow an aggregate to an original category.
 Whole-system selections accept additive standalone check inventory growth on resume:
 existing passes remain saved and added checks run as pending work. Removed checks
 and changed explicit selectors still refuse resume. New checkpoints record whether
@@ -739,7 +743,9 @@ Older stranded copies require the original restart identity and identical repair
 ownership records; a dirty file or a passed diagnostic alone cannot release the fence.
 
 Use `tools/fix-tests --resume` without repeating the original arguments to
-restore the saved selection and VM queue. Its startup line lists retained passed
+restore the saved selection, VM queue, rounds, model, effort and task limit.
+Older saved requests restore the options they recorded; omitted unrecorded
+options retain their defaults. Its startup line lists retained passed
 categories. A session-limit or stalled handoff does not erase those category
 passes, including a completed diagnostic test run; resuming does not reinterpret
 an old agent conversation. Failed/interrupted cases still need their matching

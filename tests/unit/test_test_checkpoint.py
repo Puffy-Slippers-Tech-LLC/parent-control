@@ -580,20 +580,31 @@ def test_verification_retries_companion_failure_without_resetting_its_passes():
     assert calls == [('fresh', 'all'), ('resume', 'ui'), ('fresh', 'all')]
 
 
-@pytest.mark.parametrize('options, rounds', [([], 2), (['--rounds', '4'], 4)])
-def test_fix_tests_bare_resume_restores_selection_and_honors_explicit_rounds(monkeypatch, options, rounds):
+@pytest.mark.parametrize('options, rounds', [([], 2), (['--rounds', '2'], 2), (['--rounds', '4'], None)])
+def test_fix_tests_bare_resume_restores_selection_and_checks_explicit_rounds(monkeypatch, options, rounds, capsys):
     import test_checkpoint
     monkeypatch.setattr(test_checkpoint, 'request_record', Mock(return_value=dict(
-        categories=['unit', '-q'], rounds=2, vm=None)))
+        categories=['unit', '-q'], rounds=2, vm=None, model='gpt-6.1-sol', effort='high', tasks=3)))
     launcher = Mock(return_value=(None, False))
     monkeypatch.setattr(fix_tests, 'select', launcher)
+    if rounds is None:
+        with pytest.raises(SystemExit):
+            fix_tests.main(['--resume', *options])
+        assert 'previous parameters: unit -q --rounds 2' in capsys.readouterr().err
+        launcher.assert_not_called()
+        return
     assert fix_tests.main(['--resume', *options]) == 0
     assert launcher.call_args.kwargs['categories'] == ['unit', '-q']
     assert launcher.call_args.kwargs['rounds'] == rounds
     assert launcher.call_args.kwargs['resume'] is True
+    assert launcher.call_args.kwargs['model'] == 'gpt-6.1-sol'
+    assert launcher.call_args.kwargs['effort'] == 'high'
+    assert launcher.call_args.kwargs['tasks'] == 3
 
 
 def test_resume_flag_is_coordinator_owned_and_fix_tests_receives_it(monkeypatch):
+    import test_checkpoint
+    monkeypatch.setattr(test_checkpoint, 'request_record', Mock(return_value=None))
     assert test_commands.selections(ROOT, ['--resume', '--stop-on-error', 'unit', '-x']) == [('unit', ['-x'])]
     assert test_commands.host_only_request(['unit', '--resume'])
     launcher = Mock(return_value=(None, False))
@@ -603,12 +614,28 @@ def test_resume_flag_is_coordinator_owned_and_fix_tests_receives_it(monkeypatch)
     assert launcher.call_args.kwargs['categories'] == ['unit', '-q']
 
 
-def test_bare_resume_restores_original_selectors_and_failure_policy(tmp_path):
+def test_bare_resume_restores_original_selectors_and_failure_policy(tmp_path, monkeypatch):
     original = ['--stop-on-error', 'unit', 'tests/unit/test_core.py', '-q']
     request_record(tmp_path, 'run-tests', dict(argv=original))
     assert resume_arguments(tmp_path, ['--resume']) == ['--resume', *original]
-    assert resume_arguments(tmp_path, ['--resume', 'unit', '-x']) == ['--resume', 'unit', '-x']
+    with pytest.raises(ValueError, match='not compatible.*previous parameters:'):
+        resume_arguments(tmp_path, ['--resume', 'unit', '-x'])
+    assert resume_arguments(tmp_path, ['--resume', '--stop-on-error']) == ['--resume', *original]
+    assert resume_arguments(tmp_path, ['--resume', 'unit']) == ['--resume', *original]
+    assert resume_arguments(tmp_path, ['--resume', 'unit', '-q', 'tests/unit/test_core.py']) == ['--resume', *original]
     assert resume_arguments(tmp_path, ['--resume', '--help']) == ['--resume', '--help']
+    request_record(tmp_path, 'run-tests', dict(argv=['unit', '-k', 'first', '-k', 'second']))
+    with pytest.raises(ValueError, match='not compatible'):
+        resume_arguments(tmp_path, ['--resume', '-k', 'first'])
+    from vm_selection import vm_config
+    monkeypatch.setattr(vm_config, 'registry', lambda: {
+        'guest': SimpleNamespace(name='guest', id='1'),
+        'other': SimpleNamespace(name='other', id='2')})
+    original = ['system', '--id', '6', '--vm', 'guest']
+    request_record(tmp_path, 'run-tests', dict(argv=original))
+    assert resume_arguments(tmp_path, ['--resume', '--vm', '1']) == ['--resume', *original]
+    with pytest.raises(ValueError, match='previous parameters: system --id 6 --vm guest'):
+        resume_arguments(tmp_path, ['--resume', '--vm', '2'])
 
 
 def test_repair_replays_the_specific_case_even_after_a_passing_diagnostic():

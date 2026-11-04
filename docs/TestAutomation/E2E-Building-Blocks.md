@@ -97,13 +97,26 @@ the immediate proven mechanical defect. Verify the prerequisite and return to
 the product test as soon as it is ready. First remove any incidental requirement
 or choose a simpler supported route that preserves the product result; do not
 expand GDM or desktop qualification solely to reproduce an unnecessary step.
-If the remaining prerequisite requires recursively repairing
-dependencies, investigating their internals, or creating new infrastructure,
-stop that branch and report the exact blocker, evidence and minimum external
-action needed to resume. Do not add prerequisite tasks merely to continue that
-detour. A bounded adviser review, when required, answers the immediate question;
-it does not expand the authorized scope. This stopping rule preserves routine
-automatic preparation and does not permit bypassing guards or weakening checks.
+Investigation of the immediate failure in maintained preparation code is part of
+that repair, including source/history, saved inventories and metadata, and
+guarded probes under existing authorization. A failed normal refresh, an unknown
+historical input or an inconclusive adviser finding does not by itself require
+external maintenance. Establish exact identity, ownership and the expected state
+before changing compatibility or reconciliation code; preserve refusal guards
+and unrelated inputs. Do not accept arbitrary subsets or rewrite ownership
+receipts merely to make preparation pass.
+Continue useful focused diagnosis within the launcher's existing session allowance;
+for `write-e2e`, use its [diagnostic continuation](../../tests/README.md#live-diagnosis-before-another-repair-attempt)
+before acceptance when necessary. Carry actual new observations and a concrete
+next probe; do not repeat unchanged failed operations or consultations without
+new evidence. Return to the product test as soon as preparation is verified.
+Do not create another maintenance workflow, prerequisite queue task or new
+infrastructure merely to continue this repair. If the minimum repair actually
+requires missing authority, an unavailable external resource, an unrelated
+dependency project or a product behavior decision, report the exact boundary,
+evidence and external action needed. A bounded adviser review answers the
+immediate question; it does not expand authorization. Neither investigation nor
+continuation permits bypassing guards, denied grants or acceptance checks.
 
 Product installation and enforcement are product boundaries even when their
 failures occur during snapshot or fixture preparation. For example, a child trust

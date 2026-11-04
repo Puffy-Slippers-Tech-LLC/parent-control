@@ -38,7 +38,29 @@ INITIAL_PROMPT = """Implement the next task in docs/TestAutomation/E2E-Execution
 through host validation and the first live VM test. Close the task if it passes;
 if it fails, hand off the failure to the next session.
 """
-LIVE_DIAGNOSIS_INSTRUCTIONS = """Live diagnosis and repair loop:
+LIVE_DIAGNOSIS_INSTRUCTIONS = """Preparation diagnosis and repair:
+Apply docs/TestAutomation/E2E-Building-Blocks.md#keep-supporting-work-bounded.
+Investigate the immediate test/fixture/harness preparation failure through existing
+authorized routes, including source/history, saved metadata and guarded probes.
+An unknown historical input or a failed normal refresh calls for evidence gathering;
+it does not by itself require a maintainer or developer decision. Establish exact
+identity and ownership before making a focused mechanical repair. Preserve all
+refusal guards, unrelated inputs and product assertions. Do not accept arbitrary
+inventories, rewrite ownership receipts to pass, or bypass a denied operation.
+Resume preparation and acceptance as soon as the prerequisite is verified.
+If useful authorized investigation remains after a bounded session, finish owned
+cleanup and return investigating with live_result not_run, actual host_validated,
+empty stage_paths, no blocker, and diagnostic progress with an empty
+failure_checkpoint. This is allowed before the first live acceptance attempt.
+Record actual new observations, remaining uncertainty and the exact next probe;
+a plan alone or repeating an unchanged failed command is not diagnostic progress.
+Use the existing task/session allowance; do not create another maintenance task
+or launch another workflow merely to continue this repair. Missing authority,
+an unavailable external prerequisite or an unresolved product behavior decision
+still requires the normal blocker route. Never classify uncertainty alone as
+requiring external action while a useful authorized probe remains.
+
+Live diagnosis and repair loop:
 Follow tests/README.md#live-diagnosis-before-another-repair-attempt. After an initial
 scoped attempt, use a bounded source/log review to choose between a proven correction
 and live investigation. When the cause remains unclear, evidence conflicts, or a
@@ -72,8 +94,9 @@ rounds: refine the hypothesis/probe using new evidence, not repeated guesses.
 A single inconclusive probe is not a reason to abandon live investigation.
 If a bounded investigation remains unresolved but has useful next live work,
 finish owned maintenance cleanup and return investigating with live_result not_run,
-repair_outcome diagnostic and an empty failure_checkpoint. This is available only
-after a retained failed acceptance attempt; host_validated reports actual checks.
+repair_outcome diagnostic and an empty failure_checkpoint. For live diagnosis this
+follows a retained failed acceptance attempt; preparation diagnosis above needs no
+prior acceptance. host_validated reports actual checks.
 Record actual new observations and a concrete next probe, not just plans to probe.
 Do not run full acceptance merely to qualify for another session, or return stalled
 while a useful authorized live experiment remains. The continuation consumes a
@@ -240,7 +263,7 @@ def session_progress(root, state, count):
                if state['phase'] == 'implement' else
                f"Investigate/fix previous failure + host validation + live VM test {state['live_attempts'] + 1}; close on success, hand off on failure")
     if state.get('diagnostic_continuation'):
-        summary = 'Continue live probing/fix experiments; clean acceptance when the correction is supported'
+        summary = 'Continue diagnosis and focused repairs; clean acceptance when the prerequisite or correction is verified'
     model, effort = session_model(state)
     return session_lines(plan_task_heading(root, QUEUE, state['task_id']),
                          state['task_sessions'], model, effort, summary=summary)
@@ -483,6 +506,8 @@ live diagnosis and repair loop above when its cause is not established. Review
 unstaged code (including new files) and retained failure evidence, apply the
 repository failure contract and repair authorized defects. For interrupted or
 blocked work, recheck the operation or prerequisite and owned test cleanup first.
+Apply current repair contracts when an older handoff calls for external maintenance;
+that handoff does not prohibit authorized investigation of the immediate preparation failure.
 Finish remaining implementation or repairs and complete host validation before
 starting live acceptance in this same session.
 """
@@ -500,8 +525,9 @@ Leave investigation and repairs of this new failure to the next session; do not
 repair it, retry live acceptance or advance the pointer in this session.
 Do not end a normal session with only host validation: finish live VM validation
 with a passed or failed result, except for the investigating continuation above
-when the previous failure still needs useful live diagnosis. If a prerequisite still prevents validation after
-authorized repair and requires developer action, return blocked with the actual
+when preparation or the previous failure still needs useful authorized diagnosis.
+If a prerequisite still prevents validation after authorized repair and requires
+developer action, return blocked with the actual
 live_result and the specific external action needed; do not claim a VM attempt.
 After all acceptance and cleanup pass, complete the plan's close-out and return
 task_complete with live_result passed and the next-task handoff. Leave the next
@@ -577,7 +603,7 @@ After failed live validation, completion requires a subsequent clean live pass;
 not_run cannot clear that failure, including after blockers or diagnostic rounds.
 No changes or lessons is a valid audited outcome; summarize the findings briefly.
 A failed live validation returns ready_for_vm with host_validated true and a
-failed live_result. After that failure, useful unresolved live diagnosis may return
+failed live_result. Useful unresolved preparation or live diagnosis may return
 investigating as above; reasoning with no useful next step returns stalled.
 Keep summary under 600 characters and handoff under 16000; carry only findings,
 decisions, remaining work and relevant check selectors across sessions.
@@ -719,8 +745,8 @@ def accept_result(root, state, result, before):
     acceptance = acceptance_evidence(state)
     outstanding_failure = bool(acceptance and acceptance['live_result'] == 'failed')
     if result['status'] == 'investigating':
-        if not outstanding_failure or result['live_result'] != 'not_run':
-            raise ValueError('diagnostic continuation requires a prior failed acceptance and no new live result')
+        if result['live_result'] != 'not_run':
+            raise ValueError('diagnostic continuation cannot claim a new live result')
     if result['live_result'] != 'not_run':
         acceptance = {'live_result': result['live_result'], 'progress': progress}
         if result.get('checks') is not None:
@@ -794,8 +820,9 @@ def accept_result(root, state, result, before):
     if state['phase'] in ('implement', 'live', 'recover') and result['live_result'] != 'not_run':
         updated['live_attempts'] += 1
     updated['phase'] = ('complete' if status == 'task_complete' else
-                        'live' if status in ('ready_for_vm', 'investigating') else
-                        'recover' if status == 'stalled' else 'blocked')
+                        'live' if (status == 'ready_for_vm' or
+                                   status == 'investigating' and outstanding_failure) else
+                        'recover' if status in ('investigating', 'stalled') else 'blocked')
     if current != task and status == 'blocked':
         return defer_to_prerequisite(root, retain_diagnostic_state(updated, result))
     return retain_diagnostic_state(updated, result)

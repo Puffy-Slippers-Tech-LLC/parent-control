@@ -17,7 +17,11 @@ that cannot be repaired within existing authorization and maintained routes.
 Routine implementation choices and proven mechanical test, fixture, harness or
 input-preparation defects do not require a developer decision. Repair them
 automatically while preserving assertions and evidence, within this launcher's
-execution boundary. Do not ask whether to perform an already-authorized repair
+execution boundary. Unresolved preparation diagnosis is not an external action
+merely because the normal recovery failed or the cause is still uncertain.
+Use the launcher's authorized diagnostic continuation when useful probes remain;
+identify the concrete missing authority, resource or decision before asking for
+external maintenance. Do not ask whether to perform an already-authorized repair
 or offer rebuilding versus restoring generated inputs as a developer choice.
 Never infer permission to bypass a denied grant or overwrite unrelated inputs.
 For blocked, supply blocker with explanation, question and options. The reader

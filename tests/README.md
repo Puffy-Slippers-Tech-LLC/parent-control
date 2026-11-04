@@ -1212,11 +1212,16 @@ the interrupted operation or blocked prerequisite and owned cleanup. Every live
 failure ends the session after evidence preservation and cleanup; investigation
 and repairs of that new failure belong to the next session. A normal handoff
 requires passing host checks and a completed failed VM attempt, including in
-recovery. The diagnostic continuation below permits further useful live
-investigation of a retained failure without another acceptance attempt.
+recovery. The diagnostic continuation below permits useful preparation diagnosis
+before acceptance and further live investigation of a retained failure without
+another acceptance attempt.
 A preparation failure before VM access does not count as a failed live
 attempt: repair authorized mechanical defects or prepare missing generated inputs
 through the maintained artifact builder and resume validation in the same session.
+Apply the [bounded supporting-work contract](../docs/TestAutomation/E2E-Building-Blocks.md#keep-supporting-work-bounded)
+to the immediate preparation failure. Source/history and saved-state investigation
+through authorized routes is part of mechanical repair, even when normal refresh
+failed. An unresolved cause alone does not establish a need for external maintenance.
 Do not ask the developer to choose between building and restoring qualification
 inputs. Integration qualification wrappers declare their input profile with
 literal `named_input()` options. `tools/test_commands.py` reads that declaration
@@ -1267,20 +1272,25 @@ the previous failure happen before that session's formal acceptance attempt.
 They do not erase the original failure, supply acceptance credit, renew session
 limits or alter the launcher's unsuccessful-attempt/promotion accounting.
 
-If bounded live investigation remains unresolved but has useful next work,
+If bounded preparation or live investigation remains unresolved but has useful next work,
 return structured status `investigating` after owned maintenance cleanup, with
 `live_result: not_run`, actual `host_validated`, empty `stage_paths`, no blocker,
 and progress outcome `diagnostic` with an empty `failure_checkpoint`. Report
-actual new observations and an exact next live experiment in the handoff. This
-is a continuation of a prior failed acceptance attempt, not an alternative to
-the first attempt or a way to skip validation after a supported correction.
-The launcher refuses it without a prior failed acceptance or if it claims a new
-live pass/failure, staging or queue advancement. It retains the formal failure's
+actual new observations and an exact next probe or experiment in the handoff.
+Preparation diagnosis requires no prior failed acceptance; live diagnosis
+continues a retained failed attempt. This does not permit deferring a runnable
+first attempt or skipping validation after a supported correction. The launcher
+refuses a diagnostic result claiming a new live pass/failure, staging or queue
+advancement. It retains any formal failure's
 progress separately from diagnostic progress, preserving subsequent
 same-checkpoint failed-repair promotion. Each continuation consumes the existing
 session budget, but increments neither live/unsuccessful-attempt counts nor the
 model tier. Success still requires all host and clean live acceptance checks.
-This route also applies to optimization repair after its own failed validation.
+This route also applies to optimization preparation and repair. No separate
+maintenance workflow or queue task is needed to continue the immediate repair.
+Missing authority, an unavailable external prerequisite or an unresolved product
+behavior decision still uses the blocker route; exhausting the session allowance
+uses its existing intervention rather than inventing an external maintenance need.
 Formal live outcomes are retained independently of promotion counters. A failed
 attempt reported with a blocker permits diagnostic continuation after the blocker
 is resolved, without counting the blocker as a failed repair. Blockers, stalls and

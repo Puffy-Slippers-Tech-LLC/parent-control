@@ -622,7 +622,7 @@
       },
       "variants": [
         {"coverage_id": 13, "id": "enabled-precise", "owner": "parent-policy", "parameters": {"control": "enabled", "match": "precise"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/app_rule_changes_case.py", "test_id": "enabled-precise"}},
-        {"coverage_id": 14, "id": "enabled-pattern", "owner": "parent-policy", "parameters": {"control": "enabled", "match": "pattern"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 14, "id": "enabled-pattern", "owner": "parent-policy", "parameters": {"control": "enabled", "match": "pattern"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/app_rule_changes_case.py", "test_id": "enabled-pattern"}},
         {"coverage_id": 15, "id": "disabled-precise", "owner": "parent-policy", "parameters": {"control": "disabled", "match": "precise"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 16, "id": "disabled-pattern", "owner": "parent-policy", "parameters": {"control": "disabled", "match": "pattern"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]

@@ -509,7 +509,8 @@ again denies retained access without replacing the desktop or restoring the gran
 ### E2E-006
 
 Implementation status: Case 13's enabled/precise composition passed on Ubuntu
-26.04 in task 080. Other bindings are pending.
+26.04 in task 080. Case 14's enabled/pattern composition passed on Ubuntu
+26.04 in task 081 (`20261104T155650Z-3b4a47fe`). Limits-off bindings are pending.
 
 **Change app rules while children use apps.** Cases 13, 14, 15, 16.
 
@@ -519,9 +520,12 @@ Bindings: control = enabled / disabled; match = precise / pattern.
 2. For each transition in the app table, prepare its explicitly required open activity, then P → PARENT16 → PARENT08 → C(retained) → APP02(existing result) → FLOW08(matching and nonmatching) → FLOW09(Riley). Finish each iteration's checks before the next save; phase step-2 owns the entire finite loop.
 3. P → LIFE01(Parent) → PARENT02 → PARENT12 → UI12(final Allowed rule). This phase does not replay the transitions.
 
-Case 13 uses `app_rule_changes_case.PLAN` / `onpc_app_rule_changes::run`.
-A has the precise rule; the separately Allowed S secondary window is the
-nonmatch. Riley's original activity is compared before and after resumed use
+Cases 13/14 use `app_rule_changes_case.PLAN` / `PATTERN_PLAN` and
+`onpc_app_rule_changes::run`. A has the precise rule in case 13 and
+`/opt/onpc-test-fixtures/Applications/*.AppImage` in case 14. The latter matches
+A, N and the legacy root-level S file; H and the active S are in immediate
+subdirectories, outside the basename pattern. The separately Allowed active S
+secondary window is the nonmatch. Riley's original activity is compared before and after resumed use
 in every round. The worker has one 60-minute deadline and the case allows
 65 minutes around it for preparation, collection and cleanup. This covers the
 six rounds' transport, authentication and retained-work observations under the

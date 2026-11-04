@@ -818,11 +818,12 @@ sub run {
         onpc_app_rows::native_policy_closure(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
-    if ($ready->{app_rule_changes_case}) {
+    if ($ready->{app_rule_changes_case} || $ready->{app_rule_changes_pattern_case}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_app_rule_changes::run(\&exchange, $ready->{invocations},
-            $ready->{challenge_bindings}, $ready->{kiosk_request});
+            $ready->{challenge_bindings}, $ready->{kiosk_request},
+            $ready->{app_rule_changes_pattern_case} ? 'pattern' : 'precise');
         return;
     }
     if ($ready->{native_app}) {

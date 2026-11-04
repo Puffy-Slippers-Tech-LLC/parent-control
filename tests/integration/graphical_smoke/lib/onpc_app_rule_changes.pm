@@ -28,8 +28,10 @@ sub nonmatching {
 
 sub run {
     onpc_progress::operation('Checking app rule changes while both children keep using their own apps');
-    my ($exchange, $declared, $challenges, $request) = @_;
-    die 'app-transitions:binding' unless @_ == 4 && ref($exchange) eq 'CODE'
+    my ($exchange, $declared, $challenges, $request, $match) = @_;
+    $match //= 'precise';
+    die 'app-transitions:binding' unless (@_ == 4 || @_ == 5) && ref($exchange) eq 'CODE'
+        && ($match eq 'precise' || $match eq 'pattern')
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,75,1';
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'app-rule-changes', review => 0);
     $journey->declare_invocations($declared);
@@ -39,7 +41,8 @@ sub run {
         $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
     $journey->seen($_) for qw(saved-settings apps-page initial-rows);
     onpc_app_rows::named_app_set($journey, 'desktop', 'same-user', 'retained', 'existing',
-        [['A', 'match-precise', 'allowed'], ['S', 'match-soft-precise', 'allowed']], 'setup-rules');
+        [['A', $match eq 'pattern' ? 'match-wildcard-appimages' : 'match-precise', 'allowed'],
+         ['S', 'match-soft-precise', 'allowed']], 'setup-rules');
     onpc_app_rows::retained_app_activities($journey, [['riley', 'child', 'fresh']]);
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan');
     open_matching($journey, 'initial-matching');

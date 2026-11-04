@@ -1,4 +1,5 @@
-"""Case 13: six precise app-rule transitions, with Jordan's limits enabled."""
+"""Cases 13/14: six app-rule transitions, with Jordan's limits enabled."""
+from dataclasses import replace
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (app_policy_entry, desktop_entry, native_usable_app,
@@ -157,6 +158,16 @@ PLAN = JourneyPlan(
                                     'other-child': 'standard-recipient-'}[account],)},
     kiosk_request=('other-child', 'parent', 75, True),
 )
+# The pattern stays in A's directory. S's Versioned subdirectory remains
+# outside it, so the same retained nonmatching activity proves isolation.
+PATTERN_PLAN = replace(
+    PLAN, worker_mode='app_rule_changes_pattern_case',
+    screen_tags={stage: tag.replace('ui:text-match-precise-',
+                                    'ui:text-match-wildcard-appimages-')
+                 for stage, tag in SCREENS.items()},
+    match_checks={stage: (app, MATCH_RULES[2] if app == MATCH_APPS['A'] else rule)
+                  for stage, (app, rule) in MATCHES.items()},
+)
 
 
 class AppRuleChangesJourney(RetainedDesktopJourney, NativePolicyJourney, KioskRequestJourney):
@@ -177,15 +188,19 @@ class AppRuleChangesJourney(RetainedDesktopJourney, NativePolicyJourney, KioskRe
             observed.setdefault('comparison', {})['soft_opening_daily_margin'] = True
 
 
-def execute(recorder, context):
+def execute(recorder, context, *, plan=PLAN, binding='enabled-precise'):
     from e2e_fixture_preparation import ACTIVITY_SUBSETS
     context.fixture_subsets = ACTIVITY_SUBSETS
-    context.fixture_caller = 'E2E-006/enabled-precise'
+    context.fixture_caller = 'E2E-006/' + binding
     # Six ordered saves, retained visits for both children and final Parent
     # reopening need transport/authentication headroom beyond thirty minutes.
     # This is one worker deadline; individual product observations stay bounded.
-    record_installed_journey(recorder, context, PLAN, timeout=3600,
+    record_installed_journey(recorder, context, plan, timeout=3600,
                              journey_type=AppRuleChangesJourney)
 
 
-E2E_CASES = {'enabled-precise': execute}
+def execute_pattern(recorder, context):
+    execute(recorder, context, plan=PATTERN_PLAN, binding='enabled-pattern')
+
+
+E2E_CASES = {'enabled-precise': execute, 'enabled-pattern': execute_pattern}

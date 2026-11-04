@@ -3099,7 +3099,17 @@ Case 13 subsequently qualified the Jordan A/S precise/Allowed setup through
 retained Parent entry on Ubuntu 26.04 in `20261104T091552Z-e6d1cd66`.
 Its complete six-transition journey also qualified S's secondary activity
 capture/comparison through `native-unmatched-soft-*`, while A's policy activity
-remained independently bound. Other match/control variants remain pending.
+remained independently bound.
+
+Case 14 qualified the enabled Jordan A `*.AppImage`/Allowed and S
+precise/Allowed setup through the same operations on Ubuntu 26.04 in
+`20261104T155650Z-3b4a47fe`. `app_rule_changes_case.PATTERN_PLAN` /
+`onpc_app_rule_changes::run(..., 'pattern')` passed all six directed saves,
+captured A closure and matching launch results, retained/new nonmatching S use,
+Riley's original activity and resumed use after each save, the real 75-second
+soft-included approval, and final reopened Parent readback. Collection,
+worker shutdown, owned cleanup and baseline restoration passed. Limits-off
+variants and other target families remain pending.
 
 | ID | Kind | Block and explicit contract | Callees, in order | Status |
 | --- | --- | --- | --- | --- |
@@ -3122,7 +3132,7 @@ remained independently bound. Other match/control variants remain pending.
 | FLOW16 | C | As the named parent, reach Parent for the named child and set a daily allowance and final limit state. This is the reusable “Set Jordan's daily allowance to zero” recipe; zero is an allowance, not an approval. | `onpc_parent::set_allowance` composes FLOW01→FLOW02. Qualified `gdm/parent/fresh/new/child/0/0/1`, `desktop/parent/same-user/new/child/1/15/1` and `gdm/parent/fresh/new/child/0/30/1` bind explicit saved settings and independent zero/positive/1800-0-1800 balances through `set_allowance.PLAN/fresh_thirty_allowance.PLAN`. Wrong child/state/window refuses before reply. Finish in Parent without implicit logout. Other allowances/parents/retained windows need qualification; local case 161 has no E2E executable. | pending; fresh-zero, fresh-thirty and same-user-positive bindings ready |
 | FLOW17 | C | Leave a request with authentication pending by one declared supported action, observe its destination, then return and read cancellation before a new request. | Lock: shared DESK05 shortcut/command → DESK06 → DESK08; switch: DESK03 → FLOW15(return retained); sign-out: DESK04 → FLOW15(fresh); close: UI18(API surface close) → UI11(app), followed by REQUEST01/02 as declared. REQUEST03 → UI11(old prompt). E2E-039; system commands work independently of modal menu access. An unavailable tested app-close control remains gated. | pending |
 | FLOW18 | C | Prepare positive daily time that outlasts a soft-app grant without resetting its launch exception. Finish on the child desktop with both balances positive and daily dominant. | FLOW13(combined, soft included) → FLOW15(child) → FLOW08(soft app) → APP04 → DESK03 → FLOW01(parent retained) → PARENT09 → TIME03(wait until the declared remaining-grant window while child is away) → PARENT09 → UI12(D>G>0) → DESK03 → FLOW15(child retained) → TIME01. No allowance edit or app save after approval. E2E-038. | pending |
-| FLOW19 | C | Configure a finite named app-rule set for one child and return to sign-in. Each match/access edit and save is explicit; no time approval or account preparation is hidden. | `named_app_set.named_app_set` / `onpc_app_rows::named_app_set`: FLOW01(parent, explicit source/entry/window/child) → PARENT04(App Limits) → FLOW03 for each declared app/rule → complete saved-set read → DESK03. First consumers E2E-006/007; reused as AppSet in the recipes. | stated [Riley A/H/S and A/S slices on Ubuntu 26.04](#named-app-rule-set-qualification) ready for fresh and same-user retained Parent entry; Jordan A/S precise/Allowed setup ready for same-user retained Parent entry on Ubuntu; other bindings pending |
+| FLOW19 | C | Configure a finite named app-rule set for one child and return to sign-in. Each match/access edit and save is explicit; no time approval or account preparation is hidden. | `named_app_set.named_app_set` / `onpc_app_rows::named_app_set`: FLOW01(parent, explicit source/entry/window/child) → PARENT04(App Limits) → FLOW03 for each declared app/rule → complete saved-set read → DESK03. First consumers E2E-006/007; reused as AppSet in the recipes. | stated [Riley A/H/S and A/S slices on Ubuntu 26.04](#named-app-rule-set-qualification) ready for fresh and same-user retained Parent entry; Jordan A precise or `*.AppImage`/Allowed with S precise/Allowed setup ready for same-user retained Parent entry on Ubuntu; other bindings pending |
 | FLOW20 | C | Approve a specified interval on either request surface and continue as the named child. Accept explicit new/open form entry, child/parent, duration, soft choice, child fresh/retained entry and expected countdown. New overlay entry requires that child's unlocked desktop; new kiosk entry requires GDM. It does not create those preconditions or alter daily policy. | FLOW04(entry and all choices) → FLOW05 → FLOW15(child,declared entry) only for kiosk → TIME01 → UI12(expected interval). `request_flow.approval_and_return` / `onpc_request_flow::approval_return` qualify [finite explicit overlay new/open entry](#explicit-overlay-choices-and-countdown-return-qualification), returning to the same usable activity. The kiosk branch / `onpc_request_flow::kiosk_fresh_return` qualify new/open form with [fresh](#explicit-kiosk-choices-and-fresh-child-return-qualification) and [retained](#explicit-kiosk-choices-and-retained-child-return-qualification) child destinations. Retained callers bind their earlier activity through `JourneyPlan.activity_entries` and immutable `activity_checks`. Reuse FLOW04/05/15 without another surface-specific approval implementation. E2E-048 immediate repeat and E2E-049/050/051. | overlay new/open form and all four kiosk new/open form × fresh/retained child bindings ready for the stated finite scope |
 
 FLOW16 separately qualifies Jordan's
@@ -3843,6 +3853,12 @@ Allowed grid/command use and normal closure between launches. Host source checks
 collection, worker/callback shutdown, owned cleanup and baseline restoration passed.
 079d's unchanged H/S no-prior-window denial remains qualified separately; this
 slice supplies no complete E2E-006/case-13 acceptance.
+
+Case 14's complete enabled/pattern journey subsequently passed on Ubuntu 26.04
+in `20261104T155650Z-3b4a47fe`, adding captured A closure and command denial
+after the `*.AppImage` Soft/Hard saves, including Soft→Hard after real approval.
+It independently preserved and used the nonmatching S window and Riley's same
+activity after every transition. Limits-off bindings remain pending.
 
 ## Complete scenario decomposition
 

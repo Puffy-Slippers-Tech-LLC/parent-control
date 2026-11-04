@@ -270,16 +270,24 @@ def native_blocked_app(role, *, route='command'):
     return {'command': 'ui:native-' + name + '-command-blocked'}
 
 
-def native_activity_entry(prefix, *, route='command', child='child', desktop_observation=True):
+def native_activity_entry(prefix, *, route='command', child='child', desktop_observation=True,
+                          binding='activity'):
     """FLOW08 + APP04 capture; caller owns transition and comparison endpoints."""
     import re
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
             'journey:native-activity-prefix')
-    return {**{f'{prefix}-{stage}': tag.replace('native-command-launch', 'native-activity-launch')
-               for stage, tag in
-               native_usable_app(route, child=child, desktop_observation=desktop_observation).items()},
-            f'{prefix}-capture': 'ui:' + {'child': 'overlay-native-',
-                'parent': 'parent-native-', 'other-child': 'native-'}[child] + 'activity'}
+    require(binding == 'activity' or binding in ('policy', 'unmatched-soft')
+            and child == 'other-child' and route == 'command', 'journey:native-activity-binding')
+    stages = native_usable_app(route, child=child, desktop_observation=desktop_observation,
+                               role='unmatched-soft' if binding == 'unmatched-soft' else None)
+    if binding == 'activity':
+        stages = {stage: tag.replace('native-command-launch', 'native-activity-launch')
+                  for stage, tag in stages.items()}
+        operation = {'child': 'overlay-native-', 'parent': 'parent-native-',
+                     'other-child': 'native-'}[child] + 'activity'
+    else:
+        operation = 'native-' + binding + '-activity'
+    return {**prefixed_stages(prefix, stages), f'{prefix}-capture': 'ui:' + operation}
 
 
 def native_activity_resume(prefix, *, child):

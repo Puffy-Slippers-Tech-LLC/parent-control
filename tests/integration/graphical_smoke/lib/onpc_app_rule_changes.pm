@@ -11,21 +11,6 @@ use onpc_request_flow ();
 use onpc_lifecycle ();
 
 # Case-owned finite ordering; all input and result mechanics stay shared.
-sub open_matching {
-    my ($journey, $prefix) = @_;
-    my $section = $journey->scope($prefix);
-    onpc_app_rows::native_usable_app($section, 'command', $section->seen('desktop'), 'other-child');
-    onpc_app_rows::native_read_activity($section, 'capture');
-}
-
-sub nonmatching {
-    my ($journey, $prefix) = @_;
-    my $section = $journey->scope($prefix);
-    onpc_app_rows::native_usable_app($section, 'command', $section->seen('desktop'),
-                                    'other-child', 'unmatched-soft');
-    onpc_app_rows::native_read_activity($section, 'capture');
-}
-
 sub run {
     onpc_progress::operation('Checking app rule changes while both children keep using their own apps');
     my ($exchange, $declared, $challenges, $request, $match) = @_;
@@ -45,8 +30,8 @@ sub run {
          ['S', 'match-soft-precise', 'allowed']], 'setup-rules');
     onpc_app_rows::retained_app_activities($journey, [['riley', 'child', 'fresh']]);
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan');
-    open_matching($journey, 'initial-matching');
-    nonmatching($journey, 'initial-nonmatching');
+    onpc_app_rows::native_activity_entry($journey, 'initial-matching', 'command', 'other-child', 1, 'policy');
+    onpc_app_rows::native_activity_entry($journey, 'initial-nonmatching', 'command', 'other-child', 1, 'unmatched-soft');
     $journey->seen('jordan-session');
     onpc_desktop_session::enter_desktop($journey, 'desktop', 'parent', 'retained', 'success',
                                       'prepared-parent', 'other-child');
@@ -71,7 +56,7 @@ sub run {
                 onpc_desktop_session::enter_desktop($journey, 'desktop', 'other-child', 'retained', 'success',
                                                   $name . '-prepare', 'parent');
             }
-            open_matching($journey, $name . '-opening');
+            onpc_app_rows::native_activity_entry($journey, $name . '-opening', 'command', 'other-child', 1, 'policy');
             onpc_desktop_session::enter_desktop($journey, 'desktop', 'parent', 'retained', 'success',
                                               $name . '-save-parent', 'other-child');
         }
@@ -90,7 +75,7 @@ sub run {
         }
         onpc_app_rows::native_read_activity($journey, $name . '-nonmatching-retained');
         $journey->seen($name . '-nonmatching-' . $_) for qw(resubmit submitted close closed);
-        nonmatching($journey, $name . '-nonmatching-new');
+        onpc_app_rows::native_activity_entry($journey, $name . '-nonmatching-new', 'command', 'other-child', 1, 'unmatched-soft');
         onpc_app_rows::retained_app_visit($journey, $name . '-riley', 'child', 'desktop', 'other-child');
         onpc_app_rows::native_read_activity($journey, $name . '-riley-usable');
         onpc_desktop_session::enter_desktop($journey, 'desktop', 'parent', 'retained', 'success',

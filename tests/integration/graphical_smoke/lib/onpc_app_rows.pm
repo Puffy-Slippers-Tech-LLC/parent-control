@@ -695,17 +695,22 @@ sub _native_activity_scope {
 # transition. Return the same scope for independent reread and normal closure.
 sub native_activity_entry {
     onpc_progress::operation('Establishing and capturing the original native activity');
-    my ($journey, $prefix, $route, $account, $desktop_observation) = @_;
+    my ($journey, $prefix, $route, $account, $desktop_observation, $binding) = @_;
     $account //= 'other-child';
+    $binding //= 'activity';
     $desktop_observation = 1 if @_ < 5;
-    die 'native:activity-entry' unless (@_ == 3 || @_ == 4 || @_ == 5) && defined($route)
+    die 'native:activity-entry' unless (@_ == 3 || @_ == 4 || @_ == 5 || @_ == 6) && defined($route)
         && ($route eq 'command' || $route eq 'grid')
         && defined($desktop_observation) && $desktop_observation =~ /\A[01]\z/
         && ($desktop_observation || $route eq 'command')
         && ($account eq 'child' || $account eq 'other-child' || $account eq 'parent' && $route eq 'command');
+    die 'native:activity-binding' unless $binding eq 'activity'
+        || ($binding eq 'policy' || $binding eq 'unmatched-soft')
+            && $account eq 'other-child' && $route eq 'command';
     my $activity = _native_activity_scope($journey, $prefix);
     native_usable_app($activity, $route,
-        $desktop_observation ? $activity->seen('desktop') : undef, $account);
+        $desktop_observation ? $activity->seen('desktop') : undef, $account,
+        $binding eq 'unmatched-soft' ? 'unmatched-soft' : undef);
     native_read_activity($activity, 'capture');
     return $activity;
 }

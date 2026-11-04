@@ -2,7 +2,7 @@
 from dataclasses import replace
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import (app_policy_entry, desktop_entry, native_usable_app,
+from journey_blocks import (app_policy_entry, desktop_entry, native_activity_entry, native_usable_app,
                             native_blocked_app, parent_reopen, parent_selection,
                             prefixed_stages, retained_app_activities, retained_app_visit)
 from journey_checks import RetainedDesktopJourney, check_balances
@@ -41,20 +41,10 @@ def entry(prefix, account, *, source, source_account=None, fresh=False):
     return prefixed_stages(prefix, screens)
 
 
-def open_matching(prefix):
-    return {**prefixed_stages(prefix, native_usable_app('command')),
-            prefix + '-capture': 'ui:native-policy-activity'}
-
-
-def nonmatching(prefix):
-    return {**prefixed_stages(prefix, native_usable_app('command', role='unmatched-soft')),
-            prefix + '-capture': 'ui:native-unmatched-soft-activity'}
-
-
 SCREENS.update({
     **entry('jordan', 'other-child', source='gdm', fresh=True),
-    **open_matching('initial-matching'),
-    **nonmatching('initial-nonmatching'),
+    **native_activity_entry('initial-matching', child='other-child', binding='policy'),
+    **native_activity_entry('initial-nonmatching', child='other-child', binding='unmatched-soft'),
     'jordan-session': 'system:standard-entry-same',
     **entry('prepared-parent', 'parent', source='desktop', source_account='other-child'),
     'prepared-apps': 'ui:existing-apps',
@@ -79,7 +69,7 @@ for name, access in ROUNDS:
         group.update(entry(name + '-prepare', 'other-child',
             source='gdm' if name == 'soft-hard' else 'desktop',
             source_account=None if name == 'soft-hard' else 'parent'))
-        group.update(open_matching(name + '-opening'))
+        group.update(native_activity_entry(name + '-opening', child='other-child', binding='policy'))
         matching_capture = name + '-opening-capture'
         group.update(entry(name + '-save-parent', 'parent', source='desktop', source_account='other-child'))
     # Verify the selected limit state before each tested access save. Matching
@@ -106,7 +96,8 @@ for name, access in ROUNDS:
                   name + '-nonmatching-submitted': 'ui:native-unmatched-soft-submitted',
                   name + '-nonmatching-close': 'ui:native-unmatched-soft-close',
                   name + '-nonmatching-closed': 'ui:native-unmatched-soft-closed',
-                  **nonmatching(name + '-nonmatching-new')})
+                  **native_activity_entry(name + '-nonmatching-new', child='other-child',
+                                          binding='unmatched-soft')})
     ACTIVITIES[name + '-nonmatching-retained'] = (nonmatching_capture, 'same')
     nonmatching_capture = name + '-nonmatching-new-capture'
     group.update(retained_app_visit(name + '-riley', account='child', source='desktop',

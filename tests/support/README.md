@@ -302,6 +302,12 @@ consumer; the shared entry does not qualify other children or allowance bindings
 The existing worker continues to use `onpc_parent::set_allowance` and the shared
 native launch/use/close operations. These helpers add no resource or cleanup owner.
 
+For ordered access-rule transitions, prepare matching once through FLOW19 and
+compare its saved value after each tested access save. Repeating a match save
+between transitions can conceal which save caused an app to close. Keep the
+original matching capture and a separately bound nonmatching window so closure
+and preserved work cannot be satisfied by replacement launches.
+
 Fixture provisioning qualifications reuse
 `system_fixture_preparation.register_staging`, as do system, standalone and E2E
 preparation through `system_fixture_preparation.provision`. The shared writer
@@ -1153,8 +1159,13 @@ reread and close. Invocation prefixes determine both controller checkpoints and
 actual worker titles. The helpers add no process, storage or cleanup owner and
 never relaunch during resume. Keep the existing complete-order/failure-stop
 checks alongside an independent caller with renamed prefixes.
-Command activity explicitly selects the root-owned trusted activity fixture;
-ordinary APP01 policy and grid launches retain the A fixture. Journey setup
+The default command activity explicitly selects the root-owned trusted activity
+fixture. The same entry helper's `binding='policy'` and `binding='unmatched-soft'`
+select Jordan's existing A primary and S secondary command activities, including
+their independent captures; ordinary APP01 policy and grid launches retain A.
+These finite bindings reuse the existing app/owner/input guards, not the trusted
+activity fixture's launch. Cases 13/14 keep their six transitions, captures,
+nonmatching use and Riley continuity assertions in their case. Journey setup
 uses `NativeFixtures(profile='activity')` for read-only source, receipt,
 metadata and loaded file-trust verification. Preparation alone admits the
 finite executable/runtime inventory. Host regressions extend the existing

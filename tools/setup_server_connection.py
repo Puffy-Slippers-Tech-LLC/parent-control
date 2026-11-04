@@ -166,16 +166,15 @@ def main():
         raise ValueError('existing client key lacks its public key; repair it before retrying')
     text = (f'Host {alias}\n    HostName {host}\n    User {user}\n    Port {port}\n'
             f'    IdentityFile "{key}"\n    IdentitiesOnly yes\n'
-            '    StrictHostKeyChecking ask\n    ServerAliveInterval 30\n'
+            '    StrictHostKeyChecking accept-new\n    ServerAliveInterval 30\n'
             '    ServerAliveCountMax 3\n')
     write_private(profile, text)
     # Put the include before Host/Match sections; preserve the rest byte-for-byte.
     if not original.startswith(include):
         write_private(config, include + original)
 
-    print('Compare the SSH fingerprint with the ./setup.sh --server connection summary before accepting it.')
     print('SSH may request the server password and your client key passphrase.')
-    run(['ssh-copy-id', '-i', str(key) + '.pub', '-o', 'StrictHostKeyChecking=ask', alias],
+    run(['ssh-copy-id', '-i', str(key) + '.pub', '-o', 'StrictHostKeyChecking=accept-new', alias],
         step='authorizing the client public key on the server')
     print('Setup: verifying noninteractive SSH access...', flush=True)
     result = subprocess.run(['ssh', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',

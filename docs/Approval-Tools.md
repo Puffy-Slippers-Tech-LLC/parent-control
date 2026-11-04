@@ -209,9 +209,9 @@ when the CLI is installed and performs a read-only Git remote probe. These
 checks have 15-second and 20-second limits respectively, never prompt for login,
 and report missing readiness without discarding successful setup. Resolve any
 action-needed items before starting a launcher. The summary stays in terminal
-output, outside Git. Verify the fingerprint from
-the client before accepting the host key and use `ssh-copy-id` to authorize the
-client's public key. Never copy private keys between hosts. Confirm
+output, outside Git. Client onboarding below automatically records new host
+keys and uses `ssh-copy-id` to authorize the client's public key.
+Never copy private keys between hosts. Confirm
 `ssh -o BatchMode=yes myserver true` succeeds before configuring a
 [Watch SSH source](../vscode/onpc-watch/README.md#local-and-ssh-sources).
 The client SSH alias and Watch source settings remain client-owned.
@@ -232,15 +232,13 @@ Only one starting checkout is needed per server: Watch discovers the other
 registered Git worktrees through Git metadata. Server setup lists those
 worktrees automatically. Independent clones are not
 discovered through that relationship and require separate Watch sources.
-Before SSH asks to trust a host key, onboarding points to the server setup
-summary's public host-key fingerprints for comparison.
 It creates a dedicated Ed25519 client key and SSH profile under `~/.ssh/onpc/`,
 adds a leading Include to `~/.ssh/config` while preserving existing content,
-and uses OpenSSH's normal host-key and password prompts through `ssh-copy-id`.
+and uses `StrictHostKeyChecking accept-new` to record new host keys without
+confirmation. OpenSSH still prompts for passwords through `ssh-copy-id`.
 It also prepends `IgnoreUnknown UseKeychain` so Linux OpenSSH accepts existing
 macOS keychain settings. Failed commands report their setup step and exit status;
 SSH diagnostics remain visible without including command arguments in setup errors.
-Compare the host-key fingerprint with the server setup output before accepting.
 Existing host-key refusals are never overridden. Key passphrases remain managed
 by OpenSSH; if BatchMode verification fails because the key is locked, use
 `ssh-add` with the generated key and rerun setup.

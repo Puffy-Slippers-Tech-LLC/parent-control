@@ -1,0 +1,33 @@
+---
+name: commit
+description: Commit and push current work, then merge the pushed source commit into every branch configured in config/environment.json and push each destination. Use when the user requests this commit-and-propagate workflow.
+---
+
+Commit and push the current work, then merge the exact pushed source HEAD into
+every other configured branch and push each destination. Invoking this skill
+requests the full workflow, subject to existing execution permissions.
+
+1. Read AGENTS.md, the [Git development contract](../../../docs/Approval-Tools.md#git-development)
+   and [shared worktree propagation contract](../../../docs/Execution-Plans.md#shared-worktree-propagation).
+   Follow their branch placement, upstream and work-preservation rules. Do not
+   start an execution-plan launcher merely to commit.
+2. Inspect the current branch, changes, worktrees and remotes. Read
+   [config/environment.json](../../../config/environment.json) to resolve the
+   source and every destination. Include branches on other hosts regardless of
+   their VM scheduling enabled flag; host placement does not authorize SSH.
+3. Stage the requested work, preserving unrelated edits. Ask if the intended
+   scope is ambiguous. Create a descriptive commit, or use the existing HEAD
+   when there are no changes to commit.
+4. Fetch and reconcile remote state without discarding work or rewriting
+   published history. Push the source and record its exact successfully pushed
+   HEAD. Merge that pinned commit into every other configured destination and
+   push each, preserving local and remote work. Do not force-push, invent missing
+   branches or alter Git configuration. Reuse an applicable maintained public
+   workflow when available; do not invoke private launcher helpers ad hoc.
+5. Stop on ambiguous configuration, missing permissions, unresolved conflicts or
+   a failed push. Preserve recoverable work and report the blocker and completed
+   destinations. Resume unfinished propagation with the same pinned source
+   commit rather than creating another source commit.
+6. On success, leave the source checkout on its original branch. Report the
+   source commit hash and each destination pushed. Completion requires every
+   configured destination to succeed. This does not publish a product release.

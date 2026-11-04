@@ -49,7 +49,7 @@ def headless_rule(root):
     programs = {'com.puffyslippers.onpc.development.' + name: '/usr/local/libexec/onpc-' + name
                 for name in ('test-runner', 'diagnostics', 'test-artifacts', 'export-screenshot', 'setup')}
     account_data = (json.dumps({'uid': uid, 'user': account.pw_name}, sort_keys=True) + '\n').encode()
-    data = ('''// Explicit headless opt-in; managed by ./setup.sh --headless.
+    data = ('''// Explicit headless opt-in; managed by ./setup.sh --server.
 // Desktop refreshes preserve this grant. Administrator removal revokes it.
 polkit.addRule(function(action, subject) {
     var programs = ''' + json.dumps(programs, sort_keys=True) + ''';

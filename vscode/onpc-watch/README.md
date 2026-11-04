@@ -281,7 +281,7 @@ contain a compatible adapter and its prerequisites. Authentication/host-key
 refusals require fixing access and clicking Reconnect; transient disconnections
 retry automatically with a 1–15 second backoff.
 
-On an Ubuntu 26.04+ remote host, rerun `./setup.sh --headless` as the checkout
+On an Ubuntu 26.04+ remote host, rerun `./setup.sh --server` as the checkout
 owner to prepare the test environment, enable SSH and prevent server sleep,
 including on a desktop laptop. Follow the printed host-key and connection details;
 see [headless setup](../../docs/Approval-Tools.md#one-time-setup) for firewall,

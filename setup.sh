@@ -9,7 +9,7 @@ usage() {
     cat <<'USAGE'
 Usage: ./setup.sh [MODE] [--vm NAME]
   (no mode)             Set up/refresh an Ubuntu or Fedora 44 development machine (no VMs needed)
-  --headless            Set up an Ubuntu 26.04+ SSH automation server; disable sleep
+  --server              Set up an Ubuntu 26.04+ SSH automation server; disable sleep
                        No VM hosting or Codex CLI installation
   --dependencies-only   Install development, build and UI/GUI-fixture dependencies
   --vm-host-only        Add VM host dependencies and refresh development helpers/policies
@@ -37,7 +37,7 @@ fi
 readonly mode="${1-}"
 readonly vm_name="${3-}"
 case "$mode" in
-    ''|--headless|--dependencies-only|--vm-host-only|--ppa-build-tools|--rpm-build-tools|--test-tools-only|--ui-tests-only|--watch|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
+    ''|--server|--dependencies-only|--vm-host-only|--ppa-build-tools|--rpm-build-tools|--test-tools-only|--ui-tests-only|--watch|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -51,10 +51,10 @@ if [[ ! -f Makefile || ! -f child/preview ]]; then
 fi
 source "$script_dir/tools/setup_platform.sh"
 
-if [[ $mode == --headless ]]; then
+if [[ $mode == --server ]]; then
     require_headless_platform
     if (( EUID == 0 )); then
-        echo 'setup: run --headless as the checkout-owning administrator, without sudo; setup requests sudo only for initial bootstrap' >&2
+        echo 'setup: run --server as the checkout-owning administrator, without sudo; setup requests sudo only for initial bootstrap' >&2
         exit 1
     fi
 fi
@@ -109,7 +109,7 @@ bootstrap_tools() {
 install_codex_rules() {
     echo 'setup: [stage:codex-rules]'
     run_root codex-rules /usr/bin/python3 -IB "$script_dir/tools/install_codex_rules.py" --system
-    if [[ $mode == --headless ]]; then
+    if [[ $mode == --server ]]; then
         /usr/bin/python3 -IB "$script_dir/tools/install_codex_rules.py" --headless
     else
         /usr/bin/python3 -IB "$script_dir/tools/install_codex_rules.py"
@@ -132,7 +132,9 @@ install_watch_extension() {
 }
 
 case "$mode" in
-    --headless)
+    --server)
+        # Internal headless operation names/arguments remain stable so existing
+        # installed dispatchers can refresh through their original grant.
         # Opt-in authorization is established before routine privileged stages.
         # An existing grant must succeed; never retry authentication on denial.
         if [[ -e '/usr/local/libexec/onpc-headless-account' || -L '/usr/local/libexec/onpc-headless-account' ]]; then

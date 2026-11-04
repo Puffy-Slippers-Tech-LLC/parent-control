@@ -93,7 +93,7 @@ no infrastructure/source edits, setup, staging, installation or publication.
 ### Portable Codex configuration
 
 Clone the repository and run `./setup.sh` on a supported desktop, or
-`./setup.sh --headless` on a supported automation server. Both install host
+`./setup.sh --server` on a supported automation server. Both install host
 read policies and validate the tracked [project configuration](../.codex/config.toml)
 and [command rules](../.codex/rules/tests.rules). Trust each checkout in Codex
 and restart Codex after setup or tracked rule changes. Setup never marks
@@ -177,7 +177,7 @@ does not require new approvals. A clean machine uses full `./setup.sh` for
 dependencies and host policies on Ubuntu or Fedora Workstation 44, from a host
 terminal rather than a Flatpak runtime. Ordinary setup does not require VMs.
 
-For an Ubuntu Server 26.04 or newer automation host, run `./setup.sh --headless`
+For an Ubuntu Server 26.04 or newer automation host, run `./setup.sh --server`
 as the administrator account that owns the checkout, without prefixing the
 command with `sudo`. On first headless setup only, it requests terminal-based
 `sudo` authorization to install the fixed helpers and opt that account into
@@ -220,7 +220,7 @@ To restore normal sleep when retiring the server role, an administrator can run
 `sudo systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target`.
 Account credentials, Codex installation/login and editor connections remain
 administrator responsibilities. Setup reports absent Codex CLI as an action needed.
-Rerunning `./setup.sh --headless` applies these additions to an already configured
+Rerunning `./setup.sh --server` applies these additions to an already configured
 host through its existing noninteractive grant; no fresh bootstrap is required.
 
 This mode does not install VM hosting, virt-manager or libvirt/QEMU, change VM
@@ -275,7 +275,7 @@ creates its checkout-local UI environment from the pinned requirements. This
 unprivileged mode changes neither host package versions nor Git configuration;
 missing system prerequisites still require the normal dependency setup route.
 For two server worktrees, reserve different branches/checkouts for `fix-tests`
-and other task launchers. Run full `--headless` setup once; in the second
+and other task launchers. Run full `--server` setup once; in the second
 user-owned worktree run `./setup.sh --ui-tests-only`. The account grant and
 builder images are shared; checkout environments and launcher state are separate.
 Tracked Codex settings and rules arrive with the worktree. Completed commits
@@ -595,7 +595,9 @@ Setup authorization is separate from runtime test authorization. The installed
 `codex-rules`, `test-tools`, `graphical-policy`, `ppa-build-tools`, `rpm-build-tools`, `vm-host`,
 `headless-dependencies`, `headless-tools`, `replace-missing-baseline`, `prepare-vm`,
 `backupvm` or `restorevm`. The two headless operations select only the existing
-dependency/helper installers with the fixed `--headless` argument.
+dependency/helper installers with the fixed internal `--headless` argument.
+The public entry point is `./setup.sh --server`; internal operation names and
+arguments stay stable for compatibility with already installed dispatchers.
 The disaster recovery operations accept only a registered `--vm` queue selector
 (default `all`), never caller-supplied archive, domain XML or disk paths. They
 use `backup_root` from the trusted registry and the existing setup authorization;

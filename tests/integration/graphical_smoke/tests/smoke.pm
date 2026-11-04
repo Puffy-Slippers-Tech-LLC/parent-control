@@ -799,6 +799,12 @@ sub run {
         onpc_app_rows::app_activity(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{shared_target_launchers}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::shared_target_launchers(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{native_denial}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

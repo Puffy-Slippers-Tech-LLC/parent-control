@@ -13,12 +13,12 @@ from types import SimpleNamespace
 
 from guest_files import identity, read_regular, require
 if __name__ == '__main__':
-    from native_assets import (ASSETS, GUI_FILES, PREFIX, desktop_entry, desktop_id, sources,
+    from native_assets import (ASSETS, LAUNCHERS, GUI_FILES, PREFIX, desktop_entry, desktop_id, sources,
         riley_grid_sources, ACTIVITY_EXECUTABLE, ACTIVITY_PREFIX, activity_sources,
         executable_sources, runtime_sources, source_destinations, legacy_executable_paths)
     from native_assets import native_policy_files, native_stock_rules, NATIVE_RULE_MANIFEST
 else:
-    from tests.fixtures.native_assets import (ASSETS, GUI_FILES, PREFIX, desktop_entry, desktop_id,
+    from tests.fixtures.native_assets import (ASSETS, LAUNCHERS, GUI_FILES, PREFIX, desktop_entry, desktop_id,
         sources, riley_grid_sources, ACTIVITY_EXECUTABLE, ACTIVITY_PREFIX, activity_sources,
         executable_sources, runtime_sources, source_destinations, legacy_executable_paths)
     from tests.fixtures.native_assets import native_policy_files, native_stock_rules, NATIVE_RULE_MANIFEST
@@ -104,16 +104,16 @@ def readback(child, expected, *, selected=False):
                 data, info = read_regular(fd, target.name, owner=child.pw_uid, mode=mode, limit=LIMIT)
                 require(info.st_gid == child.pw_gid and hashlib.sha256(data).hexdigest() == expected[source])
                 if source not in runtime_sources():
-                    asset, = (asset for asset in ASSETS if desktop_id(asset[0]) == target.name)
+                    asset, = (asset for asset in LAUNCHERS if desktop_id(asset[0]) == target.name)
                     require(data == desktop_entry(asset).encode())
                 guard()
             result[source] = {'identity': identity(info), 'sha256': expected[source], 'mode': mode}
-    return {'files': result, 'launchers': [desktop_id(asset[0]) for asset in ASSETS]}
+    return {'files': result, 'launchers': [desktop_id(asset[0]) for asset in LAUNCHERS]}
 
 
 def riley_readback(shared_owner, expected, *, catalogue=False):
     """Read only; executable ownership stays Jordan's, launcher ownership Riley's."""
-    names = sources() if catalogue else riley_grid_sources()
+    names = sources(alias=False) if catalogue else riley_grid_sources()
     require(type(expected) is dict and set(expected) == set(names)
             and all(type(value) is str and len(value) == 64
                     and all(c in '0123456789abcdef' for c in value) for value in expected.values())

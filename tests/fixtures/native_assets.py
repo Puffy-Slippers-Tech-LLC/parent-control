@@ -20,6 +20,10 @@ ASSETS = (
     ('S', 'Versioned/Lunar Client-3.7.17.AppImage', 'ONPC Soft Fixture', 'Versioned native catalogue fixture', 'pattern'),
     ('N', 'PrismLauncher.AppImage', 'ONPC Nonmatching Fixture', 'Unrelated native catalogue fixture', 'precise'),
 )
+# A second Jordan launcher, deliberately sharing A's exact executable bytes/path.
+SHARED_ALIAS = ('Alias', ASSETS[0][1], 'ONPC Shared Target Fixture',
+                'Second launcher for the exact native fixture', 'precise')
+LAUNCHERS = (*ASSETS, SHARED_ALIAS)
 GUI_FILES = ('onpc-test-gui.py', 'gtk_automation.py')
 # Keep unrepresentable whitespace nonmatches outside A and S wildcard groups.
 GUI_DIRECTORIES = ('', 'Versioned/', 'Whitespace/')
@@ -47,7 +51,7 @@ def activity_sources():
 
 
 def desktop_id(role):
-    assert role in ('A', 'H', 'S', 'N')
+    assert role in ('A', 'H', 'S', 'N', 'Alias')
     return 'com.puffyslippers.ONPCTest.' + role + '.desktop'
 
 
@@ -81,20 +85,21 @@ def gui_sources():
                  for directory in GUI_DIRECTORIES for filename in GUI_FILES)
 
 
-def launcher_sources():
-    return tuple('fixtures/native-launchers/' + desktop_id(asset[0]) for asset in ASSETS)
+def launcher_sources(*, alias=True):
+    return tuple('fixtures/native-launchers/' + desktop_id(asset[0])
+                 for asset in (LAUNCHERS if alias else ASSETS))
 
 
 def runtime_sources():
     return executable_sources() + gui_sources()
 
 
-def sources():
+def sources(*, alias=True):
     """Active source keys relative to verified artifact root; never image-root/home."""
-    return runtime_sources() + launcher_sources()
+    return runtime_sources() + launcher_sources(alias=alias)
 
 
-def source_destinations(home, *, prefix=None):
+def source_destinations(home, *, prefix=None, alias=True):
     """Exact source-key -> (guest path, mode), preserving nested runtime paths."""
     prefix = PREFIX if prefix is None else prefix
     image_prefix = 'fixtures/image-root' + PREFIX + '/'
@@ -102,7 +107,7 @@ def source_destinations(home, *, prefix=None):
                      0o755 if source in executable_sources() else 0o644)
             for source in runtime_sources()} | {
         source: (home + '/.local/share/applications/' + source.rsplit('/', 1)[1], 0o644)
-        for source in launcher_sources()}
+        for source in launcher_sources(alias=alias)}
 
 
 def riley_grid_sources():
@@ -119,7 +124,7 @@ def native_policy_files(expected, child_uids):
     """
     required = runtime_sources()
     if (type(expected) is not dict or set(expected) not in
-            (set(required), set(sources()), set(riley_grid_sources()))
+            (set(required), set(sources()), set(sources(alias=False)), set(riley_grid_sources()))
             or any(type(expected[key]) is not str or len(expected[key]) != 64
                    or any(c not in '0123456789abcdef' for c in expected[key])
                    for key in required)

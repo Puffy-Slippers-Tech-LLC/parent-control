@@ -102,7 +102,7 @@ def asset_hashes(selection, *, subsets=SUBSETS, caller=None, child=False, produc
         raise ValueError('fixtures:e2e-profile-not-qualified')
     manifest = fixture_execution.verify(selection_record(selection))
     from tests.fixtures import native_assets
-    destinations = native_assets.source_destinations('@child@' if child else '@other@')
+    destinations = native_assets.source_destinations('@child@' if child else '@other@', alias=not child)
     if subsets == ACTIVITY_SUBSETS:
         destinations.update(zip(native_assets.activity_sources(), (
             (native_assets.ACTIVITY_EXECUTABLE, 0o755),

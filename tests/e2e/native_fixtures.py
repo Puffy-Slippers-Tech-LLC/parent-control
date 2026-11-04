@@ -13,7 +13,7 @@ from ui_observations import AppRowsObservation
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from tests.fixtures.native_assets import (ASSETS, desktop_id, sources, riley_grid_sources,
+from tests.fixtures.native_assets import (ASSETS, LAUNCHERS, desktop_id, sources, riley_grid_sources,
                                          activity_sources, executable_sources)
 
 
@@ -54,7 +54,8 @@ class NativeFixtures:
         self.transport.guard(self.attempt)
         self.verified.recheck()
         names = (activity_sources() if self.profile == 'activity' else
-                 riley_grid_sources() if self.profile == 'riley-grid' else sources())
+                 riley_grid_sources() if self.profile == 'riley-grid' else
+                 sources(alias=self.profile != 'baseline-child'))
         selection = getattr(self.verified, 'fixture_selection', None)
         require(self.profile != 'baseline-child' or selection is not None,
                 'fixtures:e2e-profile-not-qualified')
@@ -116,7 +117,7 @@ class NativeFixtures:
                        if self.profile == 'chinese' else
                        'Verifying root-owned activity inputs and loaded native file trust'
                        if self.profile == 'activity' else
-                       'Verifying four baseline native launchers for [Child user]'):
+                       'Verifying declared native launchers for [Child user]'):
             value = self.command('read')
             if self.profile == 'activity':
                 require(set(value) == {'files', 'native_trust'}
@@ -140,8 +141,11 @@ class NativeFixtures:
                 self.receipt = value
                 self.failed = False
                 return {**value, 'independent_readback': True}
-            names = riley_grid_sources() if self.profile == 'riley-grid' else sources()
-            launchers = [desktop_id('A')] if self.profile == 'riley-grid' else [desktop_id(asset[0]) for asset in ASSETS]
+            names = (riley_grid_sources() if self.profile == 'riley-grid' else
+                     sources(alias=self.profile != 'baseline-child'))
+            launchers = ([desktop_id('A')] if self.profile == 'riley-grid' else
+                         [desktop_id(asset[0]) for asset in
+                          (ASSETS if self.profile == 'baseline-child' else LAUNCHERS)])
             require(set(value) == {'files', 'launchers'} |
                         ({'child_role'} if self.profile == 'baseline-child' else set())
                     and (self.profile != 'baseline-child' or value['child_role'] == 'child')
@@ -178,9 +182,9 @@ def fixture_actions(*, include_refusal=True, profile='native'):
             else {'native-verify': verify})
 
 
-def expected_rows():
+def expected_rows(*, alias=False):
     return tuple(sorted(('parent-app-' + hashlib.sha256(desktop_id(asset[0]).encode()).hexdigest()[:16],
-                         'allowed', asset[4]) for asset in ASSETS))
+                         'allowed', asset[4]) for asset in (LAUNCHERS if alias else ASSETS)))
 
 
 # Finite public search inputs; expected identities are independent of UI output.
@@ -189,6 +193,7 @@ CATALOGUE_QUERIES = {
     'catalogue-description': ASSETS[0][3],
     'catalogue-identifier': desktop_id('A'),
     'catalogue-hard': desktop_id('H'), 'catalogue-soft': desktop_id('S'),
+    'catalogue-alias': desktop_id('Alias'),
     'catalogue-absent': 'ONPC Absent Catalogue Fixture 077b',
     'catalogue-clear': '',
 }
@@ -198,9 +203,9 @@ def search_rows(binding):
     require(binding in CATALOGUE_QUERIES and binding != 'catalogue-clear',
             'catalogue:binding')
     return (() if binding == 'catalogue-absent' else
-            tuple(row for row in expected_rows() if row[0] == 'parent-app-' +
+            tuple(row for row in expected_rows(alias=True) if row[0] == 'parent-app-' +
                   hashlib.sha256(desktop_id({'catalogue-hard': 'H',
-                      'catalogue-soft': 'S'}.get(binding, 'A')).encode()).hexdigest()[:16]))
+                      'catalogue-soft': 'S', 'catalogue-alias': 'Alias'}.get(binding, 'A')).encode()).hexdigest()[:16]))
 
 
 def catalogue_rows(binding, rows, *, match_mask=3, access_mask=7):
@@ -217,9 +222,9 @@ def catalogue_rows(binding, rows, *, match_mask=3, access_mask=7):
                  and row[1] in accesses and row[2] in matches)
 
 
-def check_catalogue(rows):
+def check_catalogue(rows, *, alias=False):
     """Require all declared public row identities/defaults; stock rows remain allowed."""
-    expected = expected_rows()
+    expected = expected_rows(alias=alias)
     selected = tuple(row for row in rows.rows if row[0] in {item[0] for item in expected})
     if selected != expected:
         # The failing stage is not persisted by InstalledJourney. Retain only
@@ -238,7 +243,7 @@ def check_catalogue(rows):
         print('native:catalogue-diagnostic=' + json.dumps(diagnostic, sort_keys=True),
               file=sys.stderr, flush=True)
     require(selected == expected, 'native:catalogue-defaults')
-    return {'declared_launchers': 4, 'allowed_defaults': True, 'default_matches': True}
+    return {'declared_launchers': len(expected), 'allowed_defaults': True, 'default_matches': True}
 
 
 class CataloguePolicyJourney(InstalledJourney):

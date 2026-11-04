@@ -12,7 +12,7 @@ use onpc_text ();
 use onpc_feedback_privacy ();
 
 my %policy_apps = map { $_ => 'parent-app-' . substr(sha256_hex(
-    'com.puffyslippers.ONPCTest.' . $_ . '.desktop'), 0, 16) } qw(A H S);
+    'com.puffyslippers.ONPCTest.' . $_ . '.desktop'), 0, 16) } qw(A H S Alias);
 my $policy_app = $policy_apps{A};
 
 # Keep fixture identity mechanics here; callers own their rules and edit order.
@@ -77,7 +77,7 @@ sub search {
     onpc_progress::operation('Replacing a declared search query and independently reading catalogue rows');
     my ($journey, $binding, $stage) = @_;
     die 'catalogue:arguments' unless @_ == 3 && ref($journey) eq 'onpc_journey'
-        && $binding =~ /\Acatalogue-(?:name|description|identifier|hard|soft|absent|clear)\z/
+        && $binding =~ /\Acatalogue-(?:name|description|identifier|hard|soft|alias|absent|clear)\z/
         && $stage =~ /\A[a-z][a-z0-9-]*\z/;
     onpc_text::replace_text($journey, $binding);
     return $journey->consume_observation($stage, $journey->seen($stage));
@@ -197,7 +197,7 @@ sub match_edit {
     onpc_progress::operation('Editing the declared match draft and independently observing Save');
     my ($journey, $draft, $prefix, $open, $read, $row) = @_;
     die 'match:edit-binding' unless @_ == 6 && ref($journey) eq 'onpc_journey'
-        && defined($draft) && $draft =~ /\Amatch-(?:(?:precise|wildcard)(?:-basename)?|wildcard-appimages|rejected-directory|hard-precise|soft-(?:wildcard|precise))\z/;
+        && defined($draft) && $draft =~ /\Amatch-(?:(?:precise|wildcard)(?:-basename)?|wildcard-appimages|rejected-directory|hard-precise|alias-precise|soft-(?:wildcard|precise))\z/;
     die 'match:edit-stages' unless !grep { !defined($_) || !/\A[a-z][a-z0-9-]*\z/ }
         ($prefix, $open, $read);
     die 'match:edit-result' unless $draft eq 'match-rejected-directory'
@@ -327,6 +327,7 @@ sub edit_policy {
         && ($setup eq '0' || $setup eq '1')
         && (($app eq $policy_app && $draft =~ /\Amatch-(?:(?:precise|wildcard)(?:-basename)?|wildcard-appimages)\z/)
             || ($app eq $policy_apps{H} && $draft eq 'match-hard-precise')
+            || ($app eq $policy_apps{Alias} && $draft eq 'match-alias-precise')
             || ($app eq $policy_apps{S} && $draft eq 'match-soft-wildcard'))
         && $access =~ /\A(?:allowed|permanent|conditional)\z/
         && $prefix =~ /\A[a-z][a-z0-9-]*\z/ && ref($filters) eq 'ARRAY' && @$filters <= 2;
@@ -338,7 +339,8 @@ sub edit_policy {
             && ($filter->[0] ne 'match-rule' || $filter->[1] < 4);
     }
     my $query = $app eq $policy_apps{H} ? 'catalogue-hard'
-              : $app eq $policy_apps{S} ? 'catalogue-soft' : 'catalogue-identifier';
+              : $app eq $policy_apps{S} ? 'catalogue-soft'
+              : $app eq $policy_apps{Alias} ? 'catalogue-alias' : 'catalogue-identifier';
     onpc_text::replace_text($journey, $query, "$prefix-search");
     filter($journey, $_->[0], $_->[1], "$prefix-$_->[0]") for @$filters;
     if ($setup) {
@@ -383,13 +385,15 @@ sub policy_edit {
 # APP01's graphical exception: one declared query, then one launch commit.
 sub native_search {
     onpc_progress::operation('Finding the declared native fixture in public app search');
-    my ($journey, $desktop, $result_stage) = @_;
+    my ($journey, $desktop, $result_stage, $role) = @_;
     $result_stage //= 'app-grid';
-    die 'native:search-binding' unless (@_ == 2 || @_ == 3)
+    $role //= 'A';
+    die 'native:search-binding' unless (@_ == 2 || @_ == 3 || @_ == 4)
         && ref($journey) eq 'onpc_journey'
+        && ($role eq 'A' || $role eq 'Alias')
         && ($result_stage eq 'app-grid' || $result_stage eq 'refusals');
     return onpc_parent::search_whole_query(
-        $journey, $desktop, 'ONPC Allowed Fixture', $result_stage);
+        $journey, $desktop, $role eq 'Alias' ? 'ONPC Shared Target Fixture' : 'ONPC Allowed Fixture', $result_stage);
 }
 
 sub native_launch_grid {
@@ -403,9 +407,9 @@ sub native_launch_grid {
 
 sub native_open_grid {
     onpc_progress::operation('Finding and launching the native fixture from the app grid');
-    my ($journey, $desktop) = @_;
-    die 'native:launch-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
-    return native_launch_grid($journey, native_search($journey, $desktop));
+    my ($journey, $desktop, $role) = @_;
+    die 'native:launch-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey';
+    return native_launch_grid($journey, native_search($journey, $desktop, 'app-grid', $role));
 }
 
 # APP01's direct command route. The controller binds the active child session;
@@ -441,10 +445,11 @@ sub native_usable_app {
         && defined($route) && ($route eq 'command' || $route eq 'grid')
         && (defined($desktop) || $route eq 'command')
         && ($child eq 'child' || $child eq 'other-child' || $child eq 'parent' && $route eq 'command')
-        && (!defined($role) || $route eq 'command' &&
+        && (!defined($role) || $role eq 'Alias' && $route eq 'grid' && $child eq 'other-child'
+            || $route eq 'command' &&
             ($role =~ /\A(?:A|S)\z/ && $child eq 'child' || $role eq 'N' && $child eq 'other-child'));
     my $opened = $route eq 'command' ? native_open_command($journey, $desktop)
-                                   : native_open_grid($journey, $desktop);
+                                   : native_open_grid($journey, $desktop, $role);
     return native_use_app($journey, $opened);
 }
 
@@ -454,7 +459,7 @@ sub native_blocked_app {
     my ($journey, $role, $route) = @_;
     $route //= 'command';
     die 'native:denial-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
-        && ($route eq 'command' && ($role eq 'A' || $role eq 'H' || $role eq 'S')
+        && ($route eq 'command' && ($role eq 'A' || $role eq 'H' || $role eq 'S' || $role eq 'Alias')
             || $route eq 'grid' && $role eq 'A');
     if ($route eq 'grid') {
         my $entry = native_search($journey, $journey->seen('desktop'));
@@ -464,6 +469,33 @@ sub native_blocked_app {
         return $journey->seen('denied');
     }
     return $journey->seen('command');
+}
+
+sub shared_target_launchers {
+    onpc_progress::operation('Checking that the child can use both allowed launchers for one app');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'native:alias-arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'shared-target-launchers', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen('saved-settings');
+    $journey->seen('apps-page');
+    $journey->seen('initial-rows');
+    $journey->seen('parent-logout');
+    onpc_desktop_session::enter_desktop(
+        $journey, 'gdm', 'other-child', 'fresh', 'success', 'child-entry');
+    for my $role ('A', 'Alias') {
+        my $app = $journey->scope($role eq 'A' ? 'original' : 'alias');
+        native_usable_app($app, 'grid', $app->seen('desktop'), 'other-child',
+                          $role eq 'Alias' ? $role : undef);
+        native_finish_app($app);
+    }
+    $journey->seen('child-logout');
+    $journey->finish();
 }
 
 sub native_denial {

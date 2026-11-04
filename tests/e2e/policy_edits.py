@@ -34,7 +34,8 @@ def policy_edit(app, draft, access, prefix, *, filters=(), setup=False):
                 and type(item[1]) is int and 0 <= item[1] < 1 << len(FILTER_OPTIONS[item[0]])
                 for item in filters)
         and len({item[0] for item in filters}) == len(filters), 'policy:filters')
-    name = {'match-hard-precise': 'hard', 'match-soft-wildcard': 'soft'}.get(draft)
+    name = {'match-hard-precise': 'hard', 'match-soft-wildcard': 'soft',
+            'match-alias-precise': 'alias'}.get(draft)
     query = 'catalogue-' + name if name else 'catalogue-identifier'
     access_operation = 'access-' + (name + '-' if name else '')
     match_operation = 'match-' + (name + '-' if name else '')

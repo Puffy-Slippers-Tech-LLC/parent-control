@@ -73,7 +73,7 @@ sub search_whole_query {
     my ($journey, $desktop, $product, $result_stage) = @_;
     die 'parent:search-binding' unless @_ == 4 && ref($journey) eq 'onpc_journey'
         && (($product eq 'Oh No! Parent Control' && $result_stage eq 'app-grid')
-            || ($product eq 'ONPC Allowed Fixture'
+            || (($product eq 'ONPC Allowed Fixture' || $product eq 'ONPC Shared Target Fixture')
                 && ($result_stage eq 'app-grid' || $result_stage eq 'refusals')));
     $journey->consume_observation('desktop', $desktop);
     testapi::send_key('super-a');

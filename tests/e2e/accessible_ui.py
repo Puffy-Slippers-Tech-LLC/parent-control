@@ -153,6 +153,7 @@ STANDARD_OPERATIONS |= frozenset({'chinese-standard-desktop'})
 OPERATIONS |= frozenset({'standard-search-qualified'})
 STANDARD_OPERATIONS |= frozenset({'standard-search-qualified'})
 NATIVE_PRODUCT = 'ONPC Allowed Fixture'
+NATIVE_ALIAS_PRODUCT = 'ONPC Shared Target Fixture'
 NATIVE_EXECUTION_MARKERS = (
     ('permission-denied', b'Permission denied'),
     ('operation-not-permitted', b'Operation not permitted'),
@@ -172,6 +173,8 @@ NATIVE_APP_OPERATIONS = frozenset('native-' + suffix for suffix in (
     'opened', 'submit', 'resubmit', 'submitted', 'close', 'closed',
     'activity', 'activity-wrong-entry', 'command-blocked', 'activity-launch',
     'grid-blocked', 'grid-denied'))
+NATIVE_APP_OPERATIONS |= frozenset('native-alias-' + suffix for suffix in (
+    'search-ready', 'search-focused', 'search-entered', 'grid', 'command-blocked'))
 OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 PARENT_NATIVE_OPERATIONS = frozenset('parent-native-' + suffix for suffix in (
@@ -345,6 +348,8 @@ TEXT_VALUES = {
     'catalogue-identifier': ('parent-app-search', 'com.puffyslippers.ONPCTest.A.desktop'),
     'catalogue-hard': ('parent-app-search', 'com.puffyslippers.ONPCTest.H.desktop'),
     'catalogue-soft': ('parent-app-search', 'com.puffyslippers.ONPCTest.S.desktop'),
+    'catalogue-alias': ('parent-app-search', 'com.puffyslippers.ONPCTest.Alias.desktop'),
+    'match-alias-precise': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage'),
     'match-hard-precise': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Whitespace/Path With Spaces.AppImage'),
     'match-soft-wildcard': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-*.AppImage'),
     'match-soft-precise': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage'),
@@ -588,6 +593,7 @@ CATALOGUE_ROW_OPERATIONS = {
     'catalogue-description-rows': 'catalogue-description',
     'catalogue-identifier-rows': 'catalogue-identifier',
     'catalogue-hard-rows': 'catalogue-hard', 'catalogue-soft-rows': 'catalogue-soft',
+    'catalogue-alias-rows': 'catalogue-alias',
 }
 APP_ROW_OPERATIONS |= frozenset(CATALOGUE_ROW_OPERATIONS)
 FILTER_OPTIONS = {'match-rule': ('pattern', 'precise'),
@@ -602,7 +608,7 @@ OPERATIONS |= APP_ROW_OPERATIONS
 MATCH_APP = 'parent-app-' + hashlib.sha256(b'com.puffyslippers.ONPCTest.A.desktop').hexdigest()[:16]
 MATCH_APPS = {role: 'parent-app-' + hashlib.sha256(
     ('com.puffyslippers.ONPCTest.' + role + '.desktop').encode()).hexdigest()[:16]
-    for role in ('A', 'H', 'S')}
+    for role in ('A', 'H', 'S', 'Alias')}
 MATCH_OTHER_APP = 'parent-app-' + hashlib.sha256(b'com.puffyslippers.ONPCTest.N.desktop').hexdigest()[:16]
 MATCH_RULES = ('/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
                '/opt/onpc-test-fixtures/Applications/Exact*.AppImage',
@@ -611,10 +617,11 @@ MATCH_RULES = ('/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
                '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-*.AppImage',
                '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage')
 BASELINE_POLICY_DRAFTS = {'match-hard-precise': MATCH_APPS['H'],
+                          'match-alias-precise': MATCH_APPS['Alias'],
                           'match-soft-wildcard': MATCH_APPS['S'],
                           'match-soft-precise': MATCH_APPS['S']}
 BASELINE_MATCH_OPERATIONS = {f'match-{name}-{action}': (MATCH_APPS[role], action)
-    for name, role in (('hard', 'H'), ('soft', 'S'))
+    for name, role in (('hard', 'H'), ('soft', 'S'), ('alias', 'Alias'))
     for action in ('open', 'read', 'row', 'save', 'cancel', 'reset')}
 MATCH_OPERATIONS = frozenset('match-' + action for action in
     ('open', 'read', 'row', 'save', 'cancel', 'reset', 'rejected', 'wrong-app', 'ambiguous'))
@@ -634,7 +641,7 @@ ACCESS_CHOICES = ('allowed', 'permanent', 'conditional')
 ACCESS_OPERATIONS = frozenset('access-' + action for action in
     (*ACCESS_CHOICES, 'row', 'screen', 'wrong-row', 'disabled'))
 BASELINE_ACCESS_OPERATIONS = {f'access-{name}-{action}': (MATCH_APPS[role], action)
-    for name, role in (('hard', 'H'), ('soft', 'S'))
+    for name, role in (('hard', 'H'), ('soft', 'S'), ('alias', 'Alias'))
     for action in (*ACCESS_CHOICES, 'row')}
 ACCESS_OPERATIONS |= frozenset(BASELINE_ACCESS_OPERATIONS)
 OPERATIONS |= ACCESS_OPERATIONS
@@ -7682,7 +7689,8 @@ class AccessibleUI:
                 self.parent_page(child, 'App Limits')
             self.read_synthetic_text(binding, child=child)
             expected = (() if binding == 'catalogue-absent' else
-                        (MATCH_APPS[{'catalogue-hard': 'H', 'catalogue-soft': 'S'}.get(binding, 'A')],))
+                        (MATCH_APPS[{'catalogue-hard': 'H', 'catalogue-soft': 'S',
+                                     'catalogue-alias': 'Alias'}.get(binding, 'A')],))
             def ready():
                 try:
                     if binding == 'catalogue-clear':
@@ -7727,7 +7735,7 @@ class AccessibleUI:
 
     def launchable_result(self, product):
         """SEARCH04's owned Shell launcher branch, without input."""
-        require(product in (PRODUCT, NATIVE_PRODUCT), 'ui:search-binding')
+        require(product in (PRODUCT, NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT), 'ui:search-binding')
         if not self.provider_contracts['gnome-shell']['application_id']:
             owner, nodes, snapshot, facts = self.shell_search_snapshot()
             if owner is None:
@@ -12661,7 +12669,7 @@ class AccessibleUI:
 
     def search_query(self, expected):
         """Read only the overview's public search field; never arbitrary text."""
-        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT), 'ui:search-binding')
+        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT), 'ui:search-binding')
         if not self.provider_contracts['gnome-shell']['application_id']:
             field = self.shell_search_field()
             if field is None:
@@ -12685,7 +12693,7 @@ class AccessibleUI:
 
     def shell_query_matches(self, field, expected):
         """Read the field from the caller's fresh scoped Shell observation."""
-        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT), 'ui:search-binding')
+        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT), 'ui:search-binding')
         text = field.get_text_iface()
         require(text is not None, 'ui:search-text-unavailable')
         count = self.api.Text.get_character_count(text)
@@ -12777,7 +12785,7 @@ class AccessibleUI:
     def focus_search_result(self, product=PRODUCT):
         """Qualify the exact launcher recipient before the worker sends Enter."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(product in (PRODUCT, NATIVE_PRODUCT), 'ui:search-binding')
+        require(product in (PRODUCT, NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT), 'ui:search-binding')
         self.wait(lambda: self.search_query(product), 'parent-search-query')
         target = self.wait(lambda: self.launchable_result(product), 'parent-search-result')
         def fresh_recipient():
@@ -13076,6 +13084,11 @@ class AccessibleUI:
 
     def native_app_operation(self, operation, *, child=EXISTING_CHILD):
         require(operation in NATIVE_APP_OPERATIONS, 'ui:native-operation')
+        product = NATIVE_PRODUCT
+        if operation.startswith('native-alias-'):
+            require(child == EXISTING_CHILD, 'ui:native-child-binding')
+            product = NATIVE_ALIAS_PRODUCT
+            operation = operation.replace('native-alias-', 'native-', 1)
         if operation in ('native-desktop', 'native-closed'):
             self.wait(self.native_app_closed, 'native-closed')
         elif operation == 'native-command-launch':
@@ -13105,7 +13118,7 @@ class AccessibleUI:
             self.focus_search_field()
             self.search_ready('overview', focused=True)
         elif operation == 'native-search-entered':
-            self.wait_search(lambda: self.search_query(NATIVE_PRODUCT), 'native-search-query')
+            self.wait_search(lambda: self.search_query(product), 'native-search-query')
         elif operation == 'native-grid-blocked':
             require(child == EXISTING_CHILD, 'ui:native-child-binding')
             require(not self.input_uncertain, 'ui:uncertain-input')
@@ -13156,7 +13169,7 @@ class AccessibleUI:
                         raise UiError('ui:native-refusal-missing')
                     finally:
                         self.input_uncertain = False
-            self.focus_search_result(NATIVE_PRODUCT)
+            self.focus_search_result(product)
             if operation == 'native-grid-refusals':
                 for instance, uncertain, expected in (
                         ('secondary', False, 'ui:native-binding'),
@@ -13699,7 +13712,7 @@ class AccessibleUI:
                 result['grid_launch_required'] = value
             elif value is not None:
                 result['activity'] = value
-            if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals'):
+            if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals', 'native-alias-grid'):
                 result['provider'] = self.shell_provider_metadata()
         elif operation in BINDING_REMINDER_OPERATIONS or operation in BINDING_REMINDER_SELECTIONS:
             result.update(self.binding_reminder_operation(operation))

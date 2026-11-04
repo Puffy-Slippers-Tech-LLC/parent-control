@@ -1436,7 +1436,7 @@ def test_baseline_app_effects_boundary_keeps_scene_without_reply_and_requires_cl
     monkeypatch.setattr(provenance, 'VerifiedInputs', capture_inputs)
     receipt = {'files': {name: verified.asset_files[name] for name in names},
                'launchers': [native_fixtures.desktop_id(asset[0])
-                             for asset in native_fixtures.ASSETS]}
+                             for asset in native_fixtures.LAUNCHERS]}
     transport = SimpleNamespace(config={'run': 'owned-attempt'}, guard=Mock(), call=Mock(
         side_effect=[(json.dumps(value, sort_keys=True) + '\n').encode()
                      for value in ({'wrong_entry_refused': True}, receipt, receipt)]))
@@ -1473,7 +1473,7 @@ def test_baseline_app_effects_boundary_keeps_scene_without_reply_and_requires_cl
         assert journey.actions[plan.stage_actions['installed-greeter']](
             journey, fixture_guard) == {'wrong_entry_refused': True}
         assert journey.actions[plan.stage_actions['desktop']](journey, fixture_guard) == {
-            'verified': len(native_fixtures.ASSETS), 'verified_files': len(names),
+            'verified': len(native_fixtures.LAUNCHERS), 'verified_files': len(names),
             'independent_readback': True}
         assert verified.recheck.call_count == 6
         assert [call.args[0][3] for call in transport.call.call_args_list] == ['refuse', 'read', 'read']

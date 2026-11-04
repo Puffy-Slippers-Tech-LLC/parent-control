@@ -7,11 +7,11 @@ except ImportError:
     from tests.fixtures.baseline_environment import desktop_settings_files, automatic_update_files
 
 try:
-    from native_assets import (ASSETS, GUI_FILES, GUI_DIRECTORIES, PREFIX, TRUSTED_NATIVE, ACTIVITY_PREFIX,
+    from native_assets import (ASSETS, LAUNCHERS, GUI_FILES, GUI_DIRECTORIES, PREFIX, TRUSTED_NATIVE, ACTIVITY_PREFIX,
                                ACTIVITY_EXECUTABLE, trusted_file_modes, desktop_entry, desktop_id,
                                legacy_executable_paths)
 except ImportError:
-    from tests.fixtures.native_assets import (ASSETS, GUI_FILES, GUI_DIRECTORIES, PREFIX, TRUSTED_NATIVE,
+    from tests.fixtures.native_assets import (ASSETS, LAUNCHERS, GUI_FILES, GUI_DIRECTORIES, PREFIX, TRUSTED_NATIVE,
         ACTIVITY_PREFIX, ACTIVITY_EXECUTABLE, trusted_file_modes, desktop_entry, desktop_id,
         legacy_executable_paths)
 
@@ -47,7 +47,7 @@ def native_files(accounts):
     # Both fixed children are native-policy consumers. Their catalogues are
     # user-scoped; Jordan's launchers cannot supply Riley's removal journey.
     for child_role in ('child', 'other'):
-        for asset in ASSETS:
+        for asset in (LAUNCHERS if child_role == 'other' else ASSETS):
             path = accounts[child_role].pw_dir + '/.local/share/applications/' + desktop_id(asset[0])
             files[path] = (desktop_entry(asset).encode(), 0o644, child_role)
     for target, suffix in NATIVE.values():

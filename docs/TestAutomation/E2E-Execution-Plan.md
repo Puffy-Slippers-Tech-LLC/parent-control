@@ -23,7 +23,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **229a — [Qualify two native launchers sharing one target](E2E-Tasks/229a-shared-target-launchers.md)**.
+Next task: **229 — [Check that blocking either launcher blocks their shared app](E2E-Tasks/229-case-187.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

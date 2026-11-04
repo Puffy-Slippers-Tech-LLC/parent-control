@@ -58,7 +58,7 @@ def declarations():
             if destination.startswith(native_assets.PREFIX + '/')}
     grid.add('@child@/.local/share/applications/' + native_assets.desktop_id('A'))
     baseline_child = {destination for destination, _ in
-                      native_assets.source_destinations('@child@').values()
+                      native_assets.source_destinations('@child@', alias=False).values()
                       if destination.startswith('@child@/.local/share/applications/')}
     trusted = native_assets.trusted_file_modes()
     result = {}

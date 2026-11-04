@@ -28,7 +28,7 @@ from typing import Mapping
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from tests.fixtures.native_assets import (ASSETS as NATIVE_ASSETS, TRUSTED_NATIVE, GUI_DIRECTORIES,
+from tests.fixtures.native_assets import (ASSETS as NATIVE_ASSETS, LAUNCHERS, TRUSTED_NATIVE, GUI_DIRECTORIES,
     LEGACY_S, desktop_id, desktop_entry, executable_path, version_pattern)
 SOURCE = Path(__file__).with_name("onpc_test_application.c")
 GUI_SOURCE = Path(__file__).with_name("gui_application.py")
@@ -211,7 +211,7 @@ def _build_native_layout(output: Path, native: Path) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(_compile_native(output, identity=identities[name]), target)
         target.chmod(0o755)
-    for asset in NATIVE_ASSETS:
+    for asset in LAUNCHERS:
         _write_text(output / 'native-launchers' / desktop_id(asset[0]), desktop_entry(asset))
     exact = INSTALL_PREFIX / "Applications" / NATIVE_NAMES[0]
     versioned = Path(executable_path('S').lstrip('/'))

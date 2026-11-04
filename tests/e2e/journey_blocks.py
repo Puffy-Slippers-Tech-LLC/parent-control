@@ -224,7 +224,8 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
             'journey:native-desktop-binding')
     require(child in ('parent', 'child', 'other-child') and
             (child != 'parent' or route == 'command'), 'journey:native-child-binding')
-    require(role is None or route == 'command' and
+    require(role is None or role == 'Alias' and route == 'grid' and child == 'other-child'
+            or route == 'command' and
             (role in ('A', 'S') and child == 'child' or role == 'N' and child == 'other-child'),
             'journey:native-role-binding')
     stages = {
@@ -239,6 +240,10 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
         'submitted': 'ui:native-submitted',
     }
     operation = {'child': 'overlay-native-', 'parent': 'parent-native-', 'other-child': 'native-'}[child]
+    if role == 'Alias':
+        return {stage: tag.replace('ui:native-', 'ui:native-alias-')
+                if stage in ('search-ready', 'search-focused', 'search-entered', 'app-grid')
+                else tag for stage, tag in stages.items()}
     if role is not None:
         operation += {'A': 'allowed-', 'S': 'soft-', 'N': 'nonmatching-'}[role]
     return {stage: tag.replace('ui:native-', 'ui:' + operation)
@@ -255,10 +260,10 @@ def native_blocked_app(role, *, route='command'):
                 if stage not in ('opened', 'submit', 'submitted')},
                 'denied': 'ui:native-grid-denied'}
     require(route == 'command', 'journey:native-route')
-    require(role in ('A', 'H', 'S'), 'journey:native-denial-binding')
+    require(role in ('A', 'H', 'S', 'Alias'), 'journey:native-denial-binding')
     if role == 'A':
         return {'command': 'ui:native-command-blocked'}
-    name = {'H': 'hard', 'S': 'soft'}[role]
+    name = {'H': 'hard', 'S': 'soft', 'Alias': 'alias'}[role]
     return {'command': 'ui:native-' + name + '-command-blocked'}
 
 

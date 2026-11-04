@@ -2010,7 +2010,7 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'activity'}, 'ui:response')
             AppActivityObservation.from_value(result['activity'])
             expected['activity'] = result['activity']
-        if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals'):
+        if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals', 'native-alias-grid'):
             expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
         if operation == 'native-grid-blocked':
             require(type(result.get('grid_launch_required')) is bool, 'ui:native-grid-response')

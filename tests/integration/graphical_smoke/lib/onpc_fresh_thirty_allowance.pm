@@ -8,6 +8,7 @@ use onpc_parent ();
 use onpc_app_rows ();
 use onpc_feedback_privacy ();
 use onpc_desktop_session ();
+use onpc_lifecycle ();
 
 sub run {
     onpc_progress::operation('Qualifying fresh thirty-minute daily allowance setup');
@@ -75,6 +76,67 @@ sub match_editor_case {
     my $other = $journey->scope('nonmatching');
     onpc_app_rows::native_usable_app($other, 'command', $other->seen('desktop'), 'other-child', 'N');
     onpc_app_rows::native_finish_app($other);
+    $journey->finish();
+}
+
+# Case 186 keeps lifecycle and child selection explicit; no implicit rule repair.
+sub match_reopen_case {
+    onpc_progress::operation('Checking remembered app rules and child access after reopening Parent');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'match-reopen:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'match-reopen-case', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen($_) for qw(saved-settings apps-page initial-rule);
+    onpc_app_rows::match_edit($journey, 'match-wildcard', 'custom',
+        'custom-open', 'custom-read', 'custom-rule');
+    onpc_app_rows::access_choice($journey, 'allowed-save', 'allowed-access');
+    my $reopen = $journey->scope('custom-reopen');
+    onpc_lifecycle::reopen($reopen, 'parent', $reopen->seen('prior-window'), 'management');
+    my $selection = $journey->scope('custom-return');
+    onpc_parent::select_child($selection, 'existing', $selection->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $selection->seen('apps-page');
+    $journey->seen($_) for qw(remembered-rule remembered-access suggested-rule);
+    onpc_app_rows::match_edit($journey, 'match-soft-precise', 'precise',
+        'precise-open', 'precise-read', 'precise-rule');
+    $selection = $journey->scope('select-riley');
+    onpc_parent::select_child($selection, 'child', $selection->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $selection = $journey->scope('reselect-jordan');
+    onpc_parent::select_child($selection, 'existing', $selection->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $selection->seen('apps-page');
+    $journey->seen('reselected-suggested');
+    onpc_app_rows::match_edit($journey, 'match-soft-precise', 'before-reopen',
+        'before-reopen-open', 'before-reopen-read', 'before-reopen-rule');
+    $reopen = $journey->scope('precise-reopen');
+    onpc_lifecycle::reopen($reopen, 'parent', $reopen->seen('prior-window'), 'management');
+    $selection = $journey->scope('precise-return');
+    onpc_parent::select_child($selection, 'existing', $selection->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $selection->seen('apps-page');
+    $journey->seen('reopened-suggested');
+    onpc_app_rows::match_edit($journey, 'match-soft-precise', 'before-rejection',
+        'before-rejection-open', 'before-rejection-read', 'before-rejection-rule');
+    onpc_app_rows::match_edit($journey, 'match-rejected-directory', 'rejected',
+        'rejected-open', 'rejected-read', undef);
+    onpc_feedback_privacy::close_parent_report($journey, 'rejected');
+    $journey->seen($_) for qw(restored-rule restored-access restored-suggested);
+    onpc_app_rows::match_edit($journey, 'match-soft-precise', 'recovered',
+        'recovered-open', 'recovered-read', 'recovered-rule');
+    onpc_app_rows::access_choice($journey, 'soft-save', 'soft-access');
+    $journey->seen($_) for qw(final-precise parent-logout);
+    onpc_desktop_session::enter_desktop(
+        $journey, 'gdm', 'other-child', 'fresh', 'success', 'child-entry');
+    onpc_app_rows::native_blocked_app($journey->scope('blocked'), 'S');
+    my $allowed = $journey->scope('allowed');
+    onpc_app_rows::native_usable_app($allowed, 'command', $allowed->seen('desktop'), 'other-child');
+    onpc_app_rows::native_finish_app($allowed);
     $journey->finish();
 }
 

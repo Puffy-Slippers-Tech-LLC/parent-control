@@ -17,6 +17,7 @@ my %values = (
     'match-precise-basename' => 'Exact Fixture.AppImage',
     'match-hard-precise' => '/opt/onpc-test-fixtures/Applications/Path With Spaces.AppImage',
     'match-soft-wildcard' => '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-*.AppImage',
+    'match-soft-precise' => '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage',
     'match-invalid-empty' => '', 'match-invalid-whitespace' => '   ',
     'match-invalid-basename' => 'Unrelated.AppImage',
     'match-invalid-absolute' => '/opt/onpc-test-fixtures/Applications/Unrelated.AppImage',

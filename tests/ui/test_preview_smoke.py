@@ -656,11 +656,12 @@ def test_policy_composite_filtered_and_independent_entry(
 
 
 @pytest.mark.parametrize('binding', ('match-precise', 'match-precise-basename',
-                                    'match-wildcard', 'match-wildcard-basename'))
+                                    'match-wildcard', 'match-wildcard-basename',
+                                    'match-soft-precise'))
 def test_match_editor_valid_save_cancel_matrix(
         launch_ui, automation, wait_for_accessible_state, tmp_path, binding):
     from gi.repository import GLib
-    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, MATCH_APP, MATCH_RULES
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, MATCH_APP, MATCH_APPS, MATCH_RULES
     from tests.support.gui_blocks import run_block
     events = tmp_path / 'match-events.jsonl'
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
@@ -675,22 +676,24 @@ def test_match_editor_valid_save_cancel_matrix(
         fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002},
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     reader.parent_page(EXISTING_CHILD, 'App Limits')
-    original = reader.read_match_rule(EXISTING_CHILD, MATCH_APP)
-    run_block(reader, 'match-editor', 'match-open', 'match-read', child='existing')
+    app = MATCH_APPS['S'] if binding == 'match-soft-precise' else MATCH_APP
+    operation = 'match-soft-' if binding == 'match-soft-precise' else 'match-'
+    original = reader.read_match_rule(EXISTING_CHILD, app)
+    run_block(reader, 'match-editor', operation + 'open', operation + 'read', child='existing')
     run_block(reader, 'replace', binding, child='existing')
-    cancelled = run_block(reader, 'match-response', 'match-cancel', 'match-row', child='existing')
-    assert cancelled['match-row']['match'] == original
+    cancelled = run_block(reader, 'match-response', operation + 'cancel', operation + 'row', child='existing')
+    assert cancelled[operation + 'row']['match'] == original
     assert not any(record['event'] == 'set_preferences' for record in read_events(events))
     # Supply an independently open editor, then call the same public read leaf.
-    reader.open_match_rule(EXISTING_CHILD, MATCH_APP)
-    assert reader.run('match-read', '', child='existing')['match'] == original
+    reader.open_match_rule(EXISTING_CHILD, app)
+    assert reader.run(operation + 'read', '', child='existing')['match'] == original
     run_block(reader, 'replace', binding, child='existing')
-    saved = run_block(reader, 'match-response', 'match-save', 'match-row', child='existing')
-    expected = MATCH_RULES[1 if 'wildcard' in binding else 0]
-    assert saved['match-row']['match'] == {'app': MATCH_APP, 'rule': expected}
-    reader.open_match_rule(EXISTING_CHILD, MATCH_APP)
-    assert reader.read_match_rule(EXISTING_CHILD, MATCH_APP, editor=True)['rule'] == expected
-    reader.respond_match_rule(EXISTING_CHILD, MATCH_APP, 'cancel')
+    saved = run_block(reader, 'match-response', operation + 'save', operation + 'row', child='existing')
+    expected = MATCH_RULES[5 if binding == 'match-soft-precise' else 1 if 'wildcard' in binding else 0]
+    assert saved[operation + 'row']['match'] == {'app': app, 'rule': expected}
+    reader.open_match_rule(EXISTING_CHILD, app)
+    assert reader.read_match_rule(EXISTING_CHILD, app, editor=True)['rule'] == expected
+    reader.respond_match_rule(EXISTING_CHILD, app, 'cancel')
 
 
 @pytest.mark.parametrize('old_binding,response', (

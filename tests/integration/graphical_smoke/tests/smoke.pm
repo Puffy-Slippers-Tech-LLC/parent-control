@@ -1123,6 +1123,13 @@ sub run {
             \&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{match_reopen_case}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_fresh_thirty_allowance::match_reopen_case(
+            \&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{match_save_cancel}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

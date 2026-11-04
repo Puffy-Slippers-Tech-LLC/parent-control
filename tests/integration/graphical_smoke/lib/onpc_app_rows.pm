@@ -197,7 +197,7 @@ sub match_edit {
     onpc_progress::operation('Editing the declared match draft and independently observing Save');
     my ($journey, $draft, $prefix, $open, $read, $row) = @_;
     die 'match:edit-binding' unless @_ == 6 && ref($journey) eq 'onpc_journey'
-        && defined($draft) && $draft =~ /\Amatch-(?:(?:precise|wildcard)(?:-basename)?|wildcard-appimages|rejected-directory|hard-precise|soft-wildcard)\z/;
+        && defined($draft) && $draft =~ /\Amatch-(?:(?:precise|wildcard)(?:-basename)?|wildcard-appimages|rejected-directory|hard-precise|soft-(?:wildcard|precise))\z/;
     die 'match:edit-stages' unless !grep { !defined($_) || !/\A[a-z][a-z0-9-]*\z/ }
         ($prefix, $open, $read);
     die 'match:edit-result' unless $draft eq 'match-rejected-directory'

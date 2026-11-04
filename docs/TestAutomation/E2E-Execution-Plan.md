@@ -23,7 +23,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **228 — [Check saved app matching after reopening Parent](E2E-Tasks/228-case-186.md)**.
+Next task: **229a — [Qualify two native launchers sharing one target](E2E-Tasks/229a-shared-target-launchers.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

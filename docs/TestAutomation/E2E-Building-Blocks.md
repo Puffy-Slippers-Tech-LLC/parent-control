@@ -1042,6 +1042,18 @@ Ordinary Save requires a separate row endpoint. `match-rejected-directory`
 requires `row=None/undef` and ends with the automatic report open; caller owns
 review/closure/restored-rule assertions. Complete cases remain separate.
 
+Case 186 (`match_reopen_case.PLAN` /
+`onpc_fresh_thirty_allowance::match_reopen_case`) passed on Ubuntu 26.04 in
+`20261104T014326Z-6873fc13`. It saves S's finite `match-soft-precise` path,
+checks suggested-pattern redisplay after child reselection and Parent reopening,
+then reselects precise before subsequent saves. A's custom wildcard/Allowed
+survives reopening and a rejected-directory save; Jordan independently proves
+S denied and A usable through Submit and normal closure. Child selection keeps
+the current page, so the case uses PARENT04(Screen Limits) before PARENT03
+settings comparisons, then returns to App Limits for rule reads. Collection,
+owned cleanup and baseline restoration passed; other families remain unqualified
+for this complete case.
+
 ### Automatic Parent error reports
 
 `rejected_parent_rule.PLAN` /

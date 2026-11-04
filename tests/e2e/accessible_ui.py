@@ -347,6 +347,7 @@ TEXT_VALUES = {
     'catalogue-soft': ('parent-app-search', 'com.puffyslippers.ONPCTest.S.desktop'),
     'match-hard-precise': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Whitespace/Path With Spaces.AppImage'),
     'match-soft-wildcard': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-*.AppImage'),
+    'match-soft-precise': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage'),
     'catalogue-absent': ('parent-app-search', 'ONPC Absent Catalogue Fixture 077b'),
     'catalogue-clear': ('parent-app-search', ''),
     **{f'body-ascii-{units}': ('feedback-editor-input', 'x' * units)
@@ -607,9 +608,11 @@ MATCH_RULES = ('/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
                '/opt/onpc-test-fixtures/Applications/Exact*.AppImage',
                '/opt/onpc-test-fixtures/Applications/*.AppImage',
                '/opt/onpc-test-fixtures/Applications/Whitespace/Path With Spaces.AppImage',
-               '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-*.AppImage')
+               '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-*.AppImage',
+               '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage')
 BASELINE_POLICY_DRAFTS = {'match-hard-precise': MATCH_APPS['H'],
-                          'match-soft-wildcard': MATCH_APPS['S']}
+                          'match-soft-wildcard': MATCH_APPS['S'],
+                          'match-soft-precise': MATCH_APPS['S']}
 BASELINE_MATCH_OPERATIONS = {f'match-{name}-{action}': (MATCH_APPS[role], action)
     for name, role in (('hard', 'H'), ('soft', 'S'))
     for action in ('open', 'read', 'row', 'save', 'cancel', 'reset')}

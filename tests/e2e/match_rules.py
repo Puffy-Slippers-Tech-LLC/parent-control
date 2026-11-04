@@ -25,7 +25,8 @@ def match_edit(draft, prefix, *, editor, row):
               *((row,) if row is not None else ()))
     require(len(stages) == len(set(stages)), 'match:edit-stages')
     operation = 'ui:match-' + {'match-hard-precise': 'hard-',
-                              'match-soft-wildcard': 'soft-'}.get(draft, '')
+                              'match-soft-wildcard': 'soft-',
+                              'match-soft-precise': 'soft-'}.get(draft, '')
     return {
         editor[0]: operation + 'open', editor[1]: operation + 'read',
         **text_fragment(draft, prefix + '-draft'),

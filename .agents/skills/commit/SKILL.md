@@ -29,10 +29,20 @@ requests the full workflow, subject to existing execution permissions.
    push each, preserving local and remote work. Do not force-push, invent missing
    branches or alter Git configuration. Reuse an applicable maintained public
    workflow when available; do not invoke private launcher helpers ad hoc.
-5. Stop on ambiguous configuration, missing permissions, unresolved conflicts or
-   a failed push. Preserve recoverable work and report the blocker and completed
-   destinations. Resume unfinished propagation with the same pinned source
-   commit rather than creating another source commit.
-6. On success, leave the source checkout on its original branch. Report the
+5. Only if a merge or saved-work restoration conflict occurs, read
+   [conflict resolution](references/conflict-resolution.md) and delegate automatic
+   resolution to a subagent. Overlap with active worktree edits alone does not
+   require stopping or coordinator review. Skip this reference and delegation
+   when there is no conflict.
+6. Stop only when automatic resolution is exhausted, intent or ownership remains
+   ambiguous after investigation, validation cannot pass without an unauthorized
+   behavior change, configuration or permissions prevent progress, or a push
+   fails beyond the shared contract's bounded reconciliation. Honor explicit
+   caller restrictions on edits and validation; report such a restriction as the
+   blocker rather than treating the conflict itself as requiring human review.
+   Preserve recoverable work and report the exact blocker, resolution attempts
+   and completed destinations. Resume unfinished propagation with the same
+   pinned source commit rather than creating another source commit.
+7. On success, leave the source checkout on its original branch. Report the
    source commit hash and each destination pushed. Completion requires every
    configured destination to succeed. This does not publish a product release.

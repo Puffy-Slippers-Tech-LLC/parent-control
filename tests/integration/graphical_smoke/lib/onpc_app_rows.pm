@@ -535,7 +535,8 @@ sub native_usable_app {
         && ($child eq 'child' || $child eq 'other-child' || $child eq 'parent' && $route eq 'command')
         && (!defined($role) || $role eq 'Alias' && $route eq 'grid' && $child eq 'other-child'
             || $route eq 'command' &&
-            ($role =~ /\A(?:A|S)\z/ && $child eq 'child' || $role eq 'N' && $child eq 'other-child'));
+            ($role =~ /\A(?:A|S)\z/ && $child eq 'child'
+                || $role =~ /\A(?:N|unmatched-soft)\z/ && $child eq 'other-child'));
     my $opened = $route eq 'command' ? native_open_command($journey, $desktop)
                                    : native_open_grid($journey, $desktop, $role);
     return native_use_app($journey, $opened);

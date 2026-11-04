@@ -1166,6 +1166,11 @@ sub kiosk_language {
 sub obtain_time {
     onpc_progress::operation('Obtaining time through a fresh request-station entry');
     my ($journey, $initial, $child, $approver, $seconds, $soft, $exit) = @_;
+    if (@_ == 7 && ref($journey) eq 'onpc_journey' && $initial eq 'observed') {
+        die 'approved-flow:binding' unless $exit eq 'automatic';
+        prepare($journey, 'new', 'new', $initial, $child, $approver, $seconds, $soft, 'kiosk');
+        return approve($journey, $child, $approver, $seconds, $soft, $exit);
+    }
     die 'approved-flow:binding' unless @_ == 7 && ref($journey) eq 'onpc_journey'
         && ($initial eq 'default' || $initial eq 'selected')
         && $child eq 'fixture-child' && $approver eq 'fixture-parent'

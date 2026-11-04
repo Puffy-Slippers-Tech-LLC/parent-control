@@ -23,7 +23,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **080 — [Check app rule changes with time limits on](E2E-Tasks/080-case-13.md)**.
+Next task: **081 — [Check app pattern rules with time limits on](E2E-Tasks/081-case-14.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

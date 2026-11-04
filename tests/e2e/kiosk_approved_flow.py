@@ -46,7 +46,7 @@ def obtain_time(*, initial, child, approver, duration_seconds, allow_soft, exit)
     require(exit == 'automatic', 'approved-flow:exit')
     choices = dict(child=child, approver=approver, duration_seconds=duration_seconds,
                    allow_soft=allow_soft)
-    approval = approved_request(**choices, exit=exit)
+    approval = approved_request(**choices, exit=exit, explicit=initial == 'observed')
     return {**prepared_request(prefix='new', entry='new', initial=initial, **choices),
             **approval}
 

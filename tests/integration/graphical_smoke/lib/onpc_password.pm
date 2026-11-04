@@ -127,7 +127,10 @@ sub enter_kiosk_mate_password {
             my $grant_access = ($journey->{prefix} // '') eq 'grant-access-case-request'
                 && ($journey->{stage_prefix} // '') eq 'request-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
-            die 'secret:challenge' unless ($delayed || $grant_access ||
+            my $app_transition = ($journey->{prefix} // '') eq 'app-rule-changes-soft-opening'
+                && ($journey->{stage_prefix} // '') eq 'soft-opening-'
+                && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,75,1';
+            die 'secret:challenge' unless ($delayed || $grant_access || $app_transition ||
                     ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
                     && ($journey->{stage_prefix} // '') eq '')
                 && ref($request) eq 'ARRAY' && @$request == 4

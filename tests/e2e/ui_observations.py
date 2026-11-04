@@ -552,10 +552,11 @@ class AppActivityObservation:
     owner: tuple | None = None
 
     @classmethod
-    def from_value(cls, value, *, closed=False):
+    def from_value(cls, value, *, closed=False, binding='native-primary'):
         fields = {'binding', 'pid', 'endpoint', 'state'}
         require(type(closed) is bool and type(value) is dict and set(value) in (fields, fields | {'owner'})
-                and value['binding'] == 'native-primary', 'ui:app-activity')
+                and binding in ('native-primary', 'native-secondary')
+                and value['binding'] == binding, 'ui:app-activity')
         owner = value.get('owner')
         require('owner' not in value or type(owner) is list and len(owner) == 2
                 and type(owner[0]) is int and owner[0] >= 1000
@@ -2030,10 +2031,11 @@ class UiObservations:
                     'submitted': 'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
                     'score': 'Moves: 0; token: 0'}
         if operation in ('native-activity', 'overlay-native-activity', 'parent-native-activity',
-                         'native-policy-activity', 'native-policy-closed'):
+                         'native-policy-activity', 'native-policy-closed', 'native-unmatched-soft-activity'):
             require(type(result) is dict and set(result) == {*expected, 'activity'}, 'ui:response')
             activity = AppActivityObservation.from_value(result['activity'],
-                                                         closed=operation == 'native-policy-closed')
+                closed=operation == 'native-policy-closed', binding=(
+                    'native-secondary' if operation == 'native-unmatched-soft-activity' else 'native-primary'))
             require((activity.pid is None) == (operation == 'native-policy-closed'),
                     'ui:app-activity-result')
             if operation.startswith('native-policy-'):

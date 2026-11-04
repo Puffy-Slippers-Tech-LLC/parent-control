@@ -576,7 +576,7 @@
       "category": "customer-journey",
       "owners": ["parent-policy", "app-launch"],
       "requirements": ["ONPC-COMP-PARENT-004", "ONPC-CORE-APPS-006", "ONPC-CORE-APPS-008", "ONPC-CORE-ACCOUNTS-004", "ONPC-CORE-APPS-012"],
-      "requirement_gap": "Search/filter and match-editing scope is mapped; the current variants do not individually qualify every search field, combined filter, Cancel and Reset to Default branch.",
+      "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": ["ubuntu26.04", "fedora44"],
@@ -609,7 +609,7 @@
         "other_user": []
       },
       "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
-      "duration_seconds": 1800,
+      "duration_seconds": 3900,
       "matrix": {
         "dimensions": {
           "control": ["enabled", "disabled"],
@@ -621,7 +621,7 @@
         "rationale": "Four control-by-match combinations own policy transitions. E2E-041 owns editor and catalogue validation; E2E-019 owns launch routes."
       },
       "variants": [
-        {"coverage_id": 13, "id": "enabled-precise", "owner": "parent-policy", "parameters": {"control": "enabled", "match": "precise"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 13, "id": "enabled-precise", "owner": "parent-policy", "parameters": {"control": "enabled", "match": "precise"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/app_rule_changes_case.py", "test_id": "enabled-precise"}},
         {"coverage_id": 14, "id": "enabled-pattern", "owner": "parent-policy", "parameters": {"control": "enabled", "match": "pattern"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 15, "id": "disabled-precise", "owner": "parent-policy", "parameters": {"control": "disabled", "match": "precise"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 16, "id": "disabled-pattern", "owner": "parent-policy", "parameters": {"control": "disabled", "match": "pattern"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}

@@ -220,6 +220,13 @@ NATIVE_DENIAL_BINDINGS = {
         ('nonmatching', 'N', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed')))
     for action in actions
 }
+# A distinct, Allowed S executable is a nonmatch for A's precise rule. Keep
+# its secondary window open while the primary policy activity changes.
+NATIVE_DENIAL_BINDINGS.update({
+    'native-unmatched-soft-' + action: ('S', action)
+    for action in ('desktop', 'command-launch', 'opened', 'submit', 'submitted',
+                   'activity', 'resubmit', 'close', 'closed')
+})
 NATIVE_APP_OPERATIONS |= frozenset(NATIVE_DENIAL_BINDINGS)
 OPERATIONS |= frozenset(NATIVE_DENIAL_BINDINGS)
 STANDARD_OPERATIONS |= frozenset(NATIVE_DENIAL_BINDINGS)
@@ -13099,6 +13106,12 @@ class AccessibleUI:
                 blocked=action != 'command-launch', locked=action == 'locked-command-blocked')
         if action == 'submit':
             return self.native_app_submit(instance, role=role, child=child)
+        if action == 'resubmit':
+            return self.native_app_submit(instance, submitted='ONPC fixture draft', role=role, child=child)
+        if action == 'activity':
+            return self.wait(lambda: self.native_app_snapshot(
+                'ONPC fixture draft', with_window=True, instance=instance, role=role, child=child),
+                'native-unmatched-activity', prompt_in_predicate=True)
         if action in ('opened', 'submitted'):
             return self.wait(lambda: self.native_app_snapshot(
                 'No submitted draft' if action == 'opened' else 'ONPC fixture draft',

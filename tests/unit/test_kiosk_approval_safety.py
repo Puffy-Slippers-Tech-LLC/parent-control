@@ -52,10 +52,13 @@ def test_bound_prompt_wait_and_repeat_still_require_fresh_recipient_proofs(monke
 
 @pytest.mark.parametrize('mode', ['two-requests', 'replay', 'wrong-scope', 'wrong-child',
                                  'profile-setup', 'profile-wrong-scope',
-                                 'grant-request', 'grant-wrong-scope', 'grant-wrong-child'])
+                                 'grant-request', 'grant-wrong-scope', 'grant-wrong-child',
+                                 'transition-request', 'transition-wrong-duration'])
 def test_composed_kiosk_secret_scope_and_single_use(mode):
     # Execute the real password guard; replace only the secret delivery sink.
     # No password is supplied, and each isolated Perl process owns its latch.
+    from app_rule_changes_case import PLAN
+    transition = [PLAN.prefix + '-soft-opening', 'soft-opening-', list(PLAN.kiosk_request)]
     result = run_perl(r'''
 use strict;
 use warnings;
@@ -79,6 +82,7 @@ require onpc_password;
     *onpc_password::type_fixture_secret = sub { push @events, ['delivery', $_[0], $_[3]]; };
 }
 my $mode = shift @ARGV;
+my $transition = decode_json(shift @ARGV);
 my $first = bless {prefix => 'kiosk-delayed-approval-first', stage_prefix => 'first-',
     kiosk_request => ['child', 'parent', 30, 0], review => 0}, 'onpc_journey';
 my $second = bless {%$first, prefix => 'kiosk-delayed-approval-second', stage_prefix => 'second-'}, 'onpc_journey';
@@ -95,10 +99,16 @@ if ($mode =~ /^grant-/) {
         kiosk_request => [$mode eq 'grant-wrong-child' ? 'child' : 'other-child', 'parent', 1200, 1],
         review => 0}, 'onpc_journey';
 }
+if ($mode =~ /^transition-/) {
+    $transition->[2][2] = 1200 if $mode eq 'transition-wrong-duration';
+    $first = bless {prefix => $transition->[0], stage_prefix => $transition->[1],
+        kiosk_request => $transition->[2],
+        review => 0}, 'onpc_journey';
+}
 my $ok = eval {
     if ($mode =~ /^profile-/) {
         onpc_password::enter_kiosk_mate_password($first, 'request-1200');
-    } elsif ($mode =~ /^grant-/) {
+    } elsif ($mode =~ /^(?:grant|transition)-/) {
         onpc_password::enter_kiosk_mate_password($first, 'bound-request');
     } else {
         onpc_password::enter_kiosk_mate_password($first, 'bound-request');
@@ -107,7 +117,7 @@ my $ok = eval {
     1;
 };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
-''', mode)
+''', mode, json.dumps(transition))
     value = json.loads(result.stdout)
     deliveries = [event for event in value['events'] if event[0] == 'delivery']
     if mode == 'two-requests':
@@ -117,11 +127,12 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
         assert [event for event in value['events'] if event[0] == 'proof'] == [
             ['proof', request + '-approval-' + proof]
             for request in ('first', 'second') for proof in ('qualified', 'rechecked')]
-    elif mode == 'grant-request':
+    elif mode in ('grant-request', 'transition-request'):
         assert value['ok'] == 1
-        assert deliveries == [['delivery', 'parent', 'request-kiosk-mate-approval']]
+        scope = 'request' if mode == 'grant-request' else 'soft-opening'
+        assert deliveries == [['delivery', 'parent', scope + '-kiosk-mate-approval']]
         assert [event for event in value['events'] if event[0] == 'proof'] == [
-            ['proof', 'request-approval-' + proof] for proof in ('qualified', 'rechecked')]
+            ['proof', scope + '-approval-' + proof] for proof in ('qualified', 'rechecked')]
     elif mode == 'profile-setup':
         assert value['ok'] == 1
         assert deliveries == [['delivery', 'parent', 'profile-request-kiosk-mate-request-1200']]

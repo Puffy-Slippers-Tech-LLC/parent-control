@@ -1,12 +1,18 @@
 """Shared literal-path Git close-out and identity-checked commit recovery."""
 
-import hashlib
 from contextlib import nullcontext
+import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
+import signal
 import stat
 import subprocess
+import sys
+import uuid
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detached_launcher as launcher
 
@@ -35,8 +41,8 @@ Git ownership reconciliation takes priority before completing this same task:
 {state['git_reconciliation']['reason']}
 Retained acceptance evidence and close-out scope:
 {json.dumps(evidence, indent=2)}
-The original unstaged stage_baseline fingerprints still apply. Pre-existing
-staged work joins the controller's completion commit under the shared policy.
+The original unstaged stage_baseline fingerprints still apply. Preserve unrelated
+staged work; the commit skill reviews task ownership before committing.
 Inspect the reported paths against the retained baseline, current HEAD and index.
 Remove an unrelated path from stage_paths only if this task needs no change to it.
 Do not drop a required task edit to avoid the guard. Never clear or rewrite the
@@ -131,8 +137,8 @@ def pull_before_commit(root, run, state, *, git=None):
         raise ValueError('completion pull failed: ' + diagnostic)
 
 
-def stage_task(root, paths, *, required_paths=()):
-    """Stage only explicit reported files; never interpret Git pathspec magic."""
+def stage_task(root, paths, *, required_paths=(), stage=True):
+    """Validate explicit task files, optionally staging them for legacy callers."""
     paths = list(dict.fromkeys(paths))
     if not set(required_paths).issubset(paths):
         raise ValueError('completed task must include plan and queue in stage_paths')
@@ -151,8 +157,8 @@ def stage_task(root, paths, *, required_paths=()):
     # A temporary brief can be created and removed before ever entering the
     # index. It has no deletion to stage. Keep indexed deletions and symlinks.
     paths = [path for path in paths if path in tracked or os.path.lexists(root / path)]
-    if not paths:
-        return []
+    if not paths or not stage:
+        return paths
     result = subprocess.run(['git', '--literal-pathspecs', 'add', '--', *paths], cwd=root,
                             env=launcher.environment(), capture_output=True, text=True)
     if result.returncode:
@@ -252,7 +258,7 @@ def committed_fingerprints(root, paths):
 
 
 def validate_closeout_ownership(root, paths, state):
-    """Protect unstaged baseline work; staged work joins the completion commit."""
+    """Protect unstaged baseline work before the skill reviews commit ownership."""
     baseline = state['stage_baseline']
     protected = set(state['protected_staged'])
     overlap = set()
@@ -314,6 +320,125 @@ def _propagate_worktrees(root, run, state, commit, *, git=None):
 
 
 def commit_push_propagate(root, run, state, paths, message, *, git=None):
+    """Use $commit for new close-outs; resume existing mechanical transactions."""
+    git = git or git_output
+    with closeout_lock(root, run, state):
+        intent = state.get('commit_intent')
+        if intent is None and state.get('worktree_propagation'):
+            raise ValueError('pending propagation has no commit intent; retain it for Git reconciliation')
+        if intent is None or intent.get('engine') == 'skill':
+            return _commit_with_skill(root, run, state, paths, message, git=git)
+        return _legacy_commit_push_propagate(root, run, state, paths, message, git=git)
+
+
+def _commit_with_skill(root, run, state, paths, message, *, git):
+    """Keep acceptance in the controller and Git ownership in the commit skill."""
+    from launcher_worktrees import commit_skill_targets
+    skill = root / '.agents/skills/commit/SKILL.md'
+    if not skill.is_file():
+        raise ValueError('commit skill is missing: ' + str(skill))
+    identity, head = validate_pull_identity(root, state, git=git)
+    targets = commit_skill_targets(root, git=git)
+    intent = state.get('commit_intent')
+    if intent is None:
+        intent = state['commit_intent'] = dict(
+            engine='skill', session=uuid.uuid4().hex, parent=head, paths=list(paths), message=message,
+            **identity, targets=targets)
+        launcher.atomic(run / 'checkpoint.json', state)
+    if (intent['paths'] != list(paths) or intent['message'] != message
+            or any(intent[key] != identity[key] for key in identity)
+            or intent['targets'] != targets):
+        raise ValueError('commit skill scope or branch destinations changed; retain the checkpoint')
+    sessions = launcher.private_directory(run / 'commit-skill')
+    session = launcher.private_directory(sessions / intent['session'])
+    receipt = session / 'progress.json'
+    previous = json.loads(receipt.read_text()) if receipt.exists() else {}
+    schema = dict(type='object', additionalProperties=False,
+        properties=dict(status=dict(type='string', enum=['complete', 'blocked']),
+                        summary=dict(type='string')),
+        required=['status', 'summary'])
+    launcher.atomic(session / 'intent.json', intent)
+    (session / 'response.schema.json').write_text(json.dumps(schema))
+    (session / 'prompt.txt').write_text(f"""Use $commit, reading {skill}, to close out this accepted launcher task.
+The user authorized the full skill workflow. Do not start another launcher.
+The controller holds the repository Git transaction lock. Do not acquire it
+again or invoke private launcher Git helpers. Perform Git operations directly.
+Accepted task scope and original branch identity:
+{json.dumps(intent, indent=2)}
+Session ownership and acceptance context (read only): {run / 'checkpoint.json'}
+Only the listed task paths are candidates, not proof of hunk ownership. Preserve
+all unrelated staged, unstaged and untracked work, including within those files.
+The task has already passed its checks and cleanup. Do not edit product code,
+plans or tests, run tests/VM operations, or change acceptance in this Git session.
+Use the suggested commit message. If reconciliation changes accepted task content
+or ownership is ambiguous, stop blocked so the coordinator can review it.
+
+Durable recovery journal: {receipt}
+Previous journal: {json.dumps(previous)}
+Maintain this JSON journal with exact commit IDs, branch/upstream identities,
+per-destination progress and any stash identities before and after Git writes.
+Record the source commit as source_commit immediately after committing, before
+pushing. Record the exact successfully pushed source HEAD as pushed_head before
+any destination write. Once pushed_head is recorded, it is immutable: resume
+unfinished destinations with that same commit and never create another task
+commit. Inspect Git and the journal after an interruption before replaying any
+write. If a write cannot be identified safely, stop blocked and preserve work.
+Restore saved work with its index state; retain recoverable stashes on failure.
+Return complete only after every configured destination is pushed and the source
+checkout is back on its original branch. Otherwise return blocked with the exact
+blocker and completed destinations. Do not modify the controller checkpoint.
+""")
+    (session / 'agent-result.json').unlink(missing_ok=True)
+    with launcher.lock(session / 'owner') as owner:
+        fcntl.flock(owner, fcntl.LOCK_EX)
+        command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
+                   '--commit-skill', str(root), str(session), str(owner)]
+        from fix_tests_queue import repair_descriptors
+        with subprocess.Popen(command, cwd=root, env=launcher.environment(), stdin=subprocess.PIPE,
+                pass_fds=(owner, *launcher.scratch_descriptors(), *repair_descriptors()),
+                start_new_session=True) as child:
+            signalled = False
+            while True:
+                try:
+                    status = child.wait(timeout=0.2)
+                    break
+                except subprocess.TimeoutExpired:
+                    if (run / 'cancel').exists() and not signalled:
+                        child.send_signal(signal.SIGTERM)
+                        signalled = True
+        if (run / 'cancel').exists():
+            raise launcher.Stopped()
+        if status:
+            raise ValueError('commit skill session failed; resume the retained Git journal')
+    result = json.loads((session / 'agent-result.json').read_text())
+    if result.get('status') != 'complete':
+        raise ValueError('commit skill blocked: ' + result.get('summary', 'inspect retained session'))
+    progress = json.loads(receipt.read_text())
+    commit = progress.get('pushed_head', '')
+    if (not isinstance(commit, str) or len(commit) != 40
+            or any(char not in '0123456789abcdef' for char in commit)
+            or previous.get('pushed_head', commit) != commit):
+        raise ValueError('commit skill did not retain the exact pushed source HEAD')
+    validate_pull_identity(root, state, git=git)
+    if git(root, 'merge-base', '--is-ancestor', commit, 'HEAD', check=False).returncode:
+        raise ValueError('commit skill source HEAD no longer contains the pushed commit')
+    if git(root, 'merge-base', '--is-ancestor', intent['parent'], commit, check=False).returncode:
+        raise ValueError('commit skill pushed HEAD does not preserve the original source history')
+    if commit_skill_targets(root, git=git) != targets:
+        raise ValueError('commit skill destination identities changed during close-out')
+    # Independently verify every remote branch, rather than trusting the agent's
+    # completion text or remote-tracking refs left by an earlier fetch.
+    for target in targets:
+        fetched = git(root, 'fetch', '--no-tags', target['remote'], target['ref'], check=False)
+        if fetched.returncode or git(root, 'merge-base', '--is-ancestor', commit,
+                                     'FETCH_HEAD', check=False).returncode:
+            raise ValueError('commit skill push unverified for ' + target['branch'])
+    intent.update(commit=commit, pushed_head=commit)
+    launcher.atomic(run / 'checkpoint.json', state)
+    return commit
+
+
+def _legacy_commit_push_propagate(root, run, state, paths, message, *, git=None):
     """Finish launcher Git close-out; return only after every destination is pushed.
 
     Callers stage accepted task paths. Shared close-out includes the existing
@@ -414,3 +539,17 @@ def _finish_commit(root, run, state, paths, message, *, git=None, worktree_paths
     # Verify the same committed write on the normal path as on recovery; hooks
     # must not silently change the validated content or include unrelated files.
     return _finish_commit(root, run, state, paths, message, git=git)
+
+
+if __name__ == '__main__':
+    mode, root, session, owner = sys.argv[1:]
+    if mode != '--commit-skill':
+        raise SystemExit('private commit skill supervisor entry point')
+    root, session, owner = Path(root), Path(session), int(owner)
+    command = launcher.agent_command(root, 'gpt-6.1-sol', 'high', session,
+                                     schema=session / 'response.schema.json')
+    intent = json.loads((session / 'intent.json').read_text())
+    for target in intent['targets']:
+        if target.get('path'):
+            command[-1:-1] = ['--add-dir', target['path']]
+    sys.exit(launcher.supervise(root, session, owner, 'agent', command))

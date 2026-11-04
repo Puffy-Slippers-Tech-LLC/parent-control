@@ -905,7 +905,7 @@ def wait_for_answer(run, state, progress_key, *, on_poll=lambda: None, root=None
 
 def stage_task(root, paths, *, require_closeout=True):
     from launcher_git import stage_task as stage
-    return stage(root, paths, required_paths=(PLAN, QUEUE) if require_closeout else ())
+    return stage(root, paths, required_paths=(PLAN, QUEUE) if require_closeout else (), stage=False)
 
 
 def stage_completion(root, state, result):

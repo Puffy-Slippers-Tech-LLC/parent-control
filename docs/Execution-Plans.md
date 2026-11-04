@@ -681,14 +681,15 @@ semantics.
 `--check` validates a plan and every unfinished brief without model sessions, VM
 operations or Git changes. The shared ordinary-plan driver first pulls the current
 branch's configured upstream with `git pull --no-rebase --ff --no-edit --no-autostash`,
-then stages the accepted task's explicit owned paths, captured session changes,
-and its master and queue, commits them as
-`TA: Completed task ID`, runs `git push` using the checkout's existing
-remote and branch configuration, and completes
+then validates the accepted task's explicit owned paths, captured session changes,
+and its master and queue, then invokes the repository's
+[`$commit` skill](../.agents/skills/commit/SKILL.md) in a supervised GPT-6.1 Sol
+High session with the suggested message `TA: Completed task ID`. The skill owns
+the commit, source push and
 [shared worktree propagation](#shared-worktree-propagation). Both `execute-plan` and `reliability-plan`
 inherit this policy. Only successful Git close-out counts the task against the
-run limit and permits selecting the next task. The controller owns task commits
-and pushes. If a pull changes HEAD, encounters merge conflicts or needs local
+run limit and permits selecting the next task. The controller delegates Git
+close-out to the skill after acceptance. If a pull changes HEAD, encounters merge conflicts or needs local
 edits reconciled, the same task returns to its coordinator before any completion
 commit. Resolve conflicts, complete any upstream merge, preserve unrelated work
 and original staging, and re-run acceptance whose inputs changed. The coordinator
@@ -701,14 +702,12 @@ to repair, retaining any written commit and its original pull identity. Recovery
 must restore that identity; observing another owner grants no adoption authority.
 Harmless additional response/check metadata is ignored; required result fields,
 passing checks and cleanup remain mandatory.
-All committing launchers include pre-existing staged work in the same completion
-commit through the shared Git helper. Stage only the task's explicit paths;
-include other staged files directly from the index, preserving their unstaged
-edits. A task edit on a pre-staged path includes both changes without an ownership
-refusal. The helper checkpoints the combined paths and index entries before
-committing and reuses that exact scope on recovery. Acceptance covers the task,
-not the additional staged work. Unrelated unstaged work remains excluded;
-conflicting unstaged ownership stops close-out with a retained checkpoint.
+For new close-outs, the commit skill reviews ownership against the retained
+session context and commits only this task's changes. Candidate paths and staged
+files alone do not establish hunk ownership. Preserve unrelated staged, unstaged
+and untracked work, including within shared files; ambiguous ownership blocks
+close-out. Existing mechanical commit intents retain their original pinned
+index and recovery policy until that transaction finishes.
 A retained dirty-file baseline no longer
 protects a path when its exact captured contents are now committed in HEAD;
 new task edits on that path can close out normally, including after restart.
@@ -740,11 +739,13 @@ or creating a duplicate completion commit. Missing upstream configuration or
 credentials is a close-out failure; the launcher never changes Git configuration.
 Commit recovery checks the retained branch and upstream before pushing. A legacy
 pending commit without that identity requires explicit Git reconciliation.
-The shared Git helper checkpoints the verified completion commit identity.
-Recovery can reuse that exact commit after HEAD advances, provided it remains
-an ancestor and its parent, subject, owned paths and committed entries still
-match the saved intent. Legacy propagation checkpoints supply the same pinned
-identity. Later task edits stay untouched and earn no acceptance credit.
+The skill keeps a durable per-close-out Git journal under the retained run,
+recording its source commit before pushing and the exact pushed HEAD before
+destination writes. Restart resumes that journal with the same pinned commit.
+The controller independently fetches every configured remote branch and checks
+that it contains the pinned commit before accepting completion. Later task edits
+stay untouched and earn no acceptance credit. Existing mechanical commit intents
+continue their original identity, parent, subject, path and index-entry checks.
 E2E retains its own Git and optimization workflow.
 Already-running backends keep their original policy; attaching does not reload
 code or defaults. Stop at a session boundary and start a fresh run to load a
@@ -752,6 +753,21 @@ changed policy. Tasks completed by an older review-only backend are not
 retroactively committed by restart; preserve their changes for explicit close-out.
 
 ## Shared worktree propagation
+
+New launcher close-outs use the repository's
+[`$commit` skill](../.agents/skills/commit/SKILL.md) for the full workflow through
+`launcher_git.commit_push_propagate()`. The shared boundary retains the repository
+lock, accepted task context, branch/upstream identity and configured destinations.
+The skill preserves unrelated work, journals Git writes and stops on conflicts,
+permission failures or failed pushes. It cannot edit task content or run new
+acceptance work during close-out. A blocker retains the accepted result and Git
+journal. Completion requires verified remote containment on the source and every
+destination, with the source checkout on its original branch.
+
+The following placement rules apply to both skill and retained mechanical
+transactions. The detailed controller stash/merge/resolver recovery below
+describes existing mechanical transactions and safe-boundary pulls; new skill
+close-outs follow the skill's ownership and recovery instructions instead.
 
 After a launcher pushes a task, optimization or verified repair commit, shared
 Git infrastructure propagates its pinned pushed HEAD to every other branch listed in
@@ -808,8 +824,9 @@ destination propagation operation. Commit creation and propagation helpers are
 private to the shared Git module; launchers must not import or call them or
 implement separate commit/push sequences. A repository regression check enforces
 that private-helper boundary. There is no commit-only or push-disabled close-out
-option. Callers retain acceptance and staging, while the
-shared operation owns the repository-wide lock and resumable Git writes.
+option. Callers retain acceptance and candidate path validation, while the
+shared operation owns the repository-wide lock and supervised skill invocation
+(or recovery of an existing mechanical transaction).
 Task completion and
 selection of further work wait until every destination has been pushed.
 

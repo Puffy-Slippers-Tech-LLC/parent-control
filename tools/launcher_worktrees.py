@@ -93,6 +93,21 @@ def configured_targets(root, *, git=git_output):
     return targets
 
 
+def commit_skill_targets(root, *, git=git_output):
+    """Freeze source and destination remote identities for skill verification."""
+    destinations = configured_targets(root, git=git)
+    source = _run(git, root, 'symbolic-ref', '--quiet', '--short', 'HEAD')
+    result = []
+    for target in [dict(branch=source), *destinations]:
+        if (target.get('path') or target['branch'] == source) and not _branch_upstream(
+                git, root, target['branch']):
+            raise ValueError('checked-out branch needs a configured upstream: ' + target['branch'])
+        remote, ref = _remote_destination(git, root, target['branch'])
+        result.append(dict(branch=target['branch'], remote=remote, ref=ref,
+                           **({'path': target['path']} if 'path' in target else {})))
+    return result
+
+
 def _configured(root, target, git):
     if target.get('pull_only'):
         # The registry itself may be conflicted during a resumed self-pull.

@@ -47,7 +47,7 @@
 
     function sessionHeading(section) {
         const entry = section.entry;
-        const signature = JSON.stringify([entry.label, entry.session, entry.session_active,
+        const signature = JSON.stringify([entry.label, entry.status, entry.session, entry.session_active,
             entry.session_number, entry.session_inactive, section.view, section.collapsed]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
@@ -56,6 +56,14 @@
         const titlebar = element('span', 'run-titlebar', section.heading);
         const title = element('span', 'run-label', titlebar);
         title.textContent = entry.label;
+        if (entry.status === 'Stop Requested') {
+            const suffix = ` (${entry.status})`;
+            if (entry.label.endsWith(suffix)) {
+                title.textContent = entry.label.slice(0, -suffix.length) + ' (';
+                element('span', 'stop-requested', title).textContent = entry.status;
+                title.append(')');
+            }
+        }
         title.title = entry.label;
         title.classList.toggle('finished', entry.status === 'finished');
         const controls = element('span', 'run-controls', titlebar);

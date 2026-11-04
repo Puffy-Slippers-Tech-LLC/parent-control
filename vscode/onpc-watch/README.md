@@ -50,6 +50,9 @@ shortened title with its action buttons and the widest tab below it. Hover over 
 truncated title to see its full text. The name comes from the launcher's `current.json`
 publication, including custom plan launcher names. Older runs without a published
 name show `launcher` until their next start, attachment or reload request.
+After `--stop`, an active launcher's title shows `(Stop Requested)`, with
+**Stop Requested** in the same orange as **Repairing** and **Verifying**. The
+title switches to the recorded final status when the launcher exits.
 **Status** shows the current run status, **Launcher** shows
 the launcher terminal output, **Error** shows the shared launcher's **Last Error**
 and **Status** fields with the same colors and elapsed ages, and **Session** opens

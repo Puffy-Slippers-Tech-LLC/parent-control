@@ -293,6 +293,9 @@ class Viewer:
             if supervisor(output.run) is not None:
                 continue
             status = '' if active else output.completion_status()
+            if active and output.run is not None and any(
+                    (output.run / marker).exists() for marker in ('stop', 'cancel')):
+                status = 'Stop Requested'
             lines = []
             error_lines = []
             failures, error_log = 0, None

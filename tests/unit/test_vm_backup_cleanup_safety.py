@@ -1274,7 +1274,8 @@ def test_backup_retry_refuses_disk_writes_after_snapshot_retirement(snapshot_fre
     with recovery.lease(rig.vm, rig.commands):
         recovery.prepare_backup(API, rig.vm, rig.commands)
     rig.top.write_bytes(b'changed after snapshot removal')
-    with recovery.lease(rig.vm, rig.commands):
+    # Retirement removes phase.json; keep this lease bound to the test VM.
+    with recovery.lease(rig.vm, rig.commands, vm_uuid=UUID):
         with pytest.raises(base.CaptureError, match='backup-preparation-incomplete'):
             recovery.prepare_backup(API, rig.vm, rig.commands)
     assert events == ['restore', 'apps', 'baseline']

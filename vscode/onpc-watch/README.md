@@ -40,7 +40,8 @@ section and all four tabs retain their contents, including while other worktrees
 remain active. Reconnecting restores the latest retained run in each idle
 worktree from its existing run files. Session input is disabled once its owner
 exits. Retention uses existing run files and reader memory; it adds no disk persistence.
-Each title, e.g. `[main] fix-tests`, keeps **Status**, **Launcher**, **Error** and **Session**
+Each title, e.g. `[main] fix-tests` locally or `[myserver][main] fix-tests` remotely,
+keeps **Status**, **Launcher**, **Error** and **Session**
 links at its right end. When narrowed, the title truncates down to five characters
 plus an ellipsis, e.g. `[work...`. Further narrowing moves the title and action
 buttons onto the first row and all tabs onto the second row. As that row narrows,
@@ -271,10 +272,16 @@ and checks Codex login and Git remote read access. Use that summary during clien
 onboarding; no separate server inspection commands are needed. Independent clones
 require separate sources.
 
-With no configuration, Watch uses this checkout's local adapter as before. Set
+With no configuration, Watch uses this checkout's local adapter and the SSH hosts
+with branches in `config/environment.json`, including hosts disabled for VM
+scheduling. Each remote host starts from its first configured branch checkout
+and discovers related registered Git worktrees. SSH access must already be set
+up; Watch never prompts for credentials. Independent clones require explicit
+sources. Set
 `onpc.watch.sources` in VS Code user or workspace settings to replace that default
 or combine sources. Source IDs must be unique and stable; labels identify hosts
-in run sections and viewer tabs. Footer hosts always follow `config/environment.json`.
+in viewer tabs; remote run titles use the SSH host before the branch name.
+Footer hosts always follow `config/environment.json`.
 Click Reconnect after editing.
 
 ```json

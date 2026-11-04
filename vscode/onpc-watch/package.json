@@ -24,7 +24,7 @@
           "scope": "resource",
           "restricted": true,
           "maxItems": 16,
-          "markdownDescription": "Watch bridge sources. Empty uses the current local checkout. Reconnect Watch after changing. SSH uses existing SSH config and keys; commands run only in a trusted workspace.",
+          "markdownDescription": "Watch bridge sources. Empty uses the current local checkout and SSH hosts with branches in config/environment.json, including hosts disabled for VM scheduling. Reconnect Watch after changing. SSH uses existing SSH config and keys; commands run only in a trusted workspace.",
           "items": {
             "type": "object",
             "required": ["id"],

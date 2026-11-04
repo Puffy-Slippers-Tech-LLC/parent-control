@@ -14,7 +14,18 @@ const quote = value => "'" + value.replace(/'/g, "'\\''") + "'";
 
 function configuration(values, root) {
     if (!Array.isArray(values) || values.length > 16) throw new Error('Watch sources must be an array of at most 16 sources.');
-    if (!values.length) values = [{ id: 'local', transport: 'local' }];
+    if (!values.length) {
+        values = [{ id: 'local', transport: 'local' }];
+        const document = JSON.parse(fs.readFileSync(path.join(root, 'config/environment.json'), 'utf8'));
+        // Host availability controls VM scheduling, not observation of launchers.
+        for (const host of document.hosts || []) {
+            if (host.transport !== 'ssh') continue;
+            const branch = (document.branches || []).find(branch => branch.host === host.name);
+            if (branch) values.push({ id: `remote${values.length}`, label: host.name,
+                transport: 'ssh', host: host.name, root: branch.repo_root });
+        }
+        if (values.length > 16) throw new Error('Watch supports at most 16 sources; select sources in onpc.watch.sources.');
+    }
     const ids = new Set();
     return values.map(value => {
         if (!value || typeof value !== 'object' || typeof value.id !== 'string' ||
@@ -383,7 +394,8 @@ class Bridge {
             for (const run of value?.runs || []) {
                 const route = key(id, run.id);
                 this.roots.set(route, { source, id: run.id });
-                runs.push({ ...run, id: route, label: (labelSources ? `[${label}] ` : '') + run.label,
+                runs.push({ ...run, id: route, label: (source.config.transport === 'ssh' ?
+                    `[${source.config.host}]` : '') + run.label,
                     // Keep last observed run contents; disconnected sessions cannot accept input.
                     connected,
                     session_active: connected && run.session_active,

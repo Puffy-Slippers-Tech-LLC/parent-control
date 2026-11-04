@@ -334,6 +334,8 @@ class Viewer:
                         pass
             session_run = session.run if session.active else None
             session_number = None
+            # Retain the attempt number through verification, but mark the
+            # transcript inactive when its agent and pending questions finish.
             session_inactive = not session.active
             if output.execution_plan:
                 try:
@@ -341,7 +343,6 @@ class Viewer:
                     number = state.get('task_sessions')
                     if state.get('phase') != 'complete' and type(number) is int and number > 0:
                         session_number = number
-                    session_inactive = session_number is None
                 except (OSError, ValueError, KeyError, TypeError):
                     pass
             elif output.repair and session.run is not None:
@@ -357,7 +358,6 @@ class Viewer:
                             number -= repair.get('session_start', 0)
                             if number > 0:
                                 session_number = number
-                        session_inactive = session_number is None
                 except (OSError, ValueError, KeyError, TypeError):
                     pass
             if (output.repair and session.active and session.owner == output.run

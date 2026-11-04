@@ -59,7 +59,8 @@ and **Status** fields with the same colors and elapsed ages, and **Session** ope
 the session transcript and chat.
 For `fix-tests`, the link shows **Session 1**, **Session 2**, and so on for
 successive agent sessions repairing the same case. The number remains visible
-between sessions and during verification. Once the repair is accepted and closed,
+between sessions and during verification, with strikethrough while the session is
+inactive and its chatbox is disabled. Once the repair is accepted and closed,
 the link returns to struck-through **Session**; the next case starts at **Session 1**.
 While an agent repairs an integration check, its **Status** row ends with
 ` | Session x: <duration>`, using that session's elapsed time and the shared

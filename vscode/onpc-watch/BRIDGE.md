@@ -79,6 +79,8 @@ A run section has `id`, `label`, `active`, `status`, `run` (run identity or null
 `label`, `status` and `launcher_output` are strings. `active`, `session_active`,
 `session_inactive` and `session_waiting` are booleans. `session_number` is a
 positive integer or null; `session_question` is a question ID or null.
+`session_inactive` marks a session with no live agent or pending question, even
+when `session_number` retains its last attempt number during verification.
 `session` identifies the exact input recipient, not just its run; it changes when
 that recipient changes. Question IDs change on each new prompt, within a session.
 Rows are arrays of spans: `{text, bold?, compact?, waiting?, color?, link?}`.

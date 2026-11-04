@@ -589,6 +589,7 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
             vm_args = ['--vm', declaration['vm']]
         resume = '--resume' in options
         command = [str(root / 'tools/run-tests'), *(['--resume'] if resume else []),
+                   *(['--reverse'] if os.environ.get('ONPC_TEST_REVERSE') == '1' else []),
                    '--stop-on-error', category, *[arg for arg in options if arg != '--resume'], *vm_args]
         os.environ['ONPC_RUNNER_INVOCATION'] = json.dumps(declaration['invocation']
             if isinstance(declaration, dict) else dict(
@@ -1675,7 +1676,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         repair_command(root, model, effort or DEFAULT_EFFORT)  # Fail before running expensive tests.
         listing = subprocess.run([str(root / 'tools/run-tests'), '--list'], cwd=root,
                                  env=environment(), capture_output=True, text=True, check=True)
-        requested = json.loads(requested)
+        requested = [arg for arg in json.loads(requested) if arg != '--reverse']
         inventory = requested_inventory(root, requested, inventory=category_inventory(listing.stdout))
         categories = list(inventory)
         from test_checkpoint import Checkpoint
@@ -2102,6 +2103,8 @@ def main(argv=None):
                         help='inherit saved options; explicit parameters must be compatible; '
                              'preserve saved progress, repairs, queues and pending close-out; '
                              'without it, an idle launcher starts fresh')
+    parser.add_argument('--reverse', action='store_true',
+                        help='pass --reverse to run-tests; run cases in reverse order')
     parser.add_argument('--reset', action='store_true',
                         help='stop checkout test/repair owners, recover leftovers and clear saved progress '
                              'before starting fresh; preserve source edits and historical logs')
@@ -2116,6 +2119,8 @@ def main(argv=None):
                      'Omitting categories selects every leaf. Host and VM workflows have '
                      'separate sessions; attach using the same scope. Bare --stop cancels both scopes.')
     args, categories = parser.parse_known_args(argv)
+    if args.reverse:
+        categories.append('--reverse')
     if args.reset and (args.resume or args.stop or args.reload
                        or any(arg.startswith('--resume-') for arg in categories)):
         parser.error('--reset conflicts with --resume, --stop and --reload')
@@ -2162,6 +2167,8 @@ def main(argv=None):
                     setattr(args, key, previous_request.get(key))
             args.vm = binding
     args.categories = categories
+    if '--reverse' in categories:
+        os.environ['ONPC_TEST_REVERSE'] = '1'
     if args.rounds is None:
         args.rounds = 1
     if args.rounds < 1:

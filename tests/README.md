@@ -357,6 +357,14 @@ conflicts with `--continue-on-errors`.
 
 ### Resuming test execution
 
+`tools/run-tests --reverse` runs cases within each category in reverse order.
+Pytest runs serially to preserve that order; JavaScript reverses file order and
+runs files serially. VM workers claim independent cases and lifecycle histories
+backwards, preserving required phases within each history. Category order and
+preparation dependencies remain unchanged. `tools/fix-tests --reverse` forwards
+the option to every test invocation. Bare `--resume` on either launcher restores
+the saved selection and options, including `--reverse`.
+
 `tools/run-tests --reset` and `tools/fix-tests --reset` explicitly abandon saved
 execution progress and start over. Reset is checkout-wide: it requests cancellation
 of both launchers' host and VM owners, waits for their owned cleanup, runs the

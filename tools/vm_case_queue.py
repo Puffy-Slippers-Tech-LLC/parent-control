@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import re
 import subprocess
 from contextlib import contextmanager, ExitStack
@@ -59,17 +60,20 @@ def work_items(category, options, cases):
     if cases is None:
         return [item([])]
     if category != 'system':
-        return [item([case]) for case in cases]
+        result = [item([case]) for case in cases]
+        return result[::-1] if os.environ.get('ONPC_TEST_REVERSE') == '1' else result
     groups = {}
+    reverse = os.environ.get('ONPC_TEST_REVERSE') == '1'
     for case in cases:
         if case.startswith('check_'):
             groups[('check', case)] = [case]
             continue
         phase, _, logical = case.partition('::')
         area = phase in INDEPENDENT_SYSTEM_AREAS
-        key = ('area', phase) if area else ('history', logical)
+        key = ('case', case) if area and reverse else (('area', phase) if area else ('history', logical))
         groups.setdefault(key, []).append(case)
-    return [item(selected, area=key[0] == 'area') for key, selected in groups.items()]
+    result = [item(selected, area=key[0] == 'area') for key, selected in groups.items()]
+    return result[::-1] if reverse else result
 
 
 def work_key(work):

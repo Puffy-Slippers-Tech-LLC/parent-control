@@ -1,6 +1,7 @@
 """Selected categories use the aggregate's execution, evidence and dashboard."""
 
 import runpy
+import os
 import time
 
 from regression import CATEGORY_NAMES, Category, Run
@@ -98,7 +99,7 @@ class SelectedRun(Run):
             timeout = timeout_value(args, kind)
             if timeout is not None:
                 options = ['--timeout', timeout, *options]
-        serial = self.serial_host or serial_options(options)
+        serial = self.serial_host or serial_options(options) or os.environ.get('ONPC_TEST_REVERSE') == '1'
         if serial and self.checkpoint is None:
             reason = ('preserves the direct launcher contract' if self.serial_host else
                       'preserves the requested failure limit')

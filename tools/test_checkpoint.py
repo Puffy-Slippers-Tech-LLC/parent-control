@@ -157,10 +157,11 @@ def compatible_arguments(supplied, saved):
                 (value.split('=', 1) if value.startswith('--') and '=' in value
                  and not value.startswith('--ignore=') else [value])]
     supplied, saved = normalized(supplied), normalized(saved)
-    if '--stop-on-error' in supplied and '--stop-on-error' not in saved:
-        return False
-    supplied = [arg for arg in supplied if arg != '--stop-on-error']
-    saved = [arg for arg in saved if arg != '--stop-on-error']
+    for flag in ('--stop-on-error', '--reverse'):
+        if flag in supplied and flag not in saved:
+            return False
+    supplied = [arg for arg in supplied if arg not in ('--stop-on-error', '--reverse')]
+    saved = [arg for arg in saved if arg not in ('--stop-on-error', '--reverse')]
     if not supplied:
         return True
     if saved and saved[0] in ('unit', 'component', 'ui'):

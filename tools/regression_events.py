@@ -67,6 +67,10 @@ def emit(kind, **fields):
 
 @pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(session, config, items):
+    # Ordering is now materialized; nested runners launched by a test should
+    # choose their own options rather than inherit this worker's selection.
+    if os.environ.pop('ONPC_TEST_REVERSE', None) == '1':
+        items.reverse()
     retry = os.environ.get('ONPC_TEST_RETRY_CASE')
     if retry is not None:
         completed_cases(json.dumps([retry]))

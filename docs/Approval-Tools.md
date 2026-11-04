@@ -262,6 +262,11 @@ To restore normal sleep when retiring the server role, an administrator can run
 `sudo systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target`.
 Account credentials, Codex installation/login and editor connections remain
 administrator responsibilities. Setup reports absent Codex CLI as an action needed.
+Remote branch launchers preserve the SSH account's environment. If Codex is
+absent from its noninteractive PATH, they load NVM from `NVM_DIR` (default
+`~/.nvm`) to expose its default Node installation and Codex. They do not source
+interactive shell configuration. Other user-local installations must be exposed
+on the noninteractive SSH PATH; authentication belongs to that same account.
 Rerunning `./setup.sh --server` applies these additions to an already configured
 host through its existing noninteractive grant; no fresh bootstrap is required.
 

@@ -48,9 +48,21 @@ os.environ['ONPC_LAUNCHER_DESTINATION'] = json.dumps(dict(
 os.execve('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(command),
           *sys.argv[4:]], dict(os.environ))
 '''
-    remote = shlex.join(['/usr/bin/python3', '-IBu', '-c', bootstrap,
-                         branch['repo_root'], branch['name'],
-                         Path(sys.argv[0]).name, *arguments])
+    destination = ['/usr/bin/python3', '-IBu', '-c', bootstrap,
+                   branch['repo_root'], branch['name'],
+                   Path(sys.argv[0]).name, *arguments]
+    # SSH commands skip interactive shell setup. NVM's usual .bashrc entry
+    # sits below its interactive-only guard, hiding both Codex and its Node
+    # interpreter. Load NVM's selected default only when Codex is not on PATH;
+    # do not source the whole interactive rc file or hard-code a Node version.
+    remote = shlex.join(['/bin/bash', '-c', '''if ! command -v codex >/dev/null 2>&1; then
+    export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+    if [ -s "$NVM_DIR/nvm.sh" ]; then
+        . "$NVM_DIR/nvm.sh"
+    fi
+fi
+exec "$@"
+''', 'onpc-launcher', *destination])
     command = ['ssh', '-t' if sys.stdin.isatty() and sys.stdout.isatty() else '-T',
                '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
                '-o', 'IgnoreUnknown=UseKeychain', '-o', 'ConnectTimeout=10',

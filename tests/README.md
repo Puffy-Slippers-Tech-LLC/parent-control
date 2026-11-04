@@ -2470,6 +2470,26 @@ requires restart. No product package or saved-data change is involved.
 
 ### Prompt-free test artifact access
 
+VM cases retain one bounded product-log set whether they pass or fail, before
+shutdown or snapshot restoration. The shared transport registers capture with
+the VM lease; its stop paths consume it once, including graphical worker off
+callbacks. System pytest captures each case after teardown, including cases
+sharing one area VM, and the controller transfers those sets independently of
+the larger result collector. An interrupted pytest invocation falls back to
+capturing the live guest. A capture error is a collection failure and cannot
+prevent owned cleanup or replace the original test failure.
+
+Sets live under the attempt's existing `private/product-logs/` storage. E2E
+uses fixed `broker.log`, `parent.log`, `child.log` and `kiosk.log` files; system
+sets have a stable case/phase subdirectory with `case.txt` and `outcome.txt`.
+There are no periodic copies or appended snapshot generations. Each component
+contains at most 1 MiB of the guest's retained structured events, including
+rotations and incident context; missing/unreadable files and truncation are
+explicit. Logs retain preceding guest context, not just events emitted by the
+last case. They stay private under ordinary run retention. The repair handoff
+prioritizes failed cases' component-log tails before diagnostic reruns can
+rotate execution evidence; successful sibling cases cannot exhaust its budget.
+
 Use the installed `onpc-test-artifacts` helper for privileged inspection across
 all test runs, names, extensions, and nested directories. Its Codex allow rule
 and dedicated Polkit rule cover the whole helper, not individual files. Run from

@@ -189,6 +189,27 @@ def capture(root, destination, handoff_path, output):
     for raw in sorted(raw_directories):
         private = raw / 'private'
         try:
+            names = read(private, listing=True)
+            # Case-end product logs must survive the next diagnostic run's
+            # execution-journal rotation, just like the failed command tails.
+            product = private / 'product-logs'
+            try:
+                product_names = read(product, listing=True) if 'product-logs' in names else []
+                for name in product_names:
+                    if name in ('broker.log', 'parent.log', 'child.log', 'kiosk.log'):
+                        save(product / name)
+                    elif re.fullmatch(r'[0-9a-f]{64}', name):
+                        # Passing siblings sharing an area VM must not consume
+                        # the handoff budget before the failing case's logs.
+                        members = read(product / name, listing=True)
+                        if ('outcome.txt' not in members or
+                                read(product / name / 'outcome.txt').strip() != 'failed'):
+                            continue
+                        for member in ('case.txt', 'broker.log', 'parent.log', 'child.log', 'kiosk.log'):
+                            if member in members:
+                                save(product / name / member)
+            except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+                failures.append({'source': str(product), 'error': type(error).__name__})
             failed_sequences = []
             if raw.name.startswith('onpc-system-'):
                 save(raw / 'evidence/result.json')
@@ -204,7 +225,6 @@ def capture(root, destination, handoff_path, output):
                         and record['exit_status'] != 0
                         and type(record.get('sequence')) is int
                         and record['sequence'] > 0]
-            names = read(private, listing=True)
             # Cleanup/readiness commands may follow the failed installation.
             # Prioritize its exact streams before the recent-output fallback.
             for sequence in failed_sequences[-8:]:

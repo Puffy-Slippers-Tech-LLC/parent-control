@@ -129,6 +129,7 @@ COMMON_SELECTED_INPUTS = (
     ('tests/fixtures/native_assets.py', 'native_assets.py'),
     ('tests/fixtures/native_trust.py', 'native_trust.py'),
     ('tests/integration/system_guest.py', 'system_guest.py'),
+    ('tests/integration/product_logs.py', 'product_logs.py'),
     ('tests/integration/guest_test_dependencies.py', 'guest_test_dependencies.py'),
     ('tests/integration/owned_commands.py', 'owned_commands.py'),
     ('tests/integration/guest/redact.py', 'guest/redact.py'),
@@ -835,6 +836,7 @@ class Lease:
         self.watch_detached = False
         self.restored_by_callback = False
         self.shutdown_request = None
+        self.product_log_capture = None
 
     def save(self, phase):
         if self.capture.vm_ownership is not None:
@@ -980,6 +982,7 @@ class Lease:
     @observed('Starting the VM')
     def start(self):
         self.shutdown_request = None
+        self.product_log_capture = None
         if getattr(self, 'online_pending', False) is True:
             from online_snapshot import start
             require(self.online_bootstrap is not None, 'online-snapshot:bootstrap-required')
@@ -1001,10 +1004,31 @@ class Lease:
         from e2e_watch import attach
         attach(self)
 
+    @observed('Saving product logs before VM cleanup')
+    def collect_product_logs(self):
+        """Consume the live transport once, before any destructive cleanup."""
+        callback = self.product_log_capture
+        self.product_log_capture = None
+        if callback is None:
+            return
+        status = getattr(self.commands, 'last_returncode', None)
+        try:
+            self.guard()
+            callback()
+        except BaseException:
+            # Evidence failure cannot prevent cleanup or replace the original
+            # test failure. It remains a separate failed collection outcome.
+            if self.ledger is not None:
+                self.ledger.fail_outcome('collection', 'product-logs:capture-failed')
+            log('product-logs:capture-failed')
+        finally:
+            self.commands.last_returncode = status
+
     @observed('Stopping the VM')
     def stop(self):
         """Stop the recorded instance without restoring between backend callbacks."""
         self.guard()
+        self.collect_product_logs()
         try:
             self.capture.retire_vm_ownership()
         except BaseException:
@@ -1034,6 +1058,7 @@ class Lease:
         require(self.view.domain_id is not None and
                 self.state['domain_id'] == self.view.domain_id,
                 'cleanup:unowned-domain')
+        self.collect_product_logs()
         from vm_internet import restore as restore_internet
         restore_internet(self)
         self.capture.retire_vm_ownership()
@@ -2065,6 +2090,7 @@ def pytest_command(run, phase, selection):
             'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-m', 'pytest',
             '-c', PAYLOAD + '/pytest.ini', '--noconftest', '--rootdir', PAYLOAD,
             '--junitxml', f'{PAYLOAD}/results/{phase}.xml', '-q', '-x', '-p', 'system_progress',
+            '-p', 'product_logs',
             *qualification, *selectors]
 
 
@@ -2184,6 +2210,7 @@ def run_pytest(vm, run, phase, selection):
         with package_operation(vm, 'Guest package lifecycle: ' + phase) if package_history else nullcontext():
             return vm.call(pytest_command(run, phase, selection), timeout=timeout)
     finally:
+        vm.product_logs_per_case = vm.commands.last_returncode in (0, 1)
         vm.commands.progress.close()
         vm.commands.progress = previous
 

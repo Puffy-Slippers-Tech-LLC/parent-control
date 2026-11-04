@@ -1048,17 +1048,9 @@ def collect(marker, outcome):
                              'SYSLOG_IDENTIFIER=polkit-agent-helper-1'],
                             timeout=60, merge_stderr=False)
     (output / 'authentication-journal.txt').write_text(redacted(result.decode(errors='replace')))
-    logs = Path('/var/log/oh-no-parent-control')
-    for source in sorted(logs.glob('*/*.log')):
-        require(source.is_file() and not source.is_symlink(), 'log-file-type')
-        (output / f'{source.parent.name}-{source.name}').write_text(redacted(source.read_text(errors='replace')))
-    # Current product diagnostics are structured events, including bounded
-    # rotations. Keep them in ordinary private failure results as well.
-    for source in sorted(logs.glob('*/*.events*')):
-        info = source.lstat()
-        require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and info.st_nlink == 1
-                and info.st_size <= 262144 and not source.is_symlink(), 'event-file-type')
-        (output / f'{source.parent.name}-{source.name}').write_text(redacted(source.read_text()))
+    # The product_logs pytest plugin captures one set after each case. The
+    # controller transfers it independently before restoring the guest; do not
+    # add a second cumulative copy of the same event files here.
     for source in sorted((PAYLOAD / 'private').glob('*/*.txt')):
         require(not source.is_symlink(), 'diagnostic-file-type')
         (output / f'{source.parent.name}-{source.name}').write_text(redacted(source.read_text(errors='replace')))

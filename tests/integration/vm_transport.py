@@ -197,6 +197,8 @@ class Transport:
         self.lease = lease
         if lease is not None:
             lease.shutdown_request = self.poweroff
+            from product_logs import capture
+            lease.product_log_capture = lambda: capture(self)
 
     @observed('Requesting VM shutdown through its owned SSH transport')
     def poweroff(self):

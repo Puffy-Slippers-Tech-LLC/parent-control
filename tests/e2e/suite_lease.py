@@ -180,6 +180,7 @@ class SuiteLease(system.Lease):
             return
         system.require(not self._reset_attempted, 'suite:restore-already-attempted')
         self._reset_attempted = True
+        self.collect_product_logs()
         self.capture.retire_vm_ownership()
         self.guard()
         if not self.view.snapshot()[1]:

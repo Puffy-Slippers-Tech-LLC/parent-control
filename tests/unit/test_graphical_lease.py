@@ -209,7 +209,7 @@ def test_unsupported_graphics_refuses_before_lease_mutation(lease_rig):
     assert lease.fd is None
 
 
-def test_backend_off_on_off_sequence_restores_only_at_final_callback(prepared):
+def test_backend_off_on_off_sequence_restores_only_at_final_callback(prepared, tmp_path):
     lease, _ = prepared
     adapter = graphical.Adapter(lease)
     initial_restores = lease.source.domain.revertToSnapshot.call_count
@@ -219,12 +219,26 @@ def test_backend_off_on_off_sequence_restores_only_at_final_callback(prepared):
     assert adapter.request('on', adapter.run) == 'ok'
     assert adapter.request('status', adapter.run) == 'on'
     assert lease.source.domain.revertToSnapshot.call_count == initial_restores
+    from vm_transport import Transport
+    lease.commands.directory = tmp_path / 'private'
+    lease.commands.directory.mkdir()
+    transport = Transport({'directory': str(tmp_path)}, lease.commands, lease=lease)
+    def capture(argv, **options):
+        assert lease.source.domain.revertToSnapshot.call_count == initial_restores
+        assert not lease.source.off
+        assert options['timeout'] == 20
+        return (argv[-1] + ' product events\n').encode()
+    transport.call = Mock(side_effect=capture)
     assert adapter.request('off', adapter.run) == 'ok'
     assert adapter.request('off', adapter.run) == 'ok'
     assert adapter.request('status', adapter.run) == 'off'
     assert lease.source.domain.revertToSnapshot.call_count == initial_restores + 1
     assert lease.source.shutdown_calls == initial_shutdowns
     assert lease.restored_by_callback
+    assert transport.call.call_count == 4
+    for component in ('broker', 'parent', 'child', 'kiosk'):
+        assert (lease.commands.directory / 'product-logs' / (component + '.log')).read_bytes() == (
+            component + ' product events\n').encode()
     assert adapter.events == ['initial-off', 'status-off', 'poweron', 'status-on',
                               'poweroff', 'poweroff', 'status-off']
     lease.source.domain.create.assert_called_once()
@@ -252,17 +266,22 @@ def test_final_callback_refuses_changed_snapshot_before_restore(prepared):
 def test_final_cleanup_audits_without_second_restore(lease_rig):
     lease, _ = lease_rig
     lease.view.graphics_type = 'vnc'
+    lease.ledger = runner.RunLedger()
     with lease:
         lease.prepare()
         adapter = start_adapter(lease)
         initial_shutdowns = lease.source.shutdown_calls
         restores = lease.source.domain.revertToSnapshot.call_count
+        logs = Mock(side_effect=KeyboardInterrupt())
+        lease.product_log_capture = logs
         adapter.request('off', adapter.run)
         assert adapter.request('status', adapter.run) == 'off'
         assert lease.source.domain.revertToSnapshot.call_count == restores + 1
     assert lease.state['phase'] == 'complete'
     assert lease.source.shutdown_calls == initial_shutdowns
     assert lease.source.domain.revertToSnapshot.call_count == restores + 1
+    logs.assert_called_once_with()
+    assert lease.ledger.outcomes['collection']['category'] == 'product-logs:capture-failed'
 
 
 def test_final_callback_restores_guest_that_is_already_off(prepared):

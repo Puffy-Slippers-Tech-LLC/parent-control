@@ -80,7 +80,7 @@ CASES = (
     CaseIdentity(27, 'authorization', 'test_method_role_matrix[ListManagedUsers-child2]',
                  'Method role matrix [ListManagedUsers-child2]'),
     CaseIdentity(28, 'authorization', 'test_method_role_matrix[ListManagedUsers-parent1]',
-                 'Discovery and own-account role permissions'),
+                 'Broker authorization, account isolation and authentication'),
     CaseIdentity(29, 'authorization', 'test_method_role_matrix[ListManagedUsers-parent2]',
                  'Method role matrix [ListManagedUsers-parent2]'),
     CaseIdentity(30, 'authorization', 'test_method_role_matrix[ListManagedUsers-kiosk]',
@@ -328,7 +328,7 @@ CASES = (
     CaseIdentity(151, 'authorization', 'test_method_role_matrix[LogEvent-locked]',
                  'Method role matrix [LogEvent-locked]'),
     CaseIdentity(152, 'authorization', 'test_cross_child_targets_fail_closed[GetPreferences-child1]',
-                 'Cross-child preferences and time isolation'),
+                 'Account isolation, private records, diagnostic identity and discovery'),
     CaseIdentity(153, 'authorization', 'test_cross_child_targets_fail_closed[GetPreferences-child2]',
                  'Cross child targets fail closed [GetPreferences-child2]'),
     CaseIdentity(154, 'authorization', 'test_cross_child_targets_fail_closed[GetPreferences-unrelated]',
@@ -384,7 +384,7 @@ CASES = (
     CaseIdentity(179, 'authorization', 'test_root_method_permissions_and_approver_exclusion',
                  'Root method permissions and approver exclusion'),
     CaseIdentity(180, 'authorization', 'test_ineligible_callers_cannot_use_broker[noninteractive]',
-                 'Ineligible callers cannot use broker [noninteractive]'),
+                 'Caller, target and approver eligibility with authoritative account icons'),
     CaseIdentity(181, 'authorization', 'test_ineligible_callers_cannot_use_broker[system]',
                  'Ineligible callers cannot use broker [system]'),
     CaseIdentity(182, 'authorization', 'test_ineligible_callers_cannot_use_broker[ListApprovers-noninteractive]',
@@ -528,7 +528,7 @@ CASES = (
     CaseIdentity(251, 'authorization', 'test_remote_accounts_are_excluded',
                  'Remote accounts are excluded'),
     CaseIdentity(252, 'authorization', 'test_management_changes_preserve_other_accounts',
-                 'Management changes preserve other accounts'),
+                 'Management isolation and live parent and child role revalidation'),
     CaseIdentity(253, 'authorization', 'test_persistent_caller_revalidates_changed_role[parent2-ListManagedUsers-1-0]',
                  'Persistent parent and child callers revalidate changed roles'),
     CaseIdentity(254, 'authorization', 'test_persistent_caller_revalidates_changed_role[child2-GetOwnAccount-0-1]',
@@ -558,7 +558,7 @@ CASES = (
     CaseIdentity(266, 'authorization', 'test_real_selected_parent_authentication[kiosk]',
                  'Real selected parent authentication [kiosk]'),
     CaseIdentity(267, 'enforcement', 'test_kiosk_execution_confinement',
-                 'Kiosk session composition, admission and integration scope'),
+                 'Installed enforcement, native policy and recovery'),
     CaseIdentity(268, 'enforcement', 'test_kiosk_login_admission',
                  'Kiosk login admission'),
     CaseIdentity(269, 'enforcement', 'test_kiosk_platform_integrations',
@@ -580,7 +580,7 @@ CASES = (
     CaseIdentity(277, 'enforcement', 'test_native_whitespace_policy_is_uid_scoped',
                  'Native whitespace policy is uid scoped'),
     CaseIdentity(278, 'enforcement', 'test_native_future_pattern_is_uid_scoped',
-                 'Native future pattern is uid scoped'),
+                 'Versioned application patterns and missing-launcher policy retention'),
     CaseIdentity(279, 'enforcement', 'test_native_missing_launcher_retains_policy',
                  'Native missing launcher retains policy'),
     CaseIdentity(280, 'enforcement', 'test_native_catalog_is_selected_child_scoped',
@@ -614,7 +614,7 @@ CASES = (
     CaseIdentity(294, 'enforcement', 'test_kiosk_retained_required_history',
                  'Kiosk retained required drift history'),
     CaseIdentity(295, 'extension', 'test_child_extension_monitor_native_recovery',
-                 'Keep parental control active when extensions are disabled'),
+                 'Extension monitoring, lifecycle, diagnostics and authenticated recovery'),
     CaseIdentity(296, 'extension', 'test_child_extension_monitor_session_lifecycle',
                  'Keep recovery safe across session and broker changes'),
     CaseIdentity(297, 'extension', 'test_child_extension_failure_reporting',
@@ -635,40 +635,14 @@ BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})
 # Equivalent authorization inputs retain their original IDs while representative
 # cases cover their permission classes. Never reuse these numeric IDs.
 UNBOUND_CASES = MappingProxyType({
-    **dict.fromkeys((26, 30, 32, 33, 40, 42, 44), (
-        'retired', 'discovery and own-account permission cells combined in 28')),
-    **dict.fromkeys((47, 51, 54, 56, 58), (
-        'retired', 'preferences and application-list permission cells combined in 49')),
-    **dict.fromkeys((61, 65, 68, 70, 75, 77), (
-        'retired', 'time-query and arithmetic permission cells combined in 63')),
-    **dict.fromkeys((82, 86, 131, 135, 140, 142), (
-        'retired', 'session and agentless request permission cells combined in 138')),
-    **dict.fromkeys((91, 93, 96, 100, 103, 107), (
-        'retired', 'request-choice and mute permission cells combined in 89')),
-    **dict.fromkeys((110, 114, 117, 119, 121, 123, 124, 126, 128), (
-        'retired', 'management permission cells combined in 112')),
-    **dict.fromkeys((145, 149, 151), (
-        'retired', 'component logging permission cells combined in 147')),
-    **dict.fromkeys((153, 155, 158), (
-        'retired', 'cross-child read and time isolation combined in 152')),
-    **dict.fromkeys((162, 164, 167), (
-        'retired', 'cross-child request-choice writes combined in 161')),
-    **dict.fromkeys((172, 174), (
-        'retired', 'private records and component impersonation combined in 170')),
-    **dict.fromkeys((217, 218), (
-        'retired', 'ineligible read targets combined in 216')),
-    **dict.fromkeys((225, 226, 228, 230), (
-        'retired', 'ineligible management and request targets combined in 224')),
-    234: ('retired', 'parent and child authoritative icons combined in 233'),
-    254: ('retired', 'persistent parent and child role revalidation combined in 253'),
-    259: ('retired', 'child-surface live target and approver mutations combined in 257'),
-    262: ('retired', 'kiosk-surface live target and preference mutations combined in 258'),
-    **dict.fromkeys((268, 271), (
-        'retired', 'kiosk session composition, admission and integration scope combined in 267')),
-    **dict.fromkeys((274, 275, 276), (
-        'retired', 'native probe lifecycle, storage, sandbox and sender recovery combined in 273')),
-    **dict.fromkeys((277, 280), (
-        'retired', 'native command, whitespace and selected-child catalogue combined in 272')),
+    # Every authorization identity remains reserved. The complete bounded
+    # live-guest history is now owned by 28, including earlier consolidations.
+    **dict.fromkeys((*range(26, 28), *range(29, 267)), (
+        'retired', 'broker authorization, account isolation and authentication coverage combined in 28')),
+    **dict.fromkeys((268, *range(271, 282)), (
+        'retired', 'installed enforcement, native policy and recovery validations combined in 267')),
+    **dict.fromkeys((296, 297, 299, 300), (
+        'retired', 'shared-desktop extension monitoring, lifecycle, diagnostics and recovery combined in 295')),
     13: ('retired', 'PAM authority link refusal and recovery combined in 12'),
     15: ('retired', 'fallback rule link refusal and recovery combined in 14'),
     **dict.fromkeys((17, 18), (
@@ -677,46 +651,6 @@ UNBOUND_CASES = MappingProxyType({
     24: ('retired', 'state link refusal and recovery combined with state owner in 23'),
     **dict.fromkeys((2, 3), (
         'retired', 'restart request and activation assertions combined in 1 and selected installation history 5')),
-    **dict.fromkeys((35, 37), (
-        'retired', 'parent/kiosk approver discovery remains in 177')),
-    **dict.fromkeys((72, 79, 84, 98, 105, 133), (
-        'retired', 'representative shared arithmetic, own-account and request-choice permissions retained')),
-    **dict.fromkeys((260, 261), (
-        'retired', 'shared post-authentication predicates combined in 257/258; both target routes retained')),
-    **dict.fromkeys((
-        27, 29, 31, 34, 36, 38, 39, 41, 43, 45, 46, 48, 50, 52, 53, 55, 57, 59, 60, 62, 64,
-        66, 67, 69, 71, 73, 74, 76, 78, 80, 81, 83, 85, 87, 88, 90, 92, 94, 95, 97, 99, 101,
-        102, 104, 106, 108, 109, 111, 113, 115, 116, 118, 120, 122, 125, 127, 129, 130, 132,
-        134, 136, 137, 139, 141, 143, 144, 146, 148, 150,
-    ), ('retired', 'equivalent caller identities; child/parent/kiosk and locked management retained')),
-    **dict.fromkeys((
-        154, 156, 157, 159, 160, 163, 165, 166, 168, 169,
-    ), ('retired', 'scoped endpoints and reverse-direction read/write isolation retained')),
-    **dict.fromkeys((
-        171, 173, 175, 176,
-    ), ('retired', 'representative child/parent/kiosk filesystem and log boundaries retained')),
-    **dict.fromkeys((
-        186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202,
-        203, 204, 205, 206, 207, 208, 209,
-    ), ('retired', 'ineligible caller classes sampled across distinct permission boundaries')),
-    **dict.fromkeys((
-        182, 183, 184, 185, 210, 211, 212, 213, 214, 215,
-    ), ('retired', 'permission boundaries combined per caller class in 180/181')),
-    **dict.fromkeys((
-        219, 220, 221, 222, 223, 227, 229,
-    ), ('retired', 'invalid target classes sampled across read, management and station entry')),
-    **dict.fromkeys((
-        232,
-    ), ('retired', 'equivalent enabled child; child1 authentication boundary retained')),
-    **dict.fromkeys((
-        235,
-    ), ('retired', 'equivalent administrator icon; child and parent representatives retained')),
-    **dict.fromkeys((
-        238, 239, 240, 241, 247, 248,
-    ), ('retired', 'approver classes sampled across child and kiosk request surfaces')),
-    **dict.fromkeys((
-        242, 243, 244, 245, 246, 249,
-    ), ('retired', 'representative approver classes combined per request surface in 236/237')),
     # The C04a disposition map in docs/SystemDesign/Kiosk-Confinement.md owns
     # surviving behavior and receiving tasks for the removed private runtime.
     10: ('retired', 'private MAC unload witness; quarantine/finalization recovery remains in 9/11'),

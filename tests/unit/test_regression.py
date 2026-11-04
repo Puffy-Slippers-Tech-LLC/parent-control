@@ -389,6 +389,32 @@ def test_system_progress_survives_diagnostics_between_writes(monkeypatch, kind):
     assert 'private guest diagnostic' not in ''.join(chunks)
     assert diagnostic.strip() in lines
 
+    if kind == 'finished':
+        from system_progress import SystemWatchProgress
+        executions = [SimpleNamespace(phase=phase, case_id='test_installed_package')
+                      for phase in ('installed', 'rebooted')]
+        watch = SystemWatchProgress(executions)
+        watch.prepare_attempt(executions)
+        chunks.clear()
+        for index, execution in enumerate(executions):
+            parser = Progress(execution.phase, [execution], watch=watch)
+            parser((regression.PREFIX + json.dumps(dict(
+                kind='finished', nodeid='test.py::' + execution.case_id,
+                monotonic_ns=100 + index)) + '\n').encode())
+        events = [json.loads(line[len(regression.PREFIX):])
+                  for line in ''.join(chunks).splitlines() if line.startswith(regression.PREFIX)]
+        # The first phase can checkpoint without closing its history's clip;
+        # the last cannot complete until the cleanup owner explicitly releases it.
+        assert len(events) == 1
+        assert events[0]['envelope_pending'] is True
+        assert events[0]['nodeid'] == 'installed::test_installed_package'
+        watch.complete_attempt()
+        events = [json.loads(line[len(regression.PREFIX):])
+                  for line in ''.join(chunks).splitlines() if line.startswith(regression.PREFIX)]
+        assert len(events) == 2
+        assert events[-1]['nodeid'] == 'rebooted::test_installed_package'
+        assert 'monotonic_ns' not in events[-1]
+
 
 def test_event_burst_keeps_output_live_without_per_case_disk_barriers(report, tmp_path, monkeypatch):
     now = [100.0]

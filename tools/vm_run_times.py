@@ -48,7 +48,8 @@ def describe_case(record, catalogue):
     value = catalogue.get((record['category'], record['id']))
     if value:
         record.update(description=value.get('summary', record['title']),
-                      steps=value['steps'], expected=value['expected'])
+                      steps=value['steps'], expected=value['expected'],
+                      execution_revision=value.get('execution_revision', 1))
     return record
 
 
@@ -177,7 +178,9 @@ def load(root):
     registry = root / 'tests/integration/system_case_ids.py'
     # Watch may display several checkouts at different revisions. Use each
     # checkout's own retirement map, not this process's imported registry.
-    unbound = runpy.run_path(str(registry)).get('UNBOUND_CASES', {}) if registry.is_file() else {}
+    identities = runpy.run_path(str(registry)) if registry.is_file() else {}
+    unbound = identities.get('UNBOUND_CASES', {})
+    titles = {case.numeric_id: case.title for case in identities.get('CASES', ())}
     catalogue = descriptions(root)
     fd = test_retention.directory(directory)
     rows = []
@@ -205,6 +208,13 @@ def load(root):
                     # Consolidated cases no longer appear as tiny standalone
                     # work. Preserve their stored history and recordings.
                     continue
+                current = catalogue.get((record['category'], record['id']), {})
+                if record.get('execution_revision', 1) != current.get('execution_revision', 1):
+                    # A former fragment is not a measurement or recording of
+                    # the new combined history. Retain its files as history.
+                    continue
+                if record['category'] == 'system' and record['id'] in titles:
+                    record['title'] = titles[record['id']]
                 path = root / record['case_file']
                 if (path.resolve() != path or not path.is_relative_to(root.resolve() / 'tests')
                         or not path.is_file()):
@@ -253,6 +263,7 @@ class Tracker:
         self.root, self.category = root, category
         self.starts, self.totals, self.metadata = {}, {}, {}
         self.pending = {}
+        self.envelope_starts = {}
 
     def event(self, event):
         if self.category not in ('system', 'e2e'):
@@ -269,6 +280,10 @@ class Tracker:
                     identity = None
                 if identity is not None:
                     self.pending.setdefault(identity[0], set()).add(nodeid)
+                    # Bind descriptions and execution revisions before any
+                    # case runs, rather than reinterpreting a finished case
+                    # through checkout edits made during its execution.
+                    self.metadata[nodeid] = metadata(self.root, self.category, nodeid)
             if not any(nodeids[0] in nodes for nodes in self.pending.values()):
                 return
             # Recording starts here too: preparation belongs to the first
@@ -282,6 +297,13 @@ class Tracker:
             return
         stamp = event.get('monotonic_ns')
         if kind in ('prepared', 'started'):
+            if nodeid not in self.metadata:
+                self.metadata[nodeid] = metadata(self.root, self.category, nodeid)
+            if kind == 'prepared' and event.get('envelope') is True:
+                info = self.metadata[nodeid]
+                if info is not None:
+                    started = self.starts.get(nodeid, (time.monotonic(), None))[0]
+                    self.envelope_starts.setdefault((info['id'], vm.name), started)
             # A guest monotonic clock cannot measure host-side preparation.
             # Keep its original host start when pytest subsequently starts.
             self.starts.setdefault(nodeid, (time.monotonic(),
@@ -299,9 +321,15 @@ class Tracker:
         if info is None:
             return
         key = info['id'], vm.name
-        self.totals[key] = self.totals.get(key, 0) + elapsed
         pending = self.pending.get(info['id'], set())
         pending.discard(nodeid)
+        if event.get('envelope_pending') is True:
+            return
+        if key in self.envelope_starts:
+            elapsed = time.monotonic() - self.envelope_starts.pop(key)
+            self.totals[key] = elapsed
+        else:
+            self.totals[key] = self.totals.get(key, 0) + elapsed
         if pending:
             return
         save(self.root, dict(info, category=self.category, vm=vm.name,
@@ -312,3 +340,4 @@ class Tracker:
         # Runner shutdown is not a case completion. Never publish a partial
         # attempt (including a short preparation phase displayed as 0m).
         self.starts.clear()
+        self.envelope_starts.clear()

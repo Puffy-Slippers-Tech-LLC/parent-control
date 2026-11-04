@@ -148,6 +148,10 @@ bound when preparation was omitted. Repair sessions and earlier retries
 are excluded; system lifecycle phases in one execution attempt are added together.
 New lifecycle recordings join those phases into one video instead of retaining
 only the final phase. Existing short recordings require a new execution to replace them.
+The last system case in an attempt includes collection, restoration and cleanup;
+its completion waits for those checks. A focused combined case has one recording
+of setup, every validation step and cleanup. In shared attempts, the first case
+owns setup and the last owns cleanup, without repeating footage in other clips.
 The first column selects case rows; its header checkbox selects all available
 rows. The footer shows the selected and total row counts. The trash button above
 the table deletes selected rows, and each row's final trash button deletes that
@@ -164,6 +168,13 @@ chevron at its end. Expanding shows **Steps:** and **Expected:** labels, each
 followed by an indented bullet list. Descriptions come
 from checked-in scenario metadata, including for previously logged timings;
 updating descriptions requires no test rerun.
+Combined system cases list each validation and its expected result separately.
+Retired case rows are hidden; their historical recordings remain intact. A new
+execution records the combined case rather than joining recordings from earlier
+runs. Changed combinations have an execution revision: older fragment timings
+and clips stay historical and do not appear under the new group's title. A
+single-owner lifecycle recording also includes the gaps between its phases,
+including real reboots, through final cleanup.
 Only executed, logged cases appear; this is not a test inventory. Small latest-only
 records live in the shared `state` directory under gitignored `output/test-runs/`.
 

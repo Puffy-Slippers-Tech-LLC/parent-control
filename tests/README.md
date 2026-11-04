@@ -1942,6 +1942,20 @@ the linked recording's saved duration supplies a lower bound; saved history is
 not rewritten. The
 [extension guide](../vscode/onpc-watch/README.md) owns its table and links.
 
+Each system attempt emits its own preparation boundary. Its final case stays
+open through collection, VM restoration and cleanup; the final suite case also
+waits for host-preservation, evidence and ownership audits. Failed cleanup does
+not publish a completed duration for that case. A focused combined case therefore
+records setup, all its validation steps and cleanup in one clip. When several
+cases share an attempt, setup belongs to the first and cleanup to the last;
+intermediate case clips contain their own validations without duplicate footage.
+When one case owns every phase of an attempt, its clock and recording remain
+continuous across collection and reboot gaps; individual phases still checkpoint.
+An execution revision marks a changed combination or preparation owner. Saved
+timings from an older revision remain historical files but are excluded from Run
+Time until the complete current group executes. Metadata revisions are frozen
+at collection, so checkout edits cannot relabel a running fragment as a new group.
+
 Human-facing VM descriptions are checked-in metadata, separate from execution
 steps, selectors and timing history. System cases and registered standalone
 checks use `tests/integration/system_case_steps.json` and

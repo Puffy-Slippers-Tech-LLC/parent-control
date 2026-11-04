@@ -44,40 +44,60 @@
     "expected": "The installation is complete before and after the required restart, its restart request clears, and the same request-station account remains visible with its dedicated session while existing account information is preserved."
   },
   "6": {
+    "execution_revision": 2,
     "summary": "Remove, reinstall, and purge parental control without breaking ordinary access.",
     "steps": [
+      "Install parental control, verify installed components, services and the pending restart request, then restart and verify activation before beginning removal.",
       "Apply child restrictions, then remove parental control and restart.",
       "Reinstall and check saved settings.",
       "Purge parental control, restart, and reinstall again."
     ],
-    "expected": "Removal clears restrictions but retains settings; purge clears saved settings; ordinary login and applications remain usable."
+    "expected": [
+      "Installation readiness passes before and after the required restart; the boot changes, activation completes and the restart request clears.",
+      "Removal clears restrictions but retains settings; purge clears saved settings; ordinary login and applications remain usable."
+    ]
   },
   "7": {
+    "execution_revision": 2,
     "summary": "Restore child protection after interrupted removal, then retry safely.",
     "steps": [
+      "Install parental control, verify installed components, services and the pending restart request, then restart and verify activation before interrupting removal.",
       "Apply child restrictions and interrupt removal.",
       "Check that child protection and ordinary users' access are preserved.",
       "Recover the installation, restart, and retry removal."
     ],
-    "expected": "Failed removal restores protection, and the later removal succeeds without damaging other accounts."
+    "expected": [
+      "Installation readiness passes before and after the required restart; the boot changes, activation completes and the restart request clears.",
+      "Failed removal restores protection, and the later removal succeeds without damaging other accounts."
+    ]
   },
   "8": {
+    "execution_revision": 2,
     "summary": "Recover a failed Fedora purge through normal reinstallation.",
     "steps": [
+      "Install parental control, verify installed components, services and the pending restart request, then restart and verify activation before the Fedora purge history.",
       "Purge the Fedora installation while a conflicting request-station home prevents completion.",
       "Reinstall and check restored child protection.",
       "Resolve the conflict, restart, and repeat the purge."
     ],
-    "expected": "The conflict and recovery information are preserved; reinstall restores protection and the final purge succeeds."
+    "expected": [
+      "Installation readiness passes before and after the required restart; the boot changes, activation completes and the restart request clears.",
+      "The conflict and recovery information are preserved; reinstall restores protection and the final purge succeeds."
+    ]
   },
   "9": {
+    "execution_revision": 2,
     "summary": "Recover removal interrupted while securing request-station access.",
     "steps": [
+      "Install parental control, verify installed components, services and the pending restart request, then restart and verify activation before the removal interruption.",
       "Interrupt removal while it is securing request-station access.",
       "Check that child protection and ordinary login are preserved.",
       "Recover, restart, and retry removal."
     ],
-    "expected": "The failed removal preserves protection and account information; the later removal completes safely."
+    "expected": [
+      "Installation readiness passes before and after the required restart; the boot changes, activation completes and the restart request clears.",
+      "The failed removal preserves protection and account information; the later removal completes safely."
+    ]
   },
   "10": {
     "summary": "Recover removal interrupted while releasing request-station protection.",
@@ -89,23 +109,33 @@
     "expected": "Removal can recover without exposing an unrestricted request-station account or damaging other users."
   },
   "11": {
+    "execution_revision": 2,
     "summary": "Finish removal after request-station account deletion is interrupted.",
     "steps": [
+      "Install parental control, verify installed components, services and the pending restart request, then restart and verify activation before interrupting account finalization.",
       "Interrupt removal while deleting the request-station account.",
       "Check access while removal is incomplete.",
       "Recover and complete removal, including a restart."
     ],
-    "expected": "The surviving request-station account stays inaccessible until safe recovery completes; ordinary users keep access."
+    "expected": [
+      "Installation readiness passes before and after the required restart; the boot changes, activation completes and the restart request clears.",
+      "The surviving request-station account stays inaccessible until safe recovery completes; ordinary users keep access."
+    ]
   },
   "12": {
+    "execution_revision": 2,
     "summary": "Recover removal safely after edited and redirected PAM ownership records.",
     "steps": [
+      "Install parental control, verify installed components, services and the pending restart request, then restart and verify activation before introducing ownership conflicts.",
       "Attempt removal with an edited PAM selection record and check refusal and preserved protection.",
       "Restore the record, recover, restart, verify protection and ordinary access, then complete native removal.",
       "Reinstall and restart, verify saved settings and restore the child's defaults.",
       "Repeat the complete refusal, recovery, restart and native removal with a redirected PAM selection record."
     ],
-    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+    "expected": [
+      "Installation readiness passes before and after the required restart; the boot changes, activation completes and the restart request clears.",
+      "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+    ]
   },
   "13": {
     "summary": "Refuse removal that encounters redirected password-login settings.",
@@ -117,14 +147,19 @@
     "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
   },
   "14": {
+    "execution_revision": 2,
     "summary": "Recover removal safely after redirected trust and native-policy records.",
     "steps": [
+      "Install parental control, verify installed components, services and the pending restart request, then restart and verify activation before introducing ownership conflicts.",
       "Attempt removal with a redirected child-trust record and check refusal and preserved protection.",
       "Restore the record, recover, restart, verify protection and ordinary access, then complete native removal.",
       "Reinstall and restart, verify saved settings and restore the child's defaults.",
       "Repeat the complete refusal, recovery, restart and native removal with a redirected fallback policy rule."
     ],
-    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+    "expected": [
+      "Installation readiness passes before and after the required restart; the boot changes, activation completes and the restart request clears.",
+      "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+    ]
   },
   "15": {
     "summary": "Refuse removal that encounters a redirected login hook.",
@@ -136,14 +171,19 @@
     "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
   },
   "16": {
+    "execution_revision": 2,
     "summary": "Recover removal safely after an account journal has a foreign owner, redirection or wrong account.",
     "steps": [
+      "Install parental control, verify installed components, services and the pending restart request, then restart and verify activation before introducing account-journal conflicts.",
       "Attempt removal with an account journal belonging to another user and check refusal and preserved protection.",
       "Restore the journal, recover, restart, verify protection and ordinary access, then complete native removal.",
       "Repeat separately with a redirected journal and a journal naming the wrong account.",
       "Between faults, reinstall and restart, verify saved settings and restore the child's defaults; finish each fault with recovery, restart and native removal."
     ],
-    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+    "expected": [
+      "Installation readiness passes before and after the required restart; the boot changes, activation completes and the restart request clears.",
+      "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+    ]
   },
   "17": {
     "summary": "Refuse removal when the request-station ownership record is redirected.",
@@ -164,24 +204,34 @@
     "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
   },
   "19": {
+    "execution_revision": 2,
     "summary": "Refuse removal when the saved request-station identity names the wrong account.",
     "steps": [
+      "Install parental control, verify installed components, services and the pending restart request, then restart and verify activation before changing the saved request-station identity.",
       "Attempt removal with a request-station identity record naming the wrong account.",
       "Check that the conflicting data and other users' access are preserved.",
       "Resolve the conflict, recover the installation, restart, and retry removal."
     ],
-    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+    "expected": [
+      "Installation readiness passes before and after the required restart; the boot changes, activation completes and the restart request clears.",
+      "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+    ]
   },
   "20": {
+    "execution_revision": 2,
     "summary": "Preserve a request-station home with a foreign owner or redirection.",
     "steps": [
+      "Install parental control, verify installed components, services and the pending restart request, then restart and verify activation before introducing home ownership or redirection conflicts.",
       "Attempt removal with a request-station home belonging to another user.",
       "Check that the conflicting data and other users' access are preserved.",
       "Resolve the conflict, recover, restart, verify protection and ordinary access, then complete native removal.",
       "Reinstall and restart, verify saved settings and restore the child's defaults.",
       "Repeat the complete refusal, recovery, restart and native removal with a redirected home."
     ],
-    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+    "expected": [
+      "Installation readiness passes before and after the required restart; the boot changes, activation completes and the restart request clears.",
+      "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+    ]
   },
   "21": {
     "summary": "Preserve a redirected request-station home during removal.",
@@ -193,24 +243,34 @@
     "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
   },
   "22": {
+    "execution_revision": 2,
     "summary": "Preserve another filesystem mounted over the request-station home.",
     "steps": [
+      "Install parental control, verify installed components, services and the pending restart request, then restart and verify activation before introducing the home mount conflict.",
       "Attempt removal with a separate filesystem mounted over the request-station home.",
       "Check that the conflicting data and other users' access are preserved.",
       "Resolve the conflict, recover the installation, restart, and retry removal."
     ],
-    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+    "expected": [
+      "Installation readiness passes before and after the required restart; the boot changes, activation completes and the restart request clears.",
+      "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+    ]
   },
   "23": {
+    "execution_revision": 2,
     "summary": "Preserve saved product data with a foreign owner or redirection.",
     "steps": [
+      "Install parental control, verify installed components, services and the pending restart request, then restart and verify activation before introducing saved-data ownership or redirection conflicts.",
       "Attempt removal with saved product data belonging to another user.",
       "Check that the conflicting data and other users' access are preserved.",
       "Resolve the conflict, recover, restart, verify protection and ordinary access, then complete native removal.",
       "Reinstall and restart, verify saved settings and restore the child's defaults.",
       "Repeat the complete refusal, recovery, restart and native removal with redirected saved data."
     ],
-    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+    "expected": [
+      "Installation readiness passes before and after the required restart; the boot changes, activation completes and the restart request clears.",
+      "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+    ]
   },
   "24": {
     "summary": "Preserve redirected product data during removal.",
@@ -222,13 +282,18 @@
     "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
   },
   "25": {
+    "execution_revision": 2,
     "summary": "Preserve another filesystem mounted over saved product data.",
     "steps": [
+      "Install parental control, verify installed components, services and the pending restart request, then restart and verify activation before introducing the saved-data mount conflict.",
       "Attempt removal with a separate filesystem mounted over saved product data.",
       "Check that the conflicting data and other users' access are preserved.",
       "Resolve the conflict, recover the installation, restart, and retry removal."
     ],
-    "expected": "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+    "expected": [
+      "Installation readiness passes before and after the required restart; the boot changes, activation completes and the restart request clears.",
+      "Removal refuses unsafe changes, preserves child protection or safely blocks the surviving request station, and succeeds after the conflict is resolved."
+    ]
   },
   "26": {
     "summary": "Check permissions for the first child listing children for management.",
@@ -247,12 +312,44 @@
     "expected": "The operation is refused for this account's role."
   },
   "28": {
-    "summary": "Check discovery and own-account permissions across caller roles.",
+    "execution_revision": 2,
+    "summary": "Validate broker authorization, account isolation and real authentication in one bounded live-guest history, with shared account setup and final owned cleanup.",
     "steps": [
-      "List managed children as child, parent, kiosk and locked administrator.",
-      "List approvers as a child and query own-account details as child, parent and kiosk."
+      "Prepare the fixture accounts and real caller connections, then check the declared child, parent, kiosk and locked-administrator permissions for discovery, own-account lookup, preferences, applications, time, sessions, requests, policy management and diagnostics.",
+      "Attempt cross-child reads and writes, direct private-record access and diagnostic impersonation; compare state after each refusal and check sorted eligible child and approver discovery.",
+      "Create disposable child and approver identities, remember their selections, delete each identity and retry discovery and stale selections on existing connections.",
+      "Exercise the declared root management permissions, request-only refusals, root approver exclusion and diagnostic component restrictions, then restore the selected child's original settings.",
+      "Check noninteractive and system callers, ineligible child targets and approvers on both request surfaces; try an enabled child request without an agent, and set and clear authoritative child and parent icons.",
+      "Independently vary administrator interactive-shell and safe-name eligibility while retaining valid role, locality, system-account and lock predicates; try discovery and direct approval selection.",
+      "Prepare real LDAP child and administrator identities, verify their nonlocal status, try discovery and caller/target/approver operations, then restore the owned directory fixture.",
+      "Change one child's controls and request choices while comparing other accounts; change parent and child roles on persistent connections, test immediate authority loss and restore each role.",
+      "On both child and kiosk surfaces, disconnect a requester while approval is pending, verify cancellation and unchanged state, then authenticate a fresh request and revoke the resulting grant.",
+      "On both request surfaces, delete a disposable child while the real parent authentication prompt is pending, finish authentication and verify the original requester connection and surviving account state.",
+      "For the child request surface, independently change the target child's role and the selected parent's role during authentication; finish authentication and restore each mutation.",
+      "For the kiosk request surface, independently change the target child's role and saved request preferences during authentication; finish authentication and restore each mutation.",
+      "Begin a child request, lock its selected parent while authentication is pending, retry discovery and authentication, then restore the parent's lock state and original child settings.",
+      "Repeat the pending-authentication parent-lock refusal from the kiosk request surface with independent state observations and restoration.",
+      "From the child surface, try the wrong parent's password and then the selected parent's password; observe the real grant, test that the requester gained no account or policy-management authority, and restore controls.",
+      "Repeat selected-parent password validation and post-approval authority checks from the kiosk surface, then collect results and finish owned VM restoration and cleanup."
     ],
-    "expected": "Every method/role cell has its declared result; own-account details identify the caller."
+    "expected": [
+      "Role permissions match every declared method/role cell: child discovery is refused, eligible managers can discover children, only a child can identify or prepare its own session, eligible preference/time/request-choice operations succeed, application listing and policy management remain parent-only, disabled or agentless requests grant no time, and each role may log only its own component. Locked administrators retain the declared management and diagnostic permissions.",
+      "Cross-child reads and writes are denied without changing the other child's preferences; private records remain unreadable and unwritable to child, parent and kiosk callers; diagnostic impersonation is denied, and discovery returns sorted eligible identities with empty or absolute icon paths.",
+      "Deleted identities disappear from discovery immediately; stale child and approver selections return InvalidRequest without recreating deleted records or changing surviving accounts.",
+      "Root's allowed management calls apply their requested changes, its request-only operations and foreign-component logging are denied, UID zero is never offered or accepted as an approver, and unrelated accounts remain unchanged.",
+      "Both ineligible caller classes and every declared invalid target or approver are denied without account-state changes; an agentless enabled-child request grants zero time; returned child and parent icons exactly match their authoritative set or cleared values.",
+      "A valid interactive administrator is discoverable as the positive control; independently noninteractive or unsafe-name administrators are excluded from discovery and direct selection on both surfaces without changing account state.",
+      "Real LDAP identities are otherwise eligible but nonlocal; both are excluded from discovery and all declared remote caller, target and approver operations are denied without changing local account state.",
+      "Management changes affect only the selected child. Existing parent and child connections immediately lose their previous authority after role changes, preserve policy state and recover after exact role restoration.",
+      "Requester loss cancels the pending approval without reaching the write pipeline or granting time; the authentication agent survives, the transaction is released, and a fresh authenticated connection can receive a grant independently.",
+      "Both authenticated requests reject the deleted target with InvalidRequest while their original bus connections remain owned by the requester; no deleted record is recreated and all surviving account state is preserved.",
+      "Child-surface requests authenticated against stale target or approver roles are denied without granting time or writing account state; each exact role mutation is restored.",
+      "Kiosk requests authenticated against a stale child role or changed preferences are denied without granting time or writing account state; each exact mutation is restored.",
+      "The parent locked during a child request disappears from approver discovery and cannot authenticate a grant; account state is unchanged and the original lock state and child settings are restored.",
+      "The same pending-lock boundary holds independently for kiosk requests: no grant or account-state change occurs and original settings are restored.",
+      "Only the selected parent's password approves the child request and creates a real positive grant; approval gives the child no account-role or policy-management authority and preserves other accounts.",
+      "Only the selected parent's password approves the kiosk request and creates a real positive grant; approval gives the kiosk no account-role or policy-management authority, preserves other accounts, and the attempt completes its owned restoration and cleanup before completion is published."
+    ]
   },
   "29": {
     "summary": "Check permissions for the second administrator listing children for management.",
@@ -1237,13 +1334,21 @@
     "expected": "The event is accepted for the Parent component."
   },
   "152": {
-    "summary": "Keep child settings and time queries private across child identities",
+    "summary": "Validate account isolation, private saved records, diagnostic identity and eligible account discovery on the live broker.",
     "steps": [
-      "Try to read the other child's preferences in both child directions.",
-      "Attempt cross-child time status and remaining-time calculations.",
-      "Check the other child's saved preferences before and after each denial."
+      "Try to read the other child's preferences in both child directions and attempt cross-child time-status and remaining-time calculations, checking saved preferences after each refusal.",
+      "Try cross-child request-choice writes in both child directions, plus custom-unit and mute writes, checking saved preferences after each refusal.",
+      "As child, parent and kiosk, attempt direct reads and writes of both children's private saved records.",
+      "As child, parent and kiosk, attempt to record diagnostic events as every other product component.",
+      "As parent and kiosk, list managed children and approvers; check eligible identities, ordering and icon path shape."
     ],
-    "expected": "Access is denied and the other child's settings remain unchanged."
+    "expected": [
+      "Cross-child reads and time queries are denied, and the other child's preferences remain unchanged after every refusal.",
+      "Cross-child request-choice, custom-unit and mute writes are denied, and the other child's preferences remain unchanged after every refusal.",
+      "Neither child's private records can be read or written directly by any of the three caller roles.",
+      "Every attempted diagnostic component impersonation is denied.",
+      "Both discovery callers see the eligible standard users and unlocked administrators, exclude ineligible child and approver identities, return sorted lists and expose only empty or absolute icon paths."
+    ]
   },
   "153": {
     "summary": "Keep child settings private",
@@ -1445,11 +1550,21 @@
     "expected": "Administrative management works, but child-only actions, root approval and diagnostic impersonation are refused."
   },
   "180": {
-    "summary": "Refuse parental-control access from noninteractive accounts",
+    "summary": "Validate caller, child-target and approver eligibility, agentless request refusal and authoritative account icons.",
     "steps": [
-      "As an account without interactive login, try to use account discovery, child identity, approval and diagnostic actions."
+      "As noninteractive and system accounts, attempt child and approver discovery, own-account lookup, both request entry points and diagnostic logging.",
+      "Try reading child preferences for parent, locked administrator and kiosk targets; try enabling controls for noninteractive and system targets; try kiosk requests for parent, kiosk and system targets, comparing each target's state after refusal.",
+      "Enable a child's controls, request extra time without an authentication agent, compare all account state and restore controls to off.",
+      "Set and clear child and parent icons through AccountsService, then read discovery results and the child's own-account result.",
+      "From both child and kiosk request surfaces, select ineligible approvers, including a locked parent, and compare account state before restoring controls."
     ],
-    "expected": "Access is denied."
+    "expected": [
+      "Every declared broker operation is denied for both noninteractive and system callers.",
+      "Every declared ineligible child target is denied for reads, management or kiosk requests, and its preferences, native limits and app filter remain unchanged.",
+      "The enabled child's agentless request returns denied or cancelled with zero granted time; all account state is preserved and the child's controls are restored to off.",
+      "Discovery returns the exact authoritative set or cleared icon for child and parent; the child's own-account result agrees with AccountsService as well.",
+      "Both request surfaces reject their declared ineligible approver classes, including locked parents, without changing account state; controls are restored to off."
+    ]
   },
   "181": {
     "summary": "Refuse parental-control access from noninteractive accounts",
@@ -1972,12 +2087,19 @@
     "expected": "Only local accounts are accepted; remote accounts cannot read settings or approve requests."
   },
   "252": {
-    "summary": "Keep one child's changes separate from other accounts",
+    "summary": "Validate management isolation and immediate parent and child role revalidation on persistent connections.",
     "steps": [
       "Enable a child's controls and change their request choices.",
-      "Revoke extra time and turn the child's controls off."
+      "Revoke extra time and turn the child's controls off, then compare every other account's saved preferences, limits and app filter.",
+      "Use a persistent parent connection to list managed children, change that parent to a standard user, repeat the call, restore its administrator role and retry.",
+      "Use a persistent child connection to read its own account, change that child to an administrator, repeat the call, restore its child role and retry."
     ],
-    "expected": "Other children's and parents' settings remain unchanged."
+    "expected": [
+      "The selected child's control and request-choice operations succeed.",
+      "Revocation and disabling controls succeed without changing any other account's preferences, limits or app filter.",
+      "The existing parent connection immediately loses management authority after its role change, preserves all account policy state and regains authority after exact role restoration.",
+      "The existing child connection immediately loses child-only access after its role change, preserves all account policy state and regains access after exact role restoration."
+    ]
   },
   "253": {
     "summary": "Revalidate parent and child roles on persistent connections",
@@ -2105,13 +2227,22 @@
     "expected": "Only the selected parent's password grants time; the requester gains no management rights and other accounts stay unchanged."
   },
   "267": {
-    "summary": "Verify request-station session composition, admission and shared integration scope",
+    "execution_revision": 2,
+    "summary": "Validate installed kiosk integration, native application policy, probe recovery and offline expiry enforcement in one prepared live guest, with final owned restoration and cleanup.",
     "steps": [
-      "Inspect the installed request-station account and its selected desktop session.",
-      "Check real PAM admission and ordinary-user controls.",
-      "Check the scope of shared desktop integration."
+      "Prepare the enforcement fixtures; inspect the request-station account and selected session, exercise real PAM login admission and refusal, and check ordinary users' shared desktop integration.",
+      "Apply and clear hard and soft command policies for one child, repeat independently for executable paths containing whitespace, then switch the selected child's application catalogue and check scoped launchers.",
+      "Refuse native probe admission and retry a fresh generation; exercise broker storage lifetime and sandbox restrictions, permanently lose a sender, then complete another fresh generation.",
+      "Apply a versioned application pattern, add and trust a new matching version, clear the block and restore policy; independently remove another application's menu launcher while retaining its executable, save the unchanged block, test launches, clear it and restore policy.",
+      "Recover extension controls while the child is logged out, exercise failed activation and rollback, check graphical and terminal PAM time-limit scopes, then collect results and finish owned VM restoration and cleanup."
     ],
-    "expected": "The dedicated session and admission gates remain correctly configured without applying kiosk restrictions to ordinary users."
+    "expected": [
+      "The dedicated session and graphical admission gates are correctly configured, alternate-login admission is refused, saved routing is preserved and kiosk integration leaves ordinary users' services and applications unaffected.",
+      "Command and whitespace-path policies block only the selected child in every declared hard/soft and screen-time state; clearing blocks restores access, other accounts' policies remain unchanged and each child's catalogue resolves its own launchers and overrides.",
+      "Refused and disconnected probes settle safely; fresh generations succeed independently after refusal and sender loss, probe storage survives the declared service lifecycle and execution respects the installed broker sandbox.",
+      "Initial and newly trusted matching versions remain blocked only for the selected child without changing active pattern rules. A missing launcher disappears from the catalogue but its saved block still denies executable launches after an unchanged save. Clearing either block restores access and each independent history restores its exact original policy.",
+      "Offline recovery preserves extension choices and other accounts; failed activation and rollback do not grant access, time enforcement follows each login type, and the attempt completes owned restoration and cleanup before completion is published."
+    ]
   },
   "268": {
     "summary": "Keep request-station login admission properly scoped",
@@ -2197,13 +2328,21 @@
     "expected": "The selected child is blocked and regains access after clearing; the other child's access and settings stay unchanged."
   },
   "278": {
-    "summary": "Apply saved app patterns to newly installed versions",
+    "summary": "Validate versioned application patterns and saved policy retention after a menu launcher disappears.",
     "steps": [
       "Block a versioned application using a saved filename pattern.",
       "Add a new matching version and make it trusted by the operating system.",
-      "Clear the block and launch both versions again."
+      "Clear the pattern block and launch both versions again, then verify exact policy restoration.",
+      "Independently block another application, remove only its menu launcher, save the unchanged policy and try launching the executable.",
+      "Clear the missing-launcher application's block, launch it again and verify exact policy restoration."
     ],
-    "expected": "Matching versions stay blocked only for the selected child; unrelated apps stay usable and clearing the block restores access."
+    "expected": [
+      "The initial matching application is blocked only for the selected child; the other child and unrelated applications remain unaffected.",
+      "The newly added matching version stays blocked for the selected child even after native trust admission, without changing the active policy rules; the other child remains allowed.",
+      "Clearing the pattern restores access to both matching versions, preserves the other child's policy and restores the selected child's exact original policy.",
+      "The removed launcher disappears from the catalogue while its saved block survives the unchanged save and still denies the selected child's executable launch; the other child remains allowed.",
+      "Clearing the retained block restores executable access despite the missing launcher and restores the exact original policy without changing the other child's policy."
+    ]
   },
   "279": {
     "summary": "Preserve app blocks after a menu launcher disappears",
@@ -2344,14 +2483,22 @@
     "expected": "Recovery restores usable owned state and preserves unrelated or live state."
   },
   "295": {
-    "summary": "Keep parental control active when extensions are disabled",
+    "execution_revision": 2,
+    "summary": "Validate automatic extension monitoring, session and broker lifecycle, private diagnostics, Parent controls and authenticated kiosk recovery in five finite stages on one prepared child desktop, with shared setup and owned cleanup.",
     "steps": [
-      "Start with parental control enabled and its extension inactive.",
-      "Disable the parental-control extension individually and through GNOME's global extension switch.",
-      "Repeat disablement, allow a quiet period, then disable it again.",
-      "Turn parental control off as the parent."
+      "Prepare the monitor desktop; begin with the extension never loaded, enable control, repeatedly disable the extension individually and through GNOME's global switch, allow a healthy quiet interval, then turn parental control off.",
+      "Exercise fresh child session, bus and shell identities; defer recovery across lock and approval activity, cancel the pending prompt, then stop and restart the broker with controls saved off.",
+      "Cause a native extension error while its report window cannot open, restore the display and edit the report draft, repeat failures across broker restart, exercise session-bus loss and explicit recovery, then interrupt the child session after recovery.",
+      "Use Parent with an enabled child's extension disabled, switch to another enabled child, select a child with saved-off controls, then enable controls while GNOME's global extension switch is disabled.",
+      "Authenticate one real kiosk request while the child's extension and global switch are disabled, observe the grant and attributed extension recovery, repeat only the idempotent recovery check, then finish owned result collection, restoration and cleanup."
     ],
-    "expected": "Recovery continues at a bounded rate, resumes promptly after quiet, preserves policies and other extensions, and stops when the parent turns control off."
+    "expected": [
+      "Monitoring restores the extension from the never-loaded state and repeated individual/global disablement at a bounded rate, resumes promptly after quiet, preserves policies and unrelated extension choices, and respects the parent's saved-off state.",
+      "Recovery follows the current child session, bus and shell, waits during lock or approval activity, resumes safely after cancellation and leaves no late worker activation or false error report after broker stop and restart with controls saved off.",
+      "Native extension failure is reported through one private report whose edited draft survives repeated errors and broker restart without automatic submission; unsafe retries stop on bus or session loss, exact fixture bytes are restored and explicit recovery restores healthy monitoring.",
+      "Each eligible Parent action owns its native extension recovery and preserves unrelated settings; merely selecting saved-off controls leaves them off, while first enablement recovers the extension/global switch, applies the daily limit and clears the stale grant.",
+      "The real authenticated kiosk grant owns extension and global-switch recovery with the expected grant arithmetic; subsequent recovery is idempotent without replaying approval, the child session and unrelated choices survive, and completion is published only after owned restoration and cleanup."
+    ]
   },
   "296": {
     "summary": "Keep recovery safe across session and service changes",

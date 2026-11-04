@@ -11,6 +11,19 @@ from pathlib import Path
 import system_guest as guest
 
 
+def verify_package_readiness(installed_readiness):
+    """Observe the same install/reboot prerequisite inside its owning history."""
+    phase = os.environ['ONPC_SYSTEM_PHASE']
+    assert phase in ('installed', 'rebooted')
+    installed_readiness(reboot_required=phase == 'installed')
+    if phase == 'installed':
+        assert guest.reboot_requested()
+    else:
+        before = json.loads((guest.PAYLOAD / 'before.json').read_text())
+        assert before['boot_id'] != Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+        assert guest.reboot_cleared()
+
+
 def batch(uid, operations, *, allow_root=False, category='caller:reply'):
     raw = guest.commands.run(
         ['/usr/bin/python3', '-B', str(guest.PAYLOAD / 'system_caller.py')],

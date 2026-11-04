@@ -541,12 +541,19 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
                 for case in cases:
                     if phase in case_phases(name, case):
                         executions.append(CaseExecution(phase, name, case, False))
-        if phase not in terminal_phases or any(
-                item.phase == phase and item.case_id == KIOSK_ACTIVATION_CASE
-                for item in executions):
+        readiness_owners = tuple(history for history in REMOVAL_HISTORIES
+                                 if history.case_id in chosen.get('removal', ())
+                                 and phase in history.prerequisites)
+        if readiness_owners:
+            # The history owns its fresh install/reboot witnesses and their
+            # preparation time; retain prerequisite status and exact phases.
+            executions.extend(CaseExecution(phase, 'removal', history.case_id, True)
+                              for history in readiness_owners)
+        elif phase not in terminal_phases:
             for case in inventories['package']:
                 # Prerequisites establish package/reboot readiness. Full kiosk
-                # migration and graphical entry belong to their selected history.
+                # migration and graphical entry belong to their selected history,
+                # which already observes readiness without a duplicate ID 1.
                 if case not in PACKAGE_READINESS_CASES:
                     continue
                 if PHASE_SEMANTICS.get(phase, phase) in case_phases('package', case):
@@ -557,17 +564,9 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
         for item in PHASE_PREREQUISITES[phase]:
             if item not in prerequisites and not (fresh_install and item == 'retained-app-snapshot'):
                 prerequisites.append(item)
-    if (test or identities) and any(case in ('test_authenticated_request_rejects_deleted_target',
-                         'test_requester_disconnect_during_approval',
-                         'test_administrator_eligibility_predicates') or
-                 case.startswith('test_authenticated_request_revalidates_live_state[') or
-                 case.startswith('test_request_rejects_locked_approver_during_authentication[') or
-                 case.startswith('test_real_selected_parent_authentication[')
-           for cases in chosen.values() for case in cases):
-        prerequisites.append('fixture-passwords')
     available = {name: inventories[name] for name in chosen_areas}
-    if any(item.case_id == 'test_remote_accounts_are_excluded' for item in executions):
-        prerequisites.append('remote-ldap-nss-fixtures')
+    if any(item.area == 'authorization' for item in executions):
+        prerequisites.extend(('fixture-passwords', 'remote-ldap-nss-fixtures'))
     return Selection(area, test, 'full' if area is None and recording_ids is None else 'partial', phases,
                      tuple(prerequisites), tuple(executions), available, qualification_failure)
 
@@ -629,7 +628,9 @@ def resume_selection(selection, completed, *, fresh_install=False):
     histories = {item.case_id for item in remaining}
     remaining = tuple(item for item in selection.executions
                       if item in remaining or (item.phase in dependencies and
-                          (item.prerequisite or item.case_id in histories or
+                          ((item.prerequisite and (item.area != 'removal' or
+                                                  item.case_id in histories)) or
+                           item.case_id in histories or
                            item.case_id in PACKAGE_READINESS_CASES)))
     phases = tuple(phase for phase in selection.phases if any(item.phase == phase for item in remaining))
     return replace(selection, phases=phases, executions=remaining)
@@ -1655,13 +1656,12 @@ def stage_selected_inputs(selection, destination):
     inputs = [('Makefile', 'install-source/Makefile'), *COMMON_SELECTED_INPUTS]
     if selection.qualification_failure:
         inputs.append(('tests/integration/system_qualification.py', 'system_qualification.py'))
-    if any(item.case_id in {'test_child_extension_monitor_session_lifecycle',
-                            'test_child_extension_failure_reporting'}
+    if any(item.case_id == 'test_child_extension_monitor_native_recovery'
            for item in selection.executions):
         # This stdlib-only command has its own guarded CLI. It does not import
         # its host observation adapter when run for one pinned desktop logout.
         inputs.append(('tests/e2e/session_control.py', 'session-control'))
-    if any(item.case_id == 'test_child_extension_failure_reporting'
+    if any(item.case_id == 'test_child_extension_monitor_native_recovery'
            for item in selection.executions):
         inputs.append(('tests/support/application_ui.py', 'application_ui_support.py'))
     for area in AREA_SOURCES:
@@ -1692,7 +1692,7 @@ def stage_selected_inputs(selection, destination):
         },
         'files': files,
     }
-    if any(item.case_id == 'test_child_extension_parent_recovery'
+    if any(item.case_id == 'test_child_extension_monitor_native_recovery'
            for item in selection.executions):
         sys.path.insert(0, str(ROOT / 'tests/e2e'))
         from ui_observations import UI_PROGRAM_SOURCES, guest_ui_program
@@ -1710,7 +1710,7 @@ def stage_selected_inputs(selection, destination):
            for item in selection.executions):
         identity['host_files'] = kiosk_activation_host_inputs()
     if 'session' in selection.phases or 'extension-login' in selection.phases or any(
-            item.case_id == 'test_child_extension_parent_recovery'
+            item.case_id == 'test_child_extension_monitor_native_recovery'
             for item in selection.executions):
         # The graphical input manifest also validates its worker's deferred
         # imports, before the attached desktop observer is constructed.
@@ -2339,31 +2339,15 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             # An unused trusted-hard payload would force a full trust DB update.
             subsets = (('command',) if fixture_selection['target'] == 'ubuntu'
                        else (*subsets, 'command'))
-        if ('command' not in subsets and any(
-                item.area == 'enforcement'
-                and item.case_id == 'test_native_command_policy_is_uid_scoped'
-                for item in selection.executions)):
-            # Clean app snapshots omit the command and its desktop launcher.
-            # Prepare both before the case's read-only fixture verification.
-            subsets += ('command',)
         if any(item.area == 'enforcement'
-               and item.case_id == 'test_native_command_policy_is_uid_scoped'
+               and item.case_id == 'test_kiosk_execution_confinement'
                for item in selection.executions):
-            # This bounded group also verifies the whitespace executable and
-            # selected-child catalogue. Supply their closure even when focused.
-            subsets += ('catalogue', 'whitespace')
-        if any(item.area == 'enforcement'
-               and item.case_id == 'test_native_future_pattern_is_uid_scoped'
-               for item in selection.executions):
-            # Supply the initial version, unrelated control and launcher. The
-            # case creates the future version only after witnessing active rules.
-            subsets += ('pattern',)
-        if any(item.area == 'enforcement'
-               and item.case_id == 'test_native_missing_launcher_retains_policy'
-               for item in selection.executions):
-            # Supply the executable and launcher before the case removes only
-            # the launcher to verify that the saved policy still applies.
-            subsets += ('retention',)
+            # The single enforcement case owns all live validations, including
+            # focused runs. Supply each fixture's initial executable/launcher
+            # closure; future versions and launcher removal remain case actions.
+            subsets += tuple(subset for subset in (
+                'command', 'catalogue', 'whitespace', 'pattern', 'retention')
+                if subset not in subsets)
         with ledger.measure('bootstrap'):
             vm.probe_ready()
             if already_installed:
@@ -2565,7 +2549,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 log('stage:extension-monitor-reboot')
                 with ledger.measure('reboot'):
                     reboot()
-                if any(item.case_id == 'test_child_extension_parent_recovery'
+                if any(item.case_id == 'test_child_extension_monitor_native_recovery'
                        for item in selection.executions):
                     with ledger.measure('test'):
                         prepare_extension_parent(vm, lease, directory, ledger,
@@ -2975,6 +2959,10 @@ def main(argv=None):
             record_caught_failure(ledger, error)
             passed = False
             log('evidence:owner-finalization-failed')
+        if passed and suite is not None:
+            progress = getattr(suite, 'system_progress', None)
+            if progress is not None:
+                progress.complete_attempt()
     return 0 if passed else 1
 
 

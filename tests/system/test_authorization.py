@@ -1,6 +1,6 @@
 """Installed system-bus assertions; run only through the guarded VM runner."""
 
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 import json
 from pathlib import Path
 import pwd
@@ -44,16 +44,6 @@ METHOD_ROLES = {
     'LogEvent': ('child1', 'parent1', 'kiosk', 'locked'),
 }
 METHODS = tuple(METHOD_ROLES)
-METHOD_ROLE_GROUPS = (
-    ('ListManagedUsers-parent1', ('ListManagedUsers', 'ListApprovers', 'GetOwnAccount')),
-    ('GetPreferences-parent1', ('GetPreferences', 'ListApplications')),
-    ('GetTimeStatus-parent1', ('GetTimeStatus', 'CalculateRemainingTime', 'CalculateOwnRemainingTime')),
-    ('RequestAccess-child1', ('PrepareOwnSession', 'RequestOwnAccess', 'RequestAccess')),
-    ('UpdateRequestPreferences-child1',
-     ('UpdateRequestPreferences', 'UpdateRequestPreferencesWithUnit', 'SetRequestMuted')),
-    ('SetPreferences-parent1', ('SetPreferences', 'SetParentControl', 'RevokeOneTimeGrant')),
-    ('LogEvent-parent1', ('LogEvent',)),
-)
 LOG_EVENT = json.dumps({'v': 1, 'event': 'diagnostic.rejected',
                        'operation': 0, 'fields': {}})
 
@@ -146,7 +136,7 @@ def invocation(method, role, accounts, *, administrator=None):
         'SetParentControl': ('(ubu)', (target, False, 60), parent),
         'RevokeOneTimeGrant': ('(u)', (target,), parent),
         # Disabled children must be denied before authentication. Enabled and
-        # in-flight cases are separate tests, not acceptance inferred from this cell.
+        # in-flight stages retain their own assertions later in the history.
         'RequestOwnAccess': ('(uub)', (accounts['parent1'], 300, False), False),
         'RequestAccess': ('(uuub)', (target, accounts['parent1'], 300, False), role == 'kiosk'),
         'LogEvent': ('(sss)', (component, 'INFO', LOG_EVENT), True),
@@ -185,10 +175,81 @@ def denied(reply, boundary):
 
 
 @pytest.mark.parametrize('methods', [
-    pytest.param(methods, id=selector) for selector, methods in METHOD_ROLE_GROUPS
+    pytest.param((
+        'ListManagedUsers', 'ListApprovers', 'GetOwnAccount',
+        'GetPreferences', 'ListApplications',
+        'GetTimeStatus', 'CalculateRemainingTime', 'CalculateOwnRemainingTime',
+        'PrepareOwnSession', 'RequestOwnAccess', 'RequestAccess',
+        'UpdateRequestPreferences', 'UpdateRequestPreferencesWithUnit', 'SetRequestMuted',
+        'SetPreferences', 'SetParentControl', 'RevokeOneTimeGrant', 'LogEvent',
+    ), id='ListManagedUsers-parent1'),
 ])
-def test_method_role_matrix(accounts, callers, methods):
-    """One bounded permission family, retaining every declared method/role cell."""
+def test_method_role_matrix(accounts, callers, methods, request, record_testsuite_property):
+    """One finite authorization history owns its shared live-broker setup."""
+    with _authorization_stage('role-permissions'):
+        _method_role_matrix(accounts, callers, methods)
+    with _authorization_stage('account-isolation-and-discovery'):
+        _cross_child_targets_fail_closed(accounts, callers, (
+            ('GetPreferences', 'child1'), ('GetPreferences', 'child2'),
+            ('GetTimeStatus', 'child1'), ('CalculateRemainingTime', 'child1'),
+            ('UpdateRequestPreferences', 'child1'), ('UpdateRequestPreferences', 'child2'),
+            ('UpdateRequestPreferencesWithUnit', 'child1'), ('SetRequestMuted', 'child1'),
+        ))
+    with _authorization_stage('deleted-target-and-approver'):
+        identities = _disposable_identities(accounts, callers, record_testsuite_property)
+        _deleted_target_and_approver_fail_closed(
+            accounts, callers, identities, record_testsuite_property)
+    with _authorization_stage('root-permissions'):
+        _root_method_permissions_and_approver_exclusion(accounts, callers)
+    with _authorization_stage('identity-eligibility-and-icons'):
+        _ineligible_callers_cannot_use_broker(accounts, callers, ('noninteractive', 'system'))
+    with _authorization_stage('administrator-eligibility-predicates'):
+        _administrator_eligibility_predicates(accounts, callers, record_testsuite_property)
+    with _authorization_stage('remote-accounts'):
+        with _remote_directory() as remote:
+            _remote_accounts_are_excluded(accounts, callers, remote, record_testsuite_property)
+    with _authorization_stage('management-isolation-and-role-revalidation'):
+        _management_changes_preserve_other_accounts(accounts, callers)
+
+    # Keep real credential installation at its former first authentication case,
+    # after the earlier agentless and independent-eligibility observations.
+    with _authorization_stage('requester-disconnect'):
+        passwords = request.getfixturevalue('passwords')
+        diagnostics = request.getfixturevalue('authentication_diagnostics')
+        _requester_disconnect_during_approval(
+            accounts, callers, passwords, diagnostics, record_testsuite_property)
+    with _authorization_stage('authenticated-target-deletion'):
+        _authenticated_request_rejects_deleted_target(
+            accounts, callers, passwords, diagnostics, record_testsuite_property)
+    for surface, mutations in (
+            ('child1', ('child-role', 'approver-role')),
+            ('kiosk', ('child-role', 'preferences'))):
+        with _authorization_stage('authenticated-live-state-' + surface):
+            _authenticated_request_revalidation(
+                accounts, callers, passwords, surface, mutations, diagnostics)
+    for surface in ('child1', 'kiosk'):
+        with _authorization_stage('locked-approver-' + surface):
+            _request_rejects_locked_approver_during_authentication(
+                accounts, callers, passwords, surface, diagnostics)
+    for surface in ('child1', 'kiosk'):
+        with _authorization_stage('selected-parent-authentication-' + surface):
+            _real_selected_parent_authentication(
+                accounts, callers, passwords, surface, diagnostics)
+
+
+@contextmanager
+def _authorization_stage(name):
+    print(f'onpc-system: stage=authorization-validation validation={name} state=started', flush=True)
+    try:
+        yield
+    except Exception as error:
+        error.add_note('authorization-validation: ' + name)
+        raise
+    print(f'onpc-system: stage=authorization-validation validation={name} state=passed', flush=True)
+
+
+def _method_role_matrix(accounts, callers, methods):
+    """All seven short permission families on the same prepared live broker."""
     for method in methods:
         for role in METHOD_ROLES[method]:
             boundary = f'authorization:method-role:{method}:{role}'
@@ -207,15 +268,8 @@ def test_method_role_matrix(accounts, callers, methods):
 
 
 # Exercise each scoped endpoint and both UID directions for a read and a write.
-@pytest.mark.parametrize('cases', [
-    pytest.param((('GetPreferences', 'child1'), ('GetPreferences', 'child2'),
-                  ('GetTimeStatus', 'child1'), ('CalculateRemainingTime', 'child1')),
-                 id='GetPreferences-child1'),
-    pytest.param((('UpdateRequestPreferences', 'child1'), ('UpdateRequestPreferences', 'child2'),
-                  ('UpdateRequestPreferencesWithUnit', 'child1'), ('SetRequestMuted', 'child1')),
-                 id='UpdateRequestPreferences-child1'),
-])
-def test_cross_child_targets_fail_closed(accounts, callers, cases):
+def _cross_child_targets_fail_closed(accounts, callers, cases):
+    """Cross-child isolation, private records and discovery share one live setup."""
     for method, role in cases:
         boundary = f'authorization:cross-child:{method}:{role}'
         print(f'onpc-system: stage=cross-child method={method} role={role}', flush=True)
@@ -227,10 +281,11 @@ def test_cross_child_targets_fail_closed(accounts, callers, cases):
         guest.require(reply.get('error') == DENIED, boundary + ':denial')
         after = accepted(manager.call('GetPreferences', '(u)', (other,)))
         guest.require(before == after, boundary + ':write')
+    _private_records_and_log_components(accounts, ('child1', 'parent1', 'kiosk'))
+    _account_discovery_after_installation(accounts, callers)
 
 
-@pytest.mark.parametrize('roles', [pytest.param(('child1', 'parent1', 'kiosk'), id='child1')])
-def test_private_records_and_log_components(accounts, roles):
+def _private_records_and_log_components(accounts, roles):
     for role in roles:
         print(f'onpc-system: stage=private-records-and-logs role={role}', flush=True)
         private_operations = [
@@ -252,8 +307,9 @@ def test_private_records_and_log_components(accounts, roles):
             denied(reply, f'log-impersonation:{role}:{component}')
 
 
-def test_account_discovery_after_installation(accounts, callers):
+def _account_discovery_after_installation(accounts, callers):
     for role in ('parent1', 'kiosk'):
+        print(f'onpc-system: stage=account-discovery role={role}', flush=True)
         children, approvers = (accepted(callers(role).call(method))[0]
                               for method in ('ListManagedUsers', 'ListApprovers'))
         child_uids, approver_uids = {row[0] for row in children}, {row[0] for row in approvers}
@@ -273,8 +329,7 @@ def test_account_discovery_after_installation(accounts, callers):
                               for row in rows), 'authorization:icon-path')
 
 
-@pytest.fixture
-def disposable_identities(accounts, callers, record_testsuite_property):
+def _disposable_identities(accounts, callers, record_testsuite_property):
     # Create both before deleting either, so this slice cannot reuse a deleted UID.
     values = {role: create_disposable_identity(role, record_testsuite_property)
               for role in ('target', 'approver')}
@@ -290,7 +345,7 @@ def disposable_identities(accounts, callers, record_testsuite_property):
     return values
 
 
-def test_deleted_target_and_approver_fail_closed(accounts, callers, disposable_identities,
+def _deleted_target_and_approver_fail_closed(accounts, callers, disposable_identities,
                                                record_testsuite_property):
     """Stale selections fail on existing bus connections and preserve survivors."""
     target, approver = (disposable_identities[key] for key in ('target', 'approver'))
@@ -371,7 +426,7 @@ def test_deleted_target_and_approver_fail_closed(accounts, callers, disposable_i
         accepted(administrator.call('SetParentControl', '(ubu)', (accounts['child1'], False, 60)))
 
 
-def test_root_method_permissions_and_approver_exclusion(accounts, callers):
+def _root_method_permissions_and_approver_exclusion(accounts, callers):
     """All root cells share one guarded case; every call verifies bus UID 0."""
     target = accounts['child1']
     manager = callers('parent1')
@@ -433,8 +488,24 @@ def test_root_method_permissions_and_approver_exclusion(accounts, callers):
         accepted(manager.call('SetPreferences', '(us)', (target, original)))
 
 
-@pytest.mark.parametrize('role', ('noninteractive', 'system'))
-def test_ineligible_callers_cannot_use_broker(accounts, role):
+def _ineligible_callers_cannot_use_broker(accounts, callers, roles):
+    """Five finite identity checks reuse the prepared accounts and live broker."""
+    for role in roles:
+        _ineligible_caller_cannot_use_broker(accounts, role)
+    _ineligible_targets_fail_closed(accounts, callers, (
+        ('GetPreferences', 'parent1'), ('GetPreferences', 'locked'),
+        ('GetPreferences', 'kiosk'), ('SetParentControl', 'noninteractive'),
+        ('SetParentControl', 'system'), ('RequestAccess', 'parent1'),
+        ('RequestAccess', 'kiosk'), ('RequestAccess', 'system'),
+    ))
+    _enabled_child_request_reaches_authentication_without_grant(accounts, callers, 'child1')
+    _icons_match_authoritative_account_properties(accounts, callers, ('child1', 'parent1'))
+    for surface in ('child1', 'kiosk'):
+        _ineligible_selected_approvers_fail_closed(accounts, callers, surface)
+
+
+def _ineligible_caller_cannot_use_broker(accounts, role):
+    print(f'onpc-system: stage=ineligible-caller role={role}', flush=True)
     # Each identity class shares one real caller. Retain discovery, own-account,
     # both request entry points and logging as separate permission boundaries.
     methods = ('ListManagedUsers', 'ListApprovers', 'GetOwnAccount',
@@ -446,14 +517,7 @@ def test_ineligible_callers_cannot_use_broker(accounts, role):
 
 
 # Sample each invalid target class across read, management and station entry.
-@pytest.mark.parametrize('cases', [
-    pytest.param((('GetPreferences', 'parent1'), ('GetPreferences', 'locked'),
-                  ('GetPreferences', 'kiosk')), id='GetPreferences-parent1'),
-    pytest.param((('SetParentControl', 'noninteractive'), ('SetParentControl', 'system'),
-                  ('RequestAccess', 'parent1'), ('RequestAccess', 'kiosk'),
-                  ('RequestAccess', 'system')), id='SetParentControl-noninteractive'),
-])
-def test_ineligible_targets_fail_closed(accounts, callers, cases):
+def _ineligible_targets_fail_closed(accounts, callers, cases):
     for method, role in cases:
         boundary = f'authorization:ineligible-target:{method}:{role}'
         print(f'onpc-system: stage=ineligible-target method={method} role={role}', flush=True)
@@ -465,8 +529,8 @@ def test_ineligible_targets_fail_closed(accounts, callers, cases):
         guest.require(account_state(accounts[role]) == before, boundary + ':write')
 
 
-@pytest.mark.parametrize('role', ('child1',))
-def test_enabled_child_request_reaches_authentication_without_grant(accounts, callers, role):
+def _enabled_child_request_reaches_authentication_without_grant(accounts, callers, role):
+    print(f'onpc-system: stage=enabled-agentless-request role={role}', flush=True)
     target = accounts[role]
     manager = callers('parent1')
     accepted(manager.call('SetParentControl', '(ubu)', (target, True, 60)))
@@ -482,8 +546,7 @@ def test_enabled_child_request_reaches_authentication_without_grant(accounts, ca
         accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
 
 
-@pytest.mark.parametrize('target_roles', [pytest.param(('child1', 'parent1'), id='child1')])
-def test_icons_match_authoritative_account_properties(accounts, callers, target_roles):
+def _icons_match_authoritative_account_properties(accounts, callers, target_roles):
     for target_role in target_roles:
         target = accounts[target_role]
         method = 'ListManagedUsers' if target_role == 'child1' else 'ListApprovers'
@@ -505,8 +568,8 @@ def test_icons_match_authoritative_account_properties(accounts, callers, target_
                 guest.require(own[2] == expected, boundary + ':authoritative-own')
 
 
-@pytest.mark.parametrize('surface', ('child1', 'kiosk'))
-def test_ineligible_selected_approvers_fail_closed(accounts, callers, surface):
+def _ineligible_selected_approvers_fail_closed(accounts, callers, surface):
+    print(f'onpc-system: stage=ineligible-selected-approver surface={surface}', flush=True)
     # Vary invalid identity classes across the two entry points. Locked parents
     # keep both routes because they have management rights but cannot approve.
     approvers = (('child1', 'locked', 'noninteractive') if surface == 'child1'
@@ -525,7 +588,7 @@ def test_ineligible_selected_approvers_fail_closed(accounts, callers, surface):
         accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
 
 
-def test_administrator_eligibility_predicates(accounts, callers, record_testsuite_property):
+def _administrator_eligibility_predicates(accounts, callers, record_testsuite_property):
     """Isolate shell/name exclusions from role, locality, system and lock state."""
     guest.guard()
     interface = 'org.freedesktop.Accounts.User'
@@ -646,8 +709,8 @@ def test_administrator_eligibility_predicates(accounts, callers, record_testsuit
         accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
 
 
-@pytest.fixture
-def remote_directory():
+@contextmanager
+def _remote_directory():
     from system_remote_accounts import provision, restore_nss
 
     restoration = {}
@@ -657,7 +720,7 @@ def remote_directory():
         restore_nss(restoration)
 
 
-def test_remote_accounts_are_excluded(accounts, callers, remote_directory, record_testsuite_property):
+def _remote_accounts_are_excluded(accounts, callers, remote_directory, record_testsuite_property):
     """Real LDAP identities must be rejected solely for their nonlocal status."""
     from system_remote_accounts import package_versions
 
@@ -717,7 +780,9 @@ def test_remote_accounts_are_excluded(accounts, callers, remote_directory, recor
         accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
 
 
-def test_management_changes_preserve_other_accounts(accounts, callers):
+def _management_changes_preserve_other_accounts(accounts, callers):
+    """Management isolation and two live-connection role changes, with restoration."""
+    print('onpc-system: stage=management-cross-account state=started', flush=True)
     before = snapshot_accounts(accounts, (key for key in ROLES if key != 'child1'))
     target = accounts['child1']
     manager = callers('parent1')
@@ -728,13 +793,8 @@ def test_management_changes_preserve_other_accounts(accounts, callers):
     accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
     guest.require(accounts_unchanged(accounts, before),
                   'authorization:management-cross-account-write')
-
-
-@pytest.mark.parametrize('changes', [pytest.param((
-    ('parent2', 'ListManagedUsers', 1, 0), ('child2', 'GetOwnAccount', 0, 1)),
-    id='parent2-ListManagedUsers-1-0')])
-def test_persistent_caller_revalidates_changed_role(accounts, changes):
-    for role, method, original, changed in changes:
+    for role, method, original, changed in (
+            ('parent2', 'ListManagedUsers', 1, 0), ('child2', 'GetOwnAccount', 0, 1)):
         print(f'onpc-system: stage=caller-role-change role={role} method={method}', flush=True)
         _persistent_caller_revalidates_changed_role(accounts, role, method, original, changed)
 
@@ -781,7 +841,7 @@ def authentication_diagnostics(request, record_testsuite_property):
         nonlocal attempt
         attempt += 1
         # This public fixture supports xunit2. Suite properties include the
-        # registered case ID because multiple tests can authenticate in a phase.
+        # registered case ID while its finite stages authenticate independently.
         record_testsuite_property('onpc.authentication', json.dumps({
             'case_id': request.node.name, 'attempt': attempt,
             'expected': expected, 'outcome': outcome, 'helper_category': helper_category,
@@ -790,7 +850,7 @@ def authentication_diagnostics(request, record_testsuite_property):
     return record
 
 
-def test_requester_disconnect_during_approval(accounts, callers, passwords,
+def _requester_disconnect_during_approval(accounts, callers, passwords,
                                             authentication_diagnostics,
                                             record_testsuite_property):
     """Requester exit cancels approval while its real authentication agent lives."""
@@ -911,15 +971,15 @@ def test_requester_disconnect_during_approval(accounts, callers, passwords,
             accepted(manager.call('RevokeOneTimeGrant', '(u)', (target,)))
             accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
             if granted_at is not None:
-                # The successful control must not rate-limit a later registered
-                # case using the same child/kiosk UID. Let the real interval
+                # The successful control must not rate-limit a later validation
+                # using the same child/kiosk UID. Let the real interval
                 # elapse; never reset broker state or alter product configuration.
                 interval = json.loads(Path('/etc/oh-no-parent-control/config.json').read_text())[
                     'minimum_request_interval_seconds']
                 time.sleep(max(0, granted_at + interval - time.monotonic()))
 
 
-def test_authenticated_request_rejects_deleted_target(accounts, callers, passwords,
+def _authenticated_request_rejects_deleted_target(accounts, callers, passwords,
                                                       authentication_diagnostics,
                                                       record_testsuite_property):
     """Both real request surfaces reject deletion after successful authentication."""
@@ -976,11 +1036,7 @@ def test_authenticated_request_rejects_deleted_target(accounts, callers, passwor
                   'outcome=authenticated-denied-state-preserved', flush=True)
 
 
-@pytest.mark.parametrize('surface,mutations', [
-    pytest.param('child1', ('child-role', 'approver-role'), id='child-role-child1'),
-    pytest.param('kiosk', ('child-role', 'preferences'), id='child-role-kiosk'),
-])
-def test_authenticated_request_revalidates_live_state(accounts, callers, passwords, surface, mutations,
+def _authenticated_request_revalidation(accounts, callers, passwords, surface, mutations,
                                                      authentication_diagnostics):
     """Two mutations per surface, each with its own fresh caller, agent and cleanup."""
     for mutation in mutations:
@@ -1045,8 +1101,7 @@ def _authenticated_request_revalidates_live_state(accounts, callers, passwords, 
         accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
 
 
-@pytest.mark.parametrize('surface', ('child1', 'kiosk'))
-def test_request_rejects_locked_approver_during_authentication(
+def _request_rejects_locked_approver_during_authentication(
         accounts, callers, passwords, surface, authentication_diagnostics):
     """A parent locked after selection cannot approve through an active prompt."""
     target, selected, other = (accounts[key] for key in ('child1', 'parent1', 'parent2'))
@@ -1094,8 +1149,7 @@ def test_request_rejects_locked_approver_during_authentication(
         accepted(manager.call('SetPreferences', '(us)', (target, original)))
 
 
-@pytest.mark.parametrize('surface', ('child1', 'kiosk'))
-def test_real_selected_parent_authentication(accounts, callers, passwords, surface,
+def _real_selected_parent_authentication(accounts, callers, passwords, surface,
                                             authentication_diagnostics):
     target = accounts['child1']
     selected, other = accounts['parent1'], accounts['parent2']

@@ -74,8 +74,21 @@ def pytest_collection_modifyitems(session, config, items):
     retry = os.environ.get('ONPC_TEST_RETRY_CASE')
     if retry is not None:
         completed_cases(json.dumps([retry]))
-        omitted = [item for item in items if item.nodeid != retry]
-        items[:] = [item for item in items if item.nodeid == retry]
+        session.onpc_retry_selection = dict(
+            scope='case' if '::' in retry else 'file',
+            available_count=len(items),
+            exact_match_count=sum(item.nodeid == retry for item in items),
+            file_match_count=sum(item.nodeid.partition('::')[0] == retry.partition('::')[0]
+                                 for item in items),
+        )
+        # A preparation retry can identify a whole file rather than a pytest
+        # case. Match that file exactly; case retries retain exact node IDs.
+        def selected(item):
+            return (item.nodeid == retry if '::' in retry
+                    else item.nodeid.partition('::')[0] == retry)
+
+        omitted = [item for item in items if not selected(item)]
+        items[:] = [item for item in items if selected(item)]
         if omitted:
             config.hook.pytest_deselected(items=omitted)
     value = os.environ.get('ONPC_TEST_COMPLETED_CASES')
@@ -98,6 +111,10 @@ def pytest_sessionfinish(session, exitstatus):
 def pytest_collection_finish(session):
     if os.environ.get('ONPC_REGRESSION_EVENTS') == '1':
         error = sys.exc_info()[1]
+        if hasattr(session, 'onpc_retry_selection'):
+            emit('retry_selection', **session.onpc_retry_selection,
+                 selected_count=len(session.items),
+                 resumed_count=len(getattr(session, 'onpc_resumed_nodeids', ())))
         if not session.items:
             # Pytest calls this hook in finally, before a pending selector
             # UsageError reaches its terminal reporter. The runner rejects a
@@ -118,7 +135,9 @@ def pytest_collection_finish(session):
                              'interrupted-collection' if isinstance(error, KeyboardInterrupt) else
                              'other-collection-error' if error is not None else
                              'no-pending-error'),
-                 selector_error_count=len(messages), missing_test_sites=sites)
+                 selector_error_count=len(messages), missing_test_sites=sites,
+                 **({'retry_selection': session.onpc_retry_selection}
+                    if hasattr(session, 'onpc_retry_selection') else {}))
         if isinstance(error, KeyboardInterrupt):
             # Pytest also calls this hook from collection's finally block.
             # An interrupted list (empty or partial) is not a completed

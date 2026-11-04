@@ -3108,8 +3108,19 @@ precise/Allowed setup through the same operations on Ubuntu 26.04 in
 captured A closure and matching launch results, retained/new nonmatching S use,
 Riley's original activity and resumed use after each save, the real 75-second
 soft-included approval, and final reopened Parent readback. Collection,
-worker shutdown, owned cleanup and baseline restoration passed. Limits-off
-variants and other target families remain pending.
+worker shutdown, owned cleanup and baseline restoration passed.
+
+Case 15's disabled/precise journey passed on Ubuntu 26.04 in
+`20261104T180325Z-d749ef37`. `app_rule_changes_case.DISABLED_PLAN` /
+`onpc_app_rule_changes::run(..., 'precise', 1)` reuse the six rounds with
+independent limits-off settings before each save and after Parent reopening.
+The Soft→Hard preparation temporarily enables limits, obtains the same real
+75-second/soft-included approval, opens A, disables limits and independently
+compares that original A activity before the tested Hard save. Captured closure,
+matching launch results, retained/new nonmatching S use and Riley's original
+activity with resumed use passed after every transition. Collection, worker
+shutdown, owned cleanup and baseline restoration passed. Disabled/pattern and
+other target families remain pending.
 
 | ID | Kind | Block and explicit contract | Callees, in order | Status |
 | --- | --- | --- | --- | --- |
@@ -3858,7 +3869,11 @@ Case 14's complete enabled/pattern journey subsequently passed on Ubuntu 26.04
 in `20261104T155650Z-3b4a47fe`, adding captured A closure and command denial
 after the `*.AppImage` Soft/Hard saves, including Soft→Hard after real approval.
 It independently preserved and used the nonmatching S window and Riley's same
-activity after every transition. Limits-off bindings remain pending.
+activity after every transition. Case 15 subsequently passed the same captured
+closure/denial and isolation results with precise matching and limits off in
+`20261104T180325Z-d749ef37`, including preserved A activity after the temporary
+approval's limits-off toggle and before the Soft→Hard save. Disabled/pattern
+remains pending.
 
 ## Complete scenario decomposition
 

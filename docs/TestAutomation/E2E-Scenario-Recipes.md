@@ -510,7 +510,9 @@ again denies retained access without replacing the desktop or restoring the gran
 
 Implementation status: Case 13's enabled/precise composition passed on Ubuntu
 26.04 in task 080. Case 14's enabled/pattern composition passed on Ubuntu
-26.04 in task 081 (`20261104T155650Z-3b4a47fe`). Limits-off bindings are pending.
+26.04 in task 081 (`20261104T155650Z-3b4a47fe`). Case 15's disabled/precise
+composition passed on Ubuntu 26.04 in task 082
+(`20261104T180325Z-d749ef37`); disabled/pattern remains pending.
 
 **Change app rules while children use apps.** Cases 13, 14, 15, 16.
 
@@ -531,6 +533,15 @@ in every round. The worker has one 60-minute deadline and the case allows
 six rounds' transport, authentication and retained-work observations under the
 [VM timing contract](../Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience);
 the real approval remains 75 seconds and product response bounds are unchanged.
+
+Case 15 uses `app_rule_changes_case.DISABLED_PLAN` with the same six rounds.
+After setting daily 30, disable limits before the initial activities. Before
+Soft→Hard, temporarily enable limits, independently read the daily margin,
+approve 75 seconds including soft apps and open A. Disable limits, revisit and
+compare that original A activity before returning to Parent for the tested
+Hard save. Independently read limits off before every tested save and after
+the final Parent reopening. No other access or match save is added between
+the six transitions.
 
 ### E2E-007
 

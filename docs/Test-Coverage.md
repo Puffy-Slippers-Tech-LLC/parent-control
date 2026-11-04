@@ -15,8 +15,8 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">69</span>/<span style="color: gray">127</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6419</span>/<span style="color: gray">127</span>/6546** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">70</span>/<span style="color: gray">126</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6420</span>/<span style="color: gray">126</span>/6546** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">68</span>/<span style="color: gray">127</span>/195 |
+| customer-journey | <span style="color: green">69</span>/<span style="color: gray">126</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -48,6 +48,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [12](#scenario-12) | Change screen limits while starting or returning to a child desktop (session: retained; time: combined) | `E2E-005/combined-retained` | ready |
 | [13](#scenario-13) | Change app rules while children use apps (control: enabled; match: precise) | `E2E-006/enabled-precise` | ready |
 | [14](#scenario-14) | Change app rules while children use apps (control: enabled; match: pattern) | `E2E-006/enabled-pattern` | ready |
+| [15](#scenario-15) | Change app rules while children use apps (control: disabled; match: precise) | `E2E-006/disabled-precise` | ready |
 | [22](#scenario-22) | Natural daily exhaustion, retained unlock and fresh login denial | `E2E-008/fresh-login` | ready |
 | [25](#scenario-25) | Switch User while child time expires (foreground: parent) | `E2E-010/parent` | ready |
 | [26](#scenario-26) | Switch User while child time expires (foreground: other child) | `E2E-010/other-child` | ready |
@@ -105,7 +106,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [261](#scenario-261) | Keep the child's request language when the approving parent changes | `E2E-060/kiosk-hebrew` | ready |
 | [262](#scenario-262) | Language changes preserve countdown and natural expiry | `E2E-061/panel-expiry` | ready |
 | <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[15](#scenario-15)</span> | <span style="color: gray">Change app rules while children use apps (control: disabled; match: precise)</span> | <span style="color: gray">`E2E-006/disabled-precise`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[16](#scenario-16)</span> | <span style="color: gray">Change app rules while children use apps (control: disabled; match: pattern)</span> | <span style="color: gray">`E2E-006/disabled-pattern`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[17](#scenario-17)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: zero; sessions: single)</span> | <span style="color: gray">`E2E-007/zero-single`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[18](#scenario-18)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: zero; sessions: multiple)</span> | <span style="color: gray">`E2E-007/zero-multiple`</span> | <span style="color: gray">pending</span> |
@@ -413,6 +413,20 @@ Variant: control: enabled; match: precise
 Case: `E2E-006/enabled-pattern` · Category: customer-journey · Status: **ready**
 
 Variant: control: enabled; match: pattern
+
+**Steps:**
+
+- Give the child usable time, choose the declared screen-limit and match modes in Parent, and leave recognizable activities open for the child and another user. Include matching and existing nonmatching apps.
+- For each of the six directed changes among Always Allowed, Soft Blocked and Hard Blocked, prepare any required open activity through normal permission and approval, save that change, then revisit the child and other user's retained activities before making the next change. Try matching and existing nonmatching launches after every save.
+- Reopen Parent after the complete transition sequence and read the final Always Allowed rule. Each intermediate closure, preservation and launch result must already have been checked before a later edit can conceal it.
+
+### Scenario 15
+
+**Change app rules while children use apps (control: disabled; match: precise)**
+
+Case: `E2E-006/disabled-precise` · Category: customer-journey · Status: **ready**
+
+Variant: control: disabled; match: precise
 
 **Steps:**
 
@@ -1229,26 +1243,6 @@ Variant: launch: terminal
 - Reuse PARENT01 to invoke oh-no-parent-control-parent directly as the same standard desktop user. Independently read its management-access denial and administrator-sign-in explanation; no management controls become available. Dismiss the denial normally.
 
 Pending: Consolidated into E2E-004/app-grid (case 5), which independently checks app-search unavailability and direct-command denial in the same standard-user session. Historical selector excluded from E2E scheduling; no replacement task.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 15
-
-**Change app rules while children use apps (control: disabled; match: precise)**
-
-Case: `E2E-006/disabled-precise` · Category: customer-journey · Status: **pending**
-
-Variant: control: disabled; match: precise
-
-**Steps:**
-
-- Give the child usable time, choose the declared screen-limit and match modes in Parent, and leave recognizable activities open for the child and another user. Include matching and existing nonmatching apps.
-- For each of the six directed changes among Always Allowed, Soft Blocked and Hard Blocked, prepare any required open activity through normal permission and approval, save that change, then revisit the child and other user's retained activities before making the next change. Try matching and existing nonmatching launches after every save.
-- Reopen Parent after the complete transition sequence and read the final Always Allowed rule. Each intermediate closure, preservation and launch result must already have been checked before a later edit can conceal it.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 

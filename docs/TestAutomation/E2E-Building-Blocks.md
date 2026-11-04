@@ -3614,8 +3614,18 @@ case 62 passed in `20261104T024547Z-0a55c166`; collection, owned cleanup and
 baseline restoration passed in both attempts. The guest provisioner's movable
 declaration now imports `LAUNCHERS`, fixing the prior missing-import failure.
 This qualifies FIX06 and APP01/02/03 for Jordan's Allowed shared-target grid
-bindings on Ubuntu only. Shared-target blocking/recovery and complete case 187
-remain pending under task 229; this supplies no Fedora qualification.
+bindings on Ubuntu only. Task 229's complete case 187 passed on Ubuntu 26.04
+in `20261104T031145Z-35631824`: blocking either launcher while the other stayed
+Allowed denied both launches, and restoring both to Allowed recovered usable
+launch/Submit/readback/closure through each. Each round independently read both
+saved choices and preserved the same Jordan-selected Parent session/window and
+30-minute allowance. `journey_blocks.native_blocked_app` and
+`onpc_app_rows::native_blocked_app` now qualify both `A` and `Alias` grid bindings
+with the existing single-use input and independent denial guards. Affected
+original-launcher case 64 passed in `20261104T033317Z-ed993b26`, including Jordan's
+denial and Riley's unaffected usable app. Collection, owned cleanup and baseline
+restoration passed in both attempts; coverage was regenerated after each. This
+supplies no Fedora qualification.
 A future-version/new-nonmatch profile remains a separate pending capability.
 Space-bearing ELF nonmatches in the legacy directory
 still require the separate unsafe-wildcard rejection under
@@ -3920,6 +3930,7 @@ or alternative launch substitutes for the declared route.
 | 83 / `app_launch.HARD_COMMAND_DISABLED_PLAN`, `run(..., 'disabled', 'command', 'hard-blocked')` | Limits off/zero allowance; Parent reads Jordan's untouched settings, then saves A's precise permanent block without an allowance or approval. Fresh Jordan command execution requires attributed denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same target usable with Riley's policy untouched. |
 | 84 / `app_launch.SOFT_COMMAND_PLAN`, `run(..., 'enabled', 'command', 'soft-blocked')` | 30 daily minutes/zero grant; Parent saves A's precise conditional block without approval. Fresh Jordan command execution requires attributed denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same target usable with Riley's policy and limits untouched. |
 | 85 / `app_launch.SOFT_COMMAND_DISABLED_PLAN`, `run(..., 'disabled', 'command', 'soft-blocked')` | Limits off/zero allowance; Parent reads Jordan's untouched settings, then saves A's precise conditional block without an allowance or approval. Fresh Jordan command execution requires attributed denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same target usable with Riley's policy and limits untouched. |
+| 187 / `shared_launchers_case.PLAN`, `onpc_fresh_thirty_allowance::shared_launchers_case` | Jordan's A and Alias share one native target. Block A with Alias Allowed, restore both, block Alias with A Allowed, then restore both again. Each child visit independently proves both denials or both usable apps. Saved choices, Parent session/window, child selection and allowance persist across the complete history; [Ubuntu qualification](#native-fixture-preparation). |
 
 The Allowed native-A bindings are qualified on Ubuntu 26.04 and Fedora 44.
 Case 64 passed on Ubuntu 26.04 in `20261103T204515Z-ad6fb573`, including

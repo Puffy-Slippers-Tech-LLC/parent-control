@@ -174,7 +174,8 @@ NATIVE_APP_OPERATIONS = frozenset('native-' + suffix for suffix in (
     'activity', 'activity-wrong-entry', 'command-blocked', 'activity-launch',
     'grid-blocked', 'grid-denied'))
 NATIVE_APP_OPERATIONS |= frozenset('native-alias-' + suffix for suffix in (
-    'search-ready', 'search-focused', 'search-entered', 'grid', 'command-blocked'))
+    'search-ready', 'search-focused', 'search-entered', 'grid', 'command-blocked',
+    'grid-blocked', 'grid-denied'))
 OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 PARENT_NATIVE_OPERATIONS = frozenset('parent-native-' + suffix for suffix in (
@@ -13129,8 +13130,8 @@ class AccessibleUI:
             def search_result():
                 require_active_launch_session()
                 require(self.native_app_closed(desktop=False), 'ui:native-window-exists')
-                require(self.search_query(NATIVE_PRODUCT), 'ui:native-search-query')
-                target = self.launchable_result(NATIVE_PRODUCT)
+                require(self.search_query(product), 'ui:native-search-query')
+                target = self.launchable_result(product)
                 return (target,) if target is not None or time.monotonic() - stable >= 2 else False
             target, = self.wait(search_result, 'native-blocked-grid', prompt_in_predicate=True)
             if target is None:
@@ -13141,7 +13142,7 @@ class AccessibleUI:
             else:
                 # Shell launchers need the same guarded focus + worker Enter
                 # route as usable grid launches; they need not expose Action.
-                self.focus_search_result(NATIVE_PRODUCT)
+                self.focus_search_result(product)
                 return True
         elif operation == 'native-grid-denied':
             require(child == EXISTING_CHILD, 'ui:native-child-binding')
@@ -13708,7 +13709,7 @@ class AccessibleUI:
                      self.native_app_operation(operation.removeprefix('overlay-').removeprefix('parent-'),
                                              child=bound_child if overlay_native else
                                              PARENT if operation in PARENT_NATIVE_OPERATIONS else EXISTING_CHILD))
-            if operation == 'native-grid-blocked':
+            if operation in ('native-grid-blocked', 'native-alias-grid-blocked'):
                 result['grid_launch_required'] = value
             elif value is not None:
                 result['activity'] = value

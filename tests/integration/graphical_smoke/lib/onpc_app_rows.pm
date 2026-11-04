@@ -460,9 +460,9 @@ sub native_blocked_app {
     $route //= 'command';
     die 'native:denial-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
         && ($route eq 'command' && ($role eq 'A' || $role eq 'H' || $role eq 'S' || $role eq 'Alias')
-            || $route eq 'grid' && $role eq 'A');
+            || $route eq 'grid' && ($role eq 'A' || $role eq 'Alias'));
     if ($route eq 'grid') {
-        my $entry = native_search($journey, $journey->seen('desktop'));
+        my $entry = native_search($journey, $journey->seen('desktop'), 'app-grid', $role);
         $journey->consume_observation('app-grid', $entry);
         die 'native:denial-entry' unless JSON::PP::is_bool($entry->{grid_launch_required});
         testapi::send_key('ret') if $entry->{grid_launch_required};

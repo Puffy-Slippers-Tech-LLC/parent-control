@@ -9,6 +9,7 @@ use onpc_app_rows ();
 use onpc_feedback_privacy ();
 use onpc_desktop_session ();
 use onpc_lifecycle ();
+use onpc_text ();
 
 sub run {
     onpc_progress::operation('Qualifying fresh thirty-minute daily allowance setup');
@@ -137,6 +138,59 @@ sub match_reopen_case {
     my $allowed = $journey->scope('allowed');
     onpc_app_rows::native_usable_app($allowed, 'command', $allowed->seen('desktop'), 'other-child');
     onpc_app_rows::native_finish_app($allowed);
+    $journey->finish();
+}
+
+# Case 187 owns the complete forward/reverse block and recovery history.
+sub shared_launchers_case {
+    onpc_progress::operation('Checking that either launcher block prevents child access to their shared app');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'shared-launchers:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'shared-launchers-case', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen($_) for qw(saved-settings apps-page initial-rows retained-window parent-session);
+    for my $round (
+        ['original-blocked', [['A', 'permanent'], ['Alias', 'allowed']], 0],
+        ['original-allowed', [['A', 'allowed']], 1],
+        ['alias-blocked', [['Alias', 'permanent']], 0],
+        ['alias-allowed', [['Alias', 'allowed']], 1]) {
+        my ($name, $edits, $usable) = @$round;
+        for my $edit (@$edits) {
+            my ($role, $choice) = @$edit;
+            onpc_app_rows::edit_policy($journey, onpc_app_rows::fixture_app($role),
+                $role eq 'Alias' ? 'match-alias-precise' : 'match-precise',
+                $choice, "$name-" . lc($role), []);
+        }
+        onpc_text::replace_text($journey, 'catalogue-clear', "$name-clear");
+        $journey->seen($_) for ("$name-original-choice", "$name-alias-choice",
+                              "$name-leave-desktop", "$name-leave-switch", "$name-leave-greeter");
+        onpc_desktop_session::enter_desktop(
+            $journey, 'gdm', 'other-child', 'fresh', 'success', "$name-entry");
+        for my $role ('A', 'Alias') {
+            my $app = $journey->scope("$name-" . ($role eq 'A' ? 'original' : 'alias'));
+            if ($usable) {
+                onpc_app_rows::native_usable_app($app, 'grid', $app->seen('desktop'),
+                    'other-child', $role eq 'Alias' ? $role : undef);
+                onpc_app_rows::native_finish_app($app);
+            } else {
+                onpc_app_rows::native_blocked_app($app, $role, 'grid');
+            }
+        }
+        $journey->seen($_) for ("$name-logout", "$name-greeter");
+        if ($name ne 'alias-allowed') {
+            onpc_desktop_session::enter_desktop(
+                $journey, 'gdm', 'parent', 'retained', 'success', "$name-return");
+            $journey->consume_observation("$name-supplied-parent-retained",
+                onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained',
+                                            'existing', "$name-supplied", 0));
+            $journey->seen($_) for ("$name-parent-session", "$name-apps-page");
+        }
+    }
     $journey->finish();
 }
 

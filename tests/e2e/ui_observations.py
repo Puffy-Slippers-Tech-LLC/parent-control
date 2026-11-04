@@ -1486,8 +1486,9 @@ class UiObservations:
             raise
 
     def _observe(self, operation, *, child=None):
-        if operation == 'native-grid-denied':
-            require(self.last_operation == 'native-grid-blocked', 'ui:native-grid-order')
+        if operation in ('native-grid-denied', 'native-alias-grid-denied'):
+            require(self.last_operation == operation.removesuffix('denied') + 'blocked',
+                    'ui:native-grid-order')
         if operation in accessible_ui.RESTART_OPERATIONS and operation.endswith('-reboot'):
             require(getattr(self, 'restart_consumed', False), 'ui:restart-submission')
         initial_inputs = {'kiosk-initial-notice-close': 'kiosk-initial-notice',
@@ -2012,7 +2013,7 @@ class UiObservations:
             expected['activity'] = result['activity']
         if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals', 'native-alias-grid'):
             expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
-        if operation == 'native-grid-blocked':
+        if operation in ('native-grid-blocked', 'native-alias-grid-blocked'):
             require(type(result.get('grid_launch_required')) is bool, 'ui:native-grid-response')
             expected['grid_launch_required'] = result['grid_launch_required']
         if operation in accessible_ui.COUNTDOWN_SESSION_OPERATIONS:

@@ -22,6 +22,7 @@
     const actions = new Map();
     const expandedRunTimes = new Set();
     const selectedRunTimes = new Set();
+    const cloudComputerPath = 'M5 12H4a3 3 0 0 1-.4-6A5 5 0 0 1 13 4a4 4 0 0 1 3 8h-1 M6 10h8v6H6z M10 16v2 M7 18h6';
 
     function countdown(node) {
         const remaining = Math.max(0, Math.ceil(Number(node.dataset.deadline) - Date.now() / 1000));
@@ -47,7 +48,7 @@
 
     function sessionHeading(section) {
         const entry = section.entry;
-        const signature = JSON.stringify([entry.server, entry.label, entry.status, entry.session, entry.session_active,
+        const signature = JSON.stringify([entry.server, entry.transport, entry.label, entry.status, entry.session, entry.session_active,
             entry.session_number, entry.session_inactive, section.view, section.collapsed]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
@@ -60,7 +61,8 @@
         serverIcon.setAttribute('viewBox', '0 0 20 20');
         serverIcon.setAttribute('aria-hidden', 'true');
         const serverShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        serverShape.setAttribute('d', 'M3 3h14v6H3z M3 11h14v6H3z M6 6h1 M6 14h1');
+        serverShape.setAttribute('d', entry.transport === 'ssh' ? cloudComputerPath :
+            'M3 3h14v6H3z M3 11h14v6H3z M6 6h1 M6 14h1');
         serverIcon.append(serverShape);
         server.append(serverIcon);
         element('span', 'run-server-name', server).textContent = entry.server;
@@ -669,16 +671,17 @@
                 icon.setAttribute('viewBox', '0 0 20 20');
                 icon.setAttribute('aria-hidden', 'true');
                 const outline = document.createElementNS(icon.namespaceURI, 'path');
-                outline.setAttribute('d', 'M3 3h14v6H3z M3 11h14v6H3z M5 6h2 M5 14h2 M11 6h4 M11 14h4');
                 icon.append(outline);
                 status.append(icon);
                 element('strong', 'host-name', status);
             }
             resources.append(row);
-            const signature = JSON.stringify([host.sample, host.status, host.label]);
+            const signature = JSON.stringify([host.sample, host.status, host.label, host.transport]);
             if (resourceSamples.get(host.id) === signature) continue;
             resourceSamples.set(host.id, signature);
             const status = row.querySelector('.host-status');
+            status.querySelector('path').setAttribute('d', host.transport === 'ssh' ? cloudComputerPath :
+                'M3 3h14v6H3z M3 11h14v6H3z M5 6h2 M5 14h2 M11 6h4 M11 14h4');
             status.querySelector('.host-name').textContent = host.label;
             status.title = `${host.label}: ${host.status}`;
             status.classList.toggle('disconnected', !host.connected);

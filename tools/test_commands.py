@@ -303,10 +303,11 @@ over new execution categories; no arguments can replay an unread failed result.
 An idle successful run starts fresh. Attach to a
 configured queue without --vm; narrowed runs require their original --vm NAME.
 Help, listing and collection return immediately without attaching.
---resume reuses the last matching category/test checkpoint, skipping completed
-cases and retrying failed or interrupted cases. Without it, a new execution
-resets the checkpoint. Keep the original selectors; a changed selection refuses
-resume. Required preparation and lifecycle prerequisites still run.
+--resume inherits the previous selection and options, skipping completed cases
+and retrying failed or interrupted cases. Explicit parameters must be compatible;
+VM names and IDs resolving to the same VMs are equivalent. Incompatible parameters
+fail immediately and report the previous parameters. Without --resume, a new
+execution resets the checkpoint. Required preparation and lifecycle prerequisites still run.
 --reset stops both test and repair launchers in this checkout, waits for owned
 cleanup, recovers recorded resources and clears saved progress before starting
 fresh. Source edits and historical logs are preserved. Conflicts with --resume,
@@ -1355,7 +1356,9 @@ def main(argv=None):
             return 2
     try:
         from test_checkpoint import resume_arguments
-        argv = resume_arguments(Path(__file__).resolve().parents[1], argv)
+        if not (test_activity.descriptors() or test_activity.VARIABLE in os.environ
+                or 'ONPC_RUNNER_INVOCATION' in os.environ):
+            argv = resume_arguments(Path(__file__).resolve().parents[1], argv)
         vm_request(argv)
     except ValueError as error:
         print('run-tests: ' + str(error), file=sys.stderr)

@@ -5,9 +5,23 @@ from unittest import mock
 
 import pytest
 
+import gi
+import gi.repository
 from gi.repository import GLib
 
-from tools import session_limit_check
+
+# These unit checks supply session-limit results themselves. Do not require the
+# installed product's Malcontent typelib just to import the helper on the host.
+malcontent = SimpleNamespace(
+    Manager=SimpleNamespace(new=mock.Mock(side_effect=AssertionError(
+        "Each time-policy test must supply its own Malcontent manager"))),
+    ManagerGetValueFlags=SimpleNamespace(NONE=0),
+)
+require_version = gi.require_version
+with mock.patch.object(gi, "require_version", side_effect=lambda name, version:
+                       None if name == "Malcontent" else require_version(name, version)), \
+        mock.patch.dict(gi.repository.__dict__, Malcontent=malcontent):
+    from tools import session_limit_check
 
 
 class Reply:

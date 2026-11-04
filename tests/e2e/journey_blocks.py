@@ -551,6 +551,23 @@ def parent_management(*, child='child'):
     }
 
 
+def app_policy_entry(*, child, allowance):
+    """Fresh Parent entry, caller-selected allowance and complete app rows.
+
+    Callers own the initial/saved settings, balances and catalogue assertions.
+    The allowance is an existing public operation, not a new time-profile route.
+    """
+    require(child == 'existing' and allowance == 'time-explanation-setup-thirty-read',
+            'journey:app-policy-entry-binding')
+    return {
+        **fresh_desktop('parent'), **parent_management(child=child),
+        'parent-selected': 'ui:existing-returned',
+        'allowance-configured': 'ui:' + allowance,
+        'saved-settings': 'ui:existing-returned', 'apps-page': 'ui:existing-apps',
+        'initial-rows': 'ui:existing-parent-app-rows',
+    }
+
+
 def overlay_entry(prefix, route, *, form_operation='overlay-request-form'):
     """REQUEST02/13 input followed by REQUEST03's independent fixed-child read."""
     import re

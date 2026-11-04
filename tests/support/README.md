@@ -290,6 +290,16 @@ Allowed/Hard/Soft fixture app IDs, matching the controller's `MATCH_APPS`.
 Do not copy the desktop-ID hashing into another worker. Each consumer retains
 its finite role/rule list, edit order, public readbacks and assertions.
 
+Native policy qualifications and cases compose `journey_blocks.app_policy_entry`
+and `policy_edits.NativePolicyJourney` for the qualified fresh Parent/Jordan
+entry, caller-selected allowance operation, fixture readiness and initial
+catalogue comparison. The shared-launcher case supplies its own plan and alias
+binding rather than inheriting a qualification's plan or journey. Keep settings,
+balances, policy rounds, retained-window endpoints and closure assertions in each
+consumer; the shared entry does not qualify other children or allowance bindings.
+The existing worker continues to use `onpc_parent::set_allowance` and the shared
+native launch/use/close operations. These helpers add no resource or cleanup owner.
+
 Fixture provisioning qualifications reuse
 `system_fixture_preparation.register_staging`, as do system, standalone and E2E
 preparation through `system_fixture_preparation.provision`. The shared writer

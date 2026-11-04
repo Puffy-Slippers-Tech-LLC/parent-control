@@ -4,11 +4,11 @@ from copy import deepcopy
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
 from feedback_composition import text_fragment
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import (desktop_entry, native_blocked_app, native_usable_app,
+from journey_blocks import (app_policy_entry, desktop_entry, native_blocked_app, native_usable_app,
                             prefixed_stages, retained_parent_entry)
-from policy_edits import policy_edit
+from policy_edits import NativePolicyJourney, policy_edit
 from private_artifacts import require
-from shared_target_launchers import PLAN as QUALIFIED_PLAN, SETUP, SharedTargetLaunchersJourney
+from ui_observations import SettingsObservation
 
 
 # Keep both directions and each recovery in one attempt. Parent stays open;
@@ -19,7 +19,7 @@ ROUNDS = (
     ('alias-blocked', (('Alias', 'permanent'),), False),
     ('alias-allowed', (('Alias', 'allowed'),), True),
 )
-SCREENS = {stage: tag for stage, tag in SETUP.items() if stage != 'parent-logout'}
+SCREENS = app_policy_entry(child='existing', allowance='time-explanation-setup-thirty-read')
 SCREENS['retained-window'] = 'ui:retained-parent-leave'
 SCREENS['parent-session'] = 'system:parent-desktop-identity'
 PHASES = {stage: 'step-1' for stage in SCREENS}
@@ -78,11 +78,13 @@ PLAN = JourneyPlan(
     prefix='shared-launchers-case', worker_mode='shared_launchers_case', screen_tags=SCREENS,
     phases={'ready': 'setup', 'setup-detached': 'setup', **PHASES, 'installed-greeter': 'start'},
     advance_after={'parent-session': 'step-2', 'alias-allowed-alias-choice': 'step-3'},
-    stage_actions=QUALIFIED_PLAN.stage_actions,
+    stage_actions={'desktop': 'native-verify'},
     child_bindings={stage: 'existing' for stage, tag in SCREENS.items()
                     if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
-    settings_checks=QUALIFIED_PLAN.settings_checks,
-    balance_checks=QUALIFIED_PLAN.balance_checks,
+    settings_checks={
+        'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',)),
+        'saved-settings': SettingsObservation('existing-fixture-child', True, ('30 minutes',))},
+    balance_checks={'allowance-configured': 1800},
     match_checks=MATCH_CHECKS, access_checks=ACCESS_CHECKS,
     invocations=tuple(stage for stage in SCREENS if stage in LOGIN_STAGES),
     challenges={prefix: (
@@ -93,9 +95,9 @@ PLAN = JourneyPlan(
 )
 
 
-class SharedLaunchersCaseJourney(SharedTargetLaunchersJourney):
+class SharedLaunchersCaseJourney(NativePolicyJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan, actions=actions)
+        super().__init__(context, progress, plan, actions=actions, alias=True)
         self.parent_window = None
         self.parent_session = None
 

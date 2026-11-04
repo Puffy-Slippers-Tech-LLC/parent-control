@@ -1,11 +1,9 @@
 """079d: saved native rules, fresh execution denial and unaffected use."""
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
 from installed_journey import JourneyPlan
-from journey_blocks import (desktop_entry, fresh_desktop, native_blocked_app,
-                            native_usable_app, parent_management, prefixed_stages)
-from journey_checks import allowed_app_rows
-from native_fixtures import check_catalogue, fixture_actions
-from policy_edits import AppPolicyJourney, policy_edit
+from journey_blocks import (app_policy_entry, desktop_entry, native_blocked_app,
+                            native_usable_app, prefixed_stages)
+from policy_edits import NativePolicyJourney, policy_edit
 from ui_observations import SettingsObservation
 
 
@@ -15,11 +13,7 @@ EDITS = (('A', 'match-precise', 'allowed', 'allowed'),
 POLICIES = {prefix: policy_edit(MATCH_APPS[role], draft, access, prefix)
             for role, draft, access, prefix in EDITS}
 SETUP = {
-    **fresh_desktop('parent'), **parent_management(child='existing'),
-    'parent-selected': 'ui:existing-returned',
-    'allowance-configured': 'ui:time-explanation-setup-thirty-read',
-    'saved-settings': 'ui:existing-returned', 'apps-page': 'ui:existing-apps',
-    'initial-rows': 'ui:existing-parent-app-rows',
+    **app_policy_entry(child='existing', allowance='time-explanation-setup-thirty-read'),
     **POLICIES['allowed'], **POLICIES['hard'], **POLICIES['soft'],
     'parent-logout': 'system:parent-logout',
 }
@@ -66,13 +60,6 @@ PLAN = JourneyPlan(
 )
 
 
-class NativeDenialJourney(AppPolicyJourney):
+class NativeDenialJourney(NativePolicyJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan,
-                         actions=fixture_actions(include_refusal=False) if actions is None else actions)
-
-    def check_settings(self, stage, observed):
-        super().check_settings(stage, observed)
-        if stage == 'initial-rows':
-            rows = allowed_app_rows(self, observed)
-            observed['comparison'].update(check_catalogue(rows))
+        super().__init__(context, progress, plan, actions=actions)

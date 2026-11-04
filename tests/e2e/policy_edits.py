@@ -4,7 +4,8 @@ from journey_blocks import filter_screens
 from private_artifacts import require
 from match_rules import match_edit
 from access_choices import AccessChoiceJourney
-from journey_checks import check_balances
+from journey_checks import allowed_app_rows, check_balances
+from native_fixtures import check_catalogue, fixture_actions
 
 
 class AppPolicyJourney(AccessChoiceJourney):
@@ -14,6 +15,22 @@ class AppPolicyJourney(AccessChoiceJourney):
         super().check_settings(stage, observed)
         if stage in self.plan.balance_checks:
             check_balances(self, observed, self.plan.balance_checks[stage])
+
+
+class NativePolicyJourney(AppPolicyJourney):
+    """Native fixture readiness and the caller's initial catalogue binding."""
+
+    def __init__(self, context, progress, plan, *, actions=None, alias=False):
+        require(type(alias) is bool, 'policy:catalogue-binding')
+        super().__init__(context, progress, plan,
+                         actions=fixture_actions(include_refusal=False) if actions is None else actions)
+        self.catalogue_alias = alias
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage == 'initial-rows':
+            rows = allowed_app_rows(self, observed)
+            observed['comparison'].update(check_catalogue(rows, alias=self.catalogue_alias))
 
 
 def policy_edit(app, draft, access, prefix, *, filters=(), setup=False):

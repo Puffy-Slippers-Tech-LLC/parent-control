@@ -5338,6 +5338,13 @@ observer bindings and worker dispatch. An already implemented translated reader
 must also be admitted by that declaration; do not add a second reader or reset
 the child's saved language to fit an English-only entry.
 
+Also inspect every stage matched by a comparison callback's suffix or prefix,
+including initial entry. A retained-window comparison must not accidentally
+match the initial child selection before its retained-window capture exists.
+Use explicit endpoints or the shared operation's scoped stage names. Trace
+[captured app closure](#captured-native-activity-closure) through its original
+activity and return endpoints before composing a later launch attempt.
+
 For a composed approval, trace the actual scoped journey prefix and request
 duration through the shared credential binding before the first VM attempt.
 Renaming checkpoints does not authorize that secret route. Use the existing

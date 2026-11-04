@@ -98,6 +98,11 @@ class PublicAtspi:
                 GLib.Variant('(' + signature + ')', args) if signature else None,
                 None, Gio.DBusCallFlags.NONE, 2000, None).unpack()
         except GLib.Error as error:
+            if self._connection.is_closed():
+                # A service/session handoff can retire this bus connection.
+                # Discard its identities before the caller's next fresh read.
+                # Still raise: an input must never be replayed automatically.
+                self.reset()
             # Preserve the error type for unsupported-interface fallback and
             # transient read retries. Only fixed query names enter diagnostics.
             error.add_note('public-atspi-query:' + interface + ':' + method +
@@ -111,9 +116,9 @@ class PublicAtspi:
         self._provider_processes.clear()
         self._registry_owner = None
         self.invalidate_snapshot()
-        if self._connection is not None:
+        if self._connection is not None and not self._connection.is_closed():
             self._connection.close_sync(None)
-            self._connection = None
+        self._connection = None
 
     @contextmanager
     def checked_events(self, node, receive):

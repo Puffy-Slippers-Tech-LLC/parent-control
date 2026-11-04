@@ -3119,8 +3119,16 @@ The Soft→Hard preparation temporarily enables limits, obtains the same real
 compares that original A activity before the tested Hard save. Captured closure,
 matching launch results, retained/new nonmatching S use and Riley's original
 activity with resumed use passed after every transition. Collection, worker
-shutdown, owned cleanup and baseline restoration passed. Disabled/pattern and
-other target families remain pending.
+shutdown, owned cleanup and baseline restoration passed.
+
+Case 16's disabled/pattern journey passed on Ubuntu 26.04 in
+`20261104T221123Z-f4e1c198`. `app_rule_changes_case.DISABLED_PATTERN_PLAN` /
+`onpc_app_rule_changes::run(..., 'pattern', 1)` combine that limits-off history
+with A's `*.AppImage` rule. All six saves, captured closure and matching launch
+results, nonmatching S use, Riley's original activity, real 75-second approval,
+preserved A after disabling limits and final reopened Parent readback passed.
+Recording, collection, worker shutdown, owned cleanup and baseline restoration
+passed. Other target families remain pending.
 
 | ID | Kind | Block and explicit contract | Callees, in order | Status |
 | --- | --- | --- | --- | --- |
@@ -3872,8 +3880,9 @@ It independently preserved and used the nonmatching S window and Riley's same
 activity after every transition. Case 15 subsequently passed the same captured
 closure/denial and isolation results with precise matching and limits off in
 `20261104T180325Z-d749ef37`, including preserved A activity after the temporary
-approval's limits-off toggle and before the Soft→Hard save. Disabled/pattern
-remains pending.
+approval's limits-off toggle and before the Soft→Hard save. Case 16 passed
+those same closure/denial and isolation results with pattern matching and
+limits off in `20261104T221123Z-f4e1c198`, including collection and owned cleanup.
 
 ## Complete scenario decomposition
 

@@ -1,4 +1,4 @@
-"""Cases 13–15: six app-rule transitions with explicit limit/match bindings."""
+"""Cases 13–16: six app-rule transitions with explicit limit/match bindings."""
 from dataclasses import replace
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
 from installed_journey import JourneyPlan, record_installed_journey
@@ -161,7 +161,7 @@ PATTERN_PLAN = replace(
 )
 
 
-def limits_off_plan():
+def limits_off_plan(base=PLAN):
     """Reuse the six rounds, preparing Soft→Hard through a real approval."""
     additions = {
         'saved-settings': {
@@ -190,30 +190,30 @@ def limits_off_plan():
         if account == 'other-child':
             additions['soft-hard-save-parent-desktop']['soft-opening-preserved'] = 'ui:native-policy-activity'
     screens = {}
-    phases = dict(PLAN.phases)
-    for stage, tag in SCREENS.items():
+    phases = dict(base.phases)
+    for stage, tag in base.screen_tags.items():
         screens[stage] = tag
         screens.update(additions.get(stage, {}))
-        phases.update({extra: PLAN.phases[stage] for extra in additions.get(stage, {})})
+        phases.update({extra: base.phases[stage] for extra in additions.get(stage, {})})
     extra_login = {prefix + '-' + stage for prefix, (_account, group) in extra_entries.items()
                    for stage in group if stage in {
                        'installed-greeter', 'parent-focused', 'child-focused', 'standard-focused',
                        'recipient-qualified', 'recipient-rechecked', 'child-recipient-qualified',
                        'child-recipient-rechecked', 'standard-recipient-qualified',
                        'standard-recipient-rechecked', 'desktop'}}
-    settings = dict(PLAN.settings_checks)
+    settings = dict(base.settings_checks)
     for stage in ('limits-off-settings', 'soft-opening-settings', 'final-child-parent-selected',
                   *(name + '-settings' for name, _access in ROUNDS)):
         settings[stage] = SettingsObservation('existing-fixture-child', False, ('30 minutes',))
     for stage in ('limits-off-page', 'soft-opening-enabled', 'soft-opening-disable-page'):
         settings[stage] = SettingsObservation('existing-fixture-child', True, ('30 minutes',))
     return replace(
-        PLAN, worker_mode='app_rule_changes_disabled_case', screen_tags=screens, phases=phases,
+        base, worker_mode='app_rule_changes_disabled_case', screen_tags=screens, phases=phases,
         settings_checks=settings,
         child_bindings={stage: 'existing' for stage, tag in screens.items()
                         if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
         invocations=tuple(stage for stage in screens if stage in LOGIN_STAGES | extra_login),
-        challenges={**PLAN.challenges,
+        challenges={**base.challenges,
             **{prefix: (account, prefix + '-' + role + '-qualified', prefix + '-' + role + '-rechecked')
                for prefix, (account, _group) in extra_entries.items()
                for role in ({'parent': 'recipient', 'other-child': 'standard-recipient'}[account],)}},
@@ -225,6 +225,8 @@ def limits_off_plan():
 
 
 DISABLED_PLAN = limits_off_plan()
+DISABLED_PATTERN_PLAN = replace(limits_off_plan(PATTERN_PLAN),
+                                worker_mode='app_rule_changes_disabled_pattern_case')
 
 
 class AppRuleChangesJourney(RetainedDesktopJourney, NativePolicyJourney, KioskRequestJourney):
@@ -233,7 +235,7 @@ class AppRuleChangesJourney(RetainedDesktopJourney, NativePolicyJourney, KioskRe
                          parent_expected={}, parent_checks={}, window_checks={},
                          session_checks={**SESSION_CHECKS, **({
                              'soft-opening-disabled-child-entry-guard': 'jordan-session',
-                         } if plan is DISABLED_PLAN else {})})
+                         } if 'soft-opening-preserved' in plan.activity_checks else {})})
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
@@ -266,5 +268,9 @@ def execute_disabled(recorder, context):
     execute(recorder, context, plan=DISABLED_PLAN, binding='disabled-precise')
 
 
+def execute_disabled_pattern(recorder, context):
+    execute(recorder, context, plan=DISABLED_PATTERN_PLAN, binding='disabled-pattern')
+
+
 E2E_CASES = {'enabled-precise': execute, 'enabled-pattern': execute_pattern,
-             'disabled-precise': execute_disabled}
+             'disabled-precise': execute_disabled, 'disabled-pattern': execute_disabled_pattern}

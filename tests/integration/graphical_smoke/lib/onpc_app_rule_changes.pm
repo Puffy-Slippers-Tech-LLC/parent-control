@@ -18,7 +18,7 @@ sub run {
     $disabled //= 0;
     die 'app-transitions:binding' unless (@_ == 4 || @_ == 5 || @_ == 6) && ref($exchange) eq 'CODE'
         && ($match eq 'precise' || $match eq 'pattern')
-        && ($disabled eq '0' || $disabled eq '1') && (!$disabled || $match eq 'precise')
+        && ($disabled eq '0' || $disabled eq '1')
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,75,1';
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'app-rule-changes', review => 0);
     $journey->declare_invocations($declared);

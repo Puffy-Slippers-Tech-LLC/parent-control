@@ -1055,6 +1055,94 @@ def reproduce_native_denial(lease, fixture_selection):
         boundary_operation='native-hard-command-blocked', fixture_selection=selection, timeout=1800)
 
 
+def reproduce_app_rule_return(lease, fixture_selection):
+    """Trace case 16's return-greeter read before retaining the exact scene."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from app_rule_changes_case import AppRuleChangesJourney, DISABLED_PATTERN_PLAN
+    from e2e_fixture_preparation import validate_input
+    from system_fixture_preparation import guest_target
+    from tools.test_storage import named_input
+
+    system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
+                   'fixtures:e2e-installed-clean-baseline-required')
+    selection = validate_input(fixture_selection,
+                              target=guest_target(lease.capture.state['guest']))
+    name, xml, _record = attested_online_snapshot(lease)
+    lease.installed_name, lease.installed_xml = name, xml
+    lease.online_pending, lease.online_bootstrap = False, None
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, AppRuleChangesJourney, DISABLED_PATTERN_PLAN,
+        'soft-opening-disabled-parent-source-greeter', 'app-rule-return', assets=assets,
+        boundary_operation='gdm-returned', fixture_selection=selection, timeout=1800)
+
+
+def app_rule_return_observer(transport):
+    """Add bounded private diagnostics to the unchanged greeter observer."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from ui_observations import UiObservations
+    class GreeterProbe(UiObservations):
+        def call(self, argv, operation, *, input=None):
+            # Diagnostic stderr only; retain the reader's original waits,
+            # input guards and result without changing their deadlines.
+            system.require(operation == 'gdm-returned', 'diagnosis:greeter-probe-binding')
+            marker = b'    ui.branch_owner = branch_owner\n'
+            system.require(input.count(marker) == 1, 'diagnosis:greeter-probe-source')
+            input = input.replace(marker, b'''    from gi.repository import Gio
+    wait_messages = 0
+    query_messages = 0
+    original_call = ui.api.call
+    def diagnostic_call(*arguments, **options):
+        nonlocal query_messages
+        try:
+            return original_call(*arguments, **options)
+        except Exception as error:
+            query_messages += 1
+            if query_messages <= 16:
+                print(json.dumps({'event': 'greeter-query-error',
+                    'interface': arguments[2], 'method': arguments[3],
+                    'error_type': type(error).__name__,
+                    'domain': error.domain if isinstance(error, GLib.Error) else None,
+                    'code': error.code if isinstance(error, GLib.Error) else None,
+                    'remote_error': Gio.DBusError.get_remote_error(error)
+                        if isinstance(error, GLib.Error) else None}, sort_keys=True),
+                    file=sys.stderr, flush=True)
+            raise
+    ui.api.call = diagnostic_call
+    @contextmanager
+    def diagnostic_wait(predicate):
+        def checkpoint(phase, attempt):
+            nonlocal wait_messages
+            if wait_messages >= 16 and phase not in ('ready', 'timeout'):
+                return
+            wait_messages += 1
+            print(json.dumps({'event': 'greeter-wait', 'phase': phase,
+                'attempt': attempt, 'reader': predicate.__qualname__,
+                'incomplete': ui.incomplete_observations[-1:]}, sort_keys=True),
+                file=sys.stderr, flush=True)
+        yield checkpoint
+    ui.wait_trace = diagnostic_wait
+''' + marker)
+            return super().call(argv, operation, input=input)
+    return GreeterProbe(transport)
+
+
+def probe_app_rule_return(lease):
+    """Read the same greeter operation in the retained maintenance scene."""
+    from qualification_storage import recovery_session, allocate
+    with operation('Reading the return greeter in the owned diagnostic scene'), recovery_session(
+            check='probe_app_rule_return', lease=lease, live=True):
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-app-rule-return-probe-'))
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
+        print('app-rule-return-probe: evidence=' + str(directory), flush=True)
+        observed = app_rule_return_observer(connect(lease)).observe('gdm-returned')
+        (directory / 'observed.json').write_text(json.dumps(observed))
+        lease.guard()
+        print('app-rule-return-probe: greeter observed', flush=True)
+
+
 def reproduce_match_editor(lease, fixture_selection):
     """Retain the saved wildcard/hard block before the next editor opening."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1335,6 +1423,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from grant_access_case import GrantAccessJourney, PLAN as GRANT_ACCESS_PLAN
         from match_editor_case import PLAN as MATCH_EDITOR_PLAN
         from policy_edits import AppPolicyJourney
+        from app_rule_changes_case import AppRuleChangesJourney, DISABLED_PATTERN_PLAN
         restoration = (surface == 'baseline-restoration'
             and journey_type is BaselineJourney and plan is PLAN
             and boundary == 'restore-saved' and boundary_operation == 'parent-save-disabled'
@@ -1360,7 +1449,11 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         match_editor = (surface == 'match-editor'
             and journey_type is AppPolicyJourney and plan is MATCH_EDITOR_PLAN
             and boundary == 'rejected-open' and boundary_operation == 'match-open')
-        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or native_denial or grant_logout or match_editor)
+        app_rule_return = (surface == 'app-rule-return'
+            and journey_type is AppRuleChangesJourney and plan is DISABLED_PATTERN_PLAN
+            and boundary == 'soft-opening-disabled-parent-source-greeter'
+            and boundary_operation == 'gdm-returned')
+        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or native_denial or grant_logout or match_editor or app_rule_return)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1403,6 +1496,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             context.fixture_selection = fixture_selection
             context.fixture_subsets = ('native',) if surface in ('native-denial', 'grant-logout', 'match-editor') else ACTIVITY_SUBSETS
             context.fixture_caller = ({'native-denial': None,
+                                       'app-rule-return': 'E2E-006/disabled-pattern',
                                        'match-editor': None,
                                        'grant-logout': 'E2E-005/grant-only-new',
                                        'natural-access': 'E2E-008/fresh-login',
@@ -1508,7 +1602,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                         else:
                             # This diagnostic must retain the already qualified
                             # prompt identity and normal fresh-proof deadline.
-                            observer = (journey.ui if surface == 'delayed-approval'
+                            observer = (app_rule_return_observer(transport)
+                                        if surface == 'app-rule-return' else
+                                        journey.ui if surface == 'delayed-approval'
                                         else UiObservations(transport))
                             observed = observer.observe(boundary_operation, **(
                                 {'child': plan.child_bindings[boundary]}

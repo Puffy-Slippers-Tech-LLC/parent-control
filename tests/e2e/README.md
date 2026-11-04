@@ -1741,6 +1741,18 @@ finish with `tools/test-vm stop`; this route supplies no acceptance credit.
 observer on that retained entry, without launching the fixture or advancing the
 journey.
 
+`tools/test-vm --vm NAME reproduce-app-rule-return` reuses case 16's
+disabled/pattern history through Jordan's Switch User after disabling limits
+and verifying the original activity. At
+`soft-opening-disabled-parent-source-greeter`, it runs the original `gdm-returned`
+observer with bounded private wait/query tracing before closing the worker,
+then retains the guest and `boundary-observation.json` for session probes
+through `exec`. `probe-app-rule-return` reuses that same traced observer against
+the retained scene. Neither route changes its deadline or result checks.
+The same VM-bound fixture selection, sealed worker,
+recipient guards and maintenance cleanup apply; this supplies no acceptance.
+Finish with `tools/test-vm --vm NAME stop` before clean case acceptance.
+
 `tools/test-vm --vm NAME reproduce-match-editor` reuses case 185's
 `AppPolicyJourney` / `match_editor_case.PLAN` through the saved wildcard and
 Hard Blocked choice for Jordan. It attempts the next guarded `match-open`

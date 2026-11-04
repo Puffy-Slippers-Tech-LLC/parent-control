@@ -819,13 +819,14 @@ sub run {
         return;
     }
     if ($ready->{app_rule_changes_case} || $ready->{app_rule_changes_pattern_case}
-        || $ready->{app_rule_changes_disabled_case}) {
+        || $ready->{app_rule_changes_disabled_case} || $ready->{app_rule_changes_disabled_pattern_case}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_app_rule_changes::run(\&exchange, $ready->{invocations},
             $ready->{challenge_bindings}, $ready->{kiosk_request},
-            $ready->{app_rule_changes_pattern_case} ? 'pattern' : 'precise',
-            $ready->{app_rule_changes_disabled_case} ? 1 : 0);
+            ($ready->{app_rule_changes_pattern_case} || $ready->{app_rule_changes_disabled_pattern_case})
+                ? 'pattern' : 'precise',
+            ($ready->{app_rule_changes_disabled_case} || $ready->{app_rule_changes_disabled_pattern_case}) ? 1 : 0);
         return;
     }
     if ($ready->{native_app}) {

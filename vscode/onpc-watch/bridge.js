@@ -394,8 +394,8 @@ class Bridge {
             for (const run of value?.runs || []) {
                 const route = key(id, run.id);
                 this.roots.set(route, { source, id: run.id });
-                runs.push({ ...run, id: route, label: (source.config.transport === 'ssh' ?
-                    `[${source.config.host}]` : '') + run.label,
+                runs.push({ ...run, id: route,
+                    server: source.config.transport === 'ssh' ? source.config.host : 'local',
                     // Keep last observed run contents; disconnected sessions cannot accept input.
                     connected,
                     session_active: connected && run.session_active,

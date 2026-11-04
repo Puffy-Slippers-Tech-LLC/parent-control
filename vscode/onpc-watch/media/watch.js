@@ -47,14 +47,25 @@
 
     function sessionHeading(section) {
         const entry = section.entry;
-        const signature = JSON.stringify([entry.label, entry.status, entry.session, entry.session_active,
+        const signature = JSON.stringify([entry.server, entry.label, entry.status, entry.session, entry.session_active,
             entry.session_number, entry.session_inactive, section.view, section.collapsed]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
         section.tabObserver?.disconnect();
         section.heading.replaceChildren();
         const titlebar = element('span', 'run-titlebar', section.heading);
-        const title = element('span', 'run-label', titlebar);
+        const labels = element('span', 'run-label', titlebar);
+        const server = element('span', 'run-server', labels);
+        const serverIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        serverIcon.setAttribute('viewBox', '0 0 20 20');
+        serverIcon.setAttribute('aria-hidden', 'true');
+        const serverShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        serverShape.setAttribute('d', 'M3 3h14v6H3z M3 11h14v6H3z M6 6h1 M6 14h1');
+        serverIcon.append(serverShape);
+        server.append(serverIcon);
+        element('span', 'run-server-name', server).textContent = entry.server;
+        labels.title = `${entry.server}\n${entry.label}`;
+        const title = element('span', 'run-launcher-label', labels);
         title.textContent = entry.label;
         if (entry.status === 'Stop Requested') {
             const suffix = ` (${entry.status})`;
@@ -65,7 +76,7 @@
             }
         }
         title.title = entry.label;
-        title.classList.toggle('finished', entry.status === 'finished');
+        labels.classList.toggle('finished', entry.status === 'finished');
         const controls = element('span', 'run-controls', titlebar);
         const collapse = element('button', 'run-copy', controls);
         collapse.type = 'button';

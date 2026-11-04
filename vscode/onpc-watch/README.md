@@ -40,10 +40,11 @@ section and all four tabs retain their contents, including while other worktrees
 remain active. Reconnecting restores the latest retained run in each idle
 worktree from its existing run files. Session input is disabled once its owner
 exits. Retention uses existing run files and reader memory; it adds no disk persistence.
-Each title, e.g. `[main] fix-tests` locally or `[myserver][main] fix-tests` remotely,
+Each title shows two rows: a server icon and server name (`local` or the SSH host)
+above the branch and launcher, e.g. `[test] fix-tests`. It
 keeps **Status**, **Launcher**, **Error** and **Session**
-links at its right end. When narrowed, the title truncates down to five characters
-plus an ellipsis, e.g. `[work...`. Further narrowing moves the title and action
+links at its right end. When narrowed, each title row truncates with an ellipsis.
+Further narrowing moves the title and action
 buttons onto the first row and all tabs onto the second row. As that row narrows,
 the tabs wrap onto additional rows until they stack vertically. Wrapped tabs have
 equal widths and centered text. The left panel's minimum width fits both the
@@ -280,7 +281,7 @@ up; Watch never prompts for credentials. Independent clones require explicit
 sources. Set
 `onpc.watch.sources` in VS Code user or workspace settings to replace that default
 or combine sources. Source IDs must be unique and stable; labels identify hosts
-in viewer tabs; remote run titles use the SSH host before the branch name.
+in viewer tabs; run titles show the SSH host or `local` above the branch name.
 Footer hosts always follow `config/environment.json`.
 Click Reconnect after editing.
 

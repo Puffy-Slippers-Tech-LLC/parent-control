@@ -737,6 +737,17 @@ commit or push failures retain the accepted result; a fresh run retries close-ou
 without repeating unaffected acceptance
 or creating a duplicate completion commit. Missing upstream configuration or
 credentials is a close-out failure; the launcher never changes Git configuration.
+Transient Git transport/service failures use shared backoff: 30 seconds, then
+60, 120, 240 and at most 300 seconds between attempts. The retry window ends
+three hours after the first transient failure, including time spent in retries;
+retried controller-owned network commands are limited to the remaining window.
+Healthy initial operations have no new total-duration limit. Commit-skill retries
+resume the same durable journal and
+pinned commit, preserving accepted work and completed destinations. Cancellation
+still stops retry backoff, including boundary pulls and verification fetches.
+Explicit permission/authentication denials, missing
+configuration, ownership problems and merge conflicts do not trigger outage
+retries. Push races retain their existing bounded reconciliation policy.
 Commit recovery checks the retained branch and upstream before pushing. A legacy
 pending commit without that identity requires explicit Git reconciliation.
 The skill keeps a durable per-close-out Git journal under the retained run,

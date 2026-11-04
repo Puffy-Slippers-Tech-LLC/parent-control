@@ -1,15 +1,18 @@
 """Shared literal-path Git close-out and identity-checked commit recovery."""
 
 from contextlib import nullcontext
+from functools import partial
 import fcntl
 import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import stat
 import subprocess
 import sys
+import time
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -106,7 +109,7 @@ def pull_before_commit(root, run, state, *, git=None):
     place for a scoped coordinator reconciliation. Never pull during recovery
     of an existing commit intent, whose exact immediate parent must be retained.
     """
-    git = git or git_output
+    git = git_for_run(git or git_output, run)
     identity, head = validate_pull_identity(root, state, git=git)
     intent = state.get('pull_intent')
     if state.get('commit_intent') is not None:
@@ -297,10 +300,106 @@ def validate_closeout_ownership(root, paths, state):
     retire(state)  # The caller checkpoints this before any Git write.
 
 
-def git_output(root, *arguments, check=True):
-    return subprocess.run(['git', *arguments], cwd=root,
-                          env=dict(launcher.environment(), LC_ALL='C', GIT_TERMINAL_PROMPT='0'),
-                          stdin=subprocess.DEVNULL, capture_output=True, text=True, check=check)
+GIT_RETRY_WINDOW = 3 * 60 * 60
+GIT_RETRY_INITIAL = 30
+GIT_RETRY_CAP = 5 * 60
+
+
+def transient_git_failure(diagnostic):
+    """Retry transport outages, never authorization, conflicts or push races."""
+    diagnostic = diagnostic.lower()
+    if any(text in diagnostic for text in (
+            'permission denied', 'access denied', 'authentication failed',
+            'authorization failed', 'repository not found', 'could not read username',
+            'terminal prompts disabled', 'operation not permitted', 'approval denied',
+            'after three hours')):
+        return False
+    if re.search(r'\b(?:http(?:/[0-9.]+)?(?: error)?|returned error:)\s+(?:401|403)\b',
+                 diagnostic):
+        return False
+    return any(text in diagnostic for text in (
+        'could not resolve host', 'could not resolve hostname',
+        'temporary failure in name resolution', 'failed to connect',
+        'connection refused', 'connection reset', 'connection timed out',
+        'connection closed by remote host', 'network is unreachable',
+        'remote end hung up unexpectedly', 'unexpected disconnect',
+        'tls connection was non-properly terminated', 'ssl connection timeout',
+        'http 500', 'http 502', 'http 503', 'http 504',
+        'returned error: 500', 'returned error: 502', 'returned error: 503',
+        'returned error: 504', 'internal server error', 'bad gateway',
+        'service unavailable', 'gateway timeout', 'git transport timed out'))
+
+
+def retry_git_transport(operation, *, deadline=None, cancelled=None):
+    """Retry the same recoverable operation for three hours from first failure.
+
+    Operations receive the deadline so an in-flight retry cannot extend it.
+    Exceptions unrelated to transport are passed straight to existing recovery.
+    """
+    delay = GIT_RETRY_INITIAL
+    while True:
+        if cancelled is not None and cancelled():
+            raise launcher.Stopped()
+        if deadline is not None and time.monotonic() >= deadline:
+            raise ValueError('Git transport recovery expired after three hours; retain Git progress')
+        try:
+            return operation(deadline)
+        except (subprocess.CalledProcessError, ValueError) as error:
+            diagnostic = (str(error) + '\n' + (error.stderr or '') + '\n'
+                          + (error.stdout or '') if isinstance(error, subprocess.CalledProcessError)
+                          else str(error))
+            if not transient_git_failure(diagnostic):
+                raise
+            now = time.monotonic()
+            if deadline is None:
+                deadline = now + GIT_RETRY_WINDOW
+            remaining = deadline - now
+            if remaining <= 0:
+                raise ValueError('Git transport still unavailable after three hours: '
+                                 + diagnostic) from error
+            pause = min(delay, remaining)
+            print(f'Git transport unavailable; retrying in {pause:.0f}s '
+                  f'({remaining:.0f}s remaining in three-hour window).', flush=True)
+            wake = time.monotonic() + pause
+            while time.monotonic() < wake:
+                if cancelled is not None and cancelled():
+                    raise launcher.Stopped()
+                time.sleep(min(1, max(0, wake - time.monotonic())))
+            if time.monotonic() >= deadline:
+                raise ValueError('Git transport still unavailable after three hours: '
+                                 + diagnostic) from error
+            delay = min(delay * 2, GIT_RETRY_CAP)
+
+
+def git_output(root, *arguments, check=True, retry_deadline=None, cancelled=None):
+    network = arguments[0] in ('fetch', 'pull', 'push', 'ls-remote')
+
+    def execute(deadline):
+        timeout = max(.001, deadline - time.monotonic()) if deadline is not None else None
+        try:
+            result = subprocess.run(['git', *arguments], cwd=root,
+                env=dict(launcher.environment(), LC_ALL='C', GIT_TERMINAL_PROMPT='0'),
+                stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                timeout=timeout if network else None)
+        except subprocess.TimeoutExpired as error:
+            raise ValueError('Git transport timed out') from error
+        if network and result.returncode and transient_git_failure(result.stderr + result.stdout):
+            result.check_returncode()
+        return result
+
+    result = (retry_git_transport(execute, deadline=retry_deadline, cancelled=cancelled)
+              if network else execute(None))
+    if check:
+        result.check_returncode()
+    return result
+
+
+def git_for_run(git, run, *, deadline=None):
+    """Carry run cancellation and the outage deadline through shared Git calls."""
+    if git is git_output or isinstance(git, partial) and git.func is git_output:
+        return partial(git_output, cancelled=lambda: (run / 'cancel').exists(),
+                       retry_deadline=deadline)
+    return git
 
 
 def closeout_lock(root, run, state):
@@ -327,13 +426,17 @@ def commit_push_propagate(root, run, state, paths, message, *, git=None):
         if intent is None and state.get('worktree_propagation'):
             raise ValueError('pending propagation has no commit intent; retain it for Git reconciliation')
         if intent is None or intent.get('engine') == 'skill':
-            return _commit_with_skill(root, run, state, paths, message, git=git)
-        return _legacy_commit_push_propagate(root, run, state, paths, message, git=git)
+            return retry_git_transport(lambda deadline: _commit_with_skill(
+                root, run, state, paths, message, git=git, retry_deadline=deadline),
+                cancelled=lambda: (run / 'cancel').exists())
+        return _legacy_commit_push_propagate(root, run, state, paths, message,
+                                             git=git_for_run(git, run))
 
 
-def _commit_with_skill(root, run, state, paths, message, *, git):
+def _commit_with_skill(root, run, state, paths, message, *, git, retry_deadline=None):
     """Keep acceptance in the controller and Git ownership in the commit skill."""
     from launcher_worktrees import commit_skill_targets
+    git = git_for_run(git, run, deadline=retry_deadline)
     skill = root / '.agents/skills/commit/SKILL.md'
     if not skill.is_file():
         raise ValueError('commit skill is missing: ' + str(skill))
@@ -363,6 +466,10 @@ def _commit_with_skill(root, run, state, paths, message, *, git):
 The user authorized the full skill workflow. Do not start another launcher.
 The controller holds the repository Git transaction lock. Do not acquire it
 again or invoke private launcher Git helpers. Perform Git operations directly.
+On a transient Git network/service failure, journal progress and return blocked
+with the exact Git diagnostic. The controller owns timed outage retries using
+this same journal; never create a second completion commit. Permission or
+authentication denials are blockers, not outage evidence.
 Accepted task scope and original branch identity:
 {json.dumps(intent, indent=2)}
 Session ownership and acceptance context (read only): {run / 'checkpoint.json'}
@@ -398,14 +505,19 @@ blocker and completed destinations. Do not modify the controller checkpoint.
                 pass_fds=(owner, *launcher.scratch_descriptors(), *repair_descriptors()),
                 start_new_session=True) as child:
             signalled = False
+            expired = False
             while True:
                 try:
                     status = child.wait(timeout=0.2)
                     break
                 except subprocess.TimeoutExpired:
-                    if (run / 'cancel').exists() and not signalled:
+                    expired = retry_deadline is not None and time.monotonic() >= retry_deadline
+                    if ((run / 'cancel').exists() or expired) and not signalled:
                         child.send_signal(signal.SIGTERM)
                         signalled = True
+        if expired:
+            raise ValueError('Git transport retry window expired after three hours; '
+                             'resume the retained Git journal')
         if (run / 'cancel').exists():
             raise launcher.Stopped()
         if status:

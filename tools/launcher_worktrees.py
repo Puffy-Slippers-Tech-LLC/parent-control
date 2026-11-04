@@ -20,7 +20,7 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detached_launcher as launcher
-from launcher_git import git_output, worktree_fingerprint
+from launcher_git import git_for_run, git_output, worktree_fingerprint
 
 
 _held = threading.local()
@@ -139,6 +139,7 @@ def pull_at_boundary(root, run, state, *, git=git_output, checkpoint='checkpoint
     Retain the transaction inside the workflow checkpoint for ordinary recovery.
     The same stash/merge/restore resolver owns both kinds of synchronization.
     """
+    git = git_for_run(git, run)
     if not state.get('upstream_pull') and not (root / 'config/environment.json').exists():
         return
     intent = state.get('commit_intent', {})

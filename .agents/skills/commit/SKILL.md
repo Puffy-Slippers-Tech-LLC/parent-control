@@ -1,9 +1,9 @@
 ---
 name: commit
-description: Commit and push current work, then merge the pushed source commit into every branch configured in config/environment.json and push each destination. Use when the user requests this commit-and-propagate workflow.
+description: Commit and push changes from the current session, then merge the pushed source commit into every branch configured in config/environment.json and push each destination. Use when the user requests this commit-and-propagate workflow.
 ---
 
-Commit and push the current work, then merge the exact pushed source HEAD into
+Commit and push changes from the current session, then merge the exact pushed source HEAD into
 every other configured branch and push each destination. Invoking this skill
 requests the full workflow, subject to existing execution permissions.
 
@@ -15,9 +15,14 @@ requests the full workflow, subject to existing execution permissions.
    [config/environment.json](../../../config/environment.json) to resolve the
    source and every destination. Include branches on other hosts regardless of
    their VM scheduling enabled flag; host placement does not authorize SSH.
-3. Stage the requested work, preserving unrelated edits. Ask if the intended
-   scope is ambiguous. Create a descriptive commit, or use the existing HEAD
-   when there are no changes to commit.
+3. Commit only changes made for the current session's work. Use the session
+   history and diffs to identify them; a modified or staged file is not by itself
+   evidence that all its changes belong to this session. Stage only the relevant
+   hunks, including within files shared with unrelated work. Leave all other
+   staged, unstaged and untracked changes intact and out of the commit. Ask only
+   when ownership cannot be determined safely. Review the commit's exact scope
+   before creating a descriptive commit, or use the existing HEAD when there
+   are no current-session changes to commit.
 4. Fetch and reconcile remote state without discarding work or rewriting
    published history. Push the source and record its exact successfully pushed
    HEAD. Merge that pinned commit into every other configured destination and

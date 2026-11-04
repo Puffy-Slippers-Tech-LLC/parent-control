@@ -3363,11 +3363,14 @@ authentication, and prevents reopening, editing or a second Send from hiding
 the state a scenario is supposed to inspect. FLOW07 now ends after rejection;
 FLOW05 owns the later approval. REQUEST06 owns only the current soft-app control; future mute reuses UI17 after its separate feature gate.
 
-FLOW01's pending retained-window and other-parent bindings must reach Screen
-Limits with PARENT04 before their PARENT03 settings capture if the remembered
-window is on App Limits. Its established fresh/new binding still uses the
-initial Screen Limits page. A selected child is not proof that the controls
-being read are showing. Qualify the second administrator's own desktop/window
+After explicit child selection in an open or reopened Parent window, reach Screen
+Limits with PARENT04 before PARENT03 if the current page is App Limits.
+`journey_blocks.parent_selection(screen_limits=True)` declares this navigation
+with the shared `onpc_parent::select_child` worker; callers keep their subsequent
+page and persistence assertions. FLOW01's pending retained-window and other-parent
+bindings have the same page requirement. Its established fresh/new binding still
+uses the initial Screen Limits page. A selected child is not proof that the
+controls being read are showing. Qualify the second administrator's own desktop/window
 with E2E-051; selecting that administrator in an approval prompt does not qualify
 management entry under that account.
 

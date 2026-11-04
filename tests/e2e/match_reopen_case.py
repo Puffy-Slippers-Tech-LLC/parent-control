@@ -2,7 +2,7 @@
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (desktop_entry, fresh_desktop, native_blocked_app, native_usable_app,
-                            parent_management, parent_reopen, prefixed_stages)
+                            parent_management, parent_reopen, parent_selection, prefixed_stages)
 from match_rules import match_edit
 from native_fixtures import fixture_actions
 from parent_reports import report_close
@@ -17,11 +17,8 @@ SETUP = {
     'saved-settings': 'ui:existing-returned', 'apps-page': 'ui:existing-apps',
     'initial-rule': 'ui:match-row',
 }
-# Selection keeps the current page; expose Screen Limits before its settings read.
 SELECT_JORDAN = {
-    'child-picker-opened': 'ui:existing-child-picker-opened',
-    'child-choice-highlighted': 'ui:existing-child-choice-highlighted',
-    'parent-selected': 'ui:discovery-ready',
+    **parent_selection(child='existing', screen_limits=True),
     'apps-page': 'ui:existing-apps',
 }
 CUSTOM = {
@@ -36,10 +33,7 @@ CUSTOM = {
 PRECISE = {
     **match_edit('match-soft-precise', 'precise',
                  editor=('precise-open', 'precise-read'), row='precise-rule'),
-    **prefixed_stages('select-riley', {
-        'child-picker-opened': 'ui:child-picker-opened',
-        'child-choice-highlighted': 'ui:child-choice-highlighted',
-        'parent-selected': 'ui:parent-screen-page'}),
+    **prefixed_stages('select-riley', parent_selection(screen_limits=True)),
     **prefixed_stages('reselect-jordan', SELECT_JORDAN),
     'reselected-suggested': 'ui:match-soft-row',
     **match_edit('match-soft-precise', 'before-reopen',

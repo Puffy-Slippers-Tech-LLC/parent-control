@@ -34,6 +34,14 @@ One `native-runtime` build per target supplies finite subsets and their declared
 unions. Subsets select files from that build; guests receive only the selected
 closure.
 
+Review wildcard fixtures as a directory group, including nonmatching executables
+that need allow rules. A space-bearing nonmatch can make a wildcard unsafe even
+when the intended target matches correctly. Keep unrelated special-path fixtures
+in their declared separate directory, as in the
+[native profile](E2E-Building-Blocks.md#native-fixture-preparation), rather than
+broadening the tested wildcard or removing the nonmatching control. Keep deliberate
+unsafe-directory rejection inputs distinct from ordinary valid-match setup.
+
 ## Bundle identity and publication
 
 Native runtime, complete artifacts and packages have separate source closures

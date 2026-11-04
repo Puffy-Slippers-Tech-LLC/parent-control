@@ -2,7 +2,7 @@
 from accessible_ui import MATCH_APP, MATCH_RULES
 from access_choices import AccessChoiceJourney
 from installed_journey import JourneyPlan
-from journey_blocks import fresh_desktop, parent_management
+from journey_blocks import fresh_desktop, parent_management, parent_selection
 from native_fixtures import fixture_actions
 from policy_edits import policy_edit
 
@@ -27,9 +27,7 @@ EDITS = {
 }
 SCREENS = {
     **fresh_desktop('parent'), **parent_management(),
-    'child-picker-opened': 'ui:existing-child-picker-opened',
-    'child-choice-highlighted': 'ui:existing-child-choice-highlighted',
-    'parent-selected': 'ui:existing-returned', 'apps-page': 'ui:existing-apps',
+    **parent_selection(child='existing'), 'apps-page': 'ui:existing-apps',
     'initial-match': 'ui:match-row', 'initial-access': 'ui:access-row', **EDITS,
 }
 PLAN = JourneyPlan(

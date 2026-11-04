@@ -1,6 +1,6 @@
 """Finite match-editor qualifications; callers share public operations/comparisons."""
 from installed_journey import JourneyPlan
-from journey_blocks import fresh_desktop, parent_management
+from journey_blocks import fresh_desktop, parent_management, parent_selection
 from match_rules import MatchRuleJourney, MATCH_RULES
 from native_fixtures import fixture_actions
 
@@ -17,9 +17,7 @@ EDIT_SCREENS = {
 }
 SCREENS = {
     **fresh_desktop('parent'), **parent_management(),
-    'child-picker-opened': 'ui:existing-child-picker-opened',
-    'child-choice-highlighted': 'ui:existing-child-choice-highlighted',
-    'parent-selected': 'ui:existing-returned',
+    **parent_selection(child='existing'),
     'apps-page': 'ui:existing-apps', 'initial-rule': 'ui:match-row',
     **EDIT_SCREENS,
 }
@@ -39,9 +37,7 @@ PLAN = JourneyPlan(
 
 EDITOR_SCREENS = {
     **fresh_desktop('parent'), **parent_management(),
-    'child-picker-opened': 'ui:existing-child-picker-opened',
-    'child-choice-highlighted': 'ui:existing-child-choice-highlighted',
-    'parent-selected': 'ui:existing-returned',
+    **parent_selection(child='existing'),
     'apps-page': 'ui:existing-apps', 'initial-rule': 'ui:match-row',
 }
 EDITOR_EDITS = {

@@ -516,17 +516,31 @@ def parent_reopen():
     }
 
 
-def parent_management(*, child='child'):
-    """PARENT01/02: direct command, owned window and explicit child selection."""
-    require(child in ('child', 'existing'), 'journey:parent-child')
+def parent_selection(*, child='child', screen_limits=False):
+    """PARENT02, optionally reaching Screen Limits before reading settings.
+
+    Selection alone preserves the current page. Callers own expected settings,
+    later page navigation and any persistence comparisons.
+    """
+    require(child in ('child', 'existing') and type(screen_limits) is bool,
+            'journey:parent-child')
     existing = child == 'existing'
     return {
-        'parent-command': 'ui:parent-command-launch',
-        'parent-window': 'ui:parent-window',
         'child-picker-opened': 'ui:existing-child-picker-opened' if existing else 'ui:child-picker-opened',
         'child-choice-highlighted': ('ui:existing-child-choice-highlighted' if existing
                                      else 'ui:child-choice-highlighted'),
-        'parent-selected': 'ui:discovery-ready' if existing else 'ui:parent-selected',
+        'parent-selected': ('ui:discovery-ready' if existing else 'ui:parent-screen-page')
+                           if screen_limits else
+                           ('ui:existing-returned' if existing else 'ui:parent-selected'),
+    }
+
+
+def parent_management(*, child='child'):
+    """PARENT01/02: direct command, owned window and explicit child selection."""
+    return {
+        'parent-command': 'ui:parent-command-launch',
+        'parent-window': 'ui:parent-window',
+        **parent_selection(child=child, screen_limits=child == 'existing'),
     }
 
 

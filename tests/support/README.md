@@ -304,6 +304,13 @@ names for the shared worker. Approval qualifications use this argument instead
 of copying and overwriting the child-selection map. Request choices, allowance
 values, recorder phases and assertions stay with their callers.
 
+For selection in an open Parent window, reuse `journey_blocks.parent_selection`
+with `onpc_parent::select_child`. Selection preserves the current page;
+`screen_limits=True` explicitly reaches Screen Limits before its settings read.
+Use it after reopening or switching from App Limits, then let the caller declare
+its next page and exact saved-state comparisons. Match-editor qualifications
+share the same selection fragment without changing their entry assertions.
+
 Parent and child returns to the greeter reuse
 `onpc_desktop_session::switch_user` with the caller's scoped desktop receipt.
 The declared system operation binds the account; the helper consumes that

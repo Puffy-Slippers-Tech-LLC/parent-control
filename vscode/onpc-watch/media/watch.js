@@ -18,7 +18,6 @@
     let split = Number.isFinite(saved?.split) ? saved.split : 30;
     let pending = Promise.resolve();
     const resourceSamples = new Map();
-    let sessionRoot = '';
     const actions = new Map();
     const expandedRunTimes = new Set();
     const selectedRunTimes = new Set();
@@ -31,19 +30,16 @@
     setInterval(() => runs.querySelectorAll('[data-deadline]').forEach(countdown), 1000);
 
     function runView(root, view) {
-        if (sessionRoot === root || view === 'session') {
-            sessionRoot = view === 'session' ? root : '';
-            vscode.postMessage({ type: 'sessionView', root: sessionRoot });
-        }
-        for (const [id, section] of sections) {
-            if (id === root) section.view = view;
-            else if (view === 'session' && section.view === 'session') section.view = 'status';
-            section.content.hidden = section.view !== 'status';
-            section.launcher.hidden = section.view !== 'launcher';
-            section.errorStatus.hidden = section.view !== 'error';
-            section.session.hidden = section.view !== 'session';
-            sessionHeading(section);
-        }
+        const section = sections.get(root);
+        if (!section) return;
+        section.view = view;
+        section.content.hidden = view !== 'status';
+        section.launcher.hidden = view !== 'launcher';
+        section.errorStatus.hidden = view !== 'error';
+        section.session.hidden = view !== 'session';
+        sessionHeading(section);
+        vscode.postMessage({ type: 'sessionView', roots: [...sections]
+            .filter(([, section]) => section.view === 'session').map(([id]) => id) });
     }
 
     function sessionHeading(section) {
@@ -269,7 +265,7 @@
         section.working.hidden = !view.working;
         section.model.textContent = view.model;
         section.toggle.setAttribute('aria-checked', String(view.simplified));
-        section.toggle.disabled = !section.entry.session || !section.entry.connected;
+        section.toggle.disabled = !section.entry.session || !section.entry.connected || Boolean(view.unavailable);
         section.input.disabled = !view.input_enabled || !section.entry.connected;
     }
 

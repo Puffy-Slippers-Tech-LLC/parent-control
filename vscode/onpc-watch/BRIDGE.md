@@ -47,6 +47,12 @@ reader's filesystem layout, Python modules, libvirt or Unix-socket protocol.
 `scope` is `all` or a checkout ID. `selected` is `all`, `run-time` or a viewer ID. An unknown
 selection means no viewer pixels are requested (metadata still returns). An empty
 `session_root` requests no transcript body; otherwise it identifies a run section.
+Adapters advertising `capabilities.session_roots: true` also accept optional
+`session_roots`, an array of run IDs requesting all their transcript bodies in
+the same snapshot. Both selectors are combined. The bridge uses this capability
+for independent Session panels. Older adapters receive one open run
+through `session_root`; other open Session panels show an update notice with
+input disabled.
 `reset` requests full images for the visible selection. IDs are opaque strings;
 the adapter may use paths internally, but the renderer must not interpret them.
 IDs are nonempty strings of at most 4096 characters, unique within each array.

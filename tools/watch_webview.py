@@ -255,8 +255,11 @@ class Viewer:
         except (OSError, ValueError) as error:
             return dict(error=str(error))
 
-    def run_status(self, session_root=None):
+    def run_status(self, session_root=None, session_roots=()):
         from launcher_render import clean
+        session_roots = set(session_roots)
+        if session_root:
+            session_roots.add(session_root)
         sections = []
         workflow_roots = {run: root for root in self.roots
                           for run, _name in active_launchers(root, self.launcher_reader,
@@ -423,7 +426,7 @@ class Viewer:
                     category_failures=category_failures, error_log=error_log,
                     session_waiting=waiting)
             session_view = None
-            if str(root) == session_root and session.panel:
+            if str(root) in session_roots and session.panel:
                 session_view = session.panel.webview()
                 session_view['rows'] = status_spans(session_view.pop('lines'))
                 session_view['input_enabled'] = session.input_enabled
@@ -591,7 +594,7 @@ class Viewer:
         valid_ids = {entry_id(Path(root), key) for root, key in scoped}
         if selected not in valid_ids and selected != 'run-time':
             selected = 'all'
-        runs = self.run_status(request.get('session_root'))
+        runs = self.run_status(request.get('session_root'), request.get('session_roots', ()))
         # Follow the displayed terminal sections, including changes on refresh.
         # Checkouts without a displayed run follow in discovery order.
         ordered_roots = dict.fromkeys([section['checkout'] for section in runs] +
@@ -637,7 +640,8 @@ class Viewer:
             self.run_times = None
             self.run_times_scope = None
             self.timing_records.clear()
-        return dict(protocol=1, capabilities=dict(sessions=True, artifacts=True, delete_run_times=True),
+        return dict(protocol=1, capabilities=dict(sessions=True, session_roots=True,
+                    artifacts=True, delete_run_times=True),
                     scope=scope, selected=selected, entries=values,
                     run_times=run_times,
                     runs=runs, session_result=result,
@@ -689,9 +693,12 @@ def main():
                 print(json.dumps(dict(protocol=1, artifact_result=viewer.artifact(artifact)),
                                  separators=(',', ':')), flush=True)
                 continue
-            if (set(request) - {'protocol', 'scope', 'selected', 'reset', 'session_root', 'session_action'} or
+            if (set(request) - {'protocol', 'scope', 'selected', 'reset', 'session_root', 'session_roots', 'session_action'} or
                     any(type(request.get(key, 'all')) is not str for key in ('scope', 'selected')) or
                     type(request.get('session_root', '')) is not str or
+                    type(request.get('session_roots', [])) is not list or
+                    any(type(root) is not str or not 0 < len(root) <= 4096
+                        for root in request.get('session_roots', [])) or
                     type(request.get('reset', False)) is not bool):
                 raise ValueError('watch: invalid request')
             action = request.get('session_action')

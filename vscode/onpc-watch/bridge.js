@@ -338,13 +338,16 @@ class Bridge {
     }
 
     tick(request) {
+        this.sessionRoots = new Set(request.session_roots || (request.session_root ? [request.session_root] : []));
         for (const source of this.resourceSources) {
             if (this.sources.includes(source)) continue;
             try { source.tick({}); }
             catch (error) { source.fail(error.message); }
         }
         for (const source of this.sources) {
-            const route = this.roots.get(request.session_root);
+            const sessionRoots = [...this.sessionRoots].map(id => this.roots.get(id))
+                .filter(route => route?.source === source).map(route => route.id);
+            source.sessionRoot = sessionRoots.at(-1) || '';
             const scope = this.roots.get(request.scope);
             // Selection is always opaque to the renderer, decoded only here.
             const entry = source.snapshot?.entries.find(entry => key(source.config.id, entry.id) === request.selected);
@@ -352,7 +355,8 @@ class Bridge {
                 source.tick({ scope: scope?.source === source ? scope.id : 'all',
                     selected: scope && scope.source !== source ? '__hidden__' :
                         entry?.id || (['all', 'run-time'].includes(request.selected) ? request.selected : '__hidden__'),
-                    session_root: route?.source === source ? route.id : '' });
+                    ...(source.snapshot?.capabilities.session_roots === true ?
+                        { session_roots: sessionRoots } : { session_root: source.sessionRoot }) });
             } catch (error) { source.fail(error.message); }
         }
     }
@@ -403,6 +407,10 @@ class Bridge {
             for (const run of value?.runs || []) {
                 const route = key(id, run.id);
                 this.roots.set(route, { source, id: run.id });
+                const sessionView = this.sessionRoots?.has(route) &&
+                    value.capabilities.session_roots !== true && run.id !== source.sessionRoot ?
+                    { rows: [[{ text: 'Update this source adapter to view multiple sessions.' }]],
+                        input_enabled: false, unavailable: true, simplified: false, model: '' } : run.session_view;
                 runs.push({ ...run, id: route,
                     launcher_controls: connected && run.launcher_controls === true,
                     transport: source.config.transport,
@@ -411,9 +419,9 @@ class Bridge {
                     connected,
                     session_active: connected && run.session_active,
                     session_waiting: connected && run.session_waiting,
-                    session_view: run.session_view && { ...run.session_view,
-                        input_enabled: connected && run.session_view.input_enabled,
-                        rows: rows(run.session_view.rows) },
+                    session_view: sessionView && { ...sessionView,
+                        input_enabled: connected && sessionView.input_enabled,
+                        rows: rows(sessionView.rows) },
                     rows: rows(run.rows), error_rows: rows(run.error_rows) });
             }
             for (const entry of value?.entries || []) {

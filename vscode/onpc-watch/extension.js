@@ -96,7 +96,7 @@ function activate(context) {
         let bridge, timer, ready = false, rendering = false, renderedRevision = -1;
         let renderNumber = 0;
         let selection = { scope: 'all', selected: 'all' }, reset = true, disposed = false;
-        let sessionRoot = '';
+        let sessionRoots = new Set();
         let sessions = new Map();
         let runRoots = new Set();
         const notifications = new Set();
@@ -131,7 +131,7 @@ function activate(context) {
         function poll() {
             if (!bridge || !ready || !panel.visible || rendering) return;
             // Sources advance independently, with the existing render backpressure.
-            bridge.tick({ ...selection, session_root: sessionRoot });
+            bridge.tick({ ...selection, session_roots: [...sessionRoots] });
             void publish();
         }
         async function publish() {
@@ -144,6 +144,7 @@ function activate(context) {
                 reset = false;
                 renderedRevision = current.revision;
                 runRoots = new Set(snapshot.runs.map(entry => entry.id));
+                sessionRoots = new Set([...sessionRoots].filter(id => runRoots.has(id)));
                 sessions = new Map(snapshot.runs.filter(entry => entry.session)
                     .map(entry => [entry.id, entry.session]));
                 const id = ++renderNumber;
@@ -169,6 +170,7 @@ function activate(context) {
         }
         const messages = panel.webview.onDidReceiveMessage(message => {
             if (message?.type === 'ready') {
+                sessionRoots.clear();
                 ready = true;
                 rendering = false;
                 reset = true;
@@ -201,8 +203,9 @@ function activate(context) {
                 void vscode.env.clipboard.writeText(message.text).then(undefined,
                     error => vscode.window.showErrorMessage(`Cannot copy tab content: ${error.message}`));
             } else if (message?.type === 'sessionView' &&
-                       (message.root === '' || runRoots.has(message.root))) {
-                sessionRoot = message.root;
+                       Array.isArray(message.roots) && message.roots.length <= runRoots.size &&
+                       message.roots.every(id => runRoots.has(id))) {
+                sessionRoots = new Set(message.roots);
                 poll();
             } else if (message?.type === 'sessionAction' &&
                        typeof message.id === 'string' && message.id.length > 0 && message.id.length <= 128) {
@@ -213,7 +216,7 @@ function activate(context) {
                        ['send', 'simplified', 'extend'].includes(message.kind) &&
                        typeof message.session === 'string' &&
                        sessions.get(message.root) === message.session &&
-                       (message.root === sessionRoot || message.kind === 'extend')) {
+                       (sessionRoots.has(message.root) || message.kind === 'extend')) {
                     bridge.action({ root: message.root, session: message.session, question: message.question,
                         kind: message.kind, text: message.text, id: message.id });
                 } else if (bridge) {

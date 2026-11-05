@@ -72,6 +72,9 @@ title switches to the recorded final status when the launcher exits.
 the launcher terminal output, **Error** shows the shared launcher's **Last Error**
 and **Status** fields with the same colors and elapsed ages, and **Session** opens
 the session transcript and chat.
+Each launcher's tab selection is independent: opening **Session** in another
+worktree leaves existing Session panels open and refreshing. Chat stays routed
+to the session displayed in its own panel.
 For `fix-tests`, the link shows **Session 1**, **Session 2**, and so on for
 successive agent sessions repairing the same case. The number remains visible
 between sessions and during verification, with strikethrough while the session is

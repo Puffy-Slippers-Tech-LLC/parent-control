@@ -755,7 +755,9 @@ with child UI coverage; ordinary later entries use `command`.
 
 ### E2E-013
 
-Implementation status: All cases pending.
+Case 34 uses `overlay_recovery.PLAN` / `onpc_overlay_recovery::run` with
+30 minutes of daily time, the fixed Riley/Jamie request and the shared immutable
+failure-effect comparisons. Case 36's kiosk composition remains pending.
 
 **Authentication denial and cancellation retry.** Cases 34 (child-overlay) and 36 (kiosk).
 

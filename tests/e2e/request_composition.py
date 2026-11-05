@@ -141,7 +141,7 @@ class GrantAppEffectsJourney(KioskRequestJourney, AccessChoiceJourney):
 
     def __init__(self, context, progress, plan, *, settings, app_rules,
                  approval_stage, policy_reads, actions=None, approval_stages=None,
-                 negative_estimates=None, countdown_balances=()):
+                 negative_estimates=None, countdown_balances=(), daily_seconds=0):
         super().__init__(context, progress, plan, actions=actions)
         stages = list(plan.screen_tags)
         require(approval_stage in stages and type(policy_reads) is dict
@@ -156,6 +156,9 @@ class GrantAppEffectsJourney(KioskRequestJourney, AccessChoiceJourney):
                     for stage, binding in policy_reads.items()),
                 'grant-effects:comparison-plan')
         self.effects_settings = deepcopy(settings)
+        require(type(daily_seconds) is int and daily_seconds in (0, 1800),
+                'grant-effects:daily-profile')
+        self.effects_daily_seconds = daily_seconds
         self.effects_rules = deepcopy(app_rules)
         self.effects_approval_stage = approval_stage
         self.effects_reads = dict(policy_reads)
@@ -255,7 +258,9 @@ class GrantAppEffectsJourney(KioskRequestJourney, AccessChoiceJourney):
         balances = value['balances']
         require(balances['child'] == self.effects_settings['child'], 'grant-effects:wrong-child')
         daily, grant, total = (balances[key]['seconds'] for key in ('daily', 'one_time', 'total'))
-        require(daily == 0 and total == grant and
+        require((daily == 0 if self.effects_daily_seconds == 0 else
+                 0 < daily <= self.effects_daily_seconds)
+                and total == max(daily, grant) and
                 (grant > 0 if mode == 'positive' else grant == 0),
                 'grant-effects:grant-only-balance')
         if mode == 'positive':
@@ -281,7 +286,8 @@ class GrantAppEffectsJourney(KioskRequestJourney, AccessChoiceJourney):
             require(0 <= elapsed <= 600 and expected - elapsed - precision <= grant
                     <= expected + precision, 'grant-effects:elapsed-grant')
         observed.setdefault('comparison', {}).update(
-            grant_only_balance=True, saved_app_rules=True,
+            **({'grant_only_balance': True} if self.effects_daily_seconds == 0 else
+               {'positive_daily_balance': True}), saved_app_rules=True,
             **({'unchanged_saved_policy': True} if before is not None else {}),
             **({'positive_grant_with_elapsed_bounds': True} if mode == 'positive' else
                {'zero_grant': True}))

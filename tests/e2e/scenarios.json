@@ -1008,7 +1008,7 @@
         "rationale": "One continuous recovery journey per surface covers wrong password, a separate cancelled request and fresh valid approval, with independent results after each failure. Four preparations become two; former Cancel-only cases 35/37 are absorbed and their IDs must not be reused. Kiosk exit/reopening is explicit and claims no same-window continuity."
       },
       "variants": [
-        {"coverage_id": 34, "id": "child-overlay-recovery", "owner": "request-approval", "parameters": {"surface": "child-overlay"}, "status": "pending", "pending_reason": "Combined wrong-password, separate Cancel and valid-approval recovery recipe is documented; full installed acceptance is pending.", "executable": null},
+        {"coverage_id": 34, "id": "child-overlay-recovery", "owner": "request-approval", "parameters": {"surface": "child-overlay"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/overlay_recovery.py", "test_id": "child-overlay-recovery"}},
         {"coverage_id": 36, "id": "kiosk-recovery", "owner": "kiosk-form", "parameters": {"surface": "kiosk"}, "status": "pending", "pending_reason": "Combined wrong-password, separate Cancel and valid-approval recovery recipe is documented; full installed acceptance is pending.", "executable": null}
       ]
     },

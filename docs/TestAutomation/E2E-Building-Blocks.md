@@ -4112,6 +4112,16 @@ this catalogue does not maintain another case list.
 
 ### Request forms and remembered choices
 
+Case 34 composes `overlay_recovery.PLAN` / `onpc_overlay_recovery::run`:
+wrong password, a separate password-free Cancel and fresh valid approval in one
+Riley/Jamie/75-second soft-included history. `GrantAppEffectsJourney` reuses the
+immutable refreshed-estimate comparisons after each failure and accepts the
+finite 1800-second daily profile for initial/final public policy and grant reads.
+The worker retains the existing fixed single-use credential scopes. Both
+negative app-denial results precede success; the final original activity,
+countdown increment, soft-app use and hard denial are independent outcomes.
+Ubuntu 26.04 complete-case acceptance passed; kiosk case 36 remains separate.
+
 The [E2E-012–018 recipes](E2E-Scenario-Recipes.md#e2e-012) own request, approval,
 exit, selector and persistence composition. E2E-014 retains the
 [native-gesture exclusion](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures);

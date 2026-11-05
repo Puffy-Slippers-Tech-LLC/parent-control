@@ -1,5 +1,6 @@
-"""Case 30: panel approval excludes soft apps; a later request authenticates anew."""
+"""Panel approval's two parent/app choices; later requests authenticate anew."""
 from copy import deepcopy
+from dataclasses import replace
 
 from access_choices import AccessChoiceJourney
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
@@ -74,6 +75,31 @@ PLAN = JourneyPlan(
     assertions_after={'later-returned': 'visible-result'},
 )
 
+# Keep the same request/recipient operations and finite history. The included
+# branch proves the original activity survived before closing it normally so
+# the hard-denial check can use the fixture's shared secondary window slot.
+INCLUDED_SCREENS = {}
+for stage, operation in SCREENS.items():
+    if stage == 'soft-closed':
+        INCLUDED_SCREENS.update({
+            'soft-retained': 'ui:overlay-native-policy-soft-activity',
+            'soft-close': 'ui:overlay-native-soft-close',
+            'soft-finished': 'ui:overlay-native-soft-closed',
+        })
+    elif stage == 'soft-denied':
+        INCLUDED_SCREENS.update(prefixed_stages('soft-relaunch', {
+            **native_usable_app('command', child='child', role='S', desktop_observation=False),
+            'close': 'ui:overlay-native-soft-close',
+            'closed': 'ui:overlay-native-soft-closed',
+        }))
+    else:
+        INCLUDED_SCREENS[stage] = operation
+INCLUDED_PLAN = replace(PLAN, screen_tags=INCLUDED_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: PLAN.phases.get(stage, 'step-3') for stage in INCLUDED_SCREENS}},
+    overlay_request=('child', 'other-parent', 30, True),
+    activity_checks={'soft-retained': ('soft-capture', 'same')})
+
 
 class PanelRequestJourney(GrantOnlyProfileJourney, KioskRequestJourney, AccessChoiceJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
@@ -95,14 +121,19 @@ class PanelRequestJourney(GrantOnlyProfileJourney, KioskRequestJourney, AccessCh
                     'panel-request:approval-margin')
 
 
-def execute(recorder, context):
+def execute(recorder, context, plan=PLAN):
     from e2e_fixture_preparation import ACTIVITY_SUBSETS
     context.fixture_subsets = ACTIVITY_SUBSETS
-    context.fixture_caller = 'E2E-012/excluded-first'
-    record_installed_journey(recorder, context, PLAN, timeout=2400,
+    context.fixture_caller = ('E2E-012/included-second' if plan is INCLUDED_PLAN
+                              else 'E2E-012/excluded-first')
+    record_installed_journey(recorder, context, plan, timeout=2400,
         journey_type=PanelRequestJourney,
         actions={**fixture_actions(include_refusal=False),
                  'cooldown': interval_action(5)})
 
 
-E2E_CASES = {'excluded-first': execute}
+def execute_included(recorder, context):
+    execute(recorder, context, INCLUDED_PLAN)
+
+
+E2E_CASES = {'excluded-first': execute, 'included-second': execute_included}

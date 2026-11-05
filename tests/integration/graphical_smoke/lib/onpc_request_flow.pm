@@ -219,10 +219,14 @@ sub approval_return {
 }
 
 sub panel_request_case {
-    onpc_progress::operation('Requesting time from the panel while keeping soft apps blocked');
-    my ($exchange, $declared, $challenges) = @_;
+    onpc_progress::operation('Requesting time from the panel with the chosen parent and app access');
+    my ($exchange, $declared, $challenges, $binding) = @_;
+    die 'panel-request:binding' unless @_ == 4 && ref($binding) eq 'ARRAY'
+        && @$binding == 4 && join(',', @$binding) =~ /\Achild,(?:parent,30,0|other-parent,30,1)\z/;
+    my $approver = $binding->[1] eq 'parent' ? 'fixture-parent' : 'other-fixture-parent';
+    my $included = $binding->[3];
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'panel-request-case', review => 0);
-    $journey->{overlay_request} = ['child', 'parent', 30, 0];
+    $journey->{overlay_request} = $binding;
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -237,12 +241,21 @@ sub panel_request_case {
     onpc_app_rows::native_usable_app($soft, 'command', $soft->seen('desktop'), 'child', 'S');
     $journey->seen('soft-capture');
     $journey->seen($_) for qw(panel-ready panel-launch);
-    prepare($journey, 'open', 'open', 'observed', 'fixture-child', 'fixture-parent', 30, 0, 'overlay');
+    prepare($journey, 'open', 'open', 'observed', 'fixture-child', $approver, 30, $included, 'overlay');
     overlay_approve($journey, 'automatic');
-    $journey->seen($_) for qw(countdown soft-closed hard-denied soft-denied cooldown);
+    $journey->seen('countdown');
+    if ($included) {
+        $journey->seen($_) for qw(soft-retained soft-close soft-finished hard-denied);
+        my $relaunch = $journey->scope('soft-relaunch');
+        onpc_app_rows::native_close_app($relaunch,
+            onpc_app_rows::native_usable_app($relaunch, 'command', undef, 'child', 'S'));
+    } else {
+        $journey->seen($_) for qw(soft-closed hard-denied soft-denied);
+    }
+    $journey->seen('cooldown');
     my $later = $journey->scope('later');
-    $later->{overlay_request} = ['child', 'parent', 30, 0];
-    prepare($later, 'new', 'new', 'observed', 'fixture-child', 'fixture-parent', 30, 0, 'overlay');
+    $later->{overlay_request} = $binding;
+    prepare($later, 'new', 'new', 'observed', 'fixture-child', $approver, 30, $included, 'overlay');
     shell_cancel($later, 'shell-cancel-ready', 'shell-dismissed');
     $later->seen($_) for qw(preserved cancel returned);
     $journey->finish();
@@ -439,7 +452,7 @@ sub shell_approve {
                 && ref($journey->{overlay_request}) eq 'ARRAY' && $exit eq 'automatic'
             || ($journey->{prefix} // '') eq 'panel-request-case'
                 && ref($journey->{overlay_request}) eq 'ARRAY'
-                && join(',', @{$journey->{overlay_request}}) eq 'child,parent,30,0'
+                && join(',', @{$journey->{overlay_request}}) =~ /\Achild,(?:parent,30,0|other-parent,30,1)\z/
                 && $exit eq 'automatic'
             || ($journey->{prefix} // '') =~ /\Adelayed-approval-(?:first|second)\z/
                 && ref($journey->{overlay_request}) eq 'ARRAY' && $exit eq 'automatic'

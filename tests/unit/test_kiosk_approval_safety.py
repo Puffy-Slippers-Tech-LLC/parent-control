@@ -84,8 +84,16 @@ def test_shell_cancel_proof_requires_the_bound_request_and_a_new_challenge():
     assert wrong.call.call_count == calls
 
 
-def test_panel_approval_secret_requires_fresh_proofs_and_cannot_be_replayed():
-    from panel_request_case import PLAN
+@pytest.mark.parametrize('mode,role', [
+    ('excluded', 'parent'), ('included', 'other-parent'),
+    ('wrong-choice', None), ('wrong-scope', None),
+])
+def test_panel_approval_secret_requires_fresh_proofs_and_cannot_be_replayed(mode, role):
+    from panel_request_case import PLAN, INCLUDED_PLAN
+    plan = PLAN if mode == 'excluded' else INCLUDED_PLAN
+    binding = list(plan.overlay_request)
+    if mode == 'wrong-choice':
+        binding[3] = False
     result = run_perl(r'''
 use strict;
 use warnings;
@@ -110,13 +118,17 @@ require onpc_password;
 }
 my $journey = bless {prefix => shift @ARGV, stage_prefix => '',
     overlay_request => decode_json(shift @ARGV), review => 0}, 'onpc_journey';
+$journey->{stage_prefix} = 'later-' if shift(@ARGV) eq 'wrong-scope';
 my $first = eval { onpc_password::enter_overlay_shell_password($journey); 1; };
 my $replay = eval { onpc_password::enter_overlay_shell_password($journey); 1; };
 print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events => \@events});
-''', PLAN.prefix, json.dumps(PLAN.overlay_request))
+''', plan.prefix, json.dumps(binding), mode)
+    if role is None:
+        assert json.loads(result.stdout) == {'first': 0, 'replay': 0, 'events': []}
+        return
     assert json.loads(result.stdout) == {'first': 1, 'replay': 0, 'events': [
         ['proof', 'approval-qualified'], ['proof', 'approval-rechecked'],
-        ['delivery', 'parent', 'overlay-shell-approval']]}
+        ['delivery', role, 'overlay-shell-approval']]}
 
 
 @pytest.mark.parametrize('mode', ['two-requests', 'replay', 'wrong-scope', 'wrong-child',

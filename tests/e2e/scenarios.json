@@ -954,7 +954,7 @@
       },
       "variants": [
         {"coverage_id": 30, "id": "excluded-first", "owner": "request-approval", "parameters": {"soft-apps": "excluded", "approver": "first"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/panel_request_case.py", "test_id": "excluded-first"}},
-        {"coverage_id": 33, "id": "included-second", "owner": "request-approval", "parameters": {"soft-apps": "included", "approver": "second"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 33, "id": "included-second", "owner": "request-approval", "parameters": {"soft-apps": "included", "approver": "second"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/panel_request_case.py", "test_id": "included-second"}}
       ]
     },
     {

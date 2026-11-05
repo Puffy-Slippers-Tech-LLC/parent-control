@@ -247,7 +247,7 @@ sub enter_overlay_shell_password {
         my $panel = ($journey->{prefix} // '') eq 'panel-request-case'
             && ($journey->{stage_prefix} // '') eq ''
             && ref($journey->{overlay_request}) eq 'ARRAY'
-            && join(',', @{$journey->{overlay_request}}) eq 'child,parent,30,0';
+            && join(',', @{$journey->{overlay_request}}) =~ /\Achild,(?:parent,30,0|other-parent,30,1)\z/;
         my $composed = (($journey->{prefix} // '') eq 'overlay-approval-return' || $delayed || $panel) && !$reject;
         my $role = 'parent';
         if ($composed) {

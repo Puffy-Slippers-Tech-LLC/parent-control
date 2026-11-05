@@ -321,7 +321,8 @@ sub run {
     if ($ready->{panel_request_case}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
-        onpc_request_flow::panel_request_case(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        onpc_request_flow::panel_request_case(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
+            $ready->{overlay_request});
         return;
     }
     if ($ready->{overlay_approved}) {

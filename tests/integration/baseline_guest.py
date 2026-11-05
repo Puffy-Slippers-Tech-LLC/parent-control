@@ -371,8 +371,8 @@ def prepare(capture, guestfs, password, *, mode='manual'):
         label_preparation(g)
     with operation('Running no-app setup and guest system updates' if mode == 'auto'
                    else 'Running no-app prerequisite setup'):
-        boot_and_wait(capture)
         print('prepare-vm: Starting the VM; waiting for guest setup and shutdown', flush=True)
+        boot_and_wait(capture)
     with mounted(guestfs, capture) as g:
         reboot = g.exists(STAGE + '/reboot-required') and bool(g.read_file(STAGE + '/reboot-required'))
         if reboot:
@@ -385,8 +385,8 @@ def prepare(capture, guestfs, password, *, mode='manual'):
             label_preparation(g)
     if reboot:
         with operation('Rebooting the updated guest and verifying the new boot'):
-            boot_and_wait(capture)
             print('prepare-vm: Rebooting the updated guest and verifying the new boot', flush=True)
+            boot_and_wait(capture)
     with mounted(guestfs, capture) as g:
         success = g.exists(STAGE + '/success') and g.read_file(STAGE + '/success') == b'success\n'
         if not success:

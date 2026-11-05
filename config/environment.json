@@ -4,7 +4,7 @@
       "name": "local",
       "enabled": "true",
       "transport": "local",
-      "concurrency": 2,
+      "concurrency": 3,
       "backup_root": "/Data/virt-manager/backups/onpc"
     },
     {

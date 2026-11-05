@@ -508,6 +508,15 @@ the actual daily remainder after the child leaves and before approval; the
 configured daily allowance is not that remainder. Compare the issued grant to
 that captured remainder plus the requested addition, then preserve its original
 deadline across later policy edits and child visits.
+Failed-approval histories reuse `request_composition.GrantAppEffectsJourney`
+with caller-owned `negative_estimates` and `policy_reads`. Its default daily
+profile is zero; `daily_seconds=1800` supports the positive daily profile used
+by child request recovery. A zero grant does not mean zero usable time in that
+profile. Keep the before/after refreshed estimate brackets: daily time continues
+to decrease during rejection or Cancel, while the comparison must still detect
+an accidental extra grant. Do not copy the comparison or change the child's
+profile to fit a grant-only assumption. Cases retain their failure order, app
+denials, remembered choices and later successful approval assertions.
 `request_initial='selected'` requires a saved 75-second, soft-included request,
 as supplied by `revocation_entry`; it does not accept arbitrary remembered choices.
 Choose this argument from the preceding request history, independently of

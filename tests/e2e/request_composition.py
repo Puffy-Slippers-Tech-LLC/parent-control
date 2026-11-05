@@ -132,11 +132,12 @@ class KioskRequestJourney(InstalledJourney):
 
 
 class GrantAppEffectsJourney(KioskRequestJourney, AccessChoiceJourney):
-    """Public grant-only balances and immutable saved app-policy endpoints.
+    """Public daily/grant balances and immutable saved app-policy endpoints.
 
     Callers declare the finite policy oracle, approval capture and zero/positive
-    read endpoints. This shares policy/choice/countdown checks without acquiring
-    fixtures or supplying any part of a qualification's worker sequence.
+    grant endpoints, plus the supported daily profile. This shares policy,
+    choice and countdown checks without acquiring fixtures or supplying any
+    part of a qualification's worker sequence.
     """
 
     def __init__(self, context, progress, plan, *, settings, app_rules,

@@ -5573,6 +5573,13 @@ credential-owner check with the real composed prefix; keep its two fresh
 recipient proofs and single-use submission. A passing unscoped approval probe
 does not exercise a newly prefixed consumer.
 
+Trace a later authentication Cancel with the same child, selected parent,
+duration and soft-app choice as the preceding request. Cancel's provider
+observation and controller response validation must both use the composed
+binding; a shared helper's default Riley/Jamie/75-second/soft-included request
+does not describe the second parent's 30-second panel request. Reuse the bound
+Cancel helper and preserve its fresh challenge and single-use input guards.
+
 Repeated desktop entries must also resolve their challenge IDs on the journey
 that declared them. A request-local scope may own its approval proofs while the
 enclosing journey owns the child's retained entry and the parent's return.

@@ -76,6 +76,10 @@ historical, with current readiness in its inventory/catalogue owner.
   must still satisfy every runtime guard and the catalogue's route qualifications.
 - **Pending** means required implementation or qualification remains. Preserve a
   concrete blocker and return condition.
+- **Deferred Snap enforcement** is the developer-authorized exception in the
+  [shared Snap boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary).
+  Retain pending IDs without runnable bindings or acceptance credit; separate
+  remediation does not block active E2E work or require a repeated product choice.
 - **Provider blocked** means the current route safely refuses because neither a
   usable public-ID mapping nor a qualified external-provider adapter is available.
   Missing IDs alone do not prohibit adapter work authorized by AGENTS.md.

@@ -108,6 +108,40 @@ consumer and blocks no current-release task.
 
 ## Execute one task
 
+### Snap acceptance boundary
+
+On 2026-11-05 the developer explicitly separated Snap remediation from E2E.
+[Snap limitations and options](../Snap_Limitation.md) own today's findings and
+the future product choices. Apply this boundary to both plans, all their
+capabilities, recipes, supporting checks and regression selections:
+
+- Retain Allowed Snap launch/use, public catalogue and saved-choice readback
+  where declared. A saved block or hidden launcher is not an enforcement pass.
+- Snap denial, closure and alternating Soft permission cases are deferred under
+  [Plan B](E2E-Task-QueueB.md#deferred-future-work). Keep their inventory IDs
+  pending without executable bindings. They do not gate active work, current
+  release completion, or the Allowed grid qualification and case 86.
+- Do not rerun task 109's known failure, invoke its maintenance reproduction,
+  investigate the missing label/admission gap, add an expected-failure workaround,
+  or ask the developer to choose a Snap solution during ordinary E2E execution.
+  Historical next-probe handoffs are superseded by this scope decision.
+- Other app cases use their explicitly declared native, Flatpak or game inputs.
+  Generic APP02/FLOW08, Hard/Soft and other-user assertions do not introduce a
+  Snap matrix. Preserve their full public results, isolation and safety guards;
+  do not substitute a Snap app as their fixture.
+- A future shared adapter change still owns affected checks within supported
+  scope. Allowed Snap regressions remain available; deferred denial/closure
+  acceptance is not a regression gate. New unrelated failures follow normal
+  failure handling. Known Snap limitations need only a reference to their owner,
+  not another investigation or product-choice request.
+
+Resume enforcement work only after an explicit developer request for separate
+Snap remediation and a chosen supported contract, then qualify it before
+reactivating the deferred cases. Deferral is not a pass or evidence that all
+Snaps fail identically. Native/Flatpak requirements remain unchanged.
+
+### Active task workflow
+
 1. Apply [repository instructions](../../AGENTS.md) and inspect working-tree status.
 2. Verify that Next task is the first unchecked active queue row, and check
    its required capabilities and task-local prerequisites. Read only those rows.

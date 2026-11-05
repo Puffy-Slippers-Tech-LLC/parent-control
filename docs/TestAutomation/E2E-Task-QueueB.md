@@ -85,17 +85,8 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 109b | Launch and use Snap fixtures by command | 109p, 047 | APP01/02/03/04 and FLOW08 Snap command usable/new-window route qualified on selected Fedora 44 through `check_e2e_snap_command_usable`: Jordan launched and used A/H/S, captured immutable activity, opened a distinct second S window and preserved the original S window/draft while both remained open. Installed strict/system profile verification and wrong-scope/echo-only/uncertain-input refusal passed. Focused host launcher/privilege and source checks passed; affected native-command case 81 passed. Collection, worker/callback shutdown, owned cleanup and baseline restoration passed; VM observed off. [Qualified scope](E2E-Building-Blocks.md#snap-command-use); other bindings and complete Snap cases remain separate. | 20–30 |
 | [x] | 113 | Let both children use an allowed Snap app | 180, 109b | Cases 92; Parent's saved Allowed Snap rule and Jordan's 30 daily minutes/zero grant, followed by both children's independent command launch and draft submission, passed on selected Fedora 44. Riley's policy and limits stayed untouched. Corrected the fixture-action declaration mismatch without weakening its guard. Affected native-command case 81 passed separately; coverage refreshed after each case. Host source checks, Markdown links, collection, worker shutdown, owned cleanup and baseline restoration passed; VM observed off. | 20–30 |
 | [x] | 113b | Let both children use an allowed Snap app with limits off | 180, 109b | Cases 93; Parent's independent limits-off/zero-allowance read and saved Allowed Snap rule, then Jordan's and Riley's fresh command launches and submitted-draft results, passed on selected Fedora 44. Riley's settings stayed untouched; no allowance or approval was prepared. Affected case 92 passed separately. Eleven focused host checks, source/traceability, coverage refresh after each case, Markdown links, collection, worker shutdown, owned cleanup and baseline restoration passed; VM observed off. | 20–30 |
-| [ ] | 109 | [Observe Snap command denial and closure](E2E-Tasks/109-snap.md) | 109b | APP01/02/03/04 and FLOW08 Snap command route | 20–30 |
-| [ ] | 114 | [E2E-019: snap-command-hard-blocked-enabled](E2E-Tasks/114-case-94.md) | 180, 109 | Cases 94 | 20–30 |
-| [ ] | 114b | [E2E-019: snap-command-hard-blocked-disabled](E2E-Tasks/114b-case-95.md) | 180, 109 | Cases 95 | 20–30 |
-| [ ] | 115 | [E2E-019: snap-command-soft-blocked-enabled](E2E-Tasks/115-case-96.md) | 180, 109 | Cases 96 | 20–30 |
-| [ ] | 115b | [E2E-019: snap-command-soft-blocked-disabled](E2E-Tasks/115b-case-97.md) | 180, 109 | Cases 97 | 20–30 |
-| [ ] | 284 | [E2E-049: snap-command-kiosk](E2E-Tasks/284-case-242.md) | 197k, 079b, 180, 109 | Cases 242 | 20–30 |
-| [ ] | 109a | [Qualify Snap app-grid launches](E2E-Tasks/109a-snap-grid.md) | 109 | APP01/02/03/04 and FLOW08 Snap app-grid route | 20–30 |
+| [ ] | 109a | [Qualify allowed Snap app-grid launches](E2E-Tasks/109a-snap-grid.md) | 109b | APP01/02/03/04 and FLOW08 Allowed Snap app-grid route; enforcement excluded under the shared Snap boundary | 20–30 |
 | [ ] | 110 | [E2E-019: snap-grid-allowed-enabled](E2E-Tasks/110-case-86.md) | 180, 109a | Cases 86 | 20–30 |
-| [ ] | 111 | [E2E-019: snap-grid-hard-blocked-enabled](E2E-Tasks/111-case-88.md) | 180, 109a | Cases 88 | 20–30 |
-| [ ] | 112 | [E2E-019: snap-grid-soft-blocked-enabled](E2E-Tasks/112-case-90.md) | 180, 109a | Cases 90 | 20–30 |
-| [ ] | 281 | [E2E-049: snap-grid-child-overlay](E2E-Tasks/281-case-239.md) | 197, 079b, 180, 109a | Cases 239 | 20–30 |
 | [ ] | 135a | [Qualify a real update requiring no activation](E2E-Tasks/135a-update-no-action.md) | 300d, 180 | LIFE04 update and LIFE05 no-action notice | 20–30 |
 | [ ] | 135 | [Follow a real process-activation update](E2E-Tasks/135-activation-process.md) | 135a, 028 | LIFE04 update; LIFE05 process/none scope | 30–50 (exception) |
 | [ ] | 136 | [E2E-026: process](E2E-Tasks/136-case-136.md) | 135, 079d, 079b, 065, 052 | Cases 136 | 40–60 (exception) |
@@ -177,4 +168,22 @@ They do not qualify a route, waive acceptance or close a row.
 
 ## Deferred future work
 
-No deferred tasks are assigned to this plan.
+The developer separated Snap remediation from active E2E work on 2026-11-05.
+These rows remain unchecked with no current-release consumer. Their denial and
+closure assertions are future targets, not today's behavior. Do not select them,
+reproduce the known failure or ask for another product choice during active E2E
+execution. The [Snap limitation](../Snap_Limitation.md#e2e-scope-decision) owns
+the findings, options and explicit return condition. Allowed launch work above
+does not depend on this group. Deferral supplies no acceptance credit.
+
+| Done | ID | Task | Requires tasks | Delivered scope | Minutes |
+| --- | --- | --- | --- | --- | --- |
+| [ ] | 109 | [Observe Snap command denial and closure](E2E-Tasks/109-snap.md) | 109b | APP01/02/03/04 and FLOW08 Snap enforcement; deferred known product limitation | 20–30 |
+| [ ] | 114 | [E2E-019: snap-command-hard-blocked-enabled](E2E-Tasks/114-case-94.md) | 180, 109 | Cases 94; deferred Snap enforcement | 20–30 |
+| [ ] | 114b | [E2E-019: snap-command-hard-blocked-disabled](E2E-Tasks/114b-case-95.md) | 180, 109 | Cases 95; deferred Snap enforcement | 20–30 |
+| [ ] | 115 | [E2E-019: snap-command-soft-blocked-enabled](E2E-Tasks/115-case-96.md) | 180, 109 | Cases 96; deferred Snap enforcement | 20–30 |
+| [ ] | 115b | [E2E-019: snap-command-soft-blocked-disabled](E2E-Tasks/115b-case-97.md) | 180, 109 | Cases 97; deferred Snap enforcement | 20–30 |
+| [ ] | 284 | [E2E-049: snap-command-kiosk](E2E-Tasks/284-case-242.md) | 197k, 079b, 180, 109 | Cases 242; deferred Snap enforcement | 20–30 |
+| [ ] | 111 | [E2E-019: snap-grid-hard-blocked-enabled](E2E-Tasks/111-case-88.md) | 180, 109, 109a | Cases 88; deferred Snap enforcement | 20–30 |
+| [ ] | 112 | [E2E-019: snap-grid-soft-blocked-enabled](E2E-Tasks/112-case-90.md) | 180, 109, 109a | Cases 90; deferred Snap enforcement | 20–30 |
+| [ ] | 281 | [E2E-049: snap-grid-child-overlay](E2E-Tasks/281-case-239.md) | 197, 079b, 180, 109, 109a | Cases 239; deferred Snap enforcement | 20–30 |

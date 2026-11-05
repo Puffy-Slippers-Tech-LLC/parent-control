@@ -37,6 +37,14 @@ The [state design](SystemDesign/State.md) defines current ownership. The protect
 
 Preferences are canonical only for configured product policy. AccountsService policy and fapolicyd rules are derived enforcement state, `malcontent-timerd` is authoritative for measured usage, and AccountsService `ActiveExtension` is authoritative for a live grant. External or derived state must never be imported silently into preferences.
 
+Known exception: the Snap running-app and execution guarantees above are not
+established on all supported systems. [Snap limitations](Snap_Limitation.md)
+record the confirmed Fedora failures and Ubuntu/classic verification limits.
+The required trusted identity is unchanged; deferring Snap E2E enforcement does
+not authorize a child-controlled cgroup, process name or command line as an
+equivalent identity. Snap remediation and its future supported contract are
+separate work, not a gate for unrelated E2E cases.
+
 ## Trust boundaries
 
 | Boundary | Trusted responsibility | Input or failure treated as untrusted |

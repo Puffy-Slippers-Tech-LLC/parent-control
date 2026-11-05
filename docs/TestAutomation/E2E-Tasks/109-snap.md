@@ -1,5 +1,19 @@
 # 109 — Observe Snap command denial and closure
 
+## Deferred status — supersedes historical handoffs
+
+Developer decision, 2026-11-05: Snap remediation is separate work. This task is
+unchecked under [Plan B deferred work](../E2E-Task-QueueB.md#deferred-future-work),
+not an active E2E blocker or a passing qualification. The
+[Snap limitation document](../../Snap_Limitation.md) owns current behavior,
+findings, options and the return condition. Apply the
+[shared Snap boundary](../E2E-Execution-Instructions.md#snap-acceptance-boundary).
+Do not execute this brief's historical next probes, reproduce the known failure
+or request another product choice during ordinary E2E work. The remaining text
+preserves unfinished implementation and diagnostic context for an explicitly
+requested future remediation. Denial and closure below are future targets,
+not today's supported behavior. No product source or prior work is discarded.
+
 Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 

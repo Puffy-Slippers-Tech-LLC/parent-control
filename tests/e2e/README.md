@@ -1749,6 +1749,13 @@ probes. It uses the selected native fixture closure
 and the same owned maintenance envelope, with no acceptance credit. Finish with
 `tools/test-vm --vm NAME stop` before clean qualification.
 
+Snap enforcement diagnosis is deferred by developer decision on 2026-11-05.
+The [shared Snap boundary](../../docs/TestAutomation/E2E-Execution-Instructions.md#snap-acceptance-boundary)
+excludes this reproduction from ordinary E2E tasks and regression gates. Consult
+[Snap limitations](../../docs/Snap_Limitation.md) instead of rediscovering the
+known failure or requesting another product decision. Use this diagnostic only
+when separate Snap remediation is explicitly requested.
+
 `tools/test-vm --vm NAME reproduce-riley-native-grid` uses
 `RileyNativeGridJourney` / `PLAN` with verified VM-bound fixture inputs and retains
 the second search at `repeat-refusals`, after the first grid launch, draft

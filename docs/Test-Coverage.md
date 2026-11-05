@@ -858,7 +858,7 @@ Variant: control: enabled; policy: allowed; route: native grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 ### Scenario 64
@@ -872,7 +872,7 @@ Variant: control: enabled; policy: hard blocked; route: native grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 ### Scenario 66
@@ -886,7 +886,7 @@ Variant: control: enabled; policy: soft blocked; route: native grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 ### Scenario 81
@@ -900,7 +900,7 @@ Variant: control: disabled; policy: allowed; route: native command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 ### Scenario 82
@@ -914,7 +914,7 @@ Variant: control: enabled; policy: hard blocked; route: native command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 ### Scenario 83
@@ -928,7 +928,7 @@ Variant: control: disabled; policy: hard blocked; route: native command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 ### Scenario 84
@@ -942,7 +942,7 @@ Variant: control: enabled; policy: soft blocked; route: native command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 ### Scenario 85
@@ -956,7 +956,7 @@ Variant: control: disabled; policy: soft blocked; route: native command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 ### Scenario 92
@@ -970,7 +970,7 @@ Variant: control: enabled; policy: allowed; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 ### Scenario 93
@@ -984,7 +984,7 @@ Variant: control: disabled; policy: allowed; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 ### Scenario 116
@@ -1674,7 +1674,7 @@ Variant: control: enabled; policy: allowed; route: native desktop
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1694,7 +1694,7 @@ Variant: control: enabled; policy: hard blocked; route: native desktop
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1714,7 +1714,7 @@ Variant: control: enabled; policy: soft blocked; route: native desktop
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1734,7 +1734,7 @@ Variant: control: enabled; policy: allowed; route: native file manager
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1754,7 +1754,7 @@ Variant: control: enabled; policy: hard blocked; route: native file manager
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1774,7 +1774,7 @@ Variant: control: enabled; policy: soft blocked; route: native file manager
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1794,7 +1794,7 @@ Variant: control: enabled; policy: allowed; route: native command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Consolidated into E2E-019/native-grid-allowed-enabled (case 62), which independently launches and uses both grid and command routes as each child, normally closing the grid app before the command launch. Historical selector excluded from E2E scheduling; no replacement task.
@@ -1814,7 +1814,7 @@ Variant: control: enabled; policy: allowed; route: snap grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1834,10 +1834,10 @@ Variant: control: enabled; policy: hard blocked; route: snap grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Deferred from active E2E scheduling by developer decision on 2026-11-05: known Snap admission/closure limitations in docs/Snap\_Limitation.md. Separate remediation and explicit reactivation required; no acceptance credit or executable.
 
 </div>
 
@@ -1854,10 +1854,10 @@ Variant: control: enabled; policy: soft blocked; route: snap grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Deferred from active E2E scheduling by developer decision on 2026-11-05: known Snap admission/closure limitations in docs/Snap\_Limitation.md. Separate remediation and explicit reactivation required; no acceptance credit or executable.
 
 </div>
 
@@ -1874,10 +1874,10 @@ Variant: control: enabled; policy: hard blocked; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Deferred from active E2E scheduling by developer decision on 2026-11-05: known Snap admission/closure limitations in docs/Snap\_Limitation.md. Separate remediation and explicit reactivation required; no acceptance credit or executable.
 
 </div>
 
@@ -1894,10 +1894,10 @@ Variant: control: disabled; policy: hard blocked; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Deferred from active E2E scheduling by developer decision on 2026-11-05: known Snap admission/closure limitations in docs/Snap\_Limitation.md. Separate remediation and explicit reactivation required; no acceptance credit or executable.
 
 </div>
 
@@ -1914,10 +1914,10 @@ Variant: control: enabled; policy: soft blocked; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Deferred from active E2E scheduling by developer decision on 2026-11-05: known Snap admission/closure limitations in docs/Snap\_Limitation.md. Separate remediation and explicit reactivation required; no acceptance credit or executable.
 
 </div>
 
@@ -1934,10 +1934,10 @@ Variant: control: disabled; policy: soft blocked; route: snap command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Deferred from active E2E scheduling by developer decision on 2026-11-05: known Snap admission/closure limitations in docs/Snap\_Limitation.md. Separate remediation and explicit reactivation required; no acceptance credit or executable.
 
 </div>
 
@@ -1954,7 +1954,7 @@ Variant: control: enabled; policy: allowed; route: flatpak grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1974,7 +1974,7 @@ Variant: control: enabled; policy: hard blocked; route: flatpak grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1994,7 +1994,7 @@ Variant: control: enabled; policy: soft blocked; route: flatpak grid
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2014,7 +2014,7 @@ Variant: control: enabled; policy: allowed; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2034,7 +2034,7 @@ Variant: control: disabled; policy: allowed; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2054,7 +2054,7 @@ Variant: control: enabled; policy: hard blocked; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2074,7 +2074,7 @@ Variant: control: disabled; policy: hard blocked; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2094,7 +2094,7 @@ Variant: control: enabled; policy: soft blocked; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2114,7 +2114,7 @@ Variant: control: disabled; policy: soft blocked; route: flatpak command
 **Steps:**
 
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3448,8 +3448,8 @@ Variant: route: native grid; surface: child overlay
 
 **Steps:**
 
-- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
-- On the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again.
+- For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
+- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
@@ -3468,8 +3468,8 @@ Variant: route: native grid; surface: kiosk
 
 **Steps:**
 
-- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
-- On the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again.
+- For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
+- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
@@ -3488,8 +3488,8 @@ Variant: route: native desktop; surface: child overlay
 
 **Steps:**
 
-- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
-- On the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again.
+- For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
+- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
@@ -3508,8 +3508,8 @@ Variant: route: native file manager; surface: kiosk
 
 **Steps:**
 
-- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
-- On the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again.
+- For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
+- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
@@ -3528,8 +3528,8 @@ Variant: route: native command; surface: kiosk
 
 **Steps:**
 
-- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
-- On the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again.
+- For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
+- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
@@ -3548,11 +3548,11 @@ Variant: route: snap grid; surface: child overlay
 
 **Steps:**
 
-- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
-- On the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again.
+- For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
+- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
-Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+Pending: Deferred from active E2E scheduling by developer decision on 2026-11-05: known Snap admission/closure limitations in docs/Snap\_Limitation.md. Separate remediation and explicit reactivation required; no acceptance credit or executable.
 
 </div>
 
@@ -3568,11 +3568,11 @@ Variant: route: snap command; surface: kiosk
 
 **Steps:**
 
-- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
-- On the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again.
+- For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
+- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
-Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+Pending: Deferred from active E2E scheduling by developer decision on 2026-11-05: known Snap admission/closure limitations in docs/Snap\_Limitation.md. Separate remediation and explicit reactivation required; no acceptance credit or executable.
 
 </div>
 
@@ -3588,8 +3588,8 @@ Variant: route: flatpak grid; surface: child overlay
 
 **Steps:**
 
-- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
-- On the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again.
+- For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
+- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
@@ -3608,8 +3608,8 @@ Variant: route: flatpak command; surface: kiosk
 
 **Steps:**
 
-- Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open.
-- On the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again.
+- For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
+- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.

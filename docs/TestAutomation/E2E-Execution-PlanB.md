@@ -15,7 +15,17 @@ Task queue: [Plan B ordered checklist](E2E-Task-QueueB.md).
 
 ## Next task
 
-Next task: **109 — [Observe Snap command denial and closure](E2E-Tasks/109-snap.md)**.
+Next task: **109a — [Qualify allowed Snap app-grid launches](E2E-Tasks/109a-snap-grid.md)**.
+
+Snap denial/closure work is deferred by developer decision, not passed. Apply the
+[shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);
+it is not a prerequisite for active work or another product-choice gate.
+
+For an inactive retained run still pointing at historical task 109, use the
+[reviewed queue-revision reconciliation](E2E-Execution-Instructions.md#resume-after-a-reviewed-queue-revision)
+with `--planb` and its exact run ID, previewing `--check` first. Preserve pending
+cleanup/close-out transactions; do not rerun the failed Snap acceptance or erase
+the checkpoint to advance. This is queue recovery, not a Snap product decision.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. The checked baseline records

@@ -285,7 +285,7 @@ Large durations test selection and displayed arithmetic without waiting to expir
 | Station restriction routes | Super/Overview, Super-A/app grid, ordinary terminal shortcut; inspect available controls for Parent/settings launch. If no search field appears, no query is typed. About/report restrictions have their own cases. |
 | Kiosk multiple/ineligible accounts (53/56) | Read exact eligible child/approver sets. Request and Cancel Riley/Jamie, then Jordan/Sam (the second fixture administrator is Casey). Final selection and actual selected-parent prompts cover both identities with two pairs; do not cross every child with every parent. |
 | App transitions (13–16) | Allowed→Soft, Soft→Hard, Hard→Soft, Soft→Allowed, Allowed→Hard, Hard→Allowed: all six directed changes. Prepare daily 30 with at least 900 seconds actually remaining before the 75-second soft-app approval, including when temporarily enabling a limits-off profile; max(D,G)+R supplies ample access for the opening transition. Open work under Allowed before Allowed→Soft/Hard. Before Soft→Hard obtain real soft approval and reopen the matching activity; in limits-off cases temporarily enable, approve/open, then disable (preserving the activity). Verify the declared limit state again before the tested save. Hard→Soft stays blocked without a new exception; Soft→Allowed and Hard→Allowed permit launches. Unchanged-block restoration is owned by 169. |
-| Match/control/route matrix | Preserve all four precise/pattern × on/off cases. [E2E-019](#e2e-019) retains every route and rule with limits on; with limits off, retain all three rules through ordinary, Snap and Flatpak commands. Alias, special-path, update and file-pattern data run only in their owning cases. |
+| Match/control/route matrix | Preserve all four precise/pattern × on/off cases. [E2E-019](#e2e-019) retains native/Flatpak rules and Allowed Snap use; Snap denial/closure is deferred under the [shared boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary). Alias, special-path, update and file-pattern data run only in their owning cases. |
 
 The daily picker offers 50 presets; case 158 checks one installed choice.
 Noninteracting combinations, such as every attachment size with every app launch
@@ -1193,9 +1193,15 @@ usable with Riley's policy and limits untouched. Remaining bindings are pending.
 
 Bindings: route = native-grid / native-desktop / native-file-manager / native-command / snap-grid / snap-command / flatpak-grid / flatpak-command; policy = allowed / hard-blocked / soft-blocked; control = enabled / disabled.
 
-With limits enabled, retain every route under all three rules. With limits
-disabled, retain native-command, snap-command and flatpak-command under all
-three rules. Menu, desktop shortcut and Files repeats with limits disabled
+With limits enabled, retain native/Flatpak routes under all three rules and
+Allowed Snap launches. With limits disabled, retain native-command and
+flatpak-command under all three rules and Allowed snap-command. Snap blocked
+cases 88/90/94/95/96/97 are deferred known product limitations under the
+[shared Snap boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary),
+not active denial requirements. They keep their IDs and pending status without
+executables or acceptance credit; the retained blocked compositions below are
+future remediation targets only for those cases. No known-failure replay or
+product-choice investigation is required. Menu, desktop shortcut and Files repeats with limits disabled
 (former cases 63, 65, 67, 69, 71, 73, 75, 77, 79, 87, 89, 91, 99, 101, 103)
 are removed; their IDs must not be reused. Soft-blocked cases start without
 temporary app approval and require refusal; [E2E-049](#e2e-049) owns temporary
@@ -1203,7 +1209,7 @@ permission changes. Each retained case must prove actual use or refusal and
 another child's unaffected access through the same route.
 
 1. P0 → FLOW02(control,usable time) → FLOW03(target access rule).
-2. C(fresh) → FLOW08(exact route, policy result). Flatpak blocked-grid launchers must be hidden: APP02(hidden) → FLOW08(explicit command route,denied). Do not validate native or Snap launcher visibility; retain their declared execution-denial results.
+2. C(fresh) → FLOW08(exact route, policy result). Flatpak blocked-grid launchers must be hidden: APP02(hidden) → FLOW08(explicit command route,denied). Do not validate native or Snap launcher visibility. Active native/Flatpak blocked cases retain execution-denial results; Snap enforcement is deferred.
 3. V(Riley,fresh) → FLOW08(same target, corresponding route,usable).
 
 Case 62 binds native fixture A (`Exact Fixture.AppImage`) and the precise match
@@ -1993,6 +1999,13 @@ those station cases.
 ### E2E-049
 
 Implementation status: All cases pending.
+
+Snap cases 239/242 are deferred from active scheduling under the
+[shared Snap boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary).
+Their denial, alternating Soft permission and closure steps below are future
+remediation targets, not today's accepted behavior. Keep their IDs pending
+without executables or passing credit; no active task depends on their repair
+or another product decision. The seven native/Flatpak cases retain all results.
 
 **Change temporary app permission on every supported launch route.** Cases
 231, 232, 233, 236, 238, 239, 242, 243 and 246.

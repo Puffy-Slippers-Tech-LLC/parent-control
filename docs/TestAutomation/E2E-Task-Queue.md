@@ -10,6 +10,11 @@ earlier work, including task 085, stays here. [Plan B’s queue](E2E-Task-QueueB
 owns separate unfinished task IDs and briefs, with no pending prerequisite across
 the two queues. Each retains its original relative order and acceptance scopes.
 
+The [Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary)
+applies to this entire queue. Its native, Flatpak, game and lifecycle tasks do
+not depend on deferred Snap enforcement or require another Snap product decision.
+Plan B retains that separate unchecked work; no Snap matrix is implied here.
+
 A checked row preserves delivered scope and historical evidence. Current block
 qualification and scenario registration remain with their respective owners in
 the [documentation map](README.md#status-vocabulary).
@@ -252,9 +257,11 @@ Excluded tasks: **090b, 091b, 092b, 093b, 094b, 095b, 096b, 097b, 098b,
 These tasks, briefs and inventory cases **63, 65, 67, 69, 71, 73, 75, 77, 79,
 87, 89, 91, 99, 101, 103** are removed, neither completed nor deferred; do not
 recreate them or reuse their case IDs. The [E2E-019 recipe](E2E-Scenario-Recipes.md#e2e-019)
-retains every opening method and all three app rules with time limits on, and
-ordinary, Snap and Flatpak command launches under all three rules with limits
-off. Actual use or refusal and another child's unaffected access remain required;
+retains every native/Flatpak opening method and all three app rules with time
+limits on, and ordinary/Flatpak command launches under all three rules with
+limits off. Allowed Snap use remains in scope; Snap denial/closure cases are
+deferred under the [shared boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary).
+Actual use or refusal for active cases and another child's unaffected access remain required;
 the removed menu, shortcut and Files combinations with limits off have no
 installed acceptance credit.
 

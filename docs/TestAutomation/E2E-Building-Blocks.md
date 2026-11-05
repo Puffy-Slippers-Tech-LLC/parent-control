@@ -2170,8 +2170,12 @@ complete-case qualification follows.
 
 Launcher visibility is an acceptance requirement only for Flatpak apps. For
 native and Snap apps, do not validate whether blocked launchers are visible;
-require the declared execution-denial result. This developer-confirmed boundary
-does not replace route-specific launch/use assertions or input-recipient guards.
+require the declared execution-denial result only for active supported bindings.
+Snap enforcement bindings are deferred under the
+[shared Snap boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);
+their denial/closure is not today's acceptance or a prerequisite for Allowed
+Snap use. This developer-confirmed boundary does not replace active
+route-specific launch/use assertions or input-recipient guards.
 
 FILE02 executes registered public commands over guarded SSH as the declared
 fixture user. INFO02 reads the public help/manual interface through bounded
@@ -2208,7 +2212,8 @@ Await fresh public results within deadlines, accounting for observation latency.
 APP01/02/03/04 also have the independently qualified
 [Snap command binding](#snap-command-use) for Jordan's A/H/S fixtures and a
 second S instance on Fedora 44. This adds to the native scopes above; other
-Snap launch routes and policy-denial bindings remain pending.
+Snap launch routes remain pending; policy-denial and policy-driven closure are
+deferred known product limitations, not active qualification prerequisites.
 
 The qualified FILE03 Save binding uses `AccessibleUI.save_chooser_operation`,
 `attachment_composition.save_handoff/save_cancellation` and matching
@@ -3730,8 +3735,11 @@ the same A/primary Snap. No allowance or approval was prepared, and Riley's
 settings stayed untouched. Case 93 and the affected limits-on case 92 passed
 with collection, worker shutdown, owned cleanup and baseline restoration;
 coverage was refreshed after each case.
-Snap grid, policy denial and other complete customer scenarios remain separate
-qualifications.
+Allowed Snap grid qualification remains separate and active through task 109a,
+depending on completed 109b. Policy denial, policy-driven closure and permission
+alternation are deferred, without passing acceptance or another investigation
+gate; see the [Snap limitation](../Snap_Limitation.md#e2e-scope-decision).
+Normal user-initiated closure above is not proof of closure after a policy save.
 
 ### Native fixture preparation
 

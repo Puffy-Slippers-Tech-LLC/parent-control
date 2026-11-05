@@ -228,6 +228,13 @@ extension-disabled acceptance gate is imported into these current-path tasks.
 
 ## Complete scenario-family review
 
+Apply the [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary)
+to every family. Allowed Snap use remains in scope; denial/closure cases
+88/90/94/95/96/97/239/242 remain pending and deferred without executables or
+acceptance credit. Generic application effects in other families use their
+declared native/Flatpak/game identities and do not add a Snap matrix or require
+another Snap product-choice investigation.
+
 The [inventory](../../tests/e2e/scenarios.json) owns stable IDs, executable bindings
 and pending/excluded status. [Recipes](E2E-Scenario-Recipes.md) own finite inputs,
 order and expected public results. Keep unique outcomes there rather than another

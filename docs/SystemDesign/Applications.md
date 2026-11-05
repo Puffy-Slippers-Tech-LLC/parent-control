@@ -12,6 +12,16 @@ UID-scoped native execution rules. Implementation:
 
 ## Application policy and enforcement
 
+### Current Snap limitation
+
+[Snap limitations and options](../Snap_Limitation.md) document the confirmed
+Fedora closure/admission failures and Ubuntu/classic verification limits.
+Saving a Snap Hard/Soft choice or filtering its launcher does not establish
+enforcement. The mechanisms and intended identities below remain implemented,
+but reliable Snap denial/closure is not currently qualified. Snap remediation
+is separate from active E2E acceptance; no process-name/cgroup fallback or
+whole-package policy has been implemented by that scope decision.
+
 Parents select policy by desktop ID; enforcement uses native executable paths,
 public Snap commands or full Flatpak refs. Blocking is the union of targets:
 an allowed entry cannot override another entry's block on a shared identity.

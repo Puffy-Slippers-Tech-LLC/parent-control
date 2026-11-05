@@ -19,3 +19,7 @@ Next task: **159 — [E2E-022: app-restart-expired](E2E-Tasks/159-case-117.md)**
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;
 no task in the other plan is a prerequisite for this plan's remaining work.
+
+Apply the [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary).
+Snap remediation is separate work and cannot block this plan or add Snap
+enforcement assertions to its declared native/Flatpak/game cases.

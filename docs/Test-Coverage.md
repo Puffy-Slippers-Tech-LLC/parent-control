@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5767</span>/<span style="color: gray">0</span>/5767 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5768</span>/<span style="color: gray">0</span>/5768 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">224</span>/<span style="color: gray">0</span>/224 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">295</span>/<span style="color: gray">0</span>/295 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -15,8 +15,8 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">72</span>/<span style="color: gray">124</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6422</span>/<span style="color: gray">124</span>/6546** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">73</span>/<span style="color: gray">123</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6424</span>/<span style="color: gray">123</span>/6547** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">71</span>/<span style="color: gray">124</span>/195 |
+| customer-journey | <span style="color: green">72</span>/<span style="color: gray">123</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -51,6 +51,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [15](#scenario-15) | Change app rules while children use apps (control: disabled; match: precise) | `E2E-006/disabled-precise` | ready |
 | [16](#scenario-16) | Change app rules while children use apps (control: disabled; match: pattern) | `E2E-006/disabled-pattern` | ready |
 | [17](#scenario-17) | Cancel then confirm revocation with open apps (daily: zero; sessions: single) | `E2E-007/zero-single` | ready |
+| [19](#scenario-19) | Cancel then confirm revocation with open apps (daily: remaining; sessions: single) | `E2E-007/remaining-single` | ready |
 | [22](#scenario-22) | Natural daily exhaustion, retained unlock and fresh login denial | `E2E-008/fresh-login` | ready |
 | [25](#scenario-25) | Switch User while child time expires (foreground: parent) | `E2E-010/parent` | ready |
 | [26](#scenario-26) | Switch User while child time expires (foreground: other child) | `E2E-010/other-child` | ready |
@@ -109,7 +110,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [262](#scenario-262) | Language changes preserve countdown and natural expiry | `E2E-061/panel-expiry` | ready |
 | <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[18](#scenario-18)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: zero; sessions: multiple)</span> | <span style="color: gray">`E2E-007/zero-multiple`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[19](#scenario-19)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: remaining; sessions: single)</span> | <span style="color: gray">`E2E-007/remaining-single`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[20](#scenario-20)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: remaining; sessions: multiple)</span> | <span style="color: gray">`E2E-007/remaining-multiple`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[23](#scenario-23)</span> | <span style="color: gray">Recover unfinished work after grant-only time runs out (soft apps: excluded)</span> | <span style="color: gray">`E2E-009/excluded`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[24](#scenario-24)</span> | <span style="color: gray">Recover unfinished work after grant-only time runs out (soft apps: included)</span> | <span style="color: gray">`E2E-009/included`</span> | <span style="color: gray">pending</span> |
@@ -455,6 +455,20 @@ Variant: control: disabled; match: pattern
 Case: `E2E-007/zero-single` · Category: customer-journey · Status: **ready**
 
 Variant: daily: zero; sessions: single
+
+**Steps:**
+
+- Using Parent and actual approval, establish the declared daily balance and active grant. Leave allowed and temporarily permitted soft-blocked activities open for the child and another user's recognizable activity. Multiple requires distinct supported desktops for this child.
+- Open Revoke in Parent, read the child and warning, and Cancel. Revisit the child and read the balances to confirm continued access and the same activity.
+- Confirm Revoke and read zero one-time time and unchanged daily time. With daily time left, visit each retained child desktop and inspect blocked-app closure and launch denial; with zero time, verify time-limit denial. Revisit the other user's same activity.
+
+### Scenario 19
+
+**Cancel then confirm revocation with open apps (daily: remaining; sessions: single)**
+
+Case: `E2E-007/remaining-single` · Category: customer-journey · Status: **ready**
+
+Variant: daily: remaining; sessions: single
 
 **Steps:**
 
@@ -1283,26 +1297,6 @@ Pending: Consolidated into E2E-004/app-grid (case 5), which independently checks
 Case: `E2E-007/zero-multiple` · Category: customer-journey · Status: **pending**
 
 Variant: daily: zero; sessions: multiple
-
-**Steps:**
-
-- Using Parent and actual approval, establish the declared daily balance and active grant. Leave allowed and temporarily permitted soft-blocked activities open for the child and another user's recognizable activity. Multiple requires distinct supported desktops for this child.
-- Open Revoke in Parent, read the child and warning, and Cancel. Revisit the child and read the balances to confirm continued access and the same activity.
-- Confirm Revoke and read zero one-time time and unchanged daily time. With daily time left, visit each retained child desktop and inspect blocked-app closure and launch denial; with zero time, verify time-limit denial. Revisit the other user's same activity.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 19
-
-**Cancel then confirm revocation with open apps (daily: remaining; sessions: single)**
-
-Case: `E2E-007/remaining-single` · Category: customer-journey · Status: **pending**
-
-Variant: daily: remaining; sessions: single
 
 **Steps:**
 

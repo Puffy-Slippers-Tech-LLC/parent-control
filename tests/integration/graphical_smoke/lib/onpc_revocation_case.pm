@@ -10,9 +10,10 @@ use onpc_desktop_session ();
 use onpc_request_flow ();
 
 sub run {
-    onpc_progress::operation('Checking Cancel preserves child work and Confirm removes access while Riley keeps working');
-    my ($exchange, $invocations, $challenges, $request) = @_;
-    die 'revocation-case:binding' unless @_ == 4 && ref($exchange) eq 'CODE'
+    onpc_progress::operation('Checking Cancel preserves child work and Confirm removes extra time while another child keeps working');
+    my ($exchange, $invocations, $challenges, $request, $daily) = @_;
+    die 'revocation-case:binding' unless @_ == 5 && ref($exchange) eq 'CODE'
+        && defined($daily) && ($daily == 0 || $daily == 30)
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'revocation-case', review => 0);
     $journey->declare_invocations($invocations);
@@ -25,7 +26,8 @@ sub run {
         $journey->seen('child-picker-opened'), 'child-picker-opened',
         'child-choice-highlighted', 'parent-selected');
     $journey->consume_observation('parent-selected', $selected);
-    $journey->seen($_) for qw(initial-balance enable zero-ready zero-confirm zero-balance);
+    $journey->seen($_) for ('initial-balance', 'enable',
+        $daily ? qw(daily-ready daily-confirm daily-balance) : qw(zero-ready zero-confirm zero-balance));
     onpc_app_rows::named_app_set($journey, 'desktop', 'same-user', 'retained', 'existing',
         [['A', 'match-precise', 'allowed'], ['H', 'match-hard-precise', 'permanent'],
          ['S', 'match-soft-precise', 'conditional']], 'rules');
@@ -49,11 +51,22 @@ sub run {
     onpc_desktop_session::enter_desktop($journey, 'desktop', 'parent', 'retained', 'success',
                                       'parent-confirm', 'other-child');
     $journey->seen($_) for qw(confirm-before confirm-open confirm confirmed-balance);
-    onpc_desktop_session::enter_desktop($journey, 'desktop', 'other-child', 'retained', 'time-denied',
-                                      'denied-child', 'parent');
-    onpc_gdm::return_from_time_denial($journey,
-        'denied-return-ready', 'denied-return-state', 'denied-returned');
-    onpc_app_rows::retained_app_visit($journey, 'riley-return', 'child', 'gdm');
+    if ($daily) {
+        onpc_desktop_session::enter_desktop($journey, 'desktop', 'other-child', 'retained', 'success',
+                                          'confirmed-child', 'parent');
+        onpc_app_rows::native_read_activity($journey, 'confirmed-soft-closed');
+        onpc_app_rows::native_read_activity($journey, 'confirmed-allowed-opened');
+        $journey->seen($_) for qw(confirmed-allowed-submit confirmed-allowed-submitted);
+        onpc_app_rows::native_blocked_app($journey->scope('denied-hard'), 'H');
+        onpc_app_rows::native_blocked_app($journey->scope('denied-soft'), 'S');
+        onpc_app_rows::retained_app_visit($journey, 'riley-return', 'child', 'desktop', 'other-child');
+    } else {
+        onpc_desktop_session::enter_desktop($journey, 'desktop', 'other-child', 'retained', 'time-denied',
+                                          'denied-child', 'parent');
+        onpc_gdm::return_from_time_denial($journey,
+            'denied-return-ready', 'denied-return-state', 'denied-returned');
+        onpc_app_rows::retained_app_visit($journey, 'riley-return', 'child', 'gdm');
+    }
     onpc_app_rows::native_read_activity($journey, 'riley-usable');
     $journey->finish();
 }

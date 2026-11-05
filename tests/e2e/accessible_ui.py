@@ -172,7 +172,8 @@ NATIVE_APP_OPERATIONS = frozenset('native-' + suffix for suffix in (
     'grid-refusals', 'command-launch', 'command-refusals', 'wrong-entry',
     'opened', 'submit', 'resubmit', 'submitted', 'close', 'closed',
     'activity', 'activity-wrong-entry', 'command-blocked', 'activity-launch',
-    'grid-blocked', 'grid-denied', 'policy-activity', 'policy-closed'))
+    'grid-blocked', 'grid-denied', 'policy-activity', 'policy-closed',
+    'policy-soft-activity', 'policy-soft-closed'))
 NATIVE_APP_OPERATIONS |= frozenset('native-alias-' + suffix for suffix in (
     'search-ready', 'search-focused', 'search-entered', 'grid', 'command-blocked',
     'grid-blocked', 'grid-denied'))
@@ -12829,7 +12830,7 @@ class AccessibleUI:
         require(role is None or role in ('A', 'H', 'S', 'N') and child in (CHILD, EXISTING_CHILD)
                 and fixture == 'policy' and (role != 'H' or blocked)
                 and (role != 'N' or child == EXISTING_CHILD and not blocked), 'ui:native-binding')
-        require(instance == ('secondary' if role == 'S' else 'primary'), 'ui:native-binding')
+        require(instance == ('secondary' if role in ('H', 'S') else 'primary'), 'ui:native-binding')
         require(type(locked) is bool and (not locked or role == 'S' and blocked),
                 'ui:native-binding')
         require(type(blocked) is bool, 'ui:native-binding')
@@ -13075,19 +13076,21 @@ class AccessibleUI:
                                           check_prompt=True)
         return node is None or not complete_absence and not self.showing(node)
 
-    def native_policy_activity(self, *, closed=False):
+    def native_policy_activity(self, *, closed=False, role='A'):
         """APP02: bind public presence/complete absence to the same child session."""
+        require(role in ('A', 'S') and type(closed) is bool, 'ui:native-binding')
+        instance = 'secondary' if role == 'S' else 'primary'
         uid = os.getuid()
         require(uid == pwd.getpwnam(CHILD_ACCOUNTS[EXISTING_CHILD]).pw_uid == os.geteuid(),
                 'ui:native-activity-owner')
         owner = session_control.entry_identity(session_control.sessions(), uid, 'same')
         if closed:
-            self.wait(lambda: self.native_app_closed(complete_absence=True), 'native-policy-closed')
-            value = {'binding': 'native-primary', 'pid': None, 'endpoint': None, 'state': None}
+            self.wait(lambda: self.native_app_closed(instance, complete_absence=True), 'native-policy-closed')
+            value = {'binding': 'native-' + instance, 'pid': None, 'endpoint': None, 'state': None}
         else:
             value = self.wait(lambda: self.native_app_snapshot(
-                'ONPC fixture draft', with_window=True, role='A', child=EXISTING_CHILD,
-                implicit_instance=True),
+                'ONPC fixture draft', with_window=True, role=role, instance=instance,
+                child=EXISTING_CHILD, implicit_instance=role == 'A'),
                 'native-policy-activity', prompt_in_predicate=True)
         require(session_control.entry_identity(session_control.sessions(), uid, 'same') == owner,
                 'ui:native-activity-owner-changed')
@@ -13099,7 +13102,10 @@ class AccessibleUI:
                 'ui:native-operation')
         child = CHILD if operation in BASELINE_NATIVE_BINDINGS else EXISTING_CHILD
         role, action = (BASELINE_NATIVE_BINDINGS if child == CHILD else NATIVE_DENIAL_BINDINGS)[operation]
-        instance = 'secondary' if role == 'S' else 'primary'
+        # Denied launches must not collide with the retained Allowed primary
+        # activity. H/S share the secondary slot, whose absence is still
+        # required before and after each attributed execution denial.
+        instance = 'secondary' if role in ('H', 'S') else 'primary'
         if action in ('desktop', 'closed'):
             self.wait(lambda: self.native_app_closed(instance), 'native-closed')
             return None
@@ -13132,8 +13138,10 @@ class AccessibleUI:
             require(child == EXISTING_CHILD, 'ui:native-child-binding')
             product = NATIVE_ALIAS_PRODUCT
             operation = operation.replace('native-alias-', 'native-', 1)
-        if operation in ('native-policy-activity', 'native-policy-closed'):
-            return self.native_policy_activity(closed=operation == 'native-policy-closed')
+        if operation in ('native-policy-activity', 'native-policy-closed',
+                         'native-policy-soft-activity', 'native-policy-soft-closed'):
+            return self.native_policy_activity(closed=operation.endswith('-closed'),
+                                               role='S' if '-soft-' in operation else 'A')
         if operation in ('native-desktop', 'native-closed'):
             self.wait(self.native_app_closed, 'native-closed')
         elif operation == 'native-command-launch':

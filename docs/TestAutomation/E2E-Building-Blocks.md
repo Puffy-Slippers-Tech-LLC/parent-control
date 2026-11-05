@@ -3897,6 +3897,16 @@ approval's limits-off toggle and before the Soft→Hard save. Case 16 passed
 those same closure/denial and isolation results with pattern matching and
 limits off in `20261104T221123Z-f4e1c198`, including collection and owned cleanup.
 
+Case 19 passed on Ubuntu 26.04 in `20261105T055838Z-a1d70581`, extending
+`native_policy_activity(role='S')` to capture and compare complete secondary-window
+closure after real grant revocation, bound to the original child/session.
+The same continuous journey preserved the Allowed primary activity and denied
+both H/S launches. Those denied launches use the secondary fixture instance so
+their complete absence guards do not collide with the retained Allowed window;
+attributed permission denial and all account/input guards remain required.
+Cancel's original A/S activities and Riley's final original work also passed,
+with collection, worker cleanup and baseline restoration complete.
+
 ## Complete scenario decomposition
 
 The [customer scenario recipes](E2E-Scenario-Recipes.md) now own all finite

@@ -550,7 +550,14 @@ the six transitions.
 
 Implementation status: Case 17's `revocation_case.PLAN` /
 `RevocationCaseJourney` and `onpc_revocation_case::run` passed on Ubuntu 26.04 in
-`20261105T015431Z-68a208f7`. Cases 18–20 remain pending. Case 17 uses Jordan's
+`20261105T015431Z-68a208f7`. Case 19 is registered through
+`revocation_case.REMAINING_PLAN` and the same journey/worker, and passed on
+Ubuntu 26.04 in `20261105T055838Z-a1d70581`. Cancel preserved balances, saved
+rules and both original activities. Confirm cleared the grant with daily time
+remaining, closed the original soft activity, preserved usable Allowed work and
+denied both H/S command launches; Riley's original work remained usable.
+Collection, worker cleanup and baseline restoration passed. Cases 18/20 remain
+pending. Case 17 uses Jordan's
 zero daily allowance,
 a real 20-minute soft-included grant, original Allowed A/Soft Blocked S activities
 and Riley's retained activity. Cancel compares both original child windows and
@@ -565,6 +572,18 @@ Bindings: daily = zero / remaining; sessions = single / multiple.
 1. Prepare reusable observers before FLOW13(profile, active grant) → FLOW14(child desktop list,Riley); P opens the same child's Screen Limits. Use the finite non-expiry grant profile, with positive daily 30 where required; no wait for unused grant expiry.
 2. PARENT17 → PARENT18(cancel) → PARENT09 → C(retained) → APP04(compare) → P.
 3. PARENT17 → PARENT18(confirm) → PARENT09. D>0: C(each retained) → APP02(soft closed) → FLOW08(allowed and blocked). D=0: C(retained,denied) → DESK11. FLOW09(Riley).
+
+Case 19 saves Jordan's 30-minute daily allowance (at least 1500 seconds actually
+remaining before approval) and obtains a real 20-minute addition with soft apps
+included. Parent requires at least 900 daily seconds at each revocation read,
+compares balances within the public precision and elapsed read brackets, and
+checks unchanged saved allowance/app rules. Cancel compares and uses both
+original A/S activities. After Confirm, compare complete S-window absence against
+its original account/session-bound capture before attempting either blocked
+H/S command. Compare and use the original Allowed A window, then return normally
+to Riley's original activity. The worker has 40 minutes and the case has 45
+minutes for the complete preparation, authentication, observations and cleanup;
+no product response bound or countdown is extended.
 
 ### E2E-008
 

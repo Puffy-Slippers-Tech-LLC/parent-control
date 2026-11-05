@@ -2031,12 +2031,14 @@ class UiObservations:
                     'submitted': 'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
                     'score': 'Moves: 0; token: 0'}
         if operation in ('native-activity', 'overlay-native-activity', 'parent-native-activity',
-                         'native-policy-activity', 'native-policy-closed', 'native-unmatched-soft-activity'):
+                         'native-policy-activity', 'native-policy-closed', 'native-unmatched-soft-activity',
+                         'native-policy-soft-activity', 'native-policy-soft-closed'):
             require(type(result) is dict and set(result) == {*expected, 'activity'}, 'ui:response')
             activity = AppActivityObservation.from_value(result['activity'],
-                closed=operation == 'native-policy-closed', binding=(
-                    'native-secondary' if operation == 'native-unmatched-soft-activity' else 'native-primary'))
-            require((activity.pid is None) == (operation == 'native-policy-closed'),
+                closed=operation.endswith('-closed'), binding=(
+                    'native-secondary' if operation == 'native-unmatched-soft-activity'
+                    or operation.startswith('native-policy-soft-') else 'native-primary'))
+            require((activity.pid is None) == operation.endswith('-closed'),
                     'ui:app-activity-result')
             if operation.startswith('native-policy-'):
                 require(activity.owner is not None, 'ui:app-activity-owner')

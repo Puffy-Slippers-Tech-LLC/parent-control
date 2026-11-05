@@ -23,7 +23,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **085 — [Check revoking extra time while daily time remains](E2E-Tasks/085-case-19.md)**.
+Next task: **103 — [Check returning after time runs out with blocked apps closed](E2E-Tasks/103-case-23.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

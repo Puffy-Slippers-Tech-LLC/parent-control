@@ -981,8 +981,9 @@ Both use the same launcher and [shared instructions](../docs/TestAutomation/E2E-
 with separate queues, pointers, locks, saved progress and optimization batches.
 Use the same selector for attachment, stop, reload, reconciliation and close-out.
 The queues have no unfinished dependencies on each other. They may run at
-different times or concurrently on separate branches/checkouts; pass `--branch`
-explicitly to override the launcher's configured default. Shared VM/Git locks
+different times or concurrently on separate branches/checkouts. Plan A uses the
+configured launcher default branch; `--planb` defaults to the current checkout's
+branch. Explicit `--branch` overrides either default. Shared VM/Git locks
 still apply. Do not run concurrent coding agents in the same checkout.
 
 `--tasks N` limits completed tasks and defaults to `1`. There is no total

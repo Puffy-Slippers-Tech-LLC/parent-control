@@ -12,8 +12,9 @@ Use the same selector when attaching, stopping, reloading, reconciling or finish
 close-out. Each plan retains independent locks, checkpoints, task limits,
 suspended tasks and optimization batches. Plan A keeps its existing storage;
 Plan B uses the shared plan namespace derived from its master path. They may run
-at different times or concurrently in separate branches/checkouts. Use `--branch`
-to select each checkout explicitly when the configured default points elsewhere.
+at different times or concurrently in separate branches/checkouts. Plan A uses
+the launcher's configured default branch; Plan B defaults to the current
+checkout's branch. Use `--branch` to select a different checkout explicitly.
 Shared VM leases and Git close-out locks still serialize access to shared resources.
 Concurrent execution in one checkout is unsupported because agents edit shared source.
 

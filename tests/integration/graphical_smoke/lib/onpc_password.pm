@@ -127,13 +127,16 @@ sub enter_kiosk_mate_password {
             my $grant_access = ($journey->{prefix} // '') =~ /\A(?:grant-access|revocation)-case-request\z/
                 && ($journey->{stage_prefix} // '') eq 'request-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
+            my $app_restart = ($journey->{prefix} // '') eq 'app-restart-active-request'
+                && ($journey->{stage_prefix} // '') eq 'request-'
+                && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
             my $app_transition = ($journey->{prefix} // '') eq 'app-rule-changes-soft-opening'
                 && ($journey->{stage_prefix} // '') eq 'soft-opening-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,75,1';
             my $work_recovery = ($journey->{prefix} // '') eq 'grant-work-recovery'
                 && ($journey->{stage_prefix} // '') eq ''
                 && ref($request) eq 'ARRAY' && join(',', @$request) =~ /\Achild,parent,1200,[01]\z/;
-            die 'secret:challenge' unless ($delayed || $grant_access || $app_transition || $work_recovery ||
+            die 'secret:challenge' unless ($delayed || $grant_access || $app_restart || $app_transition || $work_recovery ||
                     ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
                     && ($journey->{stage_prefix} // '') eq '')
                 && ref($request) eq 'ARRAY' && @$request == 4

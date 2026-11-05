@@ -135,7 +135,8 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
                                  'profile-setup', 'profile-wrong-scope',
                                  'grant-request', 'grant-wrong-scope', 'grant-wrong-child',
                                  'transition-request', 'transition-wrong-duration', 'revocation-request',
-                                 'work-recovery', 'kiosk-recovery', 'kiosk-recovery-wrong-scope'])
+                                 'work-recovery', 'kiosk-recovery', 'kiosk-recovery-wrong-scope',
+                                 'app-restart-request'])
 def test_composed_kiosk_secret_scope_and_single_use(mode):
     # Execute the real password guard; replace only the secret delivery sink.
     # No password is supplied, and each isolated Perl process owns its latch.
@@ -144,6 +145,7 @@ def test_composed_kiosk_secret_scope_and_single_use(mode):
     from grant_work_recovery import INCLUDED_PLAN as RECOVERY_PLAN
     from panel_request_case import PLAN as PANEL_PLAN
     from kiosk_recovery import PLAN as KIOSK_PLAN
+    from app_restart_active import PLAN as RESTART_PLAN
     transition = [PLAN.prefix + '-soft-opening', 'soft-opening-', list(PLAN.kiosk_request)]
     revocation = [REVOCATION_PLAN.prefix + '-request', 'request-', list(REVOCATION_PLAN.kiosk_request)]
     recovery = [RECOVERY_PLAN.prefix, list(RECOVERY_PLAN.kiosk_request)]
@@ -175,6 +177,7 @@ my $revocation = decode_json(shift @ARGV);
 my $recovery = decode_json(shift @ARGV);
 my $panel_prefix = shift @ARGV;
 my $kiosk_prefix = shift @ARGV;
+my $restart = decode_json(shift @ARGV);
 my $first = bless {prefix => 'kiosk-delayed-approval-first', stage_prefix => 'first-',
     kiosk_request => ['child', 'parent', 30, 0], review => 0}, 'onpc_journey';
 my $second = bless {%$first, prefix => 'kiosk-delayed-approval-second', stage_prefix => 'second-'}, 'onpc_journey';
@@ -201,6 +204,10 @@ if ($mode eq 'revocation-request') {
     $first = bless {prefix => $revocation->[0], stage_prefix => $revocation->[1],
         kiosk_request => $revocation->[2], review => 0}, 'onpc_journey';
 }
+if ($mode eq 'app-restart-request') {
+    $first = bless {prefix => $restart->[0] . '-request', stage_prefix => 'request-',
+        kiosk_request => $restart->[1], review => 0}, 'onpc_journey';
+}
 if ($mode =~ /^kiosk-recovery/) {
     $first = bless {prefix => $kiosk_prefix . '-kiosk-final',
         stage_prefix => $mode eq 'kiosk-recovery' ? 'kiosk-final-' : 'kiosk-first-',
@@ -219,7 +226,7 @@ my $ok = eval {
         onpc_password::enter_kiosk_mate_password($return, 'bound-request');
     } elsif ($mode =~ /^profile-/) {
         onpc_password::enter_kiosk_mate_password($first, 'request-1200');
-    } elsif ($mode =~ /^(?:grant|transition|revocation)-/) {
+    } elsif ($mode =~ /^(?:grant|transition|revocation|app-restart)-/) {
         onpc_password::enter_kiosk_mate_password($first, 'bound-request');
     } else {
         onpc_password::enter_kiosk_mate_password($first, 'bound-request');
@@ -229,7 +236,8 @@ my $ok = eval {
 };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
 ''', mode, json.dumps(transition), json.dumps(revocation), json.dumps(recovery),
-        PANEL_PLAN.prefix, KIOSK_PLAN.prefix)
+        PANEL_PLAN.prefix, KIOSK_PLAN.prefix,
+        json.dumps([RESTART_PLAN.prefix, list(RESTART_PLAN.kiosk_request)]))
     value = json.loads(result.stdout)
     deliveries = [event for event in value['events'] if event[0] == 'delivery']
     if mode == 'kiosk-recovery':
@@ -252,7 +260,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
         assert [event for event in value['events'] if event[0] == 'proof'] == [
             ['proof', request + '-approval-' + proof]
             for request in ('first', 'second') for proof in ('qualified', 'rechecked')]
-    elif mode in ('grant-request', 'transition-request', 'revocation-request'):
+    elif mode in ('grant-request', 'transition-request', 'revocation-request', 'app-restart-request'):
         assert value['ok'] == 1
         scope = 'soft-opening' if mode == 'transition-request' else 'request'
         assert deliveries == [['delivery', 'parent', scope + '-kiosk-mate-approval']]

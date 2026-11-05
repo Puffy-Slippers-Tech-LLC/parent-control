@@ -1,0 +1,240 @@
+"""Case 116: reopening the apps preserves choices, approved time and work."""
+from copy import deepcopy
+import time
+
+from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS, countdown_seconds
+from countdown import CountdownObservation
+from installed_journey import JourneyPlan, record_installed_journey
+from journey_blocks import (desktop_entry, fresh_desktop, native_activity_entry,
+                            native_activity_resume, native_blocked_app, native_usable_app,
+                            parent_reopen, parent_selection, prefixed_stages, station_entry)
+from kiosk_approved_flow import obtain_time
+from named_app_set import APPS, named_app_set
+from native_fixtures import fixture_actions
+from policy_edits import AppPolicyJourney
+from private_artifacts import require
+from real_interval import interval_action
+from ui_observations import RequestObservation
+
+
+LOGINS = {}
+
+
+def enter(prefix, role, entry):
+    LOGINS[prefix] = role
+    return prefixed_stages(prefix, desktop_entry(role, source='gdm', entry=entry))
+
+
+def leave(prefix, role):
+    return prefixed_stages(prefix, {
+        'desktop': 'ui:desktop' if role == 'parent' else
+                   'ui:fresh-child-desktop' if role == 'child' else 'ui:standard-desktop',
+        'switch-user': f'system:{role if role != "other-child" else "standard"}-switch-user',
+        'gdm-switched': 'ui:gdm-returned'})
+
+
+def overlay(prefix, child, *, prepare=False):
+    return {prefix + '-' + action: f'ui:remembered-overlay-{child}-{action}'
+            for action in ('launch', *(('approver', 'custom', 'text', 'apps') if prepare else ()),
+                           'read', 'cancel', 'returned')}
+
+
+CHOICES = dict(child='existing-fixture-child', approver='fixture-parent',
+               duration_seconds=1200, allow_soft=True)
+SETUP = {
+    **named_app_set(source='gdm', entry='fresh', window='new', child='existing',
+                    apps=APPS, prefix='rules'),
+    **enter('setup-return', 'parent', 'retained'),
+    **prefixed_stages('riley-setup', parent_selection(screen_limits=True)),
+    'riley-time': 'ui:time-explanation-setup-thirty-read',
+    **prefixed_stages('jordan-setup', parent_selection(child='existing', screen_limits=True)),
+    'no-grant': 'ui:revoke-balances',
+    'jordan-time': 'ui:time-explanation-setup-zero-read',
+    **leave('setup-leave', 'parent'),
+    **prefixed_stages('seed-station', station_entry()),
+    'seed-riley-select': 'ui:remembered-kiosk-riley-select-default',
+    'seed-riley-parent': 'ui:remembered-kiosk-riley-approver',
+    'seed-station-cancel': 'ui:kiosk-request-cancel',
+    'seed-station-returned': 'ui:gdm-station-returned',
+    **enter('seed-riley', 'child', 'fresh'),
+    **overlay('seed-riley-form', 'riley', prepare=True),
+    **leave('seed-riley-leave', 'child'),
+    **prefixed_stages('request', obtain_time(initial='observed', **CHOICES, exit='automatic')),
+    **enter('issued-return', 'parent', 'retained'),
+    'issued-policy': 'ui:revoke-saved-balances',
+    **leave('issued-leave', 'parent'),
+    **enter('original-entry', 'other-child', 'fresh'),
+    'original-countdown': 'ui:child-countdown-present',
+    **native_activity_entry('original', child='other-child', binding='policy'),
+    'jordan-launch': 'ui:remembered-overlay-jordan-launch',
+    # A first overlay already has Sam selected. Approval changed the shared
+    # duration to twenty minutes; restore it before the persistence capture.
+    **{f'jordan-{action}': f'ui:remembered-overlay-jordan-{action}'
+       for action in ('custom', 'text', 'apps', 'read', 'cancel', 'returned')},
+    **leave('original-leave', 'other-child'),
+    **prefixed_stages('capture-station', station_entry()),
+    'capture-jordan': 'ui:remembered-kiosk-jordan-read',
+    'capture-riley-select': 'ui:remembered-kiosk-riley-select',
+    'capture-riley': 'ui:remembered-kiosk-riley-read',
+    'capture-cancel': 'ui:kiosk-request-cancel',
+    'capture-returned': 'ui:gdm-station-returned',
+    **enter('before-parent', 'parent', 'retained'),
+    'before-policy': 'ui:revoke-saved-balances',
+}
+BOUNDARY = {
+    **prefixed_stages('reopen', parent_reopen()),
+    'boundary-wait': 'ui:desktop',
+}
+RETURN = {
+    **prefixed_stages('returned-jordan', parent_selection(child='existing', screen_limits=True)),
+    'returned-policy': 'ui:revoke-saved-balances',
+    **prefixed_stages('returned-riley', parent_selection(screen_limits=True)),
+    'returned-riley-settings': 'ui:retained-parent-read',
+    **prefixed_stages('final-jordan', parent_selection(child='existing', screen_limits=True)),
+    **leave('returned-parent-leave', 'parent'),
+    **prefixed_stages('returned-station', station_entry()),
+    'returned-riley': 'ui:remembered-kiosk-riley-read',
+    'returned-jordan-select': 'ui:remembered-kiosk-jordan-select',
+    'returned-jordan': 'ui:remembered-kiosk-jordan-read',
+    'returned-cancel': 'ui:kiosk-request-cancel',
+    'returned-greeter': 'ui:gdm-station-returned',
+    **enter('returned-riley-entry', 'child', 'retained'),
+    **overlay('returned-riley-form', 'riley'),
+    **leave('returned-riley-leave', 'child'),
+    **enter('final-parent', 'parent', 'retained'),
+    'final-policy': 'ui:revoke-saved-balances',
+    **leave('final-parent-leave', 'parent'),
+    **enter('returned-jordan-entry', 'other-child', 'retained'),
+    **overlay('returned-jordan-form', 'jordan'),
+    **{stage: 'ui:native-policy-activity' if stage == 'resume-opened' else tag
+       for stage, tag in native_activity_resume('resume', child='other-child').items()},
+    'original-close': 'ui:native-close', 'original-closed': 'ui:native-closed',
+    **prefixed_stages('hard', native_blocked_app('H')),
+    **prefixed_stages('soft', native_usable_app('command', role='unmatched-soft')),
+    'final-countdown': 'ui:child-countdown-present',
+}
+SCREENS = {**SETUP, **BOUNDARY, **RETURN}
+LOGIN_STAGES = {prefix + '-' + stage for prefix, role in LOGINS.items()
+                for stage in fresh_desktop(role)}
+PLAN = JourneyPlan(
+    prefix='app-restart-active', worker_mode='app_restart_active', screen_tags=SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+        **{stage: 'step-1' for stage in SETUP}, 'installed-greeter': 'start',
+        **{stage: 'step-2' for stage in BOUNDARY},
+        **{stage: 'step-3' if index <= list(RETURN).index('returned-policy') else 'step-4'
+           for index, stage in enumerate(RETURN)}},
+    advance_after={'before-policy': 'step-2', 'boundary-wait': 'step-3',
+                   'returned-policy': 'step-4'},
+    stage_actions={'desktop': 'native-verify', 'boundary-wait': 'real-interval'},
+    child_bindings={stage: 'existing' for stage, tag in SCREENS.items()
+                    if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS
+                    and not stage.startswith(('riley-', 'returned-riley-'))},
+    invocations=tuple(stage for stage in SCREENS if stage in LOGIN_STAGES),
+    challenges={prefix: (role, prefix + '-' +
+        ('recipient-qualified' if role == 'parent' else
+         'child-recipient-qualified' if role == 'child' else 'standard-recipient-qualified'),
+        prefix + '-' + ('recipient-rechecked' if role == 'parent' else
+         'child-recipient-rechecked' if role == 'child' else 'standard-recipient-rechecked'))
+        for prefix, role in LOGINS.items()},
+    kiosk_request=('other-child', 'parent', 1200, True),
+    match_checks={f'rules-saved-{role.lower()}-match': (MATCH_APPS[role], rule)
+                  for role, rule in (('A', MATCH_RULES[0]), ('H', MATCH_RULES[3]), ('S', MATCH_RULES[4]))},
+    access_checks={f'rules-saved-{role.lower()}-access': (MATCH_APPS[role], access)
+                   for role, access in (('A', 'allowed'), ('H', 'permanent'), ('S', 'conditional'))},
+    activity_entries={'returned-jordan-entry-entry-guard': 'original-capture'},
+    activity_checks={'resume-opened': ('original-capture', 'same')},
+    assertions_after={'final-countdown': 'visible-result'},
+)
+
+FORM_COMPARISONS = {
+    'returned-riley': 'capture-riley', 'returned-jordan': 'capture-jordan',
+    'returned-riley-form-read': 'seed-riley-form-read',
+    'returned-jordan-form-read': 'jordan-read',
+}
+
+
+class AppRestartActiveJourney(AppPolicyJourney):
+    def __init__(self, context, progress, plan, *, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
+        self.approval_started = None
+        self.policies = {}
+        self.forms = {}
+        self.original_balance = None
+        self.final_balance = None
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage == 'no-grant':
+            require(observed['ui']['revoke_cancel']['balances']['one_time']['seconds'] == 0,
+                    'app-restart-active:unexpected-grant')
+        if stage == 'request-approval-open':
+            require(self.approval_started is None, 'app-restart-active:approval-replay')
+            self.approval_started = time.monotonic_ns()
+        if stage in ('issued-policy', 'before-policy', 'returned-policy', 'final-policy'):
+            self.check_policy(stage, observed)
+        if stage == 'returned-riley-settings':
+            require(observed['ui']['retained_parent']['settings'] == {
+                'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['30 minutes']},
+                'app-restart-active:riley-settings')
+        if stage in FORM_COMPARISONS or stage in FORM_COMPARISONS.values():
+            value = RequestObservation.from_request(observed['ui']['request'],
+                operation=self.plan.screen_tags[stage][3:])
+            require(stage not in self.forms, 'app-restart-active:form-replay')
+            if stage in FORM_COMPARISONS:
+                require(self.forms.get(FORM_COMPARISONS[stage]) == value,
+                        'app-restart-active:remembered-form-changed')
+                observed.setdefault('comparison', {})['complete_remembered_choices'] = True
+            self.forms[stage] = value
+        if stage in ('original-countdown', 'final-countdown'):
+            countdown = CountdownObservation.from_value(observed['ui']['countdown'], present=True,
+                                                        child='existing-fixture-child')
+            require(countdown_seconds(countdown.text)[0] >= 300,
+                    'app-restart-active:insufficient-active-margin')
+            balance, _bounds = self.original_balance if stage == 'original-countdown' else self.final_balance
+            from countdown import check_countdown_balance
+            observed['comparison'] = check_countdown_balance(countdown,
+                seconds=balance['one_time']['seconds'],
+                precision_seconds=balance['one_time']['precision_seconds'],
+                observed_monotonic_ns=balance['observed_monotonic_ns'], max_elapsed_seconds=300)
+
+    def check_policy(self, stage, observed):
+        value = observed['ui']['revoke_cancel']
+        require(value['settings'] == {'child': 'existing-fixture-child',
+            'limit_enabled': True, 'allowance': ['0 minutes']}, 'app-restart-active:saved-settings')
+        # Exact rules are saved once through FLOW19. Compare the full immutable
+        # public projection so later reads cannot hide another changed rule.
+        saved = {key: deepcopy(value[key]) for key in ('settings', 'apps', 'rules')}
+        if self.policies:
+            require(saved == self.policies['issued-policy'], 'app-restart-active:saved-rules-changed')
+        self.policies[stage] = saved
+        balances, bounds = value['balances'], tuple(self.ui.read_bounds)
+        grant = balances['one_time']['seconds']
+        require(balances['daily']['seconds'] == 0 and grant >= 300
+                and abs(balances['total']['seconds'] - grant) <= balances['total']['precision_seconds'],
+                'app-restart-active:grant-only-active')
+        if self.original_balance is None:
+            require(self.approval_started is not None, 'app-restart-active:missing-approval')
+            elapsed = (time.monotonic_ns() - self.approval_started) / 1e9
+            require(0 < elapsed < 600 and 1200 - elapsed - balances['one_time']['precision_seconds'] - 2
+                    < grant <= 1200, 'app-restart-active:issued-grant')
+            self.original_balance = (deepcopy(balances), bounds)
+        else:
+            before, earlier = self.original_balance
+            minimum, maximum = (bounds[0] - earlier[1]) / 1e9, (bounds[1] - earlier[0]) / 1e9
+            tolerance = balances['one_time']['precision_seconds'] + before['one_time']['precision_seconds'] + 2
+            require(0 < minimum <= maximum < 1200
+                    and before['one_time']['seconds'] - maximum - tolerance < grant
+                    < before['one_time']['seconds'] - minimum + tolerance,
+                    'app-restart-active:original-grant-deadline')
+            observed.setdefault('comparison', {})['original_positive_deadline'] = True
+        if stage == 'final-policy':
+            self.final_balance = (deepcopy(balances), bounds)
+
+
+def execute(recorder, context):
+    record_installed_journey(recorder, context, PLAN, timeout=3000,
+        journey_type=AppRestartActiveJourney,
+        actions={**fixture_actions(include_refusal=False), 'real-interval': interval_action(2)})
+
+
+E2E_CASES = {'app-restart-active': execute}

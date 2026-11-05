@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5783</span>/<span style="color: gray">0</span>/5783 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5785</span>/<span style="color: gray">0</span>/5785 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">224</span>/<span style="color: gray">0</span>/224 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">295</span>/<span style="color: gray">0</span>/295 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -15,8 +15,8 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">81</span>/<span style="color: gray">115</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6447</span>/<span style="color: gray">115</span>/6562** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">82</span>/<span style="color: gray">114</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6450</span>/<span style="color: gray">114</span>/6564** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">80</span>/<span style="color: gray">115</span>/195 |
+| customer-journey | <span style="color: green">81</span>/<span style="color: gray">114</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -88,6 +88,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [85](#scenario-85) | Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: native command) | `E2E-019/native-command-soft-blocked-disabled` | ready |
 | [92](#scenario-92) | Use supported launch routes under each app rule (control: enabled; policy: allowed; route: snap command) | `E2E-019/snap-command-allowed-enabled` | ready |
 | [93](#scenario-93) | Use supported launch routes under each app rule (control: disabled; policy: allowed; route: snap command) | `E2E-019/snap-command-allowed-disabled` | ready |
+| [116](#scenario-116) | Customer lifecycle persistence and resume (boundary: app restart; grant: active) | `E2E-022/app-restart-active` | ready |
 | [139](#scenario-139) | Install through remove, reinstall and purge | `E2E-027/continuous` | ready |
 | [151](#scenario-151) | Identify the installed product and return to management | `E2E-030/parent` | ready |
 | [152](#scenario-152) | Feedback drafts, validation and attachment review (flow: draft reopen) | `E2E-031/draft-reopen` | ready |
@@ -158,7 +159,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[113](#scenario-113)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: approve without soft)</span> | <span style="color: gray">`E2E-021/approve-without-soft`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[114](#scenario-114)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: approve with soft)</span> | <span style="color: gray">`E2E-021/approve-with-soft`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[115](#scenario-115)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: revoke)</span> | <span style="color: gray">`E2E-021/revoke`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[116](#scenario-116)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: app restart; grant: active)</span> | <span style="color: gray">`E2E-022/app-restart-active`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[117](#scenario-117)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: app restart; grant: expired)</span> | <span style="color: gray">`E2E-022/app-restart-expired`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[118](#scenario-118)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: sign out in; grant: active)</span> | <span style="color: gray">`E2E-022/sign-out-in-active`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[119](#scenario-119)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: sign out in; grant: expired)</span> | <span style="color: gray">`E2E-022/sign-out-in-expired`</span> | <span style="color: gray">pending</span> |
@@ -986,6 +986,21 @@ Variant: control: disabled; policy: allowed; route: snap command
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
 - Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For blocked apps, observe execution denial. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
+
+### Scenario 116
+
+**Customer lifecycle persistence and resume (boundary: app restart; grant: active)**
+
+Case: `E2E-022/app-restart-active` · Category: customer-journey · Status: **ready**
+
+Variant: boundary: app restart; grant: active
+
+**Steps:**
+
+- Save screen limits and app rules through Parent and approve this case's real grant with zero daily allowance. Active and combined idle cases explicitly save and read intended preferences on both forms without approving again; paired expired cases omit that repeated preference preparation. Read remaining grant time and its original deadline before leaving recognizable allowed work open. Cases 118/120 also publicly prepare positive daily access for Riley, save Jordan's countdown animation on and Riley's off, and independently read both. Capture public time and app rules before/after preference writes, allowing actual elapsed use.
+- Perform the declared app restart through its tested public route; use shared system commands for sign-out, reboot and suspend. Idle uses one real 2-minute grant: wait 15 seconds without child activity, return with positive reduced time at the original deadline, compare retained work and read Parent/both forms' saved choices before editing.
+- Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time. The combined idle case leaves the same child desktop idle again through that original deadline, without reset, sign-out, clock change or intervening approval.
+- Read saved Parent allowance/app rules before editing. Active cases 116/118/120/124 compare complete remembered choices on both forms. Paired expired cases 117/119/121/125 omit the repeated preference tour, prove original-deadline expiry and specific time denial, then explicitly select inputs and parent for real 3-minute replacement approval. Confirm positive usable time and correct allowed/soft/hard app results after recovery. Fresh entry after logout/reboot starts apps anew; retained return compares earlier Always Allowed work. Combined idle keeps its declared preference and recovery checks. Case 118 signs each child out and back in normally; case 120 uses its existing single reboot and fresh login for both children. Independently read Jordan's animation on and Riley's off after the boundary before editing, preserving original time limits, app rules and the positive grant deadline, with no additional approval or exhaustion wait.
 
 ### Scenario 139
 
@@ -2223,27 +2238,6 @@ Variant: transaction: revoke
 - Visit every declared retained desktop and inspect earlier activity and later launches. Revisit the other user's same activity.
 
 Pending: Requires a supported public route to distinct desktops for the same child; no backend session creation or repeated resume can qualify it.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 116
-
-**Customer lifecycle persistence and resume (boundary: app restart; grant: active)**
-
-Case: `E2E-022/app-restart-active` · Category: customer-journey · Status: **pending**
-
-Variant: boundary: app restart; grant: active
-
-**Steps:**
-
-- Save screen limits and app rules through Parent and approve this case's real grant with zero daily allowance. Active and combined idle cases explicitly save and read intended preferences on both forms without approving again; paired expired cases omit that repeated preference preparation. Read remaining grant time and its original deadline before leaving recognizable allowed work open. Cases 118/120 also publicly prepare positive daily access for Riley, save Jordan's countdown animation on and Riley's off, and independently read both. Capture public time and app rules before/after preference writes, allowing actual elapsed use.
-- Perform the declared app restart through its tested public route; use shared system commands for sign-out, reboot and suspend. Idle uses one real 2-minute grant: wait 15 seconds without child activity, return with positive reduced time at the original deadline, compare retained work and read Parent/both forms' saved choices before editing.
-- Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time. The combined idle case leaves the same child desktop idle again through that original deadline, without reset, sign-out, clock change or intervening approval.
-- Read saved Parent allowance/app rules before editing. Active cases 116/118/120/124 compare complete remembered choices on both forms. Paired expired cases 117/119/121/125 omit the repeated preference tour, prove original-deadline expiry and specific time denial, then explicitly select inputs and parent for real 3-minute replacement approval. Confirm positive usable time and correct allowed/soft/hard app results after recovery. Fresh entry after logout/reboot starts apps anew; retained return compares earlier Always Allowed work. Combined idle keeps its declared preference and recovery checks. Case 118 signs each child out and back in normally; case 120 uses its existing single reboot and fresh login for both children. Independently read Jordan's animation on and Riley's off after the boundary before editing, preserving original time limits, app rules and the positive grant deadline, with no additional approval or exhaustion wait.
-
-Pending: Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.
 
 </div>
 

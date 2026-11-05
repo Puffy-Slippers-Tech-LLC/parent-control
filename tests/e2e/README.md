@@ -1778,6 +1778,15 @@ once and retains the Parent scene at `rejected-open`, recording the result in
 `tools/test-vm --vm NAME stop` before clean acceptance. This route uses the
 selected native fixture closure and supplies diagnostic evidence only.
 
+`tools/test-vm --vm NAME reproduce-app-restart-choices` reuses case 116's
+shared journey through Jordan's real approval, original native work capture and
+overlay launch. It attempts `remembered-overlay-jordan-custom` once at
+`jordan-custom`, closes the worker and retains the child session and boundary
+observation for inspection. `probe-app-restart-choices` attempts that same guarded
+choice once in the owned retained scene. Both use the shared maintenance envelope
+and supply diagnostic evidence only. Finish with `tools/test-vm --vm NAME stop`
+before clean acceptance.
+
 `SecretVariables` freezes controller-supplied fixture passwords for the fixed
 `parent`, `child`, `other-parent` and `other-child` roles. It accepts only 1–256
 printable ASCII characters, rejecting control characters that could submit a

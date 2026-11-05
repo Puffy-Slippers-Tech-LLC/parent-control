@@ -460,6 +460,7 @@ def main(argv=None):
                                           'reproduce-overlay-activity', 'probe-overlay-activity',
                                           'reproduce-overlay-return', 'reproduce-panel-request', 'probe-panel-request',
                                           'reproduce-system-graphical-expiry',
+                                          'reproduce-app-restart-choices', 'probe-app-restart-choices',
                                           'reproduce-remembered-return', 'probe-remembered-return',
                                           'repeat-remembered-return', 'enter-remembered-return'))
     parser.add_argument('keys', nargs='*', type=int)
@@ -492,7 +493,7 @@ def main(argv=None):
                                        'reproduce-overlay-activity', 'reproduce-overlay-return',
                                        'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
                                        'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
-                                       'reproduce-panel-request'))
+                                       'reproduce-panel-request', 'reproduce-app-restart-choices'))
                        == (args.fixture_selection is not None),
                        'vm-control:arguments')
         if args.new_name is not None:
@@ -545,11 +546,13 @@ def main(argv=None):
         elif args.action in ('reproduce-baseline-restoration', 'reproduce-natural-access',
                              'reproduce-countdown-grant', 'reproduce-overlay-activity', 'reproduce-overlay-return',
                              'reproduce-system-graphical-expiry', 'reproduce-grant-logout',
-                             'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-panel-request'):
+                             'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-panel-request',
+                             'reproduce-app-restart-choices'):
             from vm_probe import (reproduce_baseline_restoration, reproduce_natural_access,
                                   reproduce_countdown_grant, reproduce_overlay_activity, reproduce_overlay_return,
                                   reproduce_system_graphical_expiry, reproduce_grant_logout,
-                                  reproduce_app_rule_return, reproduce_revocation_return, reproduce_panel_request)
+                                  reproduce_app_rule_return, reproduce_revocation_return, reproduce_panel_request,
+                                  reproduce_app_restart_choices)
             resume(lease)
             try:
                 reproduce = {'reproduce-natural-access': reproduce_natural_access,
@@ -561,7 +564,8 @@ def main(argv=None):
                              'reproduce-grant-logout': reproduce_grant_logout,
                              'reproduce-app-rule-return': reproduce_app_rule_return,
                              'reproduce-revocation-return': reproduce_revocation_return,
-                             'reproduce-panel-request': reproduce_panel_request}[args.action]
+                             'reproduce-panel-request': reproduce_panel_request,
+                             'reproduce-app-restart-choices': reproduce_app_restart_choices}[args.action]
                 reproduce(lease, fixture_selection)
             except BaseException:
                 if getattr(lease, 'maintenance_rebind_pending', False):
@@ -660,6 +664,10 @@ def main(argv=None):
             from vm_probe import probe_panel_request
             resume(lease)
             probe_panel_request(lease)
+        elif args.action == 'probe-app-restart-choices':
+            from vm_probe import probe_app_restart_choices
+            resume(lease)
+            probe_app_restart_choices(lease)
         elif args.action == 'probe-overlay-activity':
             from vm_probe import probe_overlay_activity
             resume(lease)

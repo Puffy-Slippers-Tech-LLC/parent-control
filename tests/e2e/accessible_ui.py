@@ -717,6 +717,7 @@ NAMED_CUSTOM_OPERATIONS = frozenset(
 NAMED_CUSTOM_CHILDREN = {'child': CHILD, 'existing': EXISTING_CHILD}
 NAMED_CUSTOM_OPERATIONS |= frozenset(CATALOGUE_ROW_OPERATIONS)
 NAMED_TIME_OPERATIONS = frozenset({
+    'time-explanation-setup-zero-read',
     'time-explanation-setup-thirty-read', 'time-explanation-read', 'time-explanation-refresh-read',
     'time-explanation-reach-read', 'time-explanation-positive-read',
     'time-explanation-config-wrong-child', 'time-explanation-config-wrong-state',
@@ -11074,7 +11075,12 @@ class AccessibleUI:
         if action in ('custom', 'text', 'apps'):
             identity = {'custom': 'kiosk-duration-choices', 'text': 'kiosk-custom-duration',
                         'apps': 'kiosk-soft-apps-toggle'}[action]
-            target = self.kiosk_valid_target(identity, child=child, approver=approver, overlay=overlay)
+            # REQUEST02 submits the launch without waiting for its form. An
+            # external desktop tree can still change during this first read.
+            # Reacquire only the complete guarded read; deliver input once.
+            target = self.wait(lambda: self.kiosk_valid_target(
+                identity, child=child, approver=approver, overlay=overlay),
+                'transfer-choice-ready', prompt_in_predicate=True)
             self.input_uncertain = True
             if action == 'text':
                 # API text entry invokes the ordinary shared change handler.

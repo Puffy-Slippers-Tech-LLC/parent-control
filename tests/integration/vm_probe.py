@@ -1064,6 +1064,27 @@ def probe_app_rule_return(lease):
         intention='Reading the return greeter in the owned diagnostic scene', ui_operation='gdm-returned')
 
 
+def probe_app_restart_choices(lease):
+    """Attempt the same guarded choice once in the retained Jordan overlay."""
+    observe_maintenance(lease, check='probe_app_restart_choices', label='app-restart-choices-probe',
+        intention="Restoring Jordan's request choice in the retained diagnostic scene",
+        ui_operation='remembered-overlay-jordan-custom')
+
+
+def reproduce_app_restart_choices(lease, fixture_selection):
+    """Retain Jordan's open work and overlay at the saved-choice input boundary."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from app_restart_active import AppRestartActiveJourney, PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, AppRestartActiveJourney, PLAN,
+        'jordan-custom', 'app-restart-choices', assets=assets,
+        boundary_operation='remembered-overlay-jordan-custom', fixture_selection=selection,
+        timeout=1800)
+
+
 def reproduce_match_editor(lease, fixture_selection):
     """Retain the saved wildcard/hard block before the next editor opening."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1282,6 +1303,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from app_rule_changes_case import AppRuleChangesJourney, DISABLED_PATTERN_PLAN
         from revocation_case import RevocationCaseJourney, PLAN as REVOCATION_PLAN
         from panel_request_case import PanelRequestJourney, PLAN as PANEL_REQUEST_PLAN
+        from app_restart_active import AppRestartActiveJourney, PLAN as APP_RESTART_PLAN
         restoration = (surface == 'baseline-restoration'
             and journey_type is BaselineJourney and plan is PLAN
             and boundary == 'restore-saved' and boundary_operation == 'parent-save-disabled'
@@ -1318,7 +1340,11 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             and journey_type is RevocationCaseJourney and plan is REVOCATION_PLAN
             and boundary == 'cancel-child-activity-opened'
             and boundary_operation == 'native-policy-activity')
-        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return)
+        app_restart_choices = (surface == 'app-restart-choices'
+            and journey_type is AppRestartActiveJourney and plan is APP_RESTART_PLAN
+            and boundary == 'jordan-custom'
+            and boundary_operation == 'remembered-overlay-jordan-custom')
+        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1443,9 +1469,12 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                 stream.write(json.dumps({'stage': stage, 'observed': observed}) + '\n')
             print(surface + '-diagnosis: ' + stage, file=sys.stderr, flush=True)
 
-        if surface in ('match-editor', 'panel-request'):
+        if surface in ('match-editor', 'panel-request', 'app-restart-choices'):
             from native_fixtures import fixture_actions
             actions = fixture_actions(include_refusal=False)
+            if surface == 'app-restart-choices':
+                from real_interval import interval_action
+                actions['real-interval'] = interval_action(2)
             if surface == 'panel-request':
                 from real_interval import interval_action
                 actions['cooldown'] = interval_action(5)

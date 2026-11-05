@@ -181,6 +181,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reproduce-overlay-activity', 'probe-overlay-activity',
                                       'reproduce-overlay-return', 'reproduce-panel-request', 'probe-panel-request',
                                       'reproduce-system-graphical-expiry',
+                                      'reproduce-app-restart-choices', 'probe-app-restart-choices',
                                       'reproduce-revoke-cancel', 'probe-revoke-balances',
                                       'reproduce-delayed-approval',
                                       'reproduce-countdown-minutes',
@@ -235,7 +236,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                            'reproduce-overlay-activity', 'reproduce-overlay-return',
                            'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
                            'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
-                           'reproduce-panel-request')) != (args.fixture_selection is not None):
+                           'reproduce-panel-request', 'reproduce-app-restart-choices')) != (args.fixture_selection is not None):
             raise ValueError('test-runner:fixture-sync-requires-selection')
         fixture_options = []
         if args.fixture_maintenance or args.action in ('sync-fixtures', 'reproduce-baseline-restoration',
@@ -243,7 +244,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                                       'reproduce-overlay-activity', 'reproduce-overlay-return',
                                                       'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
                                                       'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
-                                                      'reproduce-panel-request'):
+                                                      'reproduce-panel-request', 'reproduce-app-restart-choices'):
             targets = vm_config.fixture_targets(root / 'config/environment.json')
             if configured.name not in targets:
                 raise ValueError('test-runner:fixture-target-not-qualified')

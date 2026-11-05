@@ -22,6 +22,94 @@ sub reopen {
         $destination, 'same-desktop');
     return $journey->seen('initial-selection');
 }
+
+sub app_restart_active {
+    onpc_progress::operation('Reopening the apps while the child keeps approved time and work');
+    my ($exchange, $declared, $challenges, $request) = @_;
+    die 'app-restart-active:binding' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
+    require onpc_app_rows;
+    require onpc_desktop_session;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'app-restart-active', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_app_rows::named_app_set($journey, 'gdm', 'fresh', 'new', 'existing', [
+        ['A', 'match-precise', 'allowed'], ['H', 'match-hard-precise', 'permanent'],
+        ['S', 'match-soft-wildcard', 'conditional']], 'rules');
+    my $enter = sub {
+        my ($prefix, $role, $entry) = @_;
+        onpc_desktop_session::enter_desktop($journey, 'gdm', $role, $entry, 'success', $prefix);
+    };
+    my $leave = sub {
+        my ($prefix) = @_;
+        my $section = $journey->scope($prefix);
+        onpc_desktop_session::switch_user($section, $section->seen('desktop'));
+    };
+    my $select = sub {
+        my ($prefix, $child) = @_;
+        my $section = $journey->scope($prefix);
+        $section->consume_observation('parent-selected', onpc_parent::select_child($section, $child,
+            $section->seen('child-picker-opened'), 'child-picker-opened',
+            'child-choice-highlighted', 'parent-selected'));
+    };
+    $enter->('setup-return', 'parent', 'retained');
+    $select->('riley-setup', 'child');
+    $journey->seen('riley-time');
+    $select->('jordan-setup', 'existing');
+    $journey->seen($_) for qw(no-grant jordan-time);
+    $leave->('setup-leave');
+    onpc_gdm::enter_station($journey->scope('seed-station'), '');
+    $journey->seen($_) for qw(seed-riley-select seed-riley-parent seed-station-cancel seed-station-returned);
+    $enter->('seed-riley', 'child', 'fresh');
+    $journey->seen("seed-riley-form-$_") for qw(launch approver custom text apps read cancel returned);
+    $leave->('seed-riley-leave');
+    my $approval = $journey->scope('request');
+    $approval->{kiosk_request} = [@$request];
+    onpc_request_flow::prepare($approval, 'new', 'new', 'observed',
+        'existing-fixture-child', 'fixture-parent', 1200, 1, 'kiosk');
+    onpc_request_flow::approve($approval, 'existing-fixture-child', 'fixture-parent', 1200, 1, 'automatic');
+    $enter->('issued-return', 'parent', 'retained');
+    $journey->seen('issued-policy');
+    $leave->('issued-leave');
+    $enter->('original-entry', 'other-child', 'fresh');
+    $journey->seen('original-countdown');
+    onpc_app_rows::native_activity_entry($journey, 'original', 'command', 'other-child', 1, 'policy');
+    $journey->seen("jordan-$_") for qw(launch custom text apps read cancel returned);
+    $leave->('original-leave');
+    onpc_gdm::enter_station($journey->scope('capture-station'), '');
+    $journey->seen($_) for qw(capture-jordan capture-riley-select capture-riley capture-cancel capture-returned);
+    $enter->('before-parent', 'parent', 'retained');
+    $journey->seen('before-policy');
+    my $restart = $journey->scope('reopen');
+    reopen($restart, 'parent', $restart->seen('prior-window'), 'management');
+    $journey->seen('boundary-wait');
+    $select->('returned-jordan', 'existing');
+    $journey->seen('returned-policy');
+    $select->('returned-riley', 'child');
+    $journey->seen('returned-riley-settings');
+    $select->('final-jordan', 'existing');
+    $leave->('returned-parent-leave');
+    onpc_gdm::enter_station($journey->scope('returned-station'), '');
+    $journey->seen($_) for qw(returned-riley returned-jordan-select returned-jordan returned-cancel returned-greeter);
+    $enter->('returned-riley-entry', 'child', 'retained');
+    $journey->seen("returned-riley-form-$_") for qw(launch read cancel returned);
+    $leave->('returned-riley-leave');
+    $enter->('final-parent', 'parent', 'retained');
+    $journey->seen('final-policy');
+    $leave->('final-parent-leave');
+    $enter->('returned-jordan-entry', 'other-child', 'retained');
+    $journey->seen("returned-jordan-form-$_") for qw(launch read cancel returned);
+    onpc_app_rows::native_activity_resume($journey, 'resume');
+    $journey->seen($_) for qw(original-close original-closed);
+    onpc_app_rows::native_blocked_app($journey->scope('hard'), 'H');
+    my $soft = $journey->scope('soft');
+    onpc_app_rows::native_usable_app($soft, 'command', $soft->seen('desktop'), 'other-child', 'unmatched-soft');
+    $journey->seen('final-countdown');
+    $journey->finish();
+}
+
 sub run_removal {
     onpc_progress::operation('Following one continuous removal, retention and purge history');
     my ($exchange, $declared, $challenges) = @_;

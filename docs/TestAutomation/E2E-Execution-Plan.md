@@ -45,9 +45,8 @@ future acceptance obligations.
 
 The completed [kiosk baseline](../SystemDesign/Kiosk-Confinement.md#verification-scope-and-evidence-limits) retains existing
 coverage through C05f. The [local desktop design](../SystemDesign/Kiosk-Confinement.md#local-desktop-boundary)
-defines the existing graphical session boundary; the
-[remaining confinement plan](../Kiosk-Session-Confinement-New-Plan.md) owns the
-other later protections. It owns its targeted negative/normal-use tests.
+defines the existing graphical session boundary. The remaining confinement
+improvements plan and its targeted test queue have been removed.
 New general feature automation remains in this queue. The
 [expiry coverage allocation](UI-and-E2E-Coverage.md#expiry-coverage-allocation)
 uses these same canonical rows; tasks 172a–172l contain only uncovered engineering

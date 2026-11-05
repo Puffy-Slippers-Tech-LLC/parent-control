@@ -32,10 +32,9 @@ qualification.
 
 The [kiosk v1.3 baseline for v1.4](../SystemDesign/Kiosk-Confinement.md#verification-scope-and-evidence-limits)
 completed through C05f. The [local desktop design](../SystemDesign/Kiosk-Confinement.md#local-desktop-boundary)
-defines the existing graphical session boundary; the
-[remaining confinement plan](../Kiosk-Session-Confinement-New-Plan.md) owns the
-other C06–C13 improvements. It owns its targeted tests and adds no release
-baseline prerequisites. The plans share operations under the
+defines the existing graphical session boundary. The remaining confinement
+improvements plan and its targeted test queue have been removed; this adds no
+release baseline prerequisites. Reuse shared operations under the
 [cross-plan reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse) and
 [operation-reuse contract](E2E-Execution-Contracts.md#cross-plan-operation-reuse).
 C04p1/C04p delivered the shared fixture and core-effects scope; C04j owns

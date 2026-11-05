@@ -8,14 +8,14 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
 Required tasks: none (Baseline).
 Estimate: 30–60 minutes.
-Coordination: the [new confinement plan](../Kiosk-Session-Confinement-New-Plan.md#task-boundaries)
-owns the compatibility redesign's input protection and recovery qualification.
+Coordination: the remaining confinement improvements plan has been removed.
+Input protection and recovery qualification remain prerequisites.
 Before execution, require C03/C04's [current test mapping](../SystemDesign/Kiosk-Confinement.md#c04a-installed-engineering-dispositions) from legacy refusal assertions
 to the [compatibility boundary](../SystemDesign/Kiosk-Confinement.md#compatibility-and-recovery-boundary);
 if absent, keep this row unchecked. Review its
 [historical baseline](../SystemDesign/Kiosk-Confinement.md#selected-source-boundary);
-reuse only exact matching scope/candidate/target evidence. Neither plan closes
-the other's row, and overlapping work must not run concurrently.
+reuse only exact matching scope/candidate/target evidence. Reused evidence does
+not close this row; overlapping work must not run concurrently.
 Session exception: positive/negative input controls, exact restoration and usable entry
 must complete on each target in one owned fault/recovery history.
 

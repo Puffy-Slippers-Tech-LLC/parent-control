@@ -80,11 +80,10 @@ Task 012 reconciles only active conditions and affected reruns.
 The [kiosk design](SystemDesign/Kiosk-Confinement.md#selected-source-boundary)
 records the v1.3 session-confinement rebuild; the
 [baseline handoff](TestAutomation/E2E-Building-Blocks.md#c05f-fedora-baseline-acceptance)
-records its completed validation. The
-[new confinement plan](Kiosk-Session-Confinement-New-Plan.md#task-boundaries)
-owns C06–C13 improvements. Reliability 006a/006b cannot execute
-until baseline C03/C04 map legacy tests and new-plan C06 approves the relevant deliberate-child
-protection under the new usability-first contract.
+records its completed validation. The remaining confinement improvements plan
+has been removed. Reliability 006a/006b remain blocked until legacy tests are
+mapped and the relevant deliberate-child protection is reviewed against the
+current kiosk design's usability requirements.
 Neither empty private views, identical retained managers nor mode-bit-only
 refusal survives as an implicit requirement. The
 [C04a dispositions](SystemDesign/Kiosk-Confinement.md#c04a-installed-engineering-dispositions)
@@ -93,8 +92,8 @@ host variation, while 291 now tracks essential-service recovery, not the 006b
 consumed-input control. Bind 006b to actual C08/C10 input protection and usable
 controls before execution. Historical results retain their original scope;
 reserved IDs and the current session-only census supply no successor acceptance.
-Reuse exact applicable results without concurrent overlapping work or closing
-the other plan's tasks.
+Reuse exact applicable results without concurrent overlapping work or treating
+reuse as task completion.
 
 The same reconciliation applies to the renderer and inventory consumers.
 007a's generated private-role policy and 007b's old platform/role-census helpers

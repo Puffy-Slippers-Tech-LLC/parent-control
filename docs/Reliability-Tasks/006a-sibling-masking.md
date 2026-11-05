@@ -8,14 +8,14 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
 Required tasks: none (Baseline).
 Estimate: 30–60 minutes.
-Coordination: the [new confinement plan](../Kiosk-Session-Confinement-New-Plan.md#task-boundaries)
-owns the compatibility redesign and its installed qualification. Before execution,
+Coordination: the remaining confinement improvements plan has been removed.
+Compatibility redesign and installed qualification remain prerequisites. Before execution,
 require C03/C04's [current test mapping](../SystemDesign/Kiosk-Confinement.md#c04a-installed-engineering-dispositions) from legacy masking assertions to the
 [compatibility boundary](../SystemDesign/Kiosk-Confinement.md#compatibility-and-recovery-boundary);
 if absent, keep this row unchecked. Review the
 [historical baseline](../SystemDesign/Kiosk-Confinement.md#selected-source-boundary);
 reuse only exact matching scope/candidate/target evidence.
-Neither plan closes the other's row, and overlapping work must not run concurrently.
+Reused evidence does not close this row; overlapping work must not run concurrently.
 Session exception: usable entry, host replacement, reentry and exact restoration
 form one owned history on each installed target.
 

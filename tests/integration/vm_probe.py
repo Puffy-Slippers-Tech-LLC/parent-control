@@ -1189,6 +1189,18 @@ def reproduce_grant_logout(lease, fixture_selection):
         boundary_operation='system:standard-logout', fixture_selection=selection, timeout=1800)
 
 
+def reproduce_snap_grid(lease):
+    """Retain Jordan's first Snap grid launch for inspection in his desktop."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from snap_grid import SnapGridJourney
+    from tools.test_storage import named_input
+    assets = named_input(vm_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, SnapGridJourney, None,
+        'allowed-opened', 'snap-grid', assets=assets,
+        boundary_operation='snap-allowed-opened')
+
+
 def reproduce_riley_native_grid(lease):
     """Retain Riley's second grid entry after the actual first launch/use/close."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))

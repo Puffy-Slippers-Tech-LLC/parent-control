@@ -1,5 +1,4 @@
 """A parent's Allowed Snap rule leaves the app usable for both children."""
-from dataclasses import replace
 from functools import partial
 from accessible_ui import SNAP_POLICY_APP
 from installed_journey import JourneyPlan, record_installed_journey
@@ -9,14 +8,16 @@ from snap_fixtures import fixture_actions
 from ui_observations import SettingsObservation
 
 
-SETUP = {
-    **app_policy_entry(child='existing', allowance='time-explanation-setup-thirty-read',
-                       initial_rows=False),
-    'allowed-save': 'ui:access-snap-allowed', 'allowed-row': 'ui:access-snap-row',
-}
 JORDAN_ENTRY = prefixed_stages('jordan-entry', desktop_entry('other-child', source='gdm', entry='fresh'))
 RILEY_ENTRY = prefixed_stages('riley-entry', desktop_entry('child', source='gdm', entry='fresh'))
-def allowed_plan(route):
+
+
+def allowed_plan(route, *, limits=True):
+    setup = {
+        **app_policy_entry(child='existing', initial_rows=False,
+                           allowance='time-explanation-setup-thirty-read' if limits else None),
+        'allowed-save': 'ui:access-snap-allowed', 'allowed-row': 'ui:access-snap-row',
+    }
     jordan = {
         'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
         **prefixed_stages('jordan-use', native_usable_app(route, kind='snap', role='A')),
@@ -27,21 +28,23 @@ def allowed_plan(route):
             route, kind='snap', role='A', child='child')),
     }
     return JourneyPlan(
-        prefix=f'snap-{route}-allowed', worker_mode=f'snap_{route}_allowed',
-        screen_tags={**SETUP, **jordan, **riley},
+        prefix=f'snap-{route}-allowed',
+        worker_mode=f'snap_{route}_allowed' + ('' if limits else '_disabled'),
+        screen_tags={**setup, **jordan, **riley},
         phases={'ready': 'setup', 'setup-detached': 'setup',
-                **{stage: 'step-1' for stage in SETUP}, 'installed-greeter': 'start',
+                **{stage: 'step-1' for stage in setup}, 'installed-greeter': 'start',
                 **{stage: 'step-2' for stage in jordan},
                 **{stage: 'step-3' for stage in riley}},
         advance_after={'installed-greeter': 'step-1', 'allowed-row': 'step-2',
                        'jordan-use-submitted': 'step-3'},
         stage_actions={'desktop': 'native-verify'},
-        child_bindings={'allowance-configured': 'existing',
+        child_bindings={**({'allowance-configured': 'existing'} if limits else {}),
                         'allowed-save': 'existing', 'allowed-row': 'existing'},
         settings_checks={
             'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',)),
-            'saved-settings': SettingsObservation('existing-fixture-child', True, ('30 minutes',))},
-        balance_checks={'allowance-configured': 1800},
+            **({'saved-settings': SettingsObservation('existing-fixture-child', True, ('30 minutes',))}
+               if limits else {})},
+        balance_checks={'allowance-configured': 1800} if limits else {},
         access_checks={'allowed-row': (SNAP_POLICY_APP, 'allowed')},
         invocations=tuple(stage for stage in (*JORDAN_ENTRY, *RILEY_ENTRY)
                           if stage not in ('jordan-entry-entry-guard', 'riley-entry-entry-guard')),
@@ -56,18 +59,7 @@ def allowed_plan(route):
 PLAN = allowed_plan('command')
 GRID_PLAN = allowed_plan('grid')
 
-DISABLED_PLAN = replace(
-    PLAN, worker_mode='snap_command_allowed_disabled',
-    screen_tags={stage: tag for stage, tag in PLAN.screen_tags.items()
-                 if stage not in ('allowance-configured', 'saved-settings')},
-    phases={stage: phase for stage, phase in PLAN.phases.items()
-            if stage not in ('allowance-configured', 'saved-settings')},
-    child_bindings={stage: child for stage, child in PLAN.child_bindings.items()
-                    if stage != 'allowance-configured'},
-    settings_checks={
-        'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',))},
-    balance_checks={},
-)
+DISABLED_PLAN = allowed_plan('command', limits=False)
 
 
 def execute(recorder, context, *, plan=PLAN):

@@ -454,6 +454,7 @@ def main(argv=None):
                                           'probe-retained-app-launch',
                                           'reproduce-transfer-refusal', 'probe-transfer-refusal',
                                           'reproduce-riley-native-grid', 'probe-riley-native-grid',
+                                          'reproduce-snap-grid',
                                           'reproduce-native-denial', 'reproduce-grant-logout', 'reproduce-match-editor',
                                           'reproduce-app-rule-return', 'reproduce-revocation-return',
                                           'probe-app-rule-return',
@@ -601,11 +602,12 @@ def main(argv=None):
                              'reproduce-retained-unlock',
                              'reproduce-retained-app-visits',
                              'reproduce-transfer-refusal', 'reproduce-remembered-return', 'repeat-remembered-return',
-                             'enter-remembered-return', 'reproduce-riley-native-grid'):
+                             'enter-remembered-return', 'reproduce-riley-native-grid', 'reproduce-snap-grid'):
             from vm_probe import (reproduce_gdm_denial, reproduce_lock_denial,
                                   reproduce_retained_entry, reproduce_transfer_refusal,
                                   reproduce_remembered_return, repeat_remembered_return,
                                   enter_remembered_return, reproduce_riley_native_grid)
+            from vm_probe import reproduce_snap_grid
             from vm_probe import reproduce_retained_app_visits
             from vm_probe import reproduce_revoke_cancel
             from vm_probe import reproduce_delayed_approval
@@ -639,6 +641,7 @@ def main(argv=None):
              'reproduce-retained-app-visits': reproduce_retained_app_visits,
              'reproduce-transfer-refusal': reproduce_transfer_refusal,
              'reproduce-riley-native-grid': reproduce_riley_native_grid,
+             'reproduce-snap-grid': reproduce_snap_grid,
              'reproduce-remembered-return': reproduce_remembered_return,
              'repeat-remembered-return': repeat_remembered_return,
              'enter-remembered-return': enter_remembered_return}[args.action](lease)

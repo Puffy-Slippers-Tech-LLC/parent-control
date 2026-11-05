@@ -1,17 +1,15 @@
 """109a: allowed Snap grid use, new window and preserved original activity."""
 from installed_journey import JourneyPlan
-from journey_blocks import fresh_desktop, native_usable_app
-from native_fixture_qualification import SCREENS as CATALOGUE
-from snap_command_usable import PLAN as COMMAND_PLAN
+from journey_blocks import app_policy_entry, fresh_desktop, native_usable_app, prefixed_stages
 from snap_fixtures import SnapFixtureJourney
 from private_artifacts import require
 
 
 SCREENS = {
-    **{stage: tag for stage, tag in CATALOGUE.items()
-       if stage not in ('wrong-child', 'wrong-page', 'reopened-rows')},
+    **app_policy_entry(child='existing', allowance=None, initial_rows=False),
+    'app-rows': 'ui:existing-parent-app-rows',
     'logout': 'system:parent-logout',
-    **{'child-' + stage: tag for stage, tag in fresh_desktop('other-child').items()},
+    **prefixed_stages('child', fresh_desktop('other-child')),
 }
 for name, role, route, instance in (
         ('allowed', 'A', 'grid', 'primary'), ('hard', 'H', 'grid', 'primary'),
@@ -33,8 +31,14 @@ PLAN = JourneyPlan(
     prefix='snap-grid', worker_mode='snap_grid', screen_tags=SCREENS,
     phases={'ready': 'setup', 'setup-detached': 'setup',
             **{stage: 'step-1' for stage in SCREENS}, 'installed-greeter': 'start'},
-    stage_actions=COMMAND_PLAN.stage_actions,
-    invocations=COMMAND_PLAN.invocations, challenges=COMMAND_PLAN.challenges,
+    stage_actions={'installed-greeter': 'native-refuse', 'desktop': 'native-verify'},
+    invocations=tuple((*fresh_desktop('parent'),
+                       *prefixed_stages('child', fresh_desktop('other-child')))),
+    challenges={
+        'parent-login': ('parent', 'recipient-qualified', 'recipient-rechecked'),
+        'native-child-login': ('other-child', 'child-standard-recipient-qualified',
+                               'child-standard-recipient-rechecked'),
+    },
     activity_checks={'earlier-reread': ('earlier-capture', 'same')},
 )
 

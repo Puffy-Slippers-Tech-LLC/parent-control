@@ -312,6 +312,12 @@ Native and Snap launch cases also reuse `app_policy_entry(initial_rows=False)`
 when their own saved-rule read supplies the policy result. Keep each case's plan,
 fixture actions, child entries and expected settings local; do not derive a
 different fixture family's case by filtering and replacing a runnable case's plan.
+Use `allowance=None` for the same shared Parent entry without a policy change,
+as in Snap grid qualification and limits-off launch. Build each variant directly
+from these fragments rather than removing allowance stages from an enabled plan.
+Keep authentication invocations bound to the explicit `fresh_desktop` fragments;
+a broad `child-` prefix also matches Parent's child-picker stages and must not
+turn those reads into desktop authentication invocations.
 
 For ordered access-rule transitions, prepare matching once through FLOW19 and
 compare its saved value after each tested access save. Repeating a match save
@@ -339,6 +345,10 @@ check. Multi-action probes keep their finite order and assertions. These helpers
 reuse the existing allocation and maintenance owner; they add no process, VM,
 bus or cleanup lifetime. The existing VM-control safety module retains private
 pytest state and mocked VM calls in both unit and cleanup inventories.
+`tools/test-vm --vm NAME reproduce-snap-grid` binds the existing Snap grid
+qualification to that same reproduction owner. It observes Jordan's first
+opened window once, closes the worker and retains his desktop for guarded
+`exec` probes followed by `stop`; it supplies no acceptance credit.
 
 Fixture provisioning qualifications reuse
 `system_fixture_preparation.register_staging`, as do system, standalone and E2E

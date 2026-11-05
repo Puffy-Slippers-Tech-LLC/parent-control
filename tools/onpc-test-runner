@@ -175,6 +175,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'probe-retained-app-launch',
                                       'reproduce-transfer-refusal', 'probe-transfer-refusal',
                                       'reproduce-riley-native-grid', 'probe-riley-native-grid',
+                                      'reproduce-snap-grid',
                                       'reproduce-native-denial', 'reproduce-grant-logout', 'reproduce-match-editor',
                                       'reproduce-app-rule-return', 'reproduce-revocation-return',
                                       'probe-app-rule-return',

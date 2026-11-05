@@ -59,6 +59,7 @@ use onpc_baseline_app_effects ();
 use onpc_active_grant_disable ();
 use onpc_baseline_journey ();
 use onpc_overlay_recovery ();
+use onpc_kiosk_recovery ();
 use onpc_confinement_usability ();
 use onpc_child_isolation ();
 use onpc_feedback_read ();
@@ -1035,6 +1036,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_baseline_app_effects::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{kiosk_recovery}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_recovery::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{overlay_recovery}) {

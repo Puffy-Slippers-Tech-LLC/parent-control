@@ -135,7 +135,7 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
                                  'profile-setup', 'profile-wrong-scope',
                                  'grant-request', 'grant-wrong-scope', 'grant-wrong-child',
                                  'transition-request', 'transition-wrong-duration', 'revocation-request',
-                                 'work-recovery'])
+                                 'work-recovery', 'kiosk-recovery', 'kiosk-recovery-wrong-scope'])
 def test_composed_kiosk_secret_scope_and_single_use(mode):
     # Execute the real password guard; replace only the secret delivery sink.
     # No password is supplied, and each isolated Perl process owns its latch.
@@ -143,6 +143,7 @@ def test_composed_kiosk_secret_scope_and_single_use(mode):
     from revocation_case import PLAN as REVOCATION_PLAN
     from grant_work_recovery import INCLUDED_PLAN as RECOVERY_PLAN
     from panel_request_case import PLAN as PANEL_PLAN
+    from kiosk_recovery import PLAN as KIOSK_PLAN
     transition = [PLAN.prefix + '-soft-opening', 'soft-opening-', list(PLAN.kiosk_request)]
     revocation = [REVOCATION_PLAN.prefix + '-request', 'request-', list(REVOCATION_PLAN.kiosk_request)]
     recovery = [RECOVERY_PLAN.prefix, list(RECOVERY_PLAN.kiosk_request)]
@@ -173,6 +174,7 @@ my $transition = decode_json(shift @ARGV);
 my $revocation = decode_json(shift @ARGV);
 my $recovery = decode_json(shift @ARGV);
 my $panel_prefix = shift @ARGV;
+my $kiosk_prefix = shift @ARGV;
 my $first = bless {prefix => 'kiosk-delayed-approval-first', stage_prefix => 'first-',
     kiosk_request => ['child', 'parent', 30, 0], review => 0}, 'onpc_journey';
 my $second = bless {%$first, prefix => 'kiosk-delayed-approval-second', stage_prefix => 'second-'}, 'onpc_journey';
@@ -199,8 +201,16 @@ if ($mode eq 'revocation-request') {
     $first = bless {prefix => $revocation->[0], stage_prefix => $revocation->[1],
         kiosk_request => $revocation->[2], review => 0}, 'onpc_journey';
 }
+if ($mode =~ /^kiosk-recovery/) {
+    $first = bless {prefix => $kiosk_prefix . '-kiosk-final',
+        stage_prefix => $mode eq 'kiosk-recovery' ? 'kiosk-final-' : 'kiosk-first-',
+        review => 0}, 'onpc_journey';
+}
 my $ok = eval {
-    if ($mode eq 'work-recovery') {
+    if ($mode =~ /^kiosk-recovery/) {
+        onpc_password::enter_kiosk_mate_password($first, 'request-1200');
+        onpc_password::enter_kiosk_mate_password($first, 'request-1200');
+    } elsif ($mode eq 'work-recovery') {
         my $setup = bless {prefix => $recovery->[0] . '-profile-request',
             stage_prefix => 'profile-request-', review => 0}, 'onpc_journey';
         onpc_password::enter_kiosk_mate_password($setup, 'long-request');
@@ -218,10 +228,16 @@ my $ok = eval {
     1;
 };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
-''', mode, json.dumps(transition), json.dumps(revocation), json.dumps(recovery), PANEL_PLAN.prefix)
+''', mode, json.dumps(transition), json.dumps(revocation), json.dumps(recovery),
+        PANEL_PLAN.prefix, KIOSK_PLAN.prefix)
     value = json.loads(result.stdout)
     deliveries = [event for event in value['events'] if event[0] == 'delivery']
-    if mode == 'work-recovery':
+    if mode == 'kiosk-recovery':
+        assert value['ok'] == 0  # The second delivery is refused.
+        assert deliveries == [['delivery', 'parent', 'kiosk-final-kiosk-mate-request-1200']]
+        assert [event for event in value['events'] if event[0] == 'proof'] == [
+            ['proof', 'kiosk-final-approval-' + proof] for proof in ('qualified', 'rechecked')]
+    elif mode == 'work-recovery':
         assert value['ok'] == 1
         assert deliveries == [
             ['delivery', 'parent', 'profile-request-kiosk-mate-long-request'],

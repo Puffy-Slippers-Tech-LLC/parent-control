@@ -169,7 +169,8 @@ class JourneyPlan:
                     and self.screen_tags[binding[0]] in (
                         'ui:kiosk-valid-fraction-soft-read', 'ui:overlay-valid-fraction-soft-read',
                         'ui:overlay-hebrew-fraction-soft-read',
-                        'ui:kiosk-long-request-soft-read', 'ui:overlay-fraction-estimate-refresh',
+                        'ui:kiosk-long-request-soft-read', 'ui:kiosk-request-1200-soft-read',
+                        'ui:overlay-fraction-estimate-refresh',
                         'ui:overlay-request-estimate', 'ui:kiosk-request-estimate')
                     and (type(binding[1]) is int and 0 < binding[1] < 86400
                          or binding[1] == 'estimate'

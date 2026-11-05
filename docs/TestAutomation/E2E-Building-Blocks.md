@@ -4120,7 +4120,22 @@ finite 1800-second daily profile for initial/final public policy and grant reads
 The worker retains the existing fixed single-use credential scopes. Both
 negative app-denial results precede success; the final original activity,
 countdown increment, soft-app use and hard denial are independent outcomes.
-Ubuntu 26.04 complete-case acceptance passed; kiosk case 36 remains separate.
+Ubuntu 26.04 complete-case acceptance passed.
+
+Case 36 composes `kiosk_recovery.PLAN` / `onpc_kiosk_recovery::run` in one
+zero-daily Riley/Jamie history: wrong-password rejection, a separate password-free
+Cancel and a fresh twenty-minute approval. Each failure independently preserves
+the open form, denies correct-password child sign-in, retains zero public daily
+and grant balances and saved hard/soft rules, and preserves remembered choices
+after normal station reentry. `request_flow.continued_request` adds only the
+soft-included kiosk 75→1200-second binding through the existing public duration
+and authentication leaves. The final request returns normally to GDM, permits
+fresh child entry with at least 300 seconds, supports soft-app Submit and retains
+hard-command denial. Parent independently compares issued time with the original
+1200-second estimate and unchanged saved policy. Complete case 36 passed on
+Ubuntu 26.04 in `20261105T180858Z-571a8267`, including collection, worker shutdown,
+owned cleanup and baseline restoration. This adds no Fedora or broader baseline
+qualification; the existing 600-second baseline continuation remains unchanged.
 
 The [E2E-012–018 recipes](E2E-Scenario-Recipes.md#e2e-012) own request, approval,
 exit, selector and persistence composition. E2E-014 retains the

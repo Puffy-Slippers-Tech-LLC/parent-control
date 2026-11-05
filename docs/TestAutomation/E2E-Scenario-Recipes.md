@@ -757,7 +757,10 @@ with child UI coverage; ordinary later entries use `command`.
 
 Case 34 uses `overlay_recovery.PLAN` / `onpc_overlay_recovery::run` with
 30 minutes of daily time, the fixed Riley/Jamie request and the shared immutable
-failure-effect comparisons. Case 36's kiosk composition remains pending.
+failure-effect comparisons. Case 36 uses `kiosk_recovery.PLAN` /
+`onpc_kiosk_recovery::run` for the zero-daily station history below, with
+independent child sign-in denial and Parent policy/time reads after each failure.
+Its final soft-included request uses the shared 75→1200-second continuation.
 
 **Authentication denial and cancellation retry.** Cases 34 (child-overlay) and 36 (kiosk).
 

@@ -1009,7 +1009,7 @@
       },
       "variants": [
         {"coverage_id": 34, "id": "child-overlay-recovery", "owner": "request-approval", "parameters": {"surface": "child-overlay"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/overlay_recovery.py", "test_id": "child-overlay-recovery"}},
-        {"coverage_id": 36, "id": "kiosk-recovery", "owner": "kiosk-form", "parameters": {"surface": "kiosk"}, "status": "pending", "pending_reason": "Combined wrong-password, separate Cancel and valid-approval recovery recipe is documented; full installed acceptance is pending.", "executable": null}
+        {"coverage_id": 36, "id": "kiosk-recovery", "owner": "kiosk-form", "parameters": {"surface": "kiosk"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/kiosk_recovery.py", "test_id": "kiosk-recovery"}}
       ]
     },
     {

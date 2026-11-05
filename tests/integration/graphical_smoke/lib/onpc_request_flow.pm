@@ -784,13 +784,13 @@ sub prepare {
 }
 
 # The caller supplies the open form and immutable preceding choice state.
-# These two finite transitions preserve soft-app inclusion while changing only
+# These finite transitions preserve soft-app inclusion while changing only
 # the declared duration, using the same public operations as other requests.
 sub continued_request {
     onpc_progress::operation('Preparing the next request from its observed saved choices');
     my ($journey, $surface, $initial_seconds, $seconds) = @_;
     die 'request-flow:continued-binding' unless @_ == 4 && ref($journey) eq 'onpc_journey'
-        && (($surface eq 'kiosk' && $initial_seconds eq '75' && $seconds eq '600')
+        && (($surface eq 'kiosk' && $initial_seconds eq '75' && ($seconds eq '600' || $seconds eq '1200'))
             || ($surface eq 'overlay' && $initial_seconds eq '600' && $seconds eq '75'));
     if ($surface eq 'kiosk') {
         $journey->consume_observation($_, $journey->seen($_))

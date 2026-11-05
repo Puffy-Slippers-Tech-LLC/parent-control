@@ -138,22 +138,24 @@ def prepared_request(*, prefix, entry, initial, child, approver, duration_second
 
 
 def continued_request(*, surface, initial_seconds, duration_seconds):
-    """Prepare only the two finite remembered soft-included transitions.
+    """Prepare the finite remembered soft-included transitions.
 
     The caller enters the station/overlay; account eligibility, explicit custom
     input and independent estimates retain the shared operation guards.
     """
     require(type(initial_seconds) is int and type(duration_seconds) is int
             and (surface, initial_seconds, duration_seconds) in (
-                ('kiosk', 75, 600), ('overlay', 600, 75)),
+                ('kiosk', 75, 600), ('kiosk', 75, 1200), ('overlay', 600, 75)),
             'request-flow:continuation')
     if surface == 'kiosk':
         return {
             'new-form': 'ui:kiosk-valid-fraction-soft-read',
             'new-child': 'ui:kiosk-flow-child-select',
             'new-approver': 'ui:kiosk-flow-approver-select',
-            'new-duration': 'ui:kiosk-long-included-duration-select',
-            'new-estimate': 'ui:kiosk-long-request-soft-read',
+            'new-duration': ('ui:kiosk-long-included-duration-select' if duration_seconds == 600
+                             else 'ui:kiosk-request-1200-included-duration-select'),
+            'new-estimate': ('ui:kiosk-long-request-soft-read' if duration_seconds == 600
+                             else 'ui:kiosk-request-1200-soft-read'),
         }
     return {
         'open-selections': 'ui:overlay-long-request-read',

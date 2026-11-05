@@ -15,8 +15,8 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">80</span>/<span style="color: gray">116</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6446</span>/<span style="color: gray">116</span>/6562** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">81</span>/<span style="color: gray">115</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6447</span>/<span style="color: gray">115</span>/6562** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">79</span>/<span style="color: gray">116</span>/195 |
+| customer-journey | <span style="color: green">80</span>/<span style="color: gray">115</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -63,6 +63,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [30](#scenario-30) | Request more time from the panel with the selected parent (approver: first; soft apps: excluded) | `E2E-012/excluded-first` | ready |
 | [33](#scenario-33) | Request more time from the panel with the selected parent (approver: second; soft apps: included) | `E2E-012/included-second` | ready |
 | [34](#scenario-34) | Authentication denial and cancellation retry (surface: child overlay) | `E2E-013/child-overlay-recovery` | ready |
+| [36](#scenario-36) | Authentication denial and cancellation retry (surface: kiosk) | `E2E-013/kiosk-recovery` | ready |
 | [46](#scenario-46) | Request surface exit behavior (exit: approved; surface: child overlay) | `E2E-015/child-overlay-approved` | ready |
 | [49](#scenario-49) | Request surface exit behavior (exit: approved; surface: kiosk) | `E2E-015/kiosk-approved` | ready |
 | [50](#scenario-50) | Restricted request station (request: approved) | `E2E-016/approved` | ready |
@@ -118,7 +119,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[18](#scenario-18)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: zero; sessions: multiple)</span> | <span style="color: gray">`E2E-007/zero-multiple`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[20](#scenario-20)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: remaining; sessions: multiple)</span> | <span style="color: gray">`E2E-007/remaining-multiple`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[36](#scenario-36)</span> | <span style="color: gray">Authentication denial and cancellation retry (surface: kiosk)</span> | <span style="color: gray">`E2E-013/kiosk-recovery`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[38](#scenario-38)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: predefined; surface: child overlay)</span> | <span style="color: gray">`E2E-014/child-overlay-predefined`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[39](#scenario-39)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: custom; surface: child overlay)</span> | <span style="color: gray">`E2E-014/child-overlay-custom`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[40](#scenario-40)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: rest of day; surface: child overlay)</span> | <span style="color: gray">`E2E-014/child-overlay-rest-of-day`</span> | <span style="color: gray">pending</span> |
@@ -626,6 +626,21 @@ Variant: approver: second; soft apps: included
 Case: `E2E-013/child-overlay-recovery` · Category: customer-journey · Status: **ready**
 
 Variant: surface: child overlay
+
+**Steps:**
+
+- Enable limits and set hard and soft app blocks in Parent. Overlay has sufficient positive daily time and a guarded command channel bound to the child desktop user; kiosk has zero daily time. Both start with no grant. Open the selected form, select an eligible parent, custom 1.25 minutes (75 seconds) and soft apps included, then capture request choices and public daily/grant balances.
+- Request and submit the fixed wrong fixture password in the real approval prompt. Observe explicit rejection before safely dismissing it, then read the usable form, unchanged choices and public balances: no grant or extra time, allowing ordinary daily consumption. On overlay, attempt both blocked targets through the shared guarded active-child command route and require denial. On kiosk, exit normally, require correct-password child sign-in denial, confirm both unchanged blocks through public Parent App Limits, then reopen the station and read choices before editing.
+- Make a separate request with the remembered choices and cancel its fresh real approval prompt without password submission. Independently repeat every public time, hard/soft restriction and remembered-choice check from step-2, including normal kiosk exit/reentry. Keep the same prepared policy and child state; no restore or reset between requests.
+- Submit a third fresh request with the intended choices, authenticate successfully, and observe the requested time addition, normal success/exit, usable child access, soft-app access and hard-app denial.
+
+### Scenario 36
+
+**Authentication denial and cancellation retry (surface: kiosk)**
+
+Case: `E2E-013/kiosk-recovery` · Category: customer-journey · Status: **ready**
+
+Variant: surface: kiosk
 
 **Steps:**
 
@@ -1424,27 +1439,6 @@ Variant: daily: remaining; sessions: multiple
 - Confirm Revoke and read zero one-time time and unchanged daily time. With daily time left, visit each retained child desktop and inspect blocked-app closure and launch denial; with zero time, verify time-limit denial. Revisit the other user's same activity.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 36
-
-**Authentication denial and cancellation retry (surface: kiosk)**
-
-Case: `E2E-013/kiosk-recovery` · Category: customer-journey · Status: **pending**
-
-Variant: surface: kiosk
-
-**Steps:**
-
-- Enable limits and set hard and soft app blocks in Parent. Overlay has sufficient positive daily time and a guarded command channel bound to the child desktop user; kiosk has zero daily time. Both start with no grant. Open the selected form, select an eligible parent, custom 1.25 minutes (75 seconds) and soft apps included, then capture request choices and public daily/grant balances.
-- Request and submit the fixed wrong fixture password in the real approval prompt. Observe explicit rejection before safely dismissing it, then read the usable form, unchanged choices and public balances: no grant or extra time, allowing ordinary daily consumption. On overlay, attempt both blocked targets through the shared guarded active-child command route and require denial. On kiosk, exit normally, require correct-password child sign-in denial, confirm both unchanged blocks through public Parent App Limits, then reopen the station and read choices before editing.
-- Make a separate request with the remembered choices and cancel its fresh real approval prompt without password submission. Independently repeat every public time, hard/soft restriction and remembered-choice check from step-2, including normal kiosk exit/reentry. Keep the same prepared policy and child state; no restore or reset between requests.
-- Submit a third fresh request with the intended choices, authenticate successfully, and observe the requested time addition, normal success/exit, usable child access, soft-app access and hard-app denial.
-
-Pending: Combined wrong-password, separate Cancel and valid-approval recovery recipe is documented; full installed acceptance is pending.
 
 </div>
 

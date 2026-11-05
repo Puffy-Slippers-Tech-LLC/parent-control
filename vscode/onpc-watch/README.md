@@ -42,6 +42,17 @@ worktree from its existing run files. Session input is disabled once its owner
 exits. Retention uses existing run files and reader memory; it adds no disk persistence.
 Each title shows two rows: a server icon and server name (`local` or the SSH host)
 above the branch and launcher, e.g. `[test] fix-tests`. It
+places one icon button after the hostname: **Stop** (square) while active,
+or **Resume** (play) while idle. It is disabled while a stop is pending,
+while disconnected, or when saved command parameters are unavailable. Clicking
+asks for confirmation with **Stop** or **Resume** and **Cancel**. Confirming opens a
+VS Code terminal on that same host and checkout, using the retained command
+parameters with `--stop` or `--resume`. Lifecycle flags replace earlier
+`--stop`, `--resume`, `--reload` or `--reset` flags. Command errors remain visible
+in that terminal. Repair queue Stop retains its scope without reselecting VMs;
+Resume retains the saved VM selection. Older runs without saved parameters require one normal launch
+before this control becomes available.
+The title
 keeps **Status**, **Launcher**, **Error** and **Session**
 links at its right end. When narrowed, each title row truncates with an ellipsis.
 Further narrowing moves the title and action

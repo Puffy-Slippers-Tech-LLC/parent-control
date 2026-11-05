@@ -329,6 +329,8 @@ def main(argv=None):
         actions.add_argument('--stop', action='store_true', help='cancel only the owned translation session and await cleanup')
         actions.add_argument('--reload', action='store_true',
                              help='reload a running launcher after the current batch; ignored when starting')
+        actions.add_argument('--resume', action='store_true',
+                             help='continue the remaining translations (the default behavior)')
         parser.add_argument('--model', default=DEFAULT_MODEL, help='coordinator/translator model (default: gpt-6.1-sol)')
         parser.add_argument('--effort', choices=('medium', 'high', 'xhigh'), default=DEFAULT_EFFORT)
         parser.add_argument('--subagents', type=int, choices=range(0, 7), default=DEFAULT_SUBAGENTS,

@@ -167,6 +167,35 @@ class Viewer:
         self.run_times_at = 0
         self.timing_records = {}
 
+    def launcher_command(self, action):
+        """Resolve only a displayed, unchanged run into its public invocation."""
+        from watch_output import read_json, active_run
+        try:
+            output = self.outputs.get(Path(action['root']))
+            if output is None or output.run is None or str(output.run) != action['run']:
+                raise ValueError('Launcher changed; refresh before trying again.')
+            run = active_run(output.run.parent, workflow=output.run.parent.name not in (
+                'sessions', 'sessions-host') and not output.run.parent.name.startswith('vm-'),
+                include_idle=True)
+            if run != output.run:
+                raise ValueError('Launcher changed; refresh before trying again.')
+            record = read_json(run.parent / 'current.json')
+            name, argv = record.get('launcher'), record.get('argv')
+            if action['kind'] == 'stop':
+                argv = record.get('stop_argv', argv)
+            if (not isinstance(name, str) or not re.fullmatch(r'[\w.-]{1,100}', name)
+                    or not isinstance(argv, list) or any(not isinstance(arg, str) or '\0' in arg for arg in argv)):
+                raise ValueError('Restart this launcher normally to publish its command parameters.')
+            command = output.root / 'tools' / name
+            if command.is_symlink() or not command.is_file():
+                raise ValueError('Public launcher is unavailable.')
+            # Lifecycle switches are replaced, never replay a destructive reset.
+            argv = [arg for arg in argv if arg not in ('--stop', '--resume', '--reload', '--reset')]
+            return dict(ok=True, root=str(output.root), run=str(run), launcher=name,
+                        argv=[f"--{action['kind']}", *argv])
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            return dict(ok=False, error=str(error))
+
     def delete_run_times(self, tokens):
         from vm_run_times import delete
         try:
@@ -408,6 +437,11 @@ class Viewer:
                 session_number=session_number, session_inactive=session_inactive,
                 session_waiting=waiting, session_deadline=deadline, session_question=prompt_id,
                 session_view=session_view))
+            try:
+                record = self.launcher_reader.read(output.run.parent / 'current.json') if output.run else {}
+                sections[-1]['launcher_controls'] = record.get('run') == output.run.name and isinstance(record.get('argv'), list)
+            except (OSError, ValueError, AttributeError):
+                sections[-1]['launcher_controls'] = False
         # Exiting one launcher must not remove its tabs while another checkout
         # is still active. Retain observed runs for this reader's lifetime.
         retained = [section for section in sections if section['run'] or section['session']]
@@ -631,6 +665,15 @@ def main():
                             or not re.fullmatch(r'[a-f0-9]{64}', token) for token in tokens)):
                     raise ValueError('watch: invalid timing deletion request')
                 print(json.dumps(dict(protocol=1, delete_result=viewer.delete_run_times(tokens))), flush=True)
+                continue
+            if 'launcher_action' in request:
+                action = request['launcher_action']
+                if (set(request) - {'protocol', 'launcher_action'} or type(action) is not dict
+                        or set(action) != {'root', 'run', 'kind'}
+                        or any(type(value) is not str for value in action.values())
+                        or action['kind'] not in ('stop', 'resume')):
+                    raise ValueError('watch: invalid launcher action')
+                print(json.dumps(dict(protocol=1, launcher_result=viewer.launcher_command(action))), flush=True)
                 continue
             if 'artifact' in request:
                 artifact = request['artifact']

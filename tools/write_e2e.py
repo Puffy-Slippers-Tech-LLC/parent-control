@@ -1625,6 +1625,8 @@ def select(root, argv):
         parser.add_argument('--closeout-only', action='store_true',
                             help='finish retained accepted Git close-out without starting a task session')
         add_options(parser, stop_help='finish the current session and stop before the next')
+        parser.add_argument('--resume', action='store_true',
+                            help='resume the saved task queue (the default behavior)')
         return parser.parse_args(argv)
 
     if any(option in argv for option in ('--help', '-h')):

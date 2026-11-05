@@ -1057,6 +1057,8 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
     parser.add_argument('--revise-task', action='append', default=[], metavar='ID',
                         help='explicitly permit this unfinished scope revision during a reviewed plan split')
     add_options(parser)
+    parser.add_argument('--resume', action='store_true',
+                        help='resume the saved execution plan (the default behavior)')
     args = parser.parse_args(argv)
     if args.reload and (args.check or args.reconcile):
         parser.error('--reload cannot be combined with --check or --reconcile')

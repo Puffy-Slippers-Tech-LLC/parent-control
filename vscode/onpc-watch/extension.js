@@ -185,6 +185,9 @@ function activate(context) {
             } else if (message?.type === 'restart') {
                 void panel.webview.postMessage({ type: 'error', message: 'Reconnecting. Unacknowledged input will not be resent; review the session before sending again.' });
                 start();
+            } else if (message?.type === 'launcherAction' && runRoots.has(message.root) &&
+                       typeof message.run === 'string' && ['stop', 'resume'].includes(message.kind)) {
+                void launchControl(message);
             } else if (message?.type === 'screenshot' && typeof message.png === 'string' &&
                        message.png.length <= 45 * 1024 * 1024 &&
                        /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(message.png)) {
@@ -230,6 +233,59 @@ function activate(context) {
             }
         });
         let deletingRunTimes = false;
+        let confirmingLauncher = false;
+        async function launchControl(message) {
+            if (confirmingLauncher) return;
+            confirmingLauncher = true;
+            const current = bridge;
+            try {
+                let command = await current.launcherCommand(message.root, message.run, message.kind);
+                const action = message.kind === 'stop' ? 'Stop' : 'Resume';
+                const answer = await vscode.window.showWarningMessage(
+                    `${action} ${command.launcher} on ${command.source.label}?`,
+                    { modal: true, detail: `Checkout: ${command.root}` }, action);
+                if (answer !== action || disposed || current !== bridge) return;
+                command = await current.launcherCommand(message.root, message.run, message.kind);
+                // Recheck the publication when the terminal actually starts, and
+                // pin dispatch to this checkout rather than a launcher default branch.
+                const bootstrap = `import json, os, subprocess, sys
+from pathlib import Path
+c = json.loads(sys.argv[1])
+root, run = Path(c['root']), Path(c['run'])
+sys.path.insert(0, str(root / 'tools'))
+from watch_output import read_json
+if read_json(run.parent / 'current.json')['run'] != run.name:
+    sys.exit('Launcher changed; refresh before trying again.')
+branch = subprocess.check_output(['git', '-C', str(root), 'symbolic-ref', '--quiet', '--short', 'HEAD'], text=True).strip()
+os.chdir(root)
+os.environ['ONPC_LAUNCHER_DESTINATION'] = json.dumps(dict(root=str(root), branch=branch, launcher=c['launcher'], pid=os.getpid()))
+os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c['launcher']), *c['argv']])
+`;
+                const argv = ['/usr/bin/python3', '-IBu', '-c', bootstrap,
+                    JSON.stringify({ root: command.root, run: command.run, launcher: command.launcher, argv: command.argv })];
+                const remote = command.source.transport === 'ssh';
+                const quote = value => "'" + value.replace(/'/g, "'\\''") + "'";
+                // Match public SSH launcher startup when Codex comes from NVM.
+                const remoteArgv = ['/bin/bash', '-c', `if ! command -v codex >/dev/null 2>&1; then
+    export NVM_DIR="\${NVM_DIR:-$HOME/.nvm}"
+    if [ -s "$NVM_DIR/nvm.sh" ]; then . "$NVM_DIR/nvm.sh"; fi
+fi
+exec "$@"`, 'onpc-watch', ...argv];
+                const terminal = vscode.window.createTerminal({
+                    name: `${command.launcher}: ${message.kind} (${command.source.label})`,
+                    shellPath: remote ? 'ssh' : argv[0],
+                    shellArgs: remote ? ['-t', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
+                        '-o', 'ConnectTimeout=5', '--', command.source.host, remoteArgv.map(quote).join(' ')] : argv.slice(1),
+                    ...(remote ? {} : { cwd: command.root })
+                });
+                terminal.show(true);
+            } catch (error) {
+                void vscode.window.showErrorMessage(`Cannot ${message.kind} launcher: ${error.message}`);
+            } finally {
+                confirmingLauncher = false;
+            }
+        }
+
         async function deleteRunTimes(message) {
             if (deletingRunTimes) return;
             deletingRunTimes = true;

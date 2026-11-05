@@ -141,6 +141,22 @@ unknown; inspect the authoritative transcript before submitting again. Exactly
 once delivery across a client reboot is not claimed. Snapshot polling and
 reconnection must never replay an action, start, stop or restore test execution.
 
+## Launcher commands
+
+Runs may publish optional `launcher_controls: true` when their original public
+command parameters are retained. Older adapters/runs leave controls disabled.
+An explicit click requests
+`{"protocol":1,"launcher_action":{"root":"run-section-id","run":"run-identity","kind":"stop"}}`
+(or `kind: "resume"`). The adapter checks the displayed run against its current,
+owner-checked publication and returns `launcher_result` with `ok: false, error`
+or `ok: true, root, run, launcher, argv`. Paths and argv stay within the extension
+host; the webview receives only display IDs. Lifecycle switches are replaced by
+the requested flag. The extension asks for confirmation, revalidates the displayed
+run after confirmation, and opens a terminal on the originating local/SSH
+host and rechecks the run identity before invoking the public launcher in its
+original checkout. Errors stay in that terminal. Requests are never retried;
+polling, reconnecting and closing Watch do not issue launcher commands.
+
 ## Run time deletion
 
 Adapters may advertise optional `capabilities.delete_run_times: true` and publish

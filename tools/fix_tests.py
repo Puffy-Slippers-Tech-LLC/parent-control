@@ -2059,7 +2059,19 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
                     and saved.get('categories') == list(categories)):
                 saved['tasks'] = tasks
                 request_record(root, 'fix-tests', saved)
-    return detached_launcher.select(root, kind, command, stop=stop,
+    # Publish resolved resume options, including an explicit scope: bare --stop
+    # intentionally targets both repair owners and must not be used by Watch.
+    public_argv = ['--rounds', str(rounds), *categories]
+    for key, value in (('model', model), ('effort', effort), ('tasks', tasks)):
+        if value is not None:
+            public_argv.extend((f'--{key}', str(value)))
+    # Queue cancellation deliberately avoids reselecting VMs that may have
+    # changed availability since startup. Keep Resume's exact saved selection.
+    stop_argv = [*public_argv, *([] if categories else ['all'])] if isinstance(name, dict) else None
+    if name is not None:
+        from vm_selection import execution_arguments
+        public_argv.extend(execution_arguments())
+    return detached_launcher.select(root, kind, command, stop=stop, public_argv=public_argv, stop_argv=stop_argv,
         on_attach=attached, launcher_name='fix-tests',
         on_start=started, **({'reload': True} if reload else {}))
 

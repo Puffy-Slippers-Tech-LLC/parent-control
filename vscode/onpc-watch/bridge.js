@@ -279,6 +279,14 @@ class Source {
             this.artifactRequest = { request: { delete_run_times: tokens }, response: 'delete_result', resolve, reject };
         });
     }
+
+    launcherCommand(action) {
+        if (!this.child || this.status !== 'Connected') return Promise.reject(new Error('Source disconnected.'));
+        if (this.artifactRequest || this.pending?.resolve) return Promise.reject(new Error('Another Watch operation is in progress.'));
+        return new Promise((resolve, reject) => {
+            this.artifactRequest = { request: { launcher_action: action }, response: 'launcher_result', resolve, reject };
+        });
+    }
 }
 
 class Bridge {
@@ -395,6 +403,7 @@ class Bridge {
                 const route = key(id, run.id);
                 this.roots.set(route, { source, id: run.id });
                 runs.push({ ...run, id: route,
+                    launcher_controls: connected && run.launcher_controls === true,
                     transport: source.config.transport,
                     server: source.config.transport === 'ssh' ? source.config.host : 'local',
                     // Keep last observed run contents; disconnected sessions cannot accept input.
@@ -454,6 +463,22 @@ class Bridge {
         const route = this.links.get(token);
         if (!route) throw new Error('Artifact is no longer published by the displayed source.');
         return { result: await route.source.artifact(route.uri), remote: route.source.config.transport === 'ssh' };
+    }
+
+    async launcherCommand(root, run, kind) {
+        const route = this.roots.get(root);
+        const current = route?.source.snapshot?.runs.find(item => item.id === route.id);
+        if (!['stop', 'resume'].includes(kind) || !current?.launcher_controls || current.run !== run) {
+            throw new Error('Launcher changed; refresh before trying again.');
+        }
+        const result = await route.source.launcherCommand({ root: route.id, run, kind });
+        if (result.ok !== true) throw new Error(result.error || 'Launcher command unavailable.');
+        if (typeof result.root !== 'string' || typeof result.run !== 'string' ||
+                typeof result.launcher !== 'string' || !/^[\w.-]{1,100}$/.test(result.launcher) ||
+                !Array.isArray(result.argv) || result.argv.some(arg => typeof arg !== 'string' || arg.includes('\0'))) {
+            throw new Error('Invalid launcher command.');
+        }
+        return { ...result, source: route.source.config };
     }
 
     async deleteRunTimes(tokens) {

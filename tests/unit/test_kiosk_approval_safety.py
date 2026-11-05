@@ -135,7 +135,7 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
                                  'profile-setup', 'profile-wrong-scope',
                                  'grant-request', 'grant-wrong-scope', 'grant-wrong-child',
                                  'transition-request', 'transition-wrong-duration', 'revocation-request',
-                                 'work-recovery', 'kiosk-recovery', 'kiosk-recovery-wrong-scope',
+                                 'work-recovery', 'expired-recovery', 'kiosk-recovery', 'kiosk-recovery-wrong-scope',
                                  'app-restart-request'])
 def test_composed_kiosk_secret_scope_and_single_use(mode):
     # Execute the real password guard; replace only the secret delivery sink.
@@ -146,9 +146,12 @@ def test_composed_kiosk_secret_scope_and_single_use(mode):
     from panel_request_case import PLAN as PANEL_PLAN
     from kiosk_recovery import PLAN as KIOSK_PLAN
     from app_restart_active import PLAN as RESTART_PLAN
+    from app_restart_expired import PLAN as EXPIRED_PLAN
     transition = [PLAN.prefix + '-soft-opening', 'soft-opening-', list(PLAN.kiosk_request)]
     revocation = [REVOCATION_PLAN.prefix + '-request', 'request-', list(REVOCATION_PLAN.kiosk_request)]
     recovery = [RECOVERY_PLAN.prefix, list(RECOVERY_PLAN.kiosk_request)]
+    if mode == 'expired-recovery':
+        recovery = [EXPIRED_PLAN.prefix, list(EXPIRED_PLAN.kiosk_request)]
     result = run_perl(r'''
 use strict;
 use warnings;
@@ -217,7 +220,7 @@ my $ok = eval {
     if ($mode =~ /^kiosk-recovery/) {
         onpc_password::enter_kiosk_mate_password($first, 'request-1200');
         onpc_password::enter_kiosk_mate_password($first, 'request-1200');
-    } elsif ($mode eq 'work-recovery') {
+    } elsif ($mode eq 'work-recovery' || $mode eq 'expired-recovery') {
         my $setup = bless {prefix => $recovery->[0] . '-profile-request',
             stage_prefix => 'profile-request-', review => 0}, 'onpc_journey';
         onpc_password::enter_kiosk_mate_password($setup, 'long-request');
@@ -245,7 +248,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
         assert deliveries == [['delivery', 'parent', 'kiosk-final-kiosk-mate-request-1200']]
         assert [event for event in value['events'] if event[0] == 'proof'] == [
             ['proof', 'kiosk-final-approval-' + proof] for proof in ('qualified', 'rechecked')]
-    elif mode == 'work-recovery':
+    elif mode in ('work-recovery', 'expired-recovery'):
         assert value['ok'] == 1
         assert deliveries == [
             ['delivery', 'parent', 'profile-request-kiosk-mate-long-request'],

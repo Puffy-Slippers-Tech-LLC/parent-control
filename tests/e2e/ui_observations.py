@@ -290,6 +290,7 @@ OPERATION_LABELS = {
     'overlay-panel-reveal-ready': 'Checking the open overlay before revealing its panel',
     'overlay-panel-overview': 'Checking Overview before returning to the open overlay',
     'overlay-request-form': 'Reading one overlay with the fixed child account',
+    'overlay-grant-form': 'Reading the child request after the real ten-minute approval',
     'overlay-request-select': 'Choosing the declared child request and eligible parent',
     'overlay-request-estimate': 'Reading the declared request and public time estimate',
     'overlay-qualification-cancel': 'Closing the qualification overlay with Cancel',
@@ -672,7 +673,7 @@ class RequestObservation:
                     invalid is not None and observation.duration_seconds is None))
                 and (observation.custom_text is None or observation.custom_text == '1.25'
                      or operation in ('kiosk-long-included-duration-select',
-                         'overlay-long-approver-select', 'overlay-long-request-read')
+                         'overlay-long-approver-select', 'overlay-long-request-read', 'overlay-grant-form')
                      and observation.custom_text == '10'
                      or operation in accessible_ui.KIOSK_VALID_REQUESTS
                      and operation.startswith('kiosk-long-request-') and observation.custom_text == '10'
@@ -714,11 +715,14 @@ class RequestObservation:
                 request_enabled=False, cancel_enabled=True, message='screen-limit-disabled', mute=None),
                 'ui:request')
             return observation
-        if operation == 'overlay-request-form':
+        if operation in ('overlay-request-form', 'overlay-grant-form'):
+            issued = operation == 'overlay-grant-form'
+            require(observation.approver in accessible_ui.APPROVER_IDENTITIES.values(), 'ui:request')
             require(observation == cls(
                 surface='child-overlay', form_count=1, child='fixture-child',
-                approver='other-fixture-parent', duration_seconds=1800, custom_text=None,
-                allow_soft=False, child_selector_enabled=False,
+                approver=observation.approver if issued else 'other-fixture-parent',
+                duration_seconds=600 if issued else 1800, custom_text='10' if issued else None,
+                allow_soft=issued, child_selector_enabled=False,
                 approver_selector_enabled=True, duration_enabled=True,
                 soft_choice_enabled=True, request_enabled=True, cancel_enabled=True,
                 message='', mute=None), 'ui:request')
@@ -1066,7 +1070,7 @@ class UiObservations:
                             or operation in accessible_ui.BINDING_REMINDER_OPERATIONS
                             or operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS
                             or operation in accessible_ui.TRANSFER_OPERATIONS
-                            or operation in ('overlay-request-form', 'overlay-panel-reveal-ready'))
+                            or operation in ('overlay-request-form', 'overlay-grant-form', 'overlay-panel-reveal-ready'))
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.
         # Kiosk waits only for the public form, with transport margin.
@@ -2898,7 +2902,7 @@ class UiObservations:
                 or operation in accessible_ui.BINDING_REMINDER_SELECTIONS
                 or operation in accessible_ui.KIOSK_DISABLED_REQUESTS
                 or operation in accessible_ui.TRANSFER_REQUESTS
-                or operation == 'overlay-request-form'):
+                or operation in ('overlay-request-form', 'overlay-grant-form')):
             require(type(result) is dict and set(result) == {*expected, 'request'}, 'ui:response')
             RequestObservation.from_request(result['request'], operation=operation)
             expected['request'] = result['request']

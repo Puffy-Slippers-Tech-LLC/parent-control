@@ -600,7 +600,7 @@ def overlay_entry(prefix, route, *, form_operation='overlay-request-form'):
     import re
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix)
             and route in ('command', 'panel', 'panel-reopen'), 'journey:overlay-binding')
-    require(form_operation in ('overlay-request-form', 'overlay-valid-excluded-read',
+    require(form_operation in ('overlay-request-form', 'overlay-grant-form', 'overlay-valid-excluded-read',
                                'overlay-valid-fraction-soft-read', 'overlay-language-initial',
                                'overlay-language-form-en', 'overlay-language-form-de',
                                'overlay-language-form-he', 'language-history-overlay-he-casey',

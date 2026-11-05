@@ -110,6 +110,79 @@ sub app_restart_active {
     $journey->finish();
 }
 
+sub app_restart_expired {
+    onpc_progress::operation('Reopening the apps, letting child time expire and approving recovery');
+    my ($exchange, $declared, $challenges, $request) = @_;
+    die 'app-restart-expired:binding' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,1200,0';
+    require onpc_app_rows;
+    require onpc_desktop_session;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'app-restart-expired', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_app_rows::named_app_set($journey, 'gdm', 'fresh', 'new', 'child', [
+        ['A', 'match-precise', 'allowed'], ['H', 'match-hard-precise', 'permanent'],
+        ['S', 'match-soft-wildcard', 'conditional']], 'rules');
+    my $enter = sub {
+        my ($prefix, $role, $entry, $expected) = @_;
+        onpc_desktop_session::enter_desktop($journey, 'gdm', $role, $entry,
+            $expected // 'success', $prefix);
+    };
+    my $leave = sub {
+        my ($prefix) = @_;
+        my $section = $journey->scope($prefix);
+        onpc_desktop_session::switch_user($section, $section->seen('desktop'));
+    };
+    $enter->('setup-return', 'parent', 'retained');
+    onpc_parent::grant_only_time_profile($journey, 'desktop', 'same-user', 'retained', 0, 0, 600, 'default', 0);
+    $enter->('original-entry', 'child', 'fresh');
+    $journey->seen('original-countdown');
+    onpc_app_rows::native_activity_entry($journey, 'original', 'command', 'child');
+    for my $prefix ('first-overlay', 'reopened-overlay') {
+        onpc_request_flow::overlay_entry($journey, $prefix, 'command');
+        $journey->seen("$prefix-cancel");
+        $journey->seen("$prefix-returned");
+    }
+    $leave->('original-leave');
+    $enter->('before-parent', 'parent', 'retained');
+    $journey->seen('before-policy');
+    my $restart = $journey->scope('reopen');
+    reopen($restart, 'parent', $restart->seen('prior-window'), 'management');
+    my $selected = $journey->scope('returned-child');
+    $selected->consume_observation('parent-selected', onpc_parent::select_child($selected, 'child',
+        $selected->seen('child-picker-opened'), 'child-picker-opened',
+        'child-choice-highlighted', 'parent-selected'));
+    $journey->seen('returned-policy');
+    $leave->('returned-parent-leave');
+    onpc_gdm::enter_station($journey->scope('reopened-station'), '');
+    $journey->seen($_) for qw(reopened-station-cancel reopened-station-returned
+        expiry-wait-first expiry-wait-last);
+    $enter->('expired-parent', 'parent', 'retained');
+    $journey->seen('expired-policy');
+    $leave->('expired-parent-leave');
+    $enter->('denied-child', 'child', 'retained', 'time-denied');
+    onpc_gdm::return_from_time_denial($journey,
+        'denied-return-ready', 'denied-return-state', 'denied-returned');
+    $journey->{kiosk_request} = [@$request];
+    onpc_request_flow::prepare($journey, 'new', 'new', 'observed',
+        'fixture-child', 'fixture-parent', 1200, 0, 'kiosk');
+    onpc_request_flow::approve($journey, 'fixture-child', 'fixture-parent', 1200, 0, 'automatic');
+    $enter->('recovered-parent', 'parent', 'retained');
+    $journey->seen('recovered-policy');
+    $leave->('recovered-parent-leave');
+    $enter->('recovered-child', 'child', 'retained');
+    $journey->seen('recovered-countdown');
+    onpc_app_rows::native_activity_resume($journey, 'resume');
+    $journey->seen($_) for qw(hard-denied soft-denied);
+    onpc_app_rows::native_read_activity($journey, 'retained-work');
+    onpc_app_rows::native_finish_app($journey->scope('original'));
+    my $allowed = $journey->scope('allowed');
+    onpc_app_rows::native_usable_app($allowed, 'command', $allowed->seen('desktop'), 'child', 'A');
+    $journey->finish();
+}
+
 sub run_removal {
     onpc_progress::operation('Following one continuous removal, retention and purge history');
     my ($exchange, $declared, $challenges) = @_;

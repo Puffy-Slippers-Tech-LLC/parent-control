@@ -212,7 +212,7 @@ PANEL_ANIMATION_OPERATIONS = frozenset({'child-countdown-animation-read',
     'child-countdown-animation-on', 'child-countdown-animation-off'})
 CHILD_DESKTOP_OPERATIONS = (frozenset({'fresh-child-desktop', 'child-retained-unlock-diagnostic'}) | COUNTDOWN_OPERATIONS
                             | PANEL_ANIMATION_OPERATIONS | COUNTDOWN_SESSION_OPERATIONS)
-OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-panel-ready',
+OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-grant-form', 'overlay-panel-ready',
     'overlay-panel-launch', 'overlay-panel-reveal-ready', 'overlay-panel-overview',
     'overlay-qualification-cancel', 'overlay-desktop'})
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | NATURAL_EXPIRY_OPERATIONS | frozenset({'child-command-launch'})
@@ -14119,6 +14119,9 @@ class AccessibleUI:
             self.kiosk_request_form(enabled=True, overlay=True)
         elif operation == 'overlay-request-form':
             result['request'] = self.kiosk_request_form(enabled=True, overlay=True)
+        elif operation == 'overlay-grant-form':
+            result['request'] = self.kiosk_request_form(enabled=True, overlay=True,
+                duration_seconds=600, custom_text='10')
         elif operation == 'overlay-qualification-cancel':
             self.require_child_overlay_session()
             nodes, edges, identities, facts = self.read_snapshot(protect_text=True)

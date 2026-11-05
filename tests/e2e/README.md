@@ -87,6 +87,15 @@ Passing an existing public-bus facade to another reader preserves that facade
 and its node identities; it must not create a second connection when a scoped
 node is shared between the host and installed-reader interfaces.
 
+An empty provider tree after a desktop/greeter handoff can come from a closed
+accessibility-bus connection. Inspect the existing query error and connection
+lifetime before changing readiness waits. `PublicAtspi.call` discards a closed
+connection and its cached identities, then raises the original error; only the
+next bounded read may reconnect. Never replay input. Task 083's controlled
+disconnect established this failure mode. Maintenance greeter reads now use
+the same `UiObservations` reader without source-rewriting trace instrumentation;
+normal query notes, operation timings and retained command errors remain.
+
 Journey UI observations also carry the kernel boot digest on the same guarded
 transport call. The guest checks continuity before connecting to the UI or
 delivering input; the controller validates the returned proof before its durable

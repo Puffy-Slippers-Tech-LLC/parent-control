@@ -400,13 +400,11 @@ def reproduce_baseline_app_effects(lease):
                             boundary_operation='overlay-native-allowed-command-launch')
 
 
-def reproduce_baseline_restoration(lease, fixture_selection):
-    """Retain C04j's Parent restoration boundary after its complete real history."""
-    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
-    from baseline_journey import BaselineJourney, PLAN
+def installed_reproduction_selection(lease, fixture_selection):
+    """Bind a clean fixture input to the attested running maintenance snapshot."""
     from e2e_fixture_preparation import validate_input
     from system_fixture_preparation import guest_target
-    from tools.test_storage import named_input
+
     system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
                    'fixtures:e2e-installed-clean-baseline-required')
     selection = validate_input(fixture_selection,
@@ -416,6 +414,15 @@ def reproduce_baseline_restoration(lease, fixture_selection):
     # No pending restoration/bootstrap is manufactured to pass preparation.
     lease.installed_name, lease.installed_xml = name, xml
     lease.online_pending, lease.online_bootstrap = False, None
+    return selection
+
+
+def reproduce_baseline_restoration(lease, fixture_selection):
+    """Retain C04j's Parent restoration boundary after its complete real history."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from baseline_journey import BaselineJourney, PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
     assets = named_input(vm_source=True, package_source=True, fixture_source=True)
     if not assets.is_dir():
         print('baseline-restoration: prepare the required input with '
@@ -712,17 +719,8 @@ def reproduce_natural_access(lease, fixture_selection):
     """Retain case 22's prepared Parent immediately before switching users."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from natural_access import NaturalAccessJourney, PLAN
-    from e2e_fixture_preparation import validate_input
-    from system_fixture_preparation import guest_target
     from tools.test_storage import named_input
-
-    system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
-                   'fixtures:e2e-installed-clean-baseline-required')
-    selection = validate_input(fixture_selection,
-                              target=guest_target(lease.capture.state['guest']))
-    name, xml, _record = attested_online_snapshot(lease)
-    lease.installed_name, lease.installed_xml = name, xml
-    lease.online_pending, lease.online_bootstrap = False, None
+    selection = installed_reproduction_selection(lease, fixture_selection)
     assets = named_input(vm_source=True, package_source=True, fixture_source=True)
     if not assets.is_dir():
         print('natural-access-diagnosis: prepare the required input with '
@@ -738,17 +736,8 @@ def reproduce_countdown_grant(lease, fixture_selection):
     """Retain the original grant after unlock and both exact-second decreases."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from countdown_grant import CountdownGrantJourney, PLAN
-    from e2e_fixture_preparation import validate_input
-    from system_fixture_preparation import guest_target
     from tools.test_storage import named_input
-
-    system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
-                   'fixtures:e2e-installed-clean-baseline-required')
-    selection = validate_input(fixture_selection,
-                              target=guest_target(lease.capture.state['guest']))
-    name, xml, _record = attested_online_snapshot(lease)
-    lease.installed_name, lease.installed_xml = name, xml
-    lease.online_pending, lease.online_bootstrap = False, None
+    selection = installed_reproduction_selection(lease, fixture_selection)
     assets = named_input(vm_source=True, package_source=True, fixture_source=True)
     if not assets.is_dir():
         print('countdown-grant-diagnosis: prepare the required input with '
@@ -790,22 +779,27 @@ def reproduce_countdown_resume(lease):
                  'inactive-interval': interval_action(70)})
 
 
-def probe_revoke_balances(lease):
-    """Exercise the maintained fresh public read on the retained Parent scene."""
+def observe_maintenance(lease, *, check, label, intention, ui_operation):
+    """Retain one shared UI observation under the existing maintenance owner."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from ui_observations import UiObservations
     from qualification_storage import recovery_session, allocate
-    with operation('Reading fresh balances in the retained Parent window'), recovery_session(
-            check='probe_revoke_balances', lease=lease, live=True):
-        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-revoke-balance-probe-'))
+    with operation(intention), recovery_session(check=check, lease=lease, live=True):
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-' + label + '-'))
         private = directory / 'private'
         private.mkdir(mode=0o700)
         lease.commands.directory = private
-        print('revoke-balance-probe: evidence=' + str(directory), flush=True)
-        observed = UiObservations(connect(lease)).observe('revoke-balances')
+        print(label + ': evidence=' + str(directory), flush=True)
+        observed = UiObservations(connect(lease)).observe(ui_operation)
         (directory / 'observed.json').write_text(json.dumps(observed))
         lease.guard()
-        print('revoke-balance-probe: fresh public read passed', flush=True)
+        print(label + ': observation passed', flush=True)
+
+
+def probe_revoke_balances(lease):
+    """Exercise the maintained fresh public read on the retained Parent scene."""
+    observe_maintenance(lease, check='probe_revoke_balances', label='revoke-balance-probe',
+        intention='Reading fresh balances in the retained Parent window', ui_operation='revoke-balances')
 
 
 def reproduce_retained_app_visits(lease):
@@ -865,16 +859,8 @@ def reproduce_overlay_activity(lease, fixture_selection):
     """Retain the translated approval history at Riley's original activity read."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from overlay_approved_exit import OverlayApprovedExitJourney, TRANSLATED_PLAN
-    from e2e_fixture_preparation import validate_input
-    from system_fixture_preparation import guest_target
     from tools.test_storage import named_input
-    system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
-                   'fixtures:e2e-installed-clean-baseline-required')
-    selection = validate_input(fixture_selection,
-                              target=guest_target(lease.capture.state['guest']))
-    name, xml, _record = attested_online_snapshot(lease)
-    lease.installed_name, lease.installed_xml = name, xml
-    lease.online_pending, lease.online_bootstrap = False, None
+    selection = installed_reproduction_selection(lease, fixture_selection)
     return reproduce_denial(lease, OverlayApprovedExitJourney, TRANSLATED_PLAN,
         'activity-capture', 'overlay-activity',
         assets=named_input(fixture_source=True),
@@ -885,16 +871,8 @@ def reproduce_overlay_return(lease, fixture_selection):
     """Retain FLOW20's new-form approval result before its countdown assertion."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from approval_return import ApprovalReturnJourney, NEW_PLAN
-    from e2e_fixture_preparation import validate_input
-    from system_fixture_preparation import guest_target
     from tools.test_storage import named_input
-    system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
-                   'fixtures:e2e-installed-clean-baseline-required')
-    selection = validate_input(fixture_selection,
-                              target=guest_target(lease.capture.state['guest']))
-    name, xml, _record = attested_online_snapshot(lease)
-    lease.installed_name, lease.installed_xml = name, xml
-    lease.online_pending, lease.online_bootstrap = False, None
+    selection = installed_reproduction_selection(lease, fixture_selection)
     assets = named_input(vm_source=True, package_source=True, fixture_source=True)
     if not assets.is_dir():
         print('overlay-return-diagnosis: prepare the required input with '
@@ -1017,37 +995,17 @@ def reproduce_system_graphical_expiry(lease, fixture_selection):
 
 def probe_overlay_activity(lease):
     """Read the same retained Riley activity through the maintained observer."""
-    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
-    from ui_observations import UiObservations
-    from qualification_storage import recovery_session, allocate
-    with operation('Reading Riley original activity before the translated request'), recovery_session(
-            check='probe_overlay_activity', lease=lease, live=True):
-        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-overlay-activity-probe-'))
-        private = directory / 'private'
-        private.mkdir(mode=0o700)
-        lease.commands.directory = private
-        print('overlay-activity-probe: evidence=' + str(directory), flush=True)
-        observed = UiObservations(connect(lease)).observe('overlay-native-activity')
-        (directory / 'observed.json').write_text(json.dumps(observed))
-        lease.guard()
-        print('overlay-activity-probe: complete activity read passed', flush=True)
+    observe_maintenance(lease, check='probe_overlay_activity', label='overlay-activity-probe',
+        intention='Reading Riley original activity before the translated request',
+        ui_operation='overlay-native-activity')
 
 
 def reproduce_native_denial(lease, fixture_selection):
     """Retain Jordan's first native command denial after the actual Parent saves."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from native_denial import NativeDenialJourney, PLAN
-    from e2e_fixture_preparation import validate_input
-    from system_fixture_preparation import guest_target
     from tools.test_storage import named_input
-
-    system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
-                   'fixtures:e2e-installed-clean-baseline-required')
-    selection = validate_input(fixture_selection,
-                              target=guest_target(lease.capture.state['guest']))
-    name, xml, _record = attested_online_snapshot(lease)
-    lease.installed_name, lease.installed_xml = name, xml
-    lease.online_pending, lease.online_bootstrap = False, None
+    selection = installed_reproduction_selection(lease, fixture_selection)
     assets = named_input(vm_source=True, package_source=True, fixture_source=True)
     system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
     return reproduce_denial(lease, NativeDenialJourney, PLAN,
@@ -1056,20 +1014,11 @@ def reproduce_native_denial(lease, fixture_selection):
 
 
 def reproduce_app_rule_return(lease, fixture_selection):
-    """Trace case 16's return-greeter read before retaining the exact scene."""
+    """Retain case 16's return-greeter scene through the shared observer."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from app_rule_changes_case import AppRuleChangesJourney, DISABLED_PATTERN_PLAN
-    from e2e_fixture_preparation import validate_input
-    from system_fixture_preparation import guest_target
     from tools.test_storage import named_input
-
-    system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
-                   'fixtures:e2e-installed-clean-baseline-required')
-    selection = validate_input(fixture_selection,
-                              target=guest_target(lease.capture.state['guest']))
-    name, xml, _record = attested_online_snapshot(lease)
-    lease.installed_name, lease.installed_xml = name, xml
-    lease.online_pending, lease.online_bootstrap = False, None
+    selection = installed_reproduction_selection(lease, fixture_selection)
     assets = named_input(vm_source=True, package_source=True, fixture_source=True)
     system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
     return reproduce_denial(lease, AppRuleChangesJourney, DISABLED_PATTERN_PLAN,
@@ -1081,17 +1030,8 @@ def reproduce_revocation_return(lease, fixture_selection):
     """Retain case 17's original Jordan desktop at its Cancel activity read."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from revocation_case import RevocationCaseJourney, PLAN
-    from e2e_fixture_preparation import validate_input
-    from system_fixture_preparation import guest_target
     from tools.test_storage import named_input
-
-    system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
-                   'fixtures:e2e-installed-clean-baseline-required')
-    selection = validate_input(fixture_selection,
-                              target=guest_target(lease.capture.state['guest']))
-    name, xml, _record = attested_online_snapshot(lease)
-    lease.installed_name, lease.installed_xml = name, xml
-    lease.online_pending, lease.online_bootstrap = False, None
+    selection = installed_reproduction_selection(lease, fixture_selection)
     assets = named_input(vm_source=True, package_source=True, fixture_source=True)
     system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
     return reproduce_denial(lease, RevocationCaseJourney, PLAN,
@@ -1099,70 +1039,10 @@ def reproduce_revocation_return(lease, fixture_selection):
         boundary_operation='native-policy-activity', fixture_selection=selection, timeout=1800)
 
 
-def app_rule_return_observer(transport):
-    """Add bounded private diagnostics to the unchanged greeter observer."""
-    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
-    from ui_observations import UiObservations
-    class GreeterProbe(UiObservations):
-        def call(self, argv, operation, *, input=None):
-            # Diagnostic stderr only; retain the reader's original waits,
-            # input guards and result without changing their deadlines.
-            system.require(operation == 'gdm-returned', 'diagnosis:greeter-probe-binding')
-            marker = b'    ui.branch_owner = branch_owner\n'
-            system.require(input.count(marker) == 1, 'diagnosis:greeter-probe-source')
-            input = input.replace(marker, b'''    from gi.repository import Gio
-    wait_messages = 0
-    query_messages = 0
-    original_call = ui.api.call
-    def diagnostic_call(*arguments, **options):
-        nonlocal query_messages
-        try:
-            return original_call(*arguments, **options)
-        except Exception as error:
-            query_messages += 1
-            if query_messages <= 16:
-                print(json.dumps({'event': 'greeter-query-error',
-                    'interface': arguments[2], 'method': arguments[3],
-                    'error_type': type(error).__name__,
-                    'domain': error.domain if isinstance(error, GLib.Error) else None,
-                    'code': error.code if isinstance(error, GLib.Error) else None,
-                    'remote_error': Gio.DBusError.get_remote_error(error)
-                        if isinstance(error, GLib.Error) else None}, sort_keys=True),
-                    file=sys.stderr, flush=True)
-            raise
-    ui.api.call = diagnostic_call
-    @contextmanager
-    def diagnostic_wait(predicate):
-        def checkpoint(phase, attempt):
-            nonlocal wait_messages
-            if wait_messages >= 16 and phase not in ('ready', 'timeout'):
-                return
-            wait_messages += 1
-            print(json.dumps({'event': 'greeter-wait', 'phase': phase,
-                'attempt': attempt, 'reader': predicate.__qualname__,
-                'incomplete': ui.incomplete_observations[-1:]}, sort_keys=True),
-                file=sys.stderr, flush=True)
-        yield checkpoint
-    ui.wait_trace = diagnostic_wait
-''' + marker)
-            return super().call(argv, operation, input=input)
-    return GreeterProbe(transport)
-
-
 def probe_app_rule_return(lease):
     """Read the same greeter operation in the retained maintenance scene."""
-    from qualification_storage import recovery_session, allocate
-    with operation('Reading the return greeter in the owned diagnostic scene'), recovery_session(
-            check='probe_app_rule_return', lease=lease, live=True):
-        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-app-rule-return-probe-'))
-        private = directory / 'private'
-        private.mkdir(mode=0o700)
-        lease.commands.directory = private
-        print('app-rule-return-probe: evidence=' + str(directory), flush=True)
-        observed = app_rule_return_observer(connect(lease)).observe('gdm-returned')
-        (directory / 'observed.json').write_text(json.dumps(observed))
-        lease.guard()
-        print('app-rule-return-probe: greeter observed', flush=True)
+    observe_maintenance(lease, check='probe_app_rule_return', label='app-rule-return-probe',
+        intention='Reading the return greeter in the owned diagnostic scene', ui_operation='gdm-returned')
 
 
 def reproduce_match_editor(lease, fixture_selection):
@@ -1170,17 +1050,8 @@ def reproduce_match_editor(lease, fixture_selection):
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from match_editor_case import PLAN
     from policy_edits import AppPolicyJourney
-    from e2e_fixture_preparation import validate_input
-    from system_fixture_preparation import guest_target
     from tools.test_storage import named_input
-
-    system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
-                   'fixtures:e2e-installed-clean-baseline-required')
-    selection = validate_input(fixture_selection,
-                              target=guest_target(lease.capture.state['guest']))
-    name, xml, _record = attested_online_snapshot(lease)
-    lease.installed_name, lease.installed_xml = name, xml
-    lease.online_pending, lease.online_bootstrap = False, None
+    selection = installed_reproduction_selection(lease, fixture_selection)
     assets = named_input(vm_source=True, package_source=True, fixture_source=True)
     system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
     return reproduce_denial(lease, AppPolicyJourney, PLAN,
@@ -1269,17 +1140,8 @@ def reproduce_grant_logout(lease, fixture_selection):
     """Observe case 9's immediate logout once, retaining the resulting scene."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from grant_access_case import GrantAccessJourney, PLAN
-    from e2e_fixture_preparation import validate_input
-    from system_fixture_preparation import guest_target
     from tools.test_storage import named_input
-
-    system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
-                   'fixtures:e2e-installed-clean-baseline-required')
-    selection = validate_input(fixture_selection,
-                              target=guest_target(lease.capture.state['guest']))
-    name, xml, _record = attested_online_snapshot(lease)
-    lease.installed_name, lease.installed_xml = name, xml
-    lease.online_pending, lease.online_bootstrap = False, None
+    selection = installed_reproduction_selection(lease, fixture_selection)
     assets = named_input(vm_source=True, package_source=True, fixture_source=True)
     system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
     return reproduce_denial(lease, GrantAccessJourney, PLAN,
@@ -1304,20 +1166,8 @@ def reproduce_riley_native_grid(lease):
 
 def probe_riley_native_grid(lease):
     """Exercise the shared refusal observer on the retained Riley session bus."""
-    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
-    from ui_observations import UiObservations
-    from qualification_storage import recovery_session, allocate
-    with operation('Probing Riley second native grid refusal'), recovery_session(
-            check='probe_riley_native_grid', lease=lease, live=True):
-        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-riley-native-grid-probe-'))
-        private = directory / 'private'
-        private.mkdir(mode=0o700)
-        lease.commands.directory = private
-        print('riley-native-grid-probe: evidence=' + str(directory), flush=True)
-        observed = UiObservations(connect(lease)).observe('overlay-native-grid-refusals')
-        (directory / 'observed.json').write_text(json.dumps(observed))
-        lease.guard()
-        print('riley-native-grid-probe: guarded refusal passed', flush=True)
+    observe_maintenance(lease, check='probe_riley_native_grid', label='riley-native-grid-probe',
+        intention='Probing Riley second native grid refusal', ui_operation='overlay-native-grid-refusals')
 
 
 def reproduce_remembered_return(lease):
@@ -1332,20 +1182,8 @@ def reproduce_remembered_return(lease):
 
 def probe_remembered_return(lease):
     """Read the same desktop adapter on the retained Jordan session's bus."""
-    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
-    from ui_observations import UiObservations
-    from qualification_storage import recovery_session, allocate
-    with operation('Reading the retained Jordan desktop'), recovery_session(
-            check='probe_remembered_return', lease=lease, live=True):
-        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-remembered-return-probe-'))
-        private = directory / 'private'
-        private.mkdir(mode=0o700)
-        lease.commands.directory = private
-        print('remembered-return-probe: evidence=' + str(directory), flush=True)
-        observed = UiObservations(connect(lease)).observe('standard-desktop')
-        (directory / 'observed.json').write_text(json.dumps(observed))
-        lease.guard()
-        print('remembered-return-probe: guarded desktop read passed', flush=True)
+    observe_maintenance(lease, check='probe_remembered_return', label='remembered-return-probe',
+        intention='Reading the retained Jordan desktop', ui_operation='standard-desktop')
 
 
 def repeat_remembered_return(lease):
@@ -1392,38 +1230,15 @@ def enter_remembered_return(lease):
 
 def probe_transfer_refusal(lease):
     """Run the original read-only refusal in the retained child's actual session."""
-    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
-    from ui_observations import UiObservations
-    from qualification_storage import recovery_session, allocate
-    with operation('Reading the retained overlay wrong-surface refusal'), recovery_session(
-            check='probe_transfer_refusal', lease=lease, live=True):
-        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-transfer-refusal-probe-'))
-        private = directory / 'private'
-        private.mkdir(mode=0o700)
-        lease.commands.directory = private
-        print('transfer-refusal-probe: evidence=' + str(directory), flush=True)
-        observed = UiObservations(connect(lease)).observe('transfer-overlay-riley-refused')
-        (directory / 'observed.json').write_text(json.dumps(observed))
-        lease.guard()
-        print('transfer-refusal-probe: guarded refusal read passed', flush=True)
+    observe_maintenance(lease, check='probe_transfer_refusal', label='transfer-refusal-probe',
+        intention='Reading the retained overlay wrong-surface refusal',
+        ui_operation='transfer-overlay-riley-refused')
 
 
 def probe_lock_curtain(lease):
     """Read the same guarded child curtain in a retained maintenance scene."""
-    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
-    from ui_observations import UiObservations
-    from qualification_storage import recovery_session, allocate
-    with operation('Reading the locked child surface for engineering diagnosis'), recovery_session(
-            check='probe_lock_curtain', lease=lease, live=True):
-        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-lock-probe-'))
-        private = directory / 'private'
-        private.mkdir(mode=0o700)
-        lease.commands.directory = private
-        print('lock-probe: evidence=' + str(directory), flush=True)
-        observed = UiObservations(connect(lease)).observe('child-lock-curtain')
-        (directory / 'observed.json').write_text(json.dumps(observed))
-        lease.guard()
-        print('lock-probe: guarded curtain read passed', flush=True)
+    observe_maintenance(lease, check='probe_lock_curtain', label='lock-probe',
+        intention='Reading the locked child surface for engineering diagnosis', ui_operation='child-lock-curtain')
 
 
 def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_operation=None,
@@ -1630,9 +1445,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                         else:
                             # This diagnostic must retain the already qualified
                             # prompt identity and normal fresh-proof deadline.
-                            observer = (app_rule_return_observer(transport)
-                                        if surface == 'app-rule-return' else
-                                        journey.ui if surface == 'delayed-approval'
+                            observer = (journey.ui if surface == 'delayed-approval'
                                         else UiObservations(transport))
                             observed = observer.observe(boundary_operation, **(
                                 {'child': plan.child_bindings[boundary]}

@@ -308,6 +308,23 @@ between transitions can conceal which save caused an app to close. Keep the
 original matching capture and a separately bound nonmatching window so closure
 and preserved work cannot be satisfied by replacement launches.
 
+When several native fixture windows remain open, read each original window's
+visibility, owner, endpoint and exact work independently. Foreground focus does
+not establish preservation: another owned app can cover a still-visible window.
+Use `AccessibleUI.native_app_snapshot` for that observation and retain the
+separate guarded Submit and independent result to prove continued usability.
+
+Maintenance reproductions share `vm_probe.installed_reproduction_selection`
+for clean-input validation and attested running-snapshot binding. Keep each
+caller's package/fixture input declaration, journey and stopping point local;
+the system expiry history retains its distinct system fixture validation.
+Single public reads share `vm_probe.observe_maintenance`, including intention,
+recovery session, registered private evidence, guarded transport and final lease
+check. Multi-action probes keep their finite order and assertions. These helpers
+reuse the existing allocation and maintenance owner; they add no process, VM,
+bus or cleanup lifetime. The existing VM-control safety module retains private
+pytest state and mocked VM calls in both unit and cleanup inventories.
+
 Fixture provisioning qualifications reuse
 `system_fixture_preparation.register_staging`, as do system, standalone and E2E
 preparation through `system_fixture_preparation.provision`. The shared writer

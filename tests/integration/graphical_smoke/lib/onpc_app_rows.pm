@@ -980,6 +980,23 @@ sub native_app {
     $journey->finish();
 }
 
+sub snap_command_usable {
+    onpc_progress::operation('Checking the child can use each Snap app and keep work in two S windows');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'snap:arguments' unless @_ == 3;
+    my $journey = native_child_entry($exchange, $declared, $challenges, 'snap-command-usable');
+    $journey->seen('refusals');
+    for my $name ('allowed', 'hard', 'soft', 'soft-second') {
+        my $flow = _native_activity_scope($journey, $name);
+        native_usable_app($flow, 'command', $flow->seen('desktop'));
+        native_read_activity($flow, 'capture');
+        native_read_activity($journey, 'soft-reread') if $name eq 'soft-second';
+        native_finish_app($flow) unless $name eq 'soft';
+    }
+    native_finish_app(_native_activity_scope($journey, 'soft'));
+    $journey->finish();
+}
+
 sub app_activity {
     onpc_progress::operation('Qualifying native usable flows and same-window activity comparisons');
     my ($exchange, $declared, $challenges) = @_;

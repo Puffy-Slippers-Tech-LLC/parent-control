@@ -1051,7 +1051,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                                     'native_fixtures', 'catalogue_search', 'catalogue_filters', 'policy_legend', 'match_save_cancel', 'match_editor', 'access_choices', 'policy_edit', 'named_app_set', 'rejected_parent_rule') and isinstance(value, bool)))),
         'smoke:native-fixtures-prerequisites')
     require(fixture_profile in ('native', 'snap') and
-            (fixture_profile == 'native' or native_fixtures and not any((catalogue_search,
+            (fixture_profile == 'native' or (native_fixtures or native_app) and not any((catalogue_search,
              catalogue_filters, policy_legend, match_save_cancel, match_editor, access_choices,
              policy_edit, named_app_set, rejected_parent_rule))), 'smoke:fixture-profile')
     require(type(public_connectivity_controls) is bool and (not public_connectivity_controls or (
@@ -1790,7 +1790,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         if riley_native_grid:
             result['scope'] = 'installed-riley-native-grid-qualification'
         if native_app:
-            result['scope'] = 'installed-native-app-qualification'
+            result['scope'] = ('installed-snap-command-usable-qualification' if fixture_profile == 'snap'
+                               else 'installed-native-app-qualification')
         if native_denial:
             result['scope'] = 'installed-native-denial-qualification'
         if native_policy_closure:
@@ -2333,6 +2334,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if native_app:
                     from parent_setup_qualification import NativeAppQualification
                     qualification_class = NativeAppQualification
+                    if fixture_profile == 'snap':
+                        from parent_setup_qualification import SnapCommandQualification
+                        qualification_class = SnapCommandQualification
                 if native_denial:
                     from parent_setup_qualification import NativeDenialQualification
                     qualification_class = NativeDenialQualification

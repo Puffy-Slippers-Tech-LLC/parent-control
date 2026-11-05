@@ -2195,6 +2195,11 @@ Await fresh public results within deadlines, accounting for observation latency.
 | APP05 | C | Prepare the real offline game's declared windowed/fullscreen mode and reproducible level through shared supported commands or keyboard shortcuts, then observe active gameplay. Game settings menus are supporting setup. | Bind startup options in the preceding APP01 launch, or use a fixed supported command/UI05 shortcut on the observed game; do not relaunch retained activity. UI01/UI03 verifies the mode/level, then APP03 proves actual gameplay input/effect. The selected game needs usable public observations; a menu or timer fixture is insufficient. | pending |
 | APP06 | A | Read one complete, account-scoped public projection of Lunar's tray/background control, Lunar window and Minecraft activity, with the recognized surrounding desktop. Presence/absence is explicit input; do not launch, reveal or quit anything. | No callable yet. The [Lunar profile slices](#lunar-client-preparation-and-observation-gate) separately qualify Lunar/tray, Minecraft activity and login observations, including absence and incomplete/wrong-owner refusal. UI22 composes repeated observations across the declared login interval; one final absent window cannot establish blocked autostart. [Consumer gate](#lunar-client-preparation-and-observation-gate). | pending |
 
+APP01/02/03/04 also have the independently qualified
+[Snap command binding](#snap-command-use) for Jordan's A/H/S fixtures and a
+second S instance on Fedora 44. This adds to the native scopes above; other
+Snap launch routes and policy-denial bindings remain pending.
+
 The qualified FILE03 Save binding uses `AccessibleUI.save_chooser_operation`,
 `attachment_composition.save_handoff/save_cancellation` and matching
 `onpc_feedback_read` fragments. `check_e2e_save_chooser` qualifies Nautilus
@@ -3679,6 +3684,28 @@ baseline). This slice verifies strict installation mode; it does not qualify
 every kernel sandbox feature. See the
 [Snap response fields](https://github.com/canonical/snapd/blob/master/client/packages.go)
 and [system capability command](https://forum.snapcraft.io/t/internal-debugging-commands/5341).
+
+### Snap command use
+
+`snap_command_usable.PLAN` / `onpc_app_rows::snap_command_usable` qualify
+APP01/02/03/04 and FLOW08 for Jordan's fixed A/H/S commands on Fedora 44.
+`journey_blocks.native_usable_app(kind='snap', role=..., instance=...)` composes
+the same guarded launch, public window and independent Submit-result mechanics
+as native use. `AccessibleUI.snap_app_operation` binds the declared package,
+current user, primary/secondary public IDs and actual mounted runtime.
+`SnapFixtures` independently verifies the existing strict, system-wide profile
+before child entry; this operation never installs or repairs packages.
+
+`check_e2e_snap_command_usable` passed command launch, normal draft submission,
+immutable activity capture and normal closure for all three fixtures. It also
+launched and used S's supported `--instance secondary` command, required a
+distinct process and public window endpoint, and independently compared the
+original S window and submitted draft while both instances remained open.
+Wrong-scope and uncertain launch input refused before submission; an absent
+public window could not pass on a command reply alone. The worker, callback,
+collection, owned shutdown and baseline restoration passed. FLOW08 includes
+this same finite Snap binding. Snap grid, policy denial and complete customer
+scenarios remain separate qualifications.
 
 ### Native fixture preparation
 

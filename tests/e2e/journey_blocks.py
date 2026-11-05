@@ -217,9 +217,22 @@ def overlay_license_read(prefix='', *, links='license'):
         ('form-returned', 'overlay-valid-fraction-soft-read'))}
 
 
-def native_usable_app(route, *, child='other-child', role=None, desktop_observation=True):
+def native_usable_app(route, *, child='other-child', role=None, desktop_observation=True,
+                      kind='native', instance='primary'):
     """FLOW08 finite native usable scope; caller owns stages and later activity."""
     require(route in ('command', 'grid'), 'journey:native-route')
+    require(kind in ('native', 'snap') and (kind == 'snap' or instance == 'primary'),
+            'journey:fixture-binding')
+    if kind == 'snap':
+        require(route == 'command' and child == 'other-child' and role in ('A', 'H', 'S')
+                and instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'),
+                'journey:snap-binding')
+        name = {'A': 'allowed', 'H': 'hard', 'S': 'soft'}[role]
+        name += '-second' if instance == 'secondary' else ''
+        return {stage: 'ui:snap-' + name + '-' + action for stage, action in (
+            *((('desktop', 'desktop'),) if desktop_observation else ()),
+            ('command', 'command-launch'), ('opened', 'opened'),
+            ('submit', 'submit'), ('submitted', 'submitted'))}
     require(type(desktop_observation) is bool and (desktop_observation or route == 'command'),
             'journey:native-desktop-binding')
     require(child in ('parent', 'child', 'other-child') and

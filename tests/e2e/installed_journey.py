@@ -130,11 +130,13 @@ class JourneyPlan:
                 self.prefix + ':assertion-plan')
         used = set()
         stages = list(self.screen_tags)
-        require(all(stage in stages and self.screen_tags[stage] in (
+        require(all(stage in stages and (self.screen_tags[stage] in (
                     'ui:native-activity', 'ui:overlay-native-activity', 'ui:parent-native-activity',
                     'ui:native-policy-activity', 'ui:native-policy-closed', 'ui:native-unmatched-soft-activity',
                     'ui:native-policy-soft-activity', 'ui:native-policy-soft-closed',
                     'ui:overlay-native-policy-soft-activity', 'ui:overlay-native-policy-soft-closed')
+                    or self.screen_tags[stage].removeprefix('ui:') in accessible_ui.SNAP_APP_BINDINGS
+                    and accessible_ui.SNAP_APP_BINDINGS[self.screen_tags[stage][3:]][2] == 'activity')
                     and type(binding) is tuple and len(binding) == 2
                     and binding[0] in stages and stages.index(binding[0]) < stages.index(stage)
                     and ((binding[1] in ('same', 'replaced')
@@ -555,6 +557,18 @@ class InstalledJourney:
 
     def check_activity(self, stage, observed):
         """Capture/compare before the worker can receive a durable reply."""
+        snap = accessible_ui.SNAP_APP_BINDINGS.get(self.plan.screen_tags.get(stage, '')[3:])
+        if snap is not None and snap[2] == 'activity':
+            require(stage not in self.activity_observations, 'ui:app-activity-replay')
+            current = AppActivityObservation.from_value(observed.get('ui', {}).get('activity'),
+                                                        binding='snap-' + snap[1])
+            if stage in self.plan.activity_checks:
+                earlier, result = self.plan.activity_checks[stage]
+                require(earlier in self.activity_observations, 'ui:missing-app-activity')
+                observed['comparison'] = compare_app_activity(
+                    current, self.activity_observations[earlier], result=result)
+            self.activity_observations[stage] = current
+            return
         if self.plan.screen_tags.get(stage) not in ('ui:native-activity', 'ui:overlay-native-activity',
                 'ui:parent-native-activity', 'ui:native-policy-activity', 'ui:native-policy-closed',
                 'ui:native-unmatched-soft-activity', 'ui:native-policy-soft-activity',

@@ -838,6 +838,12 @@ sub run {
             ($ready->{app_rule_changes_disabled_case} || $ready->{app_rule_changes_disabled_pattern_case}) ? 1 : 0);
         return;
     }
+    if ($ready->{snap_command_usable}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::snap_command_usable(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{native_app}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

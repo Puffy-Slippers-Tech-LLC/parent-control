@@ -401,6 +401,8 @@ OPERATION_LABELS.update({operation: 'Replacing and reading a declared nonsecret 
                          for operation in accessible_ui.TEXT_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Checking native app launch and ordinary draft submission: ' + operation
                          for operation in accessible_ui.NATIVE_APP_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Checking the declared Snap app and its public activity: ' + operation
+                         for operation in accessible_ui.SNAP_APP_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Checking declared baseline native access and usable results'
                          for operation in accessible_ui.BASELINE_NATIVE_BINDINGS})
 OPERATION_LABELS.update({operation: 'Using and independently reading the Parent native activity'
@@ -555,7 +557,7 @@ class AppActivityObservation:
     def from_value(cls, value, *, closed=False, binding='native-primary'):
         fields = {'binding', 'pid', 'endpoint', 'state'}
         require(type(closed) is bool and type(value) is dict and set(value) in (fields, fields | {'owner'})
-                and binding in ('native-primary', 'native-secondary')
+                and binding in ('native-primary', 'native-secondary', 'snap-primary', 'snap-secondary')
                 and value['binding'] == binding, 'ui:app-activity')
         owner = value.get('owner')
         require('owner' not in value or type(owner) is list and len(owner) == 2
@@ -2024,6 +2026,16 @@ class UiObservations:
                 'submitted': 'No submitted draft' if operation.endswith('native-opened') else 'ONPC fixture draft',
                 'score': 'Moves: 0; token: 0'}
         policy_bindings = {**accessible_ui.BASELINE_NATIVE_BINDINGS, **accessible_ui.NATIVE_DENIAL_BINDINGS}
+        if operation in accessible_ui.SNAP_APP_BINDINGS:
+            _role, instance, action = accessible_ui.SNAP_APP_BINDINGS[operation]
+            if action in ('opened', 'submitted'):
+                expected['activity'] = {'draft': 'ONPC fixture draft',
+                    'submitted': 'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
+                    'score': 'Moves: 0; token: 0'}
+            elif action == 'activity':
+                require(type(result) is dict and set(result) == {*expected, 'activity'}, 'ui:response')
+                AppActivityObservation.from_value(result['activity'], binding='snap-' + instance)
+                expected['activity'] = result['activity']
         if operation in policy_bindings:
             _role, action = policy_bindings[operation]
             if action in ('opened', 'submitted'):

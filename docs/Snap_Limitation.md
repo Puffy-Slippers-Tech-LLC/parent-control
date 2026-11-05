@@ -33,7 +33,7 @@ the app; copying is not needed for the demonstrated bypass.
 See [catalogue identity](../broker/oh_no_parent_control/catalog.py),
 [execution rules](../broker/oh_no_parent_control/execution_policy.py),
 [process termination](../broker/oh_no_parent_control/app_termination.py) and the
-[task 109 investigation](TestAutomation/E2E-Tasks/109-snap.md#current-handoff).
+[deferred task 109](TestAutomation/E2E-Tasks/109-snap.md).
 Its retained failed acceptance is
 `snap-policy-closure.hard-prior-window-closure`; the formal furthest checkpoint
 is `snap-policy-closure.hard-policy-saved-and-child-returned`. Later maintenance
@@ -73,8 +73,10 @@ The package-monitoring experiments did not establish selective enforcement:
 Temporary rules, domain exceptions and configuration changes were restored;
 owned workers stopped and baseline restoration finished. No saved VM state,
 maintenance ownership or temporary exception is a prerequisite for future work.
-The next hash-attribution probe recorded in task 109 belongs only to an
-explicitly requested Snap-remediation investigation.
+Any further hash-attribution probe belongs only to an explicitly requested
+Snap-remediation investigation. Uncommitted diagnostic adapters and replay
+helpers were discarded at the developer's request; this document retains the
+findings, while active Allowed Snap coverage remains implemented separately.
 
 ## Established approaches and what we could adopt
 

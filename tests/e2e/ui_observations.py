@@ -2028,12 +2028,12 @@ class UiObservations:
                          'overlay-native-submitted', 'parent-native-opened', 'parent-native-submitted'):
             expected['activity'] = {'draft': 'ONPC fixture draft',
                 'submitted': 'No submitted draft' if operation.endswith('native-opened') else 'ONPC fixture draft',
-            if action == 'grid':
-                expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
                 'score': 'Moves: 0; token: 0'}
         policy_bindings = {**accessible_ui.BASELINE_NATIVE_BINDINGS, **accessible_ui.NATIVE_DENIAL_BINDINGS}
         if operation in accessible_ui.SNAP_APP_BINDINGS:
             _role, instance, action = accessible_ui.SNAP_APP_BINDINGS[operation]
+            if action == 'grid':
+                expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
             if action in ('opened', 'submitted'):
                 expected['activity'] = {'draft': 'ONPC fixture draft',
                     'submitted': 'No submitted draft' if action == 'opened' else 'ONPC fixture draft',

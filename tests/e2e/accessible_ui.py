@@ -154,6 +154,8 @@ OPERATIONS |= frozenset({'standard-search-qualified'})
 STANDARD_OPERATIONS |= frozenset({'standard-search-qualified'})
 NATIVE_PRODUCT = 'ONPC Allowed Fixture'
 NATIVE_ALIAS_PRODUCT = 'ONPC Shared Target Fixture'
+SNAP_SEARCH_PRODUCTS = {'A': 'ONPC Snap Allowed Fixture',
+                        'H': 'ONPC Snap Hard Fixture', 'S': 'ONPC Snap Soft Fixture'}
 NATIVE_EXECUTION_MARKERS = (
     ('permission-denied', b'Permission denied'),
     ('operation-not-permitted', b'Operation not permitted'),
@@ -186,7 +188,12 @@ SNAP_APP_BINDINGS = {
     for action in ('desktop', 'command-launch', 'opened', 'submit', 'submitted',
                    'activity', 'close', 'closed')
 }
-SNAP_APP_OPERATIONS = frozenset(SNAP_APP_BINDINGS) | {'snap-command-refusals'}
+SNAP_APP_BINDINGS.update({
+    'snap-' + name + '-' + action: (role, 'primary', action)
+    for name, role in (('allowed', 'A'), ('hard', 'H'), ('soft', 'S'))
+    for action in ('search-ready', 'search-focused', 'search-entered', 'grid')
+})
+SNAP_APP_OPERATIONS = frozenset(SNAP_APP_BINDINGS) | {'snap-command-refusals', 'snap-grid-refusals'}
 RILEY_SNAP_OPERATIONS = frozenset('overlay-snap-allowed-' + action for action in
     ('desktop', 'command-launch', 'opened', 'submit', 'submitted'))
 SNAP_APP_BINDINGS.update({operation: ('A', 'primary', operation.removeprefix('overlay-snap-allowed-'))
@@ -7771,7 +7778,7 @@ class AccessibleUI:
 
     def launchable_result(self, product):
         """SEARCH04's owned Shell launcher branch, without input."""
-        require(product in (PRODUCT, NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT), 'ui:search-binding')
+        require(product in (PRODUCT, NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT, *SNAP_SEARCH_PRODUCTS.values()), 'ui:search-binding')
         if not self.provider_contracts['gnome-shell']['application_id']:
             owner, nodes, snapshot, facts = self.shell_search_snapshot()
             if owner is None:
@@ -12723,7 +12730,7 @@ class AccessibleUI:
 
     def search_query(self, expected):
         """Read only the overview's public search field; never arbitrary text."""
-        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT), 'ui:search-binding')
+        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT, *SNAP_SEARCH_PRODUCTS.values()), 'ui:search-binding')
         if not self.provider_contracts['gnome-shell']['application_id']:
             field = self.shell_search_field()
             if field is None:
@@ -12747,7 +12754,7 @@ class AccessibleUI:
 
     def shell_query_matches(self, field, expected):
         """Read the field from the caller's fresh scoped Shell observation."""
-        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT), 'ui:search-binding')
+        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT, *SNAP_SEARCH_PRODUCTS.values()), 'ui:search-binding')
         text = field.get_text_iface()
         require(text is not None, 'ui:search-text-unavailable')
         count = self.api.Text.get_character_count(text)
@@ -12839,7 +12846,7 @@ class AccessibleUI:
     def focus_search_result(self, product=PRODUCT):
         """Qualify the exact launcher recipient before the worker sends Enter."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(product in (PRODUCT, NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT), 'ui:search-binding')
+        require(product in (PRODUCT, NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT, *SNAP_SEARCH_PRODUCTS.values()), 'ui:search-binding')
         self.wait(lambda: self.search_query(product), 'parent-search-query')
         target = self.wait(lambda: self.launchable_result(product), 'parent-search-result')
         def fresh_recipient():
@@ -13102,15 +13109,40 @@ class AccessibleUI:
                 and (process / 'exe').readlink().is_relative_to(Path(prefix).resolve() / 'usr'),
                 'ui:snap-owner')
         command = (process / 'cmdline').read_bytes().split(b'\0')
-        require(command[-8:] == [ (prefix + '/usr/bin/python3').encode(), b'-B',
-                (prefix + '/onpc-test-gui.py').encode(), b'--kind', b'snap',
-                b'--instance', instance.encode(), b''], 'ui:snap-owner')
+        program = [(prefix + '/usr/bin/python3').encode(), b'-B',
+                   (prefix + '/onpc-test-gui.py').encode(), b'--kind', b'snap']
+        require(command[-8:] == [*program, b'--instance', instance.encode(), b'']
+                or instance == 'primary' and command[-6:] == [*program, b''],
+                'ui:snap-owner')
         fresh = (process / 'stat').read_text().rsplit(')', 1)[1].split()
         require(before[0] != 'Z' and fresh[0] != 'Z' and before[19] == fresh[19],
                 'ui:snap-owner-changed')
 
     def snap_app_operation(self, operation):
         require(operation in SNAP_APP_OPERATIONS, 'ui:snap-operation')
+        if operation == 'snap-grid-refusals':
+            try:
+                self.native_app_snapshot('ONPC fixture draft', role='H',
+                                         child=EXISTING_CHILD, kind='snap')
+            except UiError as error:
+                require(str(error) == 'ui:snap-owner', 'ui:snap-wrong-refusal')
+            else:
+                raise UiError('ui:snap-refusal-missing')
+            # Shared search guard: reject unknown entries and uncertain input
+            # before discovering or focusing any provider control.
+            for product, uncertain, expected in (
+                    ('ONPC Snap Unrelated Fixture', False, 'ui:search-binding'),
+                    (SNAP_SEARCH_PRODUCTS['A'], True, 'ui:uncertain-input')):
+                self.input_uncertain = uncertain
+                try:
+                    self.focus_search_result(product)
+                except UiError as error:
+                    require(str(error) == expected, 'ui:snap-wrong-refusal')
+                else:
+                    raise UiError('ui:snap-refusal-missing')
+                finally:
+                    self.input_uncertain = False
+            return None
         if operation == 'snap-command-refusals':
             require(self.native_app_closed(kind='snap'), 'ui:snap-wrong-entry')
             for role, instance, uncertain, expected in (
@@ -13138,7 +13170,17 @@ class AccessibleUI:
         arguments = dict(instance=instance, role=role,
                          child=CHILD if operation in RILEY_SNAP_OPERATIONS else EXISTING_CHILD,
                          kind='snap')
-        if action in ('desktop', 'closed'):
+        if action == 'search-ready':
+            self.search_ready('overview')
+        elif action == 'search-focused':
+            self.focus_search_field()
+            self.search_ready('overview', focused=True)
+        elif action == 'search-entered':
+            self.wait_search(lambda: self.search_query(SNAP_SEARCH_PRODUCTS[role]), 'snap-search-query')
+        elif action == 'grid':
+            require_active_launch_session()
+            self.focus_search_result(SNAP_SEARCH_PRODUCTS[role])
+        elif action in ('desktop', 'closed'):
             self.wait(lambda: self.native_app_closed(instance, kind='snap'), 'snap-closed')
         elif action == 'command-launch':
             self.native_launch_command(**arguments)
@@ -13875,6 +13917,8 @@ class AccessibleUI:
             value = self.snap_app_operation(operation)
             if value is not None:
                 result['activity'] = value
+            if operation in SNAP_APP_BINDINGS and SNAP_APP_BINDINGS[operation][2] == 'grid':
+                result['provider'] = self.shell_provider_metadata()
         elif operation in SHORTCUT_OPERATIONS:
             result['shortcut'] = self.shortcut_operation(operation)
         elif operation in TRANSFER_OPERATIONS:

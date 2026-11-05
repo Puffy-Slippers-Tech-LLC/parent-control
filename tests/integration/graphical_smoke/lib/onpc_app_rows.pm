@@ -473,23 +473,29 @@ sub qualify_named_app_set {
 # APP01's graphical exception: one declared query, then one launch commit.
 sub native_search {
     onpc_progress::operation('Finding the declared native fixture in public app search');
-    my ($journey, $desktop, $result_stage, $role) = @_;
+    my ($journey, $desktop, $result_stage, $role, $kind) = @_;
     $result_stage //= 'app-grid';
     $role //= 'A';
-    die 'native:search-binding' unless (@_ == 2 || @_ == 3 || @_ == 4)
+    $kind //= 'native';
+    die 'native:search-binding' unless (@_ >= 2 && @_ <= 5)
         && ref($journey) eq 'onpc_journey'
-        && ($role eq 'A' || $role eq 'Alias')
+        && ($kind eq 'native' && ($role eq 'A' || $role eq 'Alias')
+            || $kind eq 'snap' && $role =~ /\A(?:A|H|S)\z/)
         && ($result_stage eq 'app-grid' || $result_stage eq 'refusals');
+    my %snap = (A => 'Allowed', H => 'Hard', S => 'Soft');
     return onpc_parent::search_whole_query(
-        $journey, $desktop, $role eq 'Alias' ? 'ONPC Shared Target Fixture' : 'ONPC Allowed Fixture', $result_stage);
+        $journey, $desktop, $kind eq 'snap' ? 'ONPC Snap ' . $snap{$role} . ' Fixture'
+            : $role eq 'Alias' ? 'ONPC Shared Target Fixture' : 'ONPC Allowed Fixture', $result_stage);
 }
 
 sub native_launch_grid {
     onpc_progress::operation('Launching the declared native fixture from the app grid');
-    my ($journey, $entry) = @_;
-    die 'native:launch-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
+    my ($journey, $entry, $gesture) = @_;
+    $gesture //= 'ret';
+    die 'native:launch-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
+        && ($gesture eq 'ret' || $gesture eq 'ctrl-ret');
     $journey->consume_observation('app-grid', $entry);
-    testapi::send_key('ret');
+    testapi::send_key($gesture);
     return $journey->seen('opened');
 }
 
@@ -527,17 +533,23 @@ sub native_use_app {
 # FLOW08: explicitly qualified native usable routes, no denial fallback.
 sub native_usable_app {
     onpc_progress::operation('Launching and using the declared native app route');
-    my ($journey, $route, $desktop, $child, $role) = @_;
+    my ($journey, $route, $desktop, $child, $role, $kind, $gesture) = @_;
     $child //= 'other-child';
-    die 'native:usable-binding' unless (@_ == 3 || @_ == 4 || @_ == 5) && ref($journey) eq 'onpc_journey'
+    $kind //= 'native';
+    $gesture //= 'ret';
+    die 'native:usable-binding' unless (@_ >= 3 && @_ <= 7) && ref($journey) eq 'onpc_journey'
         && defined($route) && ($route eq 'command' || $route eq 'grid')
         && (defined($desktop) || $route eq 'command')
         && ($child eq 'child' || $child eq 'other-child' || $child eq 'parent' && $route eq 'command')
-        && (!defined($role) || $role eq 'Alias' && $route eq 'grid' && $child eq 'other-child'
+        && ($gesture eq 'ret' || $kind eq 'snap' && $route eq 'grid' && $gesture eq 'ctrl-ret')
+        && ($kind eq 'snap' && $child eq 'other-child' && defined($role) && $role =~ /\A(?:A|H|S)\z/
+            || $kind eq 'native' && (!defined($role) || $role eq 'Alias' && $route eq 'grid' && $child eq 'other-child'
             || $route eq 'command' &&
             ($role =~ /\A(?:A|S)\z/ && $child eq 'child'
-                || $role =~ /\A(?:N|unmatched-soft)\z/ && $child eq 'other-child'));
+                || $role =~ /\A(?:N|unmatched-soft)\z/ && $child eq 'other-child')));
     my $opened = $route eq 'command' ? native_open_command($journey, $desktop)
+        : $kind eq 'snap' ? native_launch_grid($journey,
+            native_search($journey, $desktop, 'app-grid', $role, $kind), $gesture)
                                    : native_open_grid($journey, $desktop, $role);
     return native_use_app($journey, $opened);
 }
@@ -994,6 +1006,46 @@ sub snap_command_usable {
         native_finish_app($flow) unless $name eq 'soft';
     }
     native_finish_app(_native_activity_scope($journey, 'soft'));
+    $journey->finish();
+}
+
+sub snap_grid {
+    onpc_progress::operation('Checking allowed Snap grid launches and preserving the child\'s earlier work');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'snap:arguments' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'snap-grid', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    $journey->consume_observation('parent-selected', onpc_parent::select_child(
+        $journey, 'existing', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected'));
+    read_rows($journey, 'apps-page');
+    read_rows($journey, 'app-rows');
+    $journey->seen('logout');
+    onpc_gdm::sign_in_challenge($journey, 'native-child-login',
+        'child-installed-greeter', 'child-standard-focused', 'child-desktop');
+    for my $binding (['allowed', 'A'], ['hard', 'H'], ['soft', 'S']) {
+        my ($name, $role) = @$binding;
+        if ($role eq 'S') {
+            my $earlier = _native_activity_scope($journey, 'earlier');
+            native_usable_app($earlier, 'command', $earlier->seen('desktop'), 'other-child', 'S', 'snap');
+            native_read_activity($earlier, 'capture');
+        }
+        my $flow = _native_activity_scope($journey, $name);
+        # GNOME Shell Ctrl+Enter requests a new window rather than activating
+        # the already-running app. The command-opened S/secondary stays open.
+        native_usable_app($flow, 'grid', $flow->seen('desktop'), 'other-child', $role, 'snap',
+            $role eq 'S' ? 'ctrl-ret' : 'ret');
+        native_read_activity($flow, 'capture');
+        $journey->seen('refusals') if $role eq 'A';
+        native_read_activity($journey, 'earlier-reread') if $role eq 'S';
+        native_finish_app($flow);
+    }
+    native_finish_app(_native_activity_scope($journey, 'earlier'));
     $journey->finish();
 }
 

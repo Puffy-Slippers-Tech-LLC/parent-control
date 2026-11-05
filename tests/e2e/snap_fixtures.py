@@ -119,8 +119,8 @@ def fixture_actions(*, include_refusal=True):
 
 class SnapFixtureJourney(InstalledJourney):
     """Reuse the qualified Parent row-reading composition, with Snap assertions."""
-    def __init__(self, context, progress):
-        super().__init__(context, progress, PLAN, actions=fixture_actions())
+    def __init__(self, context, progress, plan=PLAN):
+        super().__init__(context, progress, plan, actions=fixture_actions())
         self.initial_rows = None
 
     def check_settings(self, stage, observed):

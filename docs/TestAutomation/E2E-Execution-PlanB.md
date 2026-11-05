@@ -15,7 +15,7 @@ Task queue: [Plan B ordered checklist](E2E-Task-QueueB.md).
 
 ## Next task
 
-Next task: **109a — [Qualify allowed Snap app-grid launches](E2E-Tasks/109a-snap-grid.md)**.
+Next task: **110 — [E2E-019: snap-grid-allowed-enabled](E2E-Tasks/110-case-86.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

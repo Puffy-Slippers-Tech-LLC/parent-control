@@ -2210,10 +2210,11 @@ Await fresh public results within deadlines, accounting for observation latency.
 | APP06 | A | Read one complete, account-scoped public projection of Lunar's tray/background control, Lunar window and Minecraft activity, with the recognized surrounding desktop. Presence/absence is explicit input; do not launch, reveal or quit anything. | No callable yet. The [Lunar profile slices](#lunar-client-preparation-and-observation-gate) separately qualify Lunar/tray, Minecraft activity and login observations, including absence and incomplete/wrong-owner refusal. UI22 composes repeated observations across the declared login interval; one final absent window cannot establish blocked autostart. [Consumer gate](#lunar-client-preparation-and-observation-gate). | pending |
 
 APP01/02/03/04 also have the independently qualified
-[Snap command binding](#snap-command-use) for Jordan's A/H/S fixtures and a
-second S instance on Fedora 44. This adds to the native scopes above; other
-Snap launch routes remain pending; policy-denial and policy-driven closure are
-deferred known product limitations, not active qualification prerequisites.
+[Snap command](#snap-command-use) and [Allowed Snap grid](#snap-grid-use)
+bindings for Jordan's A/H/S fixtures and a distinguishable second S window on
+Fedora 44. These add to the native scopes above. Other bindings remain pending;
+policy denial and policy-driven closure are deferred known product limitations,
+not active qualification prerequisites.
 
 The qualified FILE03 Save binding uses `AccessibleUI.save_chooser_operation`,
 `attachment_composition.save_handoff/save_cancellation` and matching
@@ -3155,6 +3156,10 @@ preserved A after disabling limits and final reopened Parent readback passed.
 Recording, collection, worker shutdown, owned cleanup and baseline restoration
 passed. Other target families remain pending.
 
+FLOW08 also includes Jordan's [Allowed Snap grid](#snap-grid-use) binding through
+the same usable-app composite; other Snap grid users and complete cases remain
+separate.
+
 | ID | Kind | Block and explicit contract | Callees, in order | Status |
 | --- | --- | --- | --- | --- |
 | FLOW00 | C | Run case 1's complete graphical/serial qualification within the unchanged harness envelope. Its step boundaries and terminal assertions are fixed below. | `controller_qualification.PLAN` and `Smoke._step` bind the graphical stages to `gdm_product_free_account()` / `gdm_product_free_navigation()` observations; `onpc_flow00::run` consumes the exact product-free prompt proof before Escape. The existing authenticated serial command, session/boot identity, single logout, return reconciliation, capture assertions, collection and owned cleanup passed in an earlier retained case 1 run. | ready; retained case 1 implementation |
@@ -3735,11 +3740,41 @@ the same A/primary Snap. No allowance or approval was prepared, and Riley's
 settings stayed untouched. Case 93 and the affected limits-on case 92 passed
 with collection, worker shutdown, owned cleanup and baseline restoration;
 coverage was refreshed after each case.
-Allowed Snap grid qualification remains separate and active through task 109a,
-depending on completed 109b. Policy denial, policy-driven closure and permission
+The [Allowed Snap grid binding](#snap-grid-use) adds the stated graphical route.
+Policy denial, policy-driven closure and permission
 alternation are deferred, without passing acceptance or another investigation
 gate; see the [Snap limitation](../Snap_Limitation.md#e2e-scope-decision).
 Normal user-initiated closure above is not proof of closure after a policy save.
+
+### Snap grid use
+
+`snap_grid.PLAN` / `onpc_app_rows::snap_grid` qualified APP01/02/03/04 and
+FLOW08 for Jordan's Allowed A/H/S Snap grid entries on selected Fedora 44 through
+`tools/run-tests --vm onpc-Fedora44 system check_e2e_snap_grid`.
+The shared `journey_blocks.native_usable_app('grid', kind='snap', role=...)`
+declaration and `onpc_app_rows::native_usable_app` compose the same search,
+launch, public window and independent Submit-result operations used by consumers.
+`native_search(..., role, 'snap')` binds the finite full launcher query;
+`native_launch_grid(..., gesture)` commits ordinary Enter for A/H and Shell's
+**Ctrl+Enter** new-window gesture for S. The provider binding is GNOME Shell
+`0:50.6-1.fc44`, `en_US.UTF-8`, XKB `us`, using its scoped public search semantics
+and freshly observed focus rather than geometry or fixture window titles.
+
+The qualification independently verified the existing strict/system Snap profile
+and Parent's three Allowed/precise rows before Jordan's fresh entry. Each grid
+launch produced a usable window and independently observed submitted draft.
+Before S's grid launch, the qualified command opened and submitted S/secondary;
+the new grid-launched S/primary had a different process and public endpoint.
+An immutable comparison proved the earlier S window and draft unchanged while
+both windows remained open. Wrong-fixture ownership, unknown entry and uncertain
+input refused without submission. The exact public runtime owner check accepts
+both explicit `--instance primary` and the fixture's equivalent primary default.
+
+Affected native grid/command case 62 and Allowed Snap command case 92 passed on
+the same target. Collection, callback/worker shutdown, owned cleanup and baseline
+restoration passed; the VM was observed off. No fixture or baseline input change
+was needed. Riley's Snap grid binding and complete case 86 remain separate;
+this supplies no Snap denial, policy-driven closure or deferred-case acceptance.
 
 ### Native fixture preparation
 

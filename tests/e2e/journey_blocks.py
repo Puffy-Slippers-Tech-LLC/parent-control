@@ -226,7 +226,7 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
     require(kind in ('native', 'snap') and (kind == 'snap' or instance == 'primary'),
             'journey:fixture-binding')
     if kind == 'snap':
-        require(route == 'command' and (child == 'other-child'
+        require((route == 'command' or instance == 'primary' and child == 'other-child') and (child == 'other-child'
                 or child == 'child' and role == 'A' and instance == 'primary') and role in ('A', 'H', 'S')
                 and instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'),
                 'journey:snap-binding')
@@ -234,7 +234,9 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
         name += '-second' if instance == 'secondary' else ''
         return {stage: 'ui:' + ('overlay-' if child == 'child' else '') + 'snap-' + name + '-' + action for stage, action in (
             *((('desktop', 'desktop'),) if desktop_observation else ()),
-            ('command', 'command-launch'), ('opened', 'opened'),
+            *((('command', 'command-launch'),) if route == 'command' else (
+                ('search-ready', 'search-ready'), ('search-focused', 'search-focused'),
+                ('search-entered', 'search-entered'), ('app-grid', 'grid'))), ('opened', 'opened'),
             ('submit', 'submit'), ('submitted', 'submitted'))}
     require(type(desktop_observation) is bool and (desktop_observation or route == 'command'),
             'journey:native-desktop-binding')

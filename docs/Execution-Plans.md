@@ -698,8 +698,8 @@ and its master and queue, then invokes the repository's
 [`$commit` skill](../.agents/skills/commit/SKILL.md) in a supervised GPT-6.1 Sol
 High session with the suggested message `TA: Completed task ID`. The skill owns
 the commit, source push and
-[shared worktree propagation](#shared-worktree-propagation). Both `execute-plan` and `reliability-plan`
-inherit this policy. Only successful Git close-out counts the task against the
+[shared worktree propagation](#shared-worktree-propagation). `execute-plan`
+inherits this policy. Only successful Git close-out counts the task against the
 run limit and permits selecting the next task. The controller delegates Git
 close-out to the skill after acceptance. If a pull changes HEAD, encounters merge conflicts or needs local
 edits reconciled, the same task returns to its coordinator before any completion
@@ -1017,14 +1017,6 @@ The current adapters use these components according to their workflow:
 | `fix-tests` | Task options/budgets, detached supervision, display and developer questions | Selected suite inventory, verification rounds and failure handoffs through its repair engine; no Markdown task plan |
 | `run-tests` | Ownership lock primitives, output following, display, storage and retention | Selected suite inventory through its scheduler and test checkpoints; no Markdown task plan, agent composer or `--tasks` option |
 | `execute-plan` | Ordinary plan driver, task options/budgets, detached supervision and display | Caller-selected master, ordered queue and briefs through `PlanWorkflow`; shared per-task commit and push |
-| `reliability-plan` | The same ordinary plan driver and shared lifecycle | [VM reliability](Reliability-Plan.md), with registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
-
-Run `tools/reliability-plan --check` to validate its plan, or
-`tools/reliability-plan --tasks 0` to execute its remaining queue. It defaults to
-one task and supports the same `--vm`, attachment and `--stop` controls. The
-generic `execute-plan --plan 'docs/Reliability-Plan.md'` entry shares its owner
-and checkpoints. Installed briefs retain their explicit acceptance targets even
-when a diagnostic invocation narrows VM selection.
 
 Run E2E plans through `write-e2e`; their task-specific acceptance metadata and
 close-out rules remain with the E2E contracts. `execute-plan --check` validates

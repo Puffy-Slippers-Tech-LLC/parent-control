@@ -88,8 +88,6 @@ prefix_rule(
         "./tools/publishing/signing.py",
         "tools/read-only",
         "./tools/read-only",
-        "tools/reliability-plan",
-        "./tools/reliability-plan",
         "tools/restorevm",
         "./tools/restorevm",
         "tools/run-tests",

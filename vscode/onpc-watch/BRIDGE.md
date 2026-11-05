@@ -145,6 +145,8 @@ reconnection must never replay an action, start, stop or restore test execution.
 
 Runs may publish optional `launcher_controls: true` when their original public
 command parameters are retained. Older adapters/runs leave controls disabled.
+Optional `launcher_command` is a display-only string containing the saved public
+command and all arguments, shell-quoted for the launcher title's hover tooltip.
 An explicit click requests
 `{"protocol":1,"launcher_action":{"root":"run-section-id","run":"run-identity","kind":"stop"}}`
 (or `kind: "resume"`). The adapter checks the displayed run against its current,

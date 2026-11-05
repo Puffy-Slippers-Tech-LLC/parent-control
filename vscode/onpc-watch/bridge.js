@@ -110,6 +110,7 @@ function validate(snapshot) {
         snapshot.runs.some(run => !run || !identifier(run.id) || typeof run.label !== 'string' ||
             typeof run.active !== 'boolean' || typeof run.status !== 'string' ||
             (run.run !== null && typeof run.run !== 'string') || typeof run.launcher_output !== 'string' ||
+            (Object.hasOwn(run, 'launcher_command') && typeof run.launcher_command !== 'string') ||
             (run.session !== null && !identifier(run.session)) ||
             ['session_active', 'session_inactive', 'session_waiting'].some(field => typeof run[field] !== 'boolean') ||
             !rows(run.rows) || !rows(run.error_rows) || (run.session_view &&

@@ -49,7 +49,7 @@
     function sessionHeading(section) {
         const entry = section.entry;
         const signature = JSON.stringify([entry.run, entry.server, entry.transport, entry.label, entry.status, entry.session, entry.session_active,
-            entry.session_number, entry.session_inactive, entry.launcher_controls, entry.active, section.view, section.collapsed]);
+            entry.session_number, entry.session_inactive, entry.launcher_controls, entry.launcher_command, entry.active, section.view, section.collapsed]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
         section.tabObserver?.disconnect();
@@ -92,7 +92,7 @@
                 title.append(')');
             }
         }
-        title.title = entry.label;
+        title.title = entry.launcher_command ? `${entry.label}\n${entry.launcher_command}` : entry.label;
         labels.classList.toggle('finished', entry.status === 'finished');
         const controls = element('span', 'run-controls', titlebar);
         const collapse = element('button', 'run-copy', controls);

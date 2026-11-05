@@ -60,7 +60,9 @@ buttons onto the first row and all tabs onto the second row. As that row narrows
 the tabs wrap onto additional rows until they stack vertically. Wrapped tabs have
 equal widths and centered text. The left panel's minimum width fits both the
 shortened title with its action buttons and the widest tab below it. Hover over a
-truncated title to see its full text. The name comes from the launcher's `current.json`
+launcher title to see its full text and saved command with all parameters, including
+argument quoting. Older runs without saved parameters show only the full title.
+The name comes from the launcher's `current.json`
 publication, including custom plan launcher names. Older runs without a published
 name show `launcher` until their next start, attachment or reload request.
 After `--stop`, an active launcher's title shows `(Stop Requested)`, with

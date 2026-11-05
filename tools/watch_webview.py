@@ -10,6 +10,7 @@ import base64
 import hashlib
 import json
 import re
+import shlex
 from pathlib import Path
 import struct
 import sys
@@ -440,6 +441,10 @@ class Viewer:
             try:
                 record = self.launcher_reader.read(output.run.parent / 'current.json') if output.run else {}
                 sections[-1]['launcher_controls'] = record.get('run') == output.run.name and isinstance(record.get('argv'), list)
+                name, argv = record.get('launcher'), record.get('argv')
+                if (sections[-1]['launcher_controls'] and isinstance(name, str)
+                        and isinstance(argv, list) and all(isinstance(arg, str) for arg in argv)):
+                    sections[-1]['launcher_command'] = shlex.join([f'tools/{name}', *argv])
             except (OSError, ValueError, AttributeError):
                 sections[-1]['launcher_controls'] = False
         # Exiting one launcher must not remove its tabs while another checkout

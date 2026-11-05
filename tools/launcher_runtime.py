@@ -140,6 +140,8 @@ def add_options(parser, *, stop_help='stop at the next safe task/session boundar
                         help='maximum completed tasks; 0 or negative: all remaining; replaces an active limit')
     actions = parser.add_mutually_exclusive_group()
     actions.add_argument('--stop', action='store_true', help=stop_help)
+    actions.add_argument('--cancel-stop', action='store_true',
+                         help='undo a queued stop unless the launcher has already begun stopping')
     actions.add_argument('--reload', action='store_true',
                          help='reload a running launcher at safe boundaries; ignored when starting a new run')
 

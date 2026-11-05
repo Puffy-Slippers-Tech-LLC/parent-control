@@ -62,17 +62,19 @@
         serverIcon.append(serverShape);
         server.append(serverIcon);
         element('span', 'run-server-name', server).textContent = entry.server;
-        const kind = entry.active ? 'stop' : 'resume';
+        const kind = entry.status === 'Stop Requested' ? 'cancel-stop' : entry.active ? 'stop' : 'resume';
         const button = element('button', 'run-copy run-launcher-action', server);
         button.type = 'button';
-        button.title = entry.active ? 'Stop launcher' : 'Resume launcher';
+        button.title = kind === 'cancel-stop' ? 'Cancell stop request' : entry.active ? 'Stop launcher' : 'Resume launcher';
         button.setAttribute('aria-label', button.title);
-        button.disabled = !entry.launcher_controls || entry.status === 'Stop Requested';
+        button.disabled = !entry.launcher_controls || entry.status === 'Stopping';
         const actionIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         actionIcon.setAttribute('viewBox', '0 0 20 20');
         actionIcon.setAttribute('aria-hidden', 'true');
         const actionShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        actionShape.setAttribute('d', entry.active ? 'M5 5h10v10H5z' : 'M6 4l10 6-10 6z');
+        actionShape.setAttribute('d', kind === 'cancel-stop' ?
+            'M7 4L3 8l4 4 M3 8h9a5 5 0 0 1 0 10' : entry.active ? 'M5 5h10v10H5z' : 'M6 4l10 6-10 6z');
+        if (kind === 'stop') actionShape.style.fill = 'currentColor';
         actionIcon.append(actionShape);
         button.append(actionIcon);
         button.addEventListener('click', () => vscode.postMessage({
@@ -80,7 +82,7 @@
         labels.title = `${entry.server}\n${entry.label}`;
         const title = element('span', 'run-launcher-label', labels);
         title.textContent = entry.label;
-        if (entry.status === 'Stop Requested') {
+        if (['Stop Requested', 'Stopping'].includes(entry.status)) {
             const suffix = ` (${entry.status})`;
             if (entry.label.endsWith(suffix)) {
                 title.textContent = entry.label.slice(0, -suffix.length) + ' (';

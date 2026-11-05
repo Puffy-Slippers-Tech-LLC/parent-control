@@ -47,7 +47,8 @@ nav button[aria-pressed="true"] {
     fill: none; stroke: currentColor; stroke-width: 1.5;
 }
 .run-server-name { min-width: 0; }
-.run-launcher-action { flex: 0 0 22px; width: 22px; height: 22px; padding: 2px; }
+.run-launcher-action { flex: 0 0 28px; }
+.run-launcher-action svg { flex: 0 0 18px; width: 18px; height: 18px; }
 .run-launcher-action:disabled { opacity: .4; cursor: default; }
 .run-launcher-label { display: block; }
 .run-server-name, .run-launcher-label {

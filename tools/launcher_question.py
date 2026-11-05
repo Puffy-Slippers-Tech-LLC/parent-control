@@ -148,7 +148,7 @@ def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
         while True:
             if (run / 'cancel').exists():
                 raise launcher.Stopped()
-            if (run / 'stop').exists():
+            if launcher.accept_stop(run):
                 return None
             on_poll()
             question = json.loads(path.read_text())

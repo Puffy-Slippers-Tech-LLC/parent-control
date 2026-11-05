@@ -2150,10 +2150,21 @@ def main(argv=None):
     args, categories = parser.parse_known_args(argv)
     if args.reverse:
         categories.append('--reverse')
-    if args.reset and (args.resume or args.stop or args.reload
+    if args.reset and (args.resume or args.stop or args.cancel_stop or args.reload
                        or any(arg.startswith('--resume-') for arg in categories)):
         parser.error('--reset conflicts with --resume, --stop and --reload')
     root = Path(__file__).resolve().parents[1]
+    if args.cancel_stop:
+        # Cooperative cancellation is consumed immediately, unlike a plan's
+        # queued boundary stop. Never remove its cancellation marker.
+        try:
+            for kind in ('fix-tests-host', 'fix-tests'):
+                detached_launcher.select(root, kind, None, cancel_stop=True)
+            print('fix-tests: no active launcher.')
+            return 0
+        except (OSError, ValueError) as error:
+            print(f'fix-tests: {error}', file=sys.stderr)
+            return 2
     if args.resume and not args.stop:
         from test_checkpoint import (request_record, compatible_arguments, compatible_vm,
                                      incompatible_resume)

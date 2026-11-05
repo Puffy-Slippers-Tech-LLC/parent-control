@@ -188,7 +188,7 @@ function activate(context) {
                 void panel.webview.postMessage({ type: 'error', message: 'Reconnecting. Unacknowledged input will not be resent; review the session before sending again.' });
                 start();
             } else if (message?.type === 'launcherAction' && runRoots.has(message.root) &&
-                       typeof message.run === 'string' && ['stop', 'resume'].includes(message.kind)) {
+                       typeof message.run === 'string' && ['stop', 'cancel-stop', 'resume'].includes(message.kind)) {
                 void launchControl(message);
             } else if (message?.type === 'screenshot' && typeof message.png === 'string' &&
                        message.png.length <= 45 * 1024 * 1024 &&
@@ -243,11 +243,12 @@ function activate(context) {
             const current = bridge;
             try {
                 let command = await current.launcherCommand(message.root, message.run, message.kind);
-                const action = message.kind === 'stop' ? 'Stop' : 'Resume';
+                const action = { stop: 'Stop', resume: 'Resume', 'cancel-stop': 'Cancel stop request' }[message.kind];
                 const answer = await vscode.window.showWarningMessage(
-                    `${action} ${command.launcher} on ${command.source.label}?`,
+                    `${action} for ${command.launcher} on ${command.source.label}?`,
                     { modal: true, detail: `Checkout: ${command.root}` }, action);
-                if (answer !== action || disposed || current !== bridge) return;
+                if (answer !== action) return;
+                if (disposed || current !== bridge) return;
                 command = await current.launcherCommand(message.root, message.run, message.kind);
                 // Recheck the publication when the terminal actually starts, and
                 // pin dispatch to this checkout rather than a launcher default branch.
@@ -261,6 +262,8 @@ if read_json(run.parent / 'current.json')['run'] != run.name:
     sys.exit('Launcher changed; refresh before trying again.')
 branch = subprocess.check_output(['git', '-C', str(root), 'symbolic-ref', '--quiet', '--short', 'HEAD'], text=True).strip()
 os.chdir(root)
+if '--cancel-stop' in c['argv']:
+    os.environ['ONPC_CANCEL_STOP_RUN'] = str(run)
 os.environ['ONPC_LAUNCHER_DESTINATION'] = json.dumps(dict(root=str(root), branch=branch, launcher=c['launcher'], pid=os.getpid()))
 os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c['launcher']), *c['argv']])
 `;

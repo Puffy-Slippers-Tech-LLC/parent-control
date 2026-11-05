@@ -42,13 +42,14 @@ worktree from its existing run files. Session input is disabled once its owner
 exits. Retention uses existing run files and reader memory; it adds no disk persistence.
 Each title shows two rows: a server icon and server name (`local` or the SSH host)
 above the branch and launcher, e.g. `[test] fix-tests`. It
-places one icon button after the hostname: **Stop** (square) while active,
-or **Resume** (play) while idle. It is disabled while a stop is pending,
+places one 28 px icon button after the hostname, matching copy and collapse:
+**Stop** (solid square) while active, **Undo** while a cancellable stop is pending,
+or **Resume** (play) while idle. It is disabled once stopping begins,
 while disconnected, or when saved command parameters are unavailable. Clicking
-asks for confirmation with **Stop** or **Resume** and **Cancel**. Confirming opens a
+asks for confirmation with **Stop**, **Resume** or **Cancel stop request**, and **Cancel**. Confirming opens a
 VS Code terminal on that same host and checkout, using the retained command
-parameters with `--stop` or `--resume`. Lifecycle flags replace earlier
-`--stop`, `--resume`, `--reload` or `--reset` flags. Command errors remain visible
+parameters with `--stop`, `--cancel-stop` or `--resume`. Lifecycle flags replace earlier
+`--stop`, `--cancel-stop`, `--resume`, `--reload` or `--reset` flags. Command errors remain visible
 in that terminal. Repair queue Stop retains its scope without reselecting VMs;
 Resume retains the saved VM selection. Older runs without saved parameters require one normal launch
 before this control becomes available.
@@ -67,7 +68,15 @@ publication, including custom plan launcher names. Older runs without a publishe
 name show `launcher` until their next start, attachment or reload request.
 After `--stop`, an active launcher's title shows `(Stop Requested)`, with
 **Stop Requested** in the same orange as **Repairing** and **Verifying**. The
-title switches to the recorded final status when the launcher exits.
+button becomes an undo icon with tooltip **Cancell stop request**, invoking
+`--cancel-stop`. Successful cancellation clears the pending status on the next
+refresh. Once the worker accepts the stop, the title shows **Stopping** and the
+button is disabled. Cooperative cancellation and older launchers without undo
+support also disable the button once stopping is requested.
+Each enabled stop, resume or cancel-stop button asks for confirmation using
+VS Code's built-in modal warning dialog. Its button colors follow the host theme;
+the public extension API does not expose a destructive/red button style.
+The title switches to the recorded final status when the launcher exits.
 **Status** shows the current run status, **Launcher** shows
 the launcher terminal output, **Error** shows the shared launcher's **Last Error**
 and **Status** fields with the same colors and elapsed ages, and **Session** opens

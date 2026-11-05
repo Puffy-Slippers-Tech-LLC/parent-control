@@ -1225,7 +1225,7 @@ def worker(root, run, owner, tasks, state_json):
             if state['phase'] == 'complete' and optimization_due(state):
                 state = start_optimization(state)
                 launcher.atomic(run / 'checkpoint.json', state)
-            if (run / 'stop').exists():
+            if launcher.accept_stop(run):
                 reason = 'stopped at a session boundary'
                 break
             reload_request.check()
@@ -1261,7 +1261,7 @@ def worker(root, run, owner, tasks, state_json):
             tasks = budget.read()['tasks']
             if (run / 'cancel').exists():
                 raise launcher.Stopped()
-            if (run / 'stop').exists():
+            if launcher.accept_stop(run):
                 reason = 'stopped at a session boundary'
                 break
             if state.get('result_recovery'):
@@ -1371,7 +1371,7 @@ def worker(root, run, owner, tasks, state_json):
                 completions.append((task, state['task_sessions'],
                                     state['completed_at'] - state['started_at'], keys, progress_lines[0]))
                 compact_completions()
-        if (run / 'stop').exists():
+        if launcher.accept_stop(run):
             reason = 'stopped at a session boundary'
     except ReloadRequested:
         reloading, reason = True, 'manual reload requested; continuing the retained boundary'
@@ -1387,7 +1387,7 @@ def worker(root, run, owner, tasks, state_json):
                 reloading, status, reason = False, 1, f'owned cleanup failed: {error}'
             if (run / 'cancel').exists():
                 reloading, status, reason = False, 130, 'cancelled after owned cleanup'
-            elif (run / 'stop').exists():
+            elif launcher.accept_stop(run):
                 reloading, reason = False, 'stopped at a session boundary'
         if reloading:
             state['reload_runtime'] = dict(sessions=count, completed=completed, completions=completions)
@@ -1399,6 +1399,7 @@ def worker(root, run, owner, tasks, state_json):
             except OSError as error:
                 status, reason = 1, f'controller reload failed: {error}; resume the retained run'
         try:
+            launcher.mark_stopping(run)
             launcher.finish_shutdown(root, run)
         except (OSError, ValueError, subprocess.SubprocessError) as error:
             status, reason = 1, f'owned cleanup failed: {error}'
@@ -1629,7 +1630,7 @@ def reconcile_queue(root, identity, *, check=False):
 def select(root, argv):
     from vm_selection import extract, check_binding, save_binding, execution_selection, execution_binding, BATCH, VARIABLE
     argv, configured = extract(argv, required=False)
-    if '--stop' in argv and configured is None:
+    if any(option in argv for option in ('--stop', '--cancel-stop')) and configured is None:
         os.environ.pop(BATCH, None)
         os.environ.pop(VARIABLE, None)
     elif not any(option in argv for option in ('--help', '-h')):
@@ -1657,7 +1658,7 @@ def select(root, argv):
         parse()
 
     def attach(run):
-        check_binding(run, binding, stopping='--stop' in argv)
+        check_binding(run, binding, stopping=any(option in argv for option in ('--stop', '--cancel-stop')))
         args = parse(attaching=True)
         if args.tasks is None:
             return
@@ -1705,10 +1706,12 @@ def select(root, argv):
         if initial_info:
             launcher.atomic(run / 'task-info.json', initial_info)
 
+    args = parse()
     return launcher.select(root, 'plans' if NAMESPACE else 'write-e2e', command,
                            namespace=NAMESPACE, launcher_name='write-e2e',
                            stop_argv=['--planb', '--stop'] if NAMESPACE else ['--stop'],
                            stop='--stop' in argv, stop_marker='stop',
+                           cancel_stop=args.cancel_stop,
                            on_attach=attach, on_start=start,
                            **({'reload': True} if '--reload' in argv else {}))
 
@@ -1745,6 +1748,8 @@ def main(argv=None):
         run, started = select(root, argv)
         if run is None:
             print('write-e2e: no active launcher.')
+            return 0
+        if '--cancel-stop' in argv:
             return 0
         if interrupted:
             cancel()

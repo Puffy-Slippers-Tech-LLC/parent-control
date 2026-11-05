@@ -55,6 +55,32 @@ class Stopped(Exception):
     pass
 
 
+def accept_stop(run):
+    """Commit a queued boundary stop atomically against --cancel-stop."""
+    with lock(run / 'stop-gate') as gate:
+        fcntl.flock(gate, fcntl.LOCK_EX)
+        if not (run / 'stop').exists():
+            return False
+        (run / 'stopping').touch(mode=0o600)
+        return True
+
+
+def clear_stop_request(run):
+    with lock(run / 'stop-gate') as gate:
+        fcntl.flock(gate, fcntl.LOCK_EX)
+        if any((run / marker).exists() for marker in ('stopping', 'cancel', 'result.json')):
+            raise ValueError('\033[31mLauncher is already stopping and is not cancellable.\033[0m')
+        (run / 'stop').unlink(missing_ok=True)
+    print('Stop request cancelled.', flush=True)
+
+
+def mark_stopping(run):
+    """Close cancellation before terminal cleanup, including natural exits."""
+    with lock(run / 'stop-gate') as gate:
+        fcntl.flock(gate, fcntl.LOCK_EX)
+        (run / 'stopping').touch(mode=0o600)
+
+
 def compact_log(path, *, writer_fd=None):
     """Bound the workflow transcript between owned operations; keep the latest tail."""
     descriptor = os.open(path, os.O_RDWR | os.O_NOFOLLOW)
@@ -737,7 +763,7 @@ def _audit_start(store, directory, pending):
             raise ValueError('pending workflow exceeds retention budget; source evidence preserved')
 
 
-def select(root, name, command, *, stop=False, stop_marker='cancel',
+def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='cancel',
            on_attach=None, on_start=None, on_prepare=None, namespace=None, resumable_start=False,
            reload=False, existing_only=False, launcher_name=None, public_argv=None, stop_argv=None):
     """Attach before evaluating new options; only the lock grants ownership."""
@@ -754,6 +780,16 @@ def select(root, name, command, *, stop=False, stop_marker='cancel',
             if run is None:
                 raise ValueError(f'active {name} owner has no readable run record')
             record = json.loads((directory / 'current.json').read_text())
+            if cancel_stop:
+                expected = os.environ.get('ONPC_CANCEL_STOP_RUN')
+                if expected is not None and expected != str(run):
+                    raise ValueError('Launcher changed; refresh before trying again.')
+                if not record.get('cancel_stop'):
+                    raise ValueError('\033[31mLauncher is already stopping or does not support stop cancellation.\033[0m')
+                # The directory gate pins current.json; the run gate serializes
+                # removal with the worker committing its boundary stop.
+                clear_stop_request(run)
+                return run, False
             if not stop and name in ('fix-tests', 'write-e2e', 'plans'):
                 from vm_pool import check_attachment
                 check_attachment(record)
@@ -762,13 +798,15 @@ def select(root, name, command, *, stop=False, stop_marker='cancel',
             if not stop:
                 atomic(directory / 'current.json', dict(record, launcher=launcher_name or name))
             if stop:
-                (run / stop_marker).touch(mode=0o600)
+                with lock(run / 'stop-gate') as stop_gate:
+                    fcntl.flock(stop_gate, fcntl.LOCK_EX)
+                    (run / stop_marker).touch(mode=0o600)
             elif reload:
                 from launcher_reload import request
                 request(run)
                 print(f'{name}: reload requested; continuing the same run.', flush=True)
             return run, False
-        if stop or existing_only:
+        if stop or cancel_stop or existing_only:
             return None, False
         pending_path = directory / 'pending-start.json'
         pending = None
@@ -819,6 +857,7 @@ def select(root, name, command, *, stop=False, stop_marker='cancel',
         fcntl.flock(owner, fcntl.LOCK_EX)
         published_record = owner_record(run, launcher=launcher_name or name,
                                        argv=list(sys.argv[1:] if public_argv is None else public_argv))
+        published_record['cancel_stop'] = stop_marker == 'stop'
         if stop_argv is not None:
             published_record['stop_argv'] = list(stop_argv)
         if resumable_start:
@@ -1002,8 +1041,9 @@ def finish_nested(root, run):
 
 def finish_shutdown(root, run, *, restore_vms=True):
     """Join owned tests, then restore the stopped workflow's entire VM selection."""
+    stopped = accept_stop(run)
     finish_nested(root, run)
-    if not restore_vms or not any((run / marker).exists() for marker in ('stop', 'cancel')):
+    if not restore_vms or not (stopped or (run / 'cancel').exists()):
         return
     path = run / 'vm.json'
     # vm.json uses the existing save_binding/check_binding metadata contract;

@@ -103,7 +103,8 @@ def wait_for_owner(run, operation):
             if (Path(run) / 'cancel').exists():
                 from detached_launcher import Stopped
                 raise Stopped()
-            if (Path(run) / 'stop').exists():
+            from detached_launcher import accept_stop
+            if accept_stop(Path(run)):
                 raise EvidenceWaitStopped()
         try:
             return operation()

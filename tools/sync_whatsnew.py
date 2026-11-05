@@ -327,6 +327,7 @@ def main(argv=None):
         actions.add_argument('--check', action='store_true', help='validate latest-release completeness; no writes/model')
         actions.add_argument('--prepare', action='store_true', help='prepare latest translation PO/POT sources; no model')
         actions.add_argument('--stop', action='store_true', help='cancel only the owned translation session and await cleanup')
+        actions.add_argument('--cancel-stop', action='store_true', help='reject if cooperative cancellation has started')
         actions.add_argument('--reload', action='store_true',
                              help='reload a running launcher after the current batch; ignored when starting')
         actions.add_argument('--resume', action='store_true',
@@ -373,10 +374,13 @@ def main(argv=None):
                 launcher.atomic(run / 'translation-state.json', pending_pull)
 
         run, _started = launcher.select(ROOT, 'sync-whatsnew', start, stop=args.stop,
+                                       cancel_stop=args.cancel_stop,
                                        on_start=resume_pull,
                                        **({'reload': True} if args.reload else {}))
         if run is None:
             print('sync-whatsnew: no active translation session')
+            return 0
+        if args.cancel_stop:
             return 0
         print(f'sync-whatsnew: retained session: {run}', flush=True)
         return launcher.follow(run, label='sync-whatsnew')

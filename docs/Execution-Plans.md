@@ -242,6 +242,11 @@ Repair sessions and retries do not complete additional tasks. Its existing
 `--resume` preserves passed categories and original selectors.
 
 Plan launchers and `write-e2e` stop between sessions with `--stop`.
+`--cancel-stop` clears that queued request and exits immediately. The worker
+accepts the stop under the same run lock used to cancel it. Once accepted,
+cancellation fails with a red “already stopping and is not cancellable” message;
+it never removes a committed stop. Existing runs must be restarted with updated
+launcher code to support cancellation.
 `fix-tests` and `run-tests` retain their cooperative cancellation semantics.
 Fresh ordinary-plan observers paint their startup panel before loading the saved
 queue/checkpoint, then reuse that screen when the backend starts. Ctrl+C retains

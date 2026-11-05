@@ -799,7 +799,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             launcher.finish_nested(root, Path(state['recovery_run']))
         if reloading and (run / 'cancel').exists():
             raise launcher.Stopped()
-        if state.get('pending_completion') and not (reloading and (run / 'stop').exists()):
+        if state.get('pending_completion') and not (reloading and launcher.accept_stop(run)):
             publish_progress(run, state['task_id'], [heading(), 'Recovering accepted task close-out…'])
             if closeout(plan, spec, run, state):
                 completed_task()
@@ -807,7 +807,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
         while True:
             if (run / 'cancel').exists():
                 raise launcher.Stopped()
-            if (run / 'stop').exists():
+            if launcher.accept_stop(run):
                 reason = 'stopped at a session boundary'
                 break
             from launcher_worktrees import pull_at_boundary
@@ -1007,13 +1007,17 @@ def worker(root, run, owner, spec, state, *, reloading=False):
     finally:
         try:
             try:
+                if not reload:
+                    launcher.mark_stopping(run)
                 launcher.finish_shutdown(root, run)
             except (OSError, ValueError, subprocess.SubprocessError) as error:
                 reload, status, reason = False, 1, f'owned cleanup failed: {error}'
             if reload and (run / 'cancel').exists():
                 reload, status, reason = False, 130, 'cancelled after owned cleanup'
-            elif reload and (run / 'stop').exists():
+            elif reload and launcher.accept_stop(run):
                 reload, reason = False, 'stopped at a session boundary'
+            if not reload:
+                launcher.mark_stopping(run)
             state['reason'] = reason
             launcher.atomic(run / 'checkpoint.json', state)
             (run / 'handoff.txt').write_text(state.get('handoff', '') + '\n' + reason + '\n'
@@ -1024,6 +1028,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 try:
                     reload_controller(root, run, owner, spec)
                 except OSError as error:
+                    launcher.mark_stopping(run)
                     status, reason = 1, f'controller reload failed: {error}; resume with a fresh run'
                     state['reason'] = reason
                     launcher.atomic(run / 'checkpoint.json', state)
@@ -1060,8 +1065,8 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
     parser.add_argument('--resume', action='store_true',
                         help='resume the saved execution plan (the default behavior)')
     args = parser.parse_args(argv)
-    if args.reload and (args.check or args.reconcile):
-        parser.error('--reload cannot be combined with --check or --reconcile')
+    if (args.reload or args.cancel_stop) and (args.check or args.reconcile):
+        parser.error('--reload and --cancel-stop cannot be combined with --check or --reconcile')
     run = None
     interrupted = False
 
@@ -1079,7 +1084,7 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
         path = str(master.relative_to(root.resolve()))
         spec = PlanWorkflow(**dict(asdict(spec), plan=path))
         if args.reconcile:
-            if args.stop or args.tasks is not None or args.vm is not None:
+            if args.stop or args.cancel_stop or args.tasks is not None or args.vm is not None:
                 raise ValueError('--reconcile cannot be combined with execution, stop or VM options')
             print(json.dumps(reconcile_plan(root, spec, args.reconcile, check=args.check,
                                            merge_tasks=args.merge_task, base=args.reconcile_base,
@@ -1105,7 +1110,7 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             # remains authoritative even when registry defaults have changed.
             if args.vm is not None:
                 execution_selection(args.vm)
-                check_binding(selected, execution_binding(), stopping=args.stop)
+                check_binding(selected, execution_binding(), stopping=args.stop or args.cancel_stop)
             if args.tasks is not None:
                 budget = TaskBudget(selected)
                 limit = budget.set_limit(args.tasks)
@@ -1173,12 +1178,15 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                 display.update([{'key': 'startup', 'lines': [
                     f'{spec.name}: resuming task queue…']}], [])
             run, started = launcher.select(root, 'plans', command, stop=args.stop, stop_marker='stop',
+                                           cancel_stop=args.cancel_stop,
                                            on_attach=attach, on_start=start, on_prepare=prepare,
                                            namespace=plan_namespace(path), resumable_start=True,
                                            launcher_name=spec.name,
                                            **({'reload': True} if args.reload else {}))
             if run is None:
                 print(f'{spec.name}: no active launcher.')
+                return 0
+            if args.cancel_stop:
                 return 0
             if interrupted:
                 cancel()

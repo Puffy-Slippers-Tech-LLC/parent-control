@@ -20,8 +20,7 @@ sub run {
         && ($control eq 'enabled' || $control eq 'disabled')
         && ($route eq 'command' || ($route eq 'grid' && $control eq 'enabled'))
         && ($policy eq 'allowed' || $policy eq 'hard-blocked' || $policy eq 'soft-blocked')
-        && ($kind eq 'native' || $kind eq 'snap' && $route eq 'command'
-            && $policy eq 'allowed');
+        && ($kind eq 'native' || $kind eq 'snap' && $policy eq 'allowed');
     my $rule = $policy eq 'allowed' ? 'allowed' : $policy eq 'hard-blocked' ? 'hard' : 'soft';
     my $access = $rule eq 'allowed' ? 'allowed' : $rule eq 'hard' ? 'permanent' : 'conditional';
     my $journey = onpc_journey->new(
@@ -51,11 +50,12 @@ sub run {
         $journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan-entry');
     my $jordan = $journey->scope($policy eq 'allowed' ? 'jordan-use' : 'jordan-denied');
     if ($policy eq 'allowed') {
-        onpc_app_rows::native_usable_app($jordan, $route, $jordan->seen('desktop'), 'other-child');
+        onpc_app_rows::native_usable_app($jordan, $route, $jordan->seen('desktop'), 'other-child',
+                                       $kind eq 'snap' ? 'A' : undef, $kind);
     } else {
         onpc_app_rows::native_blocked_app($jordan, 'A', $route);
     }
-    if ($route eq 'grid' && $policy eq 'allowed') {
+    if ($kind eq 'native' && $route eq 'grid' && $policy eq 'allowed') {
         onpc_app_rows::native_finish_app($jordan);
         my $command = $journey->scope('jordan-command');
         onpc_app_rows::native_usable_app($command, 'command', $command->seen('desktop'), 'other-child');
@@ -64,8 +64,9 @@ sub run {
     onpc_desktop_session::enter_desktop(
         $journey, 'gdm', 'child', 'fresh', 'success', 'riley-entry');
     my $riley = $journey->scope('riley-use');
-    onpc_app_rows::native_usable_app($riley, $route, $riley->seen('desktop'), 'child');
-    if ($route eq 'grid' && $policy eq 'allowed') {
+    onpc_app_rows::native_usable_app($riley, $route, $riley->seen('desktop'), 'child',
+                                   $kind eq 'snap' ? 'A' : undef, $kind);
+    if ($kind eq 'native' && $route eq 'grid' && $policy eq 'allowed') {
         onpc_app_rows::native_finish_app($riley);
         my $command = $journey->scope('riley-command');
         onpc_app_rows::native_usable_app($command, 'command', $command->seen('desktop'), 'child');

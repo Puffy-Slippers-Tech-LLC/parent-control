@@ -16,40 +16,45 @@ SETUP = {
 }
 JORDAN_ENTRY = prefixed_stages('jordan-entry', desktop_entry('other-child', source='gdm', entry='fresh'))
 RILEY_ENTRY = prefixed_stages('riley-entry', desktop_entry('child', source='gdm', entry='fresh'))
-JORDAN = {
-    'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
-    **prefixed_stages('jordan-use', native_usable_app('command', kind='snap', role='A')),
-}
-RILEY = {
-    'jordan-logout': 'system:standard-logout', **RILEY_ENTRY,
-    **prefixed_stages('riley-use', native_usable_app(
-        'command', kind='snap', role='A', child='child')),
-}
-PLAN = JourneyPlan(
-    prefix='snap-command-allowed', worker_mode='snap_command_allowed',
-    screen_tags={**SETUP, **JORDAN, **RILEY},
-    phases={'ready': 'setup', 'setup-detached': 'setup',
-            **{stage: 'step-1' for stage in SETUP}, 'installed-greeter': 'start',
-            **{stage: 'step-2' for stage in JORDAN},
-            **{stage: 'step-3' for stage in RILEY}},
-    advance_after={'installed-greeter': 'step-1', 'allowed-row': 'step-2',
-                   'jordan-use-submitted': 'step-3'},
-    stage_actions={'desktop': 'native-verify'},
-    child_bindings={'allowance-configured': 'existing',
-                    'allowed-save': 'existing', 'allowed-row': 'existing'},
-    settings_checks={
-        'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',)),
-        'saved-settings': SettingsObservation('existing-fixture-child', True, ('30 minutes',))},
-    balance_checks={'allowance-configured': 1800},
-    access_checks={'allowed-row': (SNAP_POLICY_APP, 'allowed')},
-    invocations=tuple(stage for stage in (*JORDAN_ENTRY, *RILEY_ENTRY)
-                      if stage not in ('jordan-entry-entry-guard', 'riley-entry-entry-guard')),
-    challenges={
-        'jordan-entry': ('other-child', 'jordan-entry-standard-recipient-qualified',
-                         'jordan-entry-standard-recipient-rechecked'),
-        'riley-entry': ('child', 'riley-entry-child-recipient-qualified',
-                        'riley-entry-child-recipient-rechecked')},
-)
+def allowed_plan(route):
+    jordan = {
+        'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
+        **prefixed_stages('jordan-use', native_usable_app(route, kind='snap', role='A')),
+    }
+    riley = {
+        'jordan-logout': 'system:standard-logout', **RILEY_ENTRY,
+        **prefixed_stages('riley-use', native_usable_app(
+            route, kind='snap', role='A', child='child')),
+    }
+    return JourneyPlan(
+        prefix=f'snap-{route}-allowed', worker_mode=f'snap_{route}_allowed',
+        screen_tags={**SETUP, **jordan, **riley},
+        phases={'ready': 'setup', 'setup-detached': 'setup',
+                **{stage: 'step-1' for stage in SETUP}, 'installed-greeter': 'start',
+                **{stage: 'step-2' for stage in jordan},
+                **{stage: 'step-3' for stage in riley}},
+        advance_after={'installed-greeter': 'step-1', 'allowed-row': 'step-2',
+                       'jordan-use-submitted': 'step-3'},
+        stage_actions={'desktop': 'native-verify'},
+        child_bindings={'allowance-configured': 'existing',
+                        'allowed-save': 'existing', 'allowed-row': 'existing'},
+        settings_checks={
+            'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',)),
+            'saved-settings': SettingsObservation('existing-fixture-child', True, ('30 minutes',))},
+        balance_checks={'allowance-configured': 1800},
+        access_checks={'allowed-row': (SNAP_POLICY_APP, 'allowed')},
+        invocations=tuple(stage for stage in (*JORDAN_ENTRY, *RILEY_ENTRY)
+                          if stage not in ('jordan-entry-entry-guard', 'riley-entry-entry-guard')),
+        challenges={
+            'jordan-entry': ('other-child', 'jordan-entry-standard-recipient-qualified',
+                             'jordan-entry-standard-recipient-rechecked'),
+            'riley-entry': ('child', 'riley-entry-child-recipient-qualified',
+                            'riley-entry-child-recipient-rechecked')},
+    )
+
+
+PLAN = allowed_plan('command')
+GRID_PLAN = allowed_plan('grid')
 
 DISABLED_PLAN = replace(
     PLAN, worker_mode='snap_command_allowed_disabled',
@@ -72,4 +77,5 @@ def execute(recorder, context, *, plan=PLAN):
 
 
 E2E_CASES = {'snap-command-allowed-enabled': execute,
-             'snap-command-allowed-disabled': partial(execute, plan=DISABLED_PLAN)}
+             'snap-command-allowed-disabled': partial(execute, plan=DISABLED_PLAN),
+             'snap-grid-allowed-enabled': partial(execute, plan=GRID_PLAN)}

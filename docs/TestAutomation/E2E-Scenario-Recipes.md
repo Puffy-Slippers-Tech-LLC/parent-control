@@ -1247,7 +1247,16 @@ It prepares no allowance or approval. Fresh Jordan and then fresh Riley launch
 and submit the same Snap command with independent window and submitted-draft
 readback. Riley's policy and disabled limits remain untouched.
 
-The grid portion uses the same enabled setup, precise Allowed rule and Jordan/Riley order. Each freshly
+Case 86 uses `snap_app_launch.GRID_PLAN` / `onpc_app_launch::run` with the enabled,
+Allowed Snap grid binding. It shares case 92's strict/system profile verification,
+Parent's 30-minute daily allowance/zero grant and independent Allowed row readback.
+Fresh Jordan and then fresh Riley search `ONPC Snap Allowed Fixture` and open the
+intended Snap window through the app grid. Each submits the normal draft and
+independently reads the submitted result. Riley's policy and disabled limits
+remain untouched. There is no command fallback, approval, launcher-visibility
+assertion or deferred Snap enforcement check.
+
+The native grid portion uses the same enabled setup, precise Allowed rule and Jordan/Riley order. Each freshly
 entered desktop searches `ONPC Allowed Fixture`, launches its intended window
 and submits the normal draft before independent result readback. The read-only
 `riley-grid` fixture profile verifies Riley's launcher for the shared executable;

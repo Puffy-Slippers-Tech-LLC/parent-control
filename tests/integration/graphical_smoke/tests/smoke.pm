@@ -794,6 +794,13 @@ sub run {
                             'disabled', 'command', 'hard-blocked');
         return;
     }
+    if ($ready->{snap_grid_allowed}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
+                            'enabled', 'grid', 'allowed', 'snap');
+        return;
+    }
     if ($ready->{snap_command_allowed}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

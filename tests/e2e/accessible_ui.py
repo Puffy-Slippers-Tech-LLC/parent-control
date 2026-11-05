@@ -195,7 +195,8 @@ SNAP_APP_BINDINGS.update({
 })
 SNAP_APP_OPERATIONS = frozenset(SNAP_APP_BINDINGS) | {'snap-command-refusals', 'snap-grid-refusals'}
 RILEY_SNAP_OPERATIONS = frozenset('overlay-snap-allowed-' + action for action in
-    ('desktop', 'command-launch', 'opened', 'submit', 'submitted'))
+    ('desktop', 'command-launch', 'search-ready', 'search-focused', 'search-entered',
+     'grid', 'opened', 'submit', 'submitted'))
 SNAP_APP_BINDINGS.update({operation: ('A', 'primary', operation.removeprefix('overlay-snap-allowed-'))
                           for operation in RILEY_SNAP_OPERATIONS})
 OPERATIONS |= SNAP_APP_OPERATIONS
@@ -13178,7 +13179,10 @@ class AccessibleUI:
         elif action == 'search-entered':
             self.wait_search(lambda: self.search_query(SNAP_SEARCH_PRODUCTS[role]), 'snap-search-query')
         elif action == 'grid':
-            require_active_launch_session()
+            if operation in RILEY_SNAP_OPERATIONS:
+                self.require_child_overlay_session()
+            else:
+                require_active_launch_session()
             self.focus_search_result(SNAP_SEARCH_PRODUCTS[role])
         elif action in ('desktop', 'closed'):
             self.wait(lambda: self.native_app_closed(instance, kind='snap'), 'snap-closed')

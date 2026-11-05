@@ -60,7 +60,7 @@ def test_composed_kiosk_secret_scope_and_single_use(mode):
     # No password is supplied, and each isolated Perl process owns its latch.
     from app_rule_changes_case import PLAN
     from revocation_case import PLAN as REVOCATION_PLAN
-    from grant_work_recovery import PLAN as RECOVERY_PLAN
+    from grant_work_recovery import INCLUDED_PLAN as RECOVERY_PLAN
     transition = [PLAN.prefix + '-soft-opening', 'soft-opening-', list(PLAN.kiosk_request)]
     revocation = [REVOCATION_PLAN.prefix + '-request', 'request-', list(REVOCATION_PLAN.kiosk_request)]
     recovery = [RECOVERY_PLAN.prefix, list(RECOVERY_PLAN.kiosk_request)]

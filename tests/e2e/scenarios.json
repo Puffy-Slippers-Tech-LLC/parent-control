@@ -791,7 +791,7 @@
       },
       "variants": [
         {"coverage_id": 23, "id": "excluded", "owner": "child-access", "parameters": {"soft-apps": "excluded"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/grant_work_recovery.py", "test_id": "excluded"}},
-        {"coverage_id": 24, "id": "included", "owner": "child-access", "parameters": {"soft-apps": "included"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 24, "id": "included", "owner": "child-access", "parameters": {"soft-apps": "included"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/grant_work_recovery.py", "test_id": "included"}}
       ]
     },
     {

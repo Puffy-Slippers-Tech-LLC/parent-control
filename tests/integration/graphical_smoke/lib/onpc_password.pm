@@ -132,7 +132,7 @@ sub enter_kiosk_mate_password {
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,75,1';
             my $work_recovery = ($journey->{prefix} // '') eq 'grant-work-recovery'
                 && ($journey->{stage_prefix} // '') eq ''
-                && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,1200,0';
+                && ref($request) eq 'ARRAY' && join(',', @$request) =~ /\Achild,parent,1200,[01]\z/;
             die 'secret:challenge' unless ($delayed || $grant_access || $app_transition || $work_recovery ||
                     ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
                     && ($journey->{stage_prefix} // '') eq '')

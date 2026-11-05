@@ -10,13 +10,13 @@
 | Private D-Bus component | <span style="color: green">224</span>/<span style="color: gray">0</span>/224 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">295</span>/<span style="color: gray">0</span>/295 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">51</span>/<span style="color: gray">0</span>/51 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
+| Installed system | <span style="color: green">50</span>/<span style="color: gray">0</span>/50 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">75</span>/<span style="color: gray">121</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6437</span>/<span style="color: gray">121</span>/6558** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">76</span>/<span style="color: gray">120</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6437</span>/<span style="color: gray">120</span>/6557** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">74</span>/<span style="color: gray">121</span>/195 |
+| customer-journey | <span style="color: green">75</span>/<span style="color: gray">120</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -54,6 +54,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [19](#scenario-19) | Cancel then confirm revocation with open apps (daily: remaining; sessions: single) | `E2E-007/remaining-single` | ready |
 | [22](#scenario-22) | Natural daily exhaustion, retained unlock and fresh login denial | `E2E-008/fresh-login` | ready |
 | [23](#scenario-23) | Recover unfinished work after grant-only time runs out (soft apps: excluded) | `E2E-009/excluded` | ready |
+| [24](#scenario-24) | Recover unfinished work after grant-only time runs out (soft apps: included) | `E2E-009/included` | ready |
 | [25](#scenario-25) | Switch User while child time expires (foreground: parent) | `E2E-010/parent` | ready |
 | [26](#scenario-26) | Switch User while child time expires (foreground: other child) | `E2E-010/other-child` | ready |
 | [27](#scenario-27) | Plan child activity with the remaining-time countdown (time: daily only) | `E2E-011/daily-only` | ready |
@@ -113,7 +114,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[18](#scenario-18)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: zero; sessions: multiple)</span> | <span style="color: gray">`E2E-007/zero-multiple`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[20](#scenario-20)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: remaining; sessions: multiple)</span> | <span style="color: gray">`E2E-007/remaining-multiple`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[24](#scenario-24)</span> | <span style="color: gray">Recover unfinished work after grant-only time runs out (soft apps: included)</span> | <span style="color: gray">`E2E-009/included`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[30](#scenario-30)</span> | <span style="color: gray">Request more time from the panel with the selected parent (approver: first; soft apps: excluded)</span> | <span style="color: gray">`E2E-012/excluded-first`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[33](#scenario-33)</span> | <span style="color: gray">Request more time from the panel with the selected parent (approver: second; soft apps: included)</span> | <span style="color: gray">`E2E-012/included-second`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[34](#scenario-34)</span> | <span style="color: gray">Authentication denial and cancellation retry (surface: child overlay)</span> | <span style="color: gray">`E2E-013/child-overlay-recovery`</span> | <span style="color: gray">pending</span> |
@@ -500,6 +500,20 @@ Variant: entry: fresh login
 Case: `E2E-009/excluded` · Category: customer-journey · Status: **ready**
 
 Variant: soft apps: excluded
+
+**Steps:**
+
+- Set zero daily allowance and enable limits. Obtain a short station grant including soft apps, sign in as the child, and leave recognizable work in an allowed app and a soft-blocked app.
+- Use the desktop until it locks naturally. Observe the native time-limit restriction, which prevents password entry, then return to sign-in without replacing the child session.
+- Approve replacement station time with the declared soft-app choice and unlock the retained desktop. Compare the allowed work with its earlier state. The soft activity remains when included and closes when excluded; try new hard- and soft-blocked launches.
+
+### Scenario 24
+
+**Recover unfinished work after grant-only time runs out (soft apps: included)**
+
+Case: `E2E-009/included` · Category: customer-journey · Status: **ready**
+
+Variant: soft apps: included
 
 **Steps:**
 
@@ -1351,26 +1365,6 @@ Variant: daily: remaining; sessions: multiple
 - Using Parent and actual approval, establish the declared daily balance and active grant. Leave allowed and temporarily permitted soft-blocked activities open for the child and another user's recognizable activity. Multiple requires distinct supported desktops for this child.
 - Open Revoke in Parent, read the child and warning, and Cancel. Revisit the child and read the balances to confirm continued access and the same activity.
 - Confirm Revoke and read zero one-time time and unchanged daily time. With daily time left, visit each retained child desktop and inspect blocked-app closure and launch denial; with zero time, verify time-limit denial. Revisit the other user's same activity.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 24
-
-**Recover unfinished work after grant-only time runs out (soft apps: included)**
-
-Case: `E2E-009/included` · Category: customer-journey · Status: **pending**
-
-Variant: soft apps: included
-
-**Steps:**
-
-- Set zero daily allowance and enable limits. Obtain a short station grant including soft apps, sign in as the child, and leave recognizable work in an allowed app and a soft-blocked app.
-- Use the desktop until it locks naturally. Observe the native time-limit restriction, which prevents password entry, then return to sign-in without replacing the child session.
-- Approve replacement station time with the declared soft-app choice and unlock the retained desktop. Compare the allowed work with its earlier state. The soft activity remains when included and closes when excluded; try new hard- and soft-blocked launches.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 

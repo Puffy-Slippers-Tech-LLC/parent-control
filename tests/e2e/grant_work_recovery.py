@@ -1,4 +1,6 @@
-"""Case 23: natural grant exhaustion and recovery without soft-app access."""
+"""Cases 23/24: natural grant exhaustion and recovery with either soft-app choice."""
+
+from dataclasses import replace
 
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS, countdown_seconds
 from countdown import CountdownObservation, CountdownSample, check_countdown_balance
@@ -88,6 +90,32 @@ PLAN = JourneyPlan(
     assertions_after={'allowed-work': 'visible-result'},
 )
 
+INCLUDED_RECOVERY = {
+    **approval_and_return(prefix='new', entry='new', child='fixture-child',
+        approver='fixture-parent', duration_seconds=1200, allow_soft=True,
+        surface='kiosk', child_entry='retained'),
+    'recovery-identity': 'system:child-entry-same',
+    **native_activity_resume('resume', child='child'),
+    'soft-retained': 'ui:overlay-native-policy-soft-activity',
+    'soft-close': 'ui:overlay-native-soft-close',
+    'soft-closed': 'ui:overlay-native-soft-closed',
+    'hard-launch': 'ui:overlay-native-hard-command-blocked',
+    **prefixed_stages('soft-relaunch', native_usable_app('command', child='child', role='S')),
+    'allowed-work': 'ui:overlay-native-activity',
+}
+INCLUDED_SCREENS = {**PREPARATION, **EXHAUSTION, **INCLUDED_RECOVERY}
+INCLUDED_PLAN = replace(PLAN,
+    screen_tags=INCLUDED_SCREENS,
+    phases={**{stage: phase for stage, phase in PLAN.phases.items() if stage not in RECOVERY},
+            **{stage: 'step-3' for stage in INCLUDED_RECOVERY}},
+    child_bindings={stage: 'child' for stage, tag in INCLUDED_SCREENS.items()
+                    if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
+    activity_checks={'resume-opened': ('activity-capture', 'same'),
+                     'soft-retained': ('soft-capture', 'same'),
+                     'allowed-work': ('activity-capture', 'same')},
+    kiosk_request=('child', 'parent', 1200, True),
+)
+
 
 class GrantWorkRecoveryJourney(GrantOnlyProfileJourney, AppPolicyJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
@@ -104,7 +132,7 @@ class GrantWorkRecoveryJourney(GrantOnlyProfileJourney, AppPolicyJourney):
         super().check_settings(stage, observed)
         if stage in ('profile-request-new-estimate', 'new-estimate'):
             initial = stage.startswith('profile-')
-            seconds, soft = (600, True) if initial else (1200, False)
+            seconds, soft = (600, True) if initial else (1200, self.plan.kiosk_request[3])
             value = observed['ui']['valid_choice']
             require(value['request']['child'] == 'fixture-child'
                     and value['request']['approver'] == 'fixture-parent'
@@ -149,12 +177,20 @@ class GrantWorkRecoveryJourney(GrantOnlyProfileJourney, AppPolicyJourney):
         return result
 
 
-def execute(recorder, context):
+def _execute(recorder, context, plan, variant):
     from e2e_fixture_preparation import ACTIVITY_SUBSETS
     context.fixture_subsets = ACTIVITY_SUBSETS
-    context.fixture_caller = 'E2E-009/excluded'
-    record_installed_journey(recorder, context, PLAN, timeout=1800,
+    context.fixture_caller = 'E2E-009/' + variant
+    record_installed_journey(recorder, context, plan, timeout=1800,
                              journey_type=GrantWorkRecoveryJourney)
 
 
-E2E_CASES = {'excluded': execute}
+def execute(recorder, context):
+    _execute(recorder, context, PLAN, 'excluded')
+
+
+def execute_included(recorder, context):
+    _execute(recorder, context, INCLUDED_PLAN, 'included')
+
+
+E2E_CASES = {'excluded': execute, 'included': execute_included}

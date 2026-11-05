@@ -1931,6 +1931,16 @@ estimate. Both retained-child returns preserve the original usable activity.
 Collection, worker shutdown, owned cleanup and baseline restoration passed;
 the VM was observed off. Other E2E-048 kiosk profiles remain separate cases.
 
+Grant-only recovery also passed in complete case **24** on Ubuntu 26.04 through
+`grant_work_recovery.INCLUDED_PLAN` and `onpc_challenges::grant_work_recovery`.
+After the original ten-minute grant's natural lock and native time restriction,
+FLOW20 approves twenty minutes with soft apps included and returns to the same
+child session. Both immutable original activities match; allowed work remains
+usable, the soft app can close normally and relaunch with usable input, and a
+hard-blocked launch remains denied. Collection, worker shutdown, owned cleanup
+and baseline restoration passed. This extends the complete recovery binding,
+without a separate qualification selector or another expiry wait.
+
 #### Overlay immediate exit and approval compositions
 
 `overlay_approved_exit.IMMEDIATE_PLAN/FLOW_REJECTION_PLAN/FLOW_CANCEL_PLAN`

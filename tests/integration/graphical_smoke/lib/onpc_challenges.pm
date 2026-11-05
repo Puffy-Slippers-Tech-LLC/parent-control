@@ -278,11 +278,12 @@ sub countdown_activity {
 }
 
 sub grant_work_recovery {
-    onpc_progress::operation('Returning to the child work after time runs out with soft apps excluded');
+    onpc_progress::operation('Returning to the child work after time runs out with the parent soft-app choice');
     my ($exchange, $declared, $challenges, $binding) = @_;
     die 'grant-recovery:plan' unless @_ == 4 && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
-        && ref($binding) eq 'ARRAY' && join(',', @$binding) eq 'child,parent,1200,0';
+        && ref($binding) eq 'ARRAY' && join(',', @$binding) =~ /\Achild,parent,1200,[01]\z/;
+    my $allow_soft = $binding->[3];
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'grant-work-recovery', review => 0);
     $journey->{kiosk_request} = $binding;
     $journey->declare_invocations($declared);
@@ -305,12 +306,19 @@ sub grant_work_recovery {
     onpc_desktop_session::enter_desktop($journey, 'locked', 'child', 'lock', 'time-denied', 'denial');
     $journey->seen($_) for qw(return-greeter denied-returned retained-before);
     onpc_request_flow::prepare($journey, 'new', 'new', 'observed',
-        'fixture-child', 'fixture-parent', 1200, 0, 'kiosk');
-    onpc_request_flow::approve($journey, 'fixture-child', 'fixture-parent', 1200, 0, 'automatic');
+        'fixture-child', 'fixture-parent', 1200, $allow_soft, 'kiosk');
+    onpc_request_flow::approve($journey, 'fixture-child', 'fixture-parent', 1200, $allow_soft, 'automatic');
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'retained');
     $journey->seen($_) for qw(countdown recovery-identity);
     onpc_app_rows::native_activity_resume($journey, 'resume');
-    $journey->seen($_) for qw(soft-closed hard-launch soft-launch);
+    if ($allow_soft) {
+        onpc_app_rows::native_read_activity($journey, 'soft-retained');
+        $journey->seen($_) for qw(soft-close soft-closed hard-launch);
+        my $relaunch = $journey->scope('soft-relaunch');
+        onpc_app_rows::native_usable_app($relaunch, 'command', $relaunch->seen('desktop'), 'child', 'S');
+    } else {
+        $journey->seen($_) for qw(soft-closed hard-launch soft-launch);
+    }
     onpc_app_rows::native_read_activity($journey, 'allowed-work');
     $journey->finish();
 }

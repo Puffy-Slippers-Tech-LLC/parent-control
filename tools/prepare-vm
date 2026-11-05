@@ -18,6 +18,13 @@ from vm_queue import preparation
 HELPER = '/usr/local/libexec/onpc-setup'
 
 
+def outcome(status, message):
+    color = '31' if status else '32'
+    print(f'\033[{color}mprepare-vm: {message}\033[0m',
+          file=sys.stderr if status else sys.stdout, flush=True)
+    return status
+
+
 def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -32,7 +39,7 @@ def arguments(argv=None):
     # Show the complete, short usage reminder for missing options or values.
     def error(message):
         parser.print_help(sys.stderr)
-        parser.exit(2, '\nPlease choose --mode auto or --mode manual. ' + message + '\n')
+        parser.exit(2, '\033[31m\nPlease choose --mode auto or --mode manual. ' + message + '\033[0m\n')
     parser.error = error
     return parser.parse_args(argv)
 
@@ -57,7 +64,9 @@ def main(argv=None, *, refresh=True):
             # Even after a partial failure, accept successfully prepared VMs.
             status = (subprocess.run([str(ROOT / 'setup.sh'), '--test-tools-only'], cwd=ROOT).returncode
                       if refresh and 0 in results.values() else 0)
-            return status or queue_status
+            status = status or queue_status
+            return outcome(status, 'preparation failed; inspect the reported errors.' if status else
+                           f'onpc_baseline prepared and accepted for {args.vm}.')
         select(args.vm)
         from vm_pool import reservation, arguments as checkout_arguments
         import test_activity
@@ -73,17 +82,15 @@ def main(argv=None, *, refresh=True):
             print('prepare-vm: cancelled; no baseline snapshot was prepared.')
             return 0
         if status:
-            return status
+            return outcome(status, 'preparation failed; inspect the reported errors.')
         if not refresh:
             return 0
         # Pin the accepted UUID only after successful baseline reconciliation.
         status = subprocess.run([str(ROOT / 'setup.sh'), '--test-tools-only'], cwd=ROOT).returncode
-        if status == 0:
-            print(f'prepare-vm: onpc_baseline prepared and accepted for {args.vm}.')
-        return status
+        return outcome(status, 'helper refresh failed; baseline acceptance is incomplete.' if status else
+                       f'onpc_baseline prepared and accepted for {args.vm}.')
     except (ValueError, OSError) as error:
-        print('prepare-vm: ' + str(error), file=sys.stderr)
-        return 2
+        return outcome(2, str(error))
 
 
 if __name__ == '__main__':

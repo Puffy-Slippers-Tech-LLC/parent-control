@@ -35,9 +35,17 @@ def prepare_native(os_id='ubuntu'):
         if getattr(error, 'stderr', None):
             print(error.stderr, file=sys.stderr, flush=True)
         try:
-            journal = runner.run(['journalctl', '--boot', '--unit=fapolicyd.service',
-                                  '--no-pager', '--lines=80'], check=False)
+            journal = runner.run(['journalctl', '--all', '--boot', '--unit=fapolicyd.service',
+                                  '--no-pager', '--lines=80'], check=False, errors='backslashreplace')
             print(journal.stdout, flush=True)
+            if os_id == 'fedora':
+                for command in (
+                    ['rpm', '-q', 'fapolicyd', 'file-libs'],
+                    ['rpm', '-V', 'fapolicyd', 'file-libs'],
+                ):
+                    result = runner.run(command, check=False, errors='backslashreplace')
+                    print(f'baseline: native package inspection exit:{result.returncode}', flush=True)
+                    print(result.stdout, flush=True)
         except (OSError, subprocess.SubprocessError):
             print('baseline: [native:journal-unavailable]', flush=True)
         raise
@@ -100,8 +108,9 @@ def prepare_native(os_id='ubuntu'):
         print('baseline: [native:readiness-timeout]', flush=True)
         if last_status_error is not None:
             try:
-                journal = runner.run(['journalctl', '--boot', '--unit=fapolicyd.service',
-                                      '--no-pager', '--lines=80'], check=False, timeout=30)
+                journal = runner.run(['journalctl', '--all', '--boot', '--unit=fapolicyd.service',
+                                      '--no-pager', '--lines=80'], check=False, timeout=30,
+                                     errors='backslashreplace')
                 print(journal.stdout, flush=True)
             except (OSError, subprocess.SubprocessError):
                 print('baseline: [native:journal-unavailable]', flush=True)

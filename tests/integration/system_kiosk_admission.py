@@ -486,7 +486,8 @@ def verify(record):
     # SSH operation and supplies no qualification of that login route.
     ssh = guest.run(['/usr/sbin/sshd', '-T', '-C',
                      'user=' + kiosk.pw_name + ',host=localhost,addr=127.0.0.1'])
-    settings = dict(line.split(' ', 1) for line in ssh.splitlines() if ' ' in line)
+    settings = {name.lower(): value for name, value in
+                (line.split(' ', 1) for line in ssh.splitlines() if ' ' in line)}
     guest.require(settings.get('usepam') == 'yes' and
                   settings.get('pamservicename', 'sshd') == 'sshd',
                   'kiosk-admission:ssh-pam-routing')

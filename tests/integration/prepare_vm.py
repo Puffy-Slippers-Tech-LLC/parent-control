@@ -15,6 +15,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import traceback
 from pathlib import Path
 from typing import Callable, Sequence
 
@@ -253,6 +254,7 @@ class Runner:
         input_text: str | None = None,
         check: bool = True,
         timeout: int = 120,
+        errors: str = 'strict',
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             list(command),
@@ -261,6 +263,7 @@ class Runner:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            errors=errors,
             timeout=timeout,
         )
 
@@ -601,6 +604,14 @@ def _bool(value: str) -> bool:
     raise PreparationError("verify:accounts-service", "AccountsService returned a malformed boolean")
 
 
+def settings_command(username):
+    # These pre-login settings touch only the local dconf database. Do not
+    # activate desktop VFS daemons on the temporary bus: their descendants can
+    # outlive dbus-run-session and retain the command's captured output pipes.
+    return ['runuser', '--user', username, '--', 'env', 'GIO_USE_VFS=local',
+            'dbus-run-session', '--', 'gsettings']
+
+
 def suppress_initial_setup(username: str, *, runner: Runner, os_id='ubuntu') -> None:
     """Satisfy GNOME's first-login conditions, plus Ubuntu's upgrade marker."""
     config = Path("/home") / username / ".config"
@@ -617,7 +628,7 @@ def suppress_initial_setup(username: str, *, runner: Runner, os_id='ubuntu') -> 
     # Shell's welcome/tour dialog is independent of initial setup. GNOME's
     # schema documents a future version as the supported suppression value.
     # Use the account's private bus so dconf owns its persistent database.
-    settings = [*prefix, "dbus-run-session", "--", "gsettings"]
+    settings = settings_command(username)
     key = ["org.gnome.shell", "welcome-dialog-last-shown-version"]
     disabled = "'4294967295'"
     if runner.run([*settings, "get", *key]).stdout.strip() != disabled:
@@ -630,7 +641,7 @@ def disable_screensaver(username: str, *, runner: Runner) -> None:
     """Disable idle blanking persistently without disabling explicit locking."""
     # Preparation runs before graphical login. Use a private session bus as the
     # account so dconf writes its own database without root-owned home files.
-    prefix = ["runuser", "--user", username, "--", "dbus-run-session", "--", "gsettings"]
+    prefix = settings_command(username)
     setting = ["org.gnome.desktop.session", "idle-delay"]
     if runner.run([*prefix, "get", *setting]).stdout.strip() == "uint32 0":
         return
@@ -641,7 +652,7 @@ def disable_screensaver(username: str, *, runner: Runner) -> None:
 
 def disable_software_updates(username: str, *, runner: Runner) -> None:
     """Keep background package downloads under baseline preparation ownership."""
-    settings = ['runuser', '--user', username, '--', 'dbus-run-session', '--', 'gsettings']
+    settings = settings_command(username)
     # GNOME Software is optional on supported desktops. Do not install it just
     # to configure it. A retained inactive session otherwise refreshes Flatpak
     # metadata and can leave an administrator-password dialog over the desktop.
@@ -660,7 +671,7 @@ def configure_terminal_shortcut(username: str, *, runner: Runner, os_id: str) ->
     if os_id != 'fedora':
         return
     runner.run(['test', '-x', '/usr/bin/ptyxis'])
-    settings = ['runuser', '--user', username, '--', 'dbus-run-session', '--', 'gsettings']
+    settings = settings_command(username)
     schema = 'org.gnome.settings-daemon.plugins.media-keys'
     path = '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/onpc-terminal/'
     custom = schema + '.custom-keybinding:' + path
@@ -970,13 +981,22 @@ def prepare_ssh(*, runner, service):
     runner.run(['systemctl', 'start', service])
     runner.run(['/usr/sbin/sshd', '-t'])
     ssh = runner.run(['/usr/sbin/sshd', '-T', '-C', 'user=root,host=localhost,addr=127.0.0.1'])
-    settings = dict(line.split(' ', 1) for line in ssh.stdout.splitlines() if ' ' in line)
-    if (settings.get('pubkeyauthentication') != 'yes'
-            or settings.get('permitrootlogin') not in {'yes', 'prohibit-password', 'without-password'}
-            or settings.get('authenticationmethods') != 'any'
-            or '.ssh/authorized_keys' not in settings.get('authorizedkeysfile', '').split()):
+    # Newer OpenSSH prints canonical mixed-case keywords; older versions use
+    # lowercase. Keywords are case-insensitive, while values (paths) are not.
+    settings = {name.lower(): value for name, value in
+                (line.split(' ', 1) for line in ssh.stdout.splitlines() if ' ' in line)}
+    invalid = [name for name, valid in (
+        ('pubkeyauthentication', settings.get('pubkeyauthentication') == 'yes'),
+        ('permitrootlogin', settings.get('permitrootlogin') in {
+            'yes', 'prohibit-password', 'without-password'}),
+        ('authenticationmethods', settings.get('authenticationmethods') == 'any'),
+        ('authorizedkeysfile', '.ssh/authorized_keys' in
+         settings.get('authorizedkeysfile', '').split()),
+    ) if not valid]
+    if invalid:
         raise PreparationError('guest-tools:ssh-configuration',
-                               'OpenSSH must permit root public-key authentication using .ssh/authorized_keys')
+                               'OpenSSH must permit root public-key authentication using .ssh/authorized_keys; '
+                               'incompatible settings: ' + ','.join(invalid))
     print('prepare-vm: [stage:dependencies] reusable test tools verified', file=sys.stderr)
 
 
@@ -1053,6 +1073,27 @@ def main(password=None) -> int:
                           'chpasswd', 'runuser', 'hostnamectl', 'busctl'}
             if isinstance(command, (list, tuple)) and command and command[0] in operations:
                 operation = command[0]
+                if operation == 'runuser':
+                    # Function/line and exit status locate the failed fixed
+                    # setup action without exposing account names or output.
+                    frames = traceback.extract_tb(error.__traceback__)
+                    locations = ','.join(f'{frame.name}:{frame.lineno}' for frame in frames
+                                         if Path(frame.filename).name == 'prepare_vm.py')
+                    print(f'prepare-vm: runuser failure at {locations}; '
+                          f'exit:{getattr(error, "returncode", "timeout")}', file=sys.stderr)
+                    if isinstance(error, subprocess.TimeoutExpired):
+                        output = error.stdout or b''
+                        stderr = error.stderr or b''
+                        if isinstance(output, str):
+                            output = output.encode()
+                        if isinstance(stderr, str):
+                            stderr = stderr.encode()
+                        signals = [token.decode() for token in (
+                            b'dconf', b'portal', b'gvfs', b'Permission denied', b'No such file',
+                            b'Failed to', b'failed to', b'Activating service',
+                        ) if token in stderr]
+                        print(f'prepare-vm: timed-out command stdout-present:{bool(output.strip())}; '
+                              'stderr-categories:' + ','.join(signals), file=sys.stderr)
                 if operation == 'busctl' and len(command) > 6 and command[6] in {
                         'CacheUser', 'SetRealName', 'SetIconFile', 'SetShell',
                         'SetAccountType', 'SetLocked'}:

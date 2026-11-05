@@ -174,10 +174,12 @@ def require(condition, category):
         raise CaptureError(category)
 
 
-def log(stage):
+def log(stage, *, failure=False):
     from watch_activity import event
     event(stage)
-    print(f"prepare-vm: [{stage}]", file=sys.stderr, flush=True)
+    message = f"prepare-vm: [{stage}]"
+    print('\033[31m' + message + '\033[0m' if failure else message,
+          file=sys.stderr, flush=True)
 
 
 def confirm_preparation(mode, existing, *, assume_yes=False):
@@ -1445,17 +1447,17 @@ def main(argv=None):
                                  for frame in frames)
             log(f'unexpected:{type(error).__name__}; locations:{locations}')
         phase = capture.state["phase"] if capture and capture.state else "before-validation"
-        log(f"{category}; recovery-phase:{phase}")
+        log(f"{category}; recovery-phase:{phase}", failure=True)
         if category.startswith("guard:source-running"):
             print('\033[31mprepare-vm: the selected VM is running. '
                   'Shut down the VM completely, then rerun tools/prepare-vm. '
                   'Both auto and manual modes require the VM to be powered off before starting.'
                   '\033[0m', file=sys.stderr)
         if category == "snapshot:metadata-missing":
-            print("prepare-vm: the recorded baseline has no matching libvirt snapshot metadata; "
+            print("\033[31mprepare-vm: the recorded baseline has no matching libvirt snapshot metadata; "
                   "retain the disk and controller state; recover verified metadata or "
-                  "prepare the powered-off guest and explicitly replace the baseline", file=sys.stderr)
-        print("prepare-vm: resolve the reported condition, then rerun tools/prepare-vm; retain snapshot and controller state",
+                  "prepare the powered-off guest and explicitly replace the baseline\033[0m", file=sys.stderr)
+        print("\033[31mprepare-vm: resolve the reported condition, then rerun tools/prepare-vm; retain snapshot and controller state\033[0m",
               file=sys.stderr)
         return 1
     finally:

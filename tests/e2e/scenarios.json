@@ -953,7 +953,7 @@
         "rationale": "Retain first parent with soft apps excluded (30) and second parent with soft apps included (33), covering both eligible approvers and both app choices without the opposite pairings. Former case IDs 31 and 32 must not be reused. Both parents also remain in E2E-049 temporary-app journeys. Each retained journey verifies the fixed child, real approval/time/app outcomes and fresh authentication on a later request. One panel entry reaches the request; the later ordinary reopen uses the direct child command. Repeated-entry singleton checks belong to child UI; visible success does not assert backend atomicity."
       },
       "variants": [
-        {"coverage_id": 30, "id": "excluded-first", "owner": "request-approval", "parameters": {"soft-apps": "excluded", "approver": "first"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 30, "id": "excluded-first", "owner": "request-approval", "parameters": {"soft-apps": "excluded", "approver": "first"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/panel_request_case.py", "test_id": "excluded-first"}},
         {"coverage_id": 33, "id": "included-second", "owner": "request-approval", "parameters": {"soft-apps": "included", "approver": "second"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },

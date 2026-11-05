@@ -102,12 +102,13 @@ def grant_only_time_profile(*, source, entry, window, initial_enabled, revoke_fi
     from kiosk_approved_flow import obtain_time
     require(type(initial_enabled) is bool and type(revoke_first) is bool
             and type(balance_readback) is bool
-            and type(daily_minutes) is int and daily_minutes in (0, 4)
+            and type(daily_minutes) is int and daily_minutes in (0, 4, 30)
             and type(duration_seconds) is int and duration_seconds in (120, 180, 240, 600, 1200)
             and request_initial in ('default', 'selected')
             and (source, entry, window) in (('gdm', 'fresh', 'new'),
                                           ('desktop', 'same-user', 'retained')),
             'time-profile:grant-binding')
+    require(daily_minutes != 30 or not initial_enabled, 'time-profile:grant-binding')
     return {
         **({**fresh_desktop('parent'), **parent_management()} if window == 'new' else
            prefixed_stages('profile-entry', retained_parent_entry(source='same-user'))),
@@ -115,7 +116,8 @@ def grant_only_time_profile(*, source, entry, window, initial_enabled, revoke_fi
         **({'profile-revoke-open': 'ui:revoke-open',
             'profile-revoke-confirm': 'ui:revoke-confirm',
             'profile-cleared': 'ui:revoke-balances'} if revoke_first else {}),
-        **({'profile-daily': 'ui:time-explanation-daily-4-'
+        **({'profile-daily': 'ui:time-explanation-setup-thirty-read'} if daily_minutes == 30 else
+           {'profile-daily': 'ui:time-explanation-daily-4-'
                             + ('on' if initial_enabled else 'off') + '-read'} if daily_minutes else {
             'profile-zero': 'ui:time-explanation-zero-read' if initial_enabled else
                             'ui:time-explanation-setup-zero-read'}),

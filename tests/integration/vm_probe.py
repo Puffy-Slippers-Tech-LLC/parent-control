@@ -884,6 +884,25 @@ def reproduce_overlay_return(lease, fixture_selection):
         boundary_operation='child-countdown-present', fixture_selection=selection, timeout=1800)
 
 
+def reproduce_panel_request(lease, fixture_selection):
+    """Retain case 30 at Riley's panel preflight, without launching the request."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from panel_request_case import PanelRequestJourney, PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    return reproduce_denial(lease, PanelRequestJourney, PLAN,
+        'panel-ready', 'panel-request',
+        assets=named_input(vm_source=True, package_source=True, fixture_source=True),
+        boundary_operation='overlay-panel-ready', fixture_selection=selection, timeout=1800)
+
+
+def probe_panel_request(lease):
+    """Read the panel preflight in Riley's retained maintenance session."""
+    observe_maintenance(lease, check='probe_panel_request', label='panel-request-probe',
+        intention='Checking Riley panel request before opening the form',
+        ui_operation='overlay-panel-ready')
+
+
 def reproduce_system_graphical_expiry(lease, fixture_selection):
     """Retain system-282's boot history immediately after its host-ready grant."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1262,6 +1281,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from policy_edits import AppPolicyJourney
         from app_rule_changes_case import AppRuleChangesJourney, DISABLED_PATTERN_PLAN
         from revocation_case import RevocationCaseJourney, PLAN as REVOCATION_PLAN
+        from panel_request_case import PanelRequestJourney, PLAN as PANEL_REQUEST_PLAN
         restoration = (surface == 'baseline-restoration'
             and journey_type is BaselineJourney and plan is PLAN
             and boundary == 'restore-saved' and boundary_operation == 'parent-save-disabled'
@@ -1278,6 +1298,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         overlay_return = (surface == 'overlay-return'
             and journey_type is ApprovalReturnJourney and plan is NEW_PLAN
             and boundary == 'countdown' and boundary_operation == 'child-countdown-present')
+        panel_request = (surface == 'panel-request'
+            and journey_type is PanelRequestJourney and plan is PANEL_REQUEST_PLAN
+            and boundary == 'panel-ready' and boundary_operation == 'overlay-panel-ready')
         native_denial = (surface == 'native-denial'
             and journey_type is NativeDenialJourney and plan is NATIVE_DENIAL_PLAN
             and boundary == 'first-hard-command' and boundary_operation == 'native-hard-command-blocked')
@@ -1295,7 +1318,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             and journey_type is RevocationCaseJourney and plan is REVOCATION_PLAN
             and boundary == 'cancel-child-activity-opened'
             and boundary_operation == 'native-policy-activity')
-        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or native_denial or grant_logout or match_editor or app_rule_return or revocation_return)
+        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1345,6 +1368,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                                        'natural-access': 'E2E-008/fresh-login',
                                        'countdown-grant': 'E2E-011/grant-only',
                                        'overlay-activity': 'check_e2e_overlay_translated_approval',
+                                       'panel-request': 'E2E-012/excluded-first',
                                        'overlay-return': 'check_e2e_compose_approval_and_return_to_the_child'
                                        }.get(surface, ACTIVITY_CALLER))
             context.installed_snapshot = lease.installed_name
@@ -1419,9 +1443,12 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                 stream.write(json.dumps({'stage': stage, 'observed': observed}) + '\n')
             print(surface + '-diagnosis: ' + stage, file=sys.stderr, flush=True)
 
-        if surface == 'match-editor':
+        if surface in ('match-editor', 'panel-request'):
             from native_fixtures import fixture_actions
             actions = fixture_actions(include_refusal=False)
+            if surface == 'panel-request':
+                from real_interval import interval_action
+                actions['cooldown'] = interval_action(5)
         journey = Reproduction(context, progress,
                                **({'plan': plan} if plan is not None else {}),
                                **({'actions': actions} if actions is not None else {}))

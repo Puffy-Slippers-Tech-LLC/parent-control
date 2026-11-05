@@ -1121,6 +1121,7 @@ OVERLAY_REQUEST_DURATIONS = {30: '30 seconds', 60: '1 minute', 75: '1 minute, 15
                             120: '2 minutes', 150: '2 minutes, 30 seconds',
                             180: '3 minutes', 900: '15 minutes'}
 OVERLAY_BOUND_OPERATIONS = frozenset({*SHELL_APPROVAL_ORDER, *OVERLAY_NATIVE_OPERATIONS,
+    *SHELL_PROMPT_OPERATIONS, 'overlay-shell-dismissed',
     'child-command-launch', 'overlay-request-select', 'overlay-request-estimate',
     'overlay-desktop', 'child-countdown-present'})
 OPERATIONS |= {'overlay-request-select', 'overlay-request-estimate'}
@@ -9969,6 +9970,16 @@ class AccessibleUI:
         self.set_text('kiosk-custom-duration', OVERLAY_REQUEST_MINUTES[seconds], child=child)
         self.set_value('kiosk-soft-apps-toggle', soft)
 
+    def overlay_panel_form_present(self):
+        """Acquire a complete entry read before choosing the panel action."""
+        self.require_child_overlay_session()
+        def observe():
+            return {'present': self.snapshot_owned_target('kiosk-request-window') is not None}
+        # An unrelated provider may exit between desktop discovery and its
+        # cache query. Discard that whole read; only a complete one can decide
+        # whether to launch. No input is delivered or replayed by this wait.
+        return self.wait(observe, 'overlay-panel-entry', prompt_in_predicate=True)['present']
+
     def overlay_panel_target(self):
         """Resolve the child panel control by its desktop-neutral API endpoint."""
         self.require_child_overlay_session()
@@ -11643,8 +11654,10 @@ class AccessibleUI:
         A separate form observation and immutable comparison prove the result.
         """
         require(not self.input_uncertain, 'ui:uncertain-input')
-        self.kiosk_valid_choice('overlay-valid-fraction-soft-read')
-        self.require_child_overlay_session()
+        child, approver, seconds, soft = self.overlay_bound_values()
+        self.kiosk_valid_choice('overlay-request-estimate' if getattr(self, 'overlay_request', None) is not None
+                                else 'overlay-valid-fraction-soft-read')
+        self.require_child_overlay_session(child)
         self.invalidate_observation()
         observation = self.read_snapshot(protect_text=True)
         nodes, edges, _identities, facts = observation
@@ -11653,7 +11666,8 @@ class AccessibleUI:
         owner = self.shell_prompt_owner(observation)
         pid, uid = owner.get_process_id(), os.getuid()
         try:
-            self._invoke_target(self.kiosk_valid_target('kiosk-request-submit', overlay=True))
+            self._invoke_target(self.kiosk_valid_target('kiosk-request-submit', overlay=True,
+                                                      child=child, approver=approver))
             challenge = self.wait(lambda: self.shell_prompt(pid, uid), 'shell-prompt',
                                   prompt_in_predicate=True)
             provider = self._shell_provider_metadata(challenge[0])
@@ -11661,9 +11675,9 @@ class AccessibleUI:
             self.shell_prompt(pid, uid, challenge=challenge)
             identity = self.mate_challenge_identity(pid, challenge)
             self.input_uncertain = True
-            return {'provider': provider, 'child': CHILD_IDENTITIES[CHILD],
-                    'approver': APPROVER_IDENTITIES[PARENT], 'duration_seconds': 75,
-                    'allow_soft': True, 'cancel_ready': True, 'same_challenge_rechecked': True,
+            return {'provider': provider, 'child': CHILD_IDENTITIES[child],
+                    'approver': APPROVER_IDENTITIES[approver], 'duration_seconds': seconds,
+                    'allow_soft': soft, 'cancel_ready': True, 'same_challenge_rechecked': True,
                     'rejected_proofs': rejected, 'challenge_id': identity}
         except BaseException:
             self.input_uncertain = True
@@ -14082,12 +14096,12 @@ class AccessibleUI:
         elif operation == 'kiosk-request-select':
             self.select_kiosk_request()
         elif operation == 'overlay-panel-ready':
-            if self.snapshot_owned_target('kiosk-request-window') is None:
+            if not self.overlay_panel_form_present():
                 self.overlay_panel_target()
             else:
                 self.kiosk_request_form(enabled=True, overlay=True)
         elif operation == 'overlay-panel-launch':
-            if self.snapshot_owned_target('kiosk-request-window') is None:
+            if not self.overlay_panel_form_present():
                 self.overlay_panel_launch()
             else:
                 self.kiosk_request_form(enabled=True, overlay=True)
@@ -14570,7 +14584,7 @@ class AccessibleUI:
         elif operation in SHELL_APPROVAL_OPERATIONS:
             result['approval'] = self.overlay_shell_approval(operation)
         elif operation == 'overlay-shell-dismissed':
-            self.require_child_overlay_session()
+            self.require_child_overlay_session(self.overlay_bound_values()[0])
             def absent():
                 self.invalidate_observation()
                 kind = self.system_prompt_kind()

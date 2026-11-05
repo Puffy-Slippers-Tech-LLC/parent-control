@@ -445,7 +445,8 @@ sub grant_only_time_profile {
     $daily_minutes = 0 if @_ < 10;
     die 'time-profile:grant-binding' unless (@_ == 8 || @_ == 9 || @_ == 10) && ref($journey) eq 'onpc_journey'
         && defined($balance_readback) && $balance_readback =~ /\A[01]\z/
-        && defined($daily_minutes) && $daily_minutes =~ /\A(?:0|4)\z/
+        && defined($daily_minutes) && $daily_minutes =~ /\A(?:0|4|30)\z/
+        && ($daily_minutes != 30 || !$initial)
         && ($initial eq '0' || $initial eq '1') && ($revoke eq '0' || $revoke eq '1')
         && $seconds =~ /\A(?:120|180|240|600|1200)\z/
         && ($request_initial eq 'default' || $request_initial eq 'selected')

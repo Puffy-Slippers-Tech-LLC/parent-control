@@ -15,8 +15,8 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">77</span>/<span style="color: gray">119</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6438</span>/<span style="color: gray">119</span>/6557** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">78</span>/<span style="color: gray">118</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6439</span>/<span style="color: gray">118</span>/6557** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">76</span>/<span style="color: gray">119</span>/195 |
+| customer-journey | <span style="color: green">77</span>/<span style="color: gray">118</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -60,6 +60,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [27](#scenario-27) | Plan child activity with the remaining-time countdown (time: daily only) | `E2E-011/daily-only` | ready |
 | [28](#scenario-28) | Plan child activity with the remaining-time countdown (time: grant only) | `E2E-011/grant-only` | ready |
 | [29](#scenario-29) | Plan child activity with the remaining-time countdown (time: combined) | `E2E-011/combined` | ready |
+| [30](#scenario-30) | Request more time from the panel with the selected parent (approver: first; soft apps: excluded) | `E2E-012/excluded-first` | ready |
 | [46](#scenario-46) | Request surface exit behavior (exit: approved; surface: child overlay) | `E2E-015/child-overlay-approved` | ready |
 | [49](#scenario-49) | Request surface exit behavior (exit: approved; surface: kiosk) | `E2E-015/kiosk-approved` | ready |
 | [50](#scenario-50) | Restricted request station (request: approved) | `E2E-016/approved` | ready |
@@ -115,7 +116,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[18](#scenario-18)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: zero; sessions: multiple)</span> | <span style="color: gray">`E2E-007/zero-multiple`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[20](#scenario-20)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: remaining; sessions: multiple)</span> | <span style="color: gray">`E2E-007/remaining-multiple`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[30](#scenario-30)</span> | <span style="color: gray">Request more time from the panel with the selected parent (approver: first; soft apps: excluded)</span> | <span style="color: gray">`E2E-012/excluded-first`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[33](#scenario-33)</span> | <span style="color: gray">Request more time from the panel with the selected parent (approver: second; soft apps: included)</span> | <span style="color: gray">`E2E-012/included-second`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[34](#scenario-34)</span> | <span style="color: gray">Authentication denial and cancellation retry (surface: child overlay)</span> | <span style="color: gray">`E2E-013/child-overlay-recovery`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[36](#scenario-36)</span> | <span style="color: gray">Authentication denial and cancellation retry (surface: kiosk)</span> | <span style="color: gray">`E2E-013/kiosk-recovery`</span> | <span style="color: gray">pending</span> |
@@ -590,6 +590,20 @@ Variant: time: combined
 - Establish daily-only, grant-only or combined time through Parent and actual approval. Read both balances, enter the child desktop and begin recognizable allowed work while reading remaining time.
 - Lock and unlock the retained child desktop while time remains. Resume the same work and compare the refreshed countdown with the earlier balance and actual elapsed time; returning must not restart time.
 - Continue the activity through minute and final-second countdown changes until natural exhaustion locks the desktop. Compare the predicted remaining interval with the actual end of desktop access.
+
+### Scenario 30
+
+**Request more time from the panel with the selected parent (approver: first; soft apps: excluded)**
+
+Case: `E2E-012/excluded-first` · Category: customer-journey · Status: **ready**
+
+Variant: approver: first; soft apps: excluded
+
+**Steps:**
+
+- Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception and open recognizable soft activity, then open the fixed-child request once through the panel entry.
+- Choose the declared eligible parent, short duration and soft-app option. Read the estimate, select Request and check that the system prompt identifies the same parent, child, duration and app choice.
+- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, reopen the overlay through the direct child app command, verify a new parent prompt is required and cancel.
 
 ### Scenario 46
 
@@ -1379,26 +1393,6 @@ Variant: daily: remaining; sessions: multiple
 - Using Parent and actual approval, establish the declared daily balance and active grant. Leave allowed and temporarily permitted soft-blocked activities open for the child and another user's recognizable activity. Multiple requires distinct supported desktops for this child.
 - Open Revoke in Parent, read the child and warning, and Cancel. Revisit the child and read the balances to confirm continued access and the same activity.
 - Confirm Revoke and read zero one-time time and unchanged daily time. With daily time left, visit each retained child desktop and inspect blocked-app closure and launch denial; with zero time, verify time-limit denial. Revisit the other user's same activity.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 30
-
-**Request more time from the panel with the selected parent (approver: first; soft apps: excluded)**
-
-Case: `E2E-012/excluded-first` · Category: customer-journey · Status: **pending**
-
-Variant: approver: first; soft apps: excluded
-
-**Steps:**
-
-- Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception and open recognizable soft activity, then open the fixed-child request once through the panel entry.
-- Choose the declared eligible parent, short duration and soft-app option. Read the estimate, select Request and check that the system prompt identifies the same parent, child, duration and app choice.
-- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, reopen the overlay through the direct child app command, verify a new parent prompt is required and cancel.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 

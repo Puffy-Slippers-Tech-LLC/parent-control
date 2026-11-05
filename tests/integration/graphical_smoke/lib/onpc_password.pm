@@ -177,6 +177,9 @@ sub enter_kiosk_mate_password {
                 && defined($wrong) && $wrong eq 'request-240'
                 || ($journey->{prefix} // '') eq 'time-profiles-grant-profile-request'
                 && ($journey->{stage_prefix} // '') eq 'profile-request-'
+                && defined($wrong) && $wrong eq 'request-1200'
+                || ($journey->{prefix} // '') eq 'panel-request-case-profile-request'
+                && ($journey->{stage_prefix} // '') eq 'profile-request-'
                 && defined($wrong) && $wrong eq 'request-1200');
         my $id = ($baseline || $isolation || $profile || $composed ? ($journey->{stage_prefix} // '') : '')
             . 'kiosk-mate-' . ($chinese || $long_request || $profile_request ? $wrong : $binding);
@@ -241,7 +244,11 @@ sub enter_overlay_shell_password {
                 && ref($journey->{overlay_request}) eq 'ARRAY'
                 && join(',', @{$journey->{overlay_request}}) eq 'child,parent,30,0';
         }
-        my $composed = (($journey->{prefix} // '') eq 'overlay-approval-return' || $delayed) && !$reject;
+        my $panel = ($journey->{prefix} // '') eq 'panel-request-case'
+            && ($journey->{stage_prefix} // '') eq ''
+            && ref($journey->{overlay_request}) eq 'ARRAY'
+            && join(',', @{$journey->{overlay_request}}) eq 'child,parent,30,0';
+        my $composed = (($journey->{prefix} // '') eq 'overlay-approval-return' || $delayed || $panel) && !$reject;
         my $role = 'parent';
         if ($composed) {
             my $binding = $journey->{overlay_request};

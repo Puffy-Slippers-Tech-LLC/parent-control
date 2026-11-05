@@ -50,6 +50,75 @@ def test_bound_prompt_wait_and_repeat_still_require_fresh_recipient_proofs(monke
     assert ui._observe.call_count == calls
 
 
+def test_shell_cancel_proof_requires_the_bound_request_and_a_new_challenge():
+    operation = 'overlay-shell-cancel-ready'
+    proof = {'child': 'fixture-child', 'approver': 'fixture-parent',
+             'duration_seconds': 30, 'allow_soft': False, 'cancel_ready': True,
+             'same_challenge_rechecked': True,
+             'rejected_proofs': list(ui_observations.accessible_ui.SHELL_PROMPT_REFUSALS),
+             'provider': {'version': '50.0', 'locale': 'en_US.UTF-8',
+                          'keyboard': [['xkb', 'us']]}, 'challenge_id': 'a' * 64}
+
+    def observer(value):
+        ui = ui_observations.UiObservations(None)
+        ui.overlay_request = ('child', 'parent', 30, False)
+        response = {'operation': operation, 'outcome': 'passed',
+                    'interface': 'ApplicationUI+external-provider',
+                    'boot_sha256': 'b' * 64, 'shell_prompt': value}
+        ui.call = Mock(return_value=(json.dumps(response).encode(), []))
+        return ui
+
+    ui = observer(proof)
+    assert ui.observe(operation)['shell_prompt'] == proof
+    argv = ui.call.call_args.args[0]
+    assert json.loads(argv[argv.index('--overlay-request') + 1]) == list(ui.overlay_request)
+    with pytest.raises(EvidenceError, match='challenge-replay'):
+        ui.observe(operation)
+
+    wrong = observer({**proof, 'duration_seconds': 75, 'allow_soft': True})
+    with pytest.raises(EvidenceError, match='shell-response'):
+        wrong.observe(operation)
+    calls = wrong.call.call_count
+    with pytest.raises(EvidenceError, match='challenge-previous-failure'):
+        wrong.observe(operation)
+    assert wrong.call.call_count == calls
+
+
+def test_panel_approval_secret_requires_fresh_proofs_and_cannot_be_replayed():
+    from panel_request_case import PLAN
+    result = run_perl(r'''
+use strict;
+use warnings;
+use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub current_console { 'sut' }
+sub get_var { '1' }
+package onpc_journey;
+sub seen {
+    my ($self, $stage) = @_;
+    push @main::events, ['proof', $stage];
+    return {observed => $stage};
+}
+package main;
+require onpc_password;
+{
+    no warnings 'redefine';
+    *onpc_password::type_fixture_secret = sub { push @events, ['delivery', $_[0], $_[3]]; };
+}
+my $journey = bless {prefix => shift @ARGV, stage_prefix => '',
+    overlay_request => decode_json(shift @ARGV), review => 0}, 'onpc_journey';
+my $first = eval { onpc_password::enter_overlay_shell_password($journey); 1; };
+my $replay = eval { onpc_password::enter_overlay_shell_password($journey); 1; };
+print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events => \@events});
+''', PLAN.prefix, json.dumps(PLAN.overlay_request))
+    assert json.loads(result.stdout) == {'first': 1, 'replay': 0, 'events': [
+        ['proof', 'approval-qualified'], ['proof', 'approval-rechecked'],
+        ['delivery', 'parent', 'overlay-shell-approval']]}
+
+
 @pytest.mark.parametrize('mode', ['two-requests', 'replay', 'wrong-scope', 'wrong-child',
                                  'profile-setup', 'profile-wrong-scope',
                                  'grant-request', 'grant-wrong-scope', 'grant-wrong-child',
@@ -61,6 +130,7 @@ def test_composed_kiosk_secret_scope_and_single_use(mode):
     from app_rule_changes_case import PLAN
     from revocation_case import PLAN as REVOCATION_PLAN
     from grant_work_recovery import INCLUDED_PLAN as RECOVERY_PLAN
+    from panel_request_case import PLAN as PANEL_PLAN
     transition = [PLAN.prefix + '-soft-opening', 'soft-opening-', list(PLAN.kiosk_request)]
     revocation = [REVOCATION_PLAN.prefix + '-request', 'request-', list(REVOCATION_PLAN.kiosk_request)]
     recovery = [RECOVERY_PLAN.prefix, list(RECOVERY_PLAN.kiosk_request)]
@@ -90,13 +160,14 @@ my $mode = shift @ARGV;
 my $transition = decode_json(shift @ARGV);
 my $revocation = decode_json(shift @ARGV);
 my $recovery = decode_json(shift @ARGV);
+my $panel_prefix = shift @ARGV;
 my $first = bless {prefix => 'kiosk-delayed-approval-first', stage_prefix => 'first-',
     kiosk_request => ['child', 'parent', 30, 0], review => 0}, 'onpc_journey';
 my $second = bless {%$first, prefix => 'kiosk-delayed-approval-second', stage_prefix => 'second-'}, 'onpc_journey';
 $first->{stage_prefix} = 'second-' if $mode eq 'wrong-scope';
 $first->{kiosk_request} = ['other-child', 'parent', 30, 0] if $mode eq 'wrong-child';
 if ($mode =~ /^profile-/) {
-    $first = bless {prefix => 'kiosk-delayed-approval-profile-request',
+    $first = bless {prefix => $panel_prefix . '-profile-request',
         stage_prefix => $mode eq 'profile-setup' ? 'profile-request-' : 'first-',
         review => 0}, 'onpc_journey';
 }
@@ -135,7 +206,7 @@ my $ok = eval {
     1;
 };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
-''', mode, json.dumps(transition), json.dumps(revocation), json.dumps(recovery))
+''', mode, json.dumps(transition), json.dumps(revocation), json.dumps(recovery), PANEL_PLAN.prefix)
     value = json.loads(result.stdout)
     deliveries = [event for event in value['events'] if event[0] == 'delivery']
     if mode == 'work-recovery':

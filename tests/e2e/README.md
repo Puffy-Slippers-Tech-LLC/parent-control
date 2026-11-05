@@ -1701,6 +1701,14 @@ artifact-preparation command before fixture construction. Inspect the same child
 session through guarded `exec`, then finish with `tools/test-vm stop`; this route
 supplies diagnostic evidence only.
 
+`tools/test-vm --vm NAME reproduce-panel-request` reuses case 30's saved rules,
+real combined-time preparation, Riley entry and usable soft activity. It stops
+at `panel-ready`, records the original panel preflight in
+`boundary-observation.json`, and retains Riley's session for guarded `exec`
+probes. `probe-panel-request` repeats only the read-only panel preflight in that
+retained session. The same VM-bound fixtures, recipient guards and maintenance ownership
+apply; it supplies no acceptance credit. Finish with `tools/test-vm --vm NAME stop`.
+
 `tools/test-vm --vm NAME reproduce-natural-access` retains case 22's prepared
 Parent history at `switch-user`, immediately after the independently observed
 usable Parent desktop and before switching to sign-in.

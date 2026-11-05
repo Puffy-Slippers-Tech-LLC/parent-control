@@ -2798,8 +2798,12 @@ class UiObservations:
         if operation in accessible_ui.SHELL_PROMPT_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'shell_prompt'}, 'ui:shell-response')
             value = result['shell_prompt']
-            projection = {'child': 'fixture-child', 'approver': 'fixture-parent',
-                          'duration_seconds': 75, 'allow_soft': True, 'cancel_ready': True,
+            request_child, approver, seconds, soft = (accessible_ui.overlay_request_values(self.overlay_request)
+                if self.overlay_request is not None else
+                (accessible_ui.CHILD, accessible_ui.PARENT, 75, True))
+            projection = {'child': accessible_ui.CHILD_IDENTITIES[request_child],
+                          'approver': accessible_ui.APPROVER_IDENTITIES[approver],
+                          'duration_seconds': seconds, 'allow_soft': soft, 'cancel_ready': True,
                           'same_challenge_rechecked': True,
                           'rejected_proofs': list(accessible_ui.SHELL_PROMPT_REFUSALS)}
             require(type(value) is dict and set(value) == {*projection, 'provider', 'challenge_id'}

@@ -218,6 +218,36 @@ sub approval_return {
     $journey->finish();
 }
 
+sub panel_request_case {
+    onpc_progress::operation('Requesting time from the panel while keeping soft apps blocked');
+    my ($exchange, $declared, $challenges) = @_;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'panel-request-case', review => 0);
+    $journey->{overlay_request} = ['child', 'parent', 30, 0];
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_app_rows::named_app_set($journey, 'gdm', 'fresh', 'new', 'child', [
+        ['A', 'match-precise', 'allowed'], ['H', 'match-hard-precise', 'permanent'],
+        ['S', 'match-soft-wildcard', 'conditional']], 'rules');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'rules-return');
+    onpc_parent::grant_only_time_profile($journey, 'desktop', 'same-user', 'retained',
+        0, 0, 1200, 'default', 1, 30);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'child-entry');
+    my $soft = $journey->scope('soft-use');
+    onpc_app_rows::native_usable_app($soft, 'command', $soft->seen('desktop'), 'child', 'S');
+    $journey->seen('soft-capture');
+    $journey->seen($_) for qw(panel-ready panel-launch);
+    prepare($journey, 'open', 'open', 'observed', 'fixture-child', 'fixture-parent', 30, 0, 'overlay');
+    overlay_approve($journey, 'automatic');
+    $journey->seen($_) for qw(countdown soft-closed hard-denied soft-denied cooldown);
+    my $later = $journey->scope('later');
+    $later->{overlay_request} = ['child', 'parent', 30, 0];
+    prepare($later, 'new', 'new', 'observed', 'fixture-child', 'fixture-parent', 30, 0, 'overlay');
+    shell_cancel($later, 'shell-cancel-ready', 'shell-dismissed');
+    $later->seen($_) for qw(preserved cancel returned);
+    $journey->finish();
+}
+
 sub kiosk_fresh_return {
     onpc_progress::operation('Approving a station request and returning to the chosen child');
     my ($exchange, $declared, $challenges, $binding, $entry, $child_entry) = @_;
@@ -407,6 +437,10 @@ sub shell_approve {
             || ($journey->{prefix} // '') eq 'overlay-approval-flow'
             || ($journey->{prefix} // '') eq 'overlay-approval-return'
                 && ref($journey->{overlay_request}) eq 'ARRAY' && $exit eq 'automatic'
+            || ($journey->{prefix} // '') eq 'panel-request-case'
+                && ref($journey->{overlay_request}) eq 'ARRAY'
+                && join(',', @{$journey->{overlay_request}}) eq 'child,parent,30,0'
+                && $exit eq 'automatic'
             || ($journey->{prefix} // '') =~ /\Adelayed-approval-(?:first|second)\z/
                 && ref($journey->{overlay_request}) eq 'ARRAY' && $exit eq 'automatic'
             || ($journey->{prefix} // '') eq 'baseline-journey-overlay-approval'

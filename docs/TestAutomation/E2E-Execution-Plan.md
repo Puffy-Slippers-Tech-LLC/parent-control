@@ -14,7 +14,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **086 — [E2E-012: excluded-first](E2E-Tasks/086-case-30.md)**.
+Next task: **087b — [E2E-012: included-second](E2E-Tasks/087b-case-33.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

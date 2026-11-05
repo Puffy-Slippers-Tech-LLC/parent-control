@@ -45,6 +45,6 @@ the existing guarded envelope before invocation:
 tools/run-tests system check_e2e_lunar_profile
 ```
 
-Follow [close-out](../E2E-Execution-Plan.md#completion-and-document-cleanup) only
+Follow [close-out](../E2E-Execution-Instructions.md#completion-and-document-cleanup) only
 after real qualification and cleanup. Record the actual callable/scope in FIX05,
 keep case 253 pending, and advance to the following unchecked queue row. This brief does not claim that manual preparation or VM qualification has occurred.

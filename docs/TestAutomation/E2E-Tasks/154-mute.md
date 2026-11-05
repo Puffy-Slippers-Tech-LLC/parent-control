@@ -9,7 +9,7 @@ public mute control; current absence cannot qualify interaction.
 
 ## Read only this context
 
-Use the [scoped reading rules](../E2E-Execution-Plan.md#load-only-the-selected-context).
+Use the [scoped reading rules](../E2E-Execution-Instructions.md#load-only-the-selected-context).
 After the feature gate opens, read only the restored mute contract and qualified
 request-form/toggle callables. No other task brief or full queue is needed.
 

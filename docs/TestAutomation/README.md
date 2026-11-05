@@ -36,9 +36,10 @@ diagnostic files do not govern task progression.
 | [E2E building blocks](E2E-Building-Blocks.md) | Atomic/composite operation contracts, callables, scoped qualification and provider gaps | Scenario readiness or task order |
 | [Scenario recipes](E2E-Scenario-Recipes.md) | Exact scenario composition, finite inputs and expected public results | Current runner status or scheduling |
 | [UI and E2E coverage](UI-and-E2E-Coverage.md) | GUI matrix ownership, duplicate review and minimal installed checks | A test pass, task completion or another task queue |
-| [Execution plan](E2E-Execution-Plan.md) | Sole next-task pointer, implementation workflow and scoped reading routes | Product behavior, reusable block semantics or a second copy of the queue |
+| [Plan A](E2E-Execution-Plan.md) and [Plan B](E2E-Execution-PlanB.md) | Independent next-task pointers and queue declarations | Pending prerequisites in the other plan or shared implementation instructions |
+| [Shared execution instructions](E2E-Execution-Instructions.md) | Implementation workflow, reading routes and independent plan selection through one launcher | Task completion or another task queue |
 | [Execution contracts](E2E-Execution-Contracts.md) | Detailed sizing, provider qualification, live verification and close-out rules delegated by the execution plan | A second task queue, alternate selection or optional acceptance |
-| [Task queue](E2E-Task-Queue.md) | Single ordered checklist, including provider prerequisites and retained regressions, and delivered task scope | Current block or scenario readiness |
+| [Plan A queue](E2E-Task-Queue.md) and [Plan B queue](E2E-Task-QueueB.md) | Separate ordered checklists, provider prerequisites, retained regressions and delivered scope | Current block/scenario readiness or work selection in the other queue |
 | `E2E-Tasks/` | Temporary brief for one unfinished queue item | Enduring policy or history after the task closes |
 | [Fixture design](Fixture-Design.md) | Immutable host inputs, minimal guest closure, provisioning/readiness and compatibility boundaries; runtime guides own current target availability | New runner capability or customer acceptance merely from the design |
 | [Evidence/export design](Export-Design.md) | Test evidence identity, capture, export and lifetime design; runtime contracts remain authoritative | Product acceptance, VM operations or new passing results |
@@ -135,8 +136,9 @@ For test implementation, apply the [shared task contract](E2E-Execution-Contract
 and the selected brief. Use the existing shared operations in both qualification
 and cases; validate at the lowest effective layer before a required live attempt.
 
-For queue work, read the [entry plan](E2E-Execution-Plan.md), its **Next task**
-brief, then follow its [reading routes](E2E-Execution-Plan.md#load-only-the-selected-context).
+For queue work, read the selected entry plan ([A](E2E-Execution-Plan.md) or
+[B](E2E-Execution-PlanB.md)), its **Next task**
+brief, then follow its [reading routes](E2E-Execution-Instructions.md#load-only-the-selected-context).
 Read the shared live contract and applicable acceptance branch before
 implementation, and completion at close-out. Retrieve only applicable
 catalogue/recipe rows, contract sections and source callables; do not load the
@@ -149,6 +151,6 @@ in [functional validation](E2E-Building-Blocks.md#functional-validation); keep
 them separate from customer scenario completion.
 
 Provider work follows the [UI mandate's route selection](../Mandates/UI-Automation-Mandate.MD#route-selection)
-and the same [execution plan](E2E-Execution-Plan.md#external-provider-work-within-the-sequence).
+and the same [execution plan](E2E-Execution-Instructions.md#external-provider-work-within-the-sequence).
 The catalogue records qualification of exact bindings; historical tasks and
 host-only checks cannot qualify a new route.

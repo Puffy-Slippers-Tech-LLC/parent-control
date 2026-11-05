@@ -301,6 +301,10 @@ balances, policy rounds, retained-window endpoints and closure assertions in eac
 consumer; the shared entry does not qualify other children or allowance bindings.
 The existing worker continues to use `onpc_parent::set_allowance` and the shared
 native launch/use/close operations. These helpers add no resource or cleanup owner.
+Native and Snap launch cases also reuse `app_policy_entry(initial_rows=False)`
+when their own saved-rule read supplies the policy result. Keep each case's plan,
+fixture actions, child entries and expected settings local; do not derive a
+different fixture family's case by filtering and replacing a runnable case's plan.
 
 For ordered access-rule transitions, prepare matching once through FLOW19 and
 compare its saved value after each tested access save. Repeating a match save

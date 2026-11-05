@@ -2,7 +2,7 @@
 from dataclasses import replace
 from functools import partial
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import (fresh_desktop, parent_management, desktop_entry,
+from journey_blocks import (app_policy_entry, desktop_entry,
                             native_blocked_app, native_usable_app, prefixed_stages)
 from native_fixtures import fixture_actions
 from policy_edits import policy_edit, AppPolicyJourney
@@ -13,11 +13,9 @@ from ui_observations import SettingsObservation
 
 POLICY = policy_edit(MATCH_APP, 'match-precise', 'allowed', 'allowed')
 SETUP = {
-    **fresh_desktop('parent'), **parent_management(child='existing'),
-    'parent-selected': 'ui:existing-returned',
-    'allowance-configured': 'ui:time-explanation-setup-thirty-read',
-    'saved-settings': 'ui:existing-returned',
-    'apps-page': 'ui:existing-apps', **POLICY,
+    **app_policy_entry(child='existing', allowance='time-explanation-setup-thirty-read',
+                       initial_rows=False),
+    **POLICY,
 }
 JORDAN_ENTRY = prefixed_stages('jordan-entry', desktop_entry('other-child', source='gdm', entry='fresh'))
 RILEY_ENTRY = prefixed_stages('riley-entry', desktop_entry('child', source='gdm', entry='fresh'))

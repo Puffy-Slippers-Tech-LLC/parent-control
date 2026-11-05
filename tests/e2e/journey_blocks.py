@@ -574,20 +574,22 @@ def parent_management(*, child='child'):
     }
 
 
-def app_policy_entry(*, child, allowance):
+def app_policy_entry(*, child, allowance, initial_rows=True):
     """Fresh Parent entry, caller-selected allowance and complete app rows.
 
     Callers own the initial/saved settings, balances and catalogue assertions.
     The allowance is an existing public operation, not a new time-profile route.
+    Histories that read a specific saved rule can omit the initial full catalogue.
     """
-    require(child == 'existing' and allowance == 'time-explanation-setup-thirty-read',
+    require(child == 'existing' and allowance == 'time-explanation-setup-thirty-read'
+            and type(initial_rows) is bool,
             'journey:app-policy-entry-binding')
     return {
         **fresh_desktop('parent'), **parent_management(child=child),
         'parent-selected': 'ui:existing-returned',
         'allowance-configured': 'ui:' + allowance,
         'saved-settings': 'ui:existing-returned', 'apps-page': 'ui:existing-apps',
-        'initial-rows': 'ui:existing-parent-app-rows',
+        **({'initial-rows': 'ui:existing-parent-app-rows'} if initial_rows else {}),
     }
 
 

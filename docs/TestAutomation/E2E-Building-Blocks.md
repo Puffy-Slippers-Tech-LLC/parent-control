@@ -5519,6 +5519,13 @@ account/profile, execution order, independent result endpoints and failure stop
 before later input. Inspect shared consumers when their contract changes;
 unchanged transport, decoding and recording need no renewed qualification.
 
+Match the supplied action names exactly to the final plan's `stage_actions`
+values, including after replacing or filtering a reused declaration. For native
+or Snap fixtures, a case that only verifies readiness uses
+`fixture_actions(include_refusal=False)`; independent wrong-entry refusal stays
+in its qualification. Preserve the shared exact-set guard rather than silently
+dropping unused actions to make composition pass.
+
 Check the reused external-provider helper's supported action before composing
 its caller; a discovered launcher does not imply that the provider offers an
 activation action. Reuse the qualified search/input/result operation. Also match

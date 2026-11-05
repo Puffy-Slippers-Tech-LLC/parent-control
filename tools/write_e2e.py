@@ -27,14 +27,18 @@ from launcher_git import (closeout_lock, commit_push_propagate,
                           git_output, worktree_snapshot, session_changes)
 
 
-PLAN = 'docs/TestAutomation/E2E-Execution-Plan.md'
+DEFAULT_PLAN = 'docs/TestAutomation/E2E-Execution-Plan.md'
+PLAN_B = 'docs/TestAutomation/E2E-Execution-PlanB.md'
+PLAN = DEFAULT_PLAN
 QUEUE = 'docs/TestAutomation/E2E-Task-Queue.md'
+NAMESPACE = None
+COMMAND = 'tools/write-e2e'
 MODEL_TIERS = (('gpt-6.1-sol', 'high'), ('gpt-6.1-sol', 'xhigh'),
                ('gpt-6.1-sol', 'max'))
 ADVISER_CONFIG = Path(__file__).resolve().with_name('write_e2e_adviser.toml')
 MAX_TASK_SESSIONS = 5
 OPTIMIZATION_INTERVAL = 3
-INITIAL_PROMPT = """Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md
+INITIAL_PROMPT = """Implement the next task in {plan}
 through host validation and the first live VM test. Close the task if it passes;
 if it fails, hand off the failure to the next session.
 """
@@ -116,6 +120,23 @@ investigate the previous failure before the session's acceptance attempt.
 """
 
 
+def configure_plan(planb=False):
+    """Select once per controller process, including private workers and reloads."""
+    from execution_plan import plan_namespace
+    global PLAN, QUEUE, NAMESPACE, COMMAND
+    PLAN = PLAN_B if planb else DEFAULT_PLAN
+    QUEUE = ('docs/TestAutomation/E2E-Task-QueueB.md' if planb
+             else 'docs/TestAutomation/E2E-Task-Queue.md')
+    NAMESPACE = plan_namespace(PLAN) if planb else None
+    COMMAND = 'tools/write-e2e' + (' --planb' if planb else '')
+
+
+def workflow_directory(root, *, create=False):
+    from test_storage import directory
+    base = directory('plans' if NAMESPACE else 'write-e2e', root=root, create=create)
+    return base / NAMESPACE if NAMESPACE else base
+
+
 def queue_state(root):
     from execution_plan import queue_state as read_queue
     return read_queue(root, PLAN, QUEUE)
@@ -125,7 +146,7 @@ def fresh_state(task):
     return {'task_id': task, 'phase': 'implement', 'live_attempts': 0,
             'task_sessions': 0, 'failed_attempts': 0, 'model_tier': 0,
             'summary': 'Implementation, host validation and the first live VM test remain.',
-            'handoff': INITIAL_PROMPT, 'in_flight': False, 'stage_candidates': []}
+            'handoff': INITIAL_PROMPT.format(plan=PLAN), 'in_flight': False, 'stage_candidates': []}
 
 
 def prerequisite_repair(root, state, before=None):
@@ -372,6 +393,8 @@ findings when available, checking them against current source and evidence.
 """
     common = f"""
 Task {task}: follow AGENTS.md and {PLAN}, using its scoped reading routes.
+Plan bookkeeping belongs only to {PLAN}, {QUEUE} and the selected task's brief.
+The other E2E plan has independent work and pointers; never close or select its tasks.
 Apply docs/Mandates/Test-Scope-Mandate.md before adding or restoring coverage;
 do not recreate excluded non-product tests for task briefs or old qualifications.
 This tools/write-e2e session stops at the phase boundary below.
@@ -497,7 +520,7 @@ Last safe handoff:
 {state['handoff']}
 """
     if state['phase'] == 'implement':
-        preparation = INITIAL_PROMPT + common + "\nImplement this task and complete host validation.\n"
+        preparation = INITIAL_PROMPT.format(plan=PLAN) + common + "\nImplement this task and complete host validation.\n"
     else:
         preparation = common + """
 Continue this task with the selected coordinator from the handoff and current source/evidence.
@@ -1009,7 +1032,7 @@ def save_handoff(run, state, reason, *, display=True, root=None):
     if state.get('pending_completion'):
         prompt = (f"Task {state['task_id']} passed acceptance and queue close-out; Git close-out remains. "
                   "Staging, its completion commit and/or git push remain. "
-                  "Restart tools/write-e2e to retry close-out from the retained result before "
+                  f"Restart {COMMAND} to retry close-out from the retained result before "
                   "starting the next task. Do not rerun acceptance.\n" + prompt)
     elif state['in_flight']:
         prompt = (
@@ -1034,7 +1057,7 @@ def save_handoff(run, state, reason, *, display=True, root=None):
         if state['phase'] == 'blocked':
             # The decision was already shown when the workflow paused. Keep the
             # engineering continuation in the file, including on stop/cancel.
-            text = f"Task {state['task_id']} is paused. Run tools/write-e2e to answer and continue."
+            text = f"Task {state['task_id']} is paused. Run {COMMAND} to answer and continue."
         AgentRenderer(sys.stdout).message(text)
         sys.stdout.flush()
 
@@ -1502,11 +1525,10 @@ def initial_state(root, directory, *, destination=None, defer_closeout=False):
 def reconcile_queue(root, identity, *, check=False):
     """Adopt an explicitly reviewed queue without executing or completing tasks."""
     from execution_plan import Plan
-    from test_storage import directory as storage_directory
 
     if not isinstance(identity, str) or re.fullmatch(r'[0-9a-f]{32}', identity) is None:
         raise ValueError('reconciliation needs the exact retained run ID')
-    directory = storage_directory('write-e2e', root=root, create=False)
+    directory = workflow_directory(root)
     # An administrative check must not create locks or allocate a new run.
     for name in ('gate', 'owner'):
         if not (directory / name).is_file():
@@ -1622,6 +1644,8 @@ def select(root, argv):
             epilog='Reviewed queue revisions: --reconcile RUN [--check] validates/adopts the '
                    'exact inactive checkpoint without executing tasks, models or VMs.')
         parser.add_argument('--vm', help='registered VM name or ID; omitted: configured enabled queue and concurrency')
+        parser.add_argument('--planb', action='store_true',
+                            help='run the independent E2E-Execution-PlanB.md queue')
         parser.add_argument('--closeout-only', action='store_true',
                             help='finish retained accepted Git close-out without starting a task session')
         add_options(parser, stop_help='finish the current session and stop before the next')
@@ -1681,13 +1705,17 @@ def select(root, argv):
         if initial_info:
             launcher.atomic(run / 'task-info.json', initial_info)
 
-    return launcher.select(root, 'write-e2e', command, stop='--stop' in argv, stop_marker='stop',
+    return launcher.select(root, 'plans' if NAMESPACE else 'write-e2e', command,
+                           namespace=NAMESPACE, launcher_name='write-e2e',
+                           stop_argv=['--planb', '--stop'] if NAMESPACE else ['--stop'],
+                           stop='--stop' in argv, stop_marker='stop',
                            on_attach=attach, on_start=start,
                            **({'reload': True} if '--reload' in argv else {}))
 
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    configure_plan('--planb' in argv)
     root = Path(__file__).resolve().parents[1]
     if any(option in ('--reconcile', '--check') or option.startswith('--reconcile=')
            for option in argv):
@@ -1696,6 +1724,7 @@ def main(argv=None):
         parser.add_argument('--reconcile', required=True, metavar='RUN',
                             help='exact inactive retained write-e2e run ID')
         parser.add_argument('--check', action='store_true', help='validate without changing the checkpoint')
+        parser.add_argument('--planb', action='store_true', help='reconcile only Plan B')
         args = parser.parse_args(argv)
         try:
             print(json.dumps(reconcile_queue(root, args.reconcile, check=args.check)))
@@ -1737,6 +1766,8 @@ def main(argv=None):
 
 if __name__ == '__main__':
     mode, root, run, owner, *options = sys.argv[1:]
+    from execution_plan import plan_namespace
+    configure_plan(Path(run).parent.name == plan_namespace(PLAN_B))
     if mode == '--worker':
         sys.exit(worker(Path(root), Path(run), int(owner), json.loads(options[0]), options[1]))
     if mode == '--supervise':

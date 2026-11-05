@@ -15,7 +15,7 @@ prerequisites, implementation and acceptance alongside these applicable owners:
 
 | Trigger | Required owner and execution rule |
 | --- | --- |
-| Selecting or resuming work | [Plan reading routes](E2E-Execution-Plan.md#load-only-the-selected-context); the first unchecked active queue row is authoritative. Prerequisite task IDs select delivered scope, not predecessor briefs or saved VM state. |
+| Selecting or resuming work | [Plan reading routes](E2E-Execution-Instructions.md#load-only-the-selected-context); the first unchecked active queue row is authoritative. Prerequisite task IDs select delivered scope, not predecessor briefs or saved VM state. |
 | Any implementation | [Shared support guide](../../tests/support/README.md), [bounded supporting work](E2E-Building-Blocks.md#keep-supporting-work-bounded) and [composition preflight](E2E-Building-Blocks.md#composition-preflight). Cases and qualifications call the same shared operations; callers retain their distinct assertions. |
 | Designing or revising a journey | [Product-focused journeys](#product-focused-journeys): retain product outcomes and necessary safety guards; remove incidental provider requirements from completed and unfinished coverage. |
 | VM timing, including unfinished and deferred consumers | [Timing and slow-VM resilience](../Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience). Apply it during composition preflight to setup, authentication, transitions, observations and recovery; each recipe retains only its finite inputs and product timing assertions. |
@@ -400,7 +400,7 @@ for its own validation task.
 
 The initial provider migration's regression rows **001r, 003r, 004r, 005r,
 002r, 235r and 151r** are historical delivered scope. Its gate is closed under
-the recorded [acceptance decision](E2E-Execution-Plan.md#current-scope).
+the recorded [acceptance decision](E2E-Execution-Instructions.md#current-scope).
 Preserve valid unchanged results. Later changes require affected checks and
 qualification within the regression scope above; the historical decision is
 not acceptance for newly changed code or additional registered cases.
@@ -570,7 +570,8 @@ implementation belongs to the current task's affected checks.
    [E2E-Scenario-Recipes.md](E2E-Scenario-Recipes.md) only if its composition or
    implementation context changed. Keep runtime status/bindings in the inventory
    and totals in generated coverage. A block slice alone does not complete a scenario.
-3. Check the completed task `[x]` in its canonical [queue](E2E-Task-Queue.md)
+3. Check the completed task `[x]` in the selected plan's canonical queue
+   ([Plan A](E2E-Task-Queue.md) or [Plan B](E2E-Task-QueueB.md))
    row only after all acceptance and close-out
    pass. Keep ID, delivered scope and prerequisites; remove resolved blockers.
    Preserve the machine-readable scope prefix (`Cases N;`, `Retained regression N;`
@@ -578,7 +579,9 @@ implementation belongs to the current task's affected checks.
    turn a scenario row into an apparent capability or lose its inventory mapping.
    Close only the selected row. A capability slice supplies no complete-scenario
    acceptance credit.
-4. Replace **Next task** with the following unchecked active queue row. Delete the
+4. Replace **Next task** in the selected master with its following unchecked
+   active queue row, or `Next task: none.` when exhausted. Leave the other
+   master and queue unchanged. Delete the
    completed brief once enduring context is in maintained source/contracts;
    replace its queue link with plain text. No later brief may require it.
    Preserve normal runner artifacts; create no archive, evidence document or

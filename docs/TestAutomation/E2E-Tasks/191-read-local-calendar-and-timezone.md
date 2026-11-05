@@ -4,7 +4,7 @@ Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-bri
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes. Follow the
-[session contract](../E2E-Execution-Plan.md#task-size-and-order).
+[session contract](../E2E-Execution-Instructions.md#task-size-and-order).
 
 ## Scope and prerequisites
 

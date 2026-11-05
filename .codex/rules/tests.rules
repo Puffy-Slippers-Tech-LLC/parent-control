@@ -154,13 +154,14 @@ prefix_rule(
 prefix_rule(
     pattern = [["git", "/usr/bin/git"],
                ["diff", "log", "show", "blame", "ls-files", "rev-parse",
-                "branch", "switch", "checkout", "restore", "add", "commit",
+                "branch", "switch", "checkout", "restore", "add", "write-tree", "commit",
                 "fetch", "pull", "push", "merge", "rebase", "cherry-pick",
                 "revert", "stash", "tag", "worktree", "remote"]],
     decision = "allow",
     justification = "The user preapproves routine Git development for this repository, including syncing, staging, committing and pushing.",
     match = [
         "git diff --cached", "git log -5 --oneline", "git add -- README.md",
+        "git write-tree",
         "git commit -m 'Update documentation'", "git fetch origin",
         "git pull --rebase", "git push origin HEAD", "/usr/bin/git push",
         "git switch -c feature/example", "git merge feature/example",

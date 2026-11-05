@@ -451,6 +451,12 @@ rules already allow `git status`. Run direct `git SUBCOMMAND` or
 tool's working directory. Setup maintains this allowance from
 [`config/codex-tests.rules`](../config/codex-tests.rules).
 
+The Git grant includes `git write-tree` for recording the staged tree during
+commit recovery. It writes Git objects and may lock the index, so it needs the
+same host execution route as staging and committing. Linked worktrees keep
+their Git metadata beneath the original repository's `.git/worktrees/`; this
+location does not change the selected branch.
+
 These prefixes trust Git, repository hooks and configuration. They neither
 enforce the working directory nor validate trailing arguments. Use them only
 for the authorized repository development task and preserve unrelated work;

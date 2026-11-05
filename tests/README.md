@@ -464,10 +464,13 @@ The repair agent can name one existing, relevant
 it exercises the failed operation and correction. Otherwise the launcher chooses
 a recent case, or just the first case in that selection. Missing case identity
 or uncertain relevance must not block selection or widen verification.
-If a retained attempted case is absent from the current inventory under the
+If a retained repair or attempted case is absent from the current inventory under the
 original selectors, discard that stale retry selection and choose an existing
 case by the same rule. The absent case receives neither passing nor failing
 credit; the replacement still needs its own fresh verification.
+This includes collection failures that name a module rather than an individual
+test. Retain the original repair's ownership for close-out; prefer a current test
+in that module for bounded verification.
 The launcher reruns that case
 and its required prerequisites through the case-only runner, for diagnostic
 execution and corrective verification alike. Each newly entered

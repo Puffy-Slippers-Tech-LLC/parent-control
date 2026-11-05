@@ -1005,10 +1005,24 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             return saved_failure()['failure']
         if repaired is not None:
             retry_vm = repaired['failure'][2]
+        cases = None
+        if repaired is not None and retry_case and category in CASE_RETRY_CATEGORIES:
+            from fix_tests_queue import case_inventory
+            cases = case_inventory(root, category, inventory[category]['args'])
+            if retry_case not in cases:
+                # Collection failures can name a module rather than a test.
+                # Keep its repair/ownership identity, but verify a current case
+                # freshly instead of waiting for an impossible module pass.
+                repaired['stale_case'] = retry_case
+                commits.save()
+                retry_case = ''
+            elif repaired.pop('stale_case', None) is not None:
+                commits.save()
         unidentified = bool(repaired is not None and not retry_case and category in CASE_RETRY_CATEGORIES)
         if unidentified:
             from fix_tests_queue import case_inventory
-            cases = case_inventory(root, category, inventory[category]['args'])
+            if cases is None:
+                cases = case_inventory(root, category, inventory[category]['args'])
             if not cases:
                 raise ValueError('case inventory unavailable for bounded verification')
             recent = latest_attempt or {}
@@ -1021,6 +1035,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 commits.save()
             candidates = [attempted, repaired.get('verification_case'),
                           recent.get('case') if recent.get('category') == category else None]
+            stale = repaired.get('stale_case')
+            if stale:
+                candidates.extend(case for case in cases if case.startswith(stale + '::'))
             position = run / 'case-progress.json'
             if position.exists():
                 previous = json.loads(position.read_text())
@@ -1609,7 +1626,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         entry = commits.state['repairs'].get(commits.key(target))
         from vm_selection import execution_binding
         target_vm = target[2] or (execution_binding() if not host_only_selection([(target[0], [])]) else '') or ''
-        if not target[1] and entry is not None:
+        if entry is not None and (not target[1] or entry.get('stale_case') == target[1]):
             if target[0] not in CASE_RETRY_CATEGORIES:
                 return (verification_outcome(failure, target) if failure is not None else
                         True if checkpoint.complete(target[0]) else None)

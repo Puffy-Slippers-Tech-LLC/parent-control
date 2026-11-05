@@ -783,11 +783,21 @@ New launcher close-outs use the repository's
 [`$commit` skill](../.agents/skills/commit/SKILL.md) for the full workflow through
 `launcher_git.commit_push_propagate()`. The shared boundary retains the repository
 lock, accepted task context, branch/upstream identity and configured destinations.
-The skill preserves unrelated work, journals Git writes and stops on conflicts,
-permission failures or failed pushes. It cannot edit task content or run new
-acceptance work during close-out. A blocker retains the accepted result and Git
-journal. Completion requires verified remote containment on the source and every
-destination, with the source checkout on its original branch.
+The skill preserves unrelated work and journals Git writes. Merge and saved-work
+restoration conflicts, including interrupted restorations, enter the skill's
+[automatic resolution procedure](../.agents/skills/commit/references/conflict-resolution.md)
+for the source or any destination. Its dedicated resolver may edit affected
+product, plan or test files and run the lowest effective affected validation
+through maintained launchers under existing authorization and ownership rules.
+Changed accepted inputs require revalidation; unchanged acceptance stays valid.
+This exception authorizes conflict repair, not another task or changed
+expectations. Destination active edits retain their index state and stay outside
+completion and merge commits. The journal records resolution and validation.
+Only exhausted resolution, unresolved intent/ownership, unauthorized behavior
+changes, unavailable permissions/prerequisites or failed pushes stop close-out.
+A blocker retains the accepted result and Git journal. Completion requires
+verified remote containment on the source and every destination, with the source
+checkout on its original branch.
 
 The following placement rules apply to both skill and retained mechanical
 transactions. The detailed controller stash/merge/resolver recovery below

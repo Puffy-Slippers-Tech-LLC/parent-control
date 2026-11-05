@@ -475,10 +475,23 @@ Accepted task scope and original branch identity:
 Session ownership and acceptance context (read only): {run / 'checkpoint.json'}
 Only the listed task paths are candidates, not proof of hunk ownership. Preserve
 all unrelated staged, unstaged and untracked work, including within those files.
-The task has already passed its checks and cleanup. Do not edit product code,
-plans or tests, run tests/VM operations, or change acceptance in this Git session.
-Use the suggested commit message. If reconciliation changes accepted task content
-or ownership is ambiguous, stop blocked so the coordinator can review it.
+The task has already passed its checks and cleanup. Preserve that acceptance;
+do not repeat unchanged checks, implement another task or change expectations.
+Use the suggested commit message. For merge or saved-work restoration conflicts,
+follow the skill's automatic conflict-resolution procedure, including its
+dedicated resolver and bounded continuation. Conflict resolution may edit the
+affected product, plan or test files and run the lowest effective affected checks
+through maintained launchers, including required VM validation under the existing
+VM authorization and ownership rules. This narrow exception applies to conflicts
+in the source and every destination, including an interrupted restoration in the
+previous journal. Preserve both intentions and all unrelated work, and revalidate
+accepted inputs changed by resolution before continuing Git close-out. Keep
+destination active edits out of completion/merge commits and restore their index
+state. Journal the resolution and affected validation results. A conflict alone
+is not a blocker; continue automatically within the skill's attempt limit.
+Stop blocked if resolution is exhausted, intent or ownership remains ambiguous,
+validation needs an unauthorized behavior change, or permissions/prerequisites
+prevent progress. Never bypass a denial or weaken acceptance.
 
 Durable recovery journal: {receipt}
 Previous journal: {json.dumps(previous)}

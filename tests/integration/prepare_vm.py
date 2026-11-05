@@ -294,10 +294,9 @@ def _read_os_release(path: Path) -> dict[str, str]:
 
 def release_identity(release):
     os_id, version = release.get('ID'), release.get('VERSION_ID')
-    if ((os_id, version) == ('ubuntu', UBUNTU_VERSION) or
-            ((os_id, version) == ('fedora', '44') and release.get('VARIANT_ID') == 'workstation')):
-        return os_id, version
-    raise PreparationError('guard:os', 'requires Ubuntu 26.04 or Fedora Workstation 44')
+    if not os_id or not version:
+        raise PreparationError('guard:os', 'guest release identity is unavailable')
+    return os_id, version
 
 
 def administrator_groups(os_id):
@@ -309,16 +308,8 @@ def administrator_groups(os_id):
 
 
 def inspected_release(g, root):
-    """Bind offline inspection to the same supported release as guest setup."""
-    identity = (g.inspect_get_distro(root), g.inspect_get_major_version(root),
-                g.inspect_get_minor_version(root))
-    if identity == ('ubuntu', 26, 4):
-        return 'ubuntu', UBUNTU_VERSION
-    if identity == ('fedora', 44, 0):
-        release = release_identity(parse_os_release(g.read_file('/etc/os-release').decode('utf-8')))
-        if release == ('fedora', '44'):
-            return release
-    raise PreparationError('guard:os', 'requires Ubuntu 26.04 or Fedora Workstation 44')
+    """Read the mounted guest identity without an OS compatibility gate."""
+    return release_identity(parse_os_release(g.read_file('/etc/os-release').decode('utf-8')))
 
 
 def selinux_policy(contents):
@@ -833,9 +824,7 @@ def validate_marker(document: dict[str, object], *, os_id=None, current_dependen
         raise PreparationError("marker:schema", "preparation record guest identity is invalid")
     if (platform not in ('ubuntu', 'fedora')
             or (document['schema_version'] == 3 and platform != 'fedora')
-            or guest['hostname'] != HOSTNAME or (os_id is not None and os_id != platform) or
-            (platform == 'ubuntu' and guest['version' if explicit else 'ubuntu_version'] != UBUNTU_VERSION) or
-            (platform == 'fedora' and (guest['os_id'], guest['version']) != ('fedora', '44'))):
+            or guest['hostname'] != HOSTNAME or (os_id is not None and os_id != platform)):
         raise PreparationError("marker:schema", "preparation record guest identity is invalid")
     dependencies = document['test_dependencies']
     if (not isinstance(dependencies, dict)

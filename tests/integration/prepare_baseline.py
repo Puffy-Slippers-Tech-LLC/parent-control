@@ -541,10 +541,7 @@ def inspect_guest(guestfs, disk, script_digest):
         require("/" in mounts, "guest:mounts")
         for mount in sorted(mounts, key=lambda value: (len(value), value)):
             g.mount_ro(mounts[mount], mount)
-        try:
-            os_id, version = guest_contract.inspected_release(g, roots[0])
-        except guest_contract.PreparationError:
-            require(False, 'guest:release; requires Ubuntu 26.04 or Fedora Workstation 44')
+        os_id, version = guest_contract.inspected_release(g, roots[0])
         marker_path = str(guest_contract.MARKER)
         info = g.lstatns(marker_path)
         require(stat.S_ISREG(info["st_mode"]) and stat.S_IMODE(info["st_mode"]) == 0o600 and

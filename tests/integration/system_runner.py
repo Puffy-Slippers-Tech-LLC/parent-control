@@ -299,9 +299,9 @@ def error_category(error):
 
 def package_format(guest):
     """Select from the verified baseline, never the VM's display name."""
-    if guest.get('ubuntu_version') == '26.04':
+    if guest.get('os_id') == 'ubuntu' or 'ubuntu_version' in guest:
         return 'deb'
-    if guest.get('os_id') == 'fedora' and guest.get('version') == '44':
+    if guest.get('os_id') == 'fedora':
         return 'rpm'
     raise Error('guest:unsupported-package-platform')
 
@@ -1930,16 +1930,12 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False,
     lease.save('ssh-bootstrap')
     with mounted_guest(guestfs, lease, with_root=True) as (g, root):
         os_id, version = baseline.guest_contract.inspected_release(g, root)
-        require(not e2e_product_free or ((os_id, version) in (('ubuntu', '26.04'), ('fedora', '44'))
-                and os_id == guest_target(lease.capture.state['guest'])),
+        require(not e2e_product_free or os_id == guest_target(lease.capture.state['guest']),
                 'fixtures:e2e-product-free-target-not-qualified')
-        require(not e2e_installed or ((os_id, version) in (('ubuntu', '26.04'), ('fedora', '44'))
-                and os_id == guest_target(lease.capture.state['guest'])),
+        require(not e2e_installed or os_id == guest_target(lease.capture.state['guest']),
                 'fixtures:e2e-installed-target-not-qualified')
-        require(not system_product_free or (os_id, version) in (('ubuntu', '26.04'), ('fedora', '44')),
+        require(not system_product_free or os_id == guest_target(lease.capture.state['guest']),
                 'fixtures:system-product-free-target-not-qualified')
-        require(not system_installed or (os_id, version) in (('ubuntu', '26.04'), ('fedora', '44')),
-                'fixtures:system-installed-target-not-qualified')
         require(not system_installed or os_id == guest_target(lease.capture.state['guest']),
                 'fixtures:system-installed-target-not-qualified')
         package = directory / 'input' / ('package.rpm' if os_id == 'fedora' else 'package.deb')

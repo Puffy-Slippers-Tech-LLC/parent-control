@@ -31,8 +31,6 @@ def validate_marker_document(document: object, expected_name: str) -> dict:
         raise GuardError("disposable-VM marker has the wrong purpose")
     if document["name"] != expected_name:
         raise GuardError("disposable-VM marker does not match the selected VM")
-    if document["ubuntu_version"] != "26.04":
-        raise GuardError("disposable-VM marker has the wrong Ubuntu version")
     if not isinstance(document["token"], str) or re.fullmatch(
             r"[0-9a-f]{32}", document["token"]) is None:
         raise GuardError("disposable-VM marker token is invalid")
@@ -65,16 +63,6 @@ def validate_runtime(expected_name: str) -> dict:
     )
     if virtual.returncode != 0:
         raise GuardError("refusing to alter a machine that is not a virtual machine")
-    values = {}
-    try:
-        for line in Path("/etc/os-release").read_text(encoding="utf-8").splitlines():
-            if "=" in line:
-                key, value = line.split("=", 1)
-                values[key] = value.strip().strip('"')
-    except OSError as error:
-        raise GuardError(f"could not identify the guest OS: {error}") from error
-    if values.get("ID") != "ubuntu" or values.get("VERSION_ID") != "26.04":
-        raise GuardError("host-altering tests require Ubuntu 26.04")
     if os.uname().nodename != expected_name:
         raise GuardError("guest hostname does not match the selected disposable VM")
     return marker

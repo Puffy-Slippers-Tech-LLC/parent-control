@@ -621,9 +621,8 @@ class Provisioner:
             require(readiness.binding['subsets'] in (
                         ['trusted-hard'],
                         ['activity', 'baseline-child', 'native', 'trusted-hard'])
-                    and self._request['target'] in (
-                        {'os': 'ubuntu', 'release': '26.04', 'architecture': 'x86_64'},
-                        {'os': 'fedora', 'release': '44', 'architecture': 'x86_64'}),
+                    and self._request['target']['os'] in ('ubuntu', 'fedora')
+                    and self._request['target']['architecture'] == 'x86_64',
                     'reboot-renewal-not-qualified')
             boot = self._boot()
             require(boot != readiness.binding['boot_sha256'], 'reboot-required')

@@ -83,6 +83,11 @@ credentials fail before privilege dispatch or VM access. The old `make prepare-v
 target, `make prepare-baseline` alias and `./setup.sh --prepare-baseline` mode
 have been removed.
 
+Preparation and test runners read `/etc/os-release` to select distribution-specific
+operations and record guest identity, without checking an OS version or Workstation variant.
+This does not establish compatibility with other guests; dependency and package
+installation checks still apply.
+
 The required `--mode` accepts only `auto` or `manual`, with no default. Missing
 options or values print help and examples. Help and the red warnings reuse the
 same bullet lists of steps. Both modes refuse a VM after checkout

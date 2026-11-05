@@ -67,10 +67,9 @@ def package_format():
     release = dict(line.split('=', 1) for line in Path('/etc/os-release').read_text().splitlines()
                    if '=' in line)
     values = {key: value.strip('"') for key, value in release.items()}
-    if values.get('ID') == 'ubuntu' and values.get('VERSION_ID') == '26.04':
+    if values.get('ID') == 'ubuntu':
         return 'deb'
-    require(values.get('ID') == 'fedora' and values.get('VERSION_ID') == '44'
-            and values.get('VARIANT_ID') == 'workstation', 'package-platform')
+    require(values.get('ID') == 'fedora', 'package-platform')
     return 'rpm'
 
 

@@ -228,8 +228,7 @@ AUDIT = r'''import grp,hashlib,json,os,pathlib,pwd,re,stat,subprocess,sys
 data=json.load(sys.stdin)
 release=dict(line.split('=',1) for line in pathlib.Path('/etc/os-release').read_text().splitlines() if '=' in line)
 platform={'os':release['ID'].strip('"'),'release':release['VERSION_ID'].strip('"'),'architecture':os.uname().machine}
-assert platform in ({'os':'ubuntu','release':'26.04','architecture':'x86_64'},
- {'os':'fedora','release':'44','architecture':'x86_64'}),'audit-platform'
+assert platform['os'] in ('ubuntu','fedora') and platform['architecture']=='x86_64','audit-platform'
 fedora=platform['os']=='fedora'
 cli=('/usr/bin' if fedora else '/usr/sbin')+'/fapolicyd-cli'
 def command(argv):

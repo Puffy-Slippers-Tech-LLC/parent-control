@@ -82,9 +82,7 @@ def verify_runtime_trust(variant, preparation, *, variants=('trusted-hard',)):
     prepared_guest = preparation['guest']
     guest.require(variants in (('trusted-hard',), TRUSTED_VARIANTS)
                   and variant in variants
-                  and prepared_guest.get('os_id', 'ubuntu') == platform
-                  and (platform, prepared_guest.get('version', prepared_guest.get('ubuntu_version')))
-                      in (('ubuntu', '26.04'), ('fedora', '44')),
+                  and prepared_guest.get('os_id', 'ubuntu') == platform,
                   'trusted-fixtures:runtime-selection')
     files = {}
     for identity in variants:

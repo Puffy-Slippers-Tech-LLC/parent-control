@@ -24,9 +24,9 @@ NAME = 'fixture-maintenance.json'
 def target_for(lease):
     guest = lease.capture.state['guest']
     _require(guest.get('fixture_boundary') == 'clean', 'clean-baseline-required')
-    if guest.get('ubuntu_version') == '26.04':
+    if guest.get('os_id') == 'ubuntu' or 'ubuntu_version' in guest:
         return 'ubuntu'
-    _require(guest.get('os_id') == 'fedora' and guest.get('version') == '44',
+    _require(guest.get('os_id') == 'fedora',
              'target-not-qualified')
     return 'fedora'
 

@@ -280,7 +280,7 @@ def test_fixture_refresh_persists_generation_across_owned_cli_calls(fixture_main
 
 
 @pytest.mark.parametrize('fault', ['installed', 'release', 'wrong-input'])
-def test_fedora_fixture_refresh_refuses_incompatible_baseline_or_input(
+def test_fedora_fixture_refresh_checks_baseline_and_input_without_release_gate(
         fixture_maintenance_rig, fault):
     rig = fixture_maintenance_rig
     guest = rig.lease.capture.state['guest']
@@ -290,6 +290,9 @@ def test_fedora_fixture_refresh_refuses_incompatible_baseline_or_input(
         guest['fixture_boundary'] = 'installed'
     elif fault == 'release':
         guest['version'] = '43'
+        rig.maintenance.initialize(rig.lease, transport=rig.transport)
+        assert not rig.writes
+        return
     with pytest.raises(runner.Error, match='fixture-maintenance:'):
         if fault == 'wrong-input':
             rig.maintenance.synchronize(rig.lease, rig.a,

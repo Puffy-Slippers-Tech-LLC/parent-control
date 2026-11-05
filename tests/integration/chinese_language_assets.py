@@ -185,7 +185,7 @@ def font_coverage(data):
 
 
 def platform(g, os_id=None):
-    """Pin the canonical release file, including Fedora's Workstation variant."""
+    """Read the distribution used for package and SELinux operations."""
     fields = {}
     for line in read(g, '/usr/lib/os-release', 64 * 1024).decode().splitlines():
         if '=' not in line or line.startswith('#'):
@@ -194,9 +194,7 @@ def platform(g, os_id=None):
         require(key not in fields, 'release')
         fields[key] = value.strip('"\'')
     found = fields.get('ID')
-    require((found, fields.get('VERSION_ID')) == ('ubuntu', '26.04') or
-            (found, fields.get('VERSION_ID'), fields.get('VARIANT_ID')) ==
-            ('fedora', '44', 'workstation'), 'unsupported-platform')
+    require(found in ('ubuntu', 'fedora'), 'unsupported-platform')
     require(os_id is None or os_id == found, 'unsupported-platform')
     if found == 'fedora':
         config = read(g, '/etc/selinux/config', 64 * 1024).decode()
@@ -362,8 +360,7 @@ def verify_transport(transport):
 
 
 def validate_receipt(value):
-    require(type(value) is dict and (value.get('os_id'), value.get('release'))
-            in (('ubuntu', '26.04'), ('fedora', '44')), 'receipt-platform')
+    require(type(value) is dict and value.get('os_id') in ('ubuntu', 'fedora'), 'receipt-platform')
     fedora = value['os_id'] == 'fedora'
     require(type(value) is dict and set(value) == {
         'profile', 'os_id', 'release', 'locale', 'provider', 'packages',

@@ -174,8 +174,8 @@ def baseline_inputs(lease):
     require(baseline_sha256 == lease.state['baseline_sha256'],
             'provenance:baseline-identity-changed')
     guest = state['guest']
-    ubuntu = guest.get('ubuntu_version') == '26.04'
-    fedora = guest.get('os_id') == 'fedora' and guest.get('version') == '44'
+    ubuntu = guest.get('os_id') == 'ubuntu' or 'ubuntu_version' in guest
+    fedora = guest.get('os_id') == 'fedora'
     require(ubuntu or fedora, 'provenance:environment')
     # A safe content identity of the verified guest preparation, including its
     # account contract. Never export raw baseline/account records.

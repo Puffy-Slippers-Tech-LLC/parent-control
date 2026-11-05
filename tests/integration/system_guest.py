@@ -105,12 +105,7 @@ def guard(*, expected_selinux='Enforcing'):
     check_prepared_hostname(marker['preparation_sha256'], Path('/etc/hostname').read_text().strip())
     release = dict(line.split('=', 1) for line in Path('/etc/os-release').read_text().splitlines()
                    if '=' in line)
-    ubuntu = (release.get('ID', '').strip('"') == 'ubuntu' and
-              release.get('VERSION_ID', '').strip('"') == '26.04')
-    fedora = (release.get('ID', '').strip('"') == 'fedora' and
-              release.get('VERSION_ID', '').strip('"') == '44' and
-              release.get('VARIANT_ID', '').strip('"') == 'workstation')
-    require(ubuntu or fedora, 'release')
+    fedora = release.get('ID', '').strip('"') == 'fedora'
     require(fedora or expected_selinux == 'Enforcing', 'selinux-expected-state')
     package = PAYLOAD / ('package.rpm' if fedora else 'package.deb')
     require(package == package_path(), 'package-platform')

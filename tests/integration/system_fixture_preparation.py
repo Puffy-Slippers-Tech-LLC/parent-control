@@ -25,9 +25,9 @@ def attempt_id(directory):
 
 def guest_target(guest):
     if guest.get('fixture_boundary') == 'clean':
-        if guest.get('ubuntu_version') == '26.04':
+        if guest.get('os_id') == 'ubuntu' or 'ubuntu_version' in guest:
             return 'ubuntu'
-        if (guest.get('os_id'), guest.get('version')) == ('fedora', '44'):
+        if guest.get('os_id') == 'fedora':
             return 'fedora'
     return None
 

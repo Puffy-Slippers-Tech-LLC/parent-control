@@ -66,10 +66,6 @@ def mounted(guestfs, capture):
         require('/' in mounts, 'guest:mounts')
         for point in sorted(mounts, key=lambda value: (len(value), value)):
             g.mount(mounts[point], point)
-        try:
-            prepare_vm.inspected_release(g, roots[0])
-        except prepare_vm.PreparationError:
-            require(False, 'guest:release; requires Ubuntu 26.04 or Fedora Workstation 44')
         yield g
         g.sync()
     finally:

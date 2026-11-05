@@ -595,8 +595,7 @@ def target():
             values[key] = value.strip('"')
     result = {'os': values.get('ID'), 'release': values.get('VERSION_ID'),
               'architecture': os.uname().machine}
-    require((result['os'], result['release'], result['architecture']) in
-            (('ubuntu', '26.04', 'x86_64'), ('fedora', '44', 'x86_64')), 'target')
+    require(result['os'] in ('ubuntu', 'fedora') and result['architecture'] == 'x86_64', 'target')
     return result
 
 

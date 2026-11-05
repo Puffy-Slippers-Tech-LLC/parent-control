@@ -763,6 +763,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          challenges=False, challenge_profile='parent', product_free_entry=False, package_authority=False,
          upgrade_assets=False, package_upgrade=False, chinese_kiosk_lifecycle=False,
          package_install=False, customer_reboot=False, app_row_observations=False, native_fixtures=False,
+         fixture_profile='native',
          catalogue_search=False, catalogue_filters=False, policy_legend=False, match_save_cancel=False,
          match_editor=False, access_choices=False, policy_edit=False, named_app_set=False, rejected_parent_rule=False,
          feedback_read=False, text_qualification=False, allowance_presets=False, allowance=False,
@@ -1049,6 +1050,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     if name not in ('assets', 'provision_credentials', 'app_row_observations',
                                     'native_fixtures', 'catalogue_search', 'catalogue_filters', 'policy_legend', 'match_save_cancel', 'match_editor', 'access_choices', 'policy_edit', 'named_app_set', 'rejected_parent_rule') and isinstance(value, bool)))),
         'smoke:native-fixtures-prerequisites')
+    require(fixture_profile in ('native', 'snap') and
+            (fixture_profile == 'native' or native_fixtures and not any((catalogue_search,
+             catalogue_filters, policy_legend, match_save_cancel, match_editor, access_choices,
+             policy_edit, named_app_set, rejected_parent_rule))), 'smoke:fixture-profile')
     require(type(public_connectivity_controls) is bool and (not public_connectivity_controls or (
         assets is not None and provision_credentials and parent_toggle
         and fresh_desktop is None and approval_flow is None
@@ -1778,6 +1783,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-app-row-observations-qualification'
         if native_fixtures:
             result['scope'] = 'installed-native-fixtures-qualification'
+            if fixture_profile == 'snap':
+                result['scope'] = 'installed-snap-fixtures-qualification'
         if native_grid_usable:
             result['scope'] = 'installed-native-grid-usable-qualification'
         if riley_native_grid:
@@ -2314,6 +2321,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if native_fixtures:
                     from parent_setup_qualification import NativeFixtureQualification
                     qualification_class = NativeFixtureQualification
+                    if fixture_profile == 'snap':
+                        from parent_setup_qualification import SnapFixtureQualification
+                        qualification_class = SnapFixtureQualification
                 if native_grid_usable:
                     from parent_setup_qualification import NativeGridQualification
                     qualification_class = NativeGridQualification

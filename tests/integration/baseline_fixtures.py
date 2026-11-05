@@ -35,6 +35,35 @@ NATIVE_RULES_SOURCE_PATTERN = (
     r'/usr/share/(?:fapolicyd|doc/fapolicyd)/(?:[A-Za-z0-9_.+-]+/)*95-allow-open[.]rules')
 
 
+def verify_snaps(g):
+    """Offline capture proof; attempts additionally query the active Snap state."""
+    from tests.fixtures import snap_assets
+    from baseline_snaps import RECORD as snap_record, PURPOSE as snap_purpose, validate_hashes
+    path = str(snap_record)
+    regular(g, path, 0, 0, 0o600)
+    require(g.filesize(path) < 65536, 'snap-record')
+    record = json.loads(g.read_file(path))
+    marker = json.loads(g.read_file(str(prepare_vm.MARKER)))
+    require(type(record) is dict and set(record) == {'purpose', 'source', 'files', 'pending'}
+            and record['purpose'] == snap_purpose and record['pending'] is None
+            and record['source'] == marker['preparation_script_sha256'], 'snap-record')
+    validate_hashes(record['files'])
+    for _, name, _ in snap_assets.ASSETS:
+        candidates = g.glob_expand('/var/lib/snapd/snaps/' + name + '_*.snap')
+        require(type(candidates) is list and len(candidates) <= 10, 'snap-revisions')
+        matches = []
+        for candidate in candidates:
+            require(re.fullmatch('/var/lib/snapd/snaps/' + name + r'_(?:x)?[1-9][0-9]*[.]snap',
+                                 candidate) is not None, 'snap-revision')
+            info = g.lstatns(candidate)
+            regular(g, candidate, 0, 0, stat.S_IMODE(info['st_mode']))
+            require(not info['st_mode'] & 0o022, 'snap-blob-owner')
+            if g.checksum('sha256', candidate) == record['files'][name + '.snap']:
+                matches.append(candidate)
+        require(len(matches) == 1, 'snap-installed-digest')
+    return record
+
+
 def environment_files(identities, os_id='ubuntu'):
     from tests.fixtures.baseline_environment import (
         desktop_settings_files, automatic_update_files, native_policy_files)

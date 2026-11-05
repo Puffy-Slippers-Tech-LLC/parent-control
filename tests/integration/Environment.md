@@ -224,6 +224,7 @@ still require shared environment preparation before use.
 | Trusted hard/soft native witnesses | Legacy captures: `baseline_assets.TRUSTED_NATIVE`, fixture reconciler and `native_trust` provenance. Clean Ubuntu/Fedora captures contain neither payload nor exact fixture admission. |
 | Supporting screen-time and retained activity | Legacy captures: `native_assets.ACTIVITY_EXECUTABLE` and its two private GUI modules retain exact file-trust identities. Clean Ubuntu/Fedora keep these movable inputs on the host. |
 | Product package and installed app snapshot | Existing product-installation lifecycle; the baseline stays product-free |
+| Three strict system-wide Snap fixture apps and their signed `core26` base | [Finite Snap declaration](../../docs/TestAutomation/E2E-Building-Blocks.md#snap-fixture-preparation), reconciled only by `tools/prepare-vm`; FIX06 reads installed identities without repair. Copied build sources and transfer bytes are retired before capture. |
 | Private SSH identity, worker transport and evidence | Per-attempt ownership and cleanup |
 | Synthetic attachment/copy/rename/save-error inputs, future binaries and launcher removal | Deliberate scenario mutations at their declared checkpoints; preserve independent-entry and cleanup checks |
 | Dynamic accounts, directory-service configuration, keyring challenges and fault injection | Scenario-owned state; reusable dependencies still belong in baseline |

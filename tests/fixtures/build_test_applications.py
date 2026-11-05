@@ -30,6 +30,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from tests.fixtures.native_assets import (ASSETS as NATIVE_ASSETS, LAUNCHERS, TRUSTED_NATIVE, GUI_DIRECTORIES,
     LEGACY_S, desktop_id, desktop_entry, executable_path, version_pattern)
+from tests.fixtures import snap_assets
 SOURCE = Path(__file__).with_name("onpc_test_application.c")
 GUI_SOURCE = Path(__file__).with_name("gui_application.py")
 GTK_AUTOMATION_SOURCE = ROOT / "common/oh_no_parent_control_ui/gtk_automation.py"
@@ -365,6 +366,22 @@ def _build_snap(output: Path, runtime: Path, triplet: str, loader: Path) -> None
     _run(['mksquashfs', str(stage), str(output / 'onpc-test-application.snap'),
           '-noappend', '-all-root', '-no-xattrs', '-no-progress', '-processors', '1',
           '-mkfs-time', '0', '-all-time', '0'], environment=squashfs_environment)
+    # Reuse the exact runtime without a second packaging implementation. Each
+    # role has its own real Snap package/app/desktop identity and payload digest.
+    for role, name, title in snap_assets.ASSETS:
+        _write_text(stage / 'meta/snap.yaml', snap_assets.metadata(name, architecture))
+        (stage / 'meta/gui/onpc-test-application.desktop').unlink(missing_ok=True)
+        for previous in stage.glob('meta/gui/onpc-fixture-*.desktop'):
+            previous.unlink()
+        _write_text(stage / f'meta/gui/{name}.desktop',
+            f'[Desktop Entry]\nType=Application\nName={title}\n'
+            f'Exec={name}\nTerminal=false\n')
+        _write_text(stage / 'fixture-role', role + '\n')
+        _run(['snap', 'pack', '--check-skeleton', str(stage)])
+        _set_reproducible_times(stage)
+        _run(['mksquashfs', str(stage), str(output / (name + '.snap')),
+              '-noappend', '-all-root', '-no-xattrs', '-no-progress', '-processors', '1',
+              '-mkfs-time', '0', '-all-time', '0'], environment=squashfs_environment)
 
 
 def build(output: Path) -> None:

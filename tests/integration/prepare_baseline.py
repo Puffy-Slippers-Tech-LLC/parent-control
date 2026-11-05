@@ -599,6 +599,9 @@ def inspect_guest(guestfs, disk, script_digest):
         if clean:
             verify_clean(g, allow_prior_native_policy=(
                 script_digest != guest_contract.preparation_digest()))
+            if script_digest == guest_contract.preparation_digest():
+                from baseline_fixtures import verify_snaps
+                verify_snaps(g)
             from baseline_guest import verify_clean_sources
             verify_clean_sources(g)
         else:

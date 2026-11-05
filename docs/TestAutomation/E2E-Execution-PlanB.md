@@ -15,7 +15,7 @@ Task queue: [Plan B ordered checklist](E2E-Task-QueueB.md).
 
 ## Next task
 
-Next task: **109p — [Prepare the declared Snap fixtures in the baseline](E2E-Tasks/109p-snap-fixtures.md)**.
+Next task: **109b — [Launch and use Snap fixtures by command](E2E-Tasks/109b-snap-command-usable.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. The checked baseline records

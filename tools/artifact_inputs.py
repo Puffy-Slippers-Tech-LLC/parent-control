@@ -16,18 +16,20 @@ SCHEMA = 1
 FIXTURE_SOURCES = (
     'tests/__init__.py', 'tests/fixtures/__init__.py',
     'tests/fixtures/build_test_applications.py', 'tests/fixtures/gui_runtime.py',
-    'tests/fixtures/native_assets.py',
+    'tests/fixtures/native_assets.py', 'tests/fixtures/snap_assets.py',
     'tests/fixtures/gui_application.py', 'tests/fixtures/onpc_test_application.c',
     'common/oh_no_parent_control_ui/gtk_automation.py',
 )
 FIXTURE_IMPORTS = ('tests/__init__.py', 'tests/fixtures/__init__.py',
-                   'tests/fixtures/gui_runtime.py', 'tests/fixtures/native_assets.py')
+                   'tests/fixtures/gui_runtime.py', 'tests/fixtures/native_assets.py',
+                   'tests/fixtures/snap_assets.py')
 # The movable native runtime has no product, Flatpak, Snap or copied Python
 # dependency. Keep this finite closure separate from the legacy full builder.
 NATIVE_RUNTIME_SOURCES = (
     'tests/__init__.py', 'tests/fixtures/__init__.py',
     'tests/fixtures/build_test_applications.py',
     'tests/fixtures/baseline_assets.py', 'tests/fixtures/native_assets.py',
+    'tests/fixtures/snap_assets.py',
     'tests/fixtures/baseline_environment.py',
     'tests/fixtures/gui_application.py', 'tests/fixtures/onpc_test_application.c',
     'common/oh_no_parent_control_ui/gtk_automation.py',

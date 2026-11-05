@@ -30,6 +30,7 @@ publishing_tests
 ppa_build
 sync_whatsnew
 about_dialog
+baseline_snap_safety
 adapters
 app_policy
 app_termination

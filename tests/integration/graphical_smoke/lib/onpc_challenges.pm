@@ -203,9 +203,7 @@ sub natural_expiry {
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
     onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
     $journey->invoke('natural-expiry');
-    $journey->consume_observation('lock-input-ready', $journey->invoke('lock-input-ready'));
-    testapi::send_key('shift');
-    $journey->invoke('lock-result');
+    onpc_desktop_session::verify_locked_input($journey, 'lock-input-ready', 'lock-result');
     $journey->finish();
 }
 
@@ -271,9 +269,7 @@ sub countdown_activity {
     $journey->invoke('minute-progression') if $minute_edges;
     $journey->invoke($_) for qw(final-second-transition second-progression
         independent-second-progression natural-expiry);
-    $journey->consume_observation('lock-input-ready', $journey->invoke('lock-input-ready'));
-    testapi::send_key('shift');
-    $journey->invoke('lock-result');
+    onpc_desktop_session::verify_locked_input($journey, 'lock-input-ready', 'lock-result');
     $journey->finish();
 }
 
@@ -300,9 +296,7 @@ sub grant_work_recovery {
     onpc_app_rows::native_usable_app($soft, 'command', $soft->seen('desktop'), 'child', 'S');
     onpc_app_rows::native_read_activity($journey, 'soft-capture');
     $journey->invoke('natural-expiry');
-    $journey->consume_observation('lock-input-ready', $journey->invoke('lock-input-ready'));
-    testapi::send_key('shift');
-    $journey->invoke('lock-result');
+    onpc_desktop_session::verify_locked_input($journey, 'lock-input-ready', 'lock-result');
     onpc_desktop_session::enter_desktop($journey, 'locked', 'child', 'lock', 'time-denied', 'denial');
     $journey->seen($_) for qw(return-greeter denied-returned retained-before);
     onpc_request_flow::prepare($journey, 'new', 'new', 'observed',
@@ -342,9 +336,7 @@ sub natural_access {
     $journey->invoke($_) for qw(before-animation animation-set animation-read);
     onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
     $journey->invoke('natural-expiry');
-    $journey->consume_observation('lock-input-ready', $journey->invoke('lock-input-ready'));
-    testapi::send_key('shift');
-    $journey->invoke('lock-result');
+    onpc_desktop_session::verify_locked_input($journey, 'lock-input-ready', 'lock-result');
     my $denied = onpc_desktop_session::reveal_lock($journey, 'time-denied');
     $journey->consume_observation('time-denied', $denied);
     $journey->seen($_) for qw(return-greeter denied-returned retained-before);

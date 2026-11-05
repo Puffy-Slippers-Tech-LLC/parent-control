@@ -197,8 +197,44 @@ class Transport:
         self.lease = lease
         if lease is not None:
             lease.shutdown_request = self.poweroff
-            from product_logs import capture
-            lease.product_log_capture = lambda: capture(self)
+            lease.product_log_capture = self.capture_product_logs
+
+    def capture_product_logs(self):
+        """Host-owned capture before shutdown/restoration; no public log output."""
+        import product_logs
+        directory = Path(self.commands.directory) / 'product-logs'
+        directory.mkdir(mode=0o700, exist_ok=True)
+        if hasattr(self, 'product_logs_per_case'):
+            # Guest pytest captured each case, including cases sharing one area VM.
+            # Transfer independently of the larger collector, which may itself fail.
+            try:
+                raw = self.call(['tar', '-C', '/var/tmp/onpc-system-input/private/product-logs',
+                                 '-cf', '-', '.'], timeout=60,
+                                diagnostic_stdout=transfer_diagnostic)
+            except Error:
+                # Pytest/SSH may have failed before the first teardown. Preserve
+                # the live guest's logs rather than depending on a missing payload.
+                pass
+            else:
+                # Archive safety refusals are collection failures, never a reason
+                # to silently replace the completed cases' evidence with live logs.
+                extract(raw, directory)
+                if self.product_logs_per_case:
+                    return
+        program = Path(product_logs.__file__).read_text()
+        for component in product_logs.COMPONENTS:
+            raw = self.call(['/usr/bin/python3', '-I', '-c', program, component],
+                            timeout=20, diagnostic_stdout=transfer_diagnostic)
+            fd = os.open(directory / (component + '.log'),
+                         os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+            with os.fdopen(fd, 'wb') as stream:
+                info = os.fstat(stream.fileno())
+                if not (stat.S_ISREG(info.st_mode) and info.st_nlink == 1
+                        and info.st_uid == os.geteuid()):
+                    raise OSError('unsafe product log destination')
+                stream.truncate()
+                os.fchmod(stream.fileno(), 0o600)
+                stream.write(raw)
 
     @observed('Requesting VM shutdown through its owned SSH transport')
     def poweroff(self):

@@ -287,6 +287,13 @@ supplies snapshot infrastructure acceptance only.
 
 ## Host and guest boundaries
 
+`product_logs.py` owns the guest reader and pytest snapshots;
+`vm_transport.Transport.capture_product_logs` owns host transfer before shutdown.
+Keep host transport imports out of staged guest readers: `guest_inputs.Bundle`
+follows function-local imports too. Moving host code into a local import does
+not remove it from the frozen guest dependency closure. Preserve the shared
+reader, private capture, archive guards and the lease's single-use callback.
+
 Native policy workers reuse `onpc_app_rows::fixture_app(role)` for the fixed
 Allowed/Hard/Soft fixture app IDs, matching the controller's `MATCH_APPS`.
 Do not copy the desktop-ID hashing into another worker. Each consumer retains
@@ -415,6 +422,11 @@ app input near zero and when the owned lock appears. Locked observations reuse
 the qualified Shell curtain/restriction reader and never inspect the app below
 the lock. `NaturalExpiryJourney` then obtains a fresh lock recipient proof,
 allows one harmless Shift and independently reads the same lock again.
+Reuse `onpc_desktop_session::verify_locked_input` for that proof/input/result
+sequence in qualifications, complete cases and installed system histories.
+Callers supply their ready/result stage names and keep the lock identity,
+expiry and recovery assertions in their existing controller. The helper adds
+no wait, retry, resource or cleanup owner.
 `tools/test-vm --vm NAME reproduce-natural-expiry` reuses that journey through
 the natural lock, stopping before Shift for engineering probes and normal owned
 maintenance cleanup. It supplies no acceptance credit. Its fixture inputs use

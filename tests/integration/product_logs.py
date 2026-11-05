@@ -6,7 +6,6 @@ controller can run the same reader over the existing guarded SSH transport.
 
 import hashlib
 import os
-from pathlib import Path
 import re
 import stat
 import sys
@@ -94,45 +93,6 @@ def pytest_runtest_logreport(report):
     (directory / 'outcome.txt').write_text(
         'failed\n' if report.nodeid in _failed_cases else 'passed\n')
     _failed_cases.discard(report.nodeid)
-
-
-def capture(transport):
-    """Host-owned capture before shutdown/restoration; no public log output."""
-    from vm_transport import extract, transfer_diagnostic
-    directory = Path(transport.commands.directory) / 'product-logs'
-    directory.mkdir(mode=0o700, exist_ok=True)
-    if hasattr(transport, 'product_logs_per_case'):
-        # Guest pytest captured each case, including cases sharing one area VM.
-        # Transfer independently of the larger collector, which may itself fail.
-        from owned_commands import CommandError
-        try:
-            raw = transport.call(['tar', '-C', '/var/tmp/onpc-system-input/private/product-logs',
-                                  '-cf', '-', '.'], timeout=60,
-                                 diagnostic_stdout=transfer_diagnostic)
-        except CommandError:
-            # Pytest/SSH may have failed before the first teardown. Preserve
-            # the live guest's logs rather than depending on a missing payload.
-            pass
-        else:
-            # Archive safety refusals are collection failures, never a reason
-            # to silently replace the completed cases' evidence with live logs.
-            extract(raw, directory)
-            if transport.product_logs_per_case:
-                return
-    program = Path(__file__).read_text()
-    for component in COMPONENTS:
-        raw = transport.call(['/usr/bin/python3', '-I', '-c', program, component],
-                             timeout=20, diagnostic_stdout=transfer_diagnostic)
-        fd = os.open(directory / (component + '.log'),
-                     os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
-        with os.fdopen(fd, 'wb') as stream:
-            info = os.fstat(stream.fileno())
-            if not (stat.S_ISREG(info.st_mode) and info.st_nlink == 1
-                    and info.st_uid == os.geteuid()):
-                raise OSError('unsafe product log destination')
-            stream.truncate()
-            os.fchmod(stream.fileno(), 0o600)
-            stream.write(raw)
 
 
 if __name__ == '__main__':

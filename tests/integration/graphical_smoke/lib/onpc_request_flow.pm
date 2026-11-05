@@ -1043,9 +1043,7 @@ sub panel_language_expiry {
     }
     $journey->invoke($_) for ('minute-progression', 'final-second-transition',
         'second-progression', 'independent-second-progression', 'natural-expiry');
-    $journey->consume_observation('lock-input-ready', $journey->invoke('lock-input-ready'));
-    testapi::send_key('shift');
-    $journey->invoke('lock-result');
+    onpc_desktop_session::verify_locked_input($journey, 'lock-input-ready', 'lock-result');
     $journey->seen($_) for ('return-greeter', 'returned-gdm');
     onpc_gdm::sign_in_challenge($journey, 'return-parent',
         'parent-greeter', 'parent-focused-return', 'parent-desktop-return');

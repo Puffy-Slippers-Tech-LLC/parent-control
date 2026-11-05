@@ -301,8 +301,10 @@ rules.
 - **Budget the complete sequence.** Account for observation and transport
   costs, not just input time. Keep one monotonic deadline per bounded sequence;
   nested waits consume its remaining time and read-only retries cannot renew
-  it. Leave transport margin around guest waits and sufficient outer-worker
-  time for the finite history and owned cleanup. Do not stack fresh per-step
+  it. Leave transport margin around guest waits, including the worker's wait
+  for a controller reply during natural expiry, and sufficient outer-worker
+  time for the finite history and owned cleanup. A longer controller deadline
+  alone cannot extend the worker's reply deadline. Do not stack fresh per-step
   timeouts, renew the measured grant, replay uncertain input or rerun until a
   favorable schedule passes. Diagnose which bound failed before changing it;
   preserve actual product timing failures under [failure handling](../../tests/README.md#handling-test-failures).

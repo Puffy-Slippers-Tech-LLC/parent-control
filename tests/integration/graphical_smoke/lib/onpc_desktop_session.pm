@@ -54,6 +54,19 @@ sub reveal_lock {
     return $journey->seen($result);
 }
 
+# A caller's fresh locked-surface proof guards one harmless key. The separate
+# result retains that caller's lock identity and timing assertions.
+sub verify_locked_input {
+    onpc_progress::operation('Checking that the locked child session still blocks normal input');
+    my ($journey, $ready, $result) = @_;
+    die 'desk:locked-input-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && defined($ready) && $ready =~ /\A[a-z][a-z0-9-]*\z/
+        && defined($result) && $result =~ /\A[a-z][a-z0-9-]*\z/;
+    $journey->consume_observation($ready, $journey->invoke($ready));
+    testapi::send_key('shift');
+    return $journey->invoke($result);
+}
+
 # DESK05: one public session command; callers independently observe DESK06.
 sub lock {
     onpc_progress::operation('Locking the fixture desktop');
@@ -436,9 +449,7 @@ sub system_graphical_expiry {
     enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'initial');
     onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
     $journey->invoke('natural-expiry');
-    $journey->consume_observation('lock-input-ready', $journey->invoke('lock-input-ready'));
-    testapi::send_key('shift');
-    $journey->invoke('lock-result');
+    verify_locked_input($journey, 'lock-input-ready', 'lock-result');
     $journey->seen('recovery-greeter');
     enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'recovered');
     onpc_app_rows::native_activity_resume($journey, 'recovery-activity');
@@ -450,9 +461,7 @@ sub system_graphical_expiry {
     $journey->invoke('peer-expiry');
     $journey->invoke('peer-work');
     $journey->seen('child-locked');
-    $journey->consume_observation('peer-lock-input-ready', $journey->invoke('peer-lock-input-ready'));
-    testapi::send_key('shift');
-    $journey->invoke('peer-lock-result');
+    verify_locked_input($journey, 'peer-lock-input-ready', 'peer-lock-result');
     $journey->seen('final-greeter');
     enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'final');
     onpc_app_rows::native_activity_resume($journey, 'final-activity');

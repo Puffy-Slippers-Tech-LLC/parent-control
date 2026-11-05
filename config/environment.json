@@ -65,6 +65,14 @@
           "host": "local",
           "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04.qcow2",
           "owning_branch": ""
+        },
+        {
+          "id": "11",
+          "name": "onpc-Ubuntu26.04-1",
+          "enabled": "true",
+          "host": "local",
+          "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-1.qcow2",
+          "owning_branch": ""
         }
       ]
     },

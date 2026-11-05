@@ -187,8 +187,14 @@ SNAP_APP_BINDINGS = {
                    'activity', 'close', 'closed')
 }
 SNAP_APP_OPERATIONS = frozenset(SNAP_APP_BINDINGS) | {'snap-command-refusals'}
+RILEY_SNAP_OPERATIONS = frozenset('overlay-snap-allowed-' + action for action in
+    ('desktop', 'command-launch', 'opened', 'submit', 'submitted'))
+SNAP_APP_BINDINGS.update({operation: ('A', 'primary', operation.removeprefix('overlay-snap-allowed-'))
+                          for operation in RILEY_SNAP_OPERATIONS})
 OPERATIONS |= SNAP_APP_OPERATIONS
 STANDARD_OPERATIONS |= SNAP_APP_OPERATIONS
+SNAP_APP_OPERATIONS |= RILEY_SNAP_OPERATIONS
+OPERATIONS |= RILEY_SNAP_OPERATIONS
 PARENT_NATIVE_OPERATIONS = frozenset('parent-native-' + suffix for suffix in (
     'desktop', 'command-launch', 'activity-launch', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed'))
 OPERATIONS |= PARENT_NATIVE_OPERATIONS
@@ -210,6 +216,7 @@ OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-panel-ready',
     'overlay-panel-launch', 'overlay-panel-reveal-ready', 'overlay-panel-overview',
     'overlay-qualification-cancel', 'overlay-desktop'})
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | NATURAL_EXPIRY_OPERATIONS | frozenset({'child-command-launch'})
+CHILD_DESKTOP_OPERATIONS |= RILEY_SNAP_OPERATIONS
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_LANGUAGE_OPERATIONS - {'overlay-language-wrong-entry'}
 OVERLAY_NATIVE_OPERATIONS = frozenset('overlay-native-' + suffix for suffix in (
     'desktop', 'command-launch', 'activity-launch', 'command-blocked', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed',
@@ -630,6 +637,8 @@ MATCH_APPS = {role: 'parent-app-' + hashlib.sha256(
     ('com.puffyslippers.ONPCTest.' + role + '.desktop').encode()).hexdigest()[:16]
     for role in ('A', 'H', 'S', 'Alias')}
 MATCH_OTHER_APP = 'parent-app-' + hashlib.sha256(b'com.puffyslippers.ONPCTest.N.desktop').hexdigest()[:16]
+SNAP_POLICY_APP = 'parent-app-' + hashlib.sha256(
+    b'onpc-fixture-allowed_onpc-fixture-allowed.desktop').hexdigest()[:16]
 MATCH_RULES = ('/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
                '/opt/onpc-test-fixtures/Applications/Exact*.AppImage',
                '/opt/onpc-test-fixtures/Applications/*.AppImage',
@@ -663,6 +672,8 @@ ACCESS_OPERATIONS = frozenset('access-' + action for action in
 BASELINE_ACCESS_OPERATIONS = {f'access-{name}-{action}': (MATCH_APPS[role], action)
     for name, role in (('hard', 'H'), ('soft', 'S'), ('alias', 'Alias'))
     for action in (*ACCESS_CHOICES, 'row')}
+BASELINE_ACCESS_OPERATIONS.update({f'access-snap-{action}': (SNAP_POLICY_APP, action)
+                                   for action in ('allowed', 'row')})
 ACCESS_OPERATIONS |= frozenset(BASELINE_ACCESS_OPERATIONS)
 OPERATIONS |= ACCESS_OPERATIONS
 LEGEND_HEADINGS = ('App Access (What happens)', 'Match Rule (How apps are matched)')
@@ -7345,7 +7356,8 @@ class AccessibleUI:
 
     def match_entry(self, child, app, *, editor=False, access=None):
         """Fresh complete child/page/app and transient-owner proof before input."""
-        require(child in CHILD_IDENTITIES and app in (*MATCH_APPS.values(), MATCH_OTHER_APP), 'ui:match-binding')
+        require(child in CHILD_IDENTITIES and (app in (*MATCH_APPS.values(), MATCH_OTHER_APP)
+                or app == SNAP_POLICY_APP and access in ACCESS_CHOICES and not editor), 'ui:match-binding')
         require(access is None or (access in ACCESS_CHOICES and not editor), 'ui:access-binding')
         require(not self.input_uncertain, 'ui:uncertain-input')
         observation = self.read_snapshot()
@@ -7410,12 +7422,12 @@ class AccessibleUI:
                            'access-entry')
         self._invoke_target(target)
         self.invalidate_observation()
-        self.parent_app_save_snapshot(child, app)
+        self.parent_app_save_snapshot(child, app, access=choice)
         return {'chosen': choice}
 
     def read_app_access(self, child, app):
         """PARENT12 independent read; caller owns the expected saved choice."""
-        require(app in (*MATCH_APPS.values(), MATCH_OTHER_APP), 'ui:access-binding')
+        require(app in (*MATCH_APPS.values(), MATCH_OTHER_APP, SNAP_POLICY_APP), 'ui:access-binding')
         def read():
             rows = self.app_rows(child)
             values = [access for identity, access, _ in rows if identity == app]
@@ -7481,7 +7493,7 @@ class AccessibleUI:
                 raise
         return self.wait(opened, 'match-open')
 
-    def parent_app_save_snapshot(self, child, app):
+    def parent_app_save_snapshot(self, child, app, *, access=None):
         """PARENT08 App Limits terminal: usable controls and no failure report."""
         def saved():
             observation = self.read_snapshot()
@@ -7489,7 +7501,7 @@ class AccessibleUI:
             require(not any(identities[node] in ('feedback-dialog', 'error-report-unavailable-dialog')
                             and self.showing(node) for node in nodes), 'ui:parent-save-error-report')
             try:
-                self.match_entry(child, app)
+                self.match_entry(child, app, access=access)
             except UiError as error:
                 if str(error) in ('ui:match-loading', 'ui:match-inactive'):
                     return None
@@ -12840,7 +12852,8 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(kind in ('native', 'snap'), 'ui:fixture-binding')
         snap = kind == 'snap'
-        require(not snap or role in ('A', 'H', 'S') and child == EXISTING_CHILD
+        require(not snap or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
+                or child == CHILD and role == 'A' and instance == 'primary')
                 and not blocked and not locked and fixture == 'policy', 'ui:snap-binding')
         require(snap or role is None or role in ('A', 'H', 'S', 'N') and child in (CHILD, EXISTING_CHILD)
                 and fixture == 'policy' and (role != 'H' or blocked)
@@ -12971,7 +12984,8 @@ class AccessibleUI:
         require(submitted in ('No submitted draft', 'ONPC fixture draft'), 'ui:native-projection')
         require(kind in ('native', 'snap'), 'ui:fixture-binding')
         snap = kind == 'snap'
-        require(not snap or role in ('A', 'H', 'S') and child == EXISTING_CHILD
+        require(not snap or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
+                or child == CHILD and role == 'A' and instance == 'primary')
                 and instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'),
                 'ui:snap-binding')
         require(snap or role is None and instance == 'primary' or role in ('A', 'S', 'N')
@@ -13101,7 +13115,9 @@ class AccessibleUI:
                 raise UiError('ui:snap-refusal-missing')
             return None
         role, instance, action = SNAP_APP_BINDINGS[operation]
-        arguments = dict(instance=instance, role=role, child=EXISTING_CHILD, kind='snap')
+        arguments = dict(instance=instance, role=role,
+                         child=CHILD if operation in RILEY_SNAP_OPERATIONS else EXISTING_CHILD,
+                         kind='snap')
         if action in ('desktop', 'closed'):
             self.wait(lambda: self.native_app_closed(instance, kind='snap'), 'snap-closed')
         elif action == 'command-launch':

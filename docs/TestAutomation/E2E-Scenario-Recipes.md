@@ -1214,6 +1214,16 @@ it does not enable limits or prepare an allowance or approval. Riley's policy
 and disabled limits remain untouched. The shared worker's disabled binding skips
 only the enabled-case allowance setup and its readback.
 
+Case 92 uses `snap_app_launch.PLAN` / `onpc_app_launch::run` with the enabled,
+Allowed Snap command binding. FIX06 independently verifies the captured strict,
+system-wide Snap profile. Parent gives Jordan 30 daily minutes with zero grant,
+saves A's Allowed access and independently reads the saved row. Jordan enters
+fresh, launches `/usr/bin/snap run onpc-fixture-allowed` once and submits the
+normal draft, with independent public window and submitted-result reads. After
+Jordan logs out, Riley enters fresh and launches and uses the same package.
+Riley's policy and disabled time limits remain untouched. There is no approval,
+match-editor visit, launcher-visibility assertion or alternate route.
+
 The grid portion uses the same enabled setup, precise Allowed rule and Jordan/Riley order. Each freshly
 entered desktop searches `ONPC Allowed Fixture`, launches its intended window
 and submits the normal draft before independent result readback. The read-only

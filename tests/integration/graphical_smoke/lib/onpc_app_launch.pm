@@ -9,20 +9,23 @@ use onpc_desktop_session ();
 use onpc_app_rows ();
 
 sub run {
-    onpc_progress::operation('Checking the parent rule and independent native access for both children');
-    my ($exchange, $declared, $challenges, $control, $route, $policy) = @_;
+    onpc_progress::operation('Checking the parent rule and independent app access for both children');
+    my ($exchange, $declared, $challenges, $control, $route, $policy, $kind) = @_;
     $control = 'enabled' unless defined($control);
     $route = 'command' unless defined($route);
     $policy //= 'allowed';
-    die 'app-launch:arguments' unless (@_ >= 3 && @_ <= 6) && ref($exchange) eq 'CODE'
+    $kind //= 'native';
+    die 'app-launch:arguments' unless (@_ >= 3 && @_ <= 7) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ($control eq 'enabled' || $control eq 'disabled')
         && ($route eq 'command' || ($route eq 'grid' && $control eq 'enabled'))
-        && ($policy eq 'allowed' || $policy eq 'hard-blocked' || $policy eq 'soft-blocked');
+        && ($policy eq 'allowed' || $policy eq 'hard-blocked' || $policy eq 'soft-blocked')
+        && ($kind eq 'native' || $kind eq 'snap' && $route eq 'command'
+            && $policy eq 'allowed' && $control eq 'enabled');
     my $rule = $policy eq 'allowed' ? 'allowed' : $policy eq 'hard-blocked' ? 'hard' : 'soft';
     my $access = $rule eq 'allowed' ? 'allowed' : $rule eq 'hard' ? 'permanent' : 'conditional';
     my $journey = onpc_journey->new(
-        exchange => $exchange, prefix => "native-$route-$policy", review => 0);
+        exchange => $exchange, prefix => "$kind-$route-$policy", review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -37,8 +40,12 @@ sub run {
             $journey, 'gdm', 'fresh', 'new', 'existing'));
     }
     $journey->seen('apps-page');
-    onpc_app_rows::edit_policy($journey, onpc_app_rows::fixture_app('A'),
-        'match-precise', $access, $rule, []);
+    if ($kind eq 'snap') {
+        onpc_app_rows::access_choice($journey, 'allowed-save', 'allowed-row');
+    } else {
+        onpc_app_rows::edit_policy($journey, onpc_app_rows::fixture_app('A'),
+            'match-precise', $access, $rule, []);
+    }
     $journey->seen('parent-logout');
     onpc_desktop_session::enter_desktop(
         $journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan-entry');

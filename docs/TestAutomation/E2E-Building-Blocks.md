@@ -3704,8 +3704,16 @@ original S window and submitted draft while both instances remained open.
 Wrong-scope and uncertain launch input refused before submission; an absent
 public window could not pass on a command reply alone. The worker, callback,
 collection, owned shutdown and baseline restoration passed. FLOW08 includes
-this same finite Snap binding. Snap grid, policy denial and complete customer
-scenarios remain separate qualifications.
+this same finite Snap binding. Case 92 additionally qualified Riley's fixed
+A/primary command launch, public window and Submit-result binding on Fedora 44,
+through `native_usable_app('command', kind='snap', role='A', child='child')`.
+Its `snap_app_launch.PLAN` / `onpc_app_launch::run(..., 'enabled', 'command',
+'allowed', 'snap')` composition independently reads Jordan's saved Allowed Snap
+row before both children's fresh entry and use. Collection, worker shutdown,
+owned cleanup and baseline restoration passed. Affected native-command case 81
+passed separately on the same target; coverage was refreshed after each case.
+Snap grid, policy denial and other complete customer scenarios remain separate
+qualifications.
 
 ### Native fixture preparation
 
@@ -4132,6 +4140,7 @@ or alternative launch substitutes for the declared route.
 | 83 / `app_launch.HARD_COMMAND_DISABLED_PLAN`, `run(..., 'disabled', 'command', 'hard-blocked')` | Limits off/zero allowance; Parent reads Jordan's untouched settings, then saves A's precise permanent block without an allowance or approval. Fresh Jordan command execution requires attributed denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same target usable with Riley's policy untouched. |
 | 84 / `app_launch.SOFT_COMMAND_PLAN`, `run(..., 'enabled', 'command', 'soft-blocked')` | 30 daily minutes/zero grant; Parent saves A's precise conditional block without approval. Fresh Jordan command execution requires attributed denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same target usable with Riley's policy and limits untouched. |
 | 85 / `app_launch.SOFT_COMMAND_DISABLED_PLAN`, `run(..., 'disabled', 'command', 'soft-blocked')` | Limits off/zero allowance; Parent reads Jordan's untouched settings, then saves A's precise conditional block without an allowance or approval. Fresh Jordan command execution requires attributed denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same target usable with Riley's policy and limits untouched. |
+| 92 / `snap_app_launch.PLAN`, `run(..., 'enabled', 'command', 'allowed', 'snap')` | Parent gives Jordan 30 daily minutes/zero grant and saves A's Allowed Snap access with independent row readback. Jordan then Riley freshly enter, launch the same strict/system package by command and submit the normal draft with independent result reads; Riley's policy and limits stay untouched. Qualified on Fedora 44. |
 | 187 / `shared_launchers_case.PLAN`, `onpc_fresh_thirty_allowance::shared_launchers_case` | Jordan's A and Alias share one native target. Block A with Alias Allowed, restore both, block Alias with A Allowed, then restore both again. Each child visit independently proves both denials or both usable apps. Saved choices, Parent session/window, child selection and allowance persist across the complete history; [Ubuntu qualification](#native-fixture-preparation). |
 
 The Allowed native-A bindings are qualified on Ubuntu 26.04 and Fedora 44.

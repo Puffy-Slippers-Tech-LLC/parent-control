@@ -98,7 +98,8 @@ class SnapFixtures:
                     'confinement': 'strict', 'installed': first}
 
 
-def fixture_actions():
+def fixture_actions(*, include_refusal=True):
+    require(type(include_refusal) is bool, 'snap:action-binding')
     def controller(journey):
         if not hasattr(journey, 'snap_fixtures'):
             journey.snap_fixtures = SnapFixtures(journey.transport, journey.context.verified)
@@ -112,7 +113,8 @@ def fixture_actions():
         guard()
         return controller(journey).verify()
 
-    return {'native-refuse': refuse, 'native-verify': verify}
+    return ({'native-refuse': refuse, 'native-verify': verify} if include_refusal
+            else {'native-verify': verify})
 
 
 class SnapFixtureJourney(InstalledJourney):

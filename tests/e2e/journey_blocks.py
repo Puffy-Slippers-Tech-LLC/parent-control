@@ -224,12 +224,13 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
     require(kind in ('native', 'snap') and (kind == 'snap' or instance == 'primary'),
             'journey:fixture-binding')
     if kind == 'snap':
-        require(route == 'command' and child == 'other-child' and role in ('A', 'H', 'S')
+        require(route == 'command' and (child == 'other-child'
+                or child == 'child' and role == 'A' and instance == 'primary') and role in ('A', 'H', 'S')
                 and instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'),
                 'journey:snap-binding')
         name = {'A': 'allowed', 'H': 'hard', 'S': 'soft'}[role]
         name += '-second' if instance == 'secondary' else ''
-        return {stage: 'ui:snap-' + name + '-' + action for stage, action in (
+        return {stage: 'ui:' + ('overlay-' if child == 'child' else '') + 'snap-' + name + '-' + action for stage, action in (
             *((('desktop', 'desktop'),) if desktop_observation else ()),
             ('command', 'command-launch'), ('opened', 'opened'),
             ('submit', 'submit'), ('submitted', 'submitted'))}

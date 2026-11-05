@@ -6,7 +6,7 @@ from accessible_ui import MATCH_APPS, MATCH_RULES, countdown_seconds
 from countdown import CountdownObservation, check_countdown_balance
 from grant_only_profile import GrantOnlyProfileJourney
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import (desktop_entry, fresh_desktop, grant_only_time_profile,
+from journey_blocks import (desktop_entry, desktop_return, fresh_desktop, grant_only_time_profile,
                             native_activity_entry, native_activity_resume, native_usable_app,
                             overlay_entry, parent_reopen, parent_selection, prefixed_stages,
                             rejected_gdm_return, station_entry)
@@ -29,12 +29,6 @@ def enter(prefix, role, entry, expected='success'):
                                                 expected=expected))
 
 
-def leave(prefix, role):
-    return prefixed_stages(prefix, {
-        'desktop': 'ui:desktop' if role == 'parent' else 'ui:fresh-child-desktop',
-        'switch-user': f'system:{role}-switch-user', 'gdm-switched': 'ui:gdm-returned'})
-
-
 SETUP = {
     **named_app_set(source='gdm', entry='fresh', window='new', child='child',
                     apps=APPS, prefix='rules'),
@@ -53,13 +47,13 @@ BOUNDARY = {
     **overlay_entry('reopened-overlay', 'command', form_operation='overlay-grant-form'),
     'reopened-overlay-cancel': 'ui:overlay-qualification-cancel',
     'reopened-overlay-returned': 'ui:overlay-desktop',
-    **leave('original-leave', 'child'),
+    **desktop_return('original-leave', account='child'),
     **enter('before-parent', 'parent', 'retained'),
     'before-policy': 'ui:revoke-saved-balances',
     **prefixed_stages('reopen', parent_reopen()),
     **prefixed_stages('returned-child', parent_selection(screen_limits=True)),
     'returned-policy': 'ui:revoke-saved-balances',
-    **leave('returned-parent-leave', 'parent'),
+    **desktop_return('returned-parent-leave', account='parent'),
     # The initial real approval closed this form. Reopen and close it normally;
     # recovery later reopens it again with explicitly selected replacement data.
     **prefixed_stages('reopened-station', station_entry()),
@@ -73,14 +67,14 @@ EXPIRY = {
 RECOVERY = {
     **enter('expired-parent', 'parent', 'retained'),
     'expired-policy': 'ui:revoke-saved-balances',
-    **leave('expired-parent-leave', 'parent'),
+    **desktop_return('expired-parent-leave', account='parent'),
     **enter('denied-child', 'child', 'retained', 'time-denied'),
     **rejected_gdm_return(),
     **obtain_time(initial='observed', child='fixture-child', approver='fixture-parent',
                   duration_seconds=RECOVERY_SECONDS, allow_soft=False, exit='automatic'),
     **enter('recovered-parent', 'parent', 'retained'),
     'recovered-policy': 'ui:revoke-saved-balances',
-    **leave('recovered-parent-leave', 'parent'),
+    **desktop_return('recovered-parent-leave', account='parent'),
     **enter('recovered-child', 'child', 'retained'),
     'recovered-countdown': 'ui:child-countdown-present',
     **native_activity_resume('resume', child='child'),

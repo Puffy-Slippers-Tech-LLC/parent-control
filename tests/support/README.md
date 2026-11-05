@@ -324,6 +324,10 @@ visibility, owner, endpoint and exact work independently. Foreground focus does
 not establish preservation: another owned app can cover a still-visible window.
 Use `AccessibleUI.native_app_snapshot` for that observation and retain the
 separate guarded Submit and independent result to prove continued usability.
+If a later fresh launch uses the same fixture window identity, first finish the
+retained-work comparison and normally close that original window. A retained
+Allowed window can coexist with distinct Hard/Soft denial probes, but cannot
+satisfy a fresh Allowed launch. Preserve the launch's prior-window absence guard.
 
 Maintenance reproductions share `vm_probe.installed_reproduction_selection`
 for clean-input validation and attested running-snapshot binding. Keep each
@@ -359,6 +363,9 @@ share the same selection fragment without changing their entry assertions.
 
 Parent and child returns to the greeter reuse
 `onpc_desktop_session::switch_user` with the caller's scoped desktop receipt.
+Declare its desktop read, switch and independent greeter result with
+`journey_blocks.desktop_return(prefix, account=...)`, as in the active and
+expired app-reopening cases; the next account or station entry stays local.
 The declared system operation binds the account; the helper consumes that
 receipt, performs the switch and independently observes the greeter. Retained
 daily-access histories use this same operation for both accounts instead of
@@ -727,6 +734,9 @@ may reacquire before input or during offered/selected-value readback, retaining
 the original deadline. Persistent staleness refuses, and no selector or choice
 action runs inside a retry predicate. Fresh ownership, prompt and usability
 checks still apply after reacquisition.
+The first Custom, text or soft-app input after an overlay command launch uses
+that same guarded readiness wait: launch submission alone does not establish a
+ready form. Reacquire the complete target read, then deliver the choice once.
 Parent wrong-entry qualification uses that same bounded read wait: query errors
 and stale trees invalidate the observation, and only a fresh complete surface
 refusal passes. Wrong ownership and an actually present request form remain

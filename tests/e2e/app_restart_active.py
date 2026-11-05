@@ -5,7 +5,7 @@ import time
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS, countdown_seconds
 from countdown import CountdownObservation
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import (desktop_entry, fresh_desktop, native_activity_entry,
+from journey_blocks import (desktop_entry, desktop_return, fresh_desktop, native_activity_entry,
                             native_activity_resume, native_blocked_app, native_usable_app,
                             parent_reopen, parent_selection, prefixed_stages, station_entry)
 from kiosk_approved_flow import obtain_time
@@ -25,14 +25,6 @@ def enter(prefix, role, entry):
     return prefixed_stages(prefix, desktop_entry(role, source='gdm', entry=entry))
 
 
-def leave(prefix, role):
-    return prefixed_stages(prefix, {
-        'desktop': 'ui:desktop' if role == 'parent' else
-                   'ui:fresh-child-desktop' if role == 'child' else 'ui:standard-desktop',
-        'switch-user': f'system:{role if role != "other-child" else "standard"}-switch-user',
-        'gdm-switched': 'ui:gdm-returned'})
-
-
 def overlay(prefix, child, *, prepare=False):
     return {prefix + '-' + action: f'ui:remembered-overlay-{child}-{action}'
             for action in ('launch', *(('approver', 'custom', 'text', 'apps') if prepare else ()),
@@ -50,7 +42,7 @@ SETUP = {
     **prefixed_stages('jordan-setup', parent_selection(child='existing', screen_limits=True)),
     'no-grant': 'ui:revoke-balances',
     'jordan-time': 'ui:time-explanation-setup-zero-read',
-    **leave('setup-leave', 'parent'),
+    **desktop_return('setup-leave', account='parent'),
     **prefixed_stages('seed-station', station_entry()),
     'seed-riley-select': 'ui:remembered-kiosk-riley-select-default',
     'seed-riley-parent': 'ui:remembered-kiosk-riley-approver',
@@ -58,11 +50,11 @@ SETUP = {
     'seed-station-returned': 'ui:gdm-station-returned',
     **enter('seed-riley', 'child', 'fresh'),
     **overlay('seed-riley-form', 'riley', prepare=True),
-    **leave('seed-riley-leave', 'child'),
+    **desktop_return('seed-riley-leave', account='child'),
     **prefixed_stages('request', obtain_time(initial='observed', **CHOICES, exit='automatic')),
     **enter('issued-return', 'parent', 'retained'),
     'issued-policy': 'ui:revoke-saved-balances',
-    **leave('issued-leave', 'parent'),
+    **desktop_return('issued-leave', account='parent'),
     **enter('original-entry', 'other-child', 'fresh'),
     'original-countdown': 'ui:child-countdown-present',
     **native_activity_entry('original', child='other-child', binding='policy'),
@@ -71,7 +63,7 @@ SETUP = {
     # duration to twenty minutes; restore it before the persistence capture.
     **{f'jordan-{action}': f'ui:remembered-overlay-jordan-{action}'
        for action in ('custom', 'text', 'apps', 'read', 'cancel', 'returned')},
-    **leave('original-leave', 'other-child'),
+    **desktop_return('original-leave', account='other-child'),
     **prefixed_stages('capture-station', station_entry()),
     'capture-jordan': 'ui:remembered-kiosk-jordan-read',
     'capture-riley-select': 'ui:remembered-kiosk-riley-select',
@@ -91,7 +83,7 @@ RETURN = {
     **prefixed_stages('returned-riley', parent_selection(screen_limits=True)),
     'returned-riley-settings': 'ui:retained-parent-read',
     **prefixed_stages('final-jordan', parent_selection(child='existing', screen_limits=True)),
-    **leave('returned-parent-leave', 'parent'),
+    **desktop_return('returned-parent-leave', account='parent'),
     **prefixed_stages('returned-station', station_entry()),
     'returned-riley': 'ui:remembered-kiosk-riley-read',
     'returned-jordan-select': 'ui:remembered-kiosk-jordan-select',
@@ -100,10 +92,10 @@ RETURN = {
     'returned-greeter': 'ui:gdm-station-returned',
     **enter('returned-riley-entry', 'child', 'retained'),
     **overlay('returned-riley-form', 'riley'),
-    **leave('returned-riley-leave', 'child'),
+    **desktop_return('returned-riley-leave', account='child'),
     **enter('final-parent', 'parent', 'retained'),
     'final-policy': 'ui:revoke-saved-balances',
-    **leave('final-parent-leave', 'parent'),
+    **desktop_return('final-parent-leave', account='parent'),
     **enter('returned-jordan-entry', 'other-child', 'retained'),
     **overlay('returned-jordan-form', 'jordan'),
     **{stage: 'ui:native-policy-activity' if stage == 'resume-opened' else tag

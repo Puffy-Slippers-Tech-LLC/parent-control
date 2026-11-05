@@ -433,6 +433,20 @@ def fresh_desktop(account, expected='success', *, product_free=False):
     }
 
 
+def desktop_return(prefix, *, account):
+    """DESK03: read the bound desktop, switch user, then observe the greeter.
+
+    Matches onpc_desktop_session::switch_user in the caller's journey scope.
+    The caller retains its next account/station entry and retained-work checks.
+    """
+    role = 'standard' if account == 'other-child' else account
+    return prefixed_stages(prefix, {
+        'desktop': fresh_desktop(account)['desktop'],
+        'switch-user': f'system:{role}-switch-user',
+        'gdm-switched': 'ui:gdm-returned',
+    })
+
+
 def desktop_entry(account, *, source, entry, expected='success', source_account=None):
     """FLOW15 explicit fresh/retained/same/lock entry and independent result."""
     require(account in ('parent', 'child', 'other-child'), 'journey:entry-account')

@@ -15,7 +15,7 @@ Task queue: [Plan B ordered checklist](E2E-Task-QueueB.md).
 
 ## Next task
 
-Next task: **113b — [E2E-019: snap-command-allowed-disabled](E2E-Tasks/113b-case-93.md)**.
+Next task: **109 — [Observe Snap command denial and closure](E2E-Tasks/109-snap.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. The checked baseline records

@@ -792,6 +792,13 @@ sub run {
                             'enabled', 'command', 'allowed', 'snap');
         return;
     }
+    if ($ready->{snap_command_allowed_disabled}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
+                            'disabled', 'command', 'allowed', 'snap');
+        return;
+    }
     if ($ready->{native_command_allowed}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

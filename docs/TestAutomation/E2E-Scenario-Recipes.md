@@ -1229,6 +1229,13 @@ Jordan logs out, Riley enters fresh and launches and uses the same package.
 Riley's policy and disabled time limits remain untouched. There is no approval,
 match-editor visit, launcher-visibility assertion or alternate route.
 
+Case 93 uses `snap_app_launch.DISABLED_PLAN` and the same worker's disabled
+Allowed Snap command binding. Parent independently reads Jordan's untouched
+limits-off/zero-allowance settings before saving and reading A's Allowed rule.
+It prepares no allowance or approval. Fresh Jordan and then fresh Riley launch
+and submit the same Snap command with independent window and submitted-draft
+readback. Riley's policy and disabled limits remain untouched.
+
 The grid portion uses the same enabled setup, precise Allowed rule and Jordan/Riley order. Each freshly
 entered desktop searches `ONPC Allowed Fixture`, launches its intended window
 and submits the normal draft before independent result readback. The read-only

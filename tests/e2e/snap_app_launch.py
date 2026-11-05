@@ -1,4 +1,6 @@
 """A parent's Allowed Snap rule leaves the app usable for both children."""
+from dataclasses import replace
+from functools import partial
 from accessible_ui import SNAP_POLICY_APP
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import app_policy_entry, desktop_entry, native_usable_app, prefixed_stages
@@ -49,11 +51,25 @@ PLAN = JourneyPlan(
                         'riley-entry-child-recipient-rechecked')},
 )
 
+DISABLED_PLAN = replace(
+    PLAN, worker_mode='snap_command_allowed_disabled',
+    screen_tags={stage: tag for stage, tag in PLAN.screen_tags.items()
+                 if stage not in ('allowance-configured', 'saved-settings')},
+    phases={stage: phase for stage, phase in PLAN.phases.items()
+            if stage not in ('allowance-configured', 'saved-settings')},
+    child_bindings={stage: child for stage, child in PLAN.child_bindings.items()
+                    if stage != 'allowance-configured'},
+    settings_checks={
+        'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',))},
+    balance_checks={},
+)
 
-def execute(recorder, context):
-    record_installed_journey(recorder, context, PLAN, timeout=1800,
+
+def execute(recorder, context, *, plan=PLAN):
+    record_installed_journey(recorder, context, plan, timeout=1800,
                              actions=fixture_actions(include_refusal=False),
                              journey_type=AppPolicyJourney)
 
 
-E2E_CASES = {'snap-command-allowed-enabled': execute}
+E2E_CASES = {'snap-command-allowed-enabled': execute,
+             'snap-command-allowed-disabled': partial(execute, plan=DISABLED_PLAN)}

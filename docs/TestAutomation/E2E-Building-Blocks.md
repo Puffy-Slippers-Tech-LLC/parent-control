@@ -3722,6 +3722,14 @@ Its `snap_app_launch.PLAN` / `onpc_app_launch::run(..., 'enabled', 'command',
 row before both children's fresh entry and use. Collection, worker shutdown,
 owned cleanup and baseline restoration passed. Affected native-command case 81
 passed separately on the same target; coverage was refreshed after each case.
+Case 93 qualified the limits-off composition through
+`snap_app_launch.DISABLED_PLAN` and the same worker's `disabled` binding on
+selected Fedora 44. Parent independently read Jordan's disabled limits and zero
+allowance before saving Allowed; both fresh child entries launched and submitted
+the same A/primary Snap. No allowance or approval was prepared, and Riley's
+settings stayed untouched. Case 93 and the affected limits-on case 92 passed
+with collection, worker shutdown, owned cleanup and baseline restoration;
+coverage was refreshed after each case.
 Snap grid, policy denial and other complete customer scenarios remain separate
 qualifications.
 

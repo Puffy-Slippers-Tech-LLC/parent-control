@@ -54,6 +54,7 @@ use onpc_zero_total ();
 use onpc_app_rows ();
 use onpc_app_launch ();
 use onpc_app_rule_changes ();
+use onpc_revocation_case ();
 use onpc_baseline_app_effects ();
 use onpc_active_grant_disable ();
 use onpc_baseline_journey ();
@@ -1333,6 +1334,13 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_time_explanation::run(\&exchange);
+        return;
+    }
+    if ($ready->{revocation_case}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_revocation_case::run(\&exchange, $ready->{invocations},
+            $ready->{challenge_bindings}, $ready->{kiosk_request});
         return;
     }
     if ($ready->{grant_access_case} || $ready->{grant_retained_access_case}

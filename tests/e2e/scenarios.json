@@ -678,7 +678,7 @@
         "rationale": "Daily balance by one/multiple child desktops is fully combined. E2E-036 owns no-grant revocation; distinct-desktop cases remain gated on supported entry."
       },
       "variants": [
-        {"coverage_id": 17, "id": "zero-single", "owner": "parent-policy", "parameters": {"daily": "zero", "sessions": "single"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 17, "id": "zero-single", "owner": "parent-policy", "parameters": {"daily": "zero", "sessions": "single"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/revocation_case.py", "test_id": "zero-single"}},
         {"coverage_id": 18, "id": "zero-multiple", "owner": "parent-policy", "parameters": {"daily": "zero", "sessions": "multiple"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 19, "id": "remaining-single", "owner": "parent-policy", "parameters": {"daily": "remaining", "sessions": "single"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 20, "id": "remaining-multiple", "owner": "parent-policy", "parameters": {"daily": "remaining", "sessions": "multiple"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}

@@ -548,7 +548,15 @@ the six transitions.
 
 ### E2E-007
 
-Implementation status: All cases pending.
+Implementation status: Case 17's `revocation_case.PLAN` /
+`RevocationCaseJourney` and `onpc_revocation_case::run` passed on Ubuntu 26.04 in
+`20261105T015431Z-68a208f7`. Cases 18–20 remain pending. Case 17 uses Jordan's
+zero daily allowance,
+a real 20-minute soft-included grant, original Allowed A/Soft Blocked S activities
+and Riley's retained activity. Cancel compares both original child windows and
+balances before further input; Confirm independently reads zero time and preserved
+saved app rules before the retained GDM denial. Riley's original activity is then
+compared and used again. No foreground immediate-lock acceptance is claimed.
 
 **Cancel then confirm revocation with open apps.** Cases 17, 18, 19, 20.
 

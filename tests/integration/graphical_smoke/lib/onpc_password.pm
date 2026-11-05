@@ -124,7 +124,7 @@ sub enter_kiosk_mate_password {
             my $delayed = ($journey->{prefix} // '') =~ /\Akiosk-delayed-approval-(first|second)\z/
                 && ($journey->{stage_prefix} // '') eq $1 . '-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,30,0';
-            my $grant_access = ($journey->{prefix} // '') eq 'grant-access-case-request'
+            my $grant_access = ($journey->{prefix} // '') =~ /\A(?:grant-access|revocation)-case-request\z/
                 && ($journey->{stage_prefix} // '') eq 'request-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
             my $app_transition = ($journey->{prefix} // '') eq 'app-rule-changes-soft-opening'

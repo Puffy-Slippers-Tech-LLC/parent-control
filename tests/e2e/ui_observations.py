@@ -2738,7 +2738,8 @@ class UiObservations:
                 balances = value['balances']
                 require(type(balances) is dict and set(balances) == {
                     'child', 'expanded', 'daily', 'one_time', 'total', 'observed_monotonic_ns'}
-                    and balances['child'] == value['settings']['child'] == 'fixture-child'
+                    and balances['child'] == value['settings']['child'] == accessible_ui.CHILD_IDENTITIES[
+                        accessible_ui.NAMED_CUSTOM_CHILDREN[child or 'child']]
                     and balances['expanded'] is True
                     and type(balances['observed_monotonic_ns']) is int
                     and 0 < balances['observed_monotonic_ns'] < 10**20, 'ui:revoke-response')
@@ -2752,11 +2753,15 @@ class UiObservations:
                 projection = ({'refusal': operation.removeprefix('revoke-')}
                               if operation.startswith('revoke-wrong-') or operation in (
                                   'revoke-confirm-wrong-child', 'revoke-confirm-refused') else
-                              {'child': 'fixture-child', 'cancelled': True}
+                              {'child': accessible_ui.CHILD_IDENTITIES[
+                                  accessible_ui.NAMED_CUSTOM_CHILDREN[child or 'child']], 'cancelled': True}
                               if operation == 'revoke-cancel' else
-                              {'child': 'fixture-child', 'confirmed': True}
+                              {'child': accessible_ui.CHILD_IDENTITIES[
+                                  accessible_ui.NAMED_CUSTOM_CHILDREN[child or 'child']], 'confirmed': True}
                               if operation == 'revoke-confirm' else
-                              {'child': 'fixture-child', 'warning': 'time-apps-daily-preserved'})
+                              {'child': accessible_ui.CHILD_IDENTITIES[
+                                  accessible_ui.NAMED_CUSTOM_CHILDREN[child or 'child']],
+                               'warning': 'time-apps-daily-preserved'})
                 require(value == projection, 'ui:revoke-response')
             expected['revoke_cancel'] = value
         if operation in accessible_ui.REVOKE_DISABLED_OPERATIONS:

@@ -23,7 +23,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **084 — [Check revoking a child's only time grant](E2E-Tasks/084-case-17.md)**.
+Next task: **085 — [Check revoking extra time while daily time remains](E2E-Tasks/085-case-19.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

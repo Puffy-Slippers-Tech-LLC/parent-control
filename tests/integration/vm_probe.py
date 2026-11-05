@@ -1077,6 +1077,28 @@ def reproduce_app_rule_return(lease, fixture_selection):
         boundary_operation='gdm-returned', fixture_selection=selection, timeout=1800)
 
 
+def reproduce_revocation_return(lease, fixture_selection):
+    """Retain case 17's original Jordan desktop at its Cancel activity read."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from revocation_case import RevocationCaseJourney, PLAN
+    from e2e_fixture_preparation import validate_input
+    from system_fixture_preparation import guest_target
+    from tools.test_storage import named_input
+
+    system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
+                   'fixtures:e2e-installed-clean-baseline-required')
+    selection = validate_input(fixture_selection,
+                              target=guest_target(lease.capture.state['guest']))
+    name, xml, _record = attested_online_snapshot(lease)
+    lease.installed_name, lease.installed_xml = name, xml
+    lease.online_pending, lease.online_bootstrap = False, None
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, RevocationCaseJourney, PLAN,
+        'cancel-child-activity-opened', 'revocation-return', assets=assets,
+        boundary_operation='native-policy-activity', fixture_selection=selection, timeout=1800)
+
+
 def app_rule_return_observer(transport):
     """Add bounded private diagnostics to the unchanged greeter observer."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1424,6 +1446,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from match_editor_case import PLAN as MATCH_EDITOR_PLAN
         from policy_edits import AppPolicyJourney
         from app_rule_changes_case import AppRuleChangesJourney, DISABLED_PATTERN_PLAN
+        from revocation_case import RevocationCaseJourney, PLAN as REVOCATION_PLAN
         restoration = (surface == 'baseline-restoration'
             and journey_type is BaselineJourney and plan is PLAN
             and boundary == 'restore-saved' and boundary_operation == 'parent-save-disabled'
@@ -1453,7 +1476,11 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             and journey_type is AppRuleChangesJourney and plan is DISABLED_PATTERN_PLAN
             and boundary == 'soft-opening-disabled-parent-source-greeter'
             and boundary_operation == 'gdm-returned')
-        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or native_denial or grant_logout or match_editor or app_rule_return)
+        revocation_return = (surface == 'revocation-return'
+            and journey_type is RevocationCaseJourney and plan is REVOCATION_PLAN
+            and boundary == 'cancel-child-activity-opened'
+            and boundary_operation == 'native-policy-activity')
+        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or native_denial or grant_logout or match_editor or app_rule_return or revocation_return)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1497,6 +1524,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             context.fixture_subsets = ('native',) if surface in ('native-denial', 'grant-logout', 'match-editor') else ACTIVITY_SUBSETS
             context.fixture_caller = ({'native-denial': None,
                                        'app-rule-return': 'E2E-006/disabled-pattern',
+                                       'revocation-return': 'E2E-007/zero-single',
                                        'match-editor': None,
                                        'grant-logout': 'E2E-005/grant-only-new',
                                        'natural-access': 'E2E-008/fresh-login',

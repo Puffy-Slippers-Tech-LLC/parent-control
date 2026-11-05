@@ -706,6 +706,8 @@ GDM_DENIAL_OPERATIONS = frozenset({
 NAMED_CHILD_OPERATIONS = (NAMED_CUSTOM_OPERATIONS | NAMED_TIME_OPERATIONS
                           | ALLOWANCE_KEYBOARD_OPERATIONS.keys() | RETAINED_PARENT_OPERATIONS
                           | GDM_DENIAL_OPERATIONS | COUNTDOWN_OPERATIONS
+                          | {'revoke-balances', 'revoke-saved-balances', 'revoke-cleared-balances',
+                             'revoke-open', 'revoke-warning', 'revoke-cancel', 'revoke-confirm'}
                           | {'parent-toggle-enabled', 'parent-toggle-disabled'})
 OPERATIONS |= NAMED_CUSTOM_OPERATIONS
 PARENT_SAVE_OPERATIONS = {
@@ -6555,11 +6557,11 @@ class AccessibleUI:
         self.child_selection(child)
         return self.parent_page(child, 'Screen Limits')
 
-    def revoke_cancel_operation(self, operation):
+    def revoke_cancel_operation(self, operation, *, child=CHILD):
         require(operation in REVOKE_CANCEL_OPERATIONS | REVOKE_CONFIRM_OPERATIONS,
                 'ui:revoke-operation')
         if operation in ('revoke-saved-balances', 'revoke-cleared-balances'):
-            return self.saved_revoke_balances(CHILD, grant_cleared=operation == 'revoke-cleared-balances')
+            return self.saved_revoke_balances(child, grant_cleared=operation == 'revoke-cleared-balances')
         if operation in ('revoke-confirm-wrong-child', 'revoke-confirm-refused'):
             try:
                 self.confirm_revoke(EXISTING_CHILD if operation.endswith('child') else CHILD,
@@ -6570,10 +6572,10 @@ class AccessibleUI:
                 return {'refusal': operation.removeprefix('revoke-')}
             raise UiError('ui:revoke-refusal-missing')
         if operation == 'revoke-confirm':
-            return self.confirm_revoke(CHILD, confirm=True)
+            return self.confirm_revoke(child, confirm=True)
         if operation == 'revoke-balances':
-            return {'settings': self.reload_revoke_settings(CHILD),
-                    'balances': self.reach_time_explanation(CHILD)}
+            return {'settings': self.reload_revoke_settings(child),
+                    'balances': self.reach_time_explanation(child)}
         if operation in ('revoke-wrong-child', 'revoke-wrong-confirmation'):
             try:
                 self.cancel_revoke(EXISTING_CHILD if operation.endswith('child') else CHILD,
@@ -6585,10 +6587,10 @@ class AccessibleUI:
                 return {'refusal': operation.removeprefix('revoke-')}
             raise UiError('ui:revoke-refusal-missing')
         if operation == 'revoke-open':
-            return self.open_revoke_warning(CHILD)
+            return self.open_revoke_warning(child)
         if operation == 'revoke-warning':
-            return self.revoke_warning(CHILD)
-        return self.cancel_revoke(CHILD)
+            return self.revoke_warning(child)
+        return self.cancel_revoke(child)
 
     def time_explanation_entry(self, child):
         require(child in CHILD_IDENTITIES, 'ui:child-binding')
@@ -12978,13 +12980,16 @@ class AccessibleUI:
         root = self.snapshot_owned_target(scope, check_prompt=True, observation=observation)
         if diagnostic is not None:
             diagnostic['resolved_window'] = root is not None
-        if pending and (root is None or not self.surface_available(root)):
+        # Retained activities can have several mapped fixture windows. Only
+        # one is foreground; focus does not establish whether the others kept
+        # their work. Keep the live visibility, owner and exact-state checks.
+        if pending and (root is None or not self.showing(root)):
             if diagnostic is not None:
                 diagnostic['active_window'] = False
             return None
         if diagnostic is not None and pending:
             diagnostic['active_window'] = True
-        require(root is not None and self.surface_available(root),
+        require(root is not None and self.showing(root),
                 'ui:native-entry')
         if role is not None:
             self.native_app_owner(root, role, instance, implicit_instance=implicit_instance)
@@ -14278,7 +14283,7 @@ class AccessibleUI:
         elif operation in REVOKE_DISABLED_OPERATIONS:
             result['revoke'] = self.revoke_disabled(CHILD, REVOKE_DISABLED_OPERATIONS[operation])
         elif operation in REVOKE_CANCEL_OPERATIONS | REVOKE_CONFIRM_OPERATIONS:
-            result['revoke_cancel'] = self.revoke_cancel_operation(operation)
+            result['revoke_cancel'] = self.revoke_cancel_operation(operation, child=child)
         elif operation in INVALID_ALLOWANCE_OPERATIONS:
             result['allowance_validation'] = self.invalid_allowance(
                 INVALID_ALLOWANCE_OPERATIONS[operation])

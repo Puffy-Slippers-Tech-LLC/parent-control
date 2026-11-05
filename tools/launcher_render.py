@@ -736,6 +736,7 @@ class AgentRenderer:
                                markup=False, highlight=False)
         self.pending = b''
         self.started = set()
+        self.command_streams = {}
         self.command_log = command_log
         self.full_command_output = full_command_output
         self.last_command = None
@@ -924,6 +925,31 @@ class AgentRenderer:
             self.console.print(Text('• ' if index == 0 else '│ ', style=style if index == 0 else 'bright_black') + line)
         self.last_command = item['id']
 
+    def command_output(self, identity, delta):
+        """Append running command output without waiting for item completion."""
+        stream = self.command_streams.get(identity)
+        if stream is None or not delta:
+            return
+        stream['length'] += len(delta)
+        # Keep incomplete lines bounded; sanitize only after joining chunks so
+        # an escape sequence split across notifications cannot leak controls.
+        pending = stream['pending'] + delta
+        rows = pending.split('\n')
+        stream['pending'] = rows.pop()
+        if stream.get('dropping') and rows:
+            rows.pop(0)
+            stream['dropping'] = False
+        if len(stream['pending']) > 65536:
+            stream['pending'] = ''
+            stream['dropping'] = True
+        if rows:
+            if self.last_command != identity:
+                self.command_heading(stream['item'])
+            for line in rows:
+                self.console.print(Text('    ' + clean(line.replace('\r', '\n')),
+                                        style='bright_black'), soft_wrap=True)
+            self.console.file.flush()
+
     def command_result(self, item):
         # Retain full evidence while bounding the visible output preview.
         # App-server commands without captured output may explicitly return null.
@@ -944,6 +970,13 @@ class AgentRenderer:
                        .replace('\r', '\n')).rstrip()
         self.exploring = False
         if self.full_command_output:
+            streamed = self.command_streams.pop(item['id'], None)
+            if streamed is not None and streamed['length']:
+                # The final item still owns the archive and outcome. Avoid
+                # repeating live output; retain any final unstreamed suffix.
+                raw = item.get('aggregated_output') or ''
+                output = clean(('' if streamed.get('dropping') else streamed['pending']) +
+                               raw[streamed['length']:]).rstrip()
             # Observers choose compact or complete presentation locally. Retain
             # every line without wrapping it to the supervisor's fixed width.
             for index, line in enumerate(output.splitlines()):
@@ -1054,6 +1087,8 @@ class AgentRenderer:
             if identity not in self.started:
                 self.command_heading(item)
                 self.started.add(identity)
+                if self.full_command_output and not self.exploration(item):
+                    self.command_streams[identity] = dict(item=item, length=0, pending='')
             if complete:
                 self.command_result(item)
                 self.started.discard(identity)

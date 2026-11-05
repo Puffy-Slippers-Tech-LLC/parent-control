@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 import prepare_vm
 from qualification_storage import allocate, recovery_session
 from test_account_password import matches
-from watch_activity import observed
+from watch_activity import observed, operation
 
 STAGE = '/var/lib/onpc-baseline-preparation'
 UNIT = '/etc/systemd/system/onpc-baseline-preparation.service'
@@ -297,11 +297,12 @@ def verify_clean_sources(g):
     require(not roots, 'guest:fixture-input-retained')
 
 
-@observed('Preparing the baseline VM; waiting for guest setup and shutdown')
+@observed('Preparing and validating the baseline VM')
 def prepare(capture, guestfs, password, *, mode='manual'):
     """Operate only on the off, journal-bound source selected by the controller."""
     require(mode in ('auto', 'manual'), 'guest:preparation-mode')
-    with mounted(guestfs, capture) as g:
+    print('prepare-vm: Staging baseline setup on disk; VM is powered off', flush=True)
+    with operation('Staging baseline setup on disk; VM is powered off'), mounted(guestfs, capture) as g:
         from baseline_console import reconcile as reconcile_console
         reconcile_console(g)
         directory(g, STAGE)
@@ -368,10 +369,10 @@ def prepare(capture, guestfs, password, *, mode='manual'):
         else:
             g.ln_s(UNIT, LINK)
         label_preparation(g)
-    from watch_activity import operation
     with operation('Running no-app setup and guest system updates' if mode == 'auto'
                    else 'Running no-app prerequisite setup'):
         boot_and_wait(capture)
+        print('prepare-vm: Starting the VM; waiting for guest setup and shutdown', flush=True)
     with mounted(guestfs, capture) as g:
         reboot = g.exists(STAGE + '/reboot-required') and bool(g.read_file(STAGE + '/reboot-required'))
         if reboot:
@@ -385,6 +386,7 @@ def prepare(capture, guestfs, password, *, mode='manual'):
     if reboot:
         with operation('Rebooting the updated guest and verifying the new boot'):
             boot_and_wait(capture)
+            print('prepare-vm: Rebooting the updated guest and verifying the new boot', flush=True)
     with mounted(guestfs, capture) as g:
         success = g.exists(STAGE + '/success') and g.read_file(STAGE + '/success') == b'success\n'
         if not success:

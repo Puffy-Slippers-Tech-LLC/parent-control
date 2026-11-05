@@ -451,6 +451,9 @@ class AppSession:
             self.streaming_dirty = True
         elif method in ('item/started', 'item/completed'):
             self.item(params['item'], method == 'item/completed')
+        elif method == 'item/commandExecution/outputDelta':
+            if params.get('turnId') == self.turn:
+                self.renderer.command_output(params['itemId'], params['delta'])
         elif method == 'thread/tokenUsage/updated' and self.renderer.on_usage:
             usage = params['tokenUsage']['last']
             self.renderer.on_usage({'input_tokens': usage.get('inputTokens'),

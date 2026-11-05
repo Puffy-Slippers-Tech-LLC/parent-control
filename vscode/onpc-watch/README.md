@@ -72,6 +72,8 @@ title switches to the recorded final status when the launcher exits.
 the launcher terminal output, **Error** shows the shared launcher's **Last Error**
 and **Status** fields with the same colors and elapsed ages, and **Session** opens
 the session transcript and chat.
+The Launcher tab streams running command output, including baseline preparation
+phases before VM startup; it does not wait for the command to finish.
 Each launcher's tab selection is independent: opening **Session** in another
 worktree leaves existing Session panels open and refreshing. Chat stays routed
 to the session displayed in its own panel.

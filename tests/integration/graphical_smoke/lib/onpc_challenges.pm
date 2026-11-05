@@ -277,6 +277,44 @@ sub countdown_activity {
     $journey->finish();
 }
 
+sub grant_work_recovery {
+    onpc_progress::operation('Returning to the child work after time runs out with soft apps excluded');
+    my ($exchange, $declared, $challenges, $binding) = @_;
+    die 'grant-recovery:plan' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && ref($binding) eq 'ARRAY' && join(',', @$binding) eq 'child,parent,1200,0';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'grant-work-recovery', review => 0);
+    $journey->{kiosk_request} = $binding;
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_app_rows::named_app_set($journey, 'gdm', 'fresh', 'new', 'child', [
+        ['A', 'match-precise', 'allowed'], ['H', 'match-hard-precise', 'permanent'],
+        ['S', 'match-soft-wildcard', 'conditional']], 'rules');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'setup-return');
+    onpc_parent::grant_only_time_profile($journey, 'desktop', 'same-user', 'retained', 0, 0, 600, 'default', 0);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'fresh');
+    onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
+    my $soft = $journey->scope('soft');
+    onpc_app_rows::native_usable_app($soft, 'command', $soft->seen('desktop'), 'child', 'S');
+    onpc_app_rows::native_read_activity($journey, 'soft-capture');
+    $journey->invoke('natural-expiry');
+    $journey->consume_observation('lock-input-ready', $journey->invoke('lock-input-ready'));
+    testapi::send_key('shift');
+    $journey->invoke('lock-result');
+    onpc_desktop_session::enter_desktop($journey, 'locked', 'child', 'lock', 'time-denied', 'denial');
+    $journey->seen($_) for qw(return-greeter denied-returned retained-before);
+    onpc_request_flow::prepare($journey, 'new', 'new', 'observed',
+        'fixture-child', 'fixture-parent', 1200, 0, 'kiosk');
+    onpc_request_flow::approve($journey, 'fixture-child', 'fixture-parent', 1200, 0, 'automatic');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'retained');
+    $journey->seen($_) for qw(countdown recovery-identity);
+    onpc_app_rows::native_activity_resume($journey, 'resume');
+    $journey->seen($_) for qw(soft-closed hard-launch soft-launch);
+    onpc_app_rows::native_read_activity($journey, 'allowed-work');
+    $journey->finish();
+}
+
 sub natural_access {
     onpc_progress::operation('Checking child access after animated exhaustion, approval and revocation');
     my ($exchange, $declared, $challenges) = @_;

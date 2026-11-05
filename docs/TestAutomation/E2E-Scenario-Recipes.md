@@ -613,7 +613,8 @@ activity and retained session are independently checked after approval.
 
 ### E2E-009
 
-Implementation status: All cases pending.
+Implementation status: Case 23 is implemented in `grant_work_recovery.py` and
+passed installed acceptance on Ubuntu 26.04. Case 24 remains pending.
 
 **Recover unfinished work after grant-only time runs out.** Cases 23, 24.
 
@@ -622,6 +623,11 @@ Bindings: soft-apps = excluded / included.
 1. FLOW13(grant-only, soft included) → C(fresh) → FLOW08(allowed,soft) → APP04(each).
 2. TIME04 → DESK08(time denial).
 3. DESK11 → FLOW20(kiosk, retained child, 20-minute recovery, variant soft choice) → APP04(allowed compare) → APP02(soft expected) → FLOW08(hard and soft launches). Compare this attempt's original activity captures after legitimate unlock; no separate FLOW11 qualifier. Prepare activity assets and TIME04 observation before the initial 10-minute approval; retain its real natural expiry.
+
+Case 23 captures Riley's allowed and soft activity under the real 600-second,
+soft-included grant. After natural lock and the native time restriction, its
+1200-second, soft-excluded approval restores the same session and allowed work,
+closes the captured soft activity and leaves both hard and soft launches denied.
 
 ### E2E-010
 

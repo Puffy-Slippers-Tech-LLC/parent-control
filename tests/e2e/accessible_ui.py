@@ -203,7 +203,8 @@ CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | NATURAL_EXPIRY_OPERATIONS | fro
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_LANGUAGE_OPERATIONS - {'overlay-language-wrong-entry'}
 OVERLAY_NATIVE_OPERATIONS = frozenset('overlay-native-' + suffix for suffix in (
     'desktop', 'command-launch', 'activity-launch', 'command-blocked', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed',
-    'search-ready', 'search-focused', 'search-entered', 'grid', 'grid-refusals'))
+    'search-ready', 'search-focused', 'search-entered', 'grid', 'grid-refusals',
+    'policy-soft-activity', 'policy-soft-closed'))
 BASELINE_NATIVE_BINDINGS = {
     'overlay-native-' + role + '-' + action: (asset, action)
     for role, asset, actions in (
@@ -13076,12 +13077,13 @@ class AccessibleUI:
                                           check_prompt=True)
         return node is None or not complete_absence and not self.showing(node)
 
-    def native_policy_activity(self, *, closed=False, role='A'):
+    def native_policy_activity(self, *, closed=False, role='A', child=EXISTING_CHILD):
         """APP02: bind public presence/complete absence to the same child session."""
-        require(role in ('A', 'S') and type(closed) is bool, 'ui:native-binding')
+        require(role in ('A', 'S') and type(closed) is bool
+                and (child == EXISTING_CHILD or child == CHILD and role == 'S'), 'ui:native-binding')
         instance = 'secondary' if role == 'S' else 'primary'
         uid = os.getuid()
-        require(uid == pwd.getpwnam(CHILD_ACCOUNTS[EXISTING_CHILD]).pw_uid == os.geteuid(),
+        require(uid == pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid == os.geteuid(),
                 'ui:native-activity-owner')
         owner = session_control.entry_identity(session_control.sessions(), uid, 'same')
         if closed:
@@ -13090,7 +13092,7 @@ class AccessibleUI:
         else:
             value = self.wait(lambda: self.native_app_snapshot(
                 'ONPC fixture draft', with_window=True, role=role, instance=instance,
-                child=EXISTING_CHILD, implicit_instance=role == 'A'),
+                child=child, implicit_instance=role == 'A'),
                 'native-policy-activity', prompt_in_predicate=True)
         require(session_control.entry_identity(session_control.sessions(), uid, 'same') == owner,
                 'ui:native-activity-owner-changed')
@@ -13141,7 +13143,7 @@ class AccessibleUI:
         if operation in ('native-policy-activity', 'native-policy-closed',
                          'native-policy-soft-activity', 'native-policy-soft-closed'):
             return self.native_policy_activity(closed=operation.endswith('-closed'),
-                                               role='S' if '-soft-' in operation else 'A')
+                                               role='S' if '-soft-' in operation else 'A', child=child)
         if operation in ('native-desktop', 'native-closed'):
             self.wait(self.native_app_closed, 'native-closed')
         elif operation == 'native-command-launch':

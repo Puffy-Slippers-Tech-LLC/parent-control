@@ -126,12 +126,13 @@ def challenge_engineering_lock(ui, guard, send_shift, *, deadline, boot_sha256):
             'observed_monotonic': completed, 'harmless_input': 'Shift'}
 
 
-def await_natural_expiry(journey, guard, previous, activity):
+def await_natural_expiry(journey, guard, previous, activity, *, maximum_seconds=240):
     """Ready the public observer before activity; a deadline never proves Lock."""
     require(type(previous) is CountdownSample and type(activity) is AppActivityObservation,
             'natural-expiry:entry')
     low, high = countdown_seconds(previous.countdown.text)
-    require(0 < low <= high <= 240, 'natural-expiry:positive-time')
+    require(type(maximum_seconds) is int and maximum_seconds in (240, 600)
+            and 0 < low <= high <= maximum_seconds, 'natural-expiry:positive-time')
     deadline = previous.read_bounds[0] / 1e9 + high + 15
     actions = 0
     initial_session = None

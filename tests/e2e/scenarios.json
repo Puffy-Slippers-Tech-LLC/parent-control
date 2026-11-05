@@ -762,7 +762,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Set zero daily allowance and enable limits. Obtain a short station grant including soft apps, sign in as the child, and leave recognizable work in an allowed app and a soft-blocked app."},
-          {"id": "step-2", "operation": "wait", "description": "Use the desktop until it locks naturally. Try the correct password and read the time-limit restriction."},
+          {"id": "step-2", "operation": "wait", "description": "Use the desktop until it locks naturally. Observe the native time-limit restriction, which prevents password entry, then return to sign-in without replacing the child session."},
           {"id": "step-3", "operation": "ui", "description": "Approve replacement station time with the declared soft-app choice and unlock the retained desktop. Compare the allowed work with its earlier state. The soft activity remains when included and closes when excluded; try new hard- and soft-blocked launches."}
         ],
         "end": [
@@ -790,7 +790,7 @@
         "rationale": "Owns zero-daily unfinished-work recovery. E2E-025 instead replaces expired grants while daily time remains."
       },
       "variants": [
-        {"coverage_id": 23, "id": "excluded", "owner": "child-access", "parameters": {"soft-apps": "excluded"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 23, "id": "excluded", "owner": "child-access", "parameters": {"soft-apps": "excluded"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/grant_work_recovery.py", "test_id": "excluded"}},
         {"coverage_id": 24, "id": "included", "owner": "child-access", "parameters": {"soft-apps": "included"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },

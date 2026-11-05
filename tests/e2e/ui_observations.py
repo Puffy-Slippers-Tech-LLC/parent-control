@@ -2032,15 +2032,16 @@ class UiObservations:
                     'score': 'Moves: 0; token: 0'}
         if operation in ('native-activity', 'overlay-native-activity', 'parent-native-activity',
                          'native-policy-activity', 'native-policy-closed', 'native-unmatched-soft-activity',
-                         'native-policy-soft-activity', 'native-policy-soft-closed'):
+                         'native-policy-soft-activity', 'native-policy-soft-closed',
+                         'overlay-native-policy-soft-activity', 'overlay-native-policy-soft-closed'):
             require(type(result) is dict and set(result) == {*expected, 'activity'}, 'ui:response')
             activity = AppActivityObservation.from_value(result['activity'],
                 closed=operation.endswith('-closed'), binding=(
                     'native-secondary' if operation == 'native-unmatched-soft-activity'
-                    or operation.startswith('native-policy-soft-') else 'native-primary'))
+                    or operation.removeprefix('overlay-').startswith('native-policy-soft-') else 'native-primary'))
             require((activity.pid is None) == operation.endswith('-closed'),
                     'ui:app-activity-result')
-            if operation.startswith('native-policy-'):
+            if operation.removeprefix('overlay-').startswith('native-policy-'):
                 require(activity.owner is not None, 'ui:app-activity-owner')
             expected['activity'] = result['activity']
         if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals', 'native-alias-grid'):

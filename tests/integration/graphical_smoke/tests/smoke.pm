@@ -91,7 +91,9 @@ sub exchange {
     close($request) or die 'smoke:request-close';
     rename("$stage.request.tmp", "$stage.request.json") or die 'smoke:request-publish';
     my $deadline = time + ($stage =~ /\Apublic-/ ? 120 : $stage eq 'setup-detached' ? 1500
-        : $stage eq 'minute-progression' ? 900
+        # Natural expiry can consume the complete real ten-minute grant, plus
+        # observation/transport time. Its controller keeps the product deadline.
+        : $stage eq 'minute-progression' || $stage eq 'natural-expiry' ? 900
         : $stage eq 'package-submitted' || $stage eq 'upgrade-submitted' ? 780
         : $stage eq 'reboot-installed-greeter' || $stage eq 'second-reboot-greeter'
             || $stage eq 'reboot-greeter' ? 780 : 420);
@@ -510,6 +512,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_challenges::countdown_combined(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{grant_work_recovery}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_challenges::grant_work_recovery(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, $ready->{kiosk_request});
         return;
     }
     if ($ready->{natural_access}) {

@@ -97,6 +97,10 @@ def replace(command, descriptors):
             value = json.loads(baseline)
             value['generation'] = generation(Path(value['run']))
             os.environ[BASELINE] = json.dumps(value)
+            # Publish the request accepted at this safe boundary so observers
+            # can distinguish a pending reload from a retained old request.
+            from detached_launcher import atomic
+            atomic(Path(value['run']) / 'reload-accepted.json', value['generation'])
         if keeper is not None:
             os.environ[vm_pool.RELOAD_KEEPER] = json.dumps(keeper)
         for fd in inherited:

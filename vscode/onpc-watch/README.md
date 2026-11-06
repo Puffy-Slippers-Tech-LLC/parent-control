@@ -63,6 +63,10 @@ Beside Stop/Resume, **Reload** (circular arrow) asks for confirmation with
 with the saved parameters, stripping earlier lifecycle flags, on the same host
 and checkout. Reload is disabled while stopping, disconnected, or when the source
 adapter has not published its reload command.
+While an active launcher's reload request awaits a safe boundary, its title
+shows `(Reload Requested)` in the same orange as **Stop Requested**. The suffix
+clears when the controller accepts the reload or the launcher exits; a stop
+request takes precedence.
 The title
 keeps **Status**, **Launcher**, **Error** and **Session**
 links at its right end. When narrowed, each title row truncates with an ellipsis.

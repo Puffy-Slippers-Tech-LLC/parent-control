@@ -100,7 +100,7 @@
         labels.title = `${entry.server}\n${entry.label}`;
         const title = element('span', 'run-launcher-label', labels);
         title.textContent = entry.label;
-        if (['Stop Requested', 'Stopping'].includes(entry.status)) {
+        if (['Stop Requested', 'Stopping', 'Reload Requested'].includes(entry.status)) {
             const suffix = ` (${entry.status})`;
             if (entry.label.endsWith(suffix)) {
                 title.textContent = entry.label.slice(0, -suffix.length) + ' (';

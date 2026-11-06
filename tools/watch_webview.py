@@ -334,6 +334,17 @@ class Viewer:
             if supervisor(output.run) is not None:
                 continue
             status = '' if active else output.completion_status()
+            if active and output.run is not None:
+                try:
+                    requested = self.launcher_reader.read(output.run / 'reload.json', 4096)
+                    try:
+                        accepted = self.launcher_reader.read(output.run / 'reload-accepted.json', 4096)
+                    except FileNotFoundError:
+                        accepted = None
+                    if isinstance(requested, str) and requested != accepted:
+                        status = 'Reload Requested'
+                except (OSError, ValueError, TypeError):
+                    pass
             if active and output.run is not None and any(
                     (output.run / marker).exists() for marker in ('stop', 'cancel')):
                 status = 'Stop Requested'

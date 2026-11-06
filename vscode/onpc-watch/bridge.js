@@ -129,7 +129,7 @@ function validate(snapshot) {
 class Source {
     constructor(config, log, changed, reportError = () => {}) {
         this.config = config;
-        this.log = log;
+        this.log = message => log(`${new Date().toISOString()} [${config.label}/${config.reader || 'watch'}] ${message}`);
         this.changed = changed;
         this.reportError = reportError;
         this.status = 'Connecting';
@@ -138,6 +138,7 @@ class Source {
         this.retryAt = 0;
         this.backoff = 1000;
         this.frames = new Map();
+        this.staleFrames = new Set();
         this.actions = [];
     }
 
@@ -152,6 +153,7 @@ class Source {
         // Spawn returns without waiting for SSH; sources connect independently.
         const child = spawn(command, args, { cwd: remote ? undefined : config.root, stdio: ['pipe', 'pipe', 'pipe'] });
         this.child = child;
+        this.log(`Reader started (pid ${child.pid ?? 'unavailable'}).`);
         this.status = 'Connecting';
         this.authRefused = false;
         this.stderr = '';
@@ -160,6 +162,7 @@ class Source {
         let chunks = [], bytes = 0;
         child.stdout.on('data', data => {
             if (this.child !== child) return;
+            if (this.pending) this.pending.bytes += data.length;
             // Accumulate without repeatedly copying a large PNG/recording response.
             let start = 0;
             while (start < data.length) {
@@ -186,7 +189,7 @@ class Source {
                 this.stderr = this.stderr.slice(-128 * 1024);
                 this.stderrTruncated = true;
             }
-            this.log(`[${config.label}] ${data.toString()}`);
+            this.log(data.toString());
         });
         child.on('error', error => { if (this.child === child) this.fail(error.message); });
         // EPIPE can precede the final stdout reply and authentication diagnostics.
@@ -194,8 +197,10 @@ class Source {
         child.stdin.on('error', () => {});
         // Drain the final reply and SSH diagnostics before reporting shutdown.
         child.on('close', (code, signal) => {
+            this.log(`Reader exited (pid ${child.pid ?? 'unavailable'}, exit ${code ?? 'unavailable'}, signal ${signal || 'none'}).`);
             if (this.child !== child) return;
-            this.fail(bytes ? 'Bridge closed with an incomplete response.' : `Bridge closed (${signal || code}).`);
+            this.fail(`Bridge closed (exit ${code ?? 'unavailable'}, signal ${signal || 'none'})` +
+                (bytes ? ' with an incomplete response.' : '.'));
         });
     }
 
@@ -213,8 +218,11 @@ class Source {
             message = 'SSH authentication or host-key verification refused; fix SSH access and click Reconnect.';
             retry = false;
         }
-        this.stop();
         const pending = this.pending;
+        this.log(`${message} Reader pid ${this.child?.pid ?? 'unavailable'}.` +
+            (pending ? ` Operation: ${pending.operation}; elapsed: ${Math.round(performance.now() - pending.started)} ms; received: ${pending.bytes} bytes.` : '') +
+            (retry ? ` Retry in ${this.backoff} ms.` : ' Manual reconnect required.'));
+        this.stop();
         this.pending = undefined;
         const error = Object.assign(new Error(message), { quiet });
         pending?.reject?.(error);
@@ -226,9 +234,8 @@ class Source {
         this.status = `Disconnected — ${message}` + (retry ? ' Retrying…' : ' Click Reconnect to try again.');
         this.retryAt = retry ? Date.now() + this.backoff : Infinity;
         this.backoff = Math.min(15000, this.backoff * 2);
-        this.frames.clear();
         this.failureDetail = detail;
-        this.log(`[${this.config.label}] ${this.status}`);
+        this.staleFrames = new Set(this.frames.keys());
         this.reportError(`Watch connection failed: ${this.config.label}`, detail);
         this.changed();
     }
@@ -236,7 +243,11 @@ class Source {
     send(request, pending = {}) {
         const line = JSON.stringify({ protocol: VERSION, ...request }) + '\n';
         if (Buffer.byteLength(line) > MAX_REQUEST) throw new Error('Watch request too large.');
-        this.pending = { ...pending, updates: request.updates === true, reset: request.reset === true };
+        const operation = request.session_action ? `session ${request.session_action.kind}` :
+            request.launcher_action ? `launcher ${request.launcher_action.kind}` :
+            request.delete_run_times ? 'delete run times' : request.artifact ? 'artifact' : 'snapshot';
+        this.pending = { ...pending, updates: request.updates === true, reset: request.reset === true,
+            operation, started: performance.now(), bytes: 0 };
         this.timeout = setTimeout(() => this.fail('Watch request timed out.', true, true), 10000);
         this.child.stdin.write(line);
     }
@@ -277,16 +288,28 @@ class Source {
             }
             const producers = new Map(this.snapshot?.entries.map(entry => [entry.id, entry.source]));
             for (const entry of value.entries) {
-                if (producers.get(entry.id) !== entry.source) this.frames.delete(entry.id);
-                if (Object.hasOwn(entry, 'screen')) this.frames.set(entry.id, entry.screen);
+                if (producers.get(entry.id) !== entry.source) {
+                    this.frames.delete(entry.id);
+                    this.staleFrames.delete(entry.id);
+                }
+                if (Object.hasOwn(entry, 'screen')) {
+                    this.frames.set(entry.id, entry.screen);
+                    this.staleFrames.delete(entry.id);
+                }
             }
             const ids = new Set(value.entries.map(entry => entry.id));
-            for (const id of this.frames.keys()) if (!ids.has(id)) this.frames.delete(id);
+            for (const id of this.frames.keys()) if (!ids.has(id)) {
+                this.frames.delete(id);
+                this.staleFrames.delete(id);
+            }
             this.snapshot = value;
             if (value.session_result) this.results.push(value.session_result);
         } else if (!value[pending.response || 'artifact_result']) throw new Error('Missing Watch response.');
         clearTimeout(this.timeout);
         this.pending = undefined;
+        const elapsed = Math.round(performance.now() - pending.started);
+        if (this.status !== 'Connected') this.log(`Connected. ${pending.operation} completed in ${elapsed} ms (${pending.bytes} bytes).`);
+        else if (elapsed >= 2000) this.log(`Slow ${pending.operation}: ${elapsed} ms (${pending.bytes} bytes).`);
         this.status = 'Connected';
         this.failureDetail = undefined;
         this.retryAt = 0;
@@ -352,7 +375,7 @@ class Bridge {
             return source;
         });
         this.resourceSources = resourceConfigs === configs ? this.sources : resourceConfigs.map(config =>
-            new Source(config, log, () => {
+            new Source({ ...config, reader: 'resources' }, log, () => {
                 this.revision++;
                 queueMicrotask(() => { if (!this.closed) changed(); });
             }, reportError));
@@ -454,9 +477,7 @@ class Bridge {
             const { id, label } = source.config;
             const value = source.snapshot;
             const connected = source.status === 'Connected';
-            if (source.config.transport === 'ssh' && (!connected ||
-                    !servers.get(key('ssh', source.config.host))?.connected)) continue;
-            if (selected === 'run-time' && connected && (!scope || scope.source === source)) {
+            if (selected === 'run-time' && (!scope || scope.source === source)) {
                 for (const row of value?.run_times || []) {
                     const routeLink = uri => {
                         if (!uri) return null;
@@ -464,7 +485,7 @@ class Bridge {
                         this.links.set(token, { source, uri });
                         return token;
                     };
-                    const deletion = typeof row.delete_token === 'string' && /^[a-f0-9]{64}$/.test(row.delete_token)
+                    const deletion = connected && typeof row.delete_token === 'string' && /^[a-f0-9]{64}$/.test(row.delete_token)
                         && value.capabilities.delete_run_times ? key(id, row.delete_token) : null;
                     if (deletion) this.timings.set(deletion, { source, token: row.delete_token });
                     run_times.push({ ...row, delete_token: deletion, source_id: id, case_link: routeLink(row.case_link),
@@ -493,7 +514,7 @@ class Bridge {
                     launcher_controls: connected && run.launcher_controls === true,
                     transport: source.config.transport,
                     server: source.config.transport === 'ssh' ? source.config.host : 'local',
-                    // Disconnected local sessions retain contents but cannot accept input.
+                    // Retain presentation through retries; input still requires a live reader.
                     connected,
                     session_active: connected && run.session_active,
                     session_waiting: connected && run.session_waiting,
@@ -506,7 +527,7 @@ class Bridge {
             for (const entry of value?.entries || []) {
                 if (scope && scope.source !== source) continue;
                 const route = key(id, entry.id);
-                const frame = connected ? source.frames.get(entry.id) : null;
+                const frame = source.frames.get(entry.id);
                 const previous = this.displayedFrames.get(route);
                 const changed = request.reset || previous?.frame !== frame || previous?.source !== entry.source;
                 const shown = selected === 'all' ? entry.active : selected === route;
@@ -515,10 +536,13 @@ class Bridge {
                     if (changed) this.displayedFrames.set(route, { frame, source: entry.source });
                 }
                 const { screen: _screen, ...metadata } = entry;
+                const staleFrame = frame && (!connected || source.staleFrames.has(entry.id));
                 entries.push({ ...metadata, id: route, source: key(id, entry.source),
                     label: (labelSources ? `[${label}] ` : '') + entry.label,
-                    status: connected ? entry.status : source.status,
-                    memory: connected ? entry.memory : null,
+                    status: (connected ? entry.status : source.status) +
+                        (staleFrame ? ' Waiting for fresh frame; showing last received frame.' : ''),
+                    memory: connected || !entry.memory ? entry.memory :
+                        { ...entry.memory, text: '—', sample: `stale:${entry.memory.sample}` },
                     ...(shown && changed ? { screen: frame && !request.reset && previous?.source === entry.source &&
                         previous.frame?.image === frame.image && previous.frame.width === frame.width &&
                         previous.frame.height === frame.height ?
@@ -532,7 +556,7 @@ class Bridge {
                 transport: source.config.transport,
                 resources: connected ? source.snapshot?.resources || '' : '',
                 sample: connected ? source.snapshot?.resource_sample : null,
-                charts: connected ? source.snapshot?.resource_charts || [] : [] });
+                charts: (source.snapshot?.resource_charts || []).map(chart => connected ? chart : { ...chart, text: '—' }) });
         }
         for (const id of this.displayedFrames.keys()) if (!visible.has(id)) this.displayedFrames.delete(id);
         const latestTimes = new Map();
@@ -562,7 +586,10 @@ class Bridge {
             }
             return update;
         });
-        return { entries, runs: updates, checkouts, hosts, servers: [...servers.values()], run_times: times,
+        const connections = this.sources.map(source => ({ label: source.config.label,
+            status: source.status, connected: source.status === 'Connected',
+            retrying: Number.isFinite(source.retryAt), failed: Boolean(source.failureDetail) }));
+        return { entries, runs: updates, checkouts, hosts, servers: [...servers.values()], connections, run_times: times,
             scope: checkouts.some(checkout => checkout.id === request.scope) ? request.scope : 'all',
             selected,
             session_results: this.results.splice(0) };

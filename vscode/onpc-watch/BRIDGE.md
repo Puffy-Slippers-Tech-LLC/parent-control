@@ -31,6 +31,9 @@ reader's filesystem layout, Python modules, libvirt or Unix-socket protocol.
   Responses render immediately with UI backpressure. Slow
   sources skip requests, rather than accumulating a frame queue or blocking peers.
   Hidden Watch panels stop requesting; an already pending request may finish.
+  Their webview context is retained so returning to Watch preserves panel state.
+  The local adapter completes initial checkout/VM discovery before publishing its
+  first snapshot, rather than replacing retained panels with a partial inventory.
 - Requests time out after ten seconds and retry quietly, including local readers.
   Broken connections retry independently
   with a 1–15 second backoff, including idle and initially unreachable sources.
@@ -43,8 +46,16 @@ reader's filesystem layout, Python modules, libvirt or Unix-socket protocol.
   reader is connected and none has an outstanding failure. All failures use the
   offline cloud icon. Clicking it opens the shared error dialog; full diagnostics
   stay in the extension host and are resolved by server ID. Failures remain
-  available during retries and clear on successful replies. Disconnected SSH
-  hosts contribute no launchers, viewers or artifacts.
+  available during retries and clear on successful replies. Disconnected sources
+  retain their last launchers, viewers and run time rows. Actions, input, deletion
+  and artifact requests require a connected source. Retained frames stay labelled
+  as old until that entry receives a fresh screen or an explicit screen removal;
+  metadata alone does not make an old frame current. Host graphs remain visible
+  with unavailable current readings during retries; replacement readers start
+  new sampling histories.
+  The aggregate also adds `connections` for source recovery status in the footer.
+  Timestamped Output diagnostics identify reader starts/exits, reconnect reasons,
+  operation durations and response byte counts without logging request text.
 - Responses are bounded to 96 MiB per line (excluding newline) and requests to
   512 KiB (including newline). Frame buffers and
   snapshots stay in memory. Only changed frame data crosses the bridge; it is not
@@ -173,8 +184,8 @@ only observer presentation, so it may operate on a retained, inactive session.
 Every action receives exactly one acknowledgement, including stale-session
 refusals; snapshots without an action omit `session_result` or set it to null.
 The bridge routes actions only to their displayed source/session.
-Disconnected local sources disable input while retaining the observed transcript.
-Disconnected SSH sources are hidden until fresh snapshots arrive after reconnecting.
+Disconnected sources disable input while retaining the observed transcript.
+Fresh snapshots update their retained panels after reconnecting.
 
 Actions are never retried automatically. Losing a response leaves delivery
 unknown; inspect the authoritative transcript before submitting again. Exactly

@@ -3863,6 +3863,20 @@ worker/callback shutdown, owned cleanup and baseline restoration; the VM was
 independently observed off. This qualifies the named grid slice, with no
 complete-scenario or deferred Snap enforcement credit.
 
+Case 100 (`flatpak_app_launch.HARD_GRID_PLAN` / `onpc_app_launch::run`) passed
+on Ubuntu 26.04 in `scenario-f5acc41af764408f9c4bad644af2d5ce`. Parent saved and
+independently read Jordan's 30-minute daily allowance, zero grant and Hard Blocked
+Flatpak A rule. Fresh Jordan's exact grid search required the hidden launcher
+and complete window absence, followed by an app-specific administrator-policy
+command denial. Fresh Riley opened and submitted the same app through the grid
+with independent owned-window/result reads and untouched policy and limits.
+The shared worker composes the existing hidden-grid and command-denial operations;
+no input, ownership or cleanup guard changed. The affected Allowed grid case 98
+passed in `scenario-b4534bab58fc4c749e243d37aad8f359`. Both runs passed collection,
+worker shutdown, owned cleanup and baseline restoration; coverage was refreshed
+after each case and the VM was observed off. Soft-blocked grid cases remain
+separate.
+
 ### Snap command use
 
 `snap_command_usable.PLAN` / `onpc_app_rows::snap_command_usable` qualify

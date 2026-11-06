@@ -22,9 +22,17 @@ def launch_plan(route='command', *, limits=True, rule='allowed'):
         rule + '-save': 'ui:access-flatpak-' + access,
         rule + '-row': 'ui:access-flatpak-row',
     }
+    denied = {
+        **(prefixed_stages('jordan-denied', {
+            stage: tag for stage, tag in native_usable_app('grid', kind='flatpak', role='A').items()
+            if stage in ('desktop', 'search-ready', 'search-focused', 'search-entered')})
+           if route == 'grid' else {}),
+        **({'jordan-denied-app-grid': 'ui:flatpak-allowed-grid-hidden'} if route == 'grid' else {}),
+        'jordan-denied-command': 'ui:flatpak-allowed-command-blocked',
+    }
     jordan = {
         'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
-        **({'jordan-denied-command': 'ui:flatpak-allowed-command-blocked'} if blocked else
+        **(denied if blocked else
            prefixed_stages('jordan-use', native_usable_app(route, kind='flatpak', role='A'))),
     }
     riley = {
@@ -64,6 +72,7 @@ def launch_plan(route='command', *, limits=True, rule='allowed'):
 
 PLAN = launch_plan()
 GRID_PLAN = launch_plan('grid')
+HARD_GRID_PLAN = launch_plan('grid', rule='hard')
 DISABLED_PLAN = launch_plan(limits=False)
 HARD_COMMAND_PLAN = launch_plan(rule='hard')
 HARD_COMMAND_DISABLED_PLAN = launch_plan(limits=False, rule='hard')
@@ -79,6 +88,7 @@ def execute(recorder, context, *, plan=PLAN):
 
 E2E_CASES = {'flatpak-command-allowed-enabled': execute,
              'flatpak-grid-allowed-enabled': partial(execute, plan=GRID_PLAN),
+             'flatpak-grid-hard-blocked-enabled': partial(execute, plan=HARD_GRID_PLAN),
              'flatpak-command-allowed-disabled': partial(execute, plan=DISABLED_PLAN),
              'flatpak-command-hard-blocked-enabled': partial(execute, plan=HARD_COMMAND_PLAN),
              'flatpak-command-hard-blocked-disabled': partial(execute, plan=HARD_COMMAND_DISABLED_PLAN),

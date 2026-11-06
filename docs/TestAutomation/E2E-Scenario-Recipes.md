@@ -1259,6 +1259,16 @@ and submitted result. Riley's policy and disabled limits remain untouched.
 There is no approval, match-editor visit, launcher-visibility assertion or
 alternate route.
 
+Case 100 uses `flatpak_app_launch.HARD_GRID_PLAN` and the same worker's enabled,
+hard-blocked Flatpak grid binding. Parent gives Jordan 30 daily minutes with zero
+grant and saves A's permanent access with independent row readback. Fresh Jordan
+searches the exact launcher and requires its completed hidden-grid result, then
+attempts the same system Flatpak command once and requires its app-specific
+administrator-policy denial with complete window absence. After Jordan logs out,
+fresh Riley opens the same app from the grid and submits the normal draft with
+independent owned-window/result reads and untouched policy and limits. No approval
+or launcher activation for Jordan is prepared.
+
 Case 105 uses `flatpak_app_launch.DISABLED_PLAN` and the same worker's disabled
 Allowed Flatpak command binding. Parent independently reads Jordan's untouched
 limits-off/zero-allowance settings, then saves and reads A's Allowed row without

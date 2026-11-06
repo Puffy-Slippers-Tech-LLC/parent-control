@@ -927,6 +927,10 @@ propagation checkpoint, while retaining destination-specific cleanup ownership.
 One repository-wide lock covers source Git close-out and propagation, serializing
 reverse-direction updates before either source writes its completion commit.
 Competing close-outs wait unattended, with cancellation still available.
+The Launcher output reports synchronization lock waits, acquisition and release,
+upstream synchronization, and Git fetch, pull, push, remote lookup, merge, stash,
+commit and worktree operations as they start and finish. Command arguments and
+captured Git output stay out of these progress messages.
 Checkpoint each destination's stash, fetch, merges, restoration, push and stash
 retirement. Restart reuses the source task commit and completed destinations,
 including when the source HEAD has advanced to a descendant of that exact commit;

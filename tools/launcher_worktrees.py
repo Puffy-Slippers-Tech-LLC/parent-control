@@ -43,19 +43,25 @@ def transaction_lock(root, run, *, git=git_output):
         yield
         return
     with launcher.lock(common / 'onpc-worktree-propagation.lock') as lock:
+        waiting = False
         while True:
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 break
             except BlockingIOError:
+                if not waiting:
+                    print('Git: waiting for another launcher to finish repository synchronization.', flush=True)
+                    waiting = True
                 if (run / 'cancel').exists():
                     raise launcher.Stopped()
                 time.sleep(0.1)
+        print('Git: repository synchronization lock acquired.', flush=True)
         _held.paths = held | {str(common)}
         try:
             yield
         finally:
             _held.paths = held
+    print('Git: repository synchronization lock released.', flush=True)
 
 
 def configured_targets(root, *, git=git_output):
@@ -175,6 +181,7 @@ def push_source(root, run, state, commit, *, git=git_output):
 
 
 def _sync_current(root, run, state, *, git, checkpoint='checkpoint.json', push=False):
+    print(f'Git: synchronizing checkout {root.name} with its upstream.', flush=True)
     with transaction_lock(root, run, git=git):
         before = _head(git, root)
         pending = state.setdefault('upstream_pull', {})
@@ -194,6 +201,7 @@ def _sync_current(root, run, state, *, git, checkpoint='checkpoint.json', push=F
         if _head(git, root) != before:
             from launcher_reload import request
             request(launcher.propagation_source_run(root, run))
+    print(f'Git: upstream synchronization complete for {root.name}.', flush=True)
 
 
 def _remote_destination(git, root, branch):

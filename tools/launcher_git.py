@@ -373,16 +373,29 @@ def retry_git_transport(operation, *, deadline=None, cancelled=None):
 
 def git_output(root, *arguments, check=True, retry_deadline=None, cancelled=None):
     network = arguments[0] in ('fetch', 'pull', 'push', 'ls-remote')
+    operation = arguments[0] if arguments[0] in (
+        'fetch', 'pull', 'push', 'ls-remote', 'merge', 'commit') else None
+    if arguments[:2] in (('stash', 'push'), ('stash', 'apply'), ('stash', 'drop'),
+                         ('worktree', 'add'), ('worktree', 'remove')):
+        operation = ' '.join(arguments[:2])
+    label = f'Git: {operation} in {Path(root).name}'
 
     def execute(deadline):
         timeout = max(.001, deadline - time.monotonic()) if deadline is not None else None
+        if operation:
+            print(f'{label}: running.', flush=True)
         try:
             result = subprocess.run(['git', *arguments], cwd=root,
                 env=dict(launcher.environment(), LC_ALL='C', GIT_TERMINAL_PROMPT='0'),
                 stdin=subprocess.DEVNULL, capture_output=True, text=True,
                 timeout=timeout if network else None)
         except subprocess.TimeoutExpired as error:
+            if operation:
+                print(f'{label}: timed out.', flush=True)
             raise ValueError('Git transport timed out') from error
+        if operation:
+            outcome = 'completed' if result.returncode == 0 else f'exit status {result.returncode}'
+            print(f'{label}: {outcome}.', flush=True)
         if network and result.returncode and transient_git_failure(result.stderr + result.stdout):
             result.check_returncode()
         return result

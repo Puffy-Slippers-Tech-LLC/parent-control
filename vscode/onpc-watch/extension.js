@@ -45,7 +45,9 @@ function html(webview, context) {
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="5" height="14"/><rect x="12" y="3" width="5" height="14"/></svg></button>
         </div></div>
         <main id="grid"><p class="empty" role="status">Connecting to watch…</p></main></section></div>
-        <footer><button id="restart" title="Reconnect to the watch backend">Reconnect</button>
+        <footer><button id="watch-error-indicator" type="button" hidden title="Show Watch error details" aria-label="Show Watch error details">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button>
+        <button id="restart" title="Reconnect to the watch backend">Reconnect</button>
         <span id="servers" aria-label="Server connection status"></span>
         <span id="resources"></span></footer>
         ${errorDialog(nonce)}
@@ -60,7 +62,8 @@ function activate(context) {
     let lastTerminalDiagnostic;
     context.subscriptions.push(output);
     context.subscriptions.push(vscode.commands.registerCommand('onpc.watchTerminalDiagnostic', () => {
-        errors.report('Watch terminal diagnostic', lastTerminalDiagnostic || 'No failed Watch terminal has been recorded in this VS Code session.', true);
+        errors.report('Watch terminal diagnostic', lastTerminalDiagnostic || 'No failed Watch terminal has been recorded in this VS Code session.');
+        errors.show();
     }));
     context.subscriptions.push(vscode.window.onDidCloseTerminal(terminal => {
         const invocation = terminals.get(terminal);
@@ -217,7 +220,10 @@ function activate(context) {
                 start();
             } else if (message?.type === 'serverError' && typeof message.server === 'string') {
                 const details = bridge?.serverErrors?.get(message.server);
-                if (details) errors.report('Watch connection failed', details.join('\n\n'), true);
+                if (details) {
+                    errors.report('Watch connection failed', details.join('\n\n'));
+                    errors.show(panel);
+                }
             } else if (message?.type === 'launcherAction' && runRoots.has(message.root) &&
                        typeof message.run === 'string' && ['stop', 'cancel-stop', 'resume', 'reload'].includes(message.kind)) {
                 void launchControl(message);

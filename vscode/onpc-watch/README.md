@@ -59,18 +59,22 @@ in that terminal. Repair queue Stop retains its scope without reselecting VMs.
 Older runs without saved parameters require one normal launch
 before this control becomes available.
 
-Watch infrastructure failures open a shared **ONPC Watch error** dialog over
-Watch, with the live view visible through a translucent gray backdrop. When no
-Watch tab is open, errors use a separate editor tab. Its full diagnostic text is selectable and scrollable horizontally
+Watch infrastructure failures show a flashing red **×** at the bottom left,
+before **Reconnect**. Hovering highlights the icon; clicking opens the shared
+**ONPC Watch error** dialog and stops the flashing. The icon remains available
+to reopen the latest details, and a new distinct error after dismissal flashes
+again. Errors never open the dialog automatically. Errors recorded before Watch
+opens appear on its icon when it opens.
+The live view remains visible through a translucent gray backdrop.
+The full diagnostic text is selectable and scrollable horizontally
 and vertically; **Copy all** copies it, and **Close** dismisses it. Additional
-distinct errors append to the open dialog; identical failures do not reopen it,
-even after dismissal, for the rest of the VS Code session. Diagnostics also go
+distinct errors append to the open dialog; identical failures do not restart
+flashing for the rest of the VS Code session. Diagnostics also go
 to the **ONPC Watch** Output channel.
 This covers local Watch connection, rendering, clipboard, screenshot and action
-failures. Recoverable request timeouts retry quietly for both local and remote
-readers, with diagnostics in the Output channel. SSH connection failures never
-open this dialog automatically; click the failed host's footer cloud icon to
-inspect them. They also appear in footer
+failures. Recoverable request timeouts retry for both local and remote readers.
+SSH connection failures also light the error icon; the failed host's footer cloud
+icon provides another way to inspect them. They also appear in footer
 status tooltips and the Output channel. Launcher-owned **Error** tab contents remain separate and do not
 trigger this dialog.
 For a truncated VS Code terminal-exit notification, run **ONPC: Watch Terminal
@@ -78,8 +82,8 @@ Diagnostic** from the command palette. It shows the last failed Watch terminal's
 full invocation, checkout, host and exit status in the same copyable dialog.
 VS Code's public terminal API does not provide process stderr or the native
 notification's private error text; read process output in the terminal or
-Launcher tab. Exceptions thrown while creating a terminal open the dialog
-automatically. Nonzero terminal exits are retained for this explicit command, since a
+Launcher tab. Exceptions thrown while creating a terminal light the footer
+error icon. Nonzero terminal exits are retained for this explicit command, since a
 launcher can also exit with an ordinary failed test result.
 
 Beside Stop/Resume, **Reload** (circular arrow) asks for confirmation with

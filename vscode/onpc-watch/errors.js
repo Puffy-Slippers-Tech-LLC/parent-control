@@ -10,22 +10,25 @@ class WatchErrors {
         this.output = output;
         this.entries = new Map();
         this.viewers = new Set();
+        this.unread = false;
     }
 
     attach(panel, standalone = false) {
         if (!standalone) {
             this.viewers.add(panel);
-            if (this.panel && !this.viewers.has(this.panel)) {
-                const fallback = this.panel;
-                this.panel = panel;
-                fallback.dispose();
-                // The new webview publishes these details when it sends errorReady.
-            }
         }
         const messages = panel.webview.onDidReceiveMessage(async message => {
+            if (message?.type === 'errorReady') {
+                this.publishState();
+                if (this.panel === panel) this.publish(true);
+                return;
+            }
+            if (message?.type === 'showError' && !standalone) {
+                this.show(panel);
+                return;
+            }
             if (this.panel !== panel) return;
-            if (message?.type === 'errorReady') this.publish();
-            else if (message?.type === 'closeError') {
+            if (message?.type === 'closeError') {
                 this.panel = undefined;
                 if (standalone) panel.dispose();
             } else if (message?.type === 'copyError') {
@@ -44,24 +47,29 @@ class WatchErrors {
         });
     }
 
-    report(title, error, reveal = false) {
+    report(title, error) {
         const detail = error instanceof Error ? error.stack || error.message : String(error);
         const text = `${title}\n\n${detail}`;
         this.output.appendLine(text);
-        if (error?.quiet) return;
-        if (this.entries.has(text) && (!reveal || this.panel)) {
-            if (reveal) this.panel?.reveal();
-            return; // A reconnect loop must not steal focus repeatedly.
+        if (!this.entries.has(text)) {
+            this.entries.set(text, `${new Date().toLocaleString()}\n${text}`);
+            this.unread = !this.panel;
         }
-        this.entries.set(text, `${new Date().toLocaleString()}\n${text}`);
+        this.publishState();
+        this.publish();
+    }
+
+    show(preferred) {
+        this.unread = false;
+        this.publishState();
+        if (preferred && this.panel !== preferred) {
+            if (this.panel && !this.viewers.has(this.panel)) this.panel.dispose();
+            else void this.panel?.webview.postMessage({ type: 'hideError' });
+            this.panel = preferred;
+        }
         if (!this.panel) {
             this.panel = [...this.viewers].find(panel => panel.active) ||
                 [...this.viewers].find(panel => panel.visible) || [...this.viewers].at(-1);
-            if (this.panel) {
-                this.panel.reveal();
-                this.publish();
-                return;
-            }
         }
         if (!this.panel) {
             const panel = vscode.window.createWebviewPanel('onpc.watch.error', 'ONPC Watch error',
@@ -78,12 +86,17 @@ class WatchErrors {
 <script nonce="${nonce}">initializeWatchErrors(acquireVsCodeApi());</script></body></html>`;
         } else {
             this.panel.reveal();
-            this.publish();
+            this.publish(true);
         }
     }
 
     text() { return [...this.entries.values()].join('\n\n' + '─'.repeat(60) + '\n\n'); }
-    publish() { void this.panel?.webview.postMessage({ type: 'errorDetails', text: this.text() }); }
+    publish(open = false) { void this.panel?.webview.postMessage({ type: 'errorDetails', text: this.text(), open }); }
+    publishState() {
+        for (const panel of this.viewers) void panel.webview.postMessage({
+            type: 'errorState', available: this.entries.size > 0, unread: this.unread
+        });
+    }
 }
 
 function errorDialog(nonce) {
@@ -105,11 +118,18 @@ function initializeWatchErrors(vscode) {
 const dialog = document.getElementById('watch-error');
 const text = dialog.querySelector('textarea');
 const status = dialog.querySelector('[role=status]');
+const indicator = document.getElementById('watch-error-indicator');
+if (indicator) indicator.onclick = () => vscode.postMessage({ type: 'showError' });
 window.addEventListener('message', event => {
+    if (event.data.type === 'errorState' && indicator) {
+        indicator.hidden = !event.data.available;
+        indicator.classList.toggle('unread', event.data.unread);
+    }
+    if (event.data.type === 'hideError') dialog.close();
     if (event.data.type === 'errorDetails') {
         text.value = event.data.text;
         status.textContent = '';
-        if (!dialog.open) dialog.showModal();
+        if (event.data.open && !dialog.open) dialog.showModal();
     }
     if (event.data.type === 'errorCopied') status.textContent = 'Copied.';
     if (event.data.type === 'errorCopyFailed') status.textContent = 'Copy failed: ' + event.data.message + '. Select the text and copy manually.';

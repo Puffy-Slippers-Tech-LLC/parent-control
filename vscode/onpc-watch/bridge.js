@@ -227,7 +227,7 @@ class Source {
         this.frames.clear();
         this.failureDetail = detail;
         this.log(`[${this.config.label}] ${this.status}`);
-        if (!quiet) this.reportError(`Watch connection failed: ${this.config.label}`, detail);
+        this.reportError(`Watch connection failed: ${this.config.label}`, detail);
         this.changed();
     }
 

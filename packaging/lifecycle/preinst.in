@@ -3,8 +3,8 @@ set -e
 
 @pre_helpers@
 if [ "$1" = install ] || [ "$1" = upgrade ]; then
-    # Reject unsupported hosts before creating files or stopping services.
-    require_supported_os
+    # Validate native integration before creating files or stopping services.
+    preflight_package
     # Reject collisions before unpacking can replace files or configuring can
     # change account properties. The reserved kiosk identity must be ours.
     state=/var/lib/oh-no-parent-control

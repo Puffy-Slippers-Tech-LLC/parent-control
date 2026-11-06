@@ -21,8 +21,8 @@ class ExecutionPolicyTests(unittest.TestCase):
                  'active': False, 'enabled': False, 'permissive': True}
         for basis in ('absent', 'dependency'):
             with self.subTest(basis=basis), mock.patch(
-                    'oh_no_parent_control.execution_policy.platform.freedesktop_os_release',
-                    return_value={'ID': 'fedora', 'VERSION_ID': '44', 'VARIANT_ID': 'workstation'}), mock.patch(
+                    'platform.freedesktop_os_release',
+                    side_effect=OSError('release identity unavailable')), mock.patch(
                     'oh_no_parent_control.execution_policy._read_policy_mode_file',
                     side_effect=[json.dumps({**valid, 'basis': basis}).encode(), b'policy', b'policy', b'policy']):
                 self.assertTrue(originally_permissive_policy())
@@ -48,18 +48,10 @@ class ExecutionPolicyTests(unittest.TestCase):
                                           (b'policy', None, b'policy'),
                                           (b'policy', b'policy', b'changed')):
             with self.subTest(fallback=fallback, witness=witness, payload=payload), mock.patch(
-                    'oh_no_parent_control.execution_policy.platform.freedesktop_os_release',
-                    return_value={'ID': 'fedora', 'VERSION_ID': '44', 'VARIANT_ID': 'workstation'}), mock.patch(
                     'oh_no_parent_control.execution_policy._read_policy_mode_file',
                     side_effect=[json.dumps(valid).encode(), fallback, witness, payload]):
                 with self.assertRaisesRegex(ExecutionPolicyError, 'not owned'):
                     originally_permissive_policy()
-        with (mock.patch('oh_no_parent_control.execution_policy._read_policy_mode_file',
-                         return_value=json.dumps(valid).encode()),
-              mock.patch('oh_no_parent_control.execution_policy.platform.freedesktop_os_release',
-                         return_value={'ID': 'ubuntu'})):
-            with self.assertRaisesRegex(ExecutionPolicyError, 'another distribution'):
-                originally_permissive_policy()
 
     def test_original_policy_mode_reader_refuses_insecure_files_and_ancestors(self):
         for fault in ('ancestor', 'owner', 'symlink', 'fifo', 'hardlink', 'mode', 'size', 'growth'):

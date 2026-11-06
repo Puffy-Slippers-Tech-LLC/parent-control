@@ -271,8 +271,7 @@ def test_fedora_public_purge_runs_cleanup_only_in_native_callback_and_preserves_
     source = machine.prepare_script(script_source('postrm', 'fedora')).read_text()
     monkeypatch.setattr(purge_module, 'Path', lambda value: tmp_path / str(value).lstrip('/'))
     monkeypatch.setattr(purge_module.os, 'geteuid', lambda: 0)
-    monkeypatch.setattr(purge_module.platform, 'freedesktop_os_release', lambda: {
-        'ID': 'fedora', 'VERSION_ID': '44', 'VARIANT_ID': 'workstation'})
+    monkeypatch.setattr(purge_module, 'PACKAGE_FORMAT', 'rpm')
     events = []
     monkeypatch.setattr(purge_module, 'cleanup_source', lambda: (events.append('source') or source))
     monkeypatch.setattr(purge_module, 'secure', Mock())
@@ -372,12 +371,11 @@ def test_standalone_saved_data_purge_preserves_but_does_not_recreate_reboot_requ
     assert 'REBOOT REQUIRED' not in result.stderr
 
 
-@pytest.mark.parametrize('package_format', ['ubuntu', 'fedora'])
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
 @pytest.mark.parametrize('yes', [False, True])
 def test_native_confirmation_is_default_and_yes_is_explicit(purge_module, monkeypatch, package_format, yes):
     monkeypatch.setattr(purge_module.os, 'geteuid', lambda: 0)
-    monkeypatch.setattr(purge_module.platform, 'freedesktop_os_release', lambda: {
-        'ID': package_format, 'VERSION_ID': '44', 'VARIANT_ID': 'workstation'})
+    monkeypatch.setattr(purge_module, 'PACKAGE_FORMAT', package_format)
     monkeypatch.setattr(purge_module, 'cleanup_source', lambda: 'fixed cleanup')
     monkeypatch.setattr(purge_module, 'secure', Mock())
     monkeypatch.setattr(purge_module, 'verify_fedora_pam', Mock())
@@ -392,6 +390,7 @@ def test_native_confirmation_is_default_and_yes_is_explicit(purge_module, monkey
     purge_module.purge(yes=yes)
     transactions = [call.args[0] for call in run.call_args_list if call.args[0][0] in ('apt-get', 'dnf')]
     assert len(transactions) == 1 and ('-y' in transactions[0]) == yes
+    assert transactions[0][0] == ('apt-get' if package_format == 'deb' else 'dnf')
     assert transactions[0][-1] == purge_module.PRODUCT
 
 
@@ -412,7 +411,6 @@ def test_retained_active_pam_reference_blocks_saved_data_deletion(purge_module, 
 
 def test_bad_cleanup_source_fails_before_any_transaction(purge_module, monkeypatch):
     monkeypatch.setattr(purge_module.os, 'geteuid', lambda: 0)
-    monkeypatch.setattr(purge_module.platform, 'freedesktop_os_release', lambda: {'ID': 'ubuntu'})
     monkeypatch.setattr(purge_module, 'cleanup_source', Mock(side_effect=ValueError('purge:unsafe-cleanup-source')))
     run = Mock()
     monkeypatch.setattr(purge_module.subprocess, 'run', run)
@@ -441,7 +439,6 @@ def test_apt_zero_exit_is_not_purge_success_without_postconditions(
     purge_module, monkeypatch, capsys, fault,
 ):
     monkeypatch.setattr(purge_module.os, 'geteuid', lambda: 0)
-    monkeypatch.setattr(purge_module.platform, 'freedesktop_os_release', lambda: {'ID': 'ubuntu'})
     monkeypatch.setattr(purge_module, 'cleanup_source', lambda: 'fixed cleanup')
     monkeypatch.setattr(purge_module, 'secure', Mock())
     monkeypatch.setattr(purge_module, 'debian_purged', lambda: fault != 'cancelled')
@@ -471,7 +468,6 @@ def test_purge_postcondition_rejects_saved_data_residue(purge_module, tmp_path, 
 
 def test_saved_root_preflight_refusal_precedes_package_erase(purge_module, monkeypatch):
     monkeypatch.setattr(purge_module.os, 'geteuid', lambda: 0)
-    monkeypatch.setattr(purge_module.platform, 'freedesktop_os_release', lambda: {'ID': 'ubuntu'})
     monkeypatch.setattr(purge_module, 'cleanup_source', lambda: 'fixed cleanup')
     monkeypatch.setattr(purge_module, 'secure', Mock(side_effect=ValueError('purge:unsafe-owned-path')))
     run = Mock()
@@ -623,8 +619,7 @@ def test_intent_cleanup_preserves_replacement(purge_module, tmp_path, monkeypatc
 def test_post_transaction_reinstall_is_never_cleaned_up_by_the_purge_cli(purge_module, tmp_path, monkeypatch):
     saved = tmp_path / 'preferences.json'
     monkeypatch.setattr(purge_module.os, 'geteuid', lambda: 0)
-    monkeypatch.setattr(purge_module.platform, 'freedesktop_os_release', lambda: {
-        'ID': 'fedora', 'VERSION_ID': '44', 'VARIANT_ID': 'workstation'})
+    monkeypatch.setattr(purge_module, 'PACKAGE_FORMAT', 'rpm')
     monkeypatch.setattr(purge_module, 'cleanup_source', lambda: 'fixed cleanup')
     monkeypatch.setattr(purge_module, 'secure', Mock())
     monkeypatch.setattr(purge_module, 'begin_intent', lambda: (1, 2))

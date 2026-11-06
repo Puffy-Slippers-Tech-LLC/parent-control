@@ -18,12 +18,12 @@ transient-download retries and uses `APT::Update::Error-Mode=any` so an exhauste
 index refresh stops before installation. Package configuration failures are not
 retried; machine APT configuration is unchanged.
 
-DEB installation/reinstallation/upgrade requires `ID=ubuntu`, version 26.04 or
-newer, from `/etc/os-release` or, only when absent, `/usr/lib/os-release`.
-Other/unknown distributions and older releases refuse before changing payload,
-state or services. Aborted-upgrade recovery and removal remain available.
-This OS gate does not qualify later GNOME versions: the child extension declares
-GNOME Shell 50. Fedora's separate packaging target admits Workstation 44/GNOME 50;
+DEB and RPM installation/reinstallation/upgrade do not gate on distribution
+identity, version or edition, and do not require an `os-release` file.
+`make install` selects the format from `INSTALL_PACKAGE`, an explicit
+`PACKAGE_FORMAT=deb|rpm`, or available package-manager commands. Native
+dependencies, account ownership and integration safety checks still apply.
+The child extension declares GNOME Shell 50;
 [the overview](../System-Design.md) owns release qualification.
 
 ### Broker readiness

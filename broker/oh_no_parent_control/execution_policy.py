@@ -7,7 +7,6 @@ import fnmatch
 import json
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, record_exception
 import os
-import platform
 import stat
 import subprocess
 import tempfile
@@ -79,10 +78,6 @@ def originally_permissive_policy() -> bool:
         raise ExecutionPolicyError('original execution policy mode conflicts with enforced policy')
     if not record['permissive']:
         return False
-    release = platform.freedesktop_os_release()
-    if (release.get('ID'), release.get('VERSION_ID'), release.get('VARIANT_ID')) != (
-            'fedora', '44', 'workstation'):
-        raise ExecutionPolicyError('original execution policy mode belongs to another distribution')
     fallback = _read_policy_mode_file(
         Path('/etc/fapolicyd/rules.d/02-oh-no-parent-control-original-allow.rules'), mode=0o644)
     witness = _read_policy_mode_file(

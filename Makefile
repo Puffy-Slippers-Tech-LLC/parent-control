@@ -10,7 +10,6 @@ PRODUCT_LIBDIR ?= $(PREFIX)/lib/oh-no-parent-control
 MULTIARCH ?= $(shell $(CC) -print-multiarch)
 PAM_MODULE_DIR ?= $(PREFIX)/lib/$(MULTIARCH)/security
 PACKAGE_DISTRIBUTION ?= ubuntu
-OS_RELEASE ?= $(firstword $(wildcard /etc/os-release /usr/lib/os-release))
 # Both hosts build their native format and the other distribution's container.
 PACKAGE_FORMAT ?= both
 RPM_RELEASE ?= 0.1.dev
@@ -255,12 +254,21 @@ _build-package:
 install: export ONPC_INSTALL_PACKAGE := $(value INSTALL_PACKAGE)
 install:
 	@set -e; \
-	if [ -r "$(OS_RELEASE)" ]; then . "$(OS_RELEASE)"; \
-	else echo 'Cannot detect distribution: os-release is missing' >&2; exit 1; fi; \
-	case " $${ID:-} $${ID_LIKE:-} " in \
-		*' debian '*|*' ubuntu '*) $(installdeb) ;; \
-		*' fedora '*|*' rhel '*|*' centos '*|*' suse '*|*' opensuse '*) $(installrpm) ;; \
-		*) echo "Unsupported distribution: $${ID:-unknown}" >&2; exit 1 ;; \
+	case "$${ONPC_INSTALL_PACKAGE:-}" in \
+		*.deb) install_format=deb ;; \
+		*.rpm) install_format=rpm ;; \
+		'') install_format='$(PACKAGE_FORMAT)' ;; \
+		*) echo 'INSTALL_PACKAGE must be an absolute DEB or RPM path' >&2; exit 1 ;; \
+	esac; \
+	if [ "$$install_format" = both ]; then \
+		if command -v apt >/dev/null 2>&1 && command -v dpkg-query >/dev/null 2>&1; then install_format=deb; \
+		elif command -v dnf >/dev/null 2>&1 && command -v rpm >/dev/null 2>&1; then install_format=rpm; \
+		fi; \
+	fi; \
+	case "$$install_format" in \
+		deb) $(installdeb) ;; \
+		rpm) $(installrpm) ;; \
+		*) echo 'Cannot select package format; set PACKAGE_FORMAT=deb or rpm' >&2; exit 1 ;; \
 	esac
 
 # Internal installation modules: only the install target invokes them.

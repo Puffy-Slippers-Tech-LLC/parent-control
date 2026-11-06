@@ -2,8 +2,9 @@
 
 This is a development target with local builds and a COPR publishing channel, not a
 release-qualified platform. The functional acceptance baseline remains Ubuntu
-26.04/GNOME 50. Fedora installation is restricted to Workstation 44, and the RPM
-requires GNOME Shell 50 and Malcontent 0.14 or newer. Fedora 44 supplies
+26.04/GNOME 50. RPM installation does not gate on distribution identity, version
+or edition. Package dependencies still require GNOME Shell 50 and Malcontent
+0.14 or newer. Fedora 44 supplies
 [Malcontent 0.14](https://packages.fedoraproject.org/pkgs/malcontent/malcontent/fedora-44.html)
 and [GNOME Kiosk 50](https://packages.fedoraproject.org/pkgs/gnome-kiosk/gnome-kiosk/fedora-44.html).
 
@@ -123,9 +124,10 @@ DNF to install it and resolve missing dependencies from enabled repositories.
 An equal installed version is reinstalled from the local RPM; an older or newer
 installed version is replaced by the selected build. RPM queries inspect the
 package identity without privilege; only the DNF transaction uses `sudo` for
-non-root callers. `make install` detects the
-distribution through `os-release` and dispatches to the DEB or RPM module;
-package lifecycle compatibility checks still apply. This target installs the
+non-root callers. `make install` selects DEB or RPM from an explicit
+`INSTALL_PACKAGE` path, `PACKAGE_FORMAT=deb|rpm`, or available package-manager
+commands (APT/dpkg first, then DNF/RPM); it does not consult `os-release`.
+Package lifecycle safety checks still apply. This target installs the
 app on the calling machine and are not development build or validation commands.
 
 The RPM is the installation authority. Its `Requires` resolve runtime

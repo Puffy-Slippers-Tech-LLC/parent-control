@@ -1,37 +1,5 @@
 # @pre_helpers@
-require_supported_os() (
-    # Use the system's release identity, never inherited environment values or
-    # ID_LIKE: Ubuntu derivatives are not supported. Keep sourced values local.
-    ID=
-    VERSION_ID=
-    if [ -e /etc/os-release ]; then
-        release_file=/etc/os-release
-    else
-        release_file=/usr/lib/os-release
-    fi
-    if [ ! -r "$release_file" ]; then
-        echo 'Oh No! Parent Control requires Ubuntu 26.04 or newer. Installation stopped because the operating system could not be identified.' >&2
-        exit 1
-    fi
-    # os-release is the system-provided, shell-compatible release definition.
-    # shellcheck disable=SC1090
-    . "$release_file"
-    if [ "$ID" != ubuntu ]; then
-        echo 'Oh No! Parent Control requires Ubuntu 26.04 or newer. This system is not Ubuntu; other distributions, including Ubuntu derivatives, are not supported.' >&2
-        exit 1
-    fi
-    case "$VERSION_ID" in
-        [0-9][0-9].[0-9][0-9]) ;;
-        *)
-            echo 'Oh No! Parent Control requires Ubuntu 26.04 or newer. Installation stopped because the Ubuntu release version could not be verified.' >&2
-            exit 1
-            ;;
-    esac
-    if ! dpkg --compare-versions "$VERSION_ID" ge 26.04; then
-        printf 'Oh No! Parent Control requires Ubuntu 26.04 or newer. This system runs Ubuntu %s. Please upgrade Ubuntu before installing.\n' "$VERSION_ID" >&2
-        exit 1
-    fi
-)
+preflight_package() { :; }
 
 prepare_package_notice() {
     # A new APT hook is too late for the APT process already running. dpkg

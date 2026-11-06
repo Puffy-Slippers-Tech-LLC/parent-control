@@ -15,7 +15,8 @@ class WatchErrors {
         const detail = error instanceof Error ? error.stack || error.message : String(error);
         const text = `${title}\n\n${detail}`;
         this.output.appendLine(text);
-        if (this.entries.has(text)) {
+        if (error?.quiet) return;
+        if (this.entries.has(text) && (!reveal || this.panel)) {
             if (reveal) this.panel?.reveal();
             return; // A reconnect loop must not steal focus repeatedly.
         }
@@ -25,7 +26,7 @@ class WatchErrors {
                 vscode.ViewColumn.Active, { enableScripts: true, localResourceRoots: [] });
             this.panel = panel;
             this.context.subscriptions.push(panel);
-            panel.onDidDispose(() => { this.panel = undefined; this.entries.clear(); });
+            panel.onDidDispose(() => { this.panel = undefined; });
             panel.webview.onDidReceiveMessage(async message => {
                 if (message?.type === 'ready') this.publish();
                 else if (message?.type === 'close') panel.dispose();

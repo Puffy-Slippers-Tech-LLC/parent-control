@@ -10,6 +10,7 @@
     const grid = document.getElementById('grid');
     const viewers = document.getElementById('viewers');
     const resources = document.getElementById('resources');
+    const servers = document.getElementById('servers');
     const runs = document.getElementById('runs');
     const layout = document.getElementById('watch');
     const divider = document.getElementById('divider');
@@ -25,7 +26,8 @@
     const actions = new Map();
     const expandedRunTimes = new Set();
     const selectedRunTimes = new Set();
-    const cloudComputerPath = 'M5 12H4a3 3 0 0 1-.4-6A5 5 0 0 1 13 4a4 4 0 0 1 3 8h-1 M6 10h8v6H6z M10 16v2 M7 18h6';
+    const cloudPath = 'M6 15a4 4 0 1 1 .2-8A5 5 0 0 1 15.5 8H16a3.5 3.5 0 0 1 0 7Z';
+    const cloudOfflinePath = `${cloudPath} M2 2l16 16`;
 
     function countdown(node) {
         const remaining = Math.max(0, Math.ceil(Number(node.dataset.deadline) - Date.now() / 1000));
@@ -61,7 +63,8 @@
         serverIcon.setAttribute('viewBox', '0 0 20 20');
         serverIcon.setAttribute('aria-hidden', 'true');
         const serverShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        serverShape.setAttribute('d', entry.transport === 'ssh' ? cloudComputerPath :
+        serverIcon.classList.toggle('online-cloud', entry.transport === 'ssh');
+        serverShape.setAttribute('d', entry.transport === 'ssh' ? cloudPath :
             'M3 3h14v6H3z M3 11h14v6H3z M6 6h1 M6 14h1');
         serverIcon.append(serverShape);
         server.append(serverIcon);
@@ -702,6 +705,34 @@
         runDividers();
     }
 
+    function serverStatus(values) {
+        const signature = JSON.stringify(values);
+        if (servers.dataset.signature === signature) return;
+        servers.dataset.signature = signature;
+        servers.replaceChildren();
+        for (const server of values) {
+            const status = element('span', 'server-status', servers);
+            status.classList.toggle('connected', server.connected);
+            status.title = `${server.label}: ${server.status}`;
+            status.setAttribute('aria-label', status.title);
+            const iconButton = element('button', 'server-connection', status);
+            iconButton.type = 'button';
+            iconButton.disabled = !server.failed;
+            iconButton.title = status.title;
+            iconButton.setAttribute('aria-label', server.failed ?
+                `Show connection error for ${server.label}` : status.title);
+            iconButton.onclick = () => vscode.postMessage({ type: 'serverError', server: server.id });
+            const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            icon.setAttribute('viewBox', '0 0 20 20');
+            icon.setAttribute('aria-hidden', 'true');
+            const shape = document.createElementNS(icon.namespaceURI, 'path');
+            shape.setAttribute('d', server.connected ? cloudPath : cloudOfflinePath);
+            icon.append(shape);
+            iconButton.append(icon);
+            element('span', '', status).textContent = server.label;
+        }
+    }
+
     function layoutResources() {
         const rows = Array.from(resources.children);
         const width = rows.reduce((total, row) => total + row.offsetWidth, 0) + Math.max(0, rows.length - 1) * 16;
@@ -734,7 +765,7 @@
             if (resourceSamples.get(host.id) === signature) continue;
             resourceSamples.set(host.id, signature);
             const status = row.querySelector('.host-status');
-            status.querySelector('path').setAttribute('d', host.transport === 'ssh' ? cloudComputerPath :
+            status.querySelector('path').setAttribute('d', host.transport === 'ssh' ? cloudPath :
                 'M3 3h14v6H3z M3 11h14v6H3z M5 6h2 M5 14h2 M11 6h4 M11 14h4');
             status.querySelector('.host-name').textContent = host.label;
             status.title = `${host.label}: ${host.status}`;
@@ -1018,7 +1049,7 @@
             }
             if (!result.ok) {
                 section.error.textContent = result.error;
-                reportError(result.error);
+                if (!result.quiet) reportError(result.error);
             }
         }
         state = { scope: snapshot.scope, selected: snapshot.selected };
@@ -1029,6 +1060,7 @@
             ({ id: entry.id, label: entry.label, active: entry.locked }))],
             state.selected, selected => select(state.scope, selected));
         resourceCharts(snapshot);
+        serverStatus(snapshot.servers || []);
         const shown = snapshot.entries.filter(entry => state.selected === 'all' ? entry.active : entry.id === state.selected);
         const ids = new Set(shown.map(entry => entry.id));
         for (const [id, view] of cards) {

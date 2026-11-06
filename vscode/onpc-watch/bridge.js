@@ -59,7 +59,7 @@ function resourceConfiguration(root) {
     if (!Array.isArray(hosts)) throw new Error('Watch host configuration must be an array.');
     const program = fs.readFileSync(path.join(root, 'tools/watch_model.py'), 'utf8');
     const names = new Set();
-    return hosts.filter(host => {
+    return hosts.map(host => {
         if (!host || typeof host.name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$/.test(host.name) ||
                 names.has(host.name) || !['true', 'false'].includes(host.enabled) ||
                 !['local', 'ssh'].includes(host.transport) ||
@@ -68,9 +68,10 @@ function resourceConfiguration(root) {
             throw new Error('Invalid Watch host in config/environment.json.');
         }
         names.add(host.name);
-        return host.enabled === 'true';
-    }).map(host => ({ id: host.name, label: host.name, transport: host.transport,
-        host: host.name, root, command: ['/usr/bin/python3', '-u', '-B', '-c', program] }));
+        // Scheduling availability does not control Watch connectivity.
+        return { id: host.name, label: host.name, transport: host.transport,
+            host: host.name, root, command: ['/usr/bin/python3', '-u', '-B', '-c', program] };
+    });
 }
 
 function validate(snapshot) {
@@ -143,8 +144,9 @@ class Source {
         const command = remote ? 'ssh' : config.command[0];
         // No PTY, shell wrapper locally, interactive authentication or host-key adoption.
         const args = remote ? ['-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
-            '-o', 'ConnectTimeout=5', '-o', 'ServerAliveInterval=5', '-o', 'ServerAliveCountMax=2',
+            '-o', 'ConnectTimeout=5', '-o', 'ServerAliveInterval=1', '-o', 'ServerAliveCountMax=3',
             '--', config.host, config.command.map(quote).join(' ')] : config.command.slice(1);
+        // Spawn returns without waiting for SSH; sources connect independently.
         const child = spawn(command, args, { cwd: remote ? undefined : config.root, stdio: ['pipe', 'pipe', 'pipe'] });
         this.child = child;
         this.status = 'Connecting';
@@ -201,7 +203,7 @@ class Source {
         if (owned) { owned.stdin.end(); owned.kill(); }
     }
 
-    fail(message, retry = true) {
+    fail(message, retry = true, quiet = this.config.transport === 'ssh') {
         const detail = [message, this.stderrTruncated ?
             '[Earlier stderr is available in the ONPC Watch Output channel.]' : '', this.stderr].filter(Boolean).join('\n\n');
         if (this.authRefused) {
@@ -211,18 +213,20 @@ class Source {
         this.stop();
         const pending = this.pending;
         this.pending = undefined;
-        pending?.reject?.(new Error(message));
-        this.artifactRequest?.reject(new Error(message));
+        const error = Object.assign(new Error(message), { quiet });
+        pending?.reject?.(error);
+        this.artifactRequest?.reject(error);
         this.artifactRequest = undefined;
-        if (pending?.action) this.results.push({ id: pending.action.id, ok: false,
+        if (pending?.action) this.results.push({ id: pending.action.id, ok: false, quiet,
             error: 'Connection lost; delivery is unknown. Review the session before sending again.' });
-        for (const action of this.actions.splice(0)) this.results.push({ id: action.id, ok: false, error: 'Source disconnected; input was not sent.' });
-        this.status = `Disconnected — ${message}` + (retry ? ' Retrying…' : '');
+        for (const action of this.actions.splice(0)) this.results.push({ id: action.id, ok: false, quiet, error: 'Source disconnected; input was not sent.' });
+        this.status = `Disconnected — ${message}` + (retry ? ' Retrying…' : ' Click Reconnect to try again.');
         this.retryAt = retry ? Date.now() + this.backoff : Infinity;
         this.backoff = Math.min(15000, this.backoff * 2);
         this.frames.clear();
+        this.failureDetail = detail;
         this.log(`[${this.config.label}] ${this.status}`);
-        this.reportError(`Watch connection failed: ${this.config.label}`, detail);
+        if (!quiet) this.reportError(`Watch connection failed: ${this.config.label}`, detail);
         this.changed();
     }
 
@@ -230,7 +234,7 @@ class Source {
         const line = JSON.stringify({ protocol: VERSION, ...request }) + '\n';
         if (Buffer.byteLength(line) > MAX_REQUEST) throw new Error('Watch request too large.');
         this.pending = pending;
-        this.timeout = setTimeout(() => this.fail('Watch request timed out.'), 10000);
+        this.timeout = setTimeout(() => this.fail('Watch request timed out.', true, true), 10000);
         this.child.stdin.write(line);
     }
 
@@ -258,6 +262,7 @@ class Source {
         clearTimeout(this.timeout);
         this.pending = undefined;
         this.status = 'Connected';
+        this.failureDetail = undefined;
         this.retryAt = 0;
         this.backoff = 1000;
         pending.resolve?.(value[pending.response || 'artifact_result']);
@@ -279,14 +284,16 @@ class Source {
     }
 
     artifact(uri) {
-        if (!this.child || this.status !== 'Connected') return Promise.reject(new Error('Source disconnected.'));
+        if (!this.child || this.status !== 'Connected') return Promise.reject(
+            Object.assign(new Error('Source disconnected.'), { quiet: this.config.transport === 'ssh' }));
         if (!this.snapshot.capabilities.artifacts) return Promise.reject(new Error('This adapter does not support artifacts.'));
         if (this.artifactRequest || this.pending?.resolve) return Promise.reject(new Error('Another artifact is being opened.'));
         return new Promise((resolve, reject) => { this.artifactRequest = { uri, resolve, reject }; });
     }
 
     deleteRunTimes(tokens) {
-        if (!this.child || this.status !== 'Connected') return Promise.reject(new Error('Source disconnected.'));
+        if (!this.child || this.status !== 'Connected') return Promise.reject(
+            Object.assign(new Error('Source disconnected.'), { quiet: this.config.transport === 'ssh' }));
         if (!this.snapshot.capabilities.delete_run_times) return Promise.reject(new Error('Update this source adapter to delete run times.'));
         if (this.artifactRequest || this.pending?.resolve) return Promise.reject(new Error('Another Watch operation is in progress.'));
         return new Promise((resolve, reject) => {
@@ -295,7 +302,8 @@ class Source {
     }
 
     launcherCommand(action) {
-        if (!this.child || this.status !== 'Connected') return Promise.reject(new Error('Source disconnected.'));
+        if (!this.child || this.status !== 'Connected') return Promise.reject(
+            Object.assign(new Error('Source disconnected.'), { quiet: this.config.transport === 'ssh' }));
         if (this.artifactRequest || this.pending?.resolve) return Promise.reject(new Error('Another Watch operation is in progress.'));
         return new Promise((resolve, reject) => {
             this.artifactRequest = { request: { launcher_action: action }, response: 'launcher_result', resolve, reject };
@@ -343,7 +351,9 @@ class Bridge {
         if (!run || source.status !== 'Connected' || run.session !== action.session || source.actions.length >= 16 ||
                 (action.kind !== 'simplified' && (run.session_question || '') !== action.question) ||
                 !source.snapshot.capabilities.sessions) {
-            this.results.push({ id: action.id, ok: false, error: 'Session unavailable; review the current session before sending.' });
+            this.results.push({ id: action.id, ok: false,
+                quiet: source?.config.transport === 'ssh' && source.status !== 'Connected',
+                error: 'Session unavailable; review the current session before sending.' });
             this.revision++;
             return;
         }
@@ -354,6 +364,8 @@ class Bridge {
         this.sessionRoots = new Set(request.session_roots || (request.session_root ? [request.session_root] : []));
         for (const source of this.resourceSources) {
             if (this.sources.includes(source)) continue;
+            if (Date.now() < (source.nextSampleAt || 0)) continue;
+            source.nextSampleAt = Date.now() + 1000;
             try { source.tick({}); }
             catch (error) { source.fail(error.message); }
         }
@@ -376,6 +388,29 @@ class Bridge {
 
     snapshot(request) {
         const entries = [], runs = [], checkouts = [], hosts = [], run_times = [];
+        const servers = new Map();
+        this.serverErrors = new Map();
+        for (const source of [...this.resourceSources, ...this.sources]) {
+            if (source.config.transport !== 'ssh') continue;
+            const id = key(source.config.transport, source.config.host || 'local');
+            const previous = servers.get(id);
+            const connected = source.status === 'Connected';
+            servers.set(id, { id, label: previous?.label || source.config.host || source.config.label,
+                connected: connected || Boolean(previous?.connected),
+                status: connected || previous?.connected ? 'Connected' : source.status });
+            if (source.failureDetail) {
+                const details = this.serverErrors.get(id) || [];
+                details.push(`[${source.config.label}]\n${source.failureDetail}`);
+                this.serverErrors.set(id, details);
+            }
+        }
+        for (const server of servers.values()) {
+            server.failed = this.serverErrors.has(server.id);
+            if (server.failed) {
+                server.connected = false;
+                server.status = 'Connection failed. Click the cloud icon for details.';
+            }
+        }
         const scope = this.roots.get(request.scope);
         let selection;
         try { selection = JSON.parse(request.selected); } catch { /* All has no source. */ }
@@ -391,6 +426,8 @@ class Bridge {
             const { id, label } = source.config;
             const value = source.snapshot;
             const connected = source.status === 'Connected';
+            if (source.config.transport === 'ssh' && (!connected ||
+                    !servers.get(key('ssh', source.config.host))?.connected)) continue;
             if (selected === 'run-time' && connected && (!scope || scope.source === source)) {
                 for (const row of value?.run_times || []) {
                     const routeLink = uri => {
@@ -428,7 +465,7 @@ class Bridge {
                     launcher_controls: connected && run.launcher_controls === true,
                     transport: source.config.transport,
                     server: source.config.transport === 'ssh' ? source.config.host : 'local',
-                    // Keep last observed run contents; disconnected sessions cannot accept input.
+                    // Disconnected local sessions retain contents but cannot accept input.
                     connected,
                     session_active: connected && run.session_active,
                     session_waiting: connected && run.session_waiting,
@@ -475,7 +512,7 @@ class Bridge {
                 deletable: (previous?.deletable ?? true) && Boolean(row.delete_token) });
         }
         const times = [...latestTimes.values()].sort((a, b) => b.seconds - a.seconds || a.title.localeCompare(b.title));
-        return { entries, runs, checkouts, hosts, run_times: times,
+        return { entries, runs, checkouts, hosts, servers: [...servers.values()], run_times: times,
             scope: checkouts.some(checkout => checkout.id === request.scope) ? request.scope : 'all',
             selected,
             session_results: this.results.splice(0) };

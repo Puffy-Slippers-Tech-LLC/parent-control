@@ -46,6 +46,7 @@ function html(webview, context) {
         </div></div>
         <main id="grid"><p class="empty" role="status">Connecting to watch…</p></main></section></div>
         <footer><button id="restart" title="Reconnect to the watch backend">Reconnect</button>
+        <span id="servers" aria-label="Server connection status"></span>
         <span id="resources"></span></footer>
         <script nonce="${nonce}" src="${script}"></script></body></html>`;
 }
@@ -150,7 +151,7 @@ function activate(context) {
             if (!disposed) void panel.webview.postMessage({ type: 'error', message });
         }
         function poll() {
-            if (!bridge || !ready || !panel.visible || rendering) return;
+            if (!bridge || !ready || !panel.visible) return;
             // Sources advance independently, with the existing render backpressure.
             try {
                 bridge.tick({ ...selection, session_roots: [...sessionRoots] });
@@ -212,6 +213,9 @@ function activate(context) {
             } else if (message?.type === 'restart') {
                 void panel.webview.postMessage({ type: 'error', message: 'Reconnecting. Unacknowledged input will not be resent; review the session before sending again.' });
                 start();
+            } else if (message?.type === 'serverError' && typeof message.server === 'string') {
+                const details = bridge?.serverErrors?.get(message.server);
+                if (details) errors.report('Watch connection failed', details.join('\n\n'), true);
             } else if (message?.type === 'launcherAction' && runRoots.has(message.root) &&
                        typeof message.run === 'string' && ['stop', 'cancel-stop', 'resume', 'reload'].includes(message.kind)) {
                 void launchControl(message);

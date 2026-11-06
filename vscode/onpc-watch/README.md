@@ -62,10 +62,15 @@ before this control becomes available.
 Watch infrastructure failures open a shared **ONPC Watch error** dialog in an
 editor tab. Its full diagnostic text is selectable and scrollable horizontally
 and vertically; **Copy all** copies it, and **Close** dismisses it. Additional
-distinct errors append to the open dialog; identical reconnect failures do not
-reopen it repeatedly. Diagnostics also go to the **ONPC Watch** Output channel.
-This covers Watch connection, rendering, clipboard, screenshot and action
-failures. Launcher-owned **Error** tab contents remain separate and do not
+distinct errors append to the open dialog; identical failures do not reopen it,
+even after dismissal, for the rest of the VS Code session. Diagnostics also go
+to the **ONPC Watch** Output channel.
+This covers local Watch connection, rendering, clipboard, screenshot and action
+failures. Recoverable request timeouts retry quietly for both local and remote
+readers, with diagnostics in the Output channel. SSH connection failures never
+open this dialog automatically; click the failed host's footer cloud icon to
+inspect them. They also appear in footer
+status tooltips and the Output channel. Launcher-owned **Error** tab contents remain separate and do not
 trigger this dialog.
 For a truncated VS Code terminal-exit notification, run **ONPC: Watch Terminal
 Diagnostic** from the command palette. It shows the last failed Watch terminal's
@@ -274,7 +279,20 @@ Three icon buttons at the right end of the viewer tab row select the tile layout
 The tab remembers the selection. Overflowing tiles scroll in the chosen direction;
 overflowing tab headers scroll independently while the layout buttons stay pinned.
 
-The footer shows enabled hosts in `config/environment.json` order. Each host has a
+Immediately after **Reconnect**, the footer lists configured SSH hosts and any
+additional SSH Watch source hosts, separated by `|`; local sources are omitted
+from this connection list. A green cloud icon (the same icon as the remote launcher
+title bar) means connected; a red slashed cloud means disconnected or connecting.
+Hover over the name for connection status. After any connection failure, the
+slashed-cloud icon gains hover feedback; click it to open the standard Watch
+error dialog with the latest failure details. Failures never open it automatically.
+Details remain available during retries and clear when that reader responds again.
+Hosts disabled for VM scheduling are still observed. A host is connected when at
+least one reader is responding and none has an outstanding failure. SSH launchers and viewers appear only
+while their source reader is connected; they reappear from fresh snapshots after
+reconnection.
+
+The footer also shows hosts in `config/environment.json` order. Each host has a
 server icon and hostname before its CPU, VM RAM and Disk readings and small
 filled history graphs. When the hosts do not fit side by side, they stack with
 one complete host per row. Extremely narrow views can scroll the readings horizontally.
@@ -365,8 +383,17 @@ Use an existing SSH config alias with key/agent access and an already verified
 host key. Watch uses noninteractive SSH without a PTY; it never installs remote
 software, changes host keys or starts test execution. The remote checkout must
 contain a compatible adapter and its prerequisites. Authentication/host-key
-refusals require fixing access and clicking Reconnect; transient disconnections
-retry automatically with a 1–15 second backoff.
+refusals require fixing access and clicking Reconnect. Other failed connections
+retry asynchronously with a 1–15 second backoff, including idle or initially
+unreachable servers. Readers connect asynchronously at startup; Watch does not
+wait for SSH handshakes or offline hosts before opening. Healthy connections reuse
+persistent SSH readers; no separate
+SSH ping processes are started. Host resource readers are polled once per second,
+and SSH keepalives request a response after one second without received data
+(three missed responses close the connection). Pending snapshot requests also
+have a ten-second deadline. Status detection is therefore bounded by connection
+and request timeouts rather than guaranteed to change within one second. Hidden
+Watch tabs pause observation; closing Watch stops its readers.
 
 On an Ubuntu 26.04+ remote host, rerun `./setup.sh --server` as the checkout
 owner to prepare the test environment, enable SSH and prevent server sleep,

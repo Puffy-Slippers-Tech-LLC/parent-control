@@ -235,6 +235,16 @@ nav button[aria-pressed="true"] {
 .vm-memory { flex-shrink: 0; padding-left: 8px; font-size: .9em; }
 .ssh-control { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; padding: 4px 8px; white-space: nowrap; }
 footer { display: flex; flex-shrink: 0; gap: 8px; align-items: center; padding: 4px 8px; border-top: 1px solid var(--vscode-panel-border); }
+#servers { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.server-status { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.server-status + .server-status::before { content: '|'; margin-right: 4px; color: var(--vscode-descriptionForeground); }
+.server-status svg { width: 20px; height: 20px; fill: none; stroke: #e51400; stroke-width: 1.5; }
+.server-status.connected svg, .run-server > svg.online-cloud { stroke: #28a745; }
+.server-connection { display: inline-flex; align-items: center; padding: 2px; border: 0; border-radius: 3px; background: transparent; }
+.server-connection:disabled { opacity: 1; }
+.server-connection:enabled { cursor: pointer; }
+.server-connection:enabled:hover { background: var(--vscode-toolbar-hoverBackground); }
+.server-connection:enabled:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
 #resources { display: flex; flex: 1; justify-content: safe flex-end; gap: 6px 16px; min-width: 0; overflow-x: auto; font-family: var(--vscode-editor-font-family); font-size: .9em; }
 #resources.stacked { flex-direction: column; align-items: safe flex-end; }
 .resource { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }

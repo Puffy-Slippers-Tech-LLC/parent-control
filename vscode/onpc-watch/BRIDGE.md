@@ -26,13 +26,25 @@ reader's filesystem layout, Python modules, libvirt or Unix-socket protocol.
   EOF inside a message is a failed connection. The bridge drains stdout/stderr
   before classifying process closure. The local reader also accepts legacy
   unversioned snapshot requests; session actions use the schema below.
-- Watch requests at 500 ms intervals while visible and ready to render, with at most one request in
-  flight per source. Responses render immediately with UI backpressure. Slow
+- Watch requests at 500 ms intervals while visible, with at most one request in
+  flight per source; separate resource readers are polled once per second.
+  Responses render immediately with UI backpressure. Slow
   sources skip requests, rather than accumulating a frame queue or blocking peers.
   Hidden Watch panels stop requesting; an already pending request may finish.
-- Requests time out after ten seconds. Broken connections retry independently with
-  a 1–15 second backoff; SSH authentication/host-key refusals require manual
-  reconnection after repair. Reconnection requests a full frame reset.
+- Requests time out after ten seconds and retry quietly, including local readers.
+  Broken connections retry independently
+  with a 1–15 second backoff, including idle and initially unreachable sources.
+  Persistent SSH readers use one-second server-alive intervals with three missed
+  responses permitted. SSH authentication/host-key refusals require manual
+  reconnection after repair. SSH failures update status and Output diagnostics
+  without automatically opening error dialogs. Reconnection requests a full frame reset.
+  The bridge's aggregated display snapshot adds a `servers` list, grouped by
+  transport and host, for remote-only footer status; a host is connected when any
+  reader is connected and none has an outstanding failure. All failures use the
+  offline cloud icon. Clicking it opens the shared error dialog; full diagnostics
+  stay in the extension host and are resolved by server ID. Failures remain
+  available during retries and clear on successful replies. Disconnected SSH
+  hosts contribute no launchers, viewers or artifacts.
 - Responses are bounded to 96 MiB per line (excluding newline) and requests to
   512 KiB (including newline). Frame buffers and
   snapshots stay in memory. Only changed frame data crosses the bridge; it is not
@@ -140,7 +152,8 @@ only observer presentation, so it may operate on a retained, inactive session.
 Every action receives exactly one acknowledgement, including stale-session
 refusals; snapshots without an action omit `session_result` or set it to null.
 The bridge routes actions only to their displayed source/session.
-Disconnected sources disable input while retaining the observed transcript.
+Disconnected local sources disable input while retaining the observed transcript.
+Disconnected SSH sources are hidden until fresh snapshots arrive after reconnecting.
 
 Actions are never retried automatically. Losing a response leaves delivery
 unknown; inspect the authoritative transcript before submitting again. Exactly

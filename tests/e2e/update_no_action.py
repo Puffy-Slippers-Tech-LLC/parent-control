@@ -34,9 +34,10 @@ def install_old(journey, guard):
 
 
 class UpdateNoActionJourney(PackageUpgradeJourney):
-    def __init__(self, context, progress):
+    def __init__(self, context, progress, plan=PLAN, *, activation='none'):
         actions = {**upgrade_actions(), 'install-previous': install_old}
-        super().__init__(context, progress, PLAN, actions=actions, activation='none')
+        super().__init__(context, progress, plan, actions=actions, activation=activation)
+        self.activation = activation
         self.parent_before = None
 
     def check_settings(self, stage, observed):
@@ -61,4 +62,4 @@ class UpdateNoActionJourney(PackageUpgradeJourney):
             require(observed['package']['notice'] is None,
                     'update-no-action:unexpected-activation-notice')
             observed['comparison'] = {'same_usable_window': True, 'saved_allowance_unchanged': True,
-                                      'activation': 'none'}
+                                      'activation': self.activation}

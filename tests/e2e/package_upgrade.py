@@ -89,7 +89,7 @@ class PackageUpgradeJourney(ProductFreeEntryJourney):
     """Reusable lifecycle observations; the qualification owns only its envelope."""
     def __init__(self, context, progress, plan=PLAN, *, actions=None, activation='reboot'):
         require(context.verified.upgrade_inputs is not None, 'package-upgrade:inputs-required')
-        require(activation in ('reboot', 'none') and
+        require(activation in ('reboot', 'none', 'process-restart') and
                 context.verified.upgrade_inputs.get('activation', 'reboot') == activation,
                 'package-upgrade:activation-profile')
         super().__init__(context, progress, plan, actions=upgrade_actions() if actions is None else actions)

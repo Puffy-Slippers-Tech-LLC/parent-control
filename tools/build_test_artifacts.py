@@ -9,7 +9,7 @@ copy and application fixtures are emitted as an ordinary payload directory.
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import hashlib
 import io
 import json
@@ -63,6 +63,11 @@ NO_ACTION_VERSIONS = {
     'rpm': ('0:1.5-0.1.dev.fc44', '0:2.0-0.1.dev.fc44'),
 }
 NO_ACTION_RPM_RELEASES = {'previous': '0.1.dev', 'current': '0.2.dev'}
+# Finite Fedora process profile: retain today's packaging and payload, with
+# only the actual pre-55a2c1ea broker module in the older package. No invented
+# product logic or activation manifest is written by the fixture builder.
+PROCESS_BASELINE = '14fcf510b5f36424969b949b8398cd63befc62b8'
+PROCESS_MODULE = Path('broker/oh_no_parent_control/extension_monitor.py')
 
 
 class ArtifactError(RuntimeError):
@@ -347,7 +352,39 @@ def build_no_action(output, *, package_format):
     verify_upgrade(output)
 
 
-def verify_no_action_payloads(packages):
+@contextmanager
+def process_source(*, repository=None):
+    repository = REPOSITORY if repository is None else repository
+    from tools.test_storage import scratch_directory
+    with tempfile.TemporaryDirectory(prefix='onpc-process-source-', dir=scratch_directory()) as name:
+        root = Path(name)
+        _copy_source(package_inputs.paths(repository), root, root=repository)
+        with historical_source(PROCESS_BASELINE, repository=repository) as old:
+            shutil.copy2(old / PROCESS_MODULE, root / PROCESS_MODULE)
+        if (root / PROCESS_MODULE).read_bytes() == (repository / PROCESS_MODULE).read_bytes():
+            raise ArtifactError('process profile requires changed broker payload')
+        yield root
+
+
+def build_process(output, *, package_format):
+    if package_format != 'rpm':
+        raise ArtifactError('process profile is qualified only for Fedora RPM')
+    output = _require_empty_output(output)
+    for label, release in NO_ACTION_RPM_RELEASES.items():
+        with process_source() if label == 'previous' else nullcontext(REPOSITORY) as root:
+            selected = package_inputs.paths(root)
+            digest = package_inputs.digest(root, selected)
+            metadata = _metadata(selected, digest)
+            metadata['source']['rpm_release'] = release
+            if label == 'previous':
+                metadata['source']['process_baseline'] = PROCESS_BASELINE
+            _build(output / label, root, selected, digest, metadata,
+                   package_format=package_format, rpm_release=release,
+                   reuse={'fixtures': output / 'previous' / 'fixtures'} if label == 'current' else None)
+    verify_upgrade(output)
+
+
+def verify_no_action_payloads(packages, *, activation='none'):
     """Compare the actual shipped activation manifests with the product classifier."""
     import runpy
     from tools.test_storage import scratch_directory, scratch_descriptors
@@ -375,14 +412,14 @@ def verify_no_action_payloads(packages):
             path = Path(name) / (label + '.json')
             path.write_bytes(raw)
             paths.append(path)
-        if classifier['changed_impacts'](*paths):
+        if classifier['changed_impacts'](*paths) != ([] if activation == 'none' else ['process-restart']):
             old, new = (classifier['read_manifest'](path) for path in paths)
             for path in sorted(old.keys() | new.keys()):
                 before, after = old.get(path), new.get(path)
                 if before != after:
                     _log('activation-difference', 'observed', path=path,
                          previous=json.dumps(before), current=json.dumps(after))
-            raise ArtifactError('reviewed update requires activation')
+            raise ArtifactError('reviewed update activation mismatch: ' + activation)
 
 
 def release_identity(root, *, package_format='deb'):
@@ -483,9 +520,23 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
     package_format = formats.pop().removeprefix('.')
     release = _require_previous_release(package_format)
     historical_no_action = previous['source'].get('revision') == NO_ACTION_REVISIONS['previous']
-    rpm_no_action = package_format == 'rpm' and 'rpm_release' in previous['source']
+    rpm_process = package_format == 'rpm' and 'process_baseline' in previous['source']
+    rpm_no_action = package_format == 'rpm' and 'rpm_release' in previous['source'] and not rpm_process
     no_action = historical_no_action or rpm_no_action
-    if rpm_no_action:
+    if rpm_process:
+        if previous['source'].get('process_baseline') != PROCESS_BASELINE:
+            raise ArtifactError('process baseline mismatch')
+        with process_source(repository=repository) as root:
+            selected_previous = package_inputs.paths(root)
+            expected_previous = {**current['source'],
+                'digest_sha256': package_inputs.digest(root, selected_previous),
+                'file_count': len(selected_previous), 'rpm_release': NO_ACTION_RPM_RELEASES['previous'],
+                'process_baseline': PROCESS_BASELINE}
+            if previous['source'] != expected_previous:
+                raise ArtifactError('process source identity mismatch')
+        if current['source'].get('rpm_release') != NO_ACTION_RPM_RELEASES['current']:
+            raise ArtifactError('process RPM release input mismatch')
+    elif rpm_no_action:
         for label, manifest in (('previous', previous), ('current', current)):
             if manifest['source'].get('rpm_release') != NO_ACTION_RPM_RELEASES[label]:
                 raise ArtifactError('no-action RPM release input mismatch')
@@ -505,7 +556,7 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
     repository = REPOSITORY if repository is None else repository
     selected = package_inputs.paths(repository)
     current_source = {key: value for key, value in current['source'].items()
-                      if not rpm_no_action or key != 'rpm_release'}
+                      if not (rpm_no_action or rpm_process) or key != 'rpm_release'}
     if not historical_no_action and (set(current_source) != {'revision', 'scope', 'digest_sha256', 'file_count'}
             or type(current_source['revision']) is not str
             or re.fullmatch(r'[0-9a-f]{40}', current_source['revision']) is None
@@ -528,7 +579,7 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
         expected = _run(['dpkg-parsechangelog', '-l' + str(repository / 'debian/changelog'),
                          '-S', 'Version']).stdout.strip()
     old_version = release['version']
-    if rpm_no_action:
+    if rpm_no_action or rpm_process:
         version = rpm_metadata(repository, NO_ACTION_RPM_RELEASES['current'])[0]
         old_version = f"0:{version}-{NO_ACTION_RPM_RELEASES['previous']}.fc44"
         expected = f"0:{version}-{NO_ACTION_RPM_RELEASES['current']}.fc44"
@@ -540,11 +591,13 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
                 current['source']['digest_sha256'] == previous['source']['digest_sha256'])):
         raise ArtifactError('upgrade package release identity mismatch')
     _require_newer_version(new['version'], old['version'], package_format=package_format)
-    if no_action:
+    if no_action or rpm_process:
+        activation = 'process-restart' if rpm_process else 'none'
         verify_no_action_payloads({'previous': output / 'previous' / previous['artifacts']['package']['path'],
-                                  'current': current_root / current['artifacts']['package']['path']})
+                                  'current': current_root / current['artifacts']['package']['path']},
+                                 activation=activation)
         return {'packages': identities, 'sources': {'current': current['source'], 'previous': previous['source']},
-                'activation': 'none'}
+                'activation': activation}
     return {'packages': identities, 'sources': {'current': current['source'], 'previous': previous['source']}}
 
 
@@ -638,6 +691,8 @@ def main() -> int:
                         help='build pinned genuine prior-release/current inputs for the selected format')
     parser.add_argument('--no-action-inputs', action='store_true',
                         help='build the reviewed release-only RPM or authentic 1.5/2.0 DEB update')
+    parser.add_argument('--process-inputs', action='store_true',
+                        help='build the finite older-broker/current Fedora process update')
     parser.add_argument('--native-inputs', action='store_true',
                         help='prepare the reviewed finite native dependency pair, not product packages')
     parser.add_argument('--verify-native-inputs', action='store_true',
@@ -647,6 +702,13 @@ def main() -> int:
     if not (arguments.verify or arguments.compare or arguments.verify_native_inputs) and arguments.package_format is None:
         parser.error('--package-format deb|rpm is required when building')
     try:
+        if arguments.process_inputs:
+            if (arguments.output is None or arguments.verify or arguments.compare or arguments.reuse
+                    or arguments.upgrade_inputs or arguments.no_action_inputs or arguments.native_inputs
+                    or arguments.verify_native_inputs):
+                raise ArtifactError('--process-inputs requires only --output and --package-format')
+            build_process(arguments.output, package_format=arguments.package_format)
+            return 0
         if arguments.no_action_inputs:
             if (arguments.output is None or arguments.verify or arguments.compare or arguments.reuse
                     or arguments.upgrade_inputs or arguments.native_inputs or arguments.verify_native_inputs):

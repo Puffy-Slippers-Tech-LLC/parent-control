@@ -87,17 +87,20 @@ sub run_upgrade {
     $journey->finish();
 }
 
-sub run_no_action {
+sub run_no_action { run_automatic_update('update-no-action', @_); }
+sub run_process { run_automatic_update('activation-process', @_); }
+
+sub run_automatic_update {
     onpc_progress::operation('Updating while the parent keeps the child allowance open');
-    my ($exchange, $declared, $challenges) = @_;
-    die 'update-no-action:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+    my ($prefix, $exchange, $declared, $challenges) = @_;
+    die 'automatic-update:arguments' unless @_ == 4 && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && join('/', @$declared) eq
             'reboot-installed-greeter/reboot-parent-focused/reboot-recipient-qualified/reboot-recipient-rechecked/reboot-desktop'
         && ref($challenges) eq 'HASH' && keys(%$challenges) == 1
         && ref($challenges->{'after-reboot'}) eq 'ARRAY'
         && join('/', @{$challenges->{'after-reboot'}}) eq
             'parent/reboot-recipient-qualified/reboot-recipient-rechecked';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'update-no-action', review => 0);
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => $prefix, review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     install_entry($journey);

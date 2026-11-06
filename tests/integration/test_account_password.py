@@ -4,6 +4,7 @@ import ctypes
 import hmac
 import os
 from pathlib import Path
+import pwd
 import re
 import shlex
 import stat
@@ -24,14 +25,22 @@ def validate(value):
 
 
 def read_password():
-    """Only a single literal assignment is accepted; never consult environment."""
+    """Read one literal assignment for the caller, never an environment password."""
     try:
-        path = Path.home() / '.onpc-config' / '.envrc'
+        uid = os.getuid()
+        if uid == 0:
+            # Installed dispatchers preserve the authenticated caller while
+            # deliberately setting HOME=/root. Never use root's credential.
+            caller = os.environ.get('PKEXEC_UID', '')
+            if not caller.isascii() or not caller.isdecimal() or int(caller) <= 0:
+                raise ValueError(MESSAGE)
+            uid = int(caller)
+        path = Path(pwd.getpwuid(uid).pw_dir) / '.onpc-config' / '.envrc'
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
         with os.fdopen(fd, encoding='utf-8') as stream:
             info = os.fstat(stream.fileno())
             if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
-                    or info.st_uid != os.getuid()
+                    or info.st_uid != uid
                     or info.st_mode & 0o077 or info.st_size > 65536):
                 raise ValueError(MESSAGE)
             values = []
@@ -49,7 +58,7 @@ def read_password():
         if len(values) != 1:
             raise ValueError(MESSAGE)
         return validate(values[0])
-    except (OSError, UnicodeError, ValueError):
+    except (OSError, UnicodeError, ValueError, KeyError):
         raise ValueError(MESSAGE + ' Use a caller-owned regular file with permissions 0600.') from None
 
 

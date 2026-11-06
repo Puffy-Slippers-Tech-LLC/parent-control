@@ -1788,6 +1788,13 @@ class UpdateNoActionQualification(ProductFreeEntryQualification):
         return UpdateNoActionJourney(context, progress)
 
 
+class ActivationProcessQualification(UpdateNoActionQualification):
+    @staticmethod
+    def journey(context, progress):
+        from activation_process import ActivationProcessJourney
+        return ActivationProcessJourney(context, progress)
+
+
 class ChineseKioskLifecycleQualification(ProductFreeEntryQualification):
     upgrade_assets = True
 

@@ -53,7 +53,7 @@ def main(argv=None, *, refresh=True):
         args.vm = ','.join(vm.name for vm in vms)
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
-        read_password(ROOT)
+        read_password()
         check(HELPER)
         if len(vms) > 1:
             from vm_selection import confirm_queue

@@ -437,7 +437,7 @@ class AssetTransfer:
         try:
             probe = ({'package.deb': 'assets-upgrade', 'package.rpm': 'assets-upgrade-rpm'}[
                 package_filename(self.verified.asset_files)] if self.verified.upgrade_inputs else 'assets')
-            if self.verified.upgrade_inputs and self.verified.upgrade_inputs.get('activation') == 'none':
+            if self.verified.upgrade_inputs and self.verified.upgrade_inputs.get('activation') in ('none', 'process-restart'):
                 probe = probe.replace('assets-upgrade', 'assets-no-action')
             observed = observations.read(probe)
             require(observed == self._receipt, 'transfer:booted-assets-mismatch')

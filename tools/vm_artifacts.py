@@ -14,10 +14,10 @@ from vm_selection import arguments, extract, selected
 
 
 def prepare(root, control, environment, *, candidate=None, output=None, upgrade_inputs=False,
-            native_inputs=False, system_native_inputs=False, no_action_inputs=False):
-    if no_action_inputs:
-        if native_inputs or system_native_inputs or upgrade_inputs:
-            raise ValueError('no-action inputs require a separate package operation')
+            native_inputs=False, system_native_inputs=False, no_action_inputs=False, process_inputs=False):
+    if no_action_inputs or process_inputs:
+        if native_inputs or system_native_inputs or upgrade_inputs or no_action_inputs and process_inputs:
+            raise ValueError('activation inputs require a separate package operation')
         upgrade_inputs = True
     if system_native_inputs:
         if native_inputs or upgrade_inputs or candidate is not None:
@@ -65,10 +65,10 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
         print('run-tests: configured package_format does not match the verified VM baseline; '
               'existing inputs preserved', file=sys.stderr)
         return 2
-    if no_action_inputs and output is None and candidate is None:
+    if (no_action_inputs or process_inputs) and output is None and candidate is None:
         from test_storage import named_input
         from test_commands import allocate_artifact_output
-        output = named_input(no_action_source=True)
+        output = named_input(process_source=True) if process_inputs else named_input(no_action_source=True)
         if os.path.lexists(output):
             candidate = output
         else:
@@ -84,6 +84,8 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
             receipt = verify_upgrade(Path(candidate))
             if no_action_inputs and receipt.get('activation') != 'none':
                 raise ValueError('no-action input profile mismatch')
+            if process_inputs and receipt.get('activation') != 'process-restart':
+                raise ValueError('process input profile mismatch')
             expected_architecture = {'deb': 'amd64', 'rpm': 'x86_64'}[package_format]
             if receipt['packages']['current']['architecture'] != expected_architecture:
                 print('run-tests: upgrade input package format does not match '
@@ -105,7 +107,7 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
         print('run-tests: output=' + str(output), flush=True)
     # The existing reuse cache is DEB-specific. RPM uses its maintained builder.
     return control.run(['/usr/bin/python3', '-B', str(root / 'tools/build_test_artifacts.py'),
-        *(['--no-action-inputs'] if no_action_inputs else
+        *(['--process-inputs'] if process_inputs else ['--no-action-inputs'] if no_action_inputs else
           ['--native-inputs'] if native_inputs else ['--upgrade-inputs'] if upgrade_inputs
           else ['--reuse'] if package_format == 'deb' else []),
         '--package-format', package_format, '--output', str(output)],
@@ -119,6 +121,7 @@ def main(argv=None):
     parser.add_argument('--output')
     parser.add_argument('--upgrade-inputs', action='store_true')
     parser.add_argument('--no-action-inputs', action='store_true')
+    parser.add_argument('--process-inputs', action='store_true')
     parser.add_argument('--native-inputs', action='store_true')
     parser.add_argument('--system-native-inputs', action='store_true')
     args = parser.parse_args(argv)
@@ -127,6 +130,7 @@ def main(argv=None):
         return prepare(root, control, test_launcher.environment(root),
                        candidate=args.candidate, output=args.output, upgrade_inputs=args.upgrade_inputs,
                        **({'no_action_inputs': True} if args.no_action_inputs else {}),
+                       **({'process_inputs': True} if args.process_inputs else {}),
                        **({'native_inputs': True} if args.native_inputs else {}),
                        **({'system_native_inputs': True} if args.system_native_inputs else {}))
 

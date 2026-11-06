@@ -462,7 +462,7 @@ class PackageCommand:
                     REMOVAL_NOTICE in lines and PURGE_COMPLETE in lines), 'package:completion-notice')
         else:
             no_action = (self.binding == UPGRADE and self.verified.upgrade_inputs is not None
-                         and self.verified.upgrade_inputs.get('activation') == 'none')
+                         and self.verified.upgrade_inputs.get('activation') in ('none', 'process-restart'))
             require(COMPLETE in lines and (lines[-1] == COMPLETE and NOTICE not in lines
                     if no_action else lines[-1] == NOTICE if self.binding != OLD_INSTALL else
                     lines[-1] in (COMPLETE, NOTICE)), 'package:completion-notice')

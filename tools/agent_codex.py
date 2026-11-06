@@ -1,11 +1,11 @@
-"""Codex-native session configuration beneath shared process supervision."""
+"""Codex-native session configuration and protocol beneath shared supervision."""
 
 import json
 from pathlib import Path
 import re
 import shutil
 
-from agent_adapter import PreparedSession, SessionRequest
+from agent_adapter import PreparedSession, SessionEvent, SessionRequest
 
 
 SESSION_GOAL = ('Simple, lean, robust, do not overengineer. If a problem can be solved '
@@ -133,4 +133,169 @@ class CodexAdapter:
         child_environment = dict(environment)
         for name in ('CODEX_THREAD_ID', 'CODEX_PARENT_THREAD_ID', 'CODEX_SESSION_ID'):
             child_environment.pop(name, None)
-        return PreparedSession(self, request, tuple(argv), child_environment, request.root)
+        return PreparedSession(self, request, tuple(argv), child_environment, request.root,
+                               CodexProtocol(request) if request.interactive else None)
+
+
+class CodexProtocol:
+    """App-server wire state for one coordinator, beneath shared input gates."""
+
+    def __init__(self, request):
+        self.request = request
+        self.thread = self.turn = None
+        self.completed = False
+        self.pending = b''
+        self.requests = {}
+        self.counter = 0
+        self.outgoing = bytearray()
+
+    @property
+    def ready(self):
+        return self.thread is not None
+
+    @property
+    def active_turn(self):
+        return self.turn is not None
+
+    @property
+    def turn_requests_pending(self):
+        return any(method in ('turn/start', 'turn/steer', 'turn/interrupt')
+                   for method, _ in self.requests.values())
+
+    def encode(self, packet):
+        self.outgoing.extend((json.dumps(packet) + '\n').encode('utf-8'))
+
+    def rpc(self, method, params):
+        self.counter += 1
+        self.requests[self.counter] = (method, params)
+        self.encode({'id': self.counter, 'method': method, 'params': params})
+
+    def start(self):
+        self.schema = json.loads(self.request.schema.read_text())
+        self.rpc('initialize', {'clientInfo': {'name': 'onpc_launcher',
+                 'title': 'Task launcher', 'version': '1.0'},
+                 'capabilities': {'experimentalApi': True}})
+
+    def start_turn(self, text):
+        self.completed = False
+        self.rpc('turn/start', {'threadId': self.thread,
+                 'input': [{'type': 'text', 'text': text}], 'outputSchema': self.schema})
+
+    def steer(self, text):
+        self.rpc('turn/steer', {'threadId': self.thread, 'expectedTurnId': self.turn,
+                 'input': [{'type': 'text', 'text': text}]})
+
+    def interrupt(self):
+        self.rpc('turn/interrupt', {'threadId': self.thread, 'turnId': self.turn})
+
+    def feed(self, data):
+        lines = (self.pending + data).split(b'\n')
+        self.pending = lines.pop()
+        for line in lines:
+            yield from self.event(json.loads(line))
+
+    def failure(self, context, error):
+        code = error.get('codexErrorInfo') if isinstance(error, dict) else None
+        detail = (error.get('message') or str(error)) if isinstance(error, dict) else str(error)
+        message = f"Codex {context}{f' ({code})' if code else ''}: {detail}"
+        return SessionEvent('failure', {
+            'message': message, 'context': context, 'details': {'codex_error_info': code},
+            'task_error': 'OpenAI stopped this session under its cybersecurity safeguards.'
+                          if code == 'cyberPolicy' else message,
+            'capacity': context == 'turn failed' and code == 'serverOverloaded'})
+
+    def event(self, packet):
+        if 'method' not in packet:
+            method, params = self.requests.pop(packet['id'])
+            if 'error' in packet:
+                if method == 'turn/steer' and (self.completed or self.turn is None):
+                    # Completion raced with steering. Deliver once as a new turn.
+                    yield SessionEvent('retry_input', {'text': params['input'][0]['text']})
+                elif method == 'turn/interrupt' and self.completed:
+                    yield SessionEvent('discard_result', {})
+                else:
+                    yield self.failure(method, packet['error'])
+                return
+            result = packet['result']
+            if method == 'initialize':
+                self.encode({'method': 'initialized', 'params': {}})
+                self.rpc('thread/start', {'model': self.request.model, 'cwd': str(self.request.root),
+                         'approvalPolicy': 'never',
+                         'sandbox': 'read-only' if self.request.permissions == 'read_only' else 'workspace-write',
+                         'ephemeral': False})
+            elif method == 'thread/start':
+                self.thread = result['thread']['id']
+                yield SessionEvent('ready', {})
+            elif method == 'turn/start':
+                if not self.completed:
+                    self.turn = result['turn']['id']
+            return
+        method, params = packet['method'], packet.get('params', {})
+        if 'id' in packet:
+            # Never grant server approvals or execute client tools.
+            self.encode({'id': packet['id'], 'error': {'code': -32601,
+                         'message': 'Client operation unavailable; report a workflow blocker.'}})
+            return
+        # Adviser notifications must not replace the coordinator's turn/result.
+        if params.get('threadId') not in (None, self.thread):
+            return
+        if method == 'turn/started':
+            self.turn = params['turn']['id']
+        elif method == 'item/agentMessage/delta':
+            if params.get('turnId') == self.turn:
+                yield SessionEvent('text_delta', {'id': params['itemId'], 'text': params['delta']})
+        elif method in ('item/started', 'item/completed'):
+            yield from self.item(params['item'], method == 'item/completed')
+        elif method == 'item/commandExecution/outputDelta':
+            if params.get('turnId') == self.turn:
+                yield SessionEvent('command_output', {'id': params['itemId'], 'text': params['delta']})
+        elif method == 'thread/tokenUsage/updated':
+            usage = params['tokenUsage']['last']
+            yield SessionEvent('usage', {'input_tokens': usage.get('inputTokens'),
+                'cached_input_tokens': usage.get('cachedInputTokens'),
+                'output_tokens': usage.get('outputTokens'),
+                'reasoning_output_tokens': usage.get('reasoningOutputTokens')})
+        elif method == 'turn/completed':
+            turn = params['turn']
+            self.turn = None
+            self.completed = True
+            if turn['status'] == 'failed':
+                yield self.failure('turn failed', turn.get('error'))
+            else:
+                yield SessionEvent('turn_completed', {'interrupted': turn['status'] == 'interrupted'})
+        elif method in ('error', 'warning'):
+            yield SessionEvent('notice', {'text': str(params.get('message', params))})
+
+    def item(self, item, complete):
+        kind = item['type']
+        if kind == 'agentMessage':
+            text = item['text'] if complete else item.get('text', '')
+            yield SessionEvent('text', {'id': item['id'], 'text': text,
+                                       'complete': complete})
+            return
+        if kind == 'commandExecution':
+            item = {'id': item['id'], 'type': 'command_execution', 'command': item['command'],
+                    'aggregated_output': item.get('aggregatedOutput', ''),
+                    'exit_code': item.get('exitCode'), 'status': item.get('status')}
+        elif kind == 'fileChange':
+            changes = [dict(change, kind=change['kind'].get('type', 'update')
+                            if isinstance(change.get('kind'), dict) else change.get('kind', 'update'))
+                       for change in item['changes']]
+            item = dict(item, type='file_change', changes=changes)
+        elif kind in ('mcpToolCall', 'webSearch', 'subAgentActivity'):
+            item = dict(item, type={'mcpToolCall': 'mcp_tool_call', 'webSearch': 'web_search',
+                                   'subAgentActivity': 'sub_agent_activity'}[kind])
+        elif kind in ('reasoning', 'userMessage'):
+            return
+        else:
+            if complete:
+                yield SessionEvent('diagnostic', item)
+            return
+        yield SessionEvent('item', {'item': item, 'complete': complete})
+
+    def finalize_result(self, text):
+        try:
+            value = json.loads(text)
+        except ValueError:
+            return None
+        return value if isinstance(value, dict) else None

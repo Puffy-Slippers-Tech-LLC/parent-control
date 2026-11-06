@@ -1,4 +1,4 @@
-"""Shared detached workflow ownership, Codex transport and terminal rendering.
+"""Shared detached workflow ownership, agent supervision and terminal rendering.
 
 Specializations supply the worker command and workflow; locks, fresh agent
 processes, transcript retention and cancellation use one implementation.
@@ -436,7 +436,7 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
                         except BlockingIOError:
                             continue
                         except BrokenPipeError as error:
-                            raise ValueError('Codex conversation input closed before a workflow result; '
+                            raise ValueError('Agent conversation input closed before a workflow result; '
                                              'see retained output') from error
                         if not conversation.outgoing:
                             poller.unregister(key.fileobj)
@@ -494,7 +494,7 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         if nested_active:
             status = status or 1
         if conversation and not requested and not conversation.done and status == 0:
-            raise ValueError('Codex conversation ended without a workflow result; see retained output')
+            raise ValueError('Agent conversation ended without a workflow result; see retained output')
         return 130 if requested else status if status >= 0 else 128 - status
     finally:
         # Failure while supervising must not release ownership over a live child.

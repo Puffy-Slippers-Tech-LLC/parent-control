@@ -1,7 +1,8 @@
-"""Private observer mailbox and Codex app-server conversation for workflows.
+"""Private observer mailbox and shared interactive conversation for workflows.
 
 The existing supervisor owns the process, logs and nested-test cleanup. This
-module owns only the conversation protocol; observers never signal agent PIDs.
+module owns input/completion gates; adapters own native conversation protocols.
+Observers never signal agent PIDs.
 """
 
 import codecs
@@ -193,14 +194,11 @@ class AppSession:
         update_task_info(run, self.task, {})
         self.model = command.request.model
         self.effort = command.request.effort
-        self.permissions = command.request.permissions
-        self.schema = json.loads(command.request.schema.read_text())
         self.prompt = (run / 'prompt.txt').read_text()
-        self.thread = self.turn = None
-        self.pending = b''
-        self.requests = {}
-        self.counter = 0
-        self.outgoing = bytearray()
+        self.protocol = command.protocol
+        if self.protocol is None:
+            raise ValueError('interactive agent session requires a protocol handler')
+        self.outgoing = self.protocol.outgoing
         self.messages = []
         self.capacity_inputs = []
         self.final = None
@@ -219,9 +217,7 @@ class AppSession:
         self.streaming_dirty = False
         self.preview_at = 0
         self.publish('starting')
-        self.request('initialize', {'clientInfo': {'name': 'onpc_launcher',
-                     'title': 'Task launcher', 'version': '1.0'},
-                     'capabilities': {'experimentalApi': True}})
+        self.protocol.start()
 
     def publish(self, status):
         with launcher.lock(self.run / 'chat-gate') as gate:
@@ -240,22 +236,13 @@ class AppSession:
             state['finished_at'] = time.time()
         launcher.atomic(self.run / 'chat-state.json', state)
 
-    def request(self, method, params):
-        self.counter += 1
-        self.requests[self.counter] = (method, params)
-        self.encode({'id': self.counter, 'method': method, 'params': params})
-
-    def encode(self, packet):
-        self.outgoing.extend((json.dumps(packet) + '\n').encode('utf-8'))
-
     def start_turn(self, text):
         self.final = None
         self.final_text = ''
         self.completed = False
         self.turn_started_at = time.time()
         self.publish('running')
-        self.request('turn/start', {'threadId': self.thread,
-                     'input': [{'type': 'text', 'text': text}], 'outputSchema': self.schema})
+        self.protocol.start_turn(text)
 
     def preview(self, *, force=False):
         now = time.monotonic()
@@ -303,35 +290,30 @@ class AppSession:
                     (self.run / 'cancel').touch(mode=0o600)
             else:
                 self.interrupt_requested = True
-        if self.interrupt_requested and self.turn and not self.interrupting:
-            self.request('turn/interrupt', {'threadId': self.thread, 'turnId': self.turn})
+        if self.interrupt_requested and self.protocol.active_turn and not self.interrupting:
+            self.protocol.interrupt()
             self.interrupting = True
             self.publish('interrupting')
         # Complete interruption and owned cleanup before delivering a queued
         # continuation. Late acknowledgements still belong to the old turn.
         self.finish_turn()
-        if (self.messages and self.thread and not self.interrupt_requested
-                and not self.turn_requests_pending()):
+        if (self.messages and self.protocol.ready and not self.interrupt_requested
+                and not self.protocol.turn_requests_pending):
             text = '\n\n'.join(self.messages)
             self.messages.clear()
             self.renderer.message(text, 'You')
-            if self.turn:
-                self.request('turn/steer', {'threadId': self.thread, 'expectedTurnId': self.turn,
-                             'input': [{'type': 'text', 'text': text}]})
+            if self.protocol.active_turn:
+                self.protocol.steer(text)
             else:
                 self.start_turn(text)
         # Publish at most ten times per second, even with a continuously ready
         # output pipe. Completed text still replaces the preview immediately.
         self.preview()
 
-    def turn_requests_pending(self):
-        return any(method in ('turn/start', 'turn/steer', 'turn/interrupt')
-                   for method, _ in self.requests.values())
-
     def finish_turn(self):
         # Only poll() may accept a result: response handlers cannot know whether
         # the observer has queued new input since the previous mailbox read.
-        if self.completed and not self.turn_requests_pending():
+        if self.completed and not self.protocol.turn_requests_pending:
             if self.interrupt_requested:
                 self.publish('cleaning')
                 if self.on_interrupted:
@@ -362,26 +344,20 @@ class AppSession:
             self.completed = False
 
     def feed(self, data):
-        lines = (self.pending + data).split(b'\n')
-        self.pending = lines.pop()
-        for line in lines:
-            self.event(json.loads(line))
+        for event in self.protocol.feed(data):
+            self.event(event)
 
-    def fail(self, context, error):
+    def fail(self, failure):
         """Retain the provider's reason before supervisor cleanup exits."""
         self.clear_preview()
-        code = error.get('codexErrorInfo') if isinstance(error, dict) else None
-        detail = (error.get('message') or str(error)) if isinstance(error, dict) else str(error)
-        message = f"Codex {context}{f' ({code})' if code else ''}: {detail}"
+        message = failure['message']
         self.final = None
         self.completed = False
         launcher.atomic(self.run / 'agent-error.json', {
-            'message': message, 'context': context, 'codex_error_info': code})
-        update_task_info(self.run, self.task, {'last_error':
-            'OpenAI stopped this session under its cybersecurity safeguards.'
-            if code == 'cyberPolicy' else clean(message)})
+            'message': message, 'context': failure['context'], **failure['details']})
+        update_task_info(self.run, self.task, {'last_error': clean(failure['task_error'])})
         self.publish('finished')
-        if context == 'turn failed' and code == 'serverOverloaded':
+        if failure['capacity']:
             failure = AgentCapacityUnavailable(message)
             failure.prompt = self.prompt
             if self.capacity_inputs:
@@ -389,129 +365,65 @@ class AppSession:
             raise failure
         raise ValueError(message)
 
-    def event(self, packet):
-        if 'method' not in packet:
-            method, params = self.requests.pop(packet['id'])
-            if 'error' in packet:
-                if method == 'turn/steer' and (self.completed or self.turn is None):
-                    # The turn can finish between the observer's send and the
-                    # server's read. Deliver once as a new turn in that case.
-                    self.messages.insert(0, params['input'][0]['text'])
-                    return
-                if method == 'turn/interrupt' and self.completed:
-                    # The completion won the race with interruption. Keep the
-                    # conversation open rather than accepting its old result.
-                    self.final = None
-                    return
-                self.fail(method, packet['error'])
-            result = packet['result']
-            if method == 'initialize':
-                self.encode({'method': 'initialized', 'params': {}})
-                self.request('thread/start', {'model': self.model, 'cwd': str(self.root),
-                             'approvalPolicy': 'never',
-                             'sandbox': 'read-only' if self.permissions == 'read_only' else 'workspace-write',
-                             'ephemeral': False})
-            elif method == 'thread/start':
-                self.thread = result['thread']['id']
-                self.start_turn(self.prompt)
-            elif method == 'turn/start':
-                if not self.completed:
-                    self.turn = result['turn']['id']
-            return
-        method, params = packet['method'], packet.get('params', {})
-        if 'id' in packet:
-            # Never grant a server-initiated approval or execute a requested
-            # client tool. Workflow decisions use the existing blocker contract.
-            self.encode({'id': packet['id'], 'error': {'code': -32601,
-                         'message': 'Client operation unavailable; report a workflow blocker.'}})
-            return
-        # Adviser notifications must not replace the coordinator's turn/result.
-        if params.get('threadId') not in (None, self.thread):
-            return
-        if method == 'turn/started':
-            self.turn = params['turn']['id']
-        elif method == 'item/agentMessage/delta':
-            if params.get('turnId') != self.turn:
-                return
-            if params['itemId'] != self.streaming_id:
-                self.streaming_id = params['itemId']
+    def event(self, event):
+        kind, data = event.kind, event.data
+        if kind == 'ready':
+            self.start_turn(self.prompt)
+        elif kind == 'retry_input':
+            self.messages.insert(0, data['text'])
+        elif kind == 'discard_result':
+            self.final = None
+        elif kind == 'text_delta':
+            if data['id'] != self.streaming_id:
+                self.streaming_id = data['id']
                 self.streaming_text = ''
-            self.streaming_text = (self.streaming_text + params['delta'])[:SCROLLBACK_CHARACTERS]
+            self.streaming_text = (self.streaming_text + data['text'])[:SCROLLBACK_CHARACTERS]
             self.streaming_dirty = True
-        elif method in ('item/started', 'item/completed'):
-            self.item(params['item'], method == 'item/completed')
-        elif method == 'item/commandExecution/outputDelta':
-            if params.get('turnId') == self.turn:
-                self.renderer.command_output(params['itemId'], params['delta'])
-        elif method == 'thread/tokenUsage/updated' and self.renderer.on_usage:
-            usage = params['tokenUsage']['last']
-            self.renderer.on_usage({'input_tokens': usage.get('inputTokens'),
-                'cached_input_tokens': usage.get('cachedInputTokens'),
-                'output_tokens': usage.get('outputTokens'),
-                'reasoning_output_tokens': usage.get('reasoningOutputTokens')})
-        elif method == 'turn/completed':
+        elif kind == 'text':
+            self.text(data)
+        elif kind == 'item':
+            self.renderer.event({'type': 'item.completed' if data['complete'] else 'item.started',
+                                 'item': data['item']})
+        elif kind == 'diagnostic':
+            self.renderer.heading('Agent activity')
+            self.renderer.code(json.dumps(data, ensure_ascii=False), 'json')
+        elif kind == 'command_output':
+            self.renderer.command_output(data['id'], data['text'])
+        elif kind == 'usage' and self.renderer.on_usage:
+            self.renderer.on_usage(data)
+        elif kind == 'turn_completed':
             self.clear_preview()
-            turn = params['turn']
-            self.turn = None
-            if turn['status'] == 'interrupted':
+            if data['interrupted']:
                 self.interrupt_requested = True
                 self.final = None
                 self.completed = True
                 self.publish('interrupting')
-            elif turn['status'] == 'failed':
-                self.fail('turn failed', turn.get('error'))
             else:
                 # Poll the mailbox before accepting the result, including text
                 # submitted while the completion notification was in transit.
                 self.completed = True
-        elif method in ('error', 'warning'):
-            self.renderer.message(str(params.get('message', params)), 'Agent notice')
+        elif kind == 'failure':
+            self.fail(data)
+        elif kind == 'notice':
+            self.renderer.message(data['text'], 'Agent notice')
 
-    def item(self, item, complete):
-        kind = item['type']
-        if kind == 'agentMessage':
-            if not complete:
-                self.streaming_id = item['id']
-                self.streaming_text = item.get('text', '')[:SCROLLBACK_CHARACTERS]
-                self.streaming_dirty = True
-                return
-            # The completed item is authoritative, including edits or empty
-            # replacements. Never feed provisional text into result handling.
-            self.clear_preview()
-            text = task_message(self.run, self.task, item['text'])
-            if not text:
-                return
-            try:
-                value = json.loads(text)
-            except ValueError:
-                value = None
-            self.final_text = text
-            self.final = (value if isinstance(value, dict) and value.get('task_id') == self.task
-                          and 'status' in value else None)
-            item = {'id': item['id'], 'type': 'agent_message', 'text': text}
-        elif kind == 'commandExecution':
-            item = {'id': item['id'], 'type': 'command_execution', 'command': item['command'],
-                    'aggregated_output': item.get('aggregatedOutput', ''),
-                    'exit_code': item.get('exitCode'), 'status': item.get('status')}
-        elif kind == 'fileChange':
-            changes = [dict(change, kind=change['kind'].get('type', 'update')
-                            if isinstance(change.get('kind'), dict) else change.get('kind', 'update'))
-                       for change in item['changes']]
-            item = dict(item, type='file_change', changes=changes)
-        elif kind == 'mcpToolCall':
-            item = dict(item, type='mcp_tool_call')
-        elif kind == 'webSearch':
-            item = dict(item, type='web_search')
-        elif kind == 'subAgentActivity':
-            item = dict(item, type='sub_agent_activity')
-        elif kind in ('reasoning', 'userMessage'):
+    def text(self, data):
+        if not data['complete']:
+            self.streaming_id = data['id']
+            self.streaming_text = data['text'][:SCROLLBACK_CHARACTERS]
+            self.streaming_dirty = True
             return
-        else:
-            if complete:
-                self.renderer.heading('Agent activity')
-                self.renderer.code(json.dumps(item, ensure_ascii=False), 'json')
+        # Completed text is authoritative; provisional output cannot be a result.
+        self.clear_preview()
+        text = task_message(self.run, self.task, data['text'])
+        if not text:
             return
-        self.renderer.event({'type': 'item.completed' if complete else 'item.started', 'item': item})
+        value = self.protocol.finalize_result(text)
+        self.final_text = text
+        self.final = (value if value is not None and value.get('task_id') == self.task
+                      and 'status' in value else None)
+        self.renderer.event({'type': 'item.completed', 'item': {
+            'id': data['id'], 'type': 'agent_message', 'text': text}})
 
     def status_update(self, text):
         try:

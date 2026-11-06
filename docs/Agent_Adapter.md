@@ -1,7 +1,9 @@
 # Agent adapter proposal
 
-Status: Codex session preparation is implemented; protocol extraction and
-configuration-driven agent selection remain proposed.
+Status: Codex session preparation and interactive protocol extraction are
+implemented; batch normalization, model/preflight extraction and
+configuration-driven agent selection remain proposed. Live-agent qualification
+is outstanding.
 
 The repository should select its coding agent solely from the checked-in
 top-level `agent` field in [config/environment.json](../config/environment.json).
@@ -24,26 +26,31 @@ Git helpers now supply session requirements instead of changing native argument
 lists. Capacity attempts reprepare requests under the same adapter. Process
 supervision, mailbox/result acceptance and workflow budgets retain their owners.
 The existing executable check is preserved; this slice does not add authentication
-or capability preflight. The Codex conversation protocol and presentation still
-live in the existing launcher modules. Their extraction, common event/result/error
-normalization, native model-profile resolution and strict configuration selection
-remain future steps. No Claude runtime dependency is introduced.
+or capability preflight. `PreparedSession` now carries a per-session
+`SessionProtocol` for interactive execution. `CodexProtocol` in `agent_codex.py`
+owns app-server framing, RPC requests/responses, coordinator thread/turn filtering,
+steering/interruption races and native output/error decoding. It emits
+`SessionEvent` values for the shared conversation in `launcher_chat.py`, which
+retains mailbox/status handling, candidate task binding and result persistence.
+The supervisor still owns pipes, cancellation and nested-test cleanup. Interactive
+items use the existing renderer vocabulary; batch presentation normalization,
+native model-profile resolution and strict configuration selection remain future
+steps. No Claude runtime dependency is introduced.
 
 ## Next implementation step
 
-Continue delivery step 2 with the **Codex interactive protocol extraction**.
-Start at `AppSession` in [launcher_chat.py](../tools/launcher_chat.py) and its
-supervision call in [detached_launcher.py](../tools/detached_launcher.py).
-Introduce the per-session protocol-handler contract in `agent_adapter.py` and
-move Codex RPC construction/decoding behind `agent_codex.py`. Keep mailbox/status
-handling, final result acceptance and process ownership in their shared owners;
-preserve the [input/completion contract](#native-transports-and-common-results).
-This slice is complete when those shared callers use the handler rather than
-constructing Codex RPCs, with their existing interruption and acceptance guards
-preserved. Keep batch presentation normalization and native model/preflight
-extraction for subsequent slices. Do not redo session preparation or enable
-Claude/configuration selection in this next step. Live-agent qualification is
-still outstanding; passing source/unit checks and launcher help do not establish it.
+Continue delivery step 2 with **Codex batch presentation normalization**.
+Start at `AgentRenderer` in [launcher_render.py](../tools/launcher_render.py) and
+the batch supervision path in [detached_launcher.py](../tools/detached_launcher.py).
+Move native batch event/error decoding behind `agent_codex.py` and reuse the
+small shared event vocabulary where appropriate. Preserve usage scope, private
+reasoning suppression, capacity classification and the distinction between
+displayed helper output and the coordinator's schema result. Keep batch result
+ownership, response validation and process supervision in their existing owners.
+Do not redo session preparation or interactive RPC extraction, or enable
+Claude/configuration selection. Native model/preflight extraction remains a
+subsequent slice. Live-agent qualification is still outstanding; passing
+source/unit checks and launcher help do not establish it.
 
 ## Configuration and scope
 
@@ -80,8 +87,8 @@ dependency and package payload maps.
 | Area | Existing coupling | Proposed change |
 | --- | --- | --- |
 | Configuration | [vm_config.py](../tests/integration/vm_config.py) owns the shared document reader; [vm_selection.py](../tools/vm_selection.py) exposes it to launchers | Keep one document parser; add strict live agent selection at the adapter entry point |
-| Shared execution | [detached_launcher.py](../tools/detached_launcher.py) prepares sessions through the Codex adapter, supervises processes and retries capacity failures | Retain ownership/supervision; finish extracting native session protocol and model-profile resolution |
-| Conversation | [launcher_chat.py](../tools/launcher_chat.py) combines shared mailbox/status behavior with Codex app-server messages | Keep mailbox, status validation and input/result serialization shared; move Codex RPC into its adapter |
+| Shared execution | [detached_launcher.py](../tools/detached_launcher.py) prepares sessions and interactive handlers through the Codex adapter, supervises processes and retries capacity failures | Retain ownership/supervision; finish extracting batch decoding and model-profile resolution |
+| Conversation | [launcher_chat.py](../tools/launcher_chat.py) consumes adapter events and retains shared mailbox/status and completion gates | Keep mailbox, status validation and input/result serialization shared; qualify native transport behavior |
 | Presentation | [launcher_render.py](../tools/launcher_render.py) consumes Codex-shaped events | Render a small common event format produced by either adapter |
 | Repair | [fix_tests.py](../tools/fix_tests.py) pins Sol, validates the Codex model catalogue and supplies repair tiers | Request workflow roles and capability tiers from the selected adapter |
 | E2E | [write_e2e.py](../tools/write_e2e.py) pins coordinator tiers, adviser roles and native configuration | Preserve its acceptance/escalation engine; resolve models and roles through the adapter |
@@ -98,13 +105,13 @@ dependency and package payload maps.
 Use composition beneath the existing launcher engines, following the
 [extension boundary](Execution-Plans.md#extension-boundary). Start with three
 small modules: `tools/agent_adapter.py`, `tools/agent_codex.py`, and proposed
-`tools/agent_claude.py`. The first two implement the initial session-preparation
-slice; the Claude module does not yet exist. Do not build a plugin framework or a generic
+`tools/agent_claude.py`. The first two implement session preparation and the
+interactive protocol; the Claude module does not yet exist. Do not build a plugin framework or a generic
 multi-provider orchestration service.
 
 The intended `agent_adapter.py` boundary owns the common session request, fixed
 adapter selection, workflow/role vocabulary, and normalized events/results/errors.
-Only session preparation is implemented so far. Each concrete
+Session preparation and the interactive protocol contract are implemented. Each concrete
 adapter owns native CLI/SDK details and its supported model profiles. Shared
 launcher code must not index into native argument lists or insert Codex `-c`
 values. For example, translation requests a read-only session directly instead

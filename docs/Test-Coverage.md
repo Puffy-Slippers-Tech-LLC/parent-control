@@ -6,17 +6,17 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5814</span>/<span style="color: gray">0</span>/5814 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5820</span>/<span style="color: gray">0</span>/5820 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">224</span>/<span style="color: gray">0</span>/224 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">295</span>/<span style="color: gray">0</span>/295 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">50</span>/<span style="color: gray">0</span>/50 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
+| Installed system | <span style="color: green">51</span>/<span style="color: gray">0</span>/51 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">95</span>/<span style="color: gray">101</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6492</span>/<span style="color: gray">101</span>/6593** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">96</span>/<span style="color: gray">100</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6500</span>/<span style="color: gray">100</span>/6600** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">94</span>/<span style="color: gray">101</span>/195 |
+| customer-journey | <span style="color: green">95</span>/<span style="color: gray">100</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -101,6 +101,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [119](#scenario-119) | Customer lifecycle persistence and resume (boundary: sign out in; grant: expired) | `E2E-022/sign-out-in-expired` | ready |
 | [120](#scenario-120) | Customer lifecycle persistence and resume (boundary: reboot; grant: active) | `E2E-022/reboot-active` | ready |
 | [136](#scenario-136) | Customer package update and activation (activation: process) | `E2E-026/process` | ready |
+| [137](#scenario-137) | Customer package update and activation (activation: session) | `E2E-026/session` | ready |
 | [139](#scenario-139) | Install through remove, reinstall and purge | `E2E-027/continuous` | ready |
 | [151](#scenario-151) | Identify the installed product and return to management | `E2E-030/parent` | ready |
 | [152](#scenario-152) | Feedback drafts, validation and attachment review (flow: draft reopen) | `E2E-031/draft-reopen` | ready |
@@ -177,7 +178,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[133](#scenario-133)</span> | <span style="color: gray">Replace an expired grant before returning with daily time left (entry: retained unlock; soft apps: excluded)</span> | <span style="color: gray">`E2E-025/excluded-retained-unlock`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[134](#scenario-134)</span> | <span style="color: gray">Replace an expired grant before returning with daily time left (entry: new login; soft apps: included)</span> | <span style="color: gray">`E2E-025/included-new-login`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[135](#scenario-135)</span> | <span style="color: gray">Replace an expired grant before returning with daily time left (entry: retained unlock; soft apps: included)</span> | <span style="color: gray">`E2E-025/included-retained-unlock`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[137](#scenario-137)</span> | <span style="color: gray">Customer package update and activation (activation: session)</span> | <span style="color: gray">`E2E-026/session`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[138](#scenario-138)</span> | <span style="color: gray">Customer package update and activation (activation: reboot)</span> | <span style="color: gray">`E2E-026/reboot`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[153](#scenario-153)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: validation)</span> | <span style="color: gray">`E2E-031/validation`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[156](#scenario-156)</span> | <span style="color: gray">Send reviewed feedback and read service acceptance</span> | <span style="color: gray">`E2E-032/success`</span> | <span style="color: gray">pending</span> |
@@ -1167,6 +1167,20 @@ Variant: boundary: reboot; grant: active
 Case: `E2E-026/process` · Category: customer-journey · Status: **ready**
 
 Variant: activation: process
+
+**Steps:**
+
+- Install this case's declared earlier release and follow its notice. Save distinct allowance/app rules through Parent, approve a grant long enough for the update, capture its original deadline and use the child desktop. Reboot case 138 also prepares and captures complete saved request choices on both forms.
+- Install the declared update with the normal package command and follow its process, session or reboot notice for every named affected surface.
+- Independently prove every affected user's apps usable again after the actual activation instructions. Read saved allowance/app rules before editing, installed version and positive reduced grant balance at the original deadline; verify allowed work and denied soft/hard launches. Reboot case 138 compares complete remembered choices on both forms; process/session cases 136/137 open affected forms and read readiness and intended target without repeating the full preference tour.
+
+### Scenario 137
+
+**Customer package update and activation (activation: session)**
+
+Case: `E2E-026/session` · Category: customer-journey · Status: **ready**
+
+Variant: activation: session
 
 **Steps:**
 
@@ -2532,26 +2546,6 @@ Variant: entry: retained unlock; soft apps: included
 - Set zero daily time, approve a short grant including soft apps and open recognizable soft-blocked work. While it remains open, return to Parent and raise the daily allowance above the grant without toggling limits. The running app remains, although new soft launches are blocked.
 - Switch away, or sign out for new-login, and let the grant expire while daily time remains. Read zero grant and positive daily balance in Parent before requesting replacement.
 - Approve replacement station time with the declared soft-app choice before fresh sign-in or retained unlock. Check hard/soft launches. Retained cases compare earlier soft work: included preserves it and excluded closes it.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 137
-
-**Customer package update and activation (activation: session)**
-
-Case: `E2E-026/session` · Category: customer-journey · Status: **pending**
-
-Variant: activation: session
-
-**Steps:**
-
-- Install this case's declared earlier release and follow its notice. Save distinct allowance/app rules through Parent, approve a grant long enough for the update, capture its original deadline and use the child desktop. Reboot case 138 also prepares and captures complete saved request choices on both forms.
-- Install the declared update with the normal package command and follow its process, session or reboot notice for every named affected surface.
-- Independently prove every affected user's apps usable again after the actual activation instructions. Read saved allowance/app rules before editing, installed version and positive reduced grant balance at the original deadline; verify allowed work and denied soft/hard launches. Reboot case 138 compares complete remembered choices on both forms; process/session cases 136/137 open affected forms and read readiness and intended target without repeating the full preference tour.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 

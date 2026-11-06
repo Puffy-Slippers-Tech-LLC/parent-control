@@ -113,14 +113,14 @@ def verify_native_after_reboot(journey, guard):
 
 
 class ProcessUpdateJourney(PackageUpgradeJourney):
-    def __init__(self, context, progress, plan=PLAN, *, actions=None):
+    def __init__(self, context, progress, plan=PLAN, *, actions=None, activation='process-restart'):
         require(not context.installed_snapshot, 'update-process:product-free-required')
         context.product_free = True
         context.asset_transfer = AssetTransfer(context.verified)
         actions = {'native-verify': verify_native_after_reboot,
                    'install-previous': install_previous_release,
                    'upgrade-entry': activated_entry, 'upgrade-current': upgrade_current}
-        super().__init__(context, progress, plan, actions=actions, activation='process-restart')
+        super().__init__(context, progress, plan, actions=actions, activation=activation)
         self.parent_before = self.grant_before = self.approval_started = None
         self.saved_rules = {}
 

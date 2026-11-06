@@ -137,7 +137,7 @@ sub enter_kiosk_mate_password {
             my $app_transition = ($journey->{prefix} // '') eq 'app-rule-changes-soft-opening'
                 && ($journey->{stage_prefix} // '') eq 'soft-opening-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,75,1';
-            my $process_update = ($journey->{prefix} // '') eq 'update-process-case-request'
+            my $process_update = ($journey->{prefix} // '') =~ /\Aupdate-(?:process|session)-case-request\z/
                 && ($journey->{stage_prefix} // '') eq 'request-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,0';
             my $work_recovery = ($journey->{prefix} // '') eq 'grant-work-recovery'

@@ -230,7 +230,7 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
                                  'transition-request', 'transition-wrong-duration', 'revocation-request',
                                  'work-recovery', 'expired-recovery', 'kiosk-recovery', 'kiosk-recovery-wrong-scope',
                                  'app-restart-request', 'sign-out-request', 'reboot-request',
-                                 'process-update-request', 'process-update-wrong-soft',
+                                 'process-update-request', 'process-update-wrong-soft', 'session-update-request',
                                  'sign-out-expired-recovery', 'expired-recovery-wrong-scope'])
 def test_composed_kiosk_secret_scope_and_single_use(mode):
     # Execute the real password guard; replace only the secret delivery sink.
@@ -243,6 +243,7 @@ def test_composed_kiosk_secret_scope_and_single_use(mode):
     from app_restart_active import PLAN as RESTART_PLAN, SIGN_OUT_PLAN, REBOOT_PLAN
     from app_restart_expired import PLAN as EXPIRED_PLAN, SIGN_OUT_PLAN as EXPIRED_SIGN_OUT_PLAN
     from update_process_case import PLAN as UPDATE_PLAN
+    from update_session_case import PLAN as SESSION_PLAN
     transition = [PLAN.prefix + '-soft-opening', 'soft-opening-', list(PLAN.kiosk_request)]
     revocation = [REVOCATION_PLAN.prefix + '-request', 'request-', list(REVOCATION_PLAN.kiosk_request)]
     recovery = [RECOVERY_PLAN.prefix, list(RECOVERY_PLAN.kiosk_request)]
@@ -311,7 +312,7 @@ if ($mode eq 'app-restart-request' || $mode eq 'sign-out-request' || $mode eq 'r
     $first = bless {prefix => $restart->[0] . '-request', stage_prefix => 'request-',
         kiosk_request => $restart->[1], review => 0}, 'onpc_journey';
 }
-if ($mode =~ /^process-update-/) {
+if ($mode =~ /^(?:process|session)-update-/) {
     $process_update->[1][3] = 1 if $mode eq 'process-update-wrong-soft';
     $first = bless {prefix => $process_update->[0] . '-request', stage_prefix => 'request-',
         kiosk_request => $process_update->[1], review => 0}, 'onpc_journey';
@@ -336,7 +337,7 @@ my $ok = eval {
         onpc_password::enter_kiosk_mate_password($return, 'bound-request');
     } elsif ($mode =~ /^profile-/) {
         onpc_password::enter_kiosk_mate_password($first, 'request-1200');
-    } elsif ($mode =~ /^(?:grant|transition|revocation|app-restart|sign-out|reboot|process-update)-/) {
+    } elsif ($mode =~ /^(?:grant|transition|revocation|app-restart|sign-out|reboot|process-update|session-update)-/) {
         onpc_password::enter_kiosk_mate_password($first, 'bound-request');
     } else {
         onpc_password::enter_kiosk_mate_password($first, 'bound-request');
@@ -348,7 +349,8 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
 ''', mode, json.dumps(transition), json.dumps(revocation), json.dumps(recovery),
         PANEL_PLAN.prefix, KIOSK_PLAN.prefix,
         json.dumps([restart.prefix, list(restart.kiosk_request)]),
-        json.dumps([UPDATE_PLAN.prefix, list(UPDATE_PLAN.kiosk_request)]))
+        json.dumps([(SESSION_PLAN if mode == 'session-update-request' else UPDATE_PLAN).prefix,
+                    list(UPDATE_PLAN.kiosk_request)]))
     value = json.loads(result.stdout)
     deliveries = [event for event in value['events'] if event[0] == 'delivery']
     if mode == 'kiosk-recovery':
@@ -377,7 +379,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
             ['proof', request + '-approval-' + proof]
             for request in ('first', 'second') for proof in ('qualified', 'rechecked')]
     elif mode in ('grant-request', 'transition-request', 'revocation-request', 'app-restart-request',
-                  'sign-out-request', 'reboot-request', 'process-update-request'):
+                  'sign-out-request', 'reboot-request', 'process-update-request', 'session-update-request'):
         assert value['ok'] == 1
         scope = 'soft-opening' if mode == 'transition-request' else 'request'
         assert deliveries == [['delivery', 'parent', scope + '-kiosk-mate-approval']]

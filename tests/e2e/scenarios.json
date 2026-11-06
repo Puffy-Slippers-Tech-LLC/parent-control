@@ -1767,7 +1767,7 @@
       },
       "variants": [
         {"coverage_id": 136, "id": "process", "owner": "package-update", "parameters": {"activation": "process"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/update_process_case.py", "test_id": "process"}},
-        {"coverage_id": 137, "id": "session", "owner": "package-update", "parameters": {"activation": "session"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 137, "id": "session", "owner": "package-update", "parameters": {"activation": "session"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/update_session_case.py", "test_id": "session"}},
         {"coverage_id": 138, "id": "reboot", "owner": "package-update", "parameters": {"activation": "reboot"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },

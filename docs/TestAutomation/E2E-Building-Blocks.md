@@ -5210,8 +5210,20 @@ comparison endpoints and the journey's guarded boot read; it does not repeat
 unrelated all-account language preservation after renewal. Package identity and
 preservation remain verified at the transaction boundary. Collection,
 worker/callback shutdown, owned cleanup, baseline restoration and preservation
-passed; the VM was observed off. Complete case 137, other affected-session sets
-and other package formats retain their own acceptance.
+passed; the VM was observed off. That focused slice does not establish the
+complete case's broader rule/grant/request history below.
+
+Complete case 137 now composes the Jordan-only session renewal through
+[`update_session_case.PLAN` / `SessionUpdateJourney`](../../tests/e2e/update_session_case.py)
+and `onpc_customer_reboot::run_session_case`. Its selected Fedora 44 pass includes
+the genuine earlier installation/reboot, A/H/S saved rules, real 20-minute
+Soft-excluded approval, update completion without a restart notice, Jordan's
+normal logout/fresh entry, original usable Parent, saved allowance/rules and
+positive reduced time at the original grant deadline. The renewed child has a
+usable countdown and Allowed app, denied Hard/Soft launches, and both request
+forms open for the intended child and close normally. Collection, worker/callback
+shutdown, owned cleanup and baseline restoration passed. Other affected-session
+sets and package formats remain outside this qualification.
 
 ### Customer reboot continuity
 

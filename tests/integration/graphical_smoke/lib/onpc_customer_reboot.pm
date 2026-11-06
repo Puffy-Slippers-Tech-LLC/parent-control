@@ -130,15 +130,24 @@ sub run_session {
 }
 
 sub run_process_case {
+    run_update_case('process', @_);
+}
+
+sub run_session_case {
+    run_update_case('session', @_);
+}
+
+sub run_update_case {
     onpc_progress::operation('Updating while preserving the child rules and original extra time');
-    my ($exchange, $declared, $challenges, $request) = @_;
-    die 'update-process:arguments' unless @_ == 4 && ref($exchange) eq 'CODE'
+    my ($activation, $exchange, $declared, $challenges, $request) = @_;
+    die 'update-case:arguments' unless @_ == 5 && $activation =~ /\A(?:process|session)\z/
+        && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,0';
     require onpc_app_rows;
     require onpc_desktop_session;
     require onpc_request_flow;
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'update-process-case', review => 0);
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => "update-$activation-case", review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_parent::login_functional($journey);
@@ -177,7 +186,18 @@ sub run_process_case {
     $apps_result->('before');
     $leave->('child-leave');
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'before-parent');
-    $journey->seen($_) for qw(settings-before upgrade-context upgrade-submitted upgrade-result upgrade-reread saved-apps);
+    $journey->seen($_) for qw(settings-before upgrade-context upgrade-submitted upgrade-result);
+    if ($activation eq 'session') {
+        onpc_progress::operation('Signing the affected child out and back in after the update');
+        $leave->('renewal-leave');
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained', 'success', 'renew-child');
+        $journey->consume_observation('renewal-desktop', $journey->seen('renewal-desktop'));
+        $journey->seen($_) for qw(renewal-logout renewal-greeter);
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'renewed-child');
+        $leave->('renewed-leave');
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'renewed-parent');
+    }
+    $journey->seen($_) for qw(upgrade-reread saved-apps);
     onpc_app_rows::saved_rows($journey, $apps, 'saved');
     $journey->seen($_) for qw(saved-screen final-balance about-information about-returned);
     $leave->('updated-leave');

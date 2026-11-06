@@ -261,11 +261,13 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
                 for sig in previous:
                     signal.signal(sig, stop)
                 if fallback:
+                    model = command.adapter.capacity_fallback(configured_model)
                     delegation = command.request.delegation
                     if subagents_follow_model:
-                        delegation = replace(delegation, model='gpt-6-astra')
-                    command = command.revised(model='gpt-6-astra', delegation=delegation)
-                    print('Model still at capacity; using gpt-6-astra for this session only '
+                        delegation = replace(delegation, model=model)
+                    command = command.revised(model=model, delegation=delegation)
+                    command.preflight()
+                    print(f'Model still at capacity; using {model} for this session only '
                           'with the same reasoning effort.', flush=True)
                 else:
                     print(f'Model at capacity; retrying this session after {delay} seconds.', flush=True)

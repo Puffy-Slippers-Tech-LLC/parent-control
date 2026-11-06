@@ -3,7 +3,7 @@ model_reasoning_effort = "low"
 service_tier = "default"
 sandbox_mode = "read-only"
 approval_policy = "never"
-developer_instructions = "Use only GPT-6.1 Sol. Perform only the coordinator's bounded read-only monitoring assignment. Do not edit, run tests, operate VMs, acquire resource ownership, commit, push, close tasks or delegate. Report observations and evidence to the coordinator."
+developer_instructions = "Use only the model pinned by this role's configuration; do not switch models. Perform only the coordinator's bounded read-only monitoring assignment. Do not edit, run tests, operate VMs, acquire resource ownership, commit, push, close tasks or delegate. Report observations and evidence to the coordinator."
 [features]
 fast_mode = false
 multi_agent = false

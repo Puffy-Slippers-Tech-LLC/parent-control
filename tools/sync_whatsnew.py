@@ -8,7 +8,6 @@ import json
 import os
 from pathlib import Path
 import re
-import shutil
 import subprocess
 import sys
 import time
@@ -16,29 +15,20 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import detached_launcher as launcher
+from agent_adapter import resolve_profile
 from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
 from test_storage import directory as storage_directory
 from tools import whats_new_catalogs as catalogs
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_MODEL = 'gpt-6.1-sol'
-DEFAULT_EFFORT = 'high'
+DEFAULT_MODEL, DEFAULT_EFFORT = resolve_profile('translator')
 DEFAULT_SUBAGENTS = 5
 DEFAULT_BATCH_SIZE = 24
 SCHEMA = Path(__file__).with_name('sync_whatsnew_response.schema.json')
 
 
-def available_model(model, effort):
-    codex = shutil.which('codex')
-    if codex is None:
-        raise ValueError('Codex CLI is missing; install/authenticate it separately')
-    response = subprocess.run([codex, 'debug', 'models'], env=launcher.environment(),
-                              capture_output=True, text=True, check=True, timeout=30)
-    entries = json.loads(response.stdout).get('models', [])
-    if not any(entry.get('slug') == model and entry.get('visibility') == 'list' and
-               any(level.get('effort') == effort for level in entry.get('supported_reasoning_levels', []))
-               for entry in entries if isinstance(entry, dict)):
-        raise ValueError(f'Codex has no listed {model} with {effort} reasoning; no fallback was selected')
+def available_model(model, effort, subagents=0):
+    agent_command(ROOT, None, model, effort, subagents).preflight()
 
 
 def agent_command(root, run, model, effort, subagents):
@@ -94,8 +84,7 @@ def prompt(release, work, subagents, *, context=None):
     lanes = assignments(work, subagents)
     helper = (f'Use exactly {len(lanes) - 1} read-only whatsnew_translator subagents for the helper '
               'assignments below; delegation is required when helper assignments exist. '
-              'On every spawn_agent call, explicitly set fork_turns="none". The coordinator '
-              'starts with fresh context. Give each helper a self-contained '
+              'The coordinator starts with fresh context. Give each helper a self-contained '
               'assignment with these read-only/scope/data instructions, its exact languages and '
               'records, current English, previous text when relevant, and supplied locale context. '
               'Start all helpers before translating the coordinator assignment. Each helper '
@@ -203,7 +192,7 @@ def execute(root, run, owner, model, effort, subagents):
     if (run / 'cancel').exists():
         raise launcher.Stopped()
     if status:
-        raise ValueError(f'Codex session exited with status {status}; see retained output')
+        raise ValueError(f'Agent session exited with status {status}; see retained output')
     return json.loads((run / 'agent-result.json').read_text())
 
 
@@ -322,15 +311,14 @@ def main(argv=None):
                              help='reload a running launcher after the current batch; ignored when starting')
         actions.add_argument('--resume', action='store_true',
                              help='continue the remaining translations (the default behavior)')
-        parser.add_argument('--model', default=DEFAULT_MODEL, help='coordinator/translator model (default: gpt-6.1-sol)')
+        parser.add_argument('--model', default=DEFAULT_MODEL, help=f'coordinator/translator model (default: {DEFAULT_MODEL})')
         parser.add_argument('--effort', choices=('medium', 'high', 'xhigh'), default=DEFAULT_EFFORT)
         parser.add_argument('--subagents', type=int, choices=range(0, 7), default=DEFAULT_SUBAGENTS,
                             help='read-only helpers alongside coordinator (default: 5; 0 is serial)')
         parser.add_argument('--batch-size', type=int, choices=range(1, 33), default=DEFAULT_BATCH_SIZE,
                             help='pending languages per fresh session (default: 24)')
         args = parser.parse_args(argv)
-        if args.model.endswith('-sol') and args.model != DEFAULT_MODEL:
-            raise ValueError('Sol must be gpt-6.1-sol')
+        resolve_profile('translator', model=args.model, effort=args.effort)
         if args.check:
             release = catalogs.check(ROOT)
             print(f'sync-whatsnew: v{release.version}: all translations complete')
@@ -354,7 +342,7 @@ def main(argv=None):
             release = catalogs.latest(ROOT) if pending_pull is None else None
             work = catalogs.pending(ROOT, release) if release is not None else {}
             if work:
-                available_model(args.model, args.effort)
+                available_model(args.model, args.effort, args.subagents)
                 agent_command(ROOT, run, args.model, args.effort, args.subagents)
             return [sys.executable, '-IBu', str(Path(__file__).resolve()), '--worker', str(ROOT),
                     str(run), str(owner), args.model, args.effort, str(args.subagents), str(args.batch_size)]

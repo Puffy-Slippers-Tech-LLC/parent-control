@@ -6,10 +6,17 @@ separate step, not an implicit provider fallback.
 
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Iterator, Literal, Protocol
+from typing import Iterator, Literal, NamedTuple, Protocol
 
 
 Role = Literal['backend_reviewer', 'monitor', 'worker', 'adviser', 'translator']
+ProfileRole = Literal['implementation', 'repair', 'backend_reviewer', 'monitor',
+                      'worker', 'adviser', 'translator', 'commit_helper', 'conflict_resolver']
+
+
+class ModelProfile(NamedTuple):
+    model: str
+    effort: str
 
 
 @dataclass(frozen=True)
@@ -40,6 +47,14 @@ class SessionRequest:
 
 class AgentAdapter(Protocol):
     name: str
+
+    def resolve_profile(self, role: ProfileRole, *, model: str | None = None,
+                        effort: str | None = None) -> ModelProfile: ...
+
+    def capacity_fallback(self, model: str) -> str | None: ...
+
+    def preflight(self, request: SessionRequest, environment: dict[str, str],
+                  profiles: tuple[ModelProfile, ...] = ()) -> None: ...
 
     def prepare_session(self, request: SessionRequest, environment: dict[str, str]) -> 'PreparedSession': ...
 
@@ -108,6 +123,10 @@ class PreparedSession:
     protocol: SessionProtocol | None = None
     presentation: BatchPresentation | None = None
 
+    def preflight(self, *profiles: ModelProfile) -> None:
+        """Check readiness without starting task work or changing its budgets."""
+        self.adapter.preflight(self.request, self.environment, profiles)
+
     def revised(self, **changes) -> 'PreparedSession':
         """Reprepare under the same adapter, including capacity attempts."""
         return self.adapter.prepare_session(replace(self.request, **changes), self.environment)
@@ -117,3 +136,14 @@ def prepare_session(request: SessionRequest, environment: dict[str, str]) -> Pre
     # Selection stays inactive until every transport and caller is qualified.
     from agent_codex import CodexAdapter
     return CodexAdapter().prepare_session(request, environment)
+
+
+def resolve_profile(role: ProfileRole, *, model: str | None = None,
+                    effort: str | None = None) -> ModelProfile:
+    from agent_codex import CodexAdapter
+    return CodexAdapter().resolve_profile(role, model=model, effort=effort)
+
+
+def capacity_fallback(model: str) -> str | None:
+    from agent_codex import CodexAdapter
+    return CodexAdapter().capacity_fallback(model)

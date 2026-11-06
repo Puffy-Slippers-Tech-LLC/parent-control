@@ -20,6 +20,7 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detached_launcher as launcher
+from agent_adapter import resolve_profile
 from launcher_git import git_for_run, git_output, worktree_fingerprint
 
 
@@ -860,7 +861,8 @@ return continue with exact remaining work. No other task or launcher execution.
 if __name__ == '__main__':
     _, root, session, owner = sys.argv[1:]
     root, session, owner = Path(root), Path(session), int(owner)
-    command = launcher.agent_command(root, 'gpt-6.1-sol', 'high', session,
+    model, effort = resolve_profile('conflict_resolver')
+    command = launcher.agent_command(root, model, effort, session,
         schema=session / 'response.schema.json',
         shell_environment=(('ONPC_WORKFLOW_DIRECTORY', str(session)),))
     sys.exit(launcher.supervise(root, session, owner, 'agent', command, nested=True))

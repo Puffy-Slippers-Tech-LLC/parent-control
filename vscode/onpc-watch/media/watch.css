@@ -55,7 +55,7 @@ nav button[aria-pressed="true"] {
 .run-server-name, .run-launcher-label {
     overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
 }
-.run-controls { display: flex; flex-shrink: 0; }
+.run-controls { display: flex; flex-shrink: 0; margin-left: auto; }
 .run-label.finished { color: #008000; }
 .run-label .stop-requested { color: #ffa500; }
 .run-links {

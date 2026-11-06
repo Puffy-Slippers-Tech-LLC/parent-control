@@ -26,7 +26,7 @@ worktrees. Independent runners keep their own sections. Older child runs without
 that publication remain visible until their next normal start.
 The horizontal dividers can be
 dragged to resize adjacent sections, or focused
-and adjusted with Up/Down. The icon immediately before each copy button toggles
+and adjusted with Up/Down. The icon immediately after each copy button toggles
 **Collapse** / **Expand**. Collapsing leaves only that launcher's title bar, tabs
 and buttons; expanded sections fill the remaining height. Expanding restores the
 selected tab. Inactive launchers (finished, failed or stopped) collapse by default,
@@ -42,7 +42,7 @@ worktree from its existing run files. Session input is disabled once its owner
 exits. Retention uses existing run files and reader memory; it adds no disk persistence.
 Each title shows two rows: a server icon and server name (`local` or the SSH host)
 above the branch and launcher, e.g. `[test] fix-tests`. It
-places 28 px icon buttons after the hostname, matching copy and collapse:
+places 28 px icon buttons after the hostname on the same row as copy and collapse:
 **Stop** (solid square) while active, **Undo** while a cancellable stop is pending,
 or **Resume** (play) while idle. It is disabled once stopping begins,
 while disconnected, or when saved command parameters are unavailable. Clicking

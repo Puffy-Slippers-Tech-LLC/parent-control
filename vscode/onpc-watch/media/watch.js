@@ -118,7 +118,7 @@
         }
         title.title = entry.launcher_command ? `${entry.label}\n${entry.launcher_command}` : entry.label;
         labels.classList.toggle('finished', entry.status === 'finished');
-        const controls = element('span', 'run-controls', titlebar);
+        const controls = element('span', 'run-controls', server);
         const collapse = element('button', 'run-copy', controls);
         collapse.type = 'button';
         const collapseIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -155,6 +155,7 @@
                 `\n${section.activity.innerText}` : '';
             vscode.postMessage({ type: 'copy', root: entry.id, text: body.innerText + activity });
         });
+        controls.append(copy, collapse);
         const links = element('span', 'run-links', section.heading);
         for (const [view, label] of [['status', 'Status'], ['launcher', 'Launcher'], ['error', 'Error'], ['session', 'Session']]) {
             const text = view === 'session' && entry.session_number ? `Session ${entry.session_number}` : label;

@@ -64,6 +64,7 @@ def command_plan(*, limits=True, hard_blocked=False):
 PLAN = command_plan()
 DISABLED_PLAN = command_plan(limits=False)
 HARD_COMMAND_PLAN = command_plan(hard_blocked=True)
+HARD_COMMAND_DISABLED_PLAN = command_plan(limits=False, hard_blocked=True)
 
 
 def execute(recorder, context, *, plan=PLAN):
@@ -74,4 +75,5 @@ def execute(recorder, context, *, plan=PLAN):
 
 E2E_CASES = {'flatpak-command-allowed-enabled': execute,
              'flatpak-command-allowed-disabled': partial(execute, plan=DISABLED_PLAN),
-             'flatpak-command-hard-blocked-enabled': partial(execute, plan=HARD_COMMAND_PLAN)}
+             'flatpak-command-hard-blocked-enabled': partial(execute, plan=HARD_COMMAND_PLAN),
+             'flatpak-command-hard-blocked-disabled': partial(execute, plan=HARD_COMMAND_DISABLED_PLAN)}

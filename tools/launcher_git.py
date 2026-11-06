@@ -481,6 +481,13 @@ Accepted task scope and original branch identity:
 Session ownership and acceptance context (read only): {run / 'checkpoint.json'}
 Only the listed task paths are candidates, not proof of hunk ownership. Preserve
 all unrelated staged, unstaged and untracked work, including within those files.
+For hunk-only staging, use direct git apply --cached [OPTIONS] PATCH commands
+with --cached immediately after apply, from the intended checkout working
+directory. This approved index-only route also supports --check and --reverse;
+it preserves working files. Do not wrap Git in shells/interpreters or use global
+options before its subcommand. A read-only index.lock error on another command
+shape may be sandbox routing; inspect its exact argv against the existing grant
+before reporting a host filesystem failure. An actual denial remains a blocker.
 The task has already passed its checks and cleanup. Preserve that acceptance;
 do not repeat unchanged checks, implement another task or change expectations.
 Use the suggested commit message. For merge or saved-work restoration conflicts,

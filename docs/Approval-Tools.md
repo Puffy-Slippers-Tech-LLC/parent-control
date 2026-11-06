@@ -459,6 +459,14 @@ same host execution route as staging and committing. Linked worktrees keep
 their Git metadata beneath the original repository's `.git/worktrees/`; this
 location does not change the selected branch.
 
+For hunk-only staging, use direct `git apply --cached [OPTIONS] PATCH` with
+`--cached` immediately after `apply`, including for `--check` and `--reverse`.
+This narrow grant changes only the index and preserves working files, allowing
+shared launcher close-out to exclude unrelated hunks. Plain `git apply` and
+`git apply --index` are outside this grant. A read-only `index.lock` error can
+mean the command missed its approved host route; inspect the exact argument
+prefix before diagnosing a host filesystem failure. Actual denials remain blockers.
+
 These prefixes trust Git, repository hooks and configuration. They neither
 enforce the working directory nor validate trailing arguments. Use them only
 for the authorized repository development task and preserve unrelated work;

@@ -42,6 +42,7 @@ def vm_execution_branch(monkeypatch):
     ('check_e2e_upgrade_assets', {'upgrade_source': True}, vm_name(0), '', 7),
     ('check_e2e_update_no_action', {'no_action_source': True}, vm_name(0), '', 0),
     ('check_e2e_activation_process', {'process_source': True}, vm_name(0), '', 0),
+    ('check_e2e_activation_session', {'session_source': True}, vm_name(0), '', 0),
     ('check_e2e_kiosk_eligible_choices', {'vm_source': True, 'fixture_source': True},
      vm_name(0), '', 0),
     ('check_fixture_system_installed', {'vm_source': True, 'fixture_source': True},
@@ -75,7 +76,8 @@ def test_named_input_preparation_precedes_dispatch_and_failure_stops_privilege(
     assert regression_process.category_run(
         ROOT, 'system', [selector], pipe=False) == build_status
     allocate.assert_called_once_with(output)
-    flags = (['--process-inputs'] if options.get('process_source') else
+    flags = (['--session-inputs'] if options.get('session_source') else
+             ['--process-inputs'] if options.get('process_source') else
              ['--no-action-inputs'] if options.get('no_action_source') else
              ['--upgrade-inputs'] if options.get('upgrade_source') else [])
     assert execute.call_args_list[0].args[0] == commands.python_file(

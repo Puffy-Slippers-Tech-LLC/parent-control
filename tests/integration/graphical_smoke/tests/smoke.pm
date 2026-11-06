@@ -280,6 +280,12 @@ sub run {
         onpc_customer_reboot::run_process(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{activation_session}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_customer_reboot::run_session(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{package_upgrade}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

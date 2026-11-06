@@ -461,10 +461,11 @@ class PackageCommand:
             require((lines[-1] == REMOVAL_NOTICE if self.binding == REMOVE else
                     REMOVAL_NOTICE in lines and PURGE_COMPLETE in lines), 'package:completion-notice')
         else:
-            no_action = (self.binding == UPGRADE and self.verified.upgrade_inputs is not None
-                         and self.verified.upgrade_inputs.get('activation') in ('none', 'process-restart'))
+            no_restart_notice = (self.binding == UPGRADE and self.verified.upgrade_inputs is not None
+                                 and self.verified.upgrade_inputs.get('activation') in (
+                                     'none', 'process-restart', 'session-renewal'))
             require(COMPLETE in lines and (lines[-1] == COMPLETE and NOTICE not in lines
-                    if no_action else lines[-1] == NOTICE if self.binding != OLD_INSTALL else
+                    if no_restart_notice else lines[-1] == NOTICE if self.binding != OLD_INSTALL else
                     lines[-1] in (COMPLETE, NOTICE)), 'package:completion-notice')
         if removing or self.binding in LIFECYCLE or 'package.rpm' in self.verified.asset_files:
             identity = self.read_identity()

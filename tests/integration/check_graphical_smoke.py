@@ -761,7 +761,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          kiosk_notification_wellbeing=False, request_choices=False,
          kiosk_no_child=False, kiosk_no_approver=False, repeated_operations=False,
          challenges=False, challenge_profile='parent', product_free_entry=False, package_authority=False,
-         upgrade_assets=False, package_upgrade=False, update_no_action=False, activation_process=False, chinese_kiosk_lifecycle=False,
+         upgrade_assets=False, package_upgrade=False, update_no_action=False, activation_process=False,
+         activation_session=False, chinese_kiosk_lifecycle=False,
          package_install=False, customer_reboot=False, app_row_observations=False, native_fixtures=False,
          fixture_profile='native',
          catalogue_search=False, catalogue_filters=False, policy_legend=False, match_save_cancel=False,
@@ -973,6 +974,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         and approval_flow is None and not any(value for name, value in locals().items()
             if name not in ('assets', 'provision_credentials', 'activation_process')
             and isinstance(value, bool)))), 'smoke:activation-process-prerequisites')
+    require(type(activation_session) is bool and (not activation_session or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and approval_flow is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'activation_session')
+            and isinstance(value, bool)))), 'smoke:activation-session-prerequisites')
     require(type(desktop_language) is bool and (not desktop_language or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1372,7 +1378,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(type(package_upgrade) is bool and not (package_upgrade and any((
         product_free_entry, package_authority, package_install, customer_reboot,
         chinese_language_assets, desktop_language, upgrade_assets))), 'smoke:package-upgrade-prerequisites')
-    dual_packages = (upgrade_assets or package_upgrade or update_no_action or activation_process or chinese_kiosk_lifecycle
+    dual_packages = (upgrade_assets or package_upgrade or update_no_action or activation_process or activation_session or chinese_kiosk_lifecycle
                      or kiosk_entry == 'update-reentry')
     product_free_entry = (product_free_entry or package_authority or package_install
                           or customer_reboot or chinese_language_assets or desktop_language
@@ -2017,6 +2023,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'update-no-action-qualification'
         if activation_process:
             result['scope'] = 'activation-process-qualification'
+        if activation_session:
+            result['scope'] = 'activation-session-qualification'
         if chinese_kiosk_lifecycle:
             result['scope'] = 'chinese-kiosk-lifecycle-qualification'
         if chinese_current_install:
@@ -2245,6 +2253,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if activation_process:
                     from parent_setup_qualification import ActivationProcessQualification
                     qualification_class = ActivationProcessQualification
+                if activation_session:
+                    from parent_setup_qualification import ActivationSessionQualification
+                    qualification_class = ActivationSessionQualification
                 if chinese_kiosk_lifecycle:
                     from parent_setup_qualification import ChineseKioskLifecycleQualification
                     qualification_class = ChineseKioskLifecycleQualification

@@ -2465,10 +2465,10 @@ preparation stops at positive D>G>0; case 164 owns its uninterrupted expiry.
 
 LIFE04/05's reboot upgrade bindings retain their final reboot notice.
 `PackageCommand.read_result` also admits the finite, source-bound
-[no-action update](#no-action-package-update), with exact completion and no reboot
-notice. Process/session bindings still need their finite notice and independent
-completion projections before qualification; the checked genuine-upgrade history
-supplies the unchanged package envelope, not those new notice branches. Reuse one real
+[no-action update](#no-action-package-update), [automatic process update](#automatic-process-update)
+and [session update](#session-update), with exact completion and no reboot
+notice. Each binding retains its independent completion projection; the checked
+genuine-upgrade history supplies the unchanged package envelope. Reuse one real
 transaction per declared binding and retain each complete case's persistence
 and enforcement results.
 
@@ -2481,8 +2481,8 @@ and enforcement results.
 | LIFE01 | C | Close and reopen one named ordinary app through a shared direct command, unless the case explicitly tests its graphical launch route; observe its opening window. Do not reselect a child or restore settings before reading them. | `onpc_lifecycle::reopen(journey, 'parent', prior_window, 'management')` consumes `prior-window`, independently guards the active owned window, composes UI18 → PARENT01, then reads the initial child selection before edits. `app_restart.PLAN` / `onpc_app_restart::run` passed `check_e2e_app_restart`: fresh entry, already-closed and wrong named-window refusal without repair, complete old-window absence, new management window, initial selection, collection, owned cleanup and baseline restoration. Shared launch/close helpers are unchanged. Other ordinary apps use APP01 with the declared route; overlay/kiosk reopening uses their explicit exit/entry blocks. | Parent→management ready with the baseline eligible children; other apps/bindings pending |
 | LIFE02 | C | Reboot through a fixed supported system command in the owned guest, then observe a new boot and fresh GDM in the same attempt. | `JourneyPlan.reboot_transition`, `InstalledJourney.submit_reboot` and `Transport.request_customer_reboot`; independent `ReadOnlyObservations.wait_boot_change` then fresh GDM. [Qualified install/reboot composition](#customer-reboot-continuity). No Shell power menu; product persistence and activation notices remain required. | fresh install/reboot/administrator return ready; other bindings pending |
 | LIFE03 | C | Suspend through a fixed supported system command, wait the real interval, wake through the owned VM's supported input and observe the return. | Shared lifecycle harness → TIME03 → bound wake input → public result; unlock remains DESK08. No Shell menus. | pending |
-| LIFE04 | C | Perform a declared real install/update/remove/reinstall/purge with a registered package command over guarded SSH; observe completion and the actual customer notice. | `package_install.submit_install` / `observe_install` compose FILE01/02/06 and AUTH03 with verified artifact identity, one submission and independent completion/final notice. `PackageInstallJourney` qualifies the fresh product-free install entry; [install qualification](#customer-package-install-composition). `submit_release` / `observe_release` and `PackageUpgradeJourney` qualify the [genuine v1.2/current upgrade](#genuine-package-upgrade), including old-release activation and unchanged boot after upgrade. No Terminal, sudo-prompt exercise or private product-state assertion. | install, genuine v1.2/current update, [Fedora no-action update](#no-action-package-update), [Fedora process update](#automatic-process-update) and [finite Ubuntu libc6 reconfiguration/system result](#genuine-unrelated-package-reboot-request) ready; other update/remove/reinstall/purge bindings pending |
-| LIFE05 | C | Follow the actual activation requirement: none, automatic process activation, session renewal, or reboot/login; renew every explicitly affected user/surface when required. | None: UI03(notice), [qualified no-action update](#no-action-package-update). Process: [automatic broker restart with retained Parent settings](#automatic-process-update), without extra reopening instructions. Session: DESK03 → GDM02 → DESK08 when reaching another retained user, then DESK04 → GDM07 for each required renewal. Reboot: LIFE02 → GDM07. Compare displayed state afterward; one user's logout does not renew every session. | Fedora no-action and automatic process updates with retained usable Parent settings ready; other update activation bindings pending |
+| LIFE04 | C | Perform a declared real install/update/remove/reinstall/purge with a registered package command over guarded SSH; observe completion and the actual customer notice. | `package_install.submit_install` / `observe_install` compose FILE01/02/06 and AUTH03 with verified artifact identity, one submission and independent completion/final notice. `PackageInstallJourney` qualifies the fresh product-free install entry; [install qualification](#customer-package-install-composition). `submit_release` / `observe_release` and `PackageUpgradeJourney` qualify the [genuine v1.2/current upgrade](#genuine-package-upgrade), including old-release activation and unchanged boot after upgrade. No Terminal, sudo-prompt exercise or private product-state assertion. | install, genuine v1.2/current update, [Fedora no-action update](#no-action-package-update), [Fedora process update](#automatic-process-update), [Fedora session update](#session-update) and [finite Ubuntu libc6 reconfiguration/system result](#genuine-unrelated-package-reboot-request) ready; other update/remove/reinstall/purge bindings pending |
+| LIFE05 | C | Follow the actual activation requirement: none, automatic process activation, session renewal, or reboot/login; renew every explicitly affected user/surface when required. | None: UI03(notice), [qualified no-action update](#no-action-package-update). Process: [automatic broker restart with retained Parent settings](#automatic-process-update), without extra reopening instructions. Session: DESK03 → GDM02 → DESK08 when reaching another retained user, then DESK04 → GDM07 for each required renewal; [qualified Fedora child renewal](#session-update) adds no update instructions. Reboot: LIFE02 → GDM07. Compare displayed state afterward; one user's logout does not renew every session. | Fedora no-action and automatic process updates with retained usable Parent settings, and session update with Riley's saved preference/usable countdown and original Parent state ready; other update activation bindings pending |
 | LIFE06 | C | Remove and restore the owned VM's Internet access through one shared distro-independent operation; independently observe offline/online state and required product results. Local test-control access remains available. | `vm_internet.InternetIsolation.enter(transport)` / `restore(lease)` and `offline_controls.offline_controls`; [owned VM Internet contract](#owned-vm-internet-isolation). No guest networking service, new transport or injected product fault. | ready for the VM Internet helper and Parent enable/disable with independent saved-state reads and same-window continuity; other product results and complete scenarios remain pending |
 | LIFE07 | C | Read the installed product's owned restart modal before language setup; Close without reboot, re-enter and submit one normal Reboot now action. Observe a new boot, usable greeter and fresh target without the modal separately. | `AccessibleUI.restart_notice` / `restart_action` / `restart_closed` / `restart_usable`, `JourneyPlan.modal_reboots` and `UiObservations.submit_restart`; `restart_notice.RestartNoticeJourney` / `onpc_customer_reboot::restart_notice` compose LIFE04, fresh desktop/station entries and LIFE02's independent boot result. `check_e2e_restart_notice` starts product-free and binds Parent, direct Child App and kiosk without policy setup before the notice. `journey_blocks.restart_reentry` / `onpc_customer_reboot::restart_reentry` share Close/exit/reopening; `restart_kiosk_usability` supplies public Jamie selection before the independent Jordan/Jamie final guard. `fresh_parent_restart.PLAN` / `onpc_customer_reboot::run_parent_notice`, `fresh_child_restart.PLAN` / `run_child_notice` and `fresh_kiosk_restart.PLAN` / `run_kiosk_notice` bind complete cases 257–259 through the same package recorder and modal operations. Exact owners, duplicate/missing IDs and consumed input refuse; no marker injection or command-reboot fallback. [Installed qualification](#installed-restart-notice-qualification). | English fresh-install three-surface notice/Close/re-entry, kiosk reboot and postboot usability ready; complete Parent/Child App/kiosk cases 257–259 passed |
 
@@ -5159,6 +5159,35 @@ Riley's saved 30-minute allowance passed. The shared no-action regression passed
 separately in `20261106T042615Z-f86e0541`. Both attempts completed collection,
 worker shutdown, owned cleanup, baseline restoration and preservation. Complete
 case 136, other package formats and session/reboot profiles remain separate.
+
+### Session update
+
+`check_e2e_activation_session` and
+[`ActivationSessionJourney`](../../tests/e2e/activation_session.py), composed by
+`onpc_customer_reboot::run_session`, qualify LIFE04/LIFE05 session renewal on
+Fedora 44 in `20261106T162010Z-1f896d7c`. The developer chose no added update
+instructions: require exact configuration completion without a restart notice,
+then perform normal logout/fresh login for every named affected child.
+
+[`build_session`](../../tools/build_test_artifacts.py) binds increasing RPM
+Releases `0.1.dev` and `0.2.dev`. The previous package alone uses the exact
+`child/extension.js` from `9dc0c5542a9b482367c0cb285568041af8da3bb0`, before the
+real lifecycle-diagnostic change; all other payloads remain current. Verification
+reconstructs both source identities and requires shipped activation manifests
+to classify the change as exactly `session-renewal`. No private activation state
+or manifest is injected.
+
+Only Riley has limits enabled and a running affected child session in this
+slice. The real update, Riley's normal logout/fresh login, independently retained
+animation-off choice and usable countdown passed. Return to the original Parent
+window preserved the saved 30-minute allowance, desktop session and boot.
+Continuity uses `session_control.observe` with `parent-desktop-identity` at both
+comparison endpoints and the journey's guarded boot read; it does not repeat
+unrelated all-account language preservation after renewal. Package identity and
+preservation remain verified at the transaction boundary. Collection,
+worker/callback shutdown, owned cleanup, baseline restoration and preservation
+passed; the VM was observed off. Complete case 137, other affected-session sets
+and other package formats retain their own acceptance.
 
 ### Customer reboot continuity
 

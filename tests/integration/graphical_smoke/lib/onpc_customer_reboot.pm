@@ -90,6 +90,45 @@ sub run_upgrade {
 sub run_no_action { run_automatic_update('update-no-action', @_); }
 sub run_process { run_automatic_update('activation-process', @_); }
 
+sub run_session {
+    onpc_progress::operation('Updating and renewing the affected child session with its saved choices');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'activation-session:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    require onpc_desktop_session;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'activation-session', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_parent::login_functional($journey);
+    $journey->seen($_) for qw(command-context package-submitted package-result reboot-requested);
+    my $desktop = return_entry($journey);
+    onpc_parent::launch($journey, $desktop, 'management', 'reboot-desktop');
+    onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->seen($_) for qw(allowance-configured settings-before);
+    my $leave = sub {
+        my ($prefix) = @_;
+        my $section = $journey->scope($prefix);
+        onpc_desktop_session::switch_user($section, $section->seen('desktop'));
+    };
+    $leave->('initial-leave');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'before-child');
+    $journey->seen($_) for qw(animation-configured animation-before);
+    $leave->('child-leave');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'update-parent');
+    $journey->seen($_) for qw(upgrade-context upgrade-submitted upgrade-result);
+    $leave->('updated-leave');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'renew-child');
+    $journey->consume_observation('renewal-desktop', $journey->seen('renewal-desktop'));
+    $journey->seen($_) for qw(renewal-logout renewal-greeter);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'after-child');
+    $journey->seen($_) for qw(animation-after usable-countdown);
+    $leave->('renewed-leave');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'final-parent');
+    $journey->seen('settings-after');
+    $journey->finish();
+}
+
 sub run_process_case {
     onpc_progress::operation('Updating while preserving the child rules and original extra time');
     my ($exchange, $declared, $challenges, $request) = @_;

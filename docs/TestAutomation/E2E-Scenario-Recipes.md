@@ -1462,6 +1462,12 @@ and its actual completion/no-reboot result. Preserve the public saved-value,
 grant and usable/denied-app results below; the capability slice supplies no
 complete-case acceptance.
 
+For session case 137, the developer chose no added update instructions. Reuse the
+[qualified Fedora session profile](E2E-Building-Blocks.md#session-update), its
+exact completion without a restart notice and normal logout/fresh login for
+each named affected child. Retain the complete case's saved values, original
+grant deadline, usable request forms and enforcement results below.
+
 1. V(parent,fresh) → LIFE04(earlier release install) → LIFE05(notice) → FLOW16 → FLOW03 → FLOW06(20-minute grant) → C → FLOW08. Reboot case 138 additionally prepares both forms with FLOW04/REQUEST03/REQUEST12 and captures the intended saved values after that approval.
 2. P → LIFE04(update package) → LIFE05(exact affected users/surfaces).
 3. P → PARENT03/PARENT12 → UI12 → ABOUT01(version) → UI18; C → TIME01 → FLOW08. Case 138 additionally uses request-entry(each) → REQUEST03 → UI12 before edits for the complete remembered-choice tour.

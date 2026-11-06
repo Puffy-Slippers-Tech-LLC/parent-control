@@ -18,7 +18,7 @@ Task queue: [Plan B ordered checklist](E2E-Task-QueueB.md).
 
 ## Next task
 
-Next task: **137 — [Follow session activation after a real update](E2E-Tasks/137-activation-session.md)**.
+Next task: **138 — [E2E-026: session](E2E-Tasks/138-case-137.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

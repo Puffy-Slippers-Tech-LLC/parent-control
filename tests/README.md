@@ -25,8 +25,9 @@ for current and future launcher/session behavior.
 | Observe a host UI run | [Host UI viewer](#watching-host-ui-tests) |
 
 Tests and agents must use `make install` as the single entry point for product
-installation, reinstallation or upgrades from the checkout. It detects the
-target distribution and invokes the internal `installdeb` or `installrpm` module.
+installation, reinstallation or upgrades from the checkout. It selects DEB or
+RPM from `INSTALL_PACKAGE`, `PACKAGE_FORMAT` or available package-manager
+commands and invokes the internal `installdeb` or `installrpm` module.
 Do not call separate package-specific installation targets or reproduce their
 package-manager recipes in checkout-based test runners. Product installation
 still requires an authorized installed-system target; the development host is

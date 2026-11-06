@@ -1,20 +1,5 @@
 # @pre_helpers@
-require_supported_os() (
-    ID=
-    VERSION_ID=
-    VARIANT_ID=
-    release_file=/etc/os-release
-    [ -e "$release_file" ] || release_file=/usr/lib/os-release
-    if [ ! -r "$release_file" ]; then
-        echo 'Oh No! Parent Control requires Fedora Workstation 44; operating system could not be identified.' >&2
-        exit 1
-    fi
-    # shellcheck disable=SC1090
-    . "$release_file"
-    if [ "$ID" != fedora ] || [ "$VERSION_ID" != 44 ] || [ "$VARIANT_ID" != workstation ]; then
-        echo 'Oh No! Parent Control requires Fedora Workstation 44 for this development RPM.' >&2
-        exit 1
-    fi
+preflight_package() (
     authselect check
     authselect current --raw >/dev/null
     current_profile=$(authselect current --raw)

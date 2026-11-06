@@ -68,7 +68,8 @@ def test_fedora_payload_shares_runtime_and_has_native_integrations(fedora_payloa
     assert (payload / 'usr/libexec/oh-no-parent-control-fedora-pam').is_file()
     assert (payload / 'usr/libexec/oh-no-parent-control-fedora-execution-policy').read_bytes() == (
         ROOT / 'packaging/fedora_execution_policy.py').read_bytes()
-    assert (payload / 'usr/bin/oh-no-parent-control-purge').read_bytes() == (ROOT / 'packaging/purge.py').read_bytes()
+    assert (payload / 'usr/bin/oh-no-parent-control-purge').read_text() == (
+        ROOT / 'packaging/purge.py').read_text().replace("PACKAGE_FORMAT = 'deb'", "PACKAGE_FORMAT = 'rpm'")
     assert (payload / 'usr/share/oh-no-parent-control/lifecycle/postrm').read_text() == (
         runpy.run_path(str(ROOT / 'packaging/render_lifecycle.py'))['render'](ROOT, 'fedora', 'postrm').replace('#DEBHELPER#', ''))
     assert (payload / 'usr/lib/oh-no-parent-control/parent/oh_no_parent_control_parent/main.py').is_file()
@@ -540,20 +541,6 @@ def test_fedora_install_refuses_unowned_canary_before_package_effects(machine):
     assert 'canary path already exists' in result.stderr
     assert rule.read_text() == 'administrator rule\n'
     assert not machine.commands
-
-
-@pytest.mark.parametrize('version,variant,accepted', [
-    ('44', 'workstation', True), ('43', 'workstation', False),
-    ('45', 'workstation', False), ('44', 'server', False), ('44', '', False),
-])
-def test_fedora_os_gate_precedes_package_effects(machine, version, variant, accepted):
-    machine.write('etc/os-release', f'ID=fedora\nVERSION_ID={version}\nVARIANT_ID={variant}\n')
-    machine.write('test-bin/authselect', '#!/bin/sh\ncase "$1" in current) echo local;; esac\n').chmod(0o755)
-    result = machine.run('preinst', 'install', distribution='fedora')
-    assert (result.returncode == 0) == accepted, result.stderr
-    if not accepted:
-        assert machine.commands == ''
-        assert not (machine.root / 'var/lib/oh-no-parent-control/migration-in-progress').exists()
 
 
 @pytest.mark.parametrize('package_machine', ['fedora'], indirect=True)

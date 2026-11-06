@@ -36,6 +36,8 @@ def stage(source: Path, destination: Path, distribution: str):
         return
     if distribution != 'fedora':
         raise ValueError('unsupported packaging distribution')
+    purge = destination / 'usr/bin/oh-no-parent-control-purge'
+    purge.write_text(purge.read_text().replace("PACKAGE_FORMAT = 'deb'", "PACKAGE_FORMAT = 'rpm'"))
     system = destination / 'usr/lib/systemd/system/oh-no-parent-control-broker.service'
     system.write_text(system.read_text().replace('Group=sudo', 'Group=wheel'))
     visibility = destination / 'usr/lib/systemd/system/accounts-daemon.service.d/oh-no-parent-control.conf'

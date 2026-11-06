@@ -7,7 +7,6 @@ from contextlib import ExitStack
 import grp
 import os
 from pathlib import Path
-import platform
 import stat
 import secrets
 import shutil
@@ -15,6 +14,8 @@ import subprocess
 import sys
 
 PRODUCT = 'oh-no-parent-control'
+# Selected from the package being built, independent of the installed OS.
+PACKAGE_FORMAT = 'deb'
 CLEANUP = Path('/usr/share/oh-no-parent-control/lifecycle/postrm')
 INTENT = Path('/run/oh-no-parent-control-purge-intent.json')
 INTENT_PURPOSE = 'onpc-native-rpm-purge-v1'
@@ -163,15 +164,6 @@ def log_cleanup_main():
         remove_saved_logs(sys.argv[2])
     else:
         raise ValueError('purge:invalid-log-cleanup-action')
-
-
-def distribution(release):
-    if release.get('ID') == 'ubuntu':
-        return 'ubuntu'
-    if (release.get('ID'), release.get('VERSION_ID'), release.get('VARIANT_ID')) == (
-            'fedora', '44', 'workstation'):
-        return 'fedora'
-    raise ValueError('purge:unsupported-distribution')
 
 
 def secure(path, *, directory=True, missing=False):
@@ -387,13 +379,12 @@ def verify_fedora_pam():
 def purge(*, yes=False):
     if os.geteuid() != 0:
         raise ValueError('purge:root-required')
-    target = distribution(platform.freedesktop_os_release())
     # Read trusted package-owned bytes before the transaction erases this
     # executable and its source. No erased product import/helper is needed.
     cleanup_source()
     for path in (Path('/var/lib/oh-no-parent-control'), Path('/var/log/oh-no-parent-control')):
         secure(path, missing=True)
-    if target == 'ubuntu':
+    if PACKAGE_FORMAT == 'deb':
         identity = subprocess.run(['dpkg-query', '-W', '-f=${Package}', PRODUCT],
                                   check=True, text=True, stdout=subprocess.PIPE).stdout.strip()
         if identity != PRODUCT:

@@ -171,7 +171,7 @@ def test_rpm_installer_resolves_dependencies_and_reinstalls_local_build(
     os_release.write_text('ID=fedora\n')
     result = subprocess.run(
         ['make', '--no-print-directory', '-f', str(ROOT / 'Makefile'),
-         'install', f'OS_RELEASE={os_release}', f'CURDIR={tmp_path}', f'RPM={bin_dir / "rpm"}',
+         'install', 'PACKAGE_FORMAT=rpm', f'CURDIR={tmp_path}', f'RPM={bin_dir / "rpm"}',
          f'DNF={bin_dir / "dnf"}'],
         env={**os.environ, 'RPM_IDENTITY': identity,
              'INSTALLED_IDENTITY': installed_identity,
@@ -213,14 +213,14 @@ def test_package_specific_install_targets_are_unavailable(target):
     assert f"No rule to make target '{target}'" in result.stderr
 
 
-@pytest.mark.parametrize('distribution,suffix', [('ubuntu', 'deb'), ('fedora', 'rpm')])
+@pytest.mark.parametrize('suffix', ['deb', 'rpm'])
 @pytest.mark.parametrize('package_name', ['oh-no-parent-control', 'oh-no-parent-control-2-other'])
 def test_public_installer_validates_frozen_artifact_and_preserves_literal_path(
-        tmp_path, distribution, suffix, package_name):
+        tmp_path, suffix, package_name):
     package = tmp_path / f'previous $(false) package.{suffix}'
     package.write_bytes(b'private selected artifact')
     os_release = tmp_path / 'os-release'
-    os_release.write_text('ID=' + distribution + '\n')
+    os_release.write_text('ID=unknown\nVERSION_ID=rolling\n')
     bin_dir = tmp_path / 'bin'
     bin_dir.mkdir()
     identity = bin_dir / ('dpkg-deb' if suffix == 'deb' else 'rpm')
@@ -237,6 +237,7 @@ def test_public_installer_validates_frozen_artifact_and_preserves_literal_path(
     captured = tmp_path / 'captured'
     result = subprocess.run(['make', '--no-print-directory', '-f', str(ROOT / 'Makefile'),
         'install', f'INSTALL_PACKAGE={package}', f'OS_RELEASE={os_release}',
+        'PACKAGE_FORMAT=' + ('rpm' if suffix == 'deb' else 'deb'),
         f'APT={installer}', f'DNF={installer}', f'RPM={identity}'],
         env={**os.environ, 'PATH': str(bin_dir) + ':' + os.environ['PATH'],
              'CAPTURED_PACKAGE': str(captured)}, capture_output=True, text=True, timeout=10)
@@ -249,19 +250,14 @@ def test_public_installer_validates_frozen_artifact_and_preserves_literal_path(
         assert not captured.exists()
 
 
-@pytest.mark.parametrize('release', [None, 'ID=unsupported\n'])
-def test_install_refuses_missing_or_unsupported_distribution(tmp_path, release):
-    os_release = tmp_path / 'os-release'
-    if release is not None:
-        os_release.write_text(release)
+def test_install_refuses_invalid_package_format():
     result = subprocess.run(
         ['make', '--no-print-directory', '-f', str(ROOT / 'Makefile'),
-         'install', f'OS_RELEASE={os_release}', 'APT=false', 'RPM=false', 'DNF=false'],
+         'install', 'PACKAGE_FORMAT=invalid', 'APT=false', 'RPM=false', 'DNF=false'],
         capture_output=True, text=True, timeout=10,
     )
     assert result.returncode != 0
-    assert ('os-release is missing' if release is None else
-            'Unsupported distribution: unsupported') in result.stderr
+    assert 'Cannot select package format' in result.stderr
     assert 'Installing ' not in result.stdout
 
 

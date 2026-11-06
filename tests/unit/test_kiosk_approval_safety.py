@@ -1,5 +1,6 @@
 """Direct credential guards: human decision time never authorizes stale input."""
 import json
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -7,6 +8,37 @@ import pytest
 import ui_observations
 from private_artifacts import EvidenceError
 from tests.support.perl import run_perl
+
+
+def test_privileged_fixture_password_uses_authenticated_callers_private_file(tmp_path, monkeypatch):
+    import test_account_password as password
+    uid = tmp_path.stat().st_uid
+    config = tmp_path / '.onpc-config'
+    config.mkdir()
+    source = config / '.envrc'
+    source.write_text("TEST_ACCOUNT_PASSWORD='fixture-only-canary'\n")
+    source.chmod(0o600)
+    monkeypatch.setattr(password.os, 'getuid', lambda: 0)
+    monkeypatch.setenv('PKEXEC_UID', str(uid))
+    lookup = Mock(return_value=SimpleNamespace(pw_dir=str(tmp_path)))
+    monkeypatch.setattr(password.pwd, 'getpwuid', lookup)
+    assert password.read_password() == 'fixture-only-canary'
+    lookup.assert_called_once_with(uid)
+    monkeypatch.setenv('PKEXEC_UID', str(uid + 1))
+    with pytest.raises(ValueError, match='caller-owned regular file'):
+        password.read_password()
+
+
+@pytest.mark.parametrize('caller', ['', '0', '-1', 'invalid'])
+def test_privileged_fixture_password_refuses_missing_caller_before_open(monkeypatch, caller):
+    import test_account_password as password
+    monkeypatch.setattr(password.os, 'getuid', lambda: 0)
+    monkeypatch.setenv('PKEXEC_UID', caller)
+    opened = Mock(side_effect=AssertionError('credential opened without authenticated caller'))
+    monkeypatch.setattr(password.os, 'open', opened)
+    with pytest.raises(ValueError, match='caller-owned regular file'):
+        password.read_password()
+    opened.assert_not_called()
 
 
 @pytest.mark.parametrize('operation,previous,last_child,error', [
@@ -136,7 +168,7 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
                                  'grant-request', 'grant-wrong-scope', 'grant-wrong-child',
                                  'transition-request', 'transition-wrong-duration', 'revocation-request',
                                  'work-recovery', 'expired-recovery', 'kiosk-recovery', 'kiosk-recovery-wrong-scope',
-                                 'app-restart-request', 'sign-out-request',
+                                 'app-restart-request', 'sign-out-request', 'reboot-request',
                                  'process-update-request', 'process-update-wrong-soft',
                                  'sign-out-expired-recovery', 'expired-recovery-wrong-scope'])
 def test_composed_kiosk_secret_scope_and_single_use(mode):
@@ -147,7 +179,7 @@ def test_composed_kiosk_secret_scope_and_single_use(mode):
     from grant_work_recovery import INCLUDED_PLAN as RECOVERY_PLAN
     from panel_request_case import PLAN as PANEL_PLAN
     from kiosk_recovery import PLAN as KIOSK_PLAN
-    from app_restart_active import PLAN as RESTART_PLAN, SIGN_OUT_PLAN
+    from app_restart_active import PLAN as RESTART_PLAN, SIGN_OUT_PLAN, REBOOT_PLAN
     from app_restart_expired import PLAN as EXPIRED_PLAN, SIGN_OUT_PLAN as EXPIRED_SIGN_OUT_PLAN
     from update_process_case import PLAN as UPDATE_PLAN
     transition = [PLAN.prefix + '-soft-opening', 'soft-opening-', list(PLAN.kiosk_request)]
@@ -156,7 +188,8 @@ def test_composed_kiosk_secret_scope_and_single_use(mode):
     if mode in ('expired-recovery', 'sign-out-expired-recovery', 'expired-recovery-wrong-scope'):
         expired = EXPIRED_PLAN if mode == 'expired-recovery' else EXPIRED_SIGN_OUT_PLAN
         recovery = [expired.prefix, list(expired.kiosk_request)]
-    restart = SIGN_OUT_PLAN if mode == 'sign-out-request' else RESTART_PLAN
+    restart = (REBOOT_PLAN if mode == 'reboot-request' else
+               SIGN_OUT_PLAN if mode == 'sign-out-request' else RESTART_PLAN)
     result = run_perl(r'''
 use strict;
 use warnings;
@@ -213,7 +246,7 @@ if ($mode eq 'revocation-request') {
     $first = bless {prefix => $revocation->[0], stage_prefix => $revocation->[1],
         kiosk_request => $revocation->[2], review => 0}, 'onpc_journey';
 }
-if ($mode eq 'app-restart-request' || $mode eq 'sign-out-request') {
+if ($mode eq 'app-restart-request' || $mode eq 'sign-out-request' || $mode eq 'reboot-request') {
     $first = bless {prefix => $restart->[0] . '-request', stage_prefix => 'request-',
         kiosk_request => $restart->[1], review => 0}, 'onpc_journey';
 }
@@ -242,7 +275,7 @@ my $ok = eval {
         onpc_password::enter_kiosk_mate_password($return, 'bound-request');
     } elsif ($mode =~ /^profile-/) {
         onpc_password::enter_kiosk_mate_password($first, 'request-1200');
-    } elsif ($mode =~ /^(?:grant|transition|revocation|app-restart|sign-out|process-update)-/) {
+    } elsif ($mode =~ /^(?:grant|transition|revocation|app-restart|sign-out|reboot|process-update)-/) {
         onpc_password::enter_kiosk_mate_password($first, 'bound-request');
     } else {
         onpc_password::enter_kiosk_mate_password($first, 'bound-request');
@@ -283,7 +316,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
             ['proof', request + '-approval-' + proof]
             for request in ('first', 'second') for proof in ('qualified', 'rechecked')]
     elif mode in ('grant-request', 'transition-request', 'revocation-request', 'app-restart-request',
-                  'sign-out-request', 'process-update-request'):
+                  'sign-out-request', 'reboot-request', 'process-update-request'):
         assert value['ok'] == 1
         scope = 'soft-opening' if mode == 'transition-request' else 'request'
         assert deliveries == [['delivery', 'parent', scope + '-kiosk-mate-approval']]

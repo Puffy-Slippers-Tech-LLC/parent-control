@@ -58,7 +58,7 @@ def read_password():
         if len(values) != 1:
             raise ValueError(MESSAGE)
         return validate(values[0])
-    except (OSError, UnicodeError, ValueError, KeyError):
+    except (OSError, UnicodeError, ValueError, KeyError, OverflowError):
         raise ValueError(MESSAGE + ' Use a caller-owned regular file with permissions 0600.') from None
 
 

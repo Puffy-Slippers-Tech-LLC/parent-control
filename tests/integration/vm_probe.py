@@ -1093,6 +1093,20 @@ def reproduce_app_restart_choices(lease, fixture_selection):
         timeout=1800)
 
 
+def reproduce_reboot_context(lease, fixture_selection):
+    """Retain case 120's Parent desktop before its single reboot submission."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from app_restart_active import AppRestartActiveJourney, REBOOT_PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, AppRestartActiveJourney, REBOOT_PLAN,
+        'reboot-requested', 'reboot-context', assets=assets,
+        boundary_operation=REBOOT_PLAN.screen_tags['reboot-requested'],
+        fixture_selection=selection, timeout=1800)
+
+
 def reproduce_match_editor(lease, fixture_selection):
     """Retain the saved wildcard/hard block before the next editor opening."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1328,6 +1342,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
     import e2e_worker
     from qualification_storage import recovery_session, allocate
     selected_setup = fixture_selection is not None
+    reboot_context = False
     if selected_setup or surface == 'baseline-restoration' or timeout != 900:
         from baseline_journey import BaselineJourney, PLAN
         from natural_access import NaturalAccessJourney, PLAN as NATURAL_ACCESS_PLAN
@@ -1341,7 +1356,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from app_rule_changes_case import AppRuleChangesJourney, DISABLED_PATTERN_PLAN
         from revocation_case import RevocationCaseJourney, PLAN as REVOCATION_PLAN
         from panel_request_case import PanelRequestJourney, PLAN as PANEL_REQUEST_PLAN
-        from app_restart_active import AppRestartActiveJourney, PLAN as APP_RESTART_PLAN
+        from app_restart_active import (AppRestartActiveJourney, PLAN as APP_RESTART_PLAN,
+                                        REBOOT_PLAN)
         restoration = (surface == 'baseline-restoration'
             and journey_type is BaselineJourney and plan is PLAN
             and boundary == 'restore-saved' and boundary_operation == 'parent-save-disabled'
@@ -1382,7 +1398,11 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             and journey_type is AppRestartActiveJourney and plan is APP_RESTART_PLAN
             and boundary == 'jordan-custom'
             and boundary_operation == 'remembered-overlay-jordan-custom')
-        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices)
+        reboot_context = (surface == 'reboot-context'
+            and journey_type is AppRestartActiveJourney and plan is REBOOT_PLAN
+            and boundary == 'reboot-requested'
+            and boundary_operation == REBOOT_PLAN.screen_tags[boundary])
+        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1399,7 +1419,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         system.require(((surface == 'baseline-auth-pause' and boundary == 'return-entry-guard'
                          and boundary_operation == 'system:parent-entry-retained')
                         or (surface == 'grant-logout' and boundary == 'grant-logout-logout'
-                            and boundary_operation == 'system:standard-logout'))
+                            and boundary_operation == 'system:standard-logout')
+                        or (surface == 'reboot-context' and reboot_context))
             and plan is not None and plan.screen_tags.get(boundary) == boundary_operation,
             'diagnosis:system-boundary-binding')
 
@@ -1433,6 +1454,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                                        'countdown-grant': 'E2E-011/grant-only',
                                        'overlay-activity': 'check_e2e_overlay_translated_approval',
                                        'panel-request': 'E2E-012/excluded-first',
+                                       'reboot-context': 'E2E-022/reboot-active',
                                        'overlay-return': 'check_e2e_compose_approval_and_return_to_the_child'
                                        }.get(surface, ACTIVITY_CALLER))
             context.installed_snapshot = lease.installed_name
@@ -1507,7 +1529,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                 stream.write(json.dumps({'stage': stage, 'observed': observed}) + '\n')
             print(surface + '-diagnosis: ' + stage, file=sys.stderr, flush=True)
 
-        if surface in ('match-editor', 'panel-request', 'app-restart-choices'):
+        if surface in ('match-editor', 'panel-request', 'app-restart-choices', 'reboot-context'):
             from native_fixtures import fixture_actions
             actions = fixture_actions(include_refusal=False)
             if surface == 'app-restart-choices':

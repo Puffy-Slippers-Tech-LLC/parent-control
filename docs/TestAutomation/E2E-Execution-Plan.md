@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **162 — [E2E-022: reboot-active](E2E-Tasks/162-case-120.md)**.
+Next task: **163 — [E2E-022: reboot-expired](E2E-Tasks/163-case-121.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

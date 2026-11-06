@@ -258,9 +258,10 @@ class JourneyPlan:
                     all(stage in stages for stage in transition) and
                     stages.index(transition[0]) > prior and
                     stages.index(transition[1]) == stages.index(transition[0]) + 1 and
-                    self.screen_tags[transition[0]] == (
-                        'ui:restart-' + self.modal_reboots[transition[0]] + '-read'
-                        if transition[0] in self.modal_reboots else 'system:parent-command-context') and
+                    self.screen_tags[transition[0]] in (
+                        ('ui:restart-' + self.modal_reboots[transition[0]] + '-read',)
+                        if transition[0] in self.modal_reboots else
+                        ('system:parent-command-context', 'system:parent-desktop-identity')) and
                     self.screen_tags[transition[1]] in ('ui:gdm-list', 'ui:gdm-product-free-list') and
                     transition[0] not in self.stage_actions, self.prefix + ':reboot-plan')
             prior = stages.index(transition[1])

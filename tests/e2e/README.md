@@ -1785,6 +1785,13 @@ once and retains the Parent scene at `rejected-open`, recording the result in
 `tools/test-vm --vm NAME stop` before clean acceptance. This route uses the
 selected native fixture closure and supplies diagnostic evidence only.
 
+`tools/test-vm --vm NAME reproduce-reboot-context` reuses case 120's complete
+pre-reboot history and stops at `reboot-requested`, before reboot submission.
+It records that stage's shared session check and retains the Parent desktop
+for guarded guest probes. The same VM-bound fixture, credential, watch and
+maintenance ownership guards apply. Finish with `tools/test-vm --vm NAME stop`;
+this route supplies no customer acceptance credit.
+
 `tools/test-vm --vm NAME reproduce-app-restart-choices` reuses case 116's
 shared journey through Jordan's real approval, original native work capture and
 overlay launch. It attempts `remembered-overlay-jordan-custom` once at

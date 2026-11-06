@@ -24,19 +24,24 @@ sub reopen {
 }
 
 sub app_restart_active {
-    my ($exchange, $declared, $challenges, $request, $sign_out) = @_;
+    my ($exchange, $declared, $challenges, $request, $sign_out, $reboot) = @_;
     $sign_out //= 0;
-    onpc_progress::operation($sign_out
+    $reboot //= 0;
+    onpc_progress::operation($reboot
+        ? 'Rebooting while both children keep saved choices and approved time'
+        : $sign_out
         ? 'Signing each child out and back in with saved choices and approved time'
         : 'Reopening the apps while the child keeps approved time and work');
-    die 'app-restart-active:binding' unless (@_ == 4 || @_ == 5) && ($sign_out == 0 || $sign_out == 1)
+    die 'app-restart-active:binding' unless (@_ == 4 || @_ == 5 || @_ == 6)
+        && ($sign_out == 0 || $sign_out == 1) && ($reboot == 0 || $reboot == 1)
+        && (!$reboot || $sign_out)
         && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
     require onpc_app_rows;
     require onpc_desktop_session;
     my $journey = onpc_journey->new(exchange => $exchange,
-        prefix => $sign_out ? 'sign-out-in-active' : 'app-restart-active', review => 0);
+        prefix => $reboot ? 'reboot-active' : $sign_out ? 'sign-out-in-active' : 'app-restart-active', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -101,7 +106,12 @@ sub app_restart_active {
     $journey->seen($_) for qw(capture-jordan capture-riley-select capture-riley capture-cancel capture-returned);
     $enter->('before-parent', 'parent', 'retained');
     $journey->seen('before-policy');
-    if ($sign_out) {
+    if ($reboot) {
+        $journey->seen($_) for qw(reboot-requested reboot-greeter);
+        $enter->('boundary-parent-entry', 'parent', 'fresh');
+        my $parent = $journey->scope('boundary-parent-launch');
+        onpc_parent::launch($parent, $parent->seen('desktop'), 'management');
+    } elsif ($sign_out) {
         $leave->('boundary-parent-leave');
         for my $binding (['jordan', 'other-child'], ['riley', 'child']) {
             my ($child, $role) = @$binding;

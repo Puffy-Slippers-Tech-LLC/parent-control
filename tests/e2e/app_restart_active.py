@@ -1,4 +1,4 @@
-"""Active-grant persistence across app reopening and fresh child sessions."""
+"""Active-grant persistence across app reopening, sign-out and reboot."""
 from copy import deepcopy
 from dataclasses import replace
 import time
@@ -230,6 +230,32 @@ SIGN_OUT_PLAN = replace(PLAN, prefix='sign-out-in-active', worker_mode='sign_out
     activity_entries={}, activity_checks={},
 )
 
+REBOOT_BOUNDARY = {
+    # Installed persistence has no installer transfer. Bind the same unlocked
+    # Parent desktop without requiring the package-only command context.
+    'reboot-requested': 'system:parent-desktop-identity',
+    'reboot-greeter': 'ui:gdm-list',
+    **enter('boundary-parent-entry', 'parent', 'fresh'),
+    'boundary-parent-launch-desktop': 'ui:desktop',
+    'boundary-parent-launch-parent-command': 'ui:parent-command-launch',
+    'boundary-parent-launch-parent-window': 'ui:parent-window',
+}
+REBOOT_SCREENS = {**SIGN_OUT_SETUP, **REBOOT_BOUNDARY, **SIGN_OUT_RETURN}
+REBOOT_PLAN = replace(SIGN_OUT_PLAN, prefix='reboot-active', worker_mode='reboot_active',
+    screen_tags=REBOOT_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+        **{stage: 'step-1' for stage in SIGN_OUT_SETUP}, 'installed-greeter': 'start',
+        **{stage: 'step-2' for stage in REBOOT_BOUNDARY},
+        **{stage: 'step-3' if index <= list(SIGN_OUT_RETURN).index('returned-policy') else 'step-4'
+           for index, stage in enumerate(SIGN_OUT_RETURN)}},
+    advance_after={'before-policy': 'step-2',
+                   'boundary-parent-launch-parent-window': 'step-3', 'returned-policy': 'step-4'},
+    invocations=tuple(stage for stage in SIGN_OUT_PLAN.invocations if stage in REBOOT_SCREENS),
+    challenges={prefix: binding for prefix, binding in SIGN_OUT_PLAN.challenges.items()
+                if prefix + '-entry-guard' in REBOOT_SCREENS},
+    reboot_transition=('reboot-requested', 'reboot-greeter'),
+)
+
 
 class AppRestartActiveJourney(AppPolicyJourney):
     def __init__(self, context, progress, plan, *, actions=None):
@@ -252,25 +278,29 @@ class AppRestartActiveJourney(AppPolicyJourney):
             self.approval_started = time.monotonic_ns()
         if stage in ('issued-policy', 'before-policy', 'returned-policy', 'final-policy'):
             self.check_policy(stage, observed)
-        if self.plan is SIGN_OUT_PLAN and stage in (
+        fresh_sessions = self.plan.worker_mode in ('sign_out_in_active', 'reboot_active')
+        if fresh_sessions and stage in (
                 'riley-policy-before', 'riley-policy-after', 'returned-riley-settings'):
             self.check_riley_policy(stage, observed)
         elif stage == 'returned-riley-settings':
             require(observed['ui']['retained_parent']['settings'] == {
                 'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['30 minutes']},
                 'app-restart-active:riley-settings')
-        if self.plan is SIGN_OUT_PLAN and ('animation' in stage):
+        if fresh_sessions and ('animation' in stage):
             value = observed['ui']['panel_animation']
+            bounds = tuple(self.ui.read_bounds)
             jordan = 'jordan' in stage
             child = 'existing-fixture-child' if jordan else 'fixture-child'
             require(value['child'] == child and value['animation'] is jordan,
                     'sign-out-in-active:animation-choice')
             require(stage not in self.animations, 'sign-out-in-active:animation-replay')
             if not stage.endswith('-set'):
-                before = self.animations[('jordan' if jordan else 'riley') + '-animation-set']
-                require(value['observed_monotonic_ns'] > before['observed_monotonic_ns'],
+                _before, earlier = self.animations[('jordan' if jordan else 'riley') + '-animation-set']
+                # Guest uptime restarts at reboot. The controller's read
+                # brackets stay ordered across both lifecycle boundaries.
+                require(bounds[0] > earlier[1],
                         'sign-out-in-active:independent-animation-read')
-            self.animations[stage] = deepcopy(value)
+            self.animations[stage] = (deepcopy(value), bounds)
         if stage in FORM_COMPARISONS or stage in FORM_COMPARISONS.values():
             value = RequestObservation.from_request(observed['ui']['request'],
                 operation=self.plan.screen_tags[stage][3:])
@@ -364,4 +394,13 @@ def execute_sign_out(recorder, context):
         journey_type=AppRestartActiveJourney, actions=fixture_actions(include_refusal=False))
 
 
-E2E_CASES = {'app-restart-active': execute, 'sign-out-in-active': execute_sign_out}
+def execute_reboot(recorder, context):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    context.fixture_subsets = ACTIVITY_SUBSETS
+    context.fixture_caller = 'E2E-022/reboot-active'
+    record_installed_journey(recorder, context, REBOOT_PLAN, timeout=3600,
+        journey_type=AppRestartActiveJourney, actions=fixture_actions(include_refusal=False))
+
+
+E2E_CASES = {'app-restart-active': execute, 'sign-out-in-active': execute_sign_out,
+             'reboot-active': execute_reboot}

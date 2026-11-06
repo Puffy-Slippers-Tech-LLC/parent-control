@@ -25,6 +25,8 @@ else:
 import session_control
 
 LIMIT = 2 * 1024 * 1024
+# Supported Ubuntu package trust dumps exceed 32 MiB; match fixture provisioning.
+NATIVE_OUTPUT_LIMIT = 64 * 1024 * 1024
 ROOT_DIRECTORY = Path('/')
 
 
@@ -252,7 +254,7 @@ def activity_readback(expected):
         result[source] = {'sha256': spec['sha256'], 'mode': spec['mode']}
     database = subprocess.run([tools['cli'], '--dump-db'], stdin=subprocess.DEVNULL,
                               capture_output=True, check=True, timeout=30).stdout
-    require(len(database) <= 33554432)
+    require(len(database) <= NATIVE_OUTPUT_LIMIT)
     from_paths = [PREFIX + '/' + asset[1] for asset in ASSETS]
     from_paths.extend(legacy_executable_paths(prefix=PREFIX))
     from_paths.extend(('/opt/onpc-test-fixtures-command/native-fixture',
@@ -304,7 +306,7 @@ def selected_activity_readback(expected):
     def command(argv):
         result = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
             check=True, timeout=30, env={**os.environ, 'LC_ALL': 'C'})
-        require(len(result.stdout) <= 33554432 and len(result.stderr) <= LIMIT)
+        require(len(result.stdout) <= NATIVE_OUTPUT_LIMIT and len(result.stderr) <= LIMIT)
         return result.stdout.decode('utf-8')
 
     cli = trust.native_tool_paths(target)['cli']

@@ -221,7 +221,9 @@ def command(argv):
     result = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, check=True, timeout=60,
                             env={**os.environ, 'LC_ALL': 'C', 'LANG': 'C'})
-    require(len(result.stdout) <= 32 * 1024 * 1024 and len(result.stderr) <= LIMIT,
+    # Ubuntu's package trust dump exceeds 32 MiB on the supported baseline.
+    # Keep a finite ceiling with headroom for normal package updates.
+    require(len(result.stdout) <= 64 * 1024 * 1024 and len(result.stderr) <= LIMIT,
             'native-output-size')
     return result.stdout
 

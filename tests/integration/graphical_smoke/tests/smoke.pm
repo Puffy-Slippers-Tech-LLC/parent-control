@@ -1423,11 +1423,11 @@ sub run {
             $ready->{challenge_bindings}, $ready->{kiosk_request});
         return;
     }
-    if ($ready->{sign_out_in_active}) {
+    if ($ready->{sign_out_in_active} || $ready->{reboot_active}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_lifecycle::app_restart_active(\&exchange, $ready->{invocations},
-            $ready->{challenge_bindings}, $ready->{kiosk_request}, 1);
+            $ready->{challenge_bindings}, $ready->{kiosk_request}, 1, $ready->{reboot_active} ? 1 : 0);
         return;
     }
     if ($ready->{app_restart}) {

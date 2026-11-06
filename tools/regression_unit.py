@@ -10,8 +10,9 @@ GLib sources; their credential-drop subprocess is mocked. Every descriptor and
 source is released within its case; no live bus, account or shared path is used.
 
 Kiosk approval safety uses process-local clocks/observation doubles and bounded,
-reaped Perl children with captured pipes. It supplies no credentials and opens
-no bus, display, VM, shared cache or mutable path; ordinary unit overlap is safe.
+reaped Perl children with captured pipes. Credential-reader checks use tiny
+pytest-private canary files and process-local caller doubles, never real host
+configuration. No bus, display, VM or shared cache is opened; unit overlap is safe.
 """
 
 from pathlib import PurePosixPath

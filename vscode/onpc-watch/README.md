@@ -77,6 +77,15 @@ SSH connection failures also light the error icon; the failed host's footer clou
 icon provides another way to inspect them. They also appear in footer
 status tooltips and the Output channel. Launcher-owned **Error** tab contents remain separate and do not
 trigger this dialog.
+The footer shows each source's connection state, including **Reader delayed—reconnecting**
+after an automatic retry and **Connected** after a successful response.
+Recovery retains panels, selected tabs, scroll positions and the last received
+frame. Retained frames remain labelled as old until fresh pixels arrive; actions
+and session input are disabled while their source is disconnected. Switching to
+another editor tab preserves the Watch page while pausing observation.
+The Output channel timestamps reader starts, exits, failures and successful
+connections. Slow responses (at least two seconds) and failures include the
+operation, elapsed time and received byte count; request text is not logged.
 For a truncated VS Code terminal-exit notification, run **ONPC: Watch Terminal
 Diagnostic** from the command palette. It shows the last failed Watch terminal's
 full invocation, checkout, host and exit status in the same copyable dialog.
@@ -298,9 +307,9 @@ slashed-cloud icon gains hover feedback; click it to open the standard Watch
 error dialog with the latest failure details. Failures never open it automatically.
 Details remain available during retries and clear when that reader responds again.
 Hosts disabled for VM scheduling are still observed. A host is connected when at
-least one reader is responding and none has an outstanding failure. SSH launchers and viewers appear only
-while their source reader is connected; they reappear from fresh snapshots after
-reconnection.
+least one reader is responding and none has an outstanding failure. SSH launchers
+and viewers retain their last received contents while disconnected, with actions
+disabled. Fresh snapshots update them after reconnection.
 
 The footer also shows hosts in `config/environment.json` order. Each host has a
 server icon and hostname before its CPU, VM RAM and Disk readings and small
@@ -310,10 +319,12 @@ Host configuration is read when Watch opens or reconnects, independently of view
 source settings. SSH hosts use their configured `name` as the SSH alias with existing keys
 and verified host keys; a read-only Python sampler runs in memory without requiring
 a remote checkout. Connection details appear on the hostname tooltip; unavailable
-hosts retain their name without stale readings.
+hosts retain their name and last graph with **—** in place of current readings.
 The graphs reuse the once-per-second samples, show the last minute on a fixed
 0–100% scale, and retain history only in memory. Closing and reopening Watch or
 reconnecting its reader starts fresh; pauses leave gaps rather than joined curves.
+The last graph remains visible during retries; its sampling history starts fresh
+when the replacement reader responds.
 
 **VM RAM** sums cgroup v2 `memory.current` for all system libvirt QEMU VM scopes
 on that host, including VMs outside the configured test inventory. It includes

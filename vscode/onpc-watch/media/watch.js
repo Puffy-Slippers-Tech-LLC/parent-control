@@ -1098,6 +1098,11 @@
             state.selected, selected => select(state.scope, selected));
         resourceCharts(snapshot);
         serverStatus(snapshot.servers || []);
+        const readerStatus = document.getElementById('reader-status');
+        const connectionText = (snapshot.connections || []).map(source => `${source.label}: ${source.connected ? 'Connected' :
+            source.failed ? (source.retrying ? 'Reader delayed—reconnecting' : 'Disconnected—Reconnect required') : 'Connecting'}`).join(' | ');
+        if (readerStatus.textContent !== connectionText) readerStatus.textContent = connectionText;
+        readerStatus.title = (snapshot.connections || []).map(source => `${source.label}: ${source.status}`).join('\n');
         const shown = snapshot.entries.filter(entry => state.selected === 'all' ? entry.active : entry.id === state.selected);
         const ids = new Set(shown.map(entry => entry.id));
         for (const [id, view] of cards) {

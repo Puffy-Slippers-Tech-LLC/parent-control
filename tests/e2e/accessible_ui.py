@@ -215,6 +215,7 @@ FLATPAK_APP_BINDINGS.update({
     for name, role in (('hard', 'H'), ('soft', 'S'))
     for action in ('command-blocked', 'policy-activity', 'policy-closed')
 })
+FLATPAK_APP_BINDINGS['flatpak-allowed-command-blocked'] = ('A', 'primary', 'command-blocked')
 FLATPAK_APP_OPERATIONS = frozenset(FLATPAK_APP_BINDINGS) | {'flatpak-command-refusals'}
 RILEY_FLATPAK_OPERATIONS = frozenset('overlay-flatpak-allowed-' + action for action in
     ('desktop', 'command-launch', 'opened', 'submit', 'submitted'))
@@ -711,7 +712,7 @@ BASELINE_ACCESS_OPERATIONS = {f'access-{name}-{action}': (MATCH_APPS[role], acti
 BASELINE_ACCESS_OPERATIONS.update({f'access-snap-{action}': (SNAP_POLICY_APP, action)
                                    for action in ('allowed', 'row')})
 BASELINE_ACCESS_OPERATIONS.update({f'access-flatpak-{action}': (FLATPAK_POLICY_APP, action)
-                                   for action in ('allowed', 'row')})
+                                   for action in ('allowed', 'permanent', 'row')})
 BASELINE_ACCESS_OPERATIONS.update({f'access-flatpak-{name}-{action}': (FLATPAK_POLICY_APPS[role], action)
     for name, role in (('hard', 'H'), ('soft', 'S'))
     for action in (*ACCESS_CHOICES, 'row')})
@@ -12945,7 +12946,7 @@ class AccessibleUI:
         flatpak = kind == 'flatpak'
         require(not flatpak or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
                 or child == CHILD and role == 'A' and instance == 'primary')
-                and (not blocked or child == EXISTING_CHILD and role in ('H', 'S'))
+                and (not blocked or child == EXISTING_CHILD)
                 and not locked and fixture == 'policy', 'ui:flatpak-binding')
         require(not snap or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
                 or child == CHILD and role == 'A' and instance == 'primary')
@@ -13032,6 +13033,7 @@ class AccessibleUI:
         if blocked:
             bounded = len(result.stdout) + len(result.stderr) <= 65536
             flatpak_denial = (('Running app/' + {
+                'A': 'com.puffyslippers.ONPCTestApplication',
                 'H': 'com.puffyslippers.ONPCTestApplication.Hard',
                 'S': 'com.puffyslippers.ONPCTestApplication.Soft'}[role] +
                 '/x86_64/stable is not allowed by the policy set by your administrator').encode()

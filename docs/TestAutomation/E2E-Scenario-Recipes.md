@@ -1257,6 +1257,16 @@ preparing an allowance or approval. Fresh Jordan and then fresh Riley launch the
 same system Flatpak command and submit the normal draft, with independent owned
 window and submitted-result readback. Riley's policy and limits remain untouched.
 
+Case 106 uses `flatpak_app_launch.HARD_COMMAND_PLAN` and the same worker's
+enabled, hard-blocked Flatpak command binding. Parent gives Jordan 30 daily
+minutes with zero grant and saves A's permanent access with independent row
+readback. Fresh Jordan entry attempts the exact system Flatpak command once;
+the result must name that app's administrator-policy denial and independently
+show complete owned-window absence. After Jordan logs out, fresh Riley entry
+launches and submits the same system Flatpak with independent owned-window and
+submitted-draft reads. Riley's policy and limits remain untouched. No approval,
+match-editor visit, launcher-visibility check or alternate route is used.
+
 Case 93 uses `snap_app_launch.DISABLED_PLAN` and the same worker's disabled
 Allowed Snap command binding. Parent independently reads Jordan's untouched
 limits-off/zero-allowance settings before saving and reading A's Allowed rule.

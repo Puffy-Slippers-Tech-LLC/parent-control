@@ -1,4 +1,4 @@
-"""A parent's Allowed Flatpak rule leaves the app usable for both children."""
+"""Flatpak rules govern Jordan's access while Riley can use the same app."""
 from functools import partial
 from accessible_ui import FLATPAK_POLICY_APP
 from installed_journey import JourneyPlan, record_installed_journey
@@ -12,15 +12,19 @@ JORDAN_ENTRY = prefixed_stages('jordan-entry', desktop_entry('other-child', sour
 RILEY_ENTRY = prefixed_stages('riley-entry', desktop_entry('child', source='gdm', entry='fresh'))
 
 
-def allowed_plan(*, limits=True):
+def command_plan(*, limits=True, hard_blocked=False):
+    rule = 'hard' if hard_blocked else 'allowed'
+    access = 'permanent' if hard_blocked else 'allowed'
     setup = {
         **app_policy_entry(child='existing', initial_rows=False,
                            allowance='time-explanation-setup-thirty-read' if limits else None),
-        'allowed-save': 'ui:access-flatpak-allowed', 'allowed-row': 'ui:access-flatpak-row',
+        rule + '-save': 'ui:access-flatpak-' + access,
+        rule + '-row': 'ui:access-flatpak-row',
     }
     jordan = {
         'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
-        **prefixed_stages('jordan-use', native_usable_app('command', kind='flatpak', role='A')),
+        **({'jordan-denied-command': 'ui:flatpak-allowed-command-blocked'} if hard_blocked else
+           prefixed_stages('jordan-use', native_usable_app('command', kind='flatpak', role='A'))),
     }
     riley = {
         'jordan-logout': 'system:standard-logout', **RILEY_ENTRY,
@@ -28,24 +32,25 @@ def allowed_plan(*, limits=True):
             'command', kind='flatpak', role='A', child='child')),
     }
     return JourneyPlan(
-        prefix='flatpak-command-allowed',
-        worker_mode='flatpak_command_allowed' + ('' if limits else '_disabled'),
+        prefix='flatpak-command-' + ('hard-blocked' if hard_blocked else 'allowed'),
+        worker_mode='flatpak_command_' + ('hard_blocked' if hard_blocked else 'allowed')
+                    + ('' if limits else '_disabled'),
         screen_tags={**setup, **jordan, **riley},
         phases={'ready': 'setup', 'setup-detached': 'setup',
                 **{stage: 'step-1' for stage in setup}, 'installed-greeter': 'start',
                 **{stage: 'step-2' for stage in jordan},
                 **{stage: 'step-3' for stage in riley}},
-        advance_after={'installed-greeter': 'step-1', 'allowed-row': 'step-2',
-                       'jordan-use-submitted': 'step-3'},
+        advance_after={'installed-greeter': 'step-1', rule + '-row': 'step-2',
+                       ('jordan-denied-command' if hard_blocked else 'jordan-use-submitted'): 'step-3'},
         stage_actions={'desktop': 'native-verify'},
         child_bindings={**({'allowance-configured': 'existing'} if limits else {}),
-                        'allowed-save': 'existing', 'allowed-row': 'existing'},
+                        rule + '-save': 'existing', rule + '-row': 'existing'},
         settings_checks={
             'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',)),
             **({'saved-settings': SettingsObservation('existing-fixture-child', True, ('30 minutes',))}
                if limits else {})},
         balance_checks={'allowance-configured': 1800} if limits else {},
-        access_checks={'allowed-row': (FLATPAK_POLICY_APP, 'allowed')},
+        access_checks={rule + '-row': (FLATPAK_POLICY_APP, access)},
         invocations=tuple(stage for stage in (*JORDAN_ENTRY, *RILEY_ENTRY)
                           if stage not in ('jordan-entry-entry-guard', 'riley-entry-entry-guard')),
         challenges={
@@ -56,8 +61,9 @@ def allowed_plan(*, limits=True):
     )
 
 
-PLAN = allowed_plan()
-DISABLED_PLAN = allowed_plan(limits=False)
+PLAN = command_plan()
+DISABLED_PLAN = command_plan(limits=False)
+HARD_COMMAND_PLAN = command_plan(hard_blocked=True)
 
 
 def execute(recorder, context, *, plan=PLAN):
@@ -67,4 +73,5 @@ def execute(recorder, context, *, plan=PLAN):
 
 
 E2E_CASES = {'flatpak-command-allowed-enabled': execute,
-             'flatpak-command-allowed-disabled': partial(execute, plan=DISABLED_PLAN)}
+             'flatpak-command-allowed-disabled': partial(execute, plan=DISABLED_PLAN),
+             'flatpak-command-hard-blocked-enabled': partial(execute, plan=HARD_COMMAND_PLAN)}

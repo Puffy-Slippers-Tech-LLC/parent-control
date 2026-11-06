@@ -773,7 +773,11 @@ The skill keeps a durable per-close-out Git journal under the retained run,
 recording its source commit before pushing and the exact pushed HEAD before
 destination writes. Restart resumes that journal with the same pinned commit.
 The controller independently fetches every configured remote branch and checks
-that it contains the pinned commit before accepting completion. Later task edits
+that it contains the pinned commit before accepting completion. If the skill
+already returned complete, recovery retries only that independent verification,
+using its retained result and journal without starting another commit session.
+Verification reports fetch errors separately from missing remote ancestry and
+preserves Git diagnostics. Later task edits
 stay untouched and earn no acceptance credit. Existing mechanical commit intents
 continue their original identity, parent, subject, path and index-entry checks.
 E2E retains its own Git and optimization workflow.

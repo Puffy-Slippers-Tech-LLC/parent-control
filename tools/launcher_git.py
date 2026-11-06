@@ -456,6 +456,12 @@ def _commit_with_skill(root, run, state, paths, message, *, git, retry_deadline=
     session = launcher.private_directory(sessions / intent['session'])
     receipt = session / 'progress.json'
     previous = json.loads(receipt.read_text()) if receipt.exists() else {}
+    result_path = session / 'agent-result.json'
+    if previous and result_path.exists():
+        result = json.loads(result_path.read_text())
+        if result.get('status') == 'complete':
+            return _verify_skill_completion(root, run, state, intent, targets, previous,
+                                            previous, git=git)
     schema = dict(type='object', additionalProperties=False,
         properties=dict(status=dict(type='string', enum=['complete', 'blocked']),
                         summary=dict(type='string')),
@@ -508,7 +514,7 @@ Return complete only after every configured destination is pushed and the source
 checkout is back on its original branch. Otherwise return blocked with the exact
 blocker and completed destinations. Do not modify the controller checkpoint.
 """)
-    (session / 'agent-result.json').unlink(missing_ok=True)
+    result_path.unlink(missing_ok=True)
     with launcher.lock(session / 'owner') as owner:
         fcntl.flock(owner, fcntl.LOCK_EX)
         command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
@@ -535,14 +541,23 @@ blocker and completed destinations. Do not modify the controller checkpoint.
             raise launcher.Stopped()
         if status:
             raise ValueError('commit skill session failed; resume the retained Git journal')
-    result = json.loads((session / 'agent-result.json').read_text())
+    result = json.loads(result_path.read_text())
     if result.get('status') != 'complete':
         raise ValueError('commit skill blocked: ' + result.get('summary', 'inspect retained session'))
     progress = json.loads(receipt.read_text())
+    return _verify_skill_completion(root, run, state, intent, targets, progress, previous,
+                                    git=git)
+
+
+def _verify_skill_completion(root, run, state, intent, targets, progress, previous, *, git):
+    """Retry independent verification without replaying a completed skill session."""
+    from launcher_worktrees import commit_skill_targets
+
     commit = progress.get('pushed_head', '')
     if (not isinstance(commit, str) or len(commit) != 40
             or any(char not in '0123456789abcdef' for char in commit)
-            or previous.get('pushed_head', commit) != commit):
+            or previous.get('pushed_head', commit) != commit
+            or intent.get('pushed_head', commit) != commit):
         raise ValueError('commit skill did not retain the exact pushed source HEAD')
     validate_pull_identity(root, state, git=git)
     if git(root, 'merge-base', '--is-ancestor', commit, 'HEAD', check=False).returncode:
@@ -551,13 +566,27 @@ blocker and completed destinations. Do not modify the controller checkpoint.
         raise ValueError('commit skill pushed HEAD does not preserve the original source history')
     if commit_skill_targets(root, git=git) != targets:
         raise ValueError('commit skill destination identities changed during close-out')
+    # Pin identity before network verification can fail. This records no
+    # completion credit; the caller still requires every remote check to pass.
+    intent['pushed_head'] = commit
+    launcher.atomic(run / 'checkpoint.json', state)
     # Independently verify every remote branch, rather than trusting the agent's
     # completion text or remote-tracking refs left by an earlier fetch.
     for target in targets:
         fetched = git(root, 'fetch', '--no-tags', target['remote'], target['ref'], check=False)
-        if fetched.returncode or git(root, 'merge-base', '--is-ancestor', commit,
-                                     'FETCH_HEAD', check=False).returncode:
-            raise ValueError('commit skill push unverified for ' + target['branch'])
+        label = f"{target['branch']} ({target['remote']} {target['ref']})"
+        if fetched.returncode:
+            raise ValueError(f'commit skill verification fetch failed for {label} '
+                             f'(exit {fetched.returncode}): '
+                             + (fetched.stderr or fetched.stdout).strip())
+        contains = git(root, 'merge-base', '--is-ancestor', commit, 'FETCH_HEAD', check=False)
+        if contains.returncode == 1:
+            raise ValueError(f'commit skill remote branch {label} does not contain '
+                             f'pushed commit {commit}; retain the Git journal')
+        if contains.returncode:
+            raise ValueError(f'commit skill ancestry verification failed for {label} '
+                             f'(exit {contains.returncode}): '
+                             + (contains.stderr or contains.stdout).strip())
     intent.update(commit=commit, pushed_head=commit)
     launcher.atomic(run / 'checkpoint.json', state)
     return commit

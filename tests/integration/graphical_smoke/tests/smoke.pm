@@ -833,12 +833,14 @@ sub run {
                             'disabled', 'command', 'hard-blocked');
         return;
     }
-    if ($ready->{flatpak_grid_allowed} || $ready->{flatpak_grid_hard_blocked}) {
+    if ($ready->{flatpak_grid_allowed} || $ready->{flatpak_grid_hard_blocked}
+            || $ready->{flatpak_grid_soft_blocked}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
                             'enabled', 'grid', $ready->{flatpak_grid_hard_blocked}
-                                ? 'hard-blocked' : 'allowed', 'flatpak');
+                                ? 'hard-blocked' : $ready->{flatpak_grid_soft_blocked}
+                                ? 'soft-blocked' : 'allowed', 'flatpak');
         return;
     }
     for my $binding (

@@ -42,6 +42,7 @@ class JsonReader:
 
     def __init__(self):
         self.cache = {}
+        self.cache_bytes = 0
 
     def read(self, path, limit=65536):
         with open_private(path) as stream:
@@ -50,15 +51,21 @@ class JsonReader:
                         info.st_mtime_ns, info.st_ctime_ns, limit)
             cached = self.cache.get(path)
             if cached is not None and cached[0] == identity:
+                # Touch the entry without dropping every other hot publication.
+                self.cache[path] = self.cache.pop(path)
                 # repair_progress modifies nested lines for its display only.
                 return copy.deepcopy(cached[1])
             data = stream.read(limit + 1)
         if len(data) > limit:
             raise ValueError('watch-output: oversized metadata')
         value = json.loads(data)
-        if len(self.cache) >= 8:
-            self.cache.clear()
-        self.cache[path] = identity, value
+        previous = self.cache.pop(path, None)
+        if previous is not None:
+            self.cache_bytes -= previous[2]
+        self.cache[path] = identity, value, len(data)
+        self.cache_bytes += len(data)
+        while len(self.cache) > 64 or self.cache_bytes > 4 * 1024 * 1024:
+            self.cache_bytes -= self.cache.pop(next(iter(self.cache)))[2]
         return copy.deepcopy(value)
 
 

@@ -236,6 +236,9 @@ function activate(context) {
             } else if (message?.type === 'screenshotError' && typeof message.error === 'string') {
                 errors.report('Cannot take screenshot', message.error);
             } else if (message?.type === 'watchError' && typeof message.error === 'string') {
+                // A failed render may have consumed only part of an update.
+                // Rebuild from full bridge state before sending more deltas.
+                reset = true;
                 errors.report('Watch viewer failed', message.error);
             } else if (message?.type === 'copy' && runRoots.has(message.root) &&
                        typeof message.text === 'string') {

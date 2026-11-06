@@ -273,8 +273,7 @@
     }
 
     function sessionRows(section, view) {
-        const signature = JSON.stringify([view.rows, view.simplified]);
-        if (signature !== section.outputSignature) {
+        if (view.rows !== section.outputRows || view.simplified !== section.outputSimplified) {
             const follow = section.output.scrollHeight - section.output.clientHeight - section.output.scrollTop < 24;
             const rows = [];
             let latest = null;
@@ -311,7 +310,8 @@
             });
             while (section.output.children.length > rows.length) section.output.lastElementChild.remove();
             if (!rows.length) section.output.textContent = '';
-            section.outputSignature = signature;
+            section.outputRows = view.rows;
+            section.outputSimplified = view.simplified;
             if (follow) section.output.scrollTop = section.output.scrollHeight;
         }
         if (section.working.textContent !== (view.working || '')) section.working.textContent = view.working || '';
@@ -486,14 +486,21 @@
         view.waiting.hidden = Boolean(data);
         view.waiting.textContent = 'Waiting for display';
         if (!data) {
+            view.frame = undefined;
+            view.frameUrl = undefined;
             view.canvas.width = view.canvas.height = 0;
             view.screenshot.disabled = true;
             return;
         }
         try {
+            const desktop = data.image === undefined || data.image === view.frameUrl ?
+                view.frame : await image(data.image);
+            if (!desktop) throw new Error('Watch desktop frame unavailable');
             const [frame, cursor] = await Promise.all([
-                image(data.image), data.cursor ? image(data.cursor.image) : undefined
+                desktop, data.cursor ? image(data.cursor.image) : undefined
             ]);
+            view.frame = frame;
+            view.frameUrl = data.image ?? view.frameUrl;
             // Assigning either dimension resets the backing buffer and context.
             if (view.canvas.width !== data.width) view.canvas.width = data.width;
             if (view.canvas.height !== data.height) view.canvas.height = data.height;
@@ -503,6 +510,7 @@
             if (cursor) context.drawImage(cursor, data.cursor.x, data.cursor.y);
             view.screenshot.disabled = !view.canvas.width || !view.canvas.height;
         } catch (error) {
+            view.frame = view.frameUrl = undefined;
             // A corrupt source frame must not discard healthy viewers or run state.
             view.canvas.width = view.canvas.height = 0;
             view.canvas.hidden = true;
@@ -521,6 +529,7 @@
     }
 
     function message(text) {
+        for (const view of cards.values()) void screen(view, null);
         cards.clear();
         const empty = document.createElement('p');
         empty.className = 'empty';
@@ -624,6 +633,15 @@
                 sections.set(entry.id, section);
                 runDivider(section);
             }
+            const previous = section.entry;
+            if (previous && previous.run === entry.run && previous.session === entry.session) {
+                for (const field of ['rows', 'error_rows', 'launcher_output', 'launcher_rows']) {
+                    if (!Object.hasOwn(entry, field) && Object.hasOwn(previous, field)) entry[field] = previous[field];
+                }
+                if (entry.session_view && previous.session_view && !Object.hasOwn(entry.session_view, 'rows')) {
+                    entry.session_view.rows = previous.session_view.rows;
+                }
+            }
             if (runs.children[index * 2] !== section.divider) runs.insertBefore(section.divider, runs.children[index * 2] || null);
             if (runs.children[index * 2 + 1] !== section.body) runs.insertBefore(section.body, runs.children[index * 2 + 1] || null);
             // Apply lifecycle defaults once; live refreshes preserve manual resizing/toggles.
@@ -648,15 +666,15 @@
                 section.activity.replaceChildren();
                 section.activity.hidden = true;
                 section.activitySignature = undefined;
-                section.outputSignature = undefined;
+                section.outputRows = undefined;
                 section.input.disabled = true;
                 section.toggle.disabled = true;
                 section.working.textContent = section.model.textContent = '';
             }
-            const launcherSignature = JSON.stringify([entry.launcher_output, entry.launcher_rows]);
-            if (section.launcherText !== launcherSignature) {
+            if (section.launcherText !== entry.launcher_output || section.launcherRows !== entry.launcher_rows) {
                 const follow = section.launcher.scrollHeight - section.launcher.clientHeight - section.launcher.scrollTop < 24;
-                section.launcherText = launcherSignature;
+                section.launcherText = entry.launcher_output;
+                section.launcherRows = entry.launcher_rows;
                 section.launcher.replaceChildren();
                 if (entry.launcher_output && entry.launcher_rows) {
                     entry.launcher_rows.forEach((row, index) => {
@@ -667,9 +685,8 @@
                 if (follow) section.launcher.scrollTop = section.launcher.scrollHeight;
             }
             // The adapter owns retained state, including late final status updates.
-            const errorSignature = JSON.stringify(entry.error_rows);
-            if (section.errorSignature !== errorSignature) {
-                section.errorSignature = errorSignature;
+            if (section.errorRows !== entry.error_rows) {
+                section.errorRows = entry.error_rows;
                 section.errorStatus.replaceChildren(...(entry.error_rows || []).map(row => {
                     const line = document.createElement('div');
                     if (!row.length) line.textContent = '\u00a0';
@@ -680,10 +697,11 @@
                 }));
                 if (!section.errorStatus.childNodes.length) section.errorStatus.textContent = 'Waiting for run status…';
             }
-            const signature = JSON.stringify([entry.rows, entry.active, entry.session,
+            const signature = JSON.stringify([entry.active, entry.session,
                 entry.session_waiting, entry.session_deadline]);
-            if (section.signature === signature) return;
+            if (section.statusRows === entry.rows && section.signature === signature) return;
             section.signature = signature;
+            section.statusRows = entry.rows;
             const follow = section.content.scrollHeight - section.content.clientHeight - section.content.scrollTop < 24;
             const rows = entry.rows.map(row => {
                 if (row.map(part => part.text).join('').trim() === '─') {
@@ -1083,7 +1101,11 @@
         const shown = snapshot.entries.filter(entry => state.selected === 'all' ? entry.active : entry.id === state.selected);
         const ids = new Set(shown.map(entry => entry.id));
         for (const [id, view] of cards) {
-            if (!ids.has(id)) { view.body.remove(); cards.delete(id); }
+            if (!ids.has(id)) {
+                void screen(view, null);
+                view.body.remove();
+                cards.delete(id);
+            }
         }
         if (state.selected === 'run-time') {
             runTimes(snapshot.run_times || []);

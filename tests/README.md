@@ -646,7 +646,11 @@ waiting for owned cleanup. Categories or `--vm` narrow cancellation, for example
 `tools/fix-tests host --stop` or `tools/fix-tests vm --vm NAME --stop`.
 Without `--stop`, no categories select the VM namespace.
 
-The launcher itself is Python scripting. New runs validate the selected model
+The launcher itself is Python scripting. The following model ladders remain the
+enforced Codex policy; [adapter extraction](../docs/Agent_Adapter.md#models-roles-and-repository-policy)
+does not enable Claude or change goal/review requirements. Native profiles and
+catalogue checks belong to the adapter; escalation timing, explicit overrides,
+case budgets and acceptance remain here. New runs validate the selected model
 and effort against the Codex CLI catalog before testing. Classification and
 proven mechanical test repairs use **GPT-6.1 Sol Medium** in one session,
 or **GPT-6.1 Sol Low** for unit failures.
@@ -1123,6 +1127,8 @@ task cap:
 | Further failures with verified progress or new diagnostic evidence | Keep the selected tier; the two-attempt promotion still applies |
 
 Every tier uses `gpt-6.1-sol`, with `high`, `xhigh`, then `max` reasoning effort.
+Coordinator prompts render the adapter's resolved profiles, including native
+adviser, monitor and worker assets, while this policy owns their permitted use.
 Astra is reserved for the shared mandatory independent review of core backend
 changes; implementation and ordinary consultations retain their Sol policy.
 Promotion survives launcher restarts,

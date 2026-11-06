@@ -12,7 +12,6 @@ import json
 import os
 from pathlib import Path
 import re
-import shutil
 import shlex
 import signal
 import subprocess
@@ -29,6 +28,7 @@ from detached_launcher import (
     compact_log, TAIL_BYTES,
 )
 import detached_launcher
+from agent_adapter import resolve_profile
 from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
 from launcher_question import (BLOCKER_INSTRUCTIONS, allowance_blocker, developer_timeout,
                                validate_blocker, wait_for_answer, wait_for_intervention)
@@ -37,10 +37,8 @@ from launcher_runtime import (SessionResultRejected, TaskBudget, TaskLimitReache
                               validate_session_result, warn_remaining)
 
 
-DEFAULT_MODEL = 'gpt-6.1-sol'
-DEFAULT_EFFORT = 'medium'
-APP_MODEL = 'gpt-6.1-sol'
-APP_EFFORT = 'high'
+DEFAULT_MODEL, DEFAULT_EFFORT = resolve_profile('repair')
+APP_MODEL, APP_EFFORT = resolve_profile('repair', effort='high')
 REPAIR_TIERS = ((DEFAULT_MODEL, DEFAULT_EFFORT), (APP_MODEL, APP_EFFORT),
                 (DEFAULT_MODEL, 'xhigh'), (DEFAULT_MODEL, 'max'))
 UNIT_REPAIR_TIERS = tuple((DEFAULT_MODEL, effort) for effort in ('low', 'medium', 'high', 'xhigh'))
@@ -99,27 +97,11 @@ def repair_tiers(category=''):
 
 
 def initial_model(model=None, effort=None, *, category=''):
-    model = model or DEFAULT_MODEL
-    if model != DEFAULT_MODEL:
-        raise ValueError('fix-tests model must be gpt-6.1-sol')
-    return model, effort or repair_tiers(category)[0][1]
+    return resolve_profile('repair', model=model, effort=effort or repair_tiers(category)[0][1])
 
 
 def available_models(model=None, effort=None, *, categories=('',)):
-    model, _ = initial_model(model, effort)
-    codex = shutil.which('codex')
-    if codex is None:
-        raise ValueError('Codex CLI is missing; install and authenticate it before running fix-tests')
-    catalog = subprocess.run([codex, 'debug', 'models'], env=environment(),
-                             capture_output=True, text=True, check=True)
-    response = json.loads(catalog.stdout)
-    models = response.get('models') if isinstance(response, dict) else None
-    if not isinstance(models, list):
-        raise ValueError('Codex returned an invalid model catalog')
-    listed = [entry for entry in models if isinstance(entry, dict)
-              and entry.get('visibility') == 'list'
-              and isinstance(entry.get('slug'), str)
-              and isinstance(entry.get('supported_reasoning_levels'), list)]
+    model, initial_effort = initial_model(model, effort)
     required = []
     for category in categories:
         candidate = initial_model(model, effort, category=category)
@@ -127,12 +109,7 @@ def available_models(model=None, effort=None, *, categories=('',)):
         while next_tier(*candidate, category=category) != candidate:
             candidate = next_tier(*candidate, category=category)
             required.append(candidate)
-    for required_model, required_effort in dict.fromkeys(required):
-        if not any(entry['slug'] == required_model and any(
-                isinstance(level, dict) and level.get('effort') == required_effort
-                for level in entry['supported_reasoning_levels']) for entry in listed):
-            raise ValueError(f'Codex model catalog has no listed {required_model} '
-                             f'with {required_effort} reasoning')
+    repair_command(Path(__file__).resolve().parents[1], model, initial_effort).preflight(*required)
     return model, APP_MODEL
 
 
@@ -221,7 +198,7 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'contract sections and complete relevant functions with their callers/shared state; '
             'expand when evidence requires it. Reuse unchanged context within this session. '
             'Keep searches and diagnostic output scoped, without reducing required checks '
-            'or understanding. All repair tiers use GPT-6.1 Sol. '
+            f'or understanding. All repair tiers use {DEFAULT_MODEL}. '
             'When evidence is insufficient for a correction but a useful authorized experiment '
             'exists, you may add bounded, relevant instrumentation that preserves behavior, '
             'assertions, validation guards and privacy. Return status "diagnostic_ready", not '
@@ -232,7 +209,7 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'nested launchers or uncontrolled retries. Diagnostic edits are allowed before '
             'a proven corrective edit; uncertainty alone must not close this evidence-gathering path. '
             'Return "stalled" only when no useful authorized next step exists at this tier. '
-            f'Stalls and same-case failed repairs escalate GPT-6.1 Sol {ladder}; '
+            f'Stalls and same-case failed repairs escalate {DEFAULT_MODEL} {ladder}; '
             'a final-tier stall stops early. Blockers are never '
             'bypassed by escalation. The script owns test execution: finish after classification, diagnostics or repair; '
             'do not launch tests, fix-tests, background jobs or other agent sessions, '
@@ -259,7 +236,7 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'diagnostic progress. Each failing case has at most five agent sessions in this run, '
             'including classification and blocker continuations; failed verification, switching '
             'cases and later verification rounds do not renew that case budget. '
-            'Do not read or resume previous Codex sessions, histories, memories or repair '
+            'Do not read or resume previous agent sessions, histories, memories or repair '
             'transcripts. Use only this failure handoff and the current repository.\n'
             + decisions + continuation)
 
@@ -2135,7 +2112,7 @@ def main(argv=None):
     parser.add_argument('--reset', action='store_true',
                         help='stop checkout test/repair owners, recover leftovers and clear saved progress '
                              'before starting fresh; preserve source edits and historical logs')
-    parser.add_argument('--model', help='repair model (only gpt-6.1-sol is supported)')
+    parser.add_argument('--model', help=f'repair model (only {DEFAULT_MODEL} is supported)')
     parser.add_argument('--rounds', type=int, metavar='X',
                         help='run round 1 once, then round 2 X-1 times (default: 1)')
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh', 'max'),

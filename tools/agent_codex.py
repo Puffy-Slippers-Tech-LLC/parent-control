@@ -4,8 +4,10 @@ import json
 from pathlib import Path
 import re
 import shutil
+import subprocess
+import tomllib
 
-from agent_adapter import PreparedSession, SessionEvent, SessionRequest
+from agent_adapter import ModelProfile, PreparedSession, ProfileRole, SessionEvent, SessionRequest
 
 
 SESSION_GOAL = ('Simple, lean, robust, do not overengineer. If a problem can be solved '
@@ -68,10 +70,78 @@ ROLES = {
 class CodexAdapter:
     name = 'codex'
 
-    def prepare_session(self, request: SessionRequest, environment: dict[str, str]) -> PreparedSession:
+    def resolve_profile(self, role: ProfileRole, *, model=None, effort=None) -> ModelProfile:
+        if role in ('implementation', 'repair', 'translator', 'commit_helper', 'conflict_resolver'):
+            default = ModelProfile('gpt-6.1-sol', 'medium' if role == 'repair' else 'high')
+        elif role in ROLES:
+            # Role assets remain the authority for their pinned native profiles.
+            with Path(__file__).with_name(ROLES[role][1]).open('rb') as stream:
+                config = tomllib.load(stream)
+            default = ModelProfile(config['model'], config['model_reasoning_effort'])
+        else:
+            raise ValueError('unsupported agent model profile')
+        model = model or default.model
+        if role == 'repair' and model != default.model:
+            raise ValueError('fix-tests model must be ' + default.model)
+        if role == 'translator' and model.endswith('-sol') and model != default.model:
+            raise ValueError('Sol must be ' + default.model)
+        return ModelProfile(model, effort or default.effort)
+
+    def capacity_fallback(self, model):
+        return 'gpt-6-astra' if model == 'gpt-6.1-sol' else None
+
+    def executable(self):
         executable = shutil.which('codex')
         if executable is None:
             raise ValueError('Codex CLI is missing; install and authenticate it before running this launcher')
+        return executable
+
+    def preflight(self, request, environment, profiles=()):
+        """Read the native catalogue; never install, log in or submit a task.
+
+        This checks advertised model/effort support, not live model access or
+        transport compatibility. Native authentication failures stay blockers.
+        """
+        executable = self.executable()
+        try:
+            response = subprocess.run([executable, 'debug', 'models'], env=environment,
+                                      cwd=request.root, capture_output=True, text=True,
+                                      check=True, timeout=30)
+        except (OSError, subprocess.SubprocessError) as error:
+            reason = ('timed out after 30 seconds' if isinstance(error, subprocess.TimeoutExpired) else
+                      f'exited {error.returncode}' if isinstance(error, subprocess.CalledProcessError) else
+                      'could not execute the CLI')
+            raise ValueError(f'Codex model preflight {reason}; check CLI readiness and authentication '
+                             'separately before retrying this launcher') from error
+        try:
+            catalog = json.loads(response.stdout)
+        except ValueError as error:
+            raise ValueError('Codex returned an invalid model catalog') from error
+        entries = catalog.get('models') if isinstance(catalog, dict) else None
+        if not isinstance(entries, list):
+            raise ValueError('Codex returned an invalid model catalog')
+        required = [ModelProfile(request.model, request.effort), *profiles]
+        delegation = request.delegation
+        if delegation.enabled:
+            if delegation.model is not None or delegation.effort is not None:
+                required.append(ModelProfile(delegation.model or request.model,
+                                             delegation.effort or request.effort))
+            for role in delegation.roles:
+                required.append(self.resolve_profile(role) if role != 'translator' else
+                                self.resolve_profile(role, model=delegation.model or request.model,
+                                                     effort=delegation.effort or request.effort))
+        for model, effort in dict.fromkeys(required):
+            if not any(isinstance(entry, dict) and entry.get('visibility') == 'list'
+                       and entry.get('slug') == model
+                       and isinstance(entry.get('supported_reasoning_levels'), list)
+                       and any(isinstance(level, dict) and level.get('effort') == effort
+                               for level in entry['supported_reasoning_levels'])
+                       for entry in entries):
+                raise ValueError(f'Codex model catalog has no listed {model} with {effort} reasoning; '
+                                 'no fallback was selected')
+
+    def prepare_session(self, request: SessionRequest, environment: dict[str, str]) -> PreparedSession:
+        executable = self.executable()
         if request.permissions not in ('workspace', 'read_only'):
             raise ValueError('unsupported agent write boundary')
         if request.run is not None and request.schema is None:

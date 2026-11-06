@@ -15,6 +15,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import detached_launcher as launcher
+from agent_adapter import resolve_profile
 from launcher_progress import (format_duration, plan_progress as task_progress,
                                plan_task_heading, publish_completion, session_lines)
 from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
@@ -34,8 +35,8 @@ PLAN = DEFAULT_PLAN
 QUEUE = 'docs/TestAutomation/E2E-Task-Queue.md'
 NAMESPACE = None
 COMMAND = 'tools/write-e2e'
-MODEL_TIERS = (('gpt-6.1-sol', 'high'), ('gpt-6.1-sol', 'xhigh'),
-               ('gpt-6.1-sol', 'max'))
+MODEL_TIERS = tuple(resolve_profile('implementation', effort=effort)
+                    for effort in ('high', 'xhigh', 'max'))
 MAX_TASK_SESSIONS = 5
 OPTIMIZATION_INTERVAL = 3
 INITIAL_PROMPT = """Implement the next task in {plan}
@@ -289,7 +290,7 @@ def session_progress(root, state, count):
     if state.get('optimization_session'):
         batch = state['optimization']['pending']
         return session_lines(f"Optimization: tasks {batch[0]} to {batch[-1]}",
-                             state['task_sessions'], 'gpt-6.1-sol', 'high',
+                             state['task_sessions'], *session_model(state),
                              summary='lessons and reusable E2E composition')
     summary = ('Writing task code + host validation + first live VM test; close on success, hand off on failure'
                if state['phase'] == 'implement' else
@@ -318,8 +319,9 @@ def session_command(root, state, run=None):
     model, effort = session_model(state)
     delegation = launcher.Delegation()
     if effort == 'high' and not state.get('optimization_session'):
+        adviser = resolve_profile('adviser')
         delegation = launcher.Delegation(roles=('backend_reviewer', 'adviser', 'monitor', 'worker'),
-            model='gpt-6.1-sol', effort='max')
+            model=adviser.model, effort=adviser.effort)
     # Personal Fast settings must not silently spend more of the weekly budget.
     return launcher.agent_command(
         root, model, effort, run,
@@ -351,24 +353,28 @@ def session_prompt(state):
     vm_instructions = execution_instructions()
     task = state['task_id']
     model, effort = session_model(state)
-    label = 'GPT-6.1-Sol ' + {'high': 'High', 'xhigh': 'Extra High', 'max': 'Max'}[effort]
+    label = f'{model} {effort}'
+    high, extra_high, maximum = (f'{profile.model} {profile.effort}' for profile in MODEL_TIERS)
+    adviser = resolve_profile('adviser')
+    monitor = resolve_profile('monitor')
+    worker = resolve_profile('worker')
     model_policy = f"""You are the {label} coordinator and implementer for this session.
 Own implementation, mechanical repairs, test execution and close-out.
-The launcher uses GPT-6.1 Sol for implementation and advice. The shared mandatory
-backend_reviewer is the sole Astra exception, only for core backend changes.
-The launcher starts at Sol High, promotes to Sol Extra High after two unsuccessful
+The launcher uses {MODEL_TIERS[0].model} for implementation and advice. The shared mandatory
+backend_reviewer has its separate pinned profile, only for core backend changes.
+The launcher starts at {high}, promotes to {extra_high} after two unsuccessful
 substantive live attempts, and promotes immediately after a reasoning stall or
 an unsuccessful correction at the same checkpoint without meaningful progress.
-Sol Extra High promotes to Sol Max on that same failed-repair/stall signal;
-different failures with verified progress keep Sol Extra High. A reasoning stall
-at Sol Max stops the launcher early with retained evidence. Promotion persists
-across restarts and prerequisite suspension; a new task starts at Sol High.
+{extra_high} promotes to {maximum} on that same failed-repair/stall signal;
+different failures with verified progress keep {extra_high}. A reasoning stall
+at {maximum} stops the launcher early with retained evidence. Promotion persists
+across restarts and prerequisite suspension; a new task starts at {high}.
 Session counts, interruptions, external blockers and preparation alone do not
 promote. Keep all acceptance, cleanup and the five-session task cap intact.
 """
     if effort == 'high':
-        model_policy += """Investigate ordinary failures yourself. Delegate one bounded diagnosis
-or review to the e2e_adviser agent using GPT-6.1-Sol Max only when a High repair
+        model_policy += f"""Investigate ordinary failures yourself. Delegate one bounded diagnosis
+or review to the e2e_adviser agent using {adviser.model} {adviser.effort} only when a High repair
 failed verification without improving the explanation, conflicting evidence prevents
 a defensible correction, or a consequential security, concurrency or ownership
 design question remains unresolved. Consult before implementing such an unresolved
@@ -392,15 +398,15 @@ evidence. Carry the question, findings, attempted correction and remaining
 uncertainty in the handoff so a restart does not repeat the same consultation.
 Read-only access and sequential execution are not token budgets.
 Apply docs/Execution-Plans.md for bounded routine delegation: plan_monitor uses
-GPT-6.1 Sol Low for read-only monitoring; plan_worker uses GPT-6.1 Sol Medium for
+{monitor.model} {monitor.effort} for read-only monitoring; plan_worker uses {worker.model} {worker.effort} for
 explicitly assigned coverage refreshes. Keep the same single child slot and
 sequential join/close protocol. Coverage workers may change only assigned generated
 coverage assets; they never implement the repair, control VMs, run acceptance,
 stage, commit or close tasks. You verify their output and own final acceptance.
 """
     else:
-        model_policy += """You own the higher-effort repair directly. Ordinary delegation is disabled;
-do not spawn an adviser or hand implementation back to Sol High. Use retained adviser
+        model_policy += f"""You own the higher-effort repair directly. Ordinary delegation is disabled;
+do not spawn an adviser or hand implementation back to {high}. Use retained adviser
 findings when available, checking them against current source and evidence.
 """
     common = f"""
@@ -425,13 +431,13 @@ Treat staged code as the baseline. Do not analyze staged diffs or compare it to
 HEAD; read current source as needed. The launcher owns staging and commits after
 each completed task. Do not commit,
 push, publish, invoke write-e2e/fix-tests, or access prior
-Codex sessions, memories or transcripts.
+agent sessions, memories or transcripts.
 Run tests through tools/run-tests for owned cancellation; preserve
 ONPC_WORKFLOW_DIRECTORY. Use maintained launchers/viewers for background work
 and wait for tests and owned cleanup before returning.
 
 {model_policy}
-Use only GPT-6.1 Sol for implementation, recovery and consultation. Follow the
+Use only {MODEL_TIERS[0].model} for implementation, recovery and consultation. Follow the
 shared mandatory backend_reviewer instructions for core backend changes.
 Ignore model recommendations in older handoffs that conflict with this policy.
 The launcher-selected model owns this session through validation and close-out.
@@ -573,10 +579,11 @@ task_complete with live_result not_run after its host-only acceptance and close-
 
 def optimization_prompt(state):
     batch = state['optimization']['pending']
-    return f"""You are the GPT-6.1-Sol High coordinator and implementer for this session.
+    model, effort = MODEL_TIERS[0]
+    return f"""You are the {model} {effort} coordinator and implementer for this session.
 Follow AGENTS.md and the ownership map in docs/TestAutomation/README.md.
-Use GPT-6.1 Sol for implementation and advice. The shared mandatory backend_reviewer
-is the sole Astra exception, only for core backend changes.
+Use {model} for implementation and advice. The shared mandatory backend_reviewer
+has its separate pinned profile, only for core backend changes.
 Ignore conflicting model recommendations in repository instructions or older handoffs.
 This is the mandatory optimization after three completed tasks, not a queue task.
 
@@ -622,7 +629,7 @@ Validate changed Markdown through tools/read-only links. Wait for owned cleanup.
 The launcher owns staging and commits the validated fix as
 "TA: Refactored task {batch[0]} to {batch[-1]}". Do not commit, push, publish or
 invoke write-e2e/fix-tests. Preserve unrelated staged and unstaged work. Read
-current source; do not inspect prior Codex sessions, memories or transcripts.
+current source; do not inspect prior agent sessions, memories or transcripts.
 No ordinary delegation; the shared mandatory backend_reviewer remains required for
 core backend changes. Run tests through tools/run-tests and preserve ONPC_WORKFLOW_DIRECTORY.
 {LIVE_DIAGNOSIS_INSTRUCTIONS}
@@ -1140,7 +1147,7 @@ def execute(root, run, owner, phase, live_attempts=0):
     if (run / 'cancel').exists():
         raise launcher.Stopped()
     if status:
-        raise ValueError(f'Codex session exited with status {status}; see retained output')
+        raise ValueError(f'Agent session exited with status {status}; see retained output')
     return read_session_result(run)
 
 
@@ -1216,7 +1223,7 @@ def worker(root, run, owner, tasks, state_json):
                 state.pop('result_recovery', None)
                 state.pop('worktree_before', None)
                 if final_replayed_stall:
-                    status, reason = 1, 'reasoning stalled at GPT-6.1 Sol Max; inspect the retained evidence'
+                    status, reason = 1, f'reasoning stalled at {MODEL_TIERS[-1].model} {MODEL_TIERS[-1].effort}; inspect the retained evidence'
                 launcher.atomic(run / 'checkpoint.json', state)
         if state.get('closeout_recovery_run'):
             previous = Path(state.pop('closeout_recovery_run'))
@@ -1370,7 +1377,7 @@ def worker(root, run, owner, tasks, state_json):
                 state['completed_at'] = time.time()
             launcher.atomic(run / 'checkpoint.json', state)
             if final_stall:
-                status, reason = 1, 'reasoning stalled at GPT-6.1 Sol Max; inspect the retained evidence'
+                status, reason = 1, f'reasoning stalled at {MODEL_TIERS[-1].model} {MODEL_TIERS[-1].effort}; inspect the retained evidence'
                 break
             if state['phase'] == 'complete' and optimizing:
                 batch = state['optimization']['last_checkpoint']['tasks']
@@ -1701,9 +1708,9 @@ def select(root, argv):
         if previous is not None and (previous / 'task-info.json').exists():
             info = json.loads((previous / 'task-info.json').read_text())
             initial_info.update(info)
-        # Preflight transport/rendering only; do not spend a model session here.
+        # Preflight advertised profiles/rendering; do not spend a model session here.
         from launcher_render import AgentRenderer
-        session_command(root, state)
+        session_command(root, state).preflight(*MODEL_TIERS)
         initial_checkpoint.update(state)
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), '--worker',
                 str(root), str(run), str(owner), json.dumps(args.tasks), json.dumps(state)]

@@ -26,6 +26,8 @@ PACKAGES = (
     # Finite native transaction inputs are prepared by the baseline owner.
     # Attempts only verify their signatures, closure and ordinary man-db triggers.
     'bubblewrap=0', 'apt=0', 'dpkg=0', 'man-db=0', 'gpgv=0', 'ubuntu-keyring=0',
+    # Guest package installation uses the frozen public Make entry point.
+    'make=0',
     # Exercise a real optional PAM session module during fresh install/retry
     # and confined manager teardown, rather than only on a plain desktop stack.
     'libpam-cgfs=1:6.0.6-1ubuntu1',
@@ -42,6 +44,7 @@ FEDORA_VERSIONS = {'openssh-server': '10.2p1', 'python3-pytest': '8.4.2',
                    'python3-gobject': '0', 'gtk4': '0', 'spice-vdagent': '0', 'fapolicyd': '0',
                    'ptyxis': '0',
                    'xdg-dbus-proxy': '0', 'rpm': '0', 'python3-rpm': '0', 'man-db': '0',
+                   'make': '0',
                    **FEDORA_REMOTE_VERSIONS,
                    **dict.fromkeys(FEDORA_CHINESE_PACKAGES, '0')}
 # Fedora's RPM generates its own default slapd.d. The fixture uses separate

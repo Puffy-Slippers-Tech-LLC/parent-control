@@ -1802,6 +1802,15 @@ class ActivationSessionQualification(UpdateNoActionQualification):
         return ActivationSessionJourney(context, progress)
 
 
+class ActivationRebootQualification(UpdateNoActionQualification):
+    worker_timeout = 3600
+
+    @staticmethod
+    def journey(context, progress):
+        from activation_reboot import ActivationRebootJourney
+        return ActivationRebootJourney(context, progress)
+
+
 class ChineseKioskLifecycleQualification(ProductFreeEntryQualification):
     upgrade_assets = True
 

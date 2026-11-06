@@ -90,6 +90,44 @@ sub run_upgrade {
 sub run_no_action { run_automatic_update('update-no-action', @_); }
 sub run_process { run_automatic_update('activation-process', @_); }
 
+sub run_reboot {
+    onpc_progress::operation('Following the update restart notice and checking the saved parent and child choices');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'activation-reboot:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    require onpc_desktop_session;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'activation-reboot', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_parent::login_functional($journey);
+    $journey->seen($_) for qw(command-context package-submitted package-result reboot-requested);
+    my $desktop = return_entry($journey);
+    onpc_parent::launch($journey, $desktop, 'management', 'reboot-desktop');
+    onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->seen($_) for qw(allowance-configured settings-before);
+    my $leave = sub {
+        my ($prefix) = @_;
+        my $section = $journey->scope($prefix);
+        onpc_desktop_session::switch_user($section, $section->seen('desktop'));
+    };
+    $leave->('initial-leave');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'before-child');
+    $journey->seen($_) for qw(animation-configured animation-before);
+    $leave->('child-leave');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'update-parent');
+    $journey->seen($_) for qw(upgrade-context upgrade-submitted upgrade-result updated-reboot-requested);
+    $desktop = onpc_gdm::sign_in_challenge($journey, 'after-update',
+        'updated-reboot-installed-greeter', 'updated-reboot-parent-focused', 'updated-reboot-desktop');
+    $journey->consume_observation('updated-reboot-desktop', $desktop);
+    onpc_parent::named_management($journey, 'updated', 'child');
+    $journey->seen('settings-after');
+    $leave->('updated-leave');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'after-child');
+    $journey->seen($_) for qw(animation-after usable-countdown);
+    $journey->finish();
+}
+
 sub run_session {
     onpc_progress::operation('Updating and renewing the affected child session with its saved choices');
     my ($exchange, $declared, $challenges) = @_;

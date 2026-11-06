@@ -440,7 +440,7 @@ class AssetTransfer:
             # Finite activation profiles bind their own exact package pair;
             # they do not use the historical-release upgrade's fixed version.
             if self.verified.upgrade_inputs and self.verified.upgrade_inputs.get('activation') in (
-                    'none', 'process-restart', 'session-renewal'):
+                    'none', 'process-restart', 'session-renewal', 'reboot'):
                 probe = probe.replace('assets-upgrade', 'assets-no-action')
             observed = observations.read(probe)
             require(observed == self._receipt, 'transfer:booted-assets-mismatch')

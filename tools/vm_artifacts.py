@@ -15,10 +15,10 @@ from vm_selection import arguments, extract, selected
 
 def prepare(root, control, environment, *, candidate=None, output=None, upgrade_inputs=False,
             native_inputs=False, system_native_inputs=False, no_action_inputs=False, process_inputs=False,
-            session_inputs=False):
-    if no_action_inputs or process_inputs or session_inputs:
+            session_inputs=False, reboot_inputs=False):
+    if no_action_inputs or process_inputs or session_inputs or reboot_inputs:
         if (native_inputs or system_native_inputs or upgrade_inputs
-                or sum((no_action_inputs, process_inputs, session_inputs)) != 1):
+                or sum((no_action_inputs, process_inputs, session_inputs, reboot_inputs)) != 1):
             raise ValueError('activation inputs require a separate package operation')
         upgrade_inputs = True
     if system_native_inputs:
@@ -67,10 +67,11 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
         print('run-tests: configured package_format does not match the verified VM baseline; '
               'existing inputs preserved', file=sys.stderr)
         return 2
-    if (no_action_inputs or process_inputs or session_inputs) and output is None and candidate is None:
+    if (no_action_inputs or process_inputs or session_inputs or reboot_inputs) and output is None and candidate is None:
         from test_storage import named_input
         from test_commands import allocate_artifact_output
-        output = (named_input(session_source=True) if session_inputs else
+        output = (named_input(reboot_source=True) if reboot_inputs else
+                  named_input(session_source=True) if session_inputs else
                   named_input(process_source=True) if process_inputs else named_input(no_action_source=True))
         if os.path.lexists(output):
             candidate = output
@@ -91,6 +92,8 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
                 raise ValueError('process input profile mismatch')
             if session_inputs and receipt.get('activation') != 'session-renewal':
                 raise ValueError('session input profile mismatch')
+            if reboot_inputs and receipt.get('activation') != 'reboot':
+                raise ValueError('reboot input profile mismatch')
             expected_architecture = {'deb': 'amd64', 'rpm': 'x86_64'}[package_format]
             if receipt['packages']['current']['architecture'] != expected_architecture:
                 print('run-tests: upgrade input package format does not match '
@@ -112,7 +115,7 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
         print('run-tests: output=' + str(output), flush=True)
     # The existing reuse cache is DEB-specific. RPM uses its maintained builder.
     return control.run(['/usr/bin/python3', '-B', str(root / 'tools/build_test_artifacts.py'),
-        *(['--session-inputs'] if session_inputs else
+        *(['--reboot-inputs'] if reboot_inputs else ['--session-inputs'] if session_inputs else
           ['--process-inputs'] if process_inputs else ['--no-action-inputs'] if no_action_inputs else
           ['--native-inputs'] if native_inputs else ['--upgrade-inputs'] if upgrade_inputs
           else ['--reuse'] if package_format == 'deb' else []),
@@ -129,6 +132,7 @@ def main(argv=None):
     parser.add_argument('--no-action-inputs', action='store_true')
     parser.add_argument('--process-inputs', action='store_true')
     parser.add_argument('--session-inputs', action='store_true')
+    parser.add_argument('--reboot-inputs', action='store_true')
     parser.add_argument('--native-inputs', action='store_true')
     parser.add_argument('--system-native-inputs', action='store_true')
     args = parser.parse_args(argv)
@@ -139,6 +143,7 @@ def main(argv=None):
                        **({'no_action_inputs': True} if args.no_action_inputs else {}),
                        **({'process_inputs': True} if args.process_inputs else {}),
                        **({'session_inputs': True} if args.session_inputs else {}),
+                       **({'reboot_inputs': True} if args.reboot_inputs else {}),
                        **({'native_inputs': True} if args.native_inputs else {}),
                        **({'system_native_inputs': True} if args.system_native_inputs else {}))
 

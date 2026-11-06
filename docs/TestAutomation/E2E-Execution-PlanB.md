@@ -18,7 +18,7 @@ Task queue: [Plan B ordered checklist](E2E-Task-QueueB.md).
 
 ## Next task
 
-Next task: **139 — [Follow reboot activation after a real update](E2E-Tasks/139-activation-reboot.md)**.
+Next task: **140 — [E2E-026: reboot](E2E-Tasks/140-case-138.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

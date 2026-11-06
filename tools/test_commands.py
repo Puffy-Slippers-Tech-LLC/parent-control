@@ -112,7 +112,7 @@ PRODUCT_FREE_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_product_free'
     'check_e2e_' + suffix for suffix in '''
     product_free_entry upgrade_assets chinese_language_assets desktop_language
     package_authority package_command customer_reboot restart_notice
-    unrelated_reboot_request package_upgrade update_no_action activation_process activation_session chinese_kiosk_lifecycle chinese_current_install
+    unrelated_reboot_request package_upgrade update_no_action activation_process activation_session activation_reboot chinese_kiosk_lifecycle chinese_current_install
     '''.split()})
 
 
@@ -618,7 +618,7 @@ def qualification_input_options(root, selector):
         if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
                 and node.func.id == 'named_input'):
             if node.args or any(keyword.arg not in (
-                    'package_source', 'fixture_source', 'upgrade_source', 'vm_source', 'no_action_source', 'process_source', 'session_source')
+                    'package_source', 'fixture_source', 'upgrade_source', 'vm_source', 'no_action_source', 'process_source', 'session_source', 'reboot_source')
                     or not isinstance(keyword.value, ast.Constant)
                     or type(keyword.value.value) is not bool for keyword in node.keywords):
                 raise ValueError('qualification input declaration must use literal boolean options')
@@ -649,7 +649,8 @@ def qualification_artifact_command(root, category, args):
     # Compare the producer and privileged consumer without logging private paths.
     print('qualification-input: prepared locator_sha256=' +
           hashlib.sha256(output.encode()).hexdigest(), flush=True)
-    flags = (['--session-inputs'] if options.get('session_source') else
+    flags = (['--reboot-inputs'] if options.get('reboot_source') else
+             ['--session-inputs'] if options.get('session_source') else
              ['--process-inputs'] if options.get('process_source') else
              ['--no-action-inputs'] if options.get('no_action_source') else
              ['--upgrade-inputs'] if options.get('upgrade_source') else [])

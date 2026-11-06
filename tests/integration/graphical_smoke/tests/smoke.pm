@@ -885,6 +885,12 @@ sub run {
         onpc_app_rows::native_denial(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{flatpak_temporary_access}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::flatpak_temporary_access(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{flatpak_policy_closure}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

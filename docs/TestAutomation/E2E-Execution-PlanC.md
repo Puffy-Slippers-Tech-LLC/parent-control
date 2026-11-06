@@ -13,7 +13,7 @@ Task queue: [Plan C ordered checklist](E2E-Task-QueueC.md).
 
 ## Next task
 
-Next task: **288 — [E2E-049: flatpak-command-kiosk](E2E-Tasks/288-case-246.md)**.
+Next task: **116a — [Qualify Flatpak app-grid launches](E2E-Tasks/116a-flatpak-grid.md)**.
 
 This plan owns its queue, unchanged task briefs and next-task pointer.
 It can run independently of all unfinished work in

@@ -95,10 +95,18 @@ class JourneyPlan:
     activity_entries: dict = field(default_factory=dict)
     overlay_request: tuple | None = None
     kiosk_request: tuple | None = None
+    kiosk_requests: dict = field(default_factory=dict)
 
     def __post_init__(self):
         if self.kiosk_request is not None:
             accessible_ui.validate_kiosk_request(self.kiosk_request)
+        require(type(self.kiosk_requests) is dict and all(
+                    stage in self.screen_tags
+                    and self.screen_tags[stage].removeprefix('ui:') in accessible_ui.KIOSK_BOUND_OPERATIONS
+                    and self.kiosk_request is not None
+                    and accessible_ui.validate_kiosk_request(binding)[0] == self.kiosk_request[0]
+                    for stage, binding in self.kiosk_requests.items()),
+                self.prefix + ':kiosk-stage-bindings')
         require(self.kiosk_request is None or self.overlay_request is None,
                 self.prefix + ':request-surface-binding')
         require(not any(type(tag) is str and tag.removeprefix('ui:') in accessible_ui.KIOSK_BOUND_OPERATIONS -
@@ -845,7 +853,7 @@ class InstalledJourney:
                 # a separate observer process added a round trip to every step.
                 self.ui.boot_guard = self.boot or ''
                 self.ui.overlay_request = plan.overlay_request
-                self.ui.kiosk_request = plan.kiosk_request
+                self.ui.kiosk_request = plan.kiosk_requests.get(stage, plan.kiosk_request)
                 challenge = plan.challenge_at(stage)
                 if tag.removeprefix('ui:') in accessible_ui.SHELL_SUCCESS_OPERATIONS:
                     def worker_input(token, source):

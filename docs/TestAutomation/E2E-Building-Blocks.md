@@ -3827,6 +3827,17 @@ worker/callback shutdown, owned cleanup and baseline restoration passed;
 the VM was independently observed off. Other-user denial independence, grid
 launches, temporary Soft permission and complete customer cases remain separate.
 
+Case 246 separately composes that capability in
+`flatpak_temporary_access.PLAN` / `TemporaryAccessJourney` and
+`onpc_request_flow::flatpak_temporary_access`. Its complete Ubuntu 26.04 journey
+passed in `scenario-470ce36a1aa04019bec736200f68b50f`: three ordered station
+approvals with independent Jamie/Sam/Jamie prompt identity, initial S denial,
+usable included S, captured S closure and denied relaunch after replacement
+exclusion, original usable A throughout, H denial after each approval and final
+unchanged saved A/H/S choices. The case uses the qualified shared operations;
+per-stage kiosk bindings keep each prompt's declared request immutable during
+authentication. This adds no grid, other-user or Snap enforcement qualification.
+
 ### Snap command use
 
 `snap_command_usable.PLAN` / `onpc_app_rows::snap_command_usable` qualify

@@ -261,6 +261,56 @@ sub panel_request_case {
     $journey->finish();
 }
 
+sub flatpak_temporary_access {
+    onpc_progress::operation('Changing Jordan\'s temporary app access through three parent approvals');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'temporary-access:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'flatpak-temporary-access', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen($_) for qw(saved-settings apps-page allowed-save allowed-row hard-save hard-row soft-save soft-row);
+    my $leaving = $journey->scope('leave-parent');
+    onpc_desktop_session::switch_user($leaving, $leaving->seen('desktop'));
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'initial');
+    my $allowed = $journey->scope('allowed');
+    onpc_app_rows::native_usable_app($allowed, 'command', $allowed->seen('desktop'), 'other-child', 'A', 'flatpak');
+    $journey->seen($_) for qw(allowed-capture initial-hard-denied initial-soft-denied);
+    for my $row (['first', 'parent', 0], ['included', 'other-parent', 1], ['replacement', 'parent', 0]) {
+        my ($name, $approver, $soft) = @$row;
+        my $request = $journey->scope($name);
+        $request->{kiosk_request} = ['other-child', $approver, 30, $soft];
+        my $leave = $request->scope('leave-child');
+        onpc_desktop_session::switch_user($leave, $leave->seen('desktop'));
+        onpc_gdm::enter_station($request, '');
+        my $parent = $approver eq 'parent' ? 'fixture-parent' : 'other-fixture-parent';
+        prepare($request, 'open', 'open', 'observed', 'existing-fixture-child', $parent, 30, $soft, 'kiosk');
+        approve($request, 'existing-fixture-child', $parent, 30, $soft, 'automatic');
+        # The enclosing journey owns the child's entry challenge, independently
+        # of the request scope that owns the approval password proofs.
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained',
+                                           'success', $name . '-retained');
+        $request->seen('countdown');
+        $request->seen('soft-closed') if $name eq 'replacement';
+        $request->seen($_) for qw(allowed-preserved allowed-submit allowed-submitted allowed-original hard-denied);
+        if ($soft) {
+            my $activity = $request->scope('soft');
+            onpc_app_rows::native_usable_app($activity, 'command', $activity->seen('desktop'),
+                                           'other-child', 'S', 'flatpak');
+            $request->seen('soft-capture');
+        } else {
+            $request->seen('soft-denied');
+        }
+    }
+    onpc_desktop_session::enter_desktop($journey, 'desktop', 'parent', 'retained',
+                                       'success', 'final', 'other-child');
+    $journey->seen($_) for qw(final-apps final-allowed-row final-hard-row final-soft-row);
+    $journey->finish();
+}
+
 sub kiosk_fresh_return {
     onpc_progress::operation('Approving a station request and returning to the chosen child');
     my ($exchange, $declared, $challenges, $binding, $entry, $child_entry) = @_;

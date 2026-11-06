@@ -2069,7 +2069,14 @@ those station cases.
 
 ### E2E-049
 
-Implementation status: All cases pending.
+The Flatpak command/station binding uses `flatpak_temporary_access.PLAN` /
+`TemporaryAccessJourney` and `onpc_request_flow::flatpak_temporary_access`.
+It composes the shared allowance, app, station and approval operations below.
+`JourneyPlan.kiosk_requests` binds each request's stages to its declared parent,
+30-second duration and Soft choice while retaining the same child. The shared
+observer refuses a changed request during authentication; the password owner
+admits only the exact scoped request and consumes two fresh recipient proofs.
+Runtime readiness and executable bindings remain in the inventory.
 
 Snap cases 239/242 are deferred from active scheduling under the
 [shared Snap boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary).

@@ -82,6 +82,67 @@ def test_bound_prompt_wait_and_repeat_still_require_fresh_recipient_proofs(monke
     assert ui._observe.call_count == calls
 
 
+def test_bound_prompt_refuses_changed_request_before_another_recipient_read():
+    ui = ui_observations.UiObservations(None)
+    ui.kiosk_request = ('other-child', 'parent', 30, False)
+    ui._observe = Mock(return_value={})
+    order = ui_observations.accessible_ui.BOUND_MATE_ORDER
+    ui.observe(order[0])
+    ui.kiosk_request = ('other-child', 'other-parent', 30, True)
+    with pytest.raises(EvidenceError, match='mate-request-replaced'):
+        ui.observe(order[1])
+    assert ui._observe.call_count == 1
+
+
+@pytest.mark.parametrize('mode', ['sequence', 'wrong-scope', 'crossed-request', 'replay'])
+def test_temporary_access_secret_binds_each_parent_and_requires_fresh_proofs(mode):
+    from flatpak_temporary_access import PLAN, REQUESTS
+    result = run_perl(r'''
+use strict;
+use warnings;
+use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub current_console { 'sut' }
+sub get_var { '1' }
+package onpc_journey;
+sub seen {
+    my ($self, $stage) = @_;
+    push @main::events, ['proof', $self->{stage_prefix} . $stage];
+    return {observed => $self->{stage_prefix} . $stage};
+}
+package main;
+require onpc_password;
+{
+    no warnings 'redefine';
+    *onpc_password::type_fixture_secret = sub { push @events, ['delivery', $_[0], $_[3]]; };
+}
+my ($mode, $prefix, $encoded) = @ARGV;
+my $requests = decode_json($encoded);
+my $ok = eval {
+    for my $name ('first', 'included', 'replacement') {
+        my $request = bless {prefix => "$prefix-$name", stage_prefix => "$name-",
+            kiosk_request => [@{$requests->{$name}}], review => 0}, 'onpc_journey';
+        $request->{stage_prefix} = 'included-' if $mode eq 'wrong-scope';
+        $request->{kiosk_request} = $requests->{included} if $mode eq 'crossed-request';
+        onpc_password::enter_kiosk_mate_password($request, 'bound-request');
+        onpc_password::enter_kiosk_mate_password($request, 'bound-request') if $mode eq 'replay';
+    }
+    1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+''', mode, PLAN.prefix, json.dumps({name: [*binding[:3], int(binding[3])]
+                                  for name, binding in REQUESTS.items()}))
+    value = json.loads(result.stdout)
+    names = list(REQUESTS) if mode == 'sequence' else ['first'] if mode == 'replay' else []
+    assert value['ok'] == (mode == 'sequence')
+    assert value['events'] == [event for name in names for event in (
+        ['proof', name + '-approval-qualified'], ['proof', name + '-approval-rechecked'],
+        ['delivery', REQUESTS[name][1], name + '-kiosk-mate-approval'])]
+
+
 def test_shell_cancel_proof_requires_the_bound_request_and_a_new_challenge():
     operation = 'overlay-shell-cancel-ready'
     proof = {'child': 'fixture-child', 'approver': 'fixture-parent',

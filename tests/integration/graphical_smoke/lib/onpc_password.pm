@@ -124,6 +124,10 @@ sub enter_kiosk_mate_password {
             my $delayed = ($journey->{prefix} // '') =~ /\Akiosk-delayed-approval-(first|second)\z/
                 && ($journey->{stage_prefix} // '') eq $1 . '-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,30,0';
+            my $temporary_access = ($journey->{prefix} // '') =~ /\Aflatpak-temporary-access-(first|included|replacement)\z/
+                && ($journey->{stage_prefix} // '') eq $1 . '-'
+                && ref($request) eq 'ARRAY' && join(',', @$request) eq
+                    ($1 eq 'included' ? 'other-child,other-parent,30,1' : 'other-child,parent,30,0');
             my $grant_access = ($journey->{prefix} // '') =~ /\A(?:grant-access|revocation)-case-request\z/
                 && ($journey->{stage_prefix} // '') eq 'request-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
@@ -142,7 +146,7 @@ sub enter_kiosk_mate_password {
             my $expired_restart = ($journey->{prefix} // '') =~ /\A(?:app-restart|sign-out-in)-expired\z/
                 && ($journey->{stage_prefix} // '') eq ''
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,1200,0';
-            die 'secret:challenge' unless ($delayed || $grant_access || $app_restart || $app_transition || $process_update || $work_recovery || $expired_restart ||
+            die 'secret:challenge' unless ($temporary_access || $delayed || $grant_access || $app_restart || $app_transition || $process_update || $work_recovery || $expired_restart ||
                     ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
                     && ($journey->{stage_prefix} // '') eq '')
                 && ref($request) eq 'ARRAY' && @$request == 4

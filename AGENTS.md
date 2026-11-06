@@ -138,6 +138,9 @@ Read only the mandates triggered by the work:
 
 Read the VM mandate before VM work; it owns selector-specific authorization and
 preparation lifetime, which a task's example command cannot establish.
+For guest memory, swap or memory-pressure checks during a test, use the
+[owner-serviced probe route](docs/Mandates/VM-Mandate.MD#owned-maintenance-and-execution)
+before treating an occupied VM as a blocker.
 
 ## Reads, edits and evidence
 

@@ -123,6 +123,20 @@ arguments and root privileges apply only in the guest. Reuse its private SSH
 identity, guarded transport, exclusive lease and observation; never restore the
 guest to inspect it or adopt another controller's running instance.
 
+During a test, `tools/test-vm --vm NAME probe memory` requests a fixed read-only
+sample from that VM's active owner. It acquires no checkout or controller lease,
+opens no retention session and receives no SSH credentials or reservation receipt.
+Only the installed authenticated helper for the owner's caller may request it.
+The owner serializes probes using separate command state and guarded SSH; returns
+bounded memory, swap, page-fault, OOM and memory-pressure counters with run,
+domain-instance and boot identity; and publishes the result through shared Watch.
+Known lifecycle operations drain the probe before changing or releasing the VM.
+Guest-initiated transitions can make a sample unavailable; successful samples
+identify their observed boot and are instantaneous observations, not guarantees
+of future readiness. Missing owners/transports and probe failures refuse without
+starting, restoring or repairing the guest or changing the test verdict.
+Arbitrary `exec`, test cases, preparation and recovery retain exclusive access.
+
 Probing every eligible registered VM has standing authorization. Offline entries
 must first be enabled together with their host. Direct `tools/test-vm` guest commands, including guest shells
 and interpreters, require no additional command approval or developer confirmation.
@@ -159,6 +173,8 @@ Launcher shutdown uses a nonwaiting checkout for final recovery: an occupied
 VM is left with its current owner and recovery is deferred to the next run.
 Already owned nested work still finishes cleanup before the launcher exits.
 Read-only watch observation remains independent and never holds a checkout.
+Owner-serviced fixed diagnostics likewise grant no checkout or execution authority
+to their requester; they run under the existing owner's lifetime.
 
 A reservation covers a sequence of commands, including builds and investigation
 after failure. Nested commands borrow it; their completion cannot check in the

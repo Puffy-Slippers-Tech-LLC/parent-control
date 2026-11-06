@@ -837,6 +837,26 @@ class Lease:
         self.restored_by_callback = False
         self.shutdown_request = None
         self.product_log_capture = None
+        self.live_probe = None
+
+    def set_probe_transport(self, transport):
+        """Offer fixed diagnostics without granting a second VM checkout."""
+        self.close_probe()
+        try:
+            from live_vm_probe import Server
+            self.live_probe = Server(self, transport)
+            # Register ownership before starting any worker. A cancelled start
+            # leaves a closeable handle, including before Thread.start returns.
+            self.live_probe.thread.start()
+        except Exception:
+            self.close_probe()
+            log('vm-probe:unavailable')
+
+    def close_probe(self):
+        probe = self.live_probe
+        if probe is not None:
+            probe.close()
+            self.live_probe = None
 
     def save(self, phase):
         if self.capture.vm_ownership is not None:
@@ -952,6 +972,7 @@ class Lease:
                 yield
 
     def restore(self):
+        self.close_probe()
         # snapshot revert defaults to its saved shutoff state; never pass RUNNING.
         self.guard(off=True)
         snap = self.source.domain.snapshotLookupByName(self.capture.state['proof']['name'], 0)
@@ -981,6 +1002,7 @@ class Lease:
 
     @observed('Starting the VM')
     def start(self):
+        self.close_probe()
         self.shutdown_request = None
         self.product_log_capture = None
         if getattr(self, 'online_pending', False) is True:
@@ -1027,6 +1049,7 @@ class Lease:
     @observed('Stopping the VM')
     def stop(self):
         """Stop the recorded instance without restoring between backend callbacks."""
+        self.close_probe()
         self.guard()
         self.collect_product_logs()
         try:
@@ -1053,6 +1076,7 @@ class Lease:
     @observed('Stopping the VM by restoring its baseline')
     def stop_by_restore(self):
         """Complete a graphical worker's off callback without an ACPI wait."""
+        self.close_probe()
         require(self.view.graphics_type == 'vnc', 'cleanup:graphics-required')
         self.guard()
         require(self.view.domain_id is not None and
@@ -1084,6 +1108,7 @@ class Lease:
 
     @observed('Restoring the VM and verifying cleanup')
     def finish(self):
+        self.close_probe()
         from vm_internet import restore as restore_internet
         restore_internet(self)
         if not self.mutated:
@@ -1123,6 +1148,7 @@ class Lease:
                 self.source.domain.snapshotLookupByName(name, 0).delete(0)
 
     def release(self):
+        self.close_probe()
         pending = None
         if self.capture.vm_ownership is not None:
             try:

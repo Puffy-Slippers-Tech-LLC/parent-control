@@ -210,6 +210,11 @@ FLATPAK_APP_BINDINGS = {
     for action in ('desktop', 'command-launch', 'opened', 'submit', 'submitted',
                    'activity', 'close', 'closed')
 }
+FLATPAK_APP_BINDINGS.update({
+    'flatpak-' + name + '-' + action: (role, 'primary', action)
+    for name, role in (('hard', 'H'), ('soft', 'S'))
+    for action in ('command-blocked', 'policy-activity', 'policy-closed')
+})
 FLATPAK_APP_OPERATIONS = frozenset(FLATPAK_APP_BINDINGS) | {'flatpak-command-refusals'}
 RILEY_FLATPAK_OPERATIONS = frozenset('overlay-flatpak-allowed-' + action for action in
     ('desktop', 'command-launch', 'opened', 'submit', 'submitted'))
@@ -667,6 +672,9 @@ SNAP_POLICY_APP = 'parent-app-' + hashlib.sha256(
     b'onpc-fixture-allowed_onpc-fixture-allowed.desktop').hexdigest()[:16]
 FLATPAK_POLICY_APP = 'parent-app-' + hashlib.sha256(
     b'com.puffyslippers.ONPCTestApplication.desktop').hexdigest()[:16]
+FLATPAK_POLICY_APPS = {role: 'parent-app-' + hashlib.sha256(
+    ('com.puffyslippers.ONPCTestApplication' + suffix + '.desktop').encode()).hexdigest()[:16]
+    for role, suffix in (('A', ''), ('H', '.Hard'), ('S', '.Soft'))}
 MATCH_RULES = ('/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
                '/opt/onpc-test-fixtures/Applications/Exact*.AppImage',
                '/opt/onpc-test-fixtures/Applications/*.AppImage',
@@ -704,6 +712,9 @@ BASELINE_ACCESS_OPERATIONS.update({f'access-snap-{action}': (SNAP_POLICY_APP, ac
                                    for action in ('allowed', 'row')})
 BASELINE_ACCESS_OPERATIONS.update({f'access-flatpak-{action}': (FLATPAK_POLICY_APP, action)
                                    for action in ('allowed', 'row')})
+BASELINE_ACCESS_OPERATIONS.update({f'access-flatpak-{name}-{action}': (FLATPAK_POLICY_APPS[role], action)
+    for name, role in (('hard', 'H'), ('soft', 'S'))
+    for action in (*ACCESS_CHOICES, 'row')})
 ACCESS_OPERATIONS |= frozenset(BASELINE_ACCESS_OPERATIONS)
 OPERATIONS |= ACCESS_OPERATIONS
 LEGEND_HEADINGS = ('App Access (What happens)', 'Match Rule (How apps are matched)')
@@ -7391,7 +7402,7 @@ class AccessibleUI:
     def match_entry(self, child, app, *, editor=False, access=None):
         """Fresh complete child/page/app and transient-owner proof before input."""
         require(child in CHILD_IDENTITIES and (app in (*MATCH_APPS.values(), MATCH_OTHER_APP)
-                or app in (SNAP_POLICY_APP, FLATPAK_POLICY_APP)
+                or app in (SNAP_POLICY_APP, *FLATPAK_POLICY_APPS.values())
                 and access in ACCESS_CHOICES and not editor), 'ui:match-binding')
         require(access is None or (access in ACCESS_CHOICES and not editor), 'ui:access-binding')
         require(not self.input_uncertain, 'ui:uncertain-input')
@@ -7462,7 +7473,7 @@ class AccessibleUI:
 
     def read_app_access(self, child, app):
         """PARENT12 independent read; caller owns the expected saved choice."""
-        require(app in (*MATCH_APPS.values(), MATCH_OTHER_APP, SNAP_POLICY_APP, FLATPAK_POLICY_APP),
+        require(app in (*MATCH_APPS.values(), MATCH_OTHER_APP, SNAP_POLICY_APP, *FLATPAK_POLICY_APPS.values()),
                 'ui:access-binding')
         def read():
             rows = self.app_rows(child)
@@ -12934,7 +12945,8 @@ class AccessibleUI:
         flatpak = kind == 'flatpak'
         require(not flatpak or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
                 or child == CHILD and role == 'A' and instance == 'primary')
-                and not blocked and not locked and fixture == 'policy', 'ui:flatpak-binding')
+                and (not blocked or child == EXISTING_CHILD and role in ('H', 'S'))
+                and not locked and fixture == 'policy', 'ui:flatpak-binding')
         require(not snap or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
                 or child == CHILD and role == 'A' and instance == 'primary')
                 and not blocked and not locked and fixture == 'policy', 'ui:snap-binding')
@@ -13019,11 +13031,17 @@ class AccessibleUI:
             self.timing({'event': 'ui-native-launch', 'unit': unit})
         if blocked:
             bounded = len(result.stdout) + len(result.stderr) <= 65536
-            denied = (result.returncode in (1, 203) and bounded
+            flatpak_denial = (('Running app/' + {
+                'H': 'com.puffyslippers.ONPCTestApplication.Hard',
+                'S': 'com.puffyslippers.ONPCTestApplication.Soft'}[role] +
+                '/x86_64/stable is not allowed by the policy set by your administrator').encode()
+                if flatpak else None)
+            denied = (result.returncode == 1 and bounded and flatpak_denial in result.stderr
+                      if flatpak else result.returncode in (1, 203) and bounded
                       and any(message in result.stderr for message in (
                           b'Permission denied', b'Operation not permitted')))
             journal = None
-            if not denied:
+            if not denied and not flatpak:
                 # The executor can fail before the service owns its piped
                 # stderr. Require the same permission error from this launch's
                 # attributed EXEC record; status 203 alone proves no denial.
@@ -13054,7 +13072,8 @@ class AccessibleUI:
                 if locked:
                     require(ready(), 'ui:native-blocked-restriction')
                 else:
-                    require(self.native_app_closed(instance) if role is not None
+                    require(self.native_app_closed(instance, kind=kind, complete_absence=True) if flatpak
+                            else self.native_app_closed(instance) if role is not None
                             else self.native_app_closed(), 'ui:native-blocked-window')
                 return time.monotonic() - stable >= 2
             if locked:
@@ -13063,8 +13082,9 @@ class AccessibleUI:
                 self.wait(absent, 'native-blocked-absence')
             if self.timing is not None:
                 self.timing({'event': 'ui-native-execution-denial',
-                             'source': 'journal' if journal is not None else 'stderr',
-                             'error': (journal['exec_errors'][0] if journal is not None else
+                    'source': 'journal' if journal is not None else 'stderr',
+                             'error': ('flatpak-policy-denied' if flatpak else
+                                       journal['exec_errors'][0] if journal is not None else
                                        'permission-denied' if b'Permission denied' in result.stderr
                                        else 'operation-not-permitted')})
 
@@ -13312,6 +13332,10 @@ class AccessibleUI:
                 complete_absence=kind == 'flatpak'), kind + '-closed')
         elif action == 'command-launch':
             self.native_launch_command(**arguments)
+        elif action == 'command-blocked':
+            self.native_launch_command(blocked=True, **arguments)
+        elif action in ('policy-activity', 'policy-closed'):
+            return self.native_policy_activity(closed=action == 'policy-closed', role=role, kind=kind)
         elif action == 'submit':
             self.native_app_submit(**arguments)
         elif action in ('opened', 'submitted', 'activity'):
@@ -13379,22 +13403,24 @@ class AccessibleUI:
                                           check_prompt=True)
         return node is None or not complete_absence and not self.showing(node)
 
-    def native_policy_activity(self, *, closed=False, role='A', child=EXISTING_CHILD):
+    def native_policy_activity(self, *, closed=False, role='A', child=EXISTING_CHILD, kind='native'):
         """APP02: bind public presence/complete absence to the same child session."""
-        require(role in ('A', 'S') and type(closed) is bool
-                and (child == EXISTING_CHILD or child == CHILD and role == 'S'), 'ui:native-binding')
-        instance = 'secondary' if role == 'S' else 'primary'
+        require(type(closed) is bool and (kind == 'native' and role in ('A', 'S')
+                and (child == EXISTING_CHILD or child == CHILD and role == 'S')
+                or kind == 'flatpak' and role in ('H', 'S') and child == EXISTING_CHILD),
+                'ui:native-binding')
+        instance = 'secondary' if kind == 'native' and role == 'S' else 'primary'
         uid = os.getuid()
         require(uid == pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid == os.geteuid(),
                 'ui:native-activity-owner')
         owner = session_control.entry_identity(session_control.sessions(), uid, 'same')
         if closed:
-            self.wait(lambda: self.native_app_closed(instance, complete_absence=True), 'native-policy-closed')
-            value = {'binding': 'native-' + instance, 'pid': None, 'endpoint': None, 'state': None}
+            self.wait(lambda: self.native_app_closed(instance, kind=kind, complete_absence=True), 'native-policy-closed')
+            value = {'binding': kind + '-' + instance, 'pid': None, 'endpoint': None, 'state': None}
         else:
             value = self.wait(lambda: self.native_app_snapshot(
                 'ONPC fixture draft', with_window=True, role=role, instance=instance,
-                child=child, implicit_instance=role == 'A'),
+                child=child, implicit_instance=kind == 'native' and role == 'A', kind=kind),
                 'native-policy-activity', prompt_in_predicate=True)
         require(session_control.entry_identity(session_control.sessions(), uid, 'same') == owner,
                 'ui:native-activity-owner-changed')

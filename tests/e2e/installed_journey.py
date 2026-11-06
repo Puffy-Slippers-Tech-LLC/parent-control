@@ -136,7 +136,8 @@ class JourneyPlan:
                     'ui:native-policy-soft-activity', 'ui:native-policy-soft-closed',
                     'ui:overlay-native-policy-soft-activity', 'ui:overlay-native-policy-soft-closed')
                     or self.screen_tags[stage].removeprefix('ui:') in accessible_ui.PACKAGED_APP_BINDINGS
-                    and accessible_ui.PACKAGED_APP_BINDINGS[self.screen_tags[stage][3:]][2] == 'activity')
+                    and accessible_ui.PACKAGED_APP_BINDINGS[self.screen_tags[stage][3:]][2]
+                        in ('activity', 'policy-activity', 'policy-closed'))
                     and type(binding) is tuple and len(binding) == 2
                     and binding[0] in stages and stages.index(binding[0]) < stages.index(stage)
                     and ((binding[1] in ('same', 'replaced')
@@ -146,19 +147,24 @@ class JourneyPlan:
                          and (self.screen_tags[stage], self.screen_tags[binding[0]]) in (
                              ('ui:native-policy-closed', 'ui:native-policy-activity'),
                              ('ui:native-policy-soft-closed', 'ui:native-policy-soft-activity'),
-                             ('ui:overlay-native-policy-soft-closed', 'ui:overlay-native-policy-soft-activity')))
+                             ('ui:overlay-native-policy-soft-closed', 'ui:overlay-native-policy-soft-activity'),
+                             ('ui:flatpak-hard-policy-closed', 'ui:flatpak-hard-policy-activity'),
+                             ('ui:flatpak-soft-policy-closed', 'ui:flatpak-soft-policy-activity')))
                     for stage, binding in self.activity_checks.items()),
                 self.prefix + ':activity-plan')
         require(all(stage in self.activity_checks for stage, tag in self.screen_tags.items()
                     if tag in ('ui:native-policy-closed', 'ui:native-policy-soft-closed',
-                               'ui:overlay-native-policy-soft-closed')),
+                               'ui:overlay-native-policy-soft-closed', 'ui:flatpak-hard-policy-closed',
+                               'ui:flatpak-soft-policy-closed')),
                 self.prefix + ':activity-closure-plan')
         require(all(stage in stages and capture in stages and stages.index(capture) < stages.index(stage)
                     and self.screen_tags[capture] in ('ui:native-activity', 'ui:overlay-native-activity',
                                                        'ui:parent-native-activity', 'ui:native-policy-activity',
                                                        'ui:native-unmatched-soft-activity',
                                                        'ui:native-policy-soft-activity',
-                                                       'ui:overlay-native-policy-soft-activity')
+                                                       'ui:overlay-native-policy-soft-activity',
+                                                       'ui:flatpak-hard-policy-activity',
+                                                       'ui:flatpak-soft-policy-activity')
                     for stage, capture in self.activity_entries.items()), self.prefix + ':activity-entry-plan')
         require(all(stage in stages and type(seconds) is int and seconds >= 0
                     for stage, seconds in self.balance_checks.items()),
@@ -561,9 +567,10 @@ class InstalledJourney:
         """Capture/compare before the worker can receive a durable reply."""
         operation = self.plan.screen_tags.get(stage, '')[3:]
         packaged = accessible_ui.PACKAGED_APP_BINDINGS.get(operation)
-        if packaged is not None and packaged[2] == 'activity':
+        if packaged is not None and packaged[2] in ('activity', 'policy-activity', 'policy-closed'):
             require(stage not in self.activity_observations, 'ui:app-activity-replay')
             current = AppActivityObservation.from_value(observed.get('ui', {}).get('activity'),
+                closed=packaged[2] == 'policy-closed',
                 binding=('flatpak-' if operation in accessible_ui.FLATPAK_APP_BINDINGS else 'snap-') + packaged[1])
             if stage in self.plan.activity_checks:
                 earlier, result = self.plan.activity_checks[stage]

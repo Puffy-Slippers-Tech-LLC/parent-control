@@ -3805,6 +3805,28 @@ readback and Riley's policy untouched. The affected enabled case 104 passed in
 cleanup and baseline restoration; coverage was regenerated and the VM was
 observed off. This adds the complete disabled Allowed command case only.
 
+#### Flatpak command denial and captured closure
+
+`flatpak_policy_closure.PLAN` / `FlatpakPolicyClosureJourney` and
+`onpc_app_rows::flatpak_policy_closure` qualify Jordan's system Flatpak H/Hard
+and S/Soft command denial and prior-window closure through `check_e2e_flatpak`.
+Each branch starts with a fresh Jordan entry, uses and captures its target,
+then has Parent save and independently read the precise access choice.
+On return to the same Jordan desktop, the immutable capture comparison requires
+complete original-window absence before the single command relaunch requires
+the exact Flatpak administrator-policy denial. A independently launches and
+submits a draft after each block. No temporary app approval is prepared.
+All named-child operations, including the initial 30-minute allowance setup,
+explicitly bind Jordan; shared recipient, owner and uncertain-input guards remain.
+
+This slice passed on Ubuntu 26.04 (`onpc-Ubuntu26.04-1`) in
+`20261106T083346Z-1ce07b7f`. The affected native captured-closure regression
+passed in `20261106T084612Z-23faa745`, including its wrong-activity/owner refusals.
+Source checks, 36 existing credential/recipient safety checks, collection,
+worker/callback shutdown, owned cleanup and baseline restoration passed;
+the VM was independently observed off. Other-user denial independence, grid
+launches, temporary Soft permission and complete customer cases remain separate.
+
 ### Snap command use
 
 `snap_command_usable.PLAN` / `onpc_app_rows::snap_command_usable` qualify

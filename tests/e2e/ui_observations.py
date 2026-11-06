@@ -2047,10 +2047,12 @@ class UiObservations:
                 expected['activity'] = {'draft': 'ONPC fixture draft',
                     'submitted': 'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
                     'score': 'Moves: 0; token: 0'}
-            elif action == 'activity':
+            elif action in ('activity', 'policy-activity', 'policy-closed'):
                 require(type(result) is dict and set(result) == {*expected, 'activity'}, 'ui:response')
-                AppActivityObservation.from_value(result['activity'], binding=(
+                activity = AppActivityObservation.from_value(result['activity'], closed=action == 'policy-closed', binding=(
                     'flatpak-' if operation in accessible_ui.FLATPAK_APP_BINDINGS else 'snap-') + instance)
+                if action.startswith('policy-'):
+                    require(activity.owner is not None, 'ui:app-activity-owner')
                 expected['activity'] = result['activity']
         if operation in policy_bindings:
             _role, action = policy_bindings[operation]

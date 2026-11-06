@@ -2439,6 +2439,16 @@ class NativePolicyClosureQualification(ChallengesQualification):
         return NativePolicyClosureJourney(context, progress)
 
 
+class FlatpakPolicyClosureQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from flatpak_policy_closure import FlatpakPolicyClosureJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return FlatpakPolicyClosureJourney(context, progress)
+
+
 class SharedTargetLaunchersQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):

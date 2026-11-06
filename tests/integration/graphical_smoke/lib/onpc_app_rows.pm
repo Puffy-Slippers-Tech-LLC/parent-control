@@ -697,6 +697,45 @@ sub native_policy_closure {
     $journey->finish();
 }
 
+# FLOW08: public policy saves followed by original closure and command denial.
+sub flatpak_policy_closure {
+    onpc_progress::operation('Checking that Parent blocks close the child apps and preserve allowed use');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'flatpak:closure-arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'flatpak-policy-closure', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen($_) for qw(saved-settings apps-page);
+    for my $name ('hard', 'soft') {
+        onpc_desktop_session::enter_desktop(
+            $journey, 'gdm', 'parent', 'retained', 'success', 'next-parent') if $name eq 'soft';
+        $journey->seen($name . '-leave-parent-' . $_) for qw(desktop switch greeter);
+        onpc_desktop_session::enter_desktop(
+            $journey, 'gdm', 'other-child', 'fresh', 'success', $name . '-fresh');
+        my $activity = $journey->scope($name . '-activity');
+        native_usable_app($activity, 'command', $activity->seen('desktop'), 'other-child',
+                          $name eq 'hard' ? 'H' : 'S', 'flatpak');
+        native_read_activity($journey, $name . '-capture');
+        onpc_desktop_session::enter_desktop(
+            $journey, 'desktop', 'parent', 'retained', 'success', $name . '-parent', 'other-child');
+        $journey->seen($name . '-apps');
+        $journey->seen($name . '-block-' . $_) for qw(save row);
+        onpc_desktop_session::enter_desktop(
+            $journey, 'desktop', 'other-child', 'retained', 'success', $name . '-return', 'parent');
+        native_read_activity($journey, $name . '-closed');
+        $journey->seen($name . '-denied');
+        my $allowed = $journey->scope($name . '-unaffected');
+        native_usable_app($allowed, 'command', $allowed->seen('desktop'), 'other-child', 'A', 'flatpak');
+        native_finish_app($allowed);
+        $journey->seen($name . '-logout');
+    }
+    $journey->finish();
+}
+
 # APP04: no hidden launch/input; the plan owns capture and compare endpoints.
 sub native_read_activity {
     onpc_progress::operation('Independently reading the owned native activity');

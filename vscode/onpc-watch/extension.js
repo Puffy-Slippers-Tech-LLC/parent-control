@@ -244,9 +244,11 @@ function activate(context) {
             try {
                 let command = await current.launcherCommand(message.root, message.run, message.kind);
                 const action = { stop: 'Stop', resume: 'Resume', 'cancel-stop': 'Cancel stop request' }[message.kind];
+                const commandText = [ `tools/${command.launcher}`, ...command.argv ].map(value =>
+                    /^[\w@%+=:,./-]+$/.test(value) ? value : "'" + value.replace(/'/g, "'\\''") + "'").join(' ');
                 const answer = await vscode.window.showWarningMessage(
                     `${action} for ${command.launcher} on ${command.source.label}?`,
-                    { modal: true, detail: `Checkout: ${command.root}` }, action);
+                    { modal: true, detail: `Checkout: ${command.root}\nCommand: ${commandText}` }, action);
                 if (answer !== action) return;
                 if (disposed || current !== bridge) return;
                 command = await current.launcherCommand(message.root, message.run, message.kind);

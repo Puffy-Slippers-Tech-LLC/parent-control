@@ -47,11 +47,16 @@ places one 28 px icon button after the hostname, matching copy and collapse:
 or **Resume** (play) while idle. It is disabled once stopping begins,
 while disconnected, or when saved command parameters are unavailable. Clicking
 asks for confirmation with **Stop**, **Resume** or **Cancel stop request**, and **Cancel**. Confirming opens a
-VS Code terminal on that same host and checkout, using the retained command
-parameters with `--stop`, `--cancel-stop` or `--resume`. Lifecycle flags replace earlier
-`--stop`, `--cancel-stop`, `--resume`, `--reload` or `--reset` flags. Command errors remain visible
-in that terminal. Repair queue Stop retains its scope without reselecting VMs;
-Resume retains the saved VM selection. Older runs without saved parameters require one normal launch
+VS Code terminal on that same host and checkout. Watch uses its shared
+`Output.execution_plan` property to identify execution-plan runs: Resume reruns
+their saved command with the same parameters. Other launchers, including `fix-tests` and `run-tests`,
+receive only `--resume`, which restores their saved selection. Stop and cancel-stop
+use the retained parameters with `--stop` or `--cancel-stop`. Earlier lifecycle
+flags (`--stop`, `--cancel-stop`, `--resume`, `--reload`, `--reset`) are removed
+from replayed parameters. The action button's hover tooltip and confirmation
+dialog both show the exact public command to run. Command errors remain visible
+in that terminal. Repair queue Stop retains its scope without reselecting VMs.
+Older runs without saved parameters require one normal launch
 before this control becomes available.
 The title
 keeps **Status**, **Launcher**, **Error** and **Session**

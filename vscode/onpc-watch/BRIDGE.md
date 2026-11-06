@@ -153,13 +153,19 @@ Runs may publish optional `launcher_controls: true` when their original public
 command parameters are retained. Older adapters/runs leave controls disabled.
 Optional `launcher_command` is a display-only string containing the saved public
 command and all arguments, shell-quoted for the launcher title's hover tooltip.
+Optional `launcher_action_command` contains the resolved public command for the
+current stop, cancel-stop or resume button's hover tooltip.
 An explicit click requests
 `{"protocol":1,"launcher_action":{"root":"run-section-id","run":"run-identity","kind":"stop"}}`
 (or `kind: "resume"`). The adapter checks the displayed run against its current,
 owner-checked publication and returns `launcher_result` with `ok: false, error`
 or `ok: true, root, run, launcher, argv`. Paths and argv stay within the extension
-host; the webview receives only display IDs. Lifecycle switches are replaced by
-the requested flag. The extension asks for confirmation, revalidates the displayed
+host; the webview receives display IDs and command text only. The adapter uses
+the existing `Output.execution_plan` property (run layout and `plan-view.json`). Resume replays saved
+parameters for execution-plan launchers, stripping earlier lifecycle switches;
+other launchers receive only `--resume`. Stop and cancel-stop replace earlier
+lifecycle switches with the requested flag. The extension shows the resolved
+public command in its confirmation dialog, revalidates the displayed
 run after confirmation, and opens a terminal on the originating local/SSH
 host and rechecks the run identity before invoking the public launcher in its
 original checkout. Errors stay in that terminal. Requests are never retried;

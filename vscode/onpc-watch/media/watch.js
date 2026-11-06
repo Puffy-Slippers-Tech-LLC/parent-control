@@ -45,7 +45,7 @@
     function sessionHeading(section) {
         const entry = section.entry;
         const signature = JSON.stringify([entry.run, entry.server, entry.transport, entry.label, entry.status, entry.session, entry.session_active,
-            entry.session_number, entry.session_inactive, entry.launcher_controls, entry.launcher_command, entry.active, section.view, section.collapsed]);
+            entry.session_number, entry.session_inactive, entry.launcher_controls, entry.launcher_command, entry.launcher_action_command, entry.active, section.view, section.collapsed]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
         section.tabObserver?.disconnect();
@@ -65,8 +65,10 @@
         const kind = entry.status === 'Stop Requested' ? 'cancel-stop' : entry.active ? 'stop' : 'resume';
         const button = element('button', 'run-copy run-launcher-action', server);
         button.type = 'button';
+        button.dataset.kind = kind;
         button.title = kind === 'cancel-stop' ? 'Cancell stop request' : entry.active ? 'Stop launcher' : 'Resume launcher';
         button.setAttribute('aria-label', button.title);
+        if (entry.launcher_action_command) button.title += `\n${entry.launcher_action_command}`;
         button.disabled = !entry.launcher_controls || entry.status === 'Stopping';
         const actionIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         actionIcon.setAttribute('viewBox', '0 0 20 20');

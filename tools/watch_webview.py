@@ -144,6 +144,16 @@ def png(pixels, width, height, stride, *, rgba=False, red_first=False):
     return 'data:image/png;base64,' + base64.b64encode(encoded).decode('ascii')
 
 
+def launcher_arguments(record, kind, *, execution_plan=False):
+    """Share the displayed action's arguments with its actual invocation."""
+    if kind == 'resume' and not execution_plan:
+        return ['--resume']
+    argv = record.get('stop_argv', record['argv']) if kind in ('stop', 'cancel-stop') else record['argv']
+    # Replace lifecycle switches; never replay a destructive reset.
+    argv = [arg for arg in argv if arg not in ('--stop', '--cancel-stop', '--resume', '--reload', '--reset')]
+    return argv if kind == 'resume' else [f'--{kind}', *argv]
+
+
 class Viewer:
     def __init__(self, root):
         self.root = root
@@ -190,10 +200,8 @@ class Viewer:
             command = output.root / 'tools' / name
             if command.is_symlink() or not command.is_file():
                 raise ValueError('Public launcher is unavailable.')
-            # Lifecycle switches are replaced, never replay a destructive reset.
-            argv = [arg for arg in argv if arg not in ('--stop', '--cancel-stop', '--resume', '--reload', '--reset')]
             return dict(ok=True, root=str(output.root), run=str(run), launcher=name,
-                        argv=[f"--{action['kind']}", *argv])
+                        argv=launcher_arguments(record, action['kind'], execution_plan=output.execution_plan))
         except (OSError, ValueError, KeyError, TypeError) as error:
             return dict(ok=False, error=str(error))
 
@@ -452,7 +460,10 @@ class Viewer:
                 if (sections[-1]['launcher_controls'] and isinstance(name, str)
                         and isinstance(argv, list) and all(isinstance(arg, str) for arg in argv)):
                     sections[-1]['launcher_command'] = shlex.join([f'tools/{name}', *argv])
-            except (OSError, ValueError, AttributeError):
+                    kind = 'cancel-stop' if status == 'Stop Requested' else 'stop' if active or session.active else 'resume'
+                    sections[-1]['launcher_action_command'] = shlex.join([f'tools/{name}',
+                        *launcher_arguments(record, kind, execution_plan=output.execution_plan)])
+            except (OSError, ValueError, AttributeError, TypeError):
                 sections[-1]['launcher_controls'] = False
         # Exiting one launcher must not remove its tabs while another checkout
         # is still active. Retain observed runs for this reader's lifetime.

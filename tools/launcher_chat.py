@@ -10,6 +10,7 @@ import fcntl
 import json
 import time
 
+from agent_adapter import SessionEvent
 import detached_launcher as launcher
 from launcher_render import SCROLLBACK_CHARACTERS, clean
 from launcher_progress import read_progress
@@ -381,16 +382,8 @@ class AppSession:
             self.streaming_dirty = True
         elif kind == 'text':
             self.text(data)
-        elif kind == 'item':
-            self.renderer.event({'type': 'item.completed' if data['complete'] else 'item.started',
-                                 'item': data['item']})
-        elif kind == 'diagnostic':
-            self.renderer.heading('Agent activity')
-            self.renderer.code(json.dumps(data, ensure_ascii=False), 'json')
-        elif kind == 'command_output':
-            self.renderer.command_output(data['id'], data['text'])
-        elif kind == 'usage' and self.renderer.on_usage:
-            self.renderer.on_usage(data)
+        elif kind in ('item', 'diagnostic', 'command_output', 'usage', 'notice'):
+            self.renderer.event(event)
         elif kind == 'turn_completed':
             self.clear_preview()
             if data['interrupted']:
@@ -404,8 +397,6 @@ class AppSession:
                 self.completed = True
         elif kind == 'failure':
             self.fail(data)
-        elif kind == 'notice':
-            self.renderer.message(data['text'], 'Agent notice')
 
     def text(self, data):
         if not data['complete']:
@@ -422,8 +413,7 @@ class AppSession:
         self.final_text = text
         self.final = (value if value is not None and value.get('task_id') == self.task
                       and 'status' in value else None)
-        self.renderer.event({'type': 'item.completed', 'item': {
-            'id': data['id'], 'type': 'agent_message', 'text': text}})
+        self.renderer.event(SessionEvent('text', dict(data, text=text)))
 
     def status_update(self, text):
         try:
@@ -431,8 +421,8 @@ class AppSession:
         except (ValueError, TypeError):
             # Rejected metadata is still an agent message. Use the shared
             # renderer so its prose reaches both transcript panes.
-            self.renderer.event({'type': 'item.completed', 'item': {
-                'type': 'agent_message', 'text': STATUS_PREFIX + text}})
+            self.renderer.event(SessionEvent('text', {
+                'text': STATUS_PREFIX + text, 'complete': True}))
 
 
 class ChatEditor:

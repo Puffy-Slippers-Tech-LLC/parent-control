@@ -134,7 +134,83 @@ class CodexAdapter:
         for name in ('CODEX_THREAD_ID', 'CODEX_PARENT_THREAD_ID', 'CODEX_SESSION_ID'):
             child_environment.pop(name, None)
         return PreparedSession(self, request, tuple(argv), child_environment, request.root,
-                               CodexProtocol(request) if request.interactive else None)
+                               protocol=CodexProtocol(request) if request.interactive else None,
+                               presentation=None if request.interactive else CodexBatchPresentation())
+
+
+def batch_failure(error, *, terminal):
+    """Only a terminal native error can classify a failed batch as capacity."""
+    code = error.get('codexErrorInfo', error.get('codex_error_info')) if isinstance(error, dict) else None
+    message = error.get('message', error) if isinstance(error, dict) else error
+    # exec's ThreadErrorEvent may expose only the exact ServerOverloaded display.
+    capacity = terminal and isinstance(error, dict) and (
+        code == 'serverOverloaded' if code is not None else
+        message == 'Selected model is at capacity. Please try a different model.')
+    return SessionEvent('failure', {
+        'message': message, 'context': 'turn failed' if terminal else 'error',
+        'details': {'codex_error_info': 'serverOverloaded' if capacity else code},
+        'capacity': capacity, 'terminal': terminal, 'diagnostic': error})
+
+
+class CodexBatchPresentation:
+    """Codex exec JSONL decoding, with no result or process authority."""
+
+    def __init__(self):
+        self.pending = b''
+
+    def feed(self, data):
+        lines = (self.pending + data).split(b'\n')
+        self.pending = lines.pop()
+        for line in lines:
+            yield from self.line(line)
+
+    def finish(self):
+        if self.pending:
+            pending, self.pending = self.pending, b''
+            yield from self.line(pending)
+
+    def line(self, raw):
+        text = raw.decode('utf-8', errors='replace')
+        try:
+            packet = json.loads(text)
+        except ValueError:
+            yield SessionEvent('diagnostic', {'text': text})
+            return
+        try:
+            yield from self.event(packet)
+        except (KeyError, TypeError, AttributeError, ValueError):
+            # Malformed/unknown output is inert, never a workflow result.
+            yield SessionEvent('diagnostic', {'value': packet})
+
+    def event(self, packet):
+        kind = packet['type']
+        if kind in ('thread.started', 'turn.started'):
+            return
+        if kind == 'turn.completed':
+            # Preserve the CLI's per-turn counters without inventing helper usage.
+            yield SessionEvent('usage', {'usage': packet.get('usage')})
+            yield SessionEvent('turn_completed', {'interrupted': False})
+        elif kind in ('error', 'turn.failed'):
+            yield batch_failure(packet.get('error', packet) if kind == 'turn.failed'
+                                else packet.get('message', packet.get('error', packet)),
+                                terminal=kind == 'turn.failed')
+        elif kind in ('item.started', 'item.updated', 'item.completed'):
+            item = packet['item']
+            category = item['type']
+            complete = kind == 'item.completed'
+            if category == 'reasoning':
+                return
+            if category == 'agent_message':
+                text = item['text'] if complete else item.get('text', '')
+                yield SessionEvent('text', {'id': item.get('id'), 'text': text,
+                                           'complete': complete})
+            elif category in ('command_execution', 'file_change', 'todo_list',
+                              'sub_agent_activity', 'mcp_tool_call', 'web_search'):
+                yield SessionEvent('item', {'item': item, 'complete': complete})
+            else:
+                yield SessionEvent('diagnostic', {'value': packet})
+        else:
+            yield SessionEvent('diagnostic', {'value': packet})
 
 
 class CodexProtocol:
@@ -251,10 +327,10 @@ class CodexProtocol:
                 yield SessionEvent('command_output', {'id': params['itemId'], 'text': params['delta']})
         elif method == 'thread/tokenUsage/updated':
             usage = params['tokenUsage']['last']
-            yield SessionEvent('usage', {'input_tokens': usage.get('inputTokens'),
+            yield SessionEvent('usage', {'usage': {'input_tokens': usage.get('inputTokens'),
                 'cached_input_tokens': usage.get('cachedInputTokens'),
                 'output_tokens': usage.get('outputTokens'),
-                'reasoning_output_tokens': usage.get('reasoningOutputTokens')})
+                'reasoning_output_tokens': usage.get('reasoningOutputTokens')}})
         elif method == 'turn/completed':
             turn = params['turn']
             self.turn = None
@@ -289,7 +365,7 @@ class CodexProtocol:
             return
         else:
             if complete:
-                yield SessionEvent('diagnostic', item)
+                yield SessionEvent('diagnostic', {'value': item})
             return
         yield SessionEvent('item', {'item': item, 'complete': complete})
 

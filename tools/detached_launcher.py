@@ -328,6 +328,10 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
     if requested or parent_gone or (run / 'cancel').exists():
         os.close(owner)
         return 130
+    presentation = command.presentation if kind == 'agent' and not interactive else None
+    if kind == 'agent' and not interactive and presentation is None:
+        os.close(owner)
+        raise ValueError('batch agent session requires a presentation decoder')
     renderer = None
     session_view = None
     session_transcript = None
@@ -456,8 +460,9 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
                         if not data:
                             poller.unregister(key.fileobj)
                             output_open -= 1
-                            if renderer and key.data == 'output':
-                                renderer.finish()
+                            if presentation and key.data == 'output':
+                                for event in presentation.finish():
+                                    renderer.event(event)
                             continue
                         if log is not None:
                             log.write(data)
@@ -466,7 +471,8 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
                             if conversation:
                                 conversation.feed(data)
                             else:
-                                renderer.feed(data)
+                                for event in presentation.feed(data):
+                                    renderer.event(event)
                         else:
                             sys.stdout.buffer.write(data)
                         sys.stdout.flush()
@@ -484,12 +490,12 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
             compact_log(run / 'agent-commands.log')
         nested_active = nested and finish_nested(root, run)
         if renderer and not conversation and status and not requested:
-            from launcher_runtime import AgentCapacityUnavailable, capacity_error
+            from launcher_runtime import AgentCapacityUnavailable
             error = renderer.failure
-            if capacity_error(error, batch=True):
+            if error is not None and error['capacity']:
                 message = str(error.get('message', 'Model at capacity'))
-                atomic(run / 'agent-error.json', dict(message=message, context='turn failed',
-                                                     codex_error_info='serverOverloaded'))
+                atomic(run / 'agent-error.json', dict(message=message, context=error['context'],
+                                                     **error['details']))
                 raise AgentCapacityUnavailable(message)
         if nested_active:
             status = status or 1

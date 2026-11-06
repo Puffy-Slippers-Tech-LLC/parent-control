@@ -1,4 +1,4 @@
-"""Shared launcher panes and presentation of noninteractive Codex JSONL events.
+"""Shared launcher panes and presentation of normalized agent events.
 
 Render once in the detached supervisor, so reconnecting observers see the same
 agent transcript. Only the observer owns the terminal and its display.
@@ -734,7 +734,6 @@ class AgentRenderer:
                                             'markdown.link': '#0066ff underline',
                                             'markdown.link_url': '#0066ff underline'}),
                                markup=False, highlight=False)
-        self.pending = b''
         self.started = set()
         self.command_streams = {}
         self.command_log = command_log
@@ -763,17 +762,6 @@ class AgentRenderer:
         finally:
             self.last_command, self.exploring = command, exploring
         self.on_description(capture.get(), provisional=True)
-
-    def feed(self, data):
-        lines = (self.pending + data).split(b'\n')
-        self.pending = lines.pop()
-        for line in lines:
-            self.line(line)
-
-    def finish(self):
-        if self.pending:
-            self.line(self.pending)
-            self.pending = b''
 
     def heading(self, title, style='bold'):
         self.last_command = None
@@ -998,46 +986,47 @@ class AgentRenderer:
             outcome = f'Exit {status}' if status is not None else item.get('status', 'completed')
             self.tree(outcome, style='red')
 
-    def line(self, raw):
-        value = raw.decode('utf-8', errors='replace')
-        try:
-            event = json.loads(value)
-        except ValueError:
-            self.last_command = None
-            self.exploring = False
-            self.console.print(Text(clean(value)))
-            return
-        # Unknown or malformed events remain visible, never control execution.
-        try:
-            self.event(event)
-        except (KeyError, TypeError, AttributeError, ValueError):
-            self.code(value, 'json')
-
     def event(self, event):
-        kind = event['type']
-        if kind in ('thread.started', 'turn.started'):
-            return
-        if kind == 'turn.completed':
+        """Present shared events; adapters alone decode native streams."""
+        try:
+            self.render(event)
+        except (KeyError, TypeError, AttributeError, ValueError):
+            # Malformed presentation remains inert and visible.
+            self.code(json.dumps(event.data, ensure_ascii=False), 'json')
+
+    def render(self, event):
+        kind, data = event.kind, event.data
+        if kind == 'usage':
             if self.on_usage is not None:
-                self.on_usage(event.get('usage'))
+                self.on_usage(data['usage'])
+        elif kind == 'turn_completed':
             if self.task_completion_message:
                 self.task_completion_message = False
                 return
             self.heading('Turn complete', 'dim')
-            return
-        if kind in ('error', 'turn.failed'):
-            if kind == 'turn.failed':
-                self.failure = event.get('error', event)
+        elif kind == 'failure':
+            if data.get('terminal', True):
+                self.failure = data
             self.heading('Agent error', 'bold red')
-            self.code(event.get('message', event.get('error', event)))
-            return
-        if kind not in ('item.started', 'item.updated', 'item.completed'):
+            self.code(data.get('diagnostic', data['message']))
+        elif kind == 'notice':
+            self.message(data['text'], 'Agent notice')
+        elif kind == 'command_output':
+            self.command_output(data['id'], data['text'])
+        elif kind == 'text':
+            self.item({'type': 'agent_message', 'text': data['text']}, data['complete'])
+        elif kind == 'item':
+            self.item(data['item'], data['complete'])
+        elif kind == 'diagnostic' and 'text' in data:
+            self.last_command = None
+            self.exploring = False
+            self.console.print(Text(clean(data['text'])))
+        else:
             self.heading('Agent activity')
-            self.code(json.dumps(event, ensure_ascii=False), 'json')
-            return
-        item = event['item']
+            self.code(json.dumps(data.get('value', data), ensure_ascii=False), 'json')
+
+    def item(self, item, complete):
         category = item['type']
-        complete = kind == 'item.completed'
         if category == 'reasoning':
             return
         if category == 'agent_message':
@@ -1123,4 +1112,4 @@ class AgentRenderer:
                         self.code(json.dumps(item[field], ensure_ascii=False, indent=2), 'json')
         else:
             self.heading('Agent activity')
-            self.code(json.dumps(event, ensure_ascii=False), 'json')
+            self.code(json.dumps(item, ensure_ascii=False), 'json')

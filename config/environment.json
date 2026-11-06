@@ -34,7 +34,7 @@
     },
     {
       "name": "others",
-      "host": "myserver",
+      "host": "local",
       "repo_root": "/Data/Code/PST/parent-control-others"
     }
   ],

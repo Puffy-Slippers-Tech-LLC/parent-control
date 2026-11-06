@@ -21,7 +21,8 @@ sub run {
         && ($route eq 'command' || ($route eq 'grid' && $control eq 'enabled'))
         && ($policy eq 'allowed' || $policy eq 'hard-blocked' || $policy eq 'soft-blocked')
         && ($kind eq 'native' || $kind eq 'snap' && $policy eq 'allowed'
-            || $kind eq 'flatpak' && ($route eq 'command' || $policy eq 'allowed'));
+            || $kind eq 'flatpak' && ($route eq 'command' || $policy eq 'allowed'
+                || $policy eq 'hard-blocked'));
     my $rule = $policy eq 'allowed' ? 'allowed' : $policy eq 'hard-blocked' ? 'hard' : 'soft';
     my $access = $rule eq 'allowed' ? 'allowed' : $rule eq 'hard' ? 'permanent' : 'conditional';
     my $journey = onpc_journey->new(
@@ -53,6 +54,11 @@ sub run {
     if ($policy eq 'allowed') {
         onpc_app_rows::native_usable_app($jordan, $route, $jordan->seen('desktop'), 'other-child',
                                        $kind ne 'native' ? 'A' : undef, $kind);
+    } elsif ($kind eq 'flatpak' && $route eq 'grid') {
+        # A completed hidden-grid observation sends no Enter. The exact
+        # command then independently proves execution is denied as well.
+        onpc_app_rows::native_search($jordan, $jordan->seen('desktop'), 'app-grid', 'A', 'flatpak');
+        $jordan->seen('command');
     } else {
         onpc_app_rows::native_blocked_app($jordan, 'A', $route);
     }

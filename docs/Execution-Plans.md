@@ -194,7 +194,7 @@ Report meaningful failures and unresolved work in the normal handoff.
 Public commands using the shared controller accept `--branch NAME`, selecting a
 branch from `config/environment.json`. Without it, the matching `launchers` entry's
 `default_branch` wins, then the invoking checkout's current Git branch.
-`write-e2e --planb` defaults to the current checkout's branch independently of
+`write-e2e --planb` and `write-e2e --planc` default to the current checkout's branch independently of
 Plan A's configured default; explicit `--branch` still overrides it. An
 unregistered current branch runs in its invoking checkout. Local placement uses
 the branch's `host` and `repo_root`, verifies the branch is already checked out,

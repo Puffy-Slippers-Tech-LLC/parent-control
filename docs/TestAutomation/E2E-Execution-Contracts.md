@@ -571,7 +571,8 @@ implementation belongs to the current task's affected checks.
    implementation context changed. Keep runtime status/bindings in the inventory
    and totals in generated coverage. A block slice alone does not complete a scenario.
 3. Check the completed task `[x]` in the selected plan's canonical queue
-   ([Plan A](E2E-Task-Queue.md) or [Plan B](E2E-Task-QueueB.md))
+   ([Plan A](E2E-Task-Queue.md), [Plan B](E2E-Task-QueueB.md) or
+   [Plan C](E2E-Task-QueueC.md))
    row only after all acceptance and close-out
    pass. Keep ID, delivered scope and prerequisites; remove resolved blockers.
    Preserve the machine-readable scope prefix (`Cases N;`, `Retained regression N;`
@@ -581,7 +582,7 @@ implementation belongs to the current task's affected checks.
    acceptance credit.
 4. Replace **Next task** in the selected master with its following unchecked
    active queue row, or `Next task: none.` when exhausted. Leave the other
-   master and queue unchanged. Delete the
+   masters and queues unchanged. Delete the
    completed brief once enduring context is in maintained source/contracts;
    replace its queue link with plain text. No later brief may require it.
    Preserve normal runner artifacts; create no archive, evidence document or

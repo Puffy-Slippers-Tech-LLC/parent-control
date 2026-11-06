@@ -1,35 +1,37 @@
 # Shared E2E execution instructions
 
-Both [Plan A](E2E-Execution-Plan.md) and [Plan B](E2E-Execution-PlanB.md) use these
+[Plan A](E2E-Execution-Plan.md), [Plan B](E2E-Execution-PlanB.md) and
+[Plan C](E2E-Execution-PlanC.md) use these
 instructions and the [execution contracts](E2E-Execution-Contracts.md).
 Each master owns its own **Next task** pointer and declares its own task queue.
 Read the selected master, these instructions and its current brief. Select and
-close work only in that queue. Neither plan has an unfinished prerequisite in
-the other, and neither executes, advances or waits for the other plan.
+close work only in that queue. No plan has an unfinished prerequisite in
+another, and none executes, advances or waits for another plan.
 
-Run `tools/write-e2e` for Plan A or `tools/write-e2e --planb` for Plan B.
+Run `tools/write-e2e` for Plan A, `tools/write-e2e --planb` for Plan B,
+or `tools/write-e2e --planc` for Plan C. The two selectors are mutually exclusive.
 Use the same selector when attaching, stopping, reloading, reconciling or finishing
 close-out. Each plan retains independent locks, checkpoints, task limits,
 suspended tasks and optimization batches. Plan A keeps its existing storage;
-Plan B uses the shared plan namespace derived from its master path. They may run
+Plans B and C each use the shared plan namespace derived from their master path. They may run
 at different times or concurrently in separate branches/checkouts. Plan A uses
-the launcher's configured default branch; Plan B defaults to the current
+the launcher's configured default branch; Plans B and C default to the current
 checkout's branch. Use `--branch` to select a different checkout explicitly.
 Shared VM leases and Git close-out locks still serialize access to shared resources.
 Concurrent execution in one checkout is unsupported because agents edit shared source.
 
 Unfinished task IDs and brief paths belong to exactly one queue. Keep each
-prerequisite group with its consumers. Plan B includes checked records for only
+prerequisite group with its consumers. Plans B and C include checked records for only
 its already-delivered prerequisites; these are a fixed baseline at the split,
-not work delegated to Plan A. `Baseline` on those records means their prerequisites
+not work delegated to another plan. `Baseline` on those records means their prerequisites
 were already satisfied before the split. Preserve their delivered scope and do
 not requalify unchanged completed work. Pending task dependencies must stay
-within the owning queue. New shared work needed by both plans must be delivered
+within the owning queue. New shared work needed by multiple plans must be delivered
 before it becomes a prerequisite; do not add cross-plan pending dependencies.
 
 Queue IDs identify tasks; numeric case IDs identify inventory `coverage_id`
 values and `E2E-NNN` names scenario families. Preserve cases, acceptance scopes,
-variant parameters and exclusions when maintaining either queue. The
+variant parameters and exclusions when maintaining any queue. The
 [generic execution-plan instructions](../Execution-Plans.md) own shared launcher
 structure; E2E acceptance and model policy remain specialized here.
 
@@ -112,7 +114,7 @@ consumer and blocks no current-release task.
 
 On 2026-11-05 the developer explicitly separated Snap remediation from E2E.
 [Snap limitations and options](../Snap_Limitation.md) own today's findings and
-the future product choices. Apply this boundary to both plans, all their
+the future product choices. Apply this boundary to all three plans, all their
 capabilities, recipes, supporting checks and regression selections:
 
 - Retain Allowed Snap launch/use, public catalogue and saved-choice readback
@@ -185,12 +187,27 @@ Fix proven mechanical test defects without weakening checks.
 Apply a split to a running checkout only after its current response, accepted
 completion and Git close-out have finished. Do not replace the queue underneath
 an in-flight response or pending recovery transaction. Plan A keeps its existing
-checkpoint store; a fresh task session adopts its remaining queue. Plan B starts
-with no copied checkpoint or suspended work from Plan A.
+checkpoint store; a fresh task session adopts its remaining queue. Plan B keeps
+its existing namespace and current task. Plan C starts with no copied checkpoint
+or suspended work from either plan. The three-way split preserves Plan A's task
+160 and Plan B's task 135a, their pointers and their pending prerequisite groups.
+Only later groups move: Flatpak fixtures/command/grid cases, package update/removal
+124/125, suspend 166a/167/166/168 and usage/expiry 172–172l from A;
+169/170/171/173/174/175/178/179,
+143–149, 191/238/239/240/242/245 and 314/315 from B. IDs are labels, not ranges
+to execute implicitly. The original briefs and acceptance stay unchanged.
 
 Ordinary restarts retain strict interruption and close-out guards. If an inactive
-`write-e2e` checkpoint still selects an older task after an explicitly reviewed
-queue revision, use its administrative reconciliation route before restarting:
+checkpoint retains the same unfinished task as the revised pointer, restart
+normally: its task/session history is preserved and the next session reads the
+revised queue. A completed checkpoint with no pending recovery or due optimization
+also selects the revised queue's next task normally; its historical completed
+task ID does not require administrative reconciliation. Do not modify or reset
+these checkpoints just to record the split.
+
+If an inactive `write-e2e` checkpoint instead retains an unfinished task displaced
+by an explicitly reviewed queue revision, use its administrative reconciliation
+route before restarting:
 
 ```sh
 tools/write-e2e --reconcile RUN --check
@@ -198,6 +215,9 @@ tools/write-e2e --reconcile RUN
 # Plan B uses its own retained RUN:
 tools/write-e2e --planb --reconcile RUN --check
 tools/write-e2e --planb --reconcile RUN
+# Plan C uses only its own retained RUN:
+tools/write-e2e --planc --reconcile RUN --check
+tools/write-e2e --planc --reconcile RUN
 ```
 
 `RUN` is the exact current retained run ID. Review the dry-run result first.

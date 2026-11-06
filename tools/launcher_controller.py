@@ -113,9 +113,10 @@ def dispatch(entry):
             document = vm_config.read_document(path)
             defaults = vm_config.launcher_registry(document)
             explicit = selected is not None
-            # Plan B is independent of the original write-e2e owner and its
+            # Plans B/C are independent of the original write-e2e owner and its
             # configured default checkout. Explicit branch routing still wins.
-            default_branch = (None if name == 'write-e2e' and '--planb' in arguments
+            default_branch = (None if name == 'write-e2e' and
+                              any(flag in arguments for flag in ('--planb', '--planc'))
                               else defaults.get(name, {}).get('default_branch'))
             selected = selected or default_branch
             configured = selected is not None
@@ -147,8 +148,8 @@ def dispatch(entry):
     sys.argv[1:] = arguments
     if any(arg in ('--help', '-h') for arg in arguments):
         print(BRANCH_HELP, flush=True)
-        if name == 'write-e2e' and '--planb' in arguments:
-            print('--planb defaults to the current checkout branch; --branch overrides it.', flush=True)
+        if name == 'write-e2e' and any(flag in arguments for flag in ('--planb', '--planc')):
+            print('--planb/--planc default to the current checkout branch; --branch overrides it.', flush=True)
     return entry()
 
 

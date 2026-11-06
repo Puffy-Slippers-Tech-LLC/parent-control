@@ -973,17 +973,20 @@ tools/write-e2e --vm NAME
 tools/write-e2e --vm NAME --stop
 tools/write-e2e --planb --branch BRANCH --vm NAME --tasks 1
 tools/write-e2e --planb --branch BRANCH --stop
+tools/write-e2e --planc --branch BRANCH --vm NAME --tasks 1
+tools/write-e2e --planc --branch BRANCH --stop
 ```
 
-Omitting `--planb` selects [Plan A](../docs/TestAutomation/E2E-Execution-Plan.md);
-adding it selects [Plan B](../docs/TestAutomation/E2E-Execution-PlanB.md).
-Both use the same launcher and [shared instructions](../docs/TestAutomation/E2E-Execution-Instructions.md),
+Omitting both selectors selects [Plan A](../docs/TestAutomation/E2E-Execution-Plan.md);
+`--planb` selects [Plan B](../docs/TestAutomation/E2E-Execution-PlanB.md) and
+`--planc` selects [Plan C](../docs/TestAutomation/E2E-Execution-PlanC.md).
+The selectors are mutually exclusive. All use the same launcher and [shared instructions](../docs/TestAutomation/E2E-Execution-Instructions.md),
 with separate queues, pointers, locks, saved progress and optimization batches.
 Use the same selector for attachment, stop, reload, reconciliation and close-out.
 The queues have no unfinished dependencies on each other. They may run at
 different times or concurrently on separate branches/checkouts. Plan A uses the
-configured launcher default branch; `--planb` defaults to the current checkout's
-branch. Explicit `--branch` overrides either default. Shared VM/Git locks
+configured launcher default branch; `--planb` and `--planc` default to the current checkout's
+branch. Explicit `--branch` overrides these defaults. Shared VM/Git locks
 still apply. Do not run concurrent coding agents in the same checkout.
 
 `--tasks N` limits completed tasks and defaults to `1`. There is no total

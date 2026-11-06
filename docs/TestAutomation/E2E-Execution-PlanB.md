@@ -9,7 +9,10 @@ current branch. Explicit `--branch NAME` selects another checkout. Apply the sam
 [shared execution instructions](E2E-Execution-Instructions.md) and
 [execution contracts](E2E-Execution-Contracts.md) as Plan A.
 This plan owns only its queue, task briefs and next-task pointer. It can run to
-completion without executing or completing any unfinished Plan A task.
+completion without executing or completing any unfinished Plan A or
+[Plan C](E2E-Execution-PlanC.md) task. Later system, multi-desktop, calendar,
+preset and What's New groups now belong exclusively to Plan C; current task
+135a and its lifecycle consumers stay here.
 
 Task queue: [Plan B ordered checklist](E2E-Task-QueueB.md).
 

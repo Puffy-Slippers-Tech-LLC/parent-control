@@ -36,10 +36,10 @@ diagnostic files do not govern task progression.
 | [E2E building blocks](E2E-Building-Blocks.md) | Atomic/composite operation contracts, callables, scoped qualification and provider gaps | Scenario readiness or task order |
 | [Scenario recipes](E2E-Scenario-Recipes.md) | Exact scenario composition, finite inputs and expected public results | Current runner status or scheduling |
 | [UI and E2E coverage](UI-and-E2E-Coverage.md) | GUI matrix ownership, duplicate review and minimal installed checks | A test pass, task completion or another task queue |
-| [Plan A](E2E-Execution-Plan.md) and [Plan B](E2E-Execution-PlanB.md) | Independent next-task pointers and queue declarations | Pending prerequisites in the other plan or shared implementation instructions |
+| [Plan A](E2E-Execution-Plan.md), [Plan B](E2E-Execution-PlanB.md) and [Plan C](E2E-Execution-PlanC.md) | Independent next-task pointers and queue declarations | Pending prerequisites in another plan or shared implementation instructions |
 | [Shared execution instructions](E2E-Execution-Instructions.md) | Implementation workflow, reading routes and independent plan selection through one launcher | Task completion or another task queue |
 | [Execution contracts](E2E-Execution-Contracts.md) | Detailed sizing, provider qualification, live verification and close-out rules delegated by the execution plan | A second task queue, alternate selection or optional acceptance |
-| [Plan A queue](E2E-Task-Queue.md) and [Plan B queue](E2E-Task-QueueB.md) | Separate ordered checklists, provider prerequisites, retained regressions and delivered scope | Current block/scenario readiness or work selection in the other queue |
+| [Plan A queue](E2E-Task-Queue.md), [Plan B queue](E2E-Task-QueueB.md) and [Plan C queue](E2E-Task-QueueC.md) | Separate ordered checklists, provider prerequisites, retained regressions and delivered scope | Current block/scenario readiness or work selection in another queue |
 | `E2E-Tasks/` | Temporary brief for one unfinished queue item | Enduring policy or history after the task closes |
 | [Fixture design](Fixture-Design.md) | Immutable host inputs, minimal guest closure, provisioning/readiness and compatibility boundaries; runtime guides own current target availability | New runner capability or customer acceptance merely from the design |
 | [Evidence/export design](Export-Design.md) | Test evidence identity, capture, export and lifetime design; runtime contracts remain authoritative | Product acceptance, VM operations or new passing results |
@@ -141,7 +141,7 @@ and the selected brief. Use the existing shared operations in both qualification
 and cases; validate at the lowest effective layer before a required live attempt.
 
 For queue work, read the selected entry plan ([A](E2E-Execution-Plan.md) or
-[B](E2E-Execution-PlanB.md)), its **Next task**
+[B](E2E-Execution-PlanB.md) or [C](E2E-Execution-PlanC.md)), its **Next task**
 brief, then follow its [reading routes](E2E-Execution-Instructions.md#load-only-the-selected-context).
 Read the shared live contract and applicable acceptance branch before
 implementation, and completion at close-out. Retrieve only applicable

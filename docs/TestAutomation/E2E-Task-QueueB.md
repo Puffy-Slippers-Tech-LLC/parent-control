@@ -5,7 +5,10 @@ Use the [shared execution instructions](E2E-Execution-Instructions.md) and
 [execution contracts](E2E-Execution-Contracts.md). Task IDs, case assignments,
 briefs, scope, estimates and acceptance are preserved from the original queue.
 Pending prerequisites and their consumers stay together here; there are no
-unfinished dependencies on Plan A. Follow this table in order, never the other
+unfinished dependencies on Plan A or [Plan C](E2E-Task-QueueC.md).
+Later system, multi-desktop, calendar, preset and What's New groups moved to C;
+the current lifecycle group and all feedback prerequisite groups stay here.
+Follow this table in order, never another
 plan’s pointer. Exclusions and shared delivered context remain in the
 [shared instructions](E2E-Execution-Instructions.md#current-scope).
 
@@ -107,14 +110,6 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 223 | [E2E-040: remove-last-child](E2E-Tasks/223-case-181.md) | 017 | Cases 181; reuse shared spare-only profile and removal operation in an independent complete journey | 20–30 |
 | [ ] | 224 | [E2E-040: ineligible-approver](E2E-Tasks/224-case-182.md) | 155 | Cases 182; shared spare-approver creation/role binding and both public selector fallbacks | 40–60 (exception) |
 | [ ] | 312 | [Child reminder preferences persist across request surfaces](E2E-Tasks/312-child-reminder-preferences.md) | 312a, 312b, 007 | Planned scenario; create/edit/save custom text, exact station readback, one Cancel, delete/save empty list, then reboot and check both screens and the other child's unchanged reminders/language. Duplicate times, sorting and detailed translations belong to smaller local editing checks; installed editing and kiosk bindings qualified by 312a/312b; complete scenario has no implementation or acceptance | 35–55 (exception) |
-| [ ] | 169 | [Preserve and qualify system obligation 140: startup enforcement](E2E-Tasks/169-system-140.md) | Baseline | System obligation 140 | 30–60 (exception) |
-| [ ] | 170 | [Preserve and qualify system obligation 141: broker startup](E2E-Tasks/170-system-141.md) | Baseline | System obligation 141 | 30–60 (exception) |
-| [ ] | 171 | [Preserve and qualify system obligation 142: zero-time exposure](E2E-Tasks/171-system-142.md) | Baseline | System obligation 142 | 30–60 (exception) |
-| [ ] | 173 | [Preserve and qualify system obligation 144: kiosk authentication agent](E2E-Tasks/173-system-144.md) | Baseline | System obligation 144 | 30–60 (exception) |
-| [ ] | 174 | [Preserve and qualify system obligation 145: failed save](E2E-Tasks/174-system-145.md) | Baseline | System obligation 145 | 30–60 (exception) |
-| [ ] | 175 | [Preserve and qualify system obligation 146: stale identity](E2E-Tasks/175-system-146.md) | Baseline | System obligation 146 | 30–60 (exception) |
-| [ ] | 178 | [Preserve and qualify system obligation 149: policy reload](E2E-Tasks/178-system-149.md) | Baseline | System obligation 149 | 30–60 (exception) |
-| [ ] | 179 | [Preserve and qualify system obligation 150: partial termination](E2E-Tasks/179-system-150.md) | Baseline | System obligation 150 | 30–60 (exception) |
 | [ ] | 150a | [Prepare the reviewed feedback submission profile](E2E-Tasks/150a-feedback-profile.md) | 038, 031a, 030 | Concrete synthetic reports, recipient and authorization scope for FEED11 consumers | 20–30 |
 | [ ] | 150 | [Submit one authorized synthetic report and read success](E2E-Tasks/150-feedback-send.md) | 150a | FEED11, FEED09 sending/success and FEED14 Parent feedback; gate in brief | 20–30 |
 | [ ] | 151 | [E2E-032: success](E2E-Tasks/151-case-156.md) | 150 | Cases 156; gate in brief | 35–55 (exception) |
@@ -150,21 +145,6 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 190b | [Keep a sending kiosk report open after Close](E2E-Tasks/190b-kiosk-sending-stay.md) | 150, 187k, 193a | FEED09 retry and FEED17/18 kiosk stay-open branch; gate in brief | 20–30 |
 | [ ] | 190k | [Stop a sending kiosk report](E2E-Tasks/190k-confirm-stopping-a-sending-kiosk-report.md) | 190b | FEED09 retry and FEED17/18 kiosk; gate in brief | 20–30 |
 | [ ] | 261 | [E2E-047: kiosk-stop](E2E-Tasks/261-case-219.md) | 190k | Cases 219; gate in brief | 20–30 |
-| [ ] | 143 | [Qualify distinct retained desktops for one child](E2E-Tasks/143-multi-desktop.md) | 047a | FLOW14 same-child multi-desktop scope; gate in brief | 20–30 |
-| [ ] | 144 | [E2E-007: zero-multiple](E2E-Tasks/144-case-18.md) | 079b, 065a, 143 | Cases 18; gate in brief | 40–60 (exception) |
-| [ ] | 145 | [E2E-007: remaining-multiple](E2E-Tasks/145-case-20.md) | 079b, 065, 143, 079a | Cases 20; gate in brief | 40–60 (exception) |
-| [ ] | 146 | [E2E-021: save](E2E-Tasks/146-case-112.md) | 143, 079b, 065, 079a | Cases 112; gate in brief | 40–60 (exception) |
-| [ ] | 147 | [E2E-021: approve-without-soft](E2E-Tasks/147-case-113.md) | 143, 079b, 065, 079a | Cases 113; gate in brief | 40–60 (exception) |
-| [ ] | 148 | [E2E-021: approve-with-soft](E2E-Tasks/148-case-114.md) | 143, 079b, 065, 079d | Cases 114; gate in brief | 40–60 (exception) |
-| [ ] | 149 | [E2E-021: revoke](E2E-Tasks/149-case-115.md) | 143, 079b, 065, 079a | Cases 115; gate in brief | 40–60 (exception) |
-| [ ] | 191 | [Read local date, time and timezone through SSH](E2E-Tasks/191-read-local-calendar-and-timezone.md) | Baseline | TIME05 read-only system clock/timezone observations | 20–30 |
-| [ ] | 238 | [E2E-044: ordinary-daily-reset](E2E-Tasks/238-case-196.md) | 191, 051, 062 | Cases 196; gate in brief | Scheduled window; ≤60 (exception) |
-| [ ] | 239 | [E2E-044: ordinary-rest-of-day](E2E-Tasks/239-case-197.md) | 191, 065a, 062 | Cases 197; gate in brief | Scheduled window; ≤60 (exception) |
-| [ ] | 240 | [E2E-044: ordinary-fixed-grant](E2E-Tasks/240-case-198.md) | 191, 065a, 062 | Cases 198; gate in brief | Scheduled window; ≤60 (exception) |
-| [ ] | 242 | [E2E-044: spring-forward-paired-grants](E2E-Tasks/242-case-200.md) | 191, 065a, 062 | Cases 200; two children, both grant types; gate in brief | Scheduled window; ≤60 (exception) |
-| [ ] | 245 | [E2E-044: fall-back-paired-grants](E2E-Tasks/245-case-203.md) | 191, 065a, 062 | Cases 203; two children, both grant types; gate in brief | Scheduled window; ≤60 (exception) |
-| [ ] | 314 | [Saved request presets and units persist](E2E-Tasks/314-request-presets.md) | 012c, 014 | Planned scenario; saved preset addition/deletion, Custom Hours and restored choices; case and executable unassigned; not a kiosk baseline prerequisite | 20–30 |
-| [ ] | 315 | [Read kiosk What's New and return to the request](E2E-Tasks/315-kiosk-whats-new.md) | 185k, 014 | Planned scenario; installed latest-release content and unchanged request return; case and executable unassigned; not a kiosk baseline prerequisite | 20–30 |
 
 ## Deferred future work
 

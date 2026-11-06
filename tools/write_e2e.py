@@ -29,6 +29,7 @@ from launcher_git import (closeout_lock, commit_push_propagate,
 
 DEFAULT_PLAN = 'docs/TestAutomation/E2E-Execution-Plan.md'
 PLAN_B = 'docs/TestAutomation/E2E-Execution-PlanB.md'
+PLAN_C = 'docs/TestAutomation/E2E-Execution-PlanC.md'
 PLAN = DEFAULT_PLAN
 QUEUE = 'docs/TestAutomation/E2E-Task-Queue.md'
 NAMESPACE = None
@@ -120,15 +121,26 @@ investigate the previous failure before the session's acceptance attempt.
 """
 
 
-def configure_plan(planb=False):
+def configure_plan(planb=False, planc=False):
     """Select once per controller process, including private workers and reloads."""
     from execution_plan import plan_namespace
     global PLAN, QUEUE, NAMESPACE, COMMAND
-    PLAN = PLAN_B if planb else DEFAULT_PLAN
-    QUEUE = ('docs/TestAutomation/E2E-Task-QueueB.md' if planb
+    if planb and planc:
+        raise ValueError('--planb and --planc are mutually exclusive')
+    PLAN = PLAN_C if planc else PLAN_B if planb else DEFAULT_PLAN
+    QUEUE = ('docs/TestAutomation/E2E-Task-QueueC.md' if planc else
+             'docs/TestAutomation/E2E-Task-QueueB.md' if planb
              else 'docs/TestAutomation/E2E-Task-Queue.md')
-    NAMESPACE = plan_namespace(PLAN) if planb else None
-    COMMAND = 'tools/write-e2e' + (' --planb' if planb else '')
+    NAMESPACE = plan_namespace(PLAN) if planb or planc else None
+    COMMAND = 'tools/write-e2e' + (' --planc' if planc else ' --planb' if planb else '')
+
+
+def add_plan_options(parser):
+    plans = parser.add_mutually_exclusive_group()
+    plans.add_argument('--planb', action='store_true',
+                       help='select the independent E2E-Execution-PlanB.md queue')
+    plans.add_argument('--planc', action='store_true',
+                       help='select the independent E2E-Execution-PlanC.md queue')
 
 
 def workflow_directory(root, *, create=False):
@@ -1645,8 +1657,7 @@ def select(root, argv):
             epilog='Reviewed queue revisions: --reconcile RUN [--check] validates/adopts the '
                    'exact inactive checkpoint without executing tasks, models or VMs.')
         parser.add_argument('--vm', help='registered VM name or ID; omitted: configured enabled queue and concurrency')
-        parser.add_argument('--planb', action='store_true',
-                            help='run the independent E2E-Execution-PlanB.md queue')
+        add_plan_options(parser)
         parser.add_argument('--closeout-only', action='store_true',
                             help='finish retained accepted Git close-out without starting a task session')
         add_options(parser, stop_help='finish the current session and stop before the next')
@@ -1709,7 +1720,7 @@ def select(root, argv):
     args = parse()
     return launcher.select(root, 'plans' if NAMESPACE else 'write-e2e', command,
                            namespace=NAMESPACE, launcher_name='write-e2e',
-                           stop_argv=['--planb', '--stop'] if NAMESPACE else ['--stop'],
+                           stop_argv=COMMAND.split()[1:] + ['--stop'],
                            stop='--stop' in argv, stop_marker='stop',
                            cancel_stop=args.cancel_stop,
                            on_attach=attach, on_start=start,
@@ -1718,7 +1729,7 @@ def select(root, argv):
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    configure_plan('--planb' in argv)
+    configure_plan('--planb' in argv, '--planc' in argv)
     root = Path(__file__).resolve().parents[1]
     if any(option in ('--reconcile', '--check') or option.startswith('--reconcile=')
            for option in argv):
@@ -1727,7 +1738,7 @@ def main(argv=None):
         parser.add_argument('--reconcile', required=True, metavar='RUN',
                             help='exact inactive retained write-e2e run ID')
         parser.add_argument('--check', action='store_true', help='validate without changing the checkpoint')
-        parser.add_argument('--planb', action='store_true', help='reconcile only Plan B')
+        add_plan_options(parser)
         args = parser.parse_args(argv)
         try:
             print(json.dumps(reconcile_queue(root, args.reconcile, check=args.check)))
@@ -1772,7 +1783,8 @@ def main(argv=None):
 if __name__ == '__main__':
     mode, root, run, owner, *options = sys.argv[1:]
     from execution_plan import plan_namespace
-    configure_plan(Path(run).parent.name == plan_namespace(PLAN_B))
+    configure_plan(Path(run).parent.name == plan_namespace(PLAN_B),
+                   Path(run).parent.name == plan_namespace(PLAN_C))
     if mode == '--worker':
         sys.exit(worker(Path(root), Path(run), int(owner), json.loads(options[0]), options[1]))
     if mode == '--supervise':

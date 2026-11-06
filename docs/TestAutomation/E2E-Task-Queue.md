@@ -8,7 +8,11 @@ Apply the [shared execution instructions](E2E-Execution-Instructions.md).
 The remaining work was partitioned from the 035d capability group onward;
 earlier work, including task 085, stays here. [Plan B’s queue](E2E-Task-QueueB.md)
 owns separate unfinished task IDs and briefs, with no pending prerequisite across
-the two queues. Each retains its original relative order and acceptance scopes.
+the queues. Each retains its original relative order and acceptance scopes.
+The later Flatpak, package update/removal, suspend and usage/expiry engineering
+groups now belong exclusively to
+[Plan C](E2E-Task-QueueC.md). Current task 160 and its consumers stay here;
+no unfinished dependency crosses between any of the three plans.
 
 The [Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary)
 applies to this entire queue. Its native, Flatpak, game and lifecycle tasks do
@@ -97,11 +101,13 @@ Apply the [expiry coverage allocation](UI-and-E2E-Coverage.md#expiry-coverage-al
 to all unfinished expiry consumers. Expiry coverage is delivered through the existing
 canonical rows: 084/085/144/145 (revocation), 182/206 (daily time outlasting a
 grant), 164/166a/166/167/168 (idle/suspend), and 171/172 (entry exposure and
-usage-read faults). There is no second expiry implementation queue. Full-case
+usage-read faults). These canonical tasks are partitioned across the three
+independent queues; none gains a prerequisite on unfinished work in another
+plan. There is no duplicate expiry implementation queue. Full-case
 delivery closes that same row only after its normal acceptance;
 later work consumes accepted scope without repeating it. No row is completed
-or reordered by this documentation change. Tasks 172a–172l merge only the removed
-broker plan's useful, uncovered current-path engineering deltas into this queue;
+by the split. Tasks 172a–172l retain only the removed broker plan's useful,
+uncovered current-path engineering deltas in [Plan C](E2E-Task-QueueC.md);
 they extend system-282 rather than copying these canonical scenarios. Native-only
 research, independent-reader proposals and proposal handover are not rescheduled.
 
@@ -631,23 +637,6 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 094 | [E2E-019: native-desktop-hard-blocked-enabled](E2E-Tasks/094-case-70.md) | 180, 036b | Cases 70 | 20–30 |
 | [ ] | 095 | [E2E-019: native-desktop-soft-blocked-enabled](E2E-Tasks/095-case-72.md) | 180, 036b | Cases 72 | 20–30 |
 | [ ] | 275 | [E2E-049: native-desktop-child-overlay](E2E-Tasks/275-case-233.md) | 197, 079b, 180, 036b | Cases 233 | 20–30 |
-| [ ] | 116p | [Prepare the declared Flatpak fixtures in the baseline](E2E-Tasks/116p-flatpak-fixtures.md) | 006, 077a | Flatpak baseline assets and FIX06 verification | 20–30 |
-| [ ] | 116b | [Launch and use Flatpak fixtures by command](E2E-Tasks/116b-flatpak-command-usable.md) | 116p, 047 | APP01/02/03/04 and FLOW08 Flatpak command usable/new-window route | 20–30 |
-| [ ] | 120 | [E2E-019: flatpak-command-allowed-enabled](E2E-Tasks/120-case-104.md) | 180, 116b | Cases 104 | 20–30 |
-| [ ] | 120b | [E2E-019: flatpak-command-allowed-disabled](E2E-Tasks/120b-case-105.md) | 180, 116b | Cases 105 | 20–30 |
-| [ ] | 116 | [Observe Flatpak command denial and closure](E2E-Tasks/116-flatpak.md) | 116b | APP01/02/03/04 and FLOW08 Flatpak command route | 20–30 |
-| [ ] | 121 | [E2E-019: flatpak-command-hard-blocked-enabled](E2E-Tasks/121-case-106.md) | 180, 116 | Cases 106 | 20–30 |
-| [ ] | 121b | [E2E-019: flatpak-command-hard-blocked-disabled](E2E-Tasks/121b-case-107.md) | 180, 116 | Cases 107 | 20–30 |
-| [ ] | 122 | [E2E-019: flatpak-command-soft-blocked-enabled](E2E-Tasks/122-case-108.md) | 180, 116 | Cases 108 | 20–30 |
-| [ ] | 122b | [E2E-019: flatpak-command-soft-blocked-disabled](E2E-Tasks/122b-case-109.md) | 180, 116 | Cases 109 | 20–30 |
-| [ ] | 288 | [E2E-049: flatpak-command-kiosk](E2E-Tasks/288-case-246.md) | 197k, 079b, 180, 116 | Cases 246 | 20–30 |
-| [ ] | 116a | [Qualify Flatpak app-grid launches](E2E-Tasks/116a-flatpak-grid.md) | 116 | APP01/02/03/04 and FLOW08 Flatpak app-grid route | 20–30 |
-| [ ] | 117 | [E2E-019: flatpak-grid-allowed-enabled](E2E-Tasks/117-case-98.md) | 180, 116a | Cases 98 | 20–30 |
-| [ ] | 118 | [E2E-019: flatpak-grid-hard-blocked-enabled](E2E-Tasks/118-case-100.md) | 180, 116a | Cases 100 | 20–30 |
-| [ ] | 119 | [E2E-019: flatpak-grid-soft-blocked-enabled](E2E-Tasks/119-case-102.md) | 180, 116a | Cases 102 | 20–30 |
-| [ ] | 285 | [E2E-049: flatpak-grid-child-overlay](E2E-Tasks/285-case-243.md) | 197, 079b, 180, 116a | Cases 243 | 20–30 |
-| [ ] | 124 | [E2E-020: update](E2E-Tasks/124-case-110.md) | 079, 006, 079d, 180 | Cases 110; missing fixture-update binding and complete retained-editor history, absorbs 123 | 35–55 (exception) |
-| [ ] | 125 | [E2E-020: remove](E2E-Tasks/125-case-111.md) | 079, 006, 079d, 180 | Cases 111; missing fixture remove/reinstall binding and complete retained-editor history, absorbs 123a | 35–55 (exception) |
 | [ ] | 126p | [Prepare the declared offline game in the baseline](E2E-Tasks/126p-game-fixture.md) | 006, 077a | Offline-game baseline assets and FIX06 verification | 20–30 |
 | [ ] | 126a | [Launch and observe the prepared offline game](E2E-Tasks/126a-game-activity.md) | 126p, 047 | Game APP01/02/03/04 and FLOW08 usable activity | 20–30 |
 | [ ] | 126 | [Compose windowed gameplay through natural expiry](E2E-Tasks/126-game.md) | 126a, 062, 065a | APP05/FLOW10 windowed game | 20–30 |
@@ -665,29 +654,12 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 290 | [E2E-050: overlay-first-fresh](E2E-Tasks/290-case-248.md) | 197, 197k, 196a, 079b, 155, 129a, 047a, 028 | Cases 248; two complete cycles; gate in brief | 20–30 + ≤90 live (exception) |
 | [ ] | 198 | [Manage from the second parent's own window](E2E-Tasks/198-manage-from-the-second-parent-s-own-window.md) | 044, 079 | FLOW15/FLOW01 other-parent management entry | 20–30 |
 | [ ] | 293 | [E2E-051: jordan](E2E-Tasks/293-case-251.md) | 197, 197k, 198, 196a, 079b, 079a, 155, 126, 047a | Cases 251; two recomposed rounds; gate in brief | 20–30 + ≤90 live (exception) |
-| [ ] | 166a | [Suspend and wake before a grant expires](E2E-Tasks/166a-suspend-active-grant.md) | 052, 065a, 043a, 052c | LIFE03 normal suspend/wake with active grant | 20–30 |
-| [ ] | 167 | [E2E-022: suspend-wake-active](E2E-Tasks/167-case-124.md) | 155, 079b, 079d, 065a, 166a | Cases 124 | 40–60 (exception) |
-| [ ] | 166 | [Observe time denial after suspend and wake](E2E-Tasks/166-suspend.md) | 166a | LIFE03 | 20–30 |
-| [ ] | 168 | [E2E-022: suspend-wake-expired](E2E-Tasks/168-case-125.md) | 079b, 079d, 065a, 166 | Cases 125 | 40–60 (exception) |
 | [x] | 312a | Qualify overlay reminder editing and persistence | 300i | Qualified on Ubuntu 26.04 and Fedora 44 through `check_e2e_overlay_reminder_editing`: defaults, literal 75-to-90-second editing with stable ID, independent Save/Cancel/empty-list readback, unchanged language/request/time/policy and owned cleanup. No natural-delivery or complete-case credit. | 20–30 |
 | [x] | 312b | Qualify kiosk reminder ownership and persistence | 312a, 300j | Qualified on Ubuntu 26.04 and Fedora 44 through `check_e2e_kiosk_reminder_binding`: exact saved-ID persistence from the 90-second overlay row through the 75-second kiosk edit and overlay readback, independent station reopen, Jordan list/language isolation, Riley preservation through Jamie → Casey and child switches, unchanged request/time/policy and owned cleanup. No natural-delivery or complete-case credit. | 20–30 |
 | [x] | 311a | Qualify the saved fullscreen reminder preference | 312a | Qualified on Ubuntu 26.04 and Fedora 44 through `check_e2e_reminder_fullscreen_preference`: Save false and independently reopen, Cancel a true draft and read saved false, exact reminder/language/request preservation, unchanged public policy/time and zero grants, with owned cleanup. Reports `20261013T201225Z-b7411901` and `20261013T201225Z-058fe498`; no notification-delivery or complete-case credit. | 20–30 |
 | [ ] | 311b | [Qualify natural reminder content and urgency](E2E-Tasks/311b-natural-reminder-observation.md) | 311a, 062, 300i | Natural ChildUI notification body, threshold binding and urgency. Blocker: declared threshold value differs from live-balance mapping; resume when the public contract and maintained reader distinguish the two consistently | 20–30 |
 | [ ] | 311c | [Qualify owned reminder banners during fullscreen play](E2E-Tasks/311c-fullscreen-reminder-visibility.md) | 311b, 129 | Public owned-banner visibility/suppression during genuine fullscreen play; qualification pending | 20–30 |
 | [ ] | 311 | [Remaining-time system notifications](E2E-Tasks/311-remaining-time-notifications.md) | 007, 052, 062, 300i, 312b, 311c | Planned scenario; read all four saved defaults; naturally deliver 1m/15s warnings, with no 10m/5m or blank-text delivery cycle; retain per-child reminders, translated defaults, literal custom text, fullscreen on/off, renewed-time warnings, natural locking and latest-version reboot persistence; targeted schema/migration regressions cover upgrade handling; installed reminder-control, natural notification and owned fullscreen-banner qualifications are gates; no executable or acceptance | 40–60 (exception) |
-| [ ] | 172 | [Preserve and qualify system obligation 143: usage read](E2E-Tasks/172-system-143.md) | Baseline | System obligation 143 | 30–60 (exception) |
-| [ ] | 172a | [Check revocation on the active desktop](E2E-Tasks/172a-foreground-revoke.md) | 084, 085 | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
-| [ ] | 172b | [Keep expiry moving during approval](E2E-Tasks/172b-approval-expiry.md) | 172a | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
-| [ ] | 172c | [Apply the latest time decision at expiry](E2E-Tasks/172c-policy-expiry.md) | 172a | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
-| [ ] | 172d | [Keep old expiry callbacks away from replacement sessions](E2E-Tasks/172d-session-expiry.md) | 172c | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
-| [ ] | 172e | [Check expiry across a broker crash](E2E-Tasks/172e-broker-crash-expiry.md) | 172c | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
-| [ ] | 172f | [Check expiry while the broker is stopped](E2E-Tasks/172f-broker-stop-expiry.md) | 172e | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
-| [ ] | 172g | [Check expiry while the broker stalls](E2E-Tasks/172g-broker-stall-expiry.md) | 172e | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
-| [ ] | 172h | [Check expiry after timer replacement](E2E-Tasks/172h-timer-owner-expiry.md) | 172c, 172e, 172 | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
-| [ ] | 172i | [Check expiry after child bus replacement](E2E-Tasks/172i-session-bus-expiry.md) | 172c, 172e | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
-| [ ] | 172j | [Require confirmed secure lock completion](E2E-Tasks/172j-lock-completion.md) | 172c | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
-| [ ] | 172k | [Check lock-provider recovery](E2E-Tasks/172k-lock-provider.md) | 172c, 172j | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
-| [ ] | 172l | [Characterize unavailable secure locking](E2E-Tasks/172l-secure-lock-outage.md) | 172j, 172k | Expiry-specific engineering delta; no customer-case credit | 30–60 (exception) |
 | [ ] | 295 | [Validate the manually prepared Lunar VM profile](E2E-Tasks/295-lunar-preparation.md) | 006 | FIX05; restored Lunar/AppImageLauncher/autostart/Minecraft prerequisites only. Blocker: profile and repeatable setup unqualified; resume when the manual assets and standard restore path are available. | 20–30 |
 | [ ] | 296c | [Launch Lunar and Quit through its normal controls](E2E-Tasks/296c-lunar-launch-quit.md) | 295, 052c | APP01/02/03/UI18 Lunar original-AppImage usable launch and Quit | 20–30 |
 | [ ] | 296d | [Close Lunar to its tray and restore it](E2E-Tasks/296d-lunar-tray.md) | 296c | APP06 Lunar/tray snapshot and close-to-tray/restore | 20–30 |

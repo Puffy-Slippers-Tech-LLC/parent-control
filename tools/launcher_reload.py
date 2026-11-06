@@ -38,6 +38,12 @@ class ReloadRequest:
         inherited = json.loads(os.environ.get(BASELINE, 'null'))
         if inherited is not None and inherited['run'] == str(run):
             self.generation = inherited['generation']
+            # Fresh imports confirm replacement, including exec by an older
+            # controller that did not publish an acknowledgement. Never accept
+            # a newer request that arrived while this interpreter was starting.
+            if self.generation is not None and generation(run) == self.generation:
+                from detached_launcher import atomic
+                atomic(run / 'reload-accepted.json', self.generation)
 
     def pending(self):
         return generation(self.run) != self.generation
@@ -97,10 +103,6 @@ def replace(command, descriptors):
             value = json.loads(baseline)
             value['generation'] = generation(Path(value['run']))
             os.environ[BASELINE] = json.dumps(value)
-            # Publish the request accepted at this safe boundary so observers
-            # can distinguish a pending reload from a retained old request.
-            from detached_launcher import atomic
-            atomic(Path(value['run']) / 'reload-accepted.json', value['generation'])
         if keeper is not None:
             os.environ[vm_pool.RELOAD_KEEPER] = json.dumps(keeper)
         for fd in inherited:

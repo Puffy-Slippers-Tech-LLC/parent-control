@@ -99,7 +99,7 @@
         {
           "id": "30",
           "name": "onpc-Fedora45",
-          "enabled": "false",
+          "enabled": "true",
           "host": "local",
           "disk_anchor": "/Data/virt-manager/onpc-Fedora45.qcow2",
           "owning_branch": ""

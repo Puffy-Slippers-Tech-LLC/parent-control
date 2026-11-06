@@ -2,17 +2,51 @@
 
 ## Native enforcement: incompatible fapolicyd magic database
 
-Investigation date: 2026-11-04. Status: unresolved vendor-package compatibility
-failure. This affects both VM preparation and the product's native enforcement
-dependency; passing preparation alone is insufficient to close it.
+Initial investigation date: 2026-11-04. Vendor retest: 2026-11-06. Status: the
+reported native failure no longer reproduces with `fapolicyd-2.0.2-1.fc45` and
+`file-libs-5.48-3.fc45`. Full VM preparation and installed-product compatibility
+remain unqualified; this retest was limited to the vendor bug.
 
 Reported to Fedora under the `fapolicyd` component as
 [Bug 2568044: fapolicyd fails to start with file-libs 5.48: suspected compiled magic database format mismatch](https://bugzilla.redhat.com/show_bug.cgi?id=2568044)
 on 2026-11-06 UTC. The report includes the native reproducer, package versions,
 startup diagnostics and package-integrity verification without mentioning this
 product. It describes the format mismatch as suspected and notes that
-`fapolicyd 2.0.2` has not been tested; filing the report does not resolve the
-compatibility failure.
+`fapolicyd 2.0.2` had not been tested when the report was filed. The subsequent
+vendor retest is recorded below.
+
+### Vendor-requested retest
+
+Red Hat requested testing
+[fapolicyd-2.0.2-1.fc45, FEDORA-2026-67d32ed434](https://bodhi.fedoraproject.org/updates/FEDORA-2026-67d32ed434).
+On 2026-11-06, a diagnostic-only guarded preparation attempt on VM 30 compared
+the retained failing package with that exact build:
+
+| Check | Before update | After update |
+| --- | --- | --- |
+| fapolicyd | `2.0.1-1.fc45.x86_64` | `2.0.2-1.fc45.x86_64` |
+| file-libs | `5.48-3.fc45.x86_64` | Unchanged |
+| `fapolicyd-cli --ftype /usr/bin/true` | Exit 8, invalid offsets and `Cannot initialize file helper libraries` | Exit 0, `application/x-executable` |
+| `rpm -V fapolicyd file-libs` after update | — | Exit 0, no differences |
+| Compiled magic format after update | — | Version 21 |
+| Native startup and readiness after update | — | Service enabled and active; `--check-status` passed; 31,044 rpmdb rows |
+
+The guest command was
+`dnf5 --refresh --enablerepo=updates-testing -y upgrade fapolicyd-2.0.2-1.fc45`.
+DNF also upgraded `fapolicyd-selinux` to the matching build and replaced
+`rpm-plugin-fapolicyd`, as declared by the vendor transaction. No magic database
+substitution or policy bypass was used.
+
+The probe stopped deliberately after native readiness, before baseline capture
+or product installation. Its diagnostic-only exception makes the preparation
+launcher report failure; it does not represent a failed native check. The
+controller verified the VM powered off. Temporary diagnostic code was removed
+from the checkout; retained guest staging and controller state remain available
+through the guarded preparation route. No full preparation or installed-product
+acceptance is claimed, and no bug-tracker reply was posted.
+
+Private diagnostic log, subject to normal retention:
+`output/test-runs/privileged/allocations/onpc-baseline-preparation-failure-jtspoamb/preparation.log`.
 
 ### Affected environment
 
@@ -95,10 +129,10 @@ The update did not change the installed versions, and file-type inspection still
 failed. A refreshed query of the guest's enabled repositories offered the same
 incompatible versions.
 
-At investigation time, Fedora's source repository contained a newer
+At initial investigation time, Fedora's source repository contained a newer
 `fapolicyd 2.0.2` specification. This does not prove that a compatible binary was
-available to this guest or that it fixes the problem. Its compatibility remains
-untested. See the [Fedora 45 package specification](https://src.fedoraproject.org/rpms/fapolicyd/raw/f45/f/fapolicyd.spec).
+available to this guest or that it fixes the problem. That version was untested
+until the vendor-requested retest above. See the [Fedora 45 package specification](https://src.fedoraproject.org/rpms/fapolicyd/raw/f45/f/fapolicyd.spec).
 
 The unsuccessful automatic-update implementation was removed. No substituted
 database, enforcement bypass, permissive-policy workaround, or weakened
@@ -128,9 +162,9 @@ pass, and the green final success line was not exercised end-to-end.
 
 ### Required resolution
 
-Obtain and qualify a vendor package combination with compatible compiled magic
-formats. Do not claim that an untested newer version resolves the issue.
-Acceptance requires:
+The vendor retest passes the native checks below for the exact updated package
+combination. Broader compatibility acceptance remains outside this retest and
+requires:
 
 1. Successful native file-type inspection.
 2. Successful native daemon startup and readiness.

@@ -13,7 +13,7 @@ Task queue: [Plan C ordered checklist](E2E-Task-QueueC.md).
 
 ## Next task
 
-Next task: **119 — [E2E-019: flatpak-grid-soft-blocked-enabled](E2E-Tasks/119-case-102.md)**.
+Next task: **285 — [E2E-049: flatpak-grid-child-overlay](E2E-Tasks/285-case-243.md)**.
 
 This plan owns its queue, unchanged task briefs and next-task pointer.
 It can run independently of all unfinished work in

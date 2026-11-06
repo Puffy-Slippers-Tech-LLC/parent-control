@@ -110,19 +110,14 @@
             vscode.postMessage({ type: 'copy', root: entry.id, text: entry.launcher_command })) :
             element('span', '', labels);
         title.classList.add('run-launcher-label');
-        const titleLabel = entry.launcher_command ? `tools/${entry.label}` : entry.label;
-        title.textContent = titleLabel;
+        title.textContent = entry.label;
         if (['Stop Requested', 'Stopping', 'Reload Requested'].includes(entry.status)) {
             const suffix = ` (${entry.status})`;
             if (entry.label.endsWith(suffix)) {
-                title.textContent = titleLabel.slice(0, -suffix.length) + ' (';
+                title.textContent = entry.label.slice(0, -suffix.length) + ' (';
                 element('span', 'stop-requested', title).textContent = entry.status;
                 title.append(')');
             }
-        }
-        if (entry.launcher_command) {
-            const parameters = entry.launcher_command.indexOf(' ');
-            if (parameters !== -1) title.append(entry.launcher_command.slice(parameters));
         }
         title.title = entry.launcher_command ? `Copy command: ${entry.launcher_command}` : entry.label;
         labels.classList.toggle('finished', entry.status === 'finished');

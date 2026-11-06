@@ -99,8 +99,11 @@ buttons onto the first row and all tabs onto the second row. As that row narrows
 the tabs wrap onto additional rows until they stack vertically. Wrapped tabs have
 equal widths and centered text. The left panel's minimum width fits both the
 shortened title with its action buttons and the widest tab below it. Hover over a
-launcher title to see its full text and saved command with all parameters, including
-argument quoting. Older runs without saved parameters show only the full title.
+launcher title to see its saved command with all parameters, including
+argument quoting. The title is a link displaying `tools/[branch] launcher (status)`
+followed by the saved parameters. Clicking copies the runnable command, such as
+`tools/write-e2e <parameters>`, relative to the repository root. Older runs without
+saved parameters show only the plain title.
 The name comes from the launcher's `current.json`
 publication, including custom plan launcher names. Older runs without a published
 name show `launcher` until their next start, attachment or reload request.

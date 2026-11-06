@@ -87,9 +87,16 @@ if [ "$1" = install ] || [ "$1" = upgrade ]; then
     touch /var/lib/oh-no-parent-control/migration-in-progress
     if systemctl is-active --quiet oh-no-parent-control-broker.service; then
         # A concurrent D-Bus activation can cancel the stop job after the
-        # process exits. The guard prevents its replacement; verify the result.
+        # process exits. The guard prevents its replacement; allow systemd's
+        # in-progress shutdown to finish before deciding whether it stopped.
         @service_command@ stop oh-no-parent-control-broker.service >/dev/null || true
         broker_state=$(systemctl show --property=ActiveState --value oh-no-parent-control-broker.service)
+        broker_wait=0
+        while [ "$broker_state" = deactivating ] && [ "$broker_wait" -lt 15 ]; do
+            sleep 1
+            broker_wait=$((broker_wait + 1))
+            broker_state=$(systemctl show --property=ActiveState --value oh-no-parent-control-broker.service)
+        done
         case "$broker_state" in
             inactive|failed) ;;
             *) echo 'oh-no-parent-control: broker did not stop; unpack must be retried' >&2; exit 1 ;;

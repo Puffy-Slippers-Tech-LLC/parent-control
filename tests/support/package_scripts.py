@@ -538,6 +538,7 @@ test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
             source = source.replace(command, command.replace("-", "_").replace(".", "_"))
         mocks = r'''
 record() { printf '%s\n' "$*" >> "$AUDIT_ROOT/commands"; }
+sleep() { record sleep "$@"; }
 native_purge_phase() { printf '%s\n' "${RPM_REMOVAL_PHASE:-remove}"; }
 fedora_execution_policy() {
     case "$1" in
@@ -555,7 +556,11 @@ systemctl() {
                 'show --property=ActiveState --value oh-no-parent-control-execution-policy-ready.service')
                     printf '%s\n' "${READINESS_STATE:-inactive}" ;;
                 'show --property=ActiveState --value oh-no-parent-control-broker.service')
-                    printf '%s\n' "${BROKER_STOP_STATE:-inactive}" ;;
+                    if [ "${BROKER_STOP_TRANSIENT:-0}" = 1 ] &&
+                       [ ! -f "$AUDIT_ROOT/broker-stop-observed" ]; then
+                        touch "$AUDIT_ROOT/broker-stop-observed"
+                        printf '%s\n' deactivating
+                    else printf '%s\n' "${BROKER_STOP_STATE:-inactive}"; fi ;;
                 'show --property=InvocationID --value fapolicyd.service')
                     printf '%s\n' "${POLICY_INVOCATION:-before}" ;;
                 *) return 1 ;;
@@ -791,7 +796,11 @@ case "$name" in
                 exit "${BROKER_STOP_STATUS:-0}"
                 ;;
             'show --property=ActiveState --value oh-no-parent-control-broker.service')
-                if [ -n "${BROKER_STOP_STATE:-}" ]; then printf '%s\n' "$BROKER_STOP_STATE"
+                if [ "${BROKER_STOP_TRANSIENT:-0}" = 1 ] &&
+                   [ ! -f "$AUDIT_ROOT/broker-stop-observed" ]; then
+                    touch "$AUDIT_ROOT/broker-stop-observed"
+                    printf '%s\n' deactivating
+                elif [ -n "${BROKER_STOP_STATE:-}" ]; then printf '%s\n' "$BROKER_STOP_STATE"
                 elif [ -f "$AUDIT_ROOT/broker-active" ]; then printf '%s\n' active
                 else printf '%s\n' inactive; fi
                 ;;
@@ -835,7 +844,7 @@ case "$name" in
                 ;;
         esac
         ;;
-    restorecon|chown|chmod|systemd-sysusers|invoke-rc.d|usermod|passwd|setpriv) exit 0 ;;
+    restorecon|chown|chmod|systemd-sysusers|invoke-rc.d|usermod|passwd|setpriv|sleep) exit 0 ;;
     oh-no-parent-control-fedora-pam)
         if [ "${PAM_LOCAL_CHANGES:-0}" != 1 ]; then
             /usr/bin/cp "$AUDIT_ROOT/generated-pam/"* "$AUDIT_ROOT/etc/pam.d/"
@@ -854,7 +863,7 @@ esac
     stub.chmod(0o755)
     for name in ("getent", "id", "systemctl", "deb-systemd-invoke", "install",
                  "chown", "chmod", "systemd-sysusers", "invoke-rc.d", "pam-auth-update",
-                 "stat", "debconf-communicate", "usermod", "passwd", "setpriv", "restorecon"):
+                 "stat", "debconf-communicate", "usermod", "passwd", "setpriv", "restorecon", "sleep"):
         (bin_dir / name).symlink_to(stub)
     for name in ("rm", "touch", "grep", "cut", "cat", "cmp", "sync"):
         (bin_dir / name).symlink_to(Path("/usr/bin") / name)

@@ -473,6 +473,8 @@ RESPONSE_BYTE_LIMITS.update({operation: 32768
                             for operation in accessible_ui.BINDING_REMINDER_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Transferring child choices between the overlay and request station: ' + operation
                         for operation in accessible_ui.TRANSFER_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Reading the usable request form and intended child'
+                        for operation in ('request-overlay-jordan-ready', 'request-kiosk-jordan-ready')})
 RESPONSE_BYTE_LIMITS.update({operation: 32768 for operation in
                            accessible_ui.OVERLAY_LANGUAGE_OPERATIONS | {'overlay-language-policy'}})
 OPERATION_LABELS.update({
@@ -2913,6 +2915,11 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'request'}, 'ui:response')
             RequestObservation.from_request(result['request'], operation=operation)
             expected['request'] = result['request']
+        if operation in ('request-overlay-jordan-ready', 'request-kiosk-jordan-ready'):
+            require(result.get('request_readiness') == {
+                'surface': 'child-overlay' if operation == 'request-overlay-jordan-ready' else 'kiosk',
+                'child': 'existing-fixture-child', 'ready': True}, 'ui:request-readiness-response')
+            expected['request_readiness'] = result['request_readiness']
         if operation in ('gdm-child-time-denied', 'gdm-child-denied-return-ready'):
             require(type(result) is dict and set(result) == {*expected, 'denial'}
                     and type(result['denial']) is dict

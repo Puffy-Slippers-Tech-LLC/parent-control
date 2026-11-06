@@ -90,6 +90,68 @@ sub run_upgrade {
 sub run_no_action { run_automatic_update('update-no-action', @_); }
 sub run_process { run_automatic_update('activation-process', @_); }
 
+sub run_process_case {
+    onpc_progress::operation('Updating while preserving the child rules and original extra time');
+    my ($exchange, $declared, $challenges, $request) = @_;
+    die 'update-process:arguments' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,0';
+    require onpc_app_rows;
+    require onpc_desktop_session;
+    require onpc_request_flow;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'update-process-case', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_parent::login_functional($journey);
+    $journey->seen($_) for qw(command-context package-submitted package-result reboot-requested);
+    my $desktop = return_entry($journey);
+    onpc_parent::launch($journey, $desktop, 'management', 'reboot-desktop');
+    $journey->consume_observation('parent-selected', onpc_parent::select_child($journey, 'existing',
+        $journey->seen('child-picker-opened'), 'child-picker-opened',
+        'child-choice-highlighted', 'parent-selected'));
+    $journey->seen('allowance-configured');
+    my $apps = [['A', 'match-precise', 'allowed'], ['H', 'match-hard-precise', 'permanent'],
+                ['S', 'match-soft-wildcard', 'conditional']];
+    onpc_app_rows::named_app_set($journey, 'desktop', 'same-user', 'retained', 'existing', $apps, 'rules');
+    my $approval = $journey->scope('request');
+    $approval->{kiosk_request} = [@$request];
+    onpc_request_flow::obtain_time($approval, 'observed',
+        'existing-fixture-child', 'fixture-parent', 1200, 0, 'automatic');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'issued-parent');
+    $journey->seen($_) for qw(issued-screen issued-balance);
+    my $leave = sub {
+        my ($prefix) = @_;
+        my $section = $journey->scope($prefix);
+        onpc_desktop_session::switch_user($section, $section->seen('desktop'));
+    };
+    my $apps_result = sub {
+        my ($prefix) = @_;
+        my $section = $journey->scope($prefix)->scope('allowed');
+        onpc_app_rows::native_usable_app($section, 'command', $section->seen('desktop'));
+        $section->seen($_) for qw(close closed);
+        onpc_app_rows::native_blocked_app($journey->scope($prefix)->scope('hard'), 'H');
+        onpc_app_rows::native_blocked_app($journey->scope($prefix)->scope('soft'), 'S');
+    };
+    $leave->('issued-leave');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'before-child');
+    $journey->seen('before-countdown');
+    $apps_result->('before');
+    $leave->('child-leave');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'before-parent');
+    $journey->seen($_) for qw(settings-before upgrade-context upgrade-submitted upgrade-result upgrade-reread saved-apps);
+    onpc_app_rows::saved_rows($journey, $apps, 'saved');
+    $journey->seen($_) for qw(saved-screen final-balance about-information about-returned);
+    $leave->('updated-leave');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained', 'success', 'after-child');
+    $journey->seen('after-countdown');
+    $apps_result->('after');
+    $journey->seen($_) for qw(overlay-launch overlay-ready overlay-cancel overlay-returned);
+    $leave->('request-leave');
+    onpc_gdm::enter_station($journey, 'renewed-');
+    $journey->seen($_) for qw(kiosk-ready kiosk-cancel kiosk-returned);
+    $journey->finish();
+}
+
 sub run_automatic_update {
     onpc_progress::operation('Updating while the parent keeps the child allowance open');
     my ($prefix, $exchange, $declared, $challenges) = @_;

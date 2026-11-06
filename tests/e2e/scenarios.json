@@ -1724,7 +1724,7 @@
       "category": "customer-journey",
       "owners": ["package-update"],
       "requirements": ["ONPC-CORE-RECOVERY-002", "ONPC-CORE-RECOVERY-003", "ONPC-CORE-LIFECYCLE-001", "ONPC-CORE-LIFECYCLE-002"],
-      "requirement_gap": "Successful saved-data conversion belongs to the update journey; conversion failure, retry and future-schema protection require separate system checks and are not exercised by these customer activation variants.",
+      "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/Publishing.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": ["ubuntu26.04", "fedora44"],
@@ -1766,7 +1766,7 @@
         "rationale": "Three actual update/activation profiles. Every case installs its own earlier release, follows its actual instructions for every affected user/surface, preserves allowance/app rules and the original grant deadline, and proves usable/enforced access. Only reboot case 138 repeats the complete both-form preference tour; process/session cases 136/137 shorten that tour. No route inherits previous case state."
       },
       "variants": [
-        {"coverage_id": 136, "id": "process", "owner": "package-update", "parameters": {"activation": "process"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 136, "id": "process", "owner": "package-update", "parameters": {"activation": "process"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/update_process_case.py", "test_id": "process"}},
         {"coverage_id": 137, "id": "session", "owner": "package-update", "parameters": {"activation": "session"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 138, "id": "reboot", "owner": "package-update", "parameters": {"activation": "reboot"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]

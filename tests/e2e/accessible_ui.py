@@ -1378,6 +1378,8 @@ for _name, _child in (('riley', CHILD), ('jordan', EXISTING_CHILD)):
         TRANSFER_CHOICES[_operation] = _values
         if _action == 'read':
             TRANSFER_REQUESTS[_operation] = _values
+for _surface, _overlay in (('overlay', True), ('kiosk', False)):
+    TRANSFER_OPERATIONS[f'request-{_surface}-jordan-ready'] = (_overlay, EXISTING_CHILD, 'ready')
 OPERATIONS |= TRANSFER_OPERATIONS.keys()
 KIOSK_SESSION_OPERATIONS |= {operation for operation, (overlay, *_binding) in TRANSFER_OPERATIONS.items()
                             if not overlay}
@@ -11096,6 +11098,22 @@ class AccessibleUI:
         if action == 'returned':
             self.overlay_desktop(child=child)
             return None
+        if action == 'ready':
+            # Lifecycle consumers need a usable request and its intended child,
+            # independently of the remembered duration and local approver.
+            self._complete_language_setup('kiosk')
+            observation = self.read_snapshot()
+            window = self.request_surface(observation, overlay=overlay, child=child)
+            form = self.snapshot_owned_target('kiosk-request-form', root=window,
+                                              observation=observation, check_prompt=True)
+            require(form is not None, 'ui:request-ready-form')
+            self.initial_kiosk_child(observation, window, child=child)
+            for identity in ('kiosk-request-submit', 'kiosk-request-cancel'):
+                target = self.snapshot_owned_target(identity, root=form, observation=observation)
+                require(target is not None and self.has_state(target, self.api.StateType.SENSITIVE),
+                        'ui:request-ready-disabled')
+            return {'surface': 'child-overlay' if overlay else 'kiosk',
+                    'child': CHILD_IDENTITIES[child], 'ready': True}
         seconds, custom, soft, approver = TRANSFER_CHOICES[operation]
         if action in ('select', 'select-default'):
             return self.select_kiosk_account('child', child, expected=(CHILD, EXISTING_CHILD),
@@ -14025,7 +14043,8 @@ class AccessibleUI:
         elif operation in TRANSFER_OPERATIONS:
             value = self.transfer_choices(operation)
             if value is not None:
-                result['request'] = value
+                result['request_readiness' if TRANSFER_OPERATIONS[operation][2] == 'ready'
+                       else 'request'] = value
         elif operation in LOCK_SURFACE_OPERATIONS:
             result['lock'] = self.lock_surface(operation)
         elif operation in RESTART_OPERATIONS:

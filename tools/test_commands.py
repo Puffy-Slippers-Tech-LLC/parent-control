@@ -560,6 +560,13 @@ def vm_input_options(category, argv):
 
 
 def vm_preparation_flags(category, argv):
+    if category == 'e2e':
+        import runpy
+        root = Path(__file__).resolve().parents[1]
+        runner = runpy.run_path(str(root / 'tests/e2e/runner.py'))
+        plan = runner['preflight'](list(argv), root=root, allow_missing_artifacts=True)
+        if any(case['case_id'] == 'E2E-026/process' for case in plan.get('cases', [])):
+            return ['--process-inputs']
     _, upgrade = vm_input_options(category, argv)
     return (['--system-native-inputs'] if '--native-inputs' in argv else
             ['--upgrade-inputs'] if upgrade else [])

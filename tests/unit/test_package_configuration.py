@@ -2207,6 +2207,33 @@ def test_child_trust_refresh_failure_blocks_activation_and_is_retryable(package_
 
 
 @pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
+def test_canceled_stop_waits_for_shutdown_before_migration(package_machine):
+    root, saved, run = package_machine
+    (root / 'broker-active').touch()
+    result = run(BROKER_STOP_STATUS='1', BROKER_STOP_TRANSIENT='1')
+    assert result.returncode == 0, result.stderr
+    commands = (root / 'commands').read_text().splitlines()
+    assert commands.count('sleep 1') == 1
+    assert commands.index('sleep 1') < commands.index('oh-no-parent-control-migrate-state ')
+    assert not (saved / 'migration-in-progress').exists()
+
+
+@pytest.mark.parametrize('distribution', ['ubuntu', 'fedora'])
+@pytest.mark.parametrize('settles', [True, False])
+def test_preinst_requires_completed_shutdown_before_unpack(tmp_path, distribution, settles):
+    from tests.support.package_scripts import Machine
+    machine = Machine(tmp_path, distribution)
+    machine.baseline()
+    result = machine.run('preinst', 'upgrade', BROKER_ACTIVE='1', BROKER_STOP_STATUS='1',
+        BROKER_STOP_TRANSIENT='1', BROKER_STOP_STATE='inactive' if settles else 'deactivating')
+    assert (result.returncode == 0) == settles, result.stderr
+    state = tmp_path / 'var/lib/oh-no-parent-control'
+    assert (state / 'migration-in-progress').exists()
+    assert (state / 'package-activation-pending').exists() == settles
+    assert machine.commands.splitlines().count('sleep 1') == (1 if settles else 15)
+
+
+@pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
 @pytest.mark.parametrize('state', ['inactive', 'failed', 'active', 'activating', 'deactivating'])
 def test_canceled_stop_requires_confirmed_broker_exit_before_migration(package_machine, state):
     root, saved, run = package_machine

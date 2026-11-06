@@ -133,13 +133,16 @@ sub enter_kiosk_mate_password {
             my $app_transition = ($journey->{prefix} // '') eq 'app-rule-changes-soft-opening'
                 && ($journey->{stage_prefix} // '') eq 'soft-opening-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,75,1';
+            my $process_update = ($journey->{prefix} // '') eq 'update-process-case-request'
+                && ($journey->{stage_prefix} // '') eq 'request-'
+                && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,0';
             my $work_recovery = ($journey->{prefix} // '') eq 'grant-work-recovery'
                 && ($journey->{stage_prefix} // '') eq ''
                 && ref($request) eq 'ARRAY' && join(',', @$request) =~ /\Achild,parent,1200,[01]\z/;
             my $expired_restart = ($journey->{prefix} // '') =~ /\A(?:app-restart|sign-out-in)-expired\z/
                 && ($journey->{stage_prefix} // '') eq ''
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,1200,0';
-            die 'secret:challenge' unless ($delayed || $grant_access || $app_restart || $app_transition || $work_recovery || $expired_restart ||
+            die 'secret:challenge' unless ($delayed || $grant_access || $app_restart || $app_transition || $process_update || $work_recovery || $expired_restart ||
                     ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
                     && ($journey->{stage_prefix} // '') eq '')
                 && ref($request) eq 'ARRAY' && @$request == 4

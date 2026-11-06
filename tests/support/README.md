@@ -240,8 +240,10 @@ use that same boundary with the case-required subsets described in the
 installed-system contract, after explicit offline app restoration and
 fresh SSH bootstrap. Read-only readiness renewal after a session reboot
 checks the same selected bytes and native state without resetting scenario
-mutations. Renewal permits the hard witness alone or system-282's exact
-hard/native/activity/baseline-child union; all other subsets still refuse.
+mutations. Renewal permits the native closure, the hard witness alone or
+system-282's exact hard/native/activity/baseline-child union; all other subsets
+still refuse. The process-update case renews its original native readiness after
+the earlier release's required reboot, before verifying its launchers.
 Ubuntu's [installed E2E preparation](../integration/README.md#ubuntu-installed-e2e-preparation)
 and the same [Fedora boundary](../integration/README.md#fedora-installed-e2e-preparation)
 use the immutable native selection by default, and the finite native/activity/

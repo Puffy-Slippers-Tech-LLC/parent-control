@@ -267,6 +267,13 @@ sub run {
         onpc_customer_reboot::run_no_action(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{update_process_case}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_customer_reboot::run_process_case(\&exchange, $ready->{invocations},
+            $ready->{challenge_bindings}, $ready->{kiosk_request});
+        return;
+    }
     if ($ready->{activation_process}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

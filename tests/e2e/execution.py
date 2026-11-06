@@ -212,6 +212,9 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
             from suite_lease import needs_installed
             installed_consumer = needs_installed(case)
             product_free_consumer = 'declared-package-lifecycle-fixture' in case['preconditions']
+            upgrade_consumer = 'digest-verified-activation-packages' in case['preconditions']
+            require(not upgrade_consumer or product_free_consumer,
+                    'execution:upgrade-product-free-required')
             fixture_selection = plan.get('fixture_selection')
             from serial_harness import recorded_serial_case, validate_fixture_input
             recorded_serial_consumer = recorded_serial_case(case)
@@ -223,10 +226,12 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                 fixture_selection = validate_fixture_input(fixture_selection, target=target)
             package_only = (installed_consumer or product_free_consumer or recorded_serial_consumer
                             ) and fixture_selection is not None
-            system.stage_assets(system.artifact_source(Path(plan['artifacts'])), staged, commands,
-                                **({'package_only': True} if package_only else {}))
+            asset_source = system.artifact_source(Path(plan['artifacts']))
+            stage_assets = system.stage_upgrade_assets if upgrade_consumer else system.stage_assets
+            stage_assets(asset_source, staged, commands,
+                         **({'package_only': True} if package_only else {}))
             staged.chmod(0o700)
-            source_check = preflight_source(staged, root=root,
+            source_check = preflight_source(staged, root=root, upgrade=upgrade_consumer,
                 **({'package_only': True} if package_only else {}))
             # bootstrap binds the guest's observation marker to this exact
             # selected input document. Stage it before acquiring the VM; a
@@ -240,6 +245,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
             if installed_consumer or product_free_consumer:
                 from installed_setup import stage
                 stage(directory, staged, bootstrap_inputs,
+                      upgrade=upgrade_consumer,
                       **({'bundle': suite.input_bundle(root)} if suite is not None else {}),
                       **({'package_only': True} if package_only else {}))
                 staged = input_directory
@@ -286,6 +292,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                     lease.guard(off=True)
                     lease.save('isolated')
                     verified = VerifiedInputs(lease=lease, assets=staged, root=root,
+                                              upgrade=upgrade_consumer,
                                               plan={**plan, 'cases': [case]},
                                               **({'package_only': True} if package_only else {}))
                     if suite is not None:

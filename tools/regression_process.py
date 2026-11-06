@@ -421,8 +421,9 @@ def category_run(root, category, argv, *, pipe=True):
     if (category in ('fixtures', 'artifacts') and
             (not argv or argv in (['build'], ['prepare']) or
              category == 'fixtures' and argv[:3] == ['build', '--kind', 'native-runtime'] or
-             category == 'artifacts' and argv[:3] ==
-             ['prepare', '--native-inputs', '--package-format'])):
+             category == 'artifacts' and len(argv) == 4 and argv[0] == 'prepare'
+             and argv[1] in ('--native-inputs', '--no-action-inputs')
+             and argv[2] == '--package-format')):
         directory = test_retention.allocate(tempfile.mkdtemp, prefix=f'onpc-test-{category}-', dir='/tmp')
         commands[0] += ['--output', directory]
         print('run-tests: output=' + directory, flush=True)

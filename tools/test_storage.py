@@ -153,7 +153,7 @@ def allocation_parent():
 
 
 def named_input(*, package_source=False, fixture_source=False, upgrade_source=False,
-                vm_source=False):
+                vm_source=False, no_action_source=False):
     # Privileged qualifiers consume the caller's already frozen host bundle.
     # Every qualification must select current sources, including default callers.
     # package_source remains accepted for existing explicit callers.
@@ -163,13 +163,14 @@ def named_input(*, package_source=False, fixture_source=False, upgrade_source=Fa
     else:
         import package_inputs
     paths = package_inputs.paths(ROOT)
-    if fixture_source or upgrade_source:
+    if fixture_source or upgrade_source or no_action_source:
         paths = sorted(set(paths) | {Path(name) for name in (
             'tests/fixtures/build_test_applications.py', 'tests/fixtures/native_assets.py',
             'tests/fixtures/onpc_test_application.c', 'tests/fixtures/gui_application.py',
             'common/oh_no_parent_control_ui/gtk_automation.py')})
     identity = package_inputs.digest(ROOT, paths)
-    prefix = ('onpc-upgrade-v1.2-' if upgrade_source else
+    prefix = ('onpc-update-no-action-' if no_action_source else
+              'onpc-upgrade-v1.2-' if upgrade_source else
               'onpc-native-fixtures-' if fixture_source else 'onpc-parent-setup-')
     # Platform binding is infrastructure policy, never an opt-in per scenario.
     # Retain vm_source for existing callers, including its required-VM guard.
@@ -190,7 +191,8 @@ def named_input(*, package_source=False, fixture_source=False, upgrade_source=Fa
         'selection_sha256': hashlib.sha256(
             b'\0'.join(path.as_posix().encode() for path in paths)).hexdigest(),
         'profile': {'package': package_source, 'fixture': fixture_source,
-                    'upgrade': upgrade_source, 'vm': vm_source},
+                    'upgrade': upgrade_source, 'vm': vm_source,
+                    'no_action': no_action_source},
         'vm_sha256': hashlib.sha256(vm.name.encode()).hexdigest() if vm else None,
         'base_locator_sha256': hashlib.sha256(str(base).encode()).hexdigest(),
         'locator_sha256': hashlib.sha256(str(result).encode()).hexdigest(),

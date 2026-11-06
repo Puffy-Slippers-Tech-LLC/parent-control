@@ -87,6 +87,28 @@ sub run_upgrade {
     $journey->finish();
 }
 
+sub run_no_action {
+    onpc_progress::operation('Updating while the parent keeps the child allowance open');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'update-no-action:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && join('/', @$declared) eq
+            'reboot-installed-greeter/reboot-parent-focused/reboot-recipient-qualified/reboot-recipient-rechecked/reboot-desktop'
+        && ref($challenges) eq 'HASH' && keys(%$challenges) == 1
+        && ref($challenges->{'after-reboot'}) eq 'ARRAY'
+        && join('/', @{$challenges->{'after-reboot'}}) eq
+            'parent/reboot-recipient-qualified/reboot-recipient-rechecked';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'update-no-action', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    install_entry($journey);
+    my $desktop = return_entry($journey);
+    onpc_parent::launch($journey, $desktop, 'management', 'reboot-desktop');
+    onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->seen($_) for qw(allowance-configured settings-before upgrade-context upgrade-submitted upgrade-result upgrade-reread);
+    $journey->finish();
+}
+
 sub run_chinese {
     onpc_progress::operation('Qualifying the continuous Chinese upgrade and first kiosk presentation');
     my ($exchange, $declared, $challenges) = @_;

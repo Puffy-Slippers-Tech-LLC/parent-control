@@ -7,6 +7,7 @@ from parent.oh_no_parent_control_parent.client import (
     INTERFACE,
     OBJECT_PATH,
     BrokerClient,
+    broker_unavailable,
     management_access_denied,
     broker_reboot_required,
 )
@@ -110,6 +111,18 @@ class ParentClientTests(unittest.TestCase):
                 self.assertEqual(management_access_denied(error),
                                  name == f"{BUS_NAME}.Error.AccessDenied")
         self.assertFalse(management_access_denied(RuntimeError("AccessDenied")))
+
+    def test_broker_outage_excludes_authorization_and_product_errors(self):
+        for name in ("org.freedesktop.DBus.Error.NameHasNoOwner",
+                     "org.freedesktop.DBus.Error.ServiceUnknown",
+                     "org.freedesktop.DBus.Error.AccessDenied",
+                     f"{BUS_NAME}.Error.AccessDenied", f"{BUS_NAME}.Error.Failed"):
+            with self.subTest(name=name):
+                error = Gio.DBusError.new_for_dbus_error(name, "private-detail")
+                self.assertEqual(broker_unavailable(error), name in (
+                    "org.freedesktop.DBus.Error.NameHasNoOwner",
+                    "org.freedesktop.DBus.Error.ServiceUnknown"))
+        self.assertFalse(broker_unavailable(RuntimeError("NameHasNoOwner")))
 
     def test_time_status_works_without_accountsservice_authorization(self):
         connection = FakeConnection()

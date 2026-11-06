@@ -40,6 +40,7 @@ def vm_execution_branch(monkeypatch):
     ('check_e2e_feedback_read', {'package_source': True}, vm_name(1), '.py', 7),
     ('check_e2e_read_overlay_about_and_links', {'fixture_source': True}, vm_name(1), '.py', 0),
     ('check_e2e_upgrade_assets', {'upgrade_source': True}, vm_name(0), '', 7),
+    ('check_e2e_update_no_action', {'no_action_source': True}, vm_name(0), '', 0),
     ('check_e2e_kiosk_eligible_choices', {'vm_source': True, 'fixture_source': True},
      vm_name(0), '', 0),
     ('check_fixture_system_installed', {'vm_source': True, 'fixture_source': True},
@@ -73,7 +74,8 @@ def test_named_input_preparation_precedes_dispatch_and_failure_stops_privilege(
     assert regression_process.category_run(
         ROOT, 'system', [selector], pipe=False) == build_status
     allocate.assert_called_once_with(output)
-    flags = ['--upgrade-inputs'] if options.get('upgrade_source') else []
+    flags = (['--no-action-inputs'] if options.get('no_action_source') else
+             ['--upgrade-inputs'] if options.get('upgrade_source') else [])
     assert execute.call_args_list[0].args[0] == commands.python_file(
         ROOT, 'tools/vm_artifacts.py', *flags, '--output', output, *vm_args)
     if build_status:
@@ -389,7 +391,8 @@ def test_source_proof_handoff_requires_one_bound_record(monkeypatch, fault, froz
     *(('system', [name]) for name in PRODUCT_FREE_FIXTURE_SELECTORS),
     ('system', ['--artifacts=/tmp/onpc-packages']),
 ])
-@pytest.mark.parametrize(('vm', 'target'), [(VM_TARGETS[0][0], 'fedora'), (VM_TARGETS[1][0], 'ubuntu')])
+@pytest.mark.parametrize(('vm', 'target'), [(vm, 'fedora' if target == 'ubuntu' else 'ubuntu')
+                                          for vm, target in VM_TARGETS])
 def test_dispatcher_refuses_foreign_product_free_fixture_target(
         monkeypatch, category, arguments, frozen_fixture_selection, vm, target):
     monkeypatch.setenv('ONPC_TEST_VM', vm)

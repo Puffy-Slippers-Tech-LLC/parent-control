@@ -133,8 +133,12 @@ def readback(ref, expected):
         # host filesystems, device access, network or sandbox bypass is declared.
         permissions = configparser.ConfigParser(interpolation=None, strict=True)
         permissions.read_string(run(['info', '--system', '--show-permissions', ref]).stdout)
-        require(dict(permissions['Context']) == {
-            'shared': 'ipc;', 'sockets': 'wayland;fallback-x11;'}, 'confinement')
+        context = dict(permissions['Context'])
+        # Flatpak serializes this permission set in either order. Keep the
+        # exact fields and permissions; order grants no additional access.
+        require(set(context) == {'shared', 'sockets'} and context['shared'] == 'ipc;'
+                and set(context['sockets'].split(';')) == {'wayland', 'fallback-x11', ''},
+                'confinement')
         parser = configparser.ConfigParser(interpolation=None, strict=True)
         parser.read_string(read_deployed(location / f'export/share/applications/{name}.desktop').decode())
         entry = parser['Desktop Entry']

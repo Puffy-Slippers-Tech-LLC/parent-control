@@ -52,6 +52,17 @@ PREVIOUS_RELEASES = {
             'commit': '188be907c46b1cd0dabae06ac898c43e75beb05e',
             'version': '0:1.3-0.1.dev.fc44', 'architecture': 'x86_64'},
 }
+# A real, unmodified version-only update. The adjacent source commits change
+# app metadata, changelog and release notes, not running-service payloads.
+NO_ACTION_REVISIONS = {
+    'previous': '6efaef6e8adf0288ae0aa0462f53e6f69ce959e8',
+    'current': 'a0171bcd9b3d48a0fd1f409028f96316398b4009',
+}
+NO_ACTION_VERSIONS = {
+    'deb': ('1.5+ppa1~ubuntu26.04.1', '2.0+local1~ubuntu26.04.1'),
+    'rpm': ('0:1.5-0.1.dev.fc44', '0:2.0-0.1.dev.fc44'),
+}
+NO_ACTION_RPM_RELEASES = {'previous': '0.1.dev', 'current': '0.2.dev'}
 
 
 class ArtifactError(RuntimeError):
@@ -195,7 +206,8 @@ def build(output: Path, *, package_format, reuse: dict[str, Path] | None = None)
                   reuse=reuse, package_format=package_format)
 
 
-def _build(output, source_root, source_paths, source_digest, metadata, *, package_format, reuse=None):
+def _build(output, source_root, source_paths, source_digest, metadata, *, package_format, reuse=None,
+           rpm_release='0.1.dev'):
     if package_format not in ('deb', 'rpm'):
         raise ArtifactError('unsupported package format')
     output = _require_empty_output(output)
@@ -203,7 +215,8 @@ def _build(output, source_root, source_paths, source_digest, metadata, *, packag
     if package_format == 'rpm':
         from tools.build_rpm import metadata as rpm_metadata
         metadata['build_inputs'].update(package_format='rpm', architecture='x86_64',
-                                       source_date_epoch=rpm_metadata(source_root, '0.1.dev')[1],
+                                       source_date_epoch=rpm_metadata(source_root, rpm_release)[1],
+                                       rpm_release=rpm_release,
                                        package_command=['tools/build_rpm.py'])
     _log("build", "started", revision=metadata["source"]["revision"][:12])
     from tools.test_storage import scratch_directory
@@ -234,7 +247,7 @@ def _build(output, source_root, source_paths, source_digest, metadata, *, packag
                 # Keep the caller's rootless build image/storage identity. The
                 # maintained builder freezes inputs and disables networking.
                 from tools.build_package import build_rpm
-                build_rpm(source_copy, package_output)
+                build_rpm(source_copy, package_output, release=rpm_release)
                 packages = sorted(package_output.glob('oh-no-parent-control-[0-9]*.x86_64.rpm'))
             else:
                 from tools import host_disk
@@ -275,10 +288,19 @@ def released_source(*, repository=None, package_format='deb'):
     commit = _run([*prefix, 'rev-parse', release['tag'] + '^{commit}'], cwd=repository).stdout.strip()
     if tag != release['tag'] or commit != release['commit']:
         raise ArtifactError(f"authentic {release['name']} release source unavailable")
+    with historical_source(commit, repository=repository) as root:
+        yield root
+
+
+@contextmanager
+def historical_source(commit, *, repository=None):
+    """Export an exact reviewed commit, without changing its source or version."""
+    repository = REPOSITORY if repository is None else repository
+    prefix = ['git', '-c', 'safe.directory=' + str(repository)]
     from tools.test_storage import scratch_directory, scratch_descriptors
     with tempfile.TemporaryDirectory(prefix='onpc-release-source-', dir=scratch_directory()) as name:
         root = Path(name)
-        raw = subprocess.run([*prefix, 'archive', '--format=tar', release['commit']],
+        raw = subprocess.run([*prefix, 'archive', '--format=tar', commit],
             cwd=repository, check=True, capture_output=True, pass_fds=scratch_descriptors()).stdout
         with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
             # Source links and special files are never accepted as build inputs.
@@ -288,6 +310,79 @@ def released_source(*, repository=None, package_format='deb'):
                     raise ArtifactError('unsafe released source archive')
             archive.extractall(root, filter='data')
         yield root
+
+
+def historical_identity(root, revision):
+    selected = package_inputs.paths(root)
+    return {'revision': revision, 'scope': 'package',
+            'digest_sha256': package_inputs.digest(root, selected), 'file_count': len(selected)}
+
+
+def build_no_action(output, *, package_format):
+    """Build genuine increasing packages without rewriting product sources."""
+    output = _require_empty_output(output)
+    if package_format == 'rpm':
+        # Release is a public packaging input, separate from the product version.
+        # Both packages bind one exact source generation; only that input varies.
+        selected = package_inputs.paths(REPOSITORY)
+        digest = package_inputs.digest(REPOSITORY, selected)
+        for label, release in NO_ACTION_RPM_RELEASES.items():
+            metadata = _metadata(selected, digest)
+            metadata['source']['rpm_release'] = release
+            _build(output / label, REPOSITORY, selected, digest, metadata,
+                   package_format=package_format, rpm_release=release,
+                   reuse={'fixtures': output / 'previous' / 'fixtures'} if label == 'current' else None)
+        verify_upgrade(output)
+        return
+    for label, revision in NO_ACTION_REVISIONS.items():
+        with historical_source(revision) as root:
+            source = historical_identity(root, revision)
+            selected = package_inputs.paths(root)
+            metadata = _metadata(selected, source['digest_sha256'])
+            metadata['source'] = source
+            metadata['build_inputs']['source_date_epoch'] = int(_run(
+                ['git', 'show', '-s', '--format=%ct', revision], cwd=REPOSITORY).stdout.strip())
+            _build(output / label, root, selected, source['digest_sha256'], metadata,
+                   package_format=package_format)
+    verify_upgrade(output)
+
+
+def verify_no_action_payloads(packages):
+    """Compare the actual shipped activation manifests with the product classifier."""
+    import runpy
+    from tools.test_storage import scratch_directory, scratch_descriptors
+    member = './usr/share/oh-no-parent-control/package-activation.json'
+    classifier = runpy.run_path(str(REPOSITORY / 'packaging/package_activation.py'))
+    with tempfile.TemporaryDirectory(prefix='onpc-activation-pair-', dir=scratch_directory()) as name:
+        paths = []
+        for label, package in packages.items():
+            if package.suffix == '.rpm':
+                archive = subprocess.run(['rpm2cpio', str(package)], check=True, capture_output=True,
+                                         pass_fds=scratch_descriptors()).stdout
+                raw = subprocess.run(['cpio', '--extract', '--to-stdout', '--quiet', member],
+                    input=archive, check=True, capture_output=True,
+                    pass_fds=scratch_descriptors()).stdout
+            else:
+                archive = subprocess.run(['dpkg-deb', '--fsys-tarfile', str(package)],
+                    check=True, capture_output=True, pass_fds=scratch_descriptors()).stdout
+                with tarfile.open(fileobj=io.BytesIO(archive)) as content:
+                    entries = [entry for entry in content if entry.name == member]
+                    if len(entries) != 1 or not entries[0].isfile():
+                        raise ArtifactError('no-action activation manifest missing or ambiguous')
+                    raw = content.extractfile(entries[0]).read()
+            if not 0 < len(raw) <= 1024 * 1024:
+                raise ArtifactError('no-action activation manifest unavailable')
+            path = Path(name) / (label + '.json')
+            path.write_bytes(raw)
+            paths.append(path)
+        if classifier['changed_impacts'](*paths):
+            old, new = (classifier['read_manifest'](path) for path in paths)
+            for path in sorted(old.keys() | new.keys()):
+                before, after = old.get(path), new.get(path)
+                if before != after:
+                    _log('activation-difference', 'observed', path=path,
+                         previous=json.dumps(before), current=json.dumps(after))
+            raise ArtifactError('reviewed update requires activation')
 
 
 def release_identity(root, *, package_format='deb'):
@@ -387,17 +482,36 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
         raise ArtifactError('upgrade package format mismatch')
     package_format = formats.pop().removeprefix('.')
     release = _require_previous_release(package_format)
-    with released_source(repository=repository, package_format=package_format) as root:
-        if previous['source'] != release_identity(root, package_format=package_format):
-            raise ArtifactError(f"{release['name']} source identity mismatch")
+    historical_no_action = previous['source'].get('revision') == NO_ACTION_REVISIONS['previous']
+    rpm_no_action = package_format == 'rpm' and 'rpm_release' in previous['source']
+    no_action = historical_no_action or rpm_no_action
+    if rpm_no_action:
+        for label, manifest in (('previous', previous), ('current', current)):
+            if manifest['source'].get('rpm_release') != NO_ACTION_RPM_RELEASES[label]:
+                raise ArtifactError('no-action RPM release input mismatch')
+        if ({key: value for key, value in previous['source'].items() if key != 'rpm_release'}
+                != {key: value for key, value in current['source'].items() if key != 'rpm_release'}):
+            raise ArtifactError('no-action RPM source generation mismatch')
+    elif historical_no_action:
+        for label, manifest in (('previous', previous), ('current', current)):
+            revision = NO_ACTION_REVISIONS[label]
+            with historical_source(revision, repository=repository) as root:
+                if manifest['source'] != historical_identity(root, revision):
+                    raise ArtifactError('no-action source identity mismatch')
+    else:
+        with released_source(repository=repository, package_format=package_format) as root:
+            if previous['source'] != release_identity(root, package_format=package_format):
+                raise ArtifactError(f"{release['name']} source identity mismatch")
     repository = REPOSITORY if repository is None else repository
     selected = package_inputs.paths(repository)
-    if (set(current['source']) != {'revision', 'scope', 'digest_sha256', 'file_count'}
-            or type(current['source']['revision']) is not str
-            or re.fullmatch(r'[0-9a-f]{40}', current['source']['revision']) is None
-            or current['source'].get('scope') != 'package'
-            or current['source'].get('digest_sha256') != package_inputs.digest(repository, selected)
-            or current['source'].get('file_count') != len(selected)):
+    current_source = {key: value for key, value in current['source'].items()
+                      if not rpm_no_action or key != 'rpm_release'}
+    if not historical_no_action and (set(current_source) != {'revision', 'scope', 'digest_sha256', 'file_count'}
+            or type(current_source['revision']) is not str
+            or re.fullmatch(r'[0-9a-f]{40}', current_source['revision']) is None
+            or current_source.get('scope') != 'package'
+            or current_source.get('digest_sha256') != package_inputs.digest(repository, selected)
+            or current_source.get('file_count') != len(selected)):
         raise ArtifactError('current package source identity mismatch')
     identities = {}
     for label, directory, manifest in (('current', current_root, current),
@@ -413,11 +527,24 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
     else:
         expected = _run(['dpkg-parsechangelog', '-l' + str(repository / 'debian/changelog'),
                          '-S', 'Version']).stdout.strip()
-    if (old['version'] != release['version'] or new['version'] != expected
+    old_version = release['version']
+    if rpm_no_action:
+        version = rpm_metadata(repository, NO_ACTION_RPM_RELEASES['current'])[0]
+        old_version = f"0:{version}-{NO_ACTION_RPM_RELEASES['previous']}.fc44"
+        expected = f"0:{version}-{NO_ACTION_RPM_RELEASES['current']}.fc44"
+    elif historical_no_action:
+        old_version, expected = NO_ACTION_VERSIONS[package_format]
+    if (old['version'] != old_version or new['version'] != expected
             or old['sha256'] == new['sha256']
-            or current['source']['digest_sha256'] == previous['source']['digest_sha256']):
+            or (not rpm_no_action and
+                current['source']['digest_sha256'] == previous['source']['digest_sha256'])):
         raise ArtifactError('upgrade package release identity mismatch')
     _require_newer_version(new['version'], old['version'], package_format=package_format)
+    if no_action:
+        verify_no_action_payloads({'previous': output / 'previous' / previous['artifacts']['package']['path'],
+                                  'current': current_root / current['artifacts']['package']['path']})
+        return {'packages': identities, 'sources': {'current': current['source'], 'previous': previous['source']},
+                'activation': 'none'}
     return {'packages': identities, 'sources': {'current': current['source'], 'previous': previous['source']}}
 
 
@@ -509,6 +636,8 @@ def main() -> int:
                         help='required for every build; no default package format')
     parser.add_argument('--upgrade-inputs', action='store_true',
                         help='build pinned genuine prior-release/current inputs for the selected format')
+    parser.add_argument('--no-action-inputs', action='store_true',
+                        help='build the reviewed release-only RPM or authentic 1.5/2.0 DEB update')
     parser.add_argument('--native-inputs', action='store_true',
                         help='prepare the reviewed finite native dependency pair, not product packages')
     parser.add_argument('--verify-native-inputs', action='store_true',
@@ -518,6 +647,12 @@ def main() -> int:
     if not (arguments.verify or arguments.compare or arguments.verify_native_inputs) and arguments.package_format is None:
         parser.error('--package-format deb|rpm is required when building')
     try:
+        if arguments.no_action_inputs:
+            if (arguments.output is None or arguments.verify or arguments.compare or arguments.reuse
+                    or arguments.upgrade_inputs or arguments.native_inputs or arguments.verify_native_inputs):
+                raise ArtifactError('--no-action-inputs requires only --output and --package-format')
+            build_no_action(arguments.output, package_format=arguments.package_format)
+            return 0
         if arguments.native_inputs or arguments.verify_native_inputs:
             from tools.native_transaction_inputs import prepare, verify as verify_native
             if (arguments.output is None or arguments.verify or arguments.compare or
@@ -545,7 +680,11 @@ def main() -> int:
         elif arguments.verify:
             if arguments.output is None:
                 raise ArtifactError("--verify requires --output")
-            verify(arguments.output.resolve(strict=True))
+            output = arguments.output.resolve(strict=True)
+            if (output / 'previous').is_dir() and (output / 'current').is_dir():
+                verify_upgrade(output)
+            else:
+                verify(output)
         elif arguments.output is not None:
             build(arguments.output, package_format=arguments.package_format)
         else:

@@ -45,7 +45,8 @@ from common.oh_no_parent_control_ui.errors import (
 )
 from common.oh_no_parent_control_ui.user_icon import parse_listed_user
 
-from .client import BrokerClient, configure_logging, management_access_denied, broker_reboot_required
+from .client import (BrokerClient, configure_logging, management_access_denied,
+                     broker_reboot_required, broker_unavailable)
 from .language_dialog import LanguageDialog
 from .whats_new_dialog import WhatsNewDialog
 
@@ -1655,6 +1656,16 @@ class ParentWindow(Adw.ApplicationWindow):
             self._errors = ErrorHandler(self, "Parent App")
         self._errors.handle(error, GENERIC_TITLE, detail, on_close=on_close)
 
+    def _show_refresh_error(self, error, detail):
+        # Package migration temporarily excludes the broker. Background reads
+        # already retry; do not leave a modal blocking the recovered window.
+        # Initial discovery, user writes and authorization failures retain
+        # their normal error paths. The client still records the failure.
+        if broker_unavailable(error):
+            self._toast(detail)
+        else:
+            self._show_error(error, detail)
+
     def _clear_catalog_rows(self):
         for row in self._app_rows:
             self._match_column_size.remove_widget(row.match_rule_cell)
@@ -1827,7 +1838,7 @@ class ParentWindow(Adw.ApplicationWindow):
             # discovery outage. Each operation still authorizes at the broker.
             if not self._user_discovery_error_reported:
                 self._user_discovery_error_reported = True
-                self._show_error(error, m.CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY)
+                self._show_refresh_error(error, m.CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY)
             return
         LOG.warning("parent.006", error_type=error_code(error))
         self._fatal_discovery_error = True
@@ -2191,7 +2202,7 @@ class ParentWindow(Adw.ApplicationWindow):
         set_text(self._time_explanation, 'label', "—")
         self._screen_time_ready = True
         ParentWindow._reveal_screen(self)
-        self._show_error(error, m.REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER)
+        self._show_refresh_error(error, m.REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER)
 
     def _retry_time_status(self):
         self._time_status_retry_id = 0
@@ -2269,7 +2280,7 @@ class ParentWindow(Adw.ApplicationWindow):
         if (not self._policy_warning_query_failed and self._language_dialog is None
                 and getattr(self, '_whats_new_dialog', None) is None):
             self._policy_warning_query_failed = True
-            self._show_error(error, m.APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI)
+            self._show_refresh_error(error, m.APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI)
 
     def _refresh_users(self):
         self._load_users()

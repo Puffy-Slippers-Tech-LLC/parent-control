@@ -20,6 +20,10 @@ Implementation: [Parent](../../parent/oh_no_parent_control_parent/main.py),
   for a saved enabled screen-time control before settings become editable.
   Recovery failures report an error and leave management available. App-policy saves
   can close that child's newly blocked applications across retained sessions.
+  Background refreshes show a nonmodal status when the broker is unavailable,
+  including its guarded package-migration pause; their existing refreshes recover
+  without blocking the open window. Initial account discovery, user actions,
+  authorization refusals and other errors retain their normal error handling.
   Screen-time changes use `SetParentControl`. Revocation confirms that blocked
   apps will close, lists running soft-blocked apps using catalogue names/icons,
   and stays bound to the reviewed child.

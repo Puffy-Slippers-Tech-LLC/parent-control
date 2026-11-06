@@ -1776,6 +1776,18 @@ class PackageUpgradeQualification(ProductFreeEntryQualification):
         return PackageUpgradeJourney(context, progress)
 
 
+class UpdateNoActionQualification(ProductFreeEntryQualification):
+    upgrade_assets = True
+    # Two bounded package transactions, activation reboot, graphical entry and
+    # retained-window comparisons need room for a slow guest and cleanup.
+    worker_timeout = 2400
+
+    @staticmethod
+    def journey(context, progress):
+        from update_no_action import UpdateNoActionJourney
+        return UpdateNoActionJourney(context, progress)
+
+
 class ChineseKioskLifecycleQualification(ProductFreeEntryQualification):
     upgrade_assets = True
 

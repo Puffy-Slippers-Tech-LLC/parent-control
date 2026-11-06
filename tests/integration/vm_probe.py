@@ -648,6 +648,14 @@ def reproduce_retained_entry(lease):
                             'riley-restricted-curtain', 'retained-entry')
 
 
+def reproduce_update_no_action(lease):
+    """Keep the shared thirty-minute Parent setup open for update diagnosis."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from fresh_thirty_allowance import FreshThirtyAllowanceJourney, PLAN
+    return reproduce_denial(lease, FreshThirtyAllowanceJourney, PLAN,
+                            'balance-reread', 'update-no-action')
+
+
 def reproduce_revoke_cancel(lease):
     """Retain the real second Cancel before its controller balance comparison."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))

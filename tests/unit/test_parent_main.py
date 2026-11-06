@@ -4,6 +4,7 @@ import struct
 from pathlib import Path
 from unittest import mock
 from types import SimpleNamespace
+from gi.repository import Gio
 
 from common.oh_no_parent_control_ui.languages import selected_language, session_language, supported_language
 from common.oh_no_parent_control_ui import messages as m
@@ -530,6 +531,8 @@ class ParentWindowTests(unittest.TestCase):
         window._selected_uid.return_value = 1001
         window._users_loaded_once = True
         window._user_discovery_error_reported = False
+        window._show_refresh_error = lambda error, detail: ParentWindow._show_refresh_error(
+            window, error, detail)
         error = RuntimeError("private")
         for _ in range(3):
             ParentWindow._policy_warnings_failed(window, 1001, error)
@@ -538,6 +541,30 @@ class ParentWindowTests(unittest.TestCase):
         self.assertFalse(window._users_loading)
         window.get_content.assert_not_called()
         window.get_application.assert_not_called()
+
+    def test_background_broker_outage_keeps_loaded_management_available(self):
+        window = mock.Mock()
+        window._language_dialog = window._whats_new_dialog = None
+        window._policy_warnings_closed = window._policy_warning_query_failed = False
+        window._selected_uid.return_value = 1001
+        window._users_loaded_once = True
+        window._user_discovery_error_reported = False
+        window._show_refresh_error = lambda error, detail: ParentWindow._show_refresh_error(
+            window, error, detail)
+        error = Gio.DBusError.new_for_dbus_error(
+            "org.freedesktop.DBus.Error.NameHasNoOwner", "private-detail")
+        for _ in range(3):
+            ParentWindow._users_failed(window, error)
+            ParentWindow._policy_warnings_failed(window, 1001, error)
+        self.assertEqual(window._toast.call_count, 2)
+        window._show_error.assert_not_called()
+        window.get_content.assert_not_called()
+        window.get_application.assert_not_called()
+        # A successful refresh clears the outage latch without changing the
+        # selected account or its controls when the account list is unchanged.
+        window._users = []
+        ParentWindow._users_loaded(window, [])
+        self.assertFalse(window._user_discovery_error_reported)
 
     def test_runtime_icon_matches_the_installed_parent_desktop_icon(self):
         root = Path(__file__).resolve().parents[2]
@@ -1296,6 +1323,7 @@ class ParentWindowTests(unittest.TestCase):
         window._time_status_retry_id = 0
         window._time_status_retry_count = MAX_TIME_STATUS_RETRIES
         window._show_error = mock.Mock()
+        window._show_refresh_error = mock.Mock()
         window._selected_uid = lambda: 1001
         window._time_status_value = Label()
         window._time_explanation = Label()
@@ -1304,6 +1332,7 @@ class ParentWindowTests(unittest.TestCase):
 
         self.assertEqual(window._time_status_value.label, "Unavailable")
         self.assertEqual(window._time_explanation.label, "—")
+        window._show_refresh_error.assert_called_once()
 
     def test_overlapping_time_status_refresh_is_coalesced(self):
         window = type("WindowHarness", (), {})()

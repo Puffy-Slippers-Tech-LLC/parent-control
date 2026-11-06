@@ -23,6 +23,14 @@ def management_access_denied(error):
             Gio.DBusError.get_remote_error(error) == f"{BUS_NAME}.Error.AccessDenied")
 
 
+def broker_unavailable(error):
+    """Recognize a missing broker during its guarded package update pause."""
+    return (isinstance(error, GLib.Error) and
+            Gio.DBusError.get_remote_error(error) in (
+                "org.freedesktop.DBus.Error.NameHasNoOwner",
+                "org.freedesktop.DBus.Error.ServiceUnknown"))
+
+
 class BrokerClient:
     def __init__(self, connection=None):
         self.connection = connection or Gio.bus_get_sync(Gio.BusType.SYSTEM, None)

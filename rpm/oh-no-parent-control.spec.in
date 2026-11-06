@@ -16,6 +16,19 @@ ExclusiveArch:  x86_64
 %global build_mtime_policy clamp_to_source_date_epoch
 %global _buildhost reproducible.onpc.invalid
 
+# Activation compares final shipped bytes. A packaging-only rebuild must not
+# replace otherwise identical resident code just to embed Version/Release in
+# notes, build IDs or debug filenames. Retain content-derived build IDs and
+# the normal debug/strip passes, without their optional per-release salt.
+%undefine _package_note_flags
+%undefine _unique_build_ids
+%undefine _unique_debug_names
+%undefine _unique_debug_srcs
+# Multi-file DWZ embeds Version/Release in its shared debug-data filename.
+# Its checksum reaches shipped .gnu_debuglink even with stable debug names.
+# Keep DWARF compression per file, alongside normal stripping/debug packages.
+%global _find_debuginfo_opts %{?_find_debuginfo_opts} --dwz-single-file-mode
+
 BuildRequires:  gcc
 BuildRequires:  gettext
 BuildRequires:  make

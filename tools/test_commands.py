@@ -112,7 +112,7 @@ PRODUCT_FREE_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_product_free'
     'check_e2e_' + suffix for suffix in '''
     product_free_entry upgrade_assets chinese_language_assets desktop_language
     package_authority package_command customer_reboot restart_notice
-    unrelated_reboot_request package_upgrade chinese_kiosk_lifecycle chinese_current_install
+    unrelated_reboot_request package_upgrade update_no_action chinese_kiosk_lifecycle chinese_current_install
     '''.split()})
 
 
@@ -402,6 +402,10 @@ Aggregate aliases (no suite selectors)
   artifacts prepare reuses matching verified inputs or builds on a miss.
   artifacts prepare --for-vm --vm NAME selects RPM/DEB from the verified baseline.
   Add --upgrade-inputs to build pinned earlier-release/current inputs in a new retained bundle.
+  artifacts prepare --for-vm --no-action-inputs prepares the named metadata-only
+  upgrade pair without starting the customer journey.
+  artifacts prepare --no-action-inputs --package-format deb|rpm builds the same
+  finite pair for packaging diagnosis without checking or starting a VM.
   artifacts prepare --for-vm --native-inputs prepares the reviewed native dependency
   pair in retained storage; it does not install packages or qualify the live history.
   artifacts prepare --native-inputs --package-format deb|rpm prepares that finite
@@ -605,7 +609,7 @@ def qualification_input_options(root, selector):
         if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
                 and node.func.id == 'named_input'):
             if node.args or any(keyword.arg not in (
-                    'package_source', 'fixture_source', 'upgrade_source', 'vm_source')
+                    'package_source', 'fixture_source', 'upgrade_source', 'vm_source', 'no_action_source')
                     or not isinstance(keyword.value, ast.Constant)
                     or type(keyword.value.value) is not bool for keyword in node.keywords):
                 raise ValueError('qualification input declaration must use literal boolean options')
@@ -636,7 +640,8 @@ def qualification_artifact_command(root, category, args):
     # Compare the producer and privileged consumer without logging private paths.
     print('qualification-input: prepared locator_sha256=' +
           hashlib.sha256(output.encode()).hexdigest(), flush=True)
-    flags = ['--upgrade-inputs'] if options.get('upgrade_source') else []
+    flags = (['--no-action-inputs'] if options.get('no_action_source') else
+             ['--upgrade-inputs'] if options.get('upgrade_source') else [])
     if os.path.lexists(output):
         artifact_path(output)
         # Recheck format against pinned baseline provenance, even on a cache hit.
@@ -1072,13 +1077,17 @@ def plan(root, category, argv):
         if category == 'artifacts' and argv == ['prepare', '--for-vm', '--upgrade-inputs']:
             from vm_selection import arguments
             return [python_file(root, 'tools/vm_artifacts.py', '--upgrade-inputs', *arguments())], False
+        if category == 'artifacts' and argv == ['prepare', '--for-vm', '--no-action-inputs']:
+            from vm_selection import arguments
+            return [python_file(root, 'tools/vm_artifacts.py', '--no-action-inputs', *arguments())], False
         if category == 'artifacts' and argv == ['prepare', '--for-vm', '--native-inputs']:
             from vm_selection import arguments
             return [python_file(root, 'tools/vm_artifacts.py', '--native-inputs', *arguments())], False
         if (category == 'artifacts' and len(argv) == 4 and
-                argv[:3] == ['prepare', '--native-inputs', '--package-format'] and
+                argv[0] == 'prepare' and argv[1] in ('--native-inputs', '--no-action-inputs')
+                and argv[2] == '--package-format' and
                 argv[3] in ('deb', 'rpm')):
-            return [[*command, '--native-inputs', '--package-format', argv[3]]], False
+            return [[*command, argv[1], '--package-format', argv[3]]], False
         if category == 'artifacts' and (argv == ['prepare', '--for-vm'] or
                 len(argv) == 4 and argv[:3] == ['prepare', '--for-vm', '--candidate']):
             from vm_selection import arguments
@@ -1209,8 +1218,9 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False):
         if (category in ('fixtures', 'artifacts') and
                 (not args or args in (['build'], ['prepare']) or
                  category == 'fixtures' and args[:3] == ['build', '--kind', 'native-runtime'] or
-                 category == 'artifacts' and args[:3] ==
-                 ['prepare', '--native-inputs', '--package-format'])):
+                 category == 'artifacts' and len(args) == 4 and args[0] == 'prepare'
+                 and args[1] in ('--native-inputs', '--no-action-inputs')
+                 and args[2] == '--package-format')):
             from test_retention import allocate
             directory = allocate(tempfile.mkdtemp, prefix=f'onpc-test-{category}-')
             commands[0] += ['--output', directory]

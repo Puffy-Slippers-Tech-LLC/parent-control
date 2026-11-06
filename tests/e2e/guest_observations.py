@@ -85,6 +85,16 @@ print(json.dumps({'files':len(files),'sha256':hashlib.sha256(encoded).hexdigest(
                   'packages':packages},sort_keys=True))''')
 
 
+# No-action pairs have their own verified source/release profiles, rather than
+# the ordinary upgrade's historical release. Read actual native identities and
+# version order here; AssetTransfer compares the entire result to the exact
+# host-verified pair, including both versions and package/tree hashes.
+NO_ACTION_ASSETS = UPGRADE_ASSETS.replace(
+    "assert packages['previous']['version']=='1.2+ppa1~ubuntu26.04.1'\n", '')
+NO_ACTION_ASSETS_RPM = UPGRADE_ASSETS_RPM.replace(
+    "assert packages['previous']['version']=='0:1.3-0.1.dev.fc44'\n", '')
+
+
 # All session names and identifiers stay inside this guest process. This is a
 # read-only corroboration, never a replacement for graphical input/screens.
 GREETER = '''import json,subprocess,time

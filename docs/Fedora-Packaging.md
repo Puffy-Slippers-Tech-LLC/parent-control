@@ -43,6 +43,15 @@ for both distributions. The
 names, native PAM paths, metadata and transaction callbacks. Launchpad signing,
 upload and monitoring stay in the existing [publisher](Publishing.md).
 
+The RPM spec opts out of version-specific package notes and the optional
+Version/Release salts for build IDs, debug filenames and debug source paths.
+Unchanged native payloads can therefore retain their final bytes across packaging
+release increments. Content-derived build IDs, hardening, stripping and debug
+packages remain enabled. Activation still compares complete shipped-file hashes;
+it does not ignore ELF sections or substitute source hashes for installed bytes.
+DWARF compression stays in per-file mode: the shared multi-file pool otherwise
+puts Version/Release in its filename and changes the shipped debug-link checksum.
+
 ## Local builds
 
 On Fedora 44 and Ubuntu, `make build` starts both binary formats concurrently

@@ -1,0 +1,14 @@
+{
+    "files.watcherExclude": {
+        "**/output/**": true,
+        "**/artifacts/**": true,
+        "**/.venv/**": true,
+        "**/.worktrees/**": true
+    },
+    "search.exclude": {
+        "**/output/**": true,
+        "**/artifacts/**": true,
+        "**/.venv/**": true,
+        "**/.worktrees/**": true
+    }
+}

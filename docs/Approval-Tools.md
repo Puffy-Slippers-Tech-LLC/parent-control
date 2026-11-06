@@ -149,6 +149,20 @@ installed helpers/Polkit grants and registered VMs are host resources. Runner
 `artifacts/`, `output/`, diagnostic downloads, caches and generated locale files
 remain ignored runtime/build state. Obsolete `.codex-staged-*` snapshots are unused.
 
+The tracked [VS Code workspace settings](../.vscode/settings.json) exclude
+`output/`, `artifacts/`, `.venv/` and `.worktrees/` from recursive file watching
+and normal searches. Keep these exclusions enabled: generated files and temporary
+propagation worktrees can otherwise trigger an extension search for every file
+created or deleted. Git ignore rules alone do not prevent those events, and an
+extension can supply its own search exclusions. VS Code's
+[recursive watcher exclusions](https://code.visualstudio.com/api/references/vscode-api#workspace.createFileSystemWatcher)
+prevent the triggering events without changing the shared storage location.
+These relative settings travel with Git and apply when VS Code opens any checkout
+containing them; setup does not copy them into a host's user profile. Propagate
+settings changes through the [shared worktree workflow](Execution-Plans.md#shared-worktree-propagation)
+so every configured branch receives them. Existing checkouts need that update and
+a VS Code window reload; a fresh clone of an updated branch already includes it.
+
 ### Setup modes and activation
 
 Run `./setup.sh --test-tools-only`, then restart Codex with this checkout trusted.

@@ -7,6 +7,7 @@ incomplete baseline instead of repairing it.
 
 import re
 import subprocess
+import sys
 from chinese_language_assets import PACKAGES as CHINESE_PACKAGES, FEDORA_PACKAGES as FEDORA_CHINESE_PACKAGES
 
 REMOTE_PACKAGES = (
@@ -96,8 +97,9 @@ def versions(os_id):
 def verify_fedora_packages(packages, expected=FEDORA_VERSIONS):
     """Compare stable upstream versions, independently of RPM release counters.
 
-    These projects use numeric releases (OpenSSH also uses pN). Refuse
-    prerelease/unknown formats rather than guessing their RPM ordering.
+    Presence-only requirements accept RPM version syntax. Requirements with
+    a numeric minimum use numeric releases (OpenSSH also uses pN); refuse
+    unknown formats rather than guessing their RPM ordering.
     """
     def stable_version(value):
         if not isinstance(value, str) or not re.fullmatch(r'[0-9]+(?:[.p][0-9]+)*', value):
@@ -108,7 +110,18 @@ def verify_fedora_packages(packages, expected=FEDORA_VERSIONS):
         if name not in expected:
             continue
         if name in found:
+            print(f'guest-tools: duplicate required package: {name}', file=sys.stderr)
             raise ValueError('guest-tools:ambiguous-package-status')
+        if (expected[name] == '0' and isinstance(version, str)
+                and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._+~^]*', version)):
+            found[name] = version
+            continue
+        if not isinstance(version, str) or not re.fullmatch(r'[0-9]+(?:[.p][0-9]+)*', version):
+            # Required inventory names are declared above; keep guest-provided
+            # version diagnostics bounded and free of control characters.
+            detail = (version if isinstance(version, str)
+                      and re.fullmatch(r'[A-Za-z0-9.+:~^_-]{1,80}', version) else '(invalid)')
+            print(f'guest-tools: unsupported required package version: {name}={detail}', file=sys.stderr)
         if stable_version(version) < stable_version(expected[name]):
             raise ValueError('guest-tools:missing-or-mismatched-package')
         found[name] = version

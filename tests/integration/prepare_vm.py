@@ -124,16 +124,17 @@ SNAPSHOT_SOURCE_SYMBOLS = {
 def snapshot_source_projection(relative, contents):
     """Bind shared environment policy without hashing movable fixture builders."""
     wanted = set(SNAPSHOT_SOURCE_SYMBOLS[relative])
+    # AST fields and ast.dump defaults vary between host and guest Python
+    # releases. Use the AST only to select statements; hash their source bytes.
+    lines = contents.decode('utf-8').splitlines(keepends=True)
     selected = []
     for node in ast.parse(contents).body:
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            selected.append(ast.dump(node, include_attributes=False))
-            continue
         names = ({node.name} if isinstance(node, (ast.FunctionDef, ast.ClassDef)) else
                  {target.id for target in node.targets if isinstance(target, ast.Name)}
                  if isinstance(node, ast.Assign) else set())
-        if names & wanted:
-            selected.append(ast.dump(node, include_attributes=False))
+        if isinstance(node, (ast.Import, ast.ImportFrom)) or names & wanted:
+            start = min([node.lineno, *(item.lineno for item in getattr(node, 'decorator_list', ()))])
+            selected.append(''.join(lines[start - 1:node.end_lineno]))
             wanted -= names
     if wanted:
         raise PreparationError('guard:checkout', 'snapshot source projection is incomplete')

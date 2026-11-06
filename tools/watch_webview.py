@@ -548,6 +548,10 @@ class Viewer:
         return {'screen': image}
 
     def snapshot(self, request):
+        # A partial first inventory would remove retained panels after reconnect.
+        # Leave time within the bridge's ten-second request deadline for rendering.
+        if not self.discovery.ready.wait(timeout=5):
+            raise TimeoutError('watch: initial checkout discovery timed out')
         result = None
         action = request.get('session_action')
         if action:
@@ -741,7 +745,6 @@ def main():
     viewer = Viewer(checkout(args.root))
     try:
         if args.snapshot:
-            viewer.discovery.thread.join(timeout=1.1)
             print(json.dumps(viewer.snapshot({})), flush=True)
             return
         while line := sys.stdin.buffer.readline(512 * 1024 + 1):

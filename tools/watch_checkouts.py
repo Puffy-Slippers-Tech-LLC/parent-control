@@ -54,6 +54,7 @@ class Discovery:
         self.updates = queue.Queue(maxsize=1)
         self.vm_updates = queue.Queue(maxsize=1)
         self.stop = threading.Event()
+        self.ready = threading.Event()
         self.include_worktrees = include_worktrees
         self.add(root)
         self.thread = threading.Thread(target=self.run, name='watch-checkouts', daemon=True)
@@ -97,6 +98,7 @@ class Discovery:
             except queue.Empty:
                 pass
             self.vm_updates.put_nowait(configured)
+            self.ready.set()
             self.stop.wait(1)
 
     def poll(self):

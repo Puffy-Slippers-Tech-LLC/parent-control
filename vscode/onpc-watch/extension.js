@@ -48,6 +48,7 @@ function html(webview, context) {
         <footer><button id="watch-error-indicator" type="button" hidden title="Show Watch error details" aria-label="Show Watch error details">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button>
         <button id="restart" title="Reconnect to the watch backend">Reconnect</button>
+        <span id="reader-status" role="status" aria-live="polite"></span>
         <span id="servers" aria-label="Server connection status"></span>
         <span id="resources"></span></footer>
         ${errorDialog(nonce)}
@@ -116,6 +117,7 @@ function activate(context) {
         const panel = vscode.window.createWebviewPanel('onpc.watch', 'ONPC Watch',
             vscode.ViewColumn.Active, {
                 enableScripts: true,
+                retainContextWhenHidden: true,
                 localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')]
             });
         panels.set(root, panel);
@@ -380,7 +382,8 @@ exec "$@"`, 'onpc-watch', ...argv];
             } catch (error) { errors.report('Cannot open Watch artifact', error); }
         }
         const visibility = panel.onDidChangeViewState(() => {
-            if (panel.visible) { reset = true; poll(); }
+            // Retained webviews keep their DOM; ready handles any actual recreation.
+            if (panel.visible) poll();
         });
         panel.onDidDispose(() => {
             disposed = true;

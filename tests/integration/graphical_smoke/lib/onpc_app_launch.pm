@@ -20,7 +20,8 @@ sub run {
         && ($control eq 'enabled' || $control eq 'disabled')
         && ($route eq 'command' || ($route eq 'grid' && $control eq 'enabled'))
         && ($policy eq 'allowed' || $policy eq 'hard-blocked' || $policy eq 'soft-blocked')
-        && ($kind eq 'native' || $kind eq 'snap' && $policy eq 'allowed');
+        && ($kind eq 'native' || $kind eq 'snap' && $policy eq 'allowed'
+            || $kind eq 'flatpak' && $policy eq 'allowed' && $control eq 'enabled' && $route eq 'command');
     my $rule = $policy eq 'allowed' ? 'allowed' : $policy eq 'hard-blocked' ? 'hard' : 'soft';
     my $access = $rule eq 'allowed' ? 'allowed' : $rule eq 'hard' ? 'permanent' : 'conditional';
     my $journey = onpc_journey->new(
@@ -39,7 +40,7 @@ sub run {
             $journey, 'gdm', 'fresh', 'new', 'existing'));
     }
     $journey->seen('apps-page');
-    if ($kind eq 'snap') {
+    if ($kind eq 'snap' || $kind eq 'flatpak') {
         onpc_app_rows::access_choice($journey, 'allowed-save', 'allowed-row');
     } else {
         onpc_app_rows::edit_policy($journey, onpc_app_rows::fixture_app('A'),
@@ -51,7 +52,7 @@ sub run {
     my $jordan = $journey->scope($policy eq 'allowed' ? 'jordan-use' : 'jordan-denied');
     if ($policy eq 'allowed') {
         onpc_app_rows::native_usable_app($jordan, $route, $jordan->seen('desktop'), 'other-child',
-                                       $kind eq 'snap' ? 'A' : undef, $kind);
+                                       $kind ne 'native' ? 'A' : undef, $kind);
     } else {
         onpc_app_rows::native_blocked_app($jordan, 'A', $route);
     }
@@ -65,7 +66,7 @@ sub run {
         $journey, 'gdm', 'child', 'fresh', 'success', 'riley-entry');
     my $riley = $journey->scope('riley-use');
     onpc_app_rows::native_usable_app($riley, $route, $riley->seen('desktop'), 'child',
-                                   $kind eq 'snap' ? 'A' : undef, $kind);
+                                   $kind ne 'native' ? 'A' : undef, $kind);
     if ($kind eq 'native' && $route eq 'grid' && $policy eq 'allowed') {
         onpc_app_rows::native_finish_app($riley);
         my $command = $journey->scope('riley-command');

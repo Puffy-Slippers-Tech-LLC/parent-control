@@ -1240,6 +1240,16 @@ Jordan logs out, Riley enters fresh and launches and uses the same package.
 Riley's policy and disabled time limits remain untouched. There is no approval,
 match-editor visit, launcher-visibility assertion or alternate route.
 
+Case 104 uses `flatpak_app_launch.PLAN` / `onpc_app_launch::run` with the enabled,
+Allowed Flatpak command binding. FIX06 verifies the default system installation,
+runtime, app commits and exported launchers. Parent gives Jordan 30 daily minutes
+with zero grant, saves A's Allowed access and independently reads its saved row.
+Fresh Jordan and then fresh Riley each launch the same system `x86_64/stable`
+Flatpak A once, submit the normal draft and independently read the owned window
+and submitted result. Riley's policy and disabled limits remain untouched.
+There is no approval, match-editor visit, launcher-visibility assertion or
+alternate route.
+
 Case 93 uses `snap_app_launch.DISABLED_PLAN` and the same worker's disabled
 Allowed Snap command binding. Parent independently reads Jordan's untouched
 limits-off/zero-allowance settings before saving and reading A's Allowed rule.

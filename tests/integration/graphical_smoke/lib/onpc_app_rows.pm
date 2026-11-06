@@ -552,8 +552,9 @@ sub native_usable_app {
         && (defined($desktop) || $route eq 'command')
         && ($child eq 'child' || $child eq 'other-child' || $child eq 'parent' && $route eq 'command')
         && ($gesture eq 'ret' || $kind eq 'snap' && $route eq 'grid' && $gesture eq 'ctrl-ret')
-        && ($kind eq 'flatpak' && $route eq 'command' && $child eq 'other-child'
-            && defined($role) && $role =~ /\A(?:A|H|S)\z/
+        && ($kind eq 'flatpak' && $route eq 'command' && defined($role)
+            && ($child eq 'other-child' && $role =~ /\A(?:A|H|S)\z/
+                || $child eq 'child' && $role eq 'A' && $gesture eq 'ret')
             || $kind eq 'snap' && defined($role)
             && ($child eq 'other-child' && $role =~ /\A(?:A|H|S)\z/
                 || $child eq 'child' && $role eq 'A' && $gesture eq 'ret')

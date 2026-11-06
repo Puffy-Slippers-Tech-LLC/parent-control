@@ -13,7 +13,7 @@ Task queue: [Plan C ordered checklist](E2E-Task-QueueC.md).
 
 ## Next task
 
-Next task: **120 — [E2E-019: flatpak-command-allowed-enabled](E2E-Tasks/120-case-104.md)**.
+Next task: **120b — [E2E-019: flatpak-command-allowed-disabled](E2E-Tasks/120b-case-105.md)**.
 
 This plan owns its queue, unchanged task briefs and next-task pointer.
 It can run independently of all unfinished work in

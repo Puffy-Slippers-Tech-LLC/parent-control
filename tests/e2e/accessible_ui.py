@@ -211,9 +211,15 @@ FLATPAK_APP_BINDINGS = {
                    'activity', 'close', 'closed')
 }
 FLATPAK_APP_OPERATIONS = frozenset(FLATPAK_APP_BINDINGS) | {'flatpak-command-refusals'}
+RILEY_FLATPAK_OPERATIONS = frozenset('overlay-flatpak-allowed-' + action for action in
+    ('desktop', 'command-launch', 'opened', 'submit', 'submitted'))
+FLATPAK_APP_BINDINGS.update({operation: ('A', 'primary', operation.removeprefix('overlay-flatpak-allowed-'))
+                             for operation in RILEY_FLATPAK_OPERATIONS})
 PACKAGED_APP_BINDINGS = {**SNAP_APP_BINDINGS, **FLATPAK_APP_BINDINGS}
 OPERATIONS |= FLATPAK_APP_OPERATIONS
 STANDARD_OPERATIONS |= FLATPAK_APP_OPERATIONS
+FLATPAK_APP_OPERATIONS |= RILEY_FLATPAK_OPERATIONS
+OPERATIONS |= RILEY_FLATPAK_OPERATIONS
 PARENT_NATIVE_OPERATIONS = frozenset('parent-native-' + suffix for suffix in (
     'desktop', 'command-launch', 'activity-launch', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed'))
 OPERATIONS |= PARENT_NATIVE_OPERATIONS
@@ -236,6 +242,7 @@ OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-grant-form', 'o
     'overlay-qualification-cancel', 'overlay-desktop'})
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | NATURAL_EXPIRY_OPERATIONS | frozenset({'child-command-launch'})
 CHILD_DESKTOP_OPERATIONS |= RILEY_SNAP_OPERATIONS
+CHILD_DESKTOP_OPERATIONS |= RILEY_FLATPAK_OPERATIONS
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_LANGUAGE_OPERATIONS - {'overlay-language-wrong-entry'}
 OVERLAY_NATIVE_OPERATIONS = frozenset('overlay-native-' + suffix for suffix in (
     'desktop', 'command-launch', 'activity-launch', 'command-blocked', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed',
@@ -658,6 +665,8 @@ MATCH_APPS = {role: 'parent-app-' + hashlib.sha256(
 MATCH_OTHER_APP = 'parent-app-' + hashlib.sha256(b'com.puffyslippers.ONPCTest.N.desktop').hexdigest()[:16]
 SNAP_POLICY_APP = 'parent-app-' + hashlib.sha256(
     b'onpc-fixture-allowed_onpc-fixture-allowed.desktop').hexdigest()[:16]
+FLATPAK_POLICY_APP = 'parent-app-' + hashlib.sha256(
+    b'com.puffyslippers.ONPCTestApplication.desktop').hexdigest()[:16]
 MATCH_RULES = ('/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
                '/opt/onpc-test-fixtures/Applications/Exact*.AppImage',
                '/opt/onpc-test-fixtures/Applications/*.AppImage',
@@ -692,6 +701,8 @@ BASELINE_ACCESS_OPERATIONS = {f'access-{name}-{action}': (MATCH_APPS[role], acti
     for name, role in (('hard', 'H'), ('soft', 'S'), ('alias', 'Alias'))
     for action in (*ACCESS_CHOICES, 'row')}
 BASELINE_ACCESS_OPERATIONS.update({f'access-snap-{action}': (SNAP_POLICY_APP, action)
+                                   for action in ('allowed', 'row')})
+BASELINE_ACCESS_OPERATIONS.update({f'access-flatpak-{action}': (FLATPAK_POLICY_APP, action)
                                    for action in ('allowed', 'row')})
 ACCESS_OPERATIONS |= frozenset(BASELINE_ACCESS_OPERATIONS)
 OPERATIONS |= ACCESS_OPERATIONS
@@ -7378,7 +7389,8 @@ class AccessibleUI:
     def match_entry(self, child, app, *, editor=False, access=None):
         """Fresh complete child/page/app and transient-owner proof before input."""
         require(child in CHILD_IDENTITIES and (app in (*MATCH_APPS.values(), MATCH_OTHER_APP)
-                or app == SNAP_POLICY_APP and access in ACCESS_CHOICES and not editor), 'ui:match-binding')
+                or app in (SNAP_POLICY_APP, FLATPAK_POLICY_APP)
+                and access in ACCESS_CHOICES and not editor), 'ui:match-binding')
         require(access is None or (access in ACCESS_CHOICES and not editor), 'ui:access-binding')
         require(not self.input_uncertain, 'ui:uncertain-input')
         observation = self.read_snapshot()
@@ -7448,7 +7460,8 @@ class AccessibleUI:
 
     def read_app_access(self, child, app):
         """PARENT12 independent read; caller owns the expected saved choice."""
-        require(app in (*MATCH_APPS.values(), MATCH_OTHER_APP, SNAP_POLICY_APP), 'ui:access-binding')
+        require(app in (*MATCH_APPS.values(), MATCH_OTHER_APP, SNAP_POLICY_APP, FLATPAK_POLICY_APP),
+                'ui:access-binding')
         def read():
             rows = self.app_rows(child)
             values = [access for identity, access, _ in rows if identity == app]
@@ -12892,7 +12905,8 @@ class AccessibleUI:
         require(kind in ('native', 'snap', 'flatpak'), 'ui:fixture-binding')
         snap = kind == 'snap'
         flatpak = kind == 'flatpak'
-        require(not flatpak or role in ('A', 'H', 'S') and child == EXISTING_CHILD
+        require(not flatpak or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
+                or child == CHILD and role == 'A' and instance == 'primary')
                 and not blocked and not locked and fixture == 'policy', 'ui:flatpak-binding')
         require(not snap or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
                 or child == CHILD and role == 'A' and instance == 'primary')
@@ -12915,7 +12929,7 @@ class AccessibleUI:
             require_active_launch_session(unlocked=not locked)
             if flatpak:
                 require(os.getuid() == os.geteuid() == pwd.getpwnam(
-                    CHILD_ACCOUNTS[EXISTING_CHILD]).pw_uid, 'ui:flatpak-session')
+                    CHILD_ACCOUNTS[child]).pw_uid, 'ui:flatpak-session')
             if child == CHILD:
                 self.require_child_overlay_session()
             if locked:
@@ -13034,7 +13048,8 @@ class AccessibleUI:
         require(kind in ('native', 'snap', 'flatpak'), 'ui:fixture-binding')
         snap = kind == 'snap'
         flatpak = kind == 'flatpak'
-        require(not flatpak or role in ('A', 'H', 'S') and child == EXISTING_CHILD
+        require(not flatpak or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
+                or child == CHILD and role == 'A' and instance == 'primary')
                 and instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'),
                 'ui:flatpak-binding')
         require(not snap or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
@@ -13050,7 +13065,7 @@ class AccessibleUI:
                     'ui:native-child-binding')
             if flatpak:
                 require(os.getuid() == os.geteuid() == pwd.getpwnam(
-                    CHILD_ACCOUNTS[EXISTING_CHILD]).pw_uid, 'ui:flatpak-session')
+                    CHILD_ACCOUNTS[child]).pw_uid, 'ui:flatpak-session')
             if child == CHILD:
                 self.require_child_overlay_session()
             else:
@@ -13249,7 +13264,8 @@ class AccessibleUI:
             return None
         role, instance, action = PACKAGED_APP_BINDINGS[operation]
         arguments = dict(instance=instance, role=role,
-                         child=CHILD if operation in RILEY_SNAP_OPERATIONS else EXISTING_CHILD,
+                         child=CHILD if operation in RILEY_SNAP_OPERATIONS | RILEY_FLATPAK_OPERATIONS
+                         else EXISTING_CHILD,
                          kind=kind)
         if action == 'search-ready':
             self.search_ready('overview')

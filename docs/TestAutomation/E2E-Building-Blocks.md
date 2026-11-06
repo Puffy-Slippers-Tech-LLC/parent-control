@@ -2218,8 +2218,9 @@ not active qualification prerequisites.
 
 The [Flatpak command](#flatpak-command-use) binding adds Jordan's system A/H/S
 fixtures and a distinguishable second S window on Ubuntu 26.04, with immutable
-activity capture and retained first-window comparison. Grid, other users and
-policy-denial bindings remain separate.
+activity capture and retained first-window comparison. Case 104 adds Riley's
+Allowed A command/window/Submit binding on that target. Grid, other Riley roles
+and policy-denial bindings remain separate.
 
 The qualified FILE03 Save binding uses `AccessibleUI.save_chooser_operation`,
 `attachment_composition.save_handoff/save_cancellation` and matching
@@ -3772,6 +3773,18 @@ Snap command and native retained-work checks passed in
 the selected VM was independently observed off. Other users, grid, enforcement
 and complete customer cases remain separate.
 
+Case 104 (`flatpak_app_launch.PLAN` / `onpc_app_launch::run`) passed on Ubuntu
+26.04 in `20261106T034616Z-cdec323b`. Parent saved Jordan's 30-minute daily
+allowance with zero grant and independently read A's Allowed row. Fresh Jordan
+and Riley each launched the same system Flatpak by command and submitted the
+normal draft with independent owned-window/result reads. The added Riley
+binding uses `overlay-flatpak-allowed-*` and checks Riley's actual UID against
+the unchanged system deployment metadata; Riley's policy remains untouched.
+Collection, worker shutdown, owned cleanup and baseline restoration passed,
+coverage was regenerated and the VM was observed off. This qualifies Riley's
+Allowed A command use and that complete enabled case only; disabled limits,
+other roles, grid and enforcement remain separate.
+
 ### Snap command use
 
 `snap_command_usable.PLAN` / `onpc_app_rows::snap_command_usable` qualify
@@ -4305,6 +4318,7 @@ or alternative launch substitutes for the declared route.
 | 85 / `app_launch.SOFT_COMMAND_DISABLED_PLAN`, `run(..., 'disabled', 'command', 'soft-blocked')` | Limits off/zero allowance; Parent reads Jordan's untouched settings, then saves A's precise conditional block without an allowance or approval. Fresh Jordan command execution requires attributed denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same target usable with Riley's policy and limits untouched. |
 | 86 / `snap_app_launch.GRID_PLAN`, `run(..., 'enabled', 'grid', 'allowed', 'snap')` | Parent gives Jordan 30 daily minutes/zero grant and saves A's Allowed Snap access with independent readback. Fresh Jordan and then fresh Riley open the same strict/system package through the app grid and submit the normal draft with independent window/result reads; Riley's policy and limits stay untouched. Passed on selected Fedora 44. |
 | 92 / `snap_app_launch.PLAN`, `run(..., 'enabled', 'command', 'allowed', 'snap')` | Parent gives Jordan 30 daily minutes/zero grant and saves A's Allowed Snap access with independent row readback. Jordan then Riley freshly enter, launch the same strict/system package by command and submit the normal draft with independent result reads; Riley's policy and limits stay untouched. Qualified on Fedora 44. |
+| 104 / `flatpak_app_launch.PLAN`, `run(..., 'enabled', 'command', 'allowed', 'flatpak')` | Parent gives Jordan 30 daily minutes/zero grant and saves A's Allowed Flatpak access with independent row readback. Fresh Jordan and Riley each launch and submit the same system Flatpak by command, with independent window/result reads and Riley's policy untouched. Passed on Ubuntu 26.04; see [Flatpak command use](#flatpak-command-use). |
 | 187 / `shared_launchers_case.PLAN`, `onpc_fresh_thirty_allowance::shared_launchers_case` | Jordan's A and Alias share one native target. Block A with Alias Allowed, restore both, block Alias with A Allowed, then restore both again. Each child visit independently proves both denials or both usable apps. Saved choices, Parent session/window, child selection and allowance persist across the complete history; [Ubuntu qualification](#native-fixture-preparation). |
 
 The Allowed native-A bindings are qualified on Ubuntu 26.04 and Fedora 44.

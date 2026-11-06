@@ -174,8 +174,10 @@ def test_symlink_catalogues_are_refused(repository, tmp_path):
 
 
 def test_transport_is_read_only_and_helpers_are_bounded(monkeypatch, tmp_path):
-    monkeypatch.setattr(sync.launcher.shutil, 'which', lambda _name: '/installed/codex')
-    command = sync.agent_command(ROOT, tmp_path, 'gpt-6.1-sol', 'high', 2)
+    import agent_codex
+    monkeypatch.setattr(agent_codex.shutil, 'which', lambda _name: '/installed/codex')
+    session = sync.agent_command(ROOT, tmp_path, 'gpt-6.1-sol', 'high', 2)
+    command = session.argv
     assert command.count('--sandbox') == 1
     assert command[command.index('--sandbox') + 1] == 'read-only'
     assert '--ephemeral' not in command and '--json' in command
@@ -183,7 +185,7 @@ def test_transport_is_read_only_and_helpers_are_bounded(monkeypatch, tmp_path):
     assert 'agents.max_depth=1' in command
     assert 'agents.max_concurrent_threads_per_session=2' in command
     assert 'features.fast_mode=false' in command
-    config = sync.TRANSLATOR.read_text()
+    config = (ROOT / 'tools' / agent_codex.ROLES['translator'][1]).read_text()
     assert 'sandbox_mode = "read-only"' in config
     assert 'enabled = false' in config
 

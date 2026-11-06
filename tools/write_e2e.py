@@ -36,7 +36,6 @@ NAMESPACE = None
 COMMAND = 'tools/write-e2e'
 MODEL_TIERS = (('gpt-6.1-sol', 'high'), ('gpt-6.1-sol', 'xhigh'),
                ('gpt-6.1-sol', 'max'))
-ADVISER_CONFIG = Path(__file__).resolve().with_name('write_e2e_adviser.toml')
 MAX_TASK_SESSIONS = 5
 OPTIMIZATION_INTERVAL = 3
 INITIAL_PROMPT = """Implement the next task in {plan}
@@ -317,14 +316,15 @@ def session_model(state):
 
 def session_command(root, state, run=None):
     model, effort = session_model(state)
-    command = launcher.agent_command(
+    delegation = launcher.Delegation()
+    if effort == 'high' and not state.get('optimization_session'):
+        delegation = launcher.Delegation(roles=('backend_reviewer', 'adviser', 'monitor', 'worker'),
+            model='gpt-6.1-sol', effort='max')
+    # Personal Fast settings must not silently spend more of the weekly budget.
+    return launcher.agent_command(
         root, model, effort, run,
         schema=Path(__file__).with_name('write_e2e_response.schema.json'),
-        adviser_config=ADVISER_CONFIG if effort == 'high' and not state.get('optimization_session') else None,
-        delegation=effort == 'high' and not state.get('optimization_session'))
-    # Personal Fast settings must not silently spend more of the weekly budget.
-    command[-1:-1] = ['-c', 'service_tier="default"', '-c', 'features.fast_mode=false']
-    return command
+        delegation=delegation, standard_speed=True)
 
 
 def record_usage(run, metadata, usage):
@@ -1800,12 +1800,13 @@ if __name__ == '__main__':
         metadata = {'session': state.get('total_sessions', state['task_sessions']),
                     'task_id': state['task_id'], 'phase': phase, 'model': model,
                     'reasoning_effort': effort, 'service_tier': 'default'}
-        command[-1:-1] = ['-c', 'shell_environment_policy.set.ONPC_WORKFLOW_DIRECTORY=' + json.dumps(str(run))]
+        shell_environment = [('ONPC_WORKFLOW_DIRECTORY', str(run))]
         from vm_selection import selected, BATCH
         vm = selected()
-        command[-1:-1] = ['-c', 'shell_environment_policy.set.ONPC_TEST_VM=' + json.dumps(vm.name)]
+        shell_environment.append(('ONPC_TEST_VM', vm.name))
         if BATCH in os.environ:
-            command[-1:-1] = ['-c', 'shell_environment_policy.set.' + BATCH + '=' + json.dumps(os.environ[BATCH])]
+            shell_environment.append((BATCH, os.environ[BATCH]))
+        command = command.revised(shell_environment=tuple(shell_environment))
         sys.exit(launcher.supervise(root, run, int(owner), 'agent', command, nested=True,
                                     hide_task_completion=True,
                                     interactive=True,

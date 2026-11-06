@@ -55,7 +55,8 @@ use the retained parameters with `--stop` or `--cancel-stop`. Earlier lifecycle
 flags (`--stop`, `--cancel-stop`, `--resume`, `--reload`, `--reset`) are removed
 from replayed parameters. The action button's hover tooltip and confirmation
 dialog both show the exact public command to run. Command errors remain visible
-in that terminal. Repair queue Stop retains its scope without reselecting VMs.
+in that terminal and failed actions light the footer error icon
+with captured process output and exit status. Repair queue Stop retains its scope without reselecting VMs.
 Older runs without saved parameters require one normal launch
 before this control becomes available.
 
@@ -86,14 +87,15 @@ another editor tab preserves the Watch page while pausing observation.
 The Output channel timestamps reader starts, exits, failures and successful
 connections. Slow responses (at least two seconds) and failures include the
 operation, elapsed time and received byte count; request text is not logged.
-For a truncated VS Code terminal-exit notification, run **ONPC: Watch Terminal
-Diagnostic** from the command palette. It shows the last failed Watch terminal's
-full invocation, checkout, host and exit status in the same copyable dialog.
-VS Code's public terminal API does not provide process stderr or the native
-notification's private error text; read process output in the terminal or
-Launcher tab. Exceptions thrown while creating a terminal light the footer
-error icon. Nonzero terminal exits are retained for this explicit command, since a
-launcher can also exit with an ordinary failed test result.
+Watch owns action process streams through a Python standard-library PTY bridge
+that preserves interactive input and forwards terminal resizing. Start failures
+and nonzero action exits light the error icon, including Python tracebacks and SSH diagnostics.
+The diagnostic includes the invocation, checkout, host, exit status and up to the
+last 1,048,576 characters of process output, with terminal control sequences
+removed; omitted earlier output is explicitly labelled.
+Closing an action terminal does not open an error dialog.
+**ONPC: Watch Terminal Diagnostic** reopens the last failed action's captured
+diagnostic in the same copyable dialog.
 
 Beside Stop/Resume, **Reload** (circular arrow) asks for confirmation with
 **Reload** and **Cancel**, showing the exact command. Confirming sends `--reload`
@@ -133,6 +135,7 @@ Each enabled stop, resume, reload or cancel-stop button asks for confirmation us
 VS Code's built-in modal warning dialog. Its button colors follow the host theme;
 the public extension API does not expose a destructive/red button style.
 The title switches to the recorded final status when the launcher exits.
+Failed launcher titles, including their command hyperlinks, appear in red.
 **Status** shows the current run status, **Launcher** shows
 the launcher terminal output, **Error** shows the shared launcher's **Last Error**
 and **Status** fields with the same colors and elapsed ages, and **Session** opens

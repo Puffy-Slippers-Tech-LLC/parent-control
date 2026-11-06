@@ -198,6 +198,7 @@ class Transport:
         if lease is not None:
             lease.shutdown_request = self.poweroff
             lease.product_log_capture = self.capture_product_logs
+            lease.set_probe_transport(self)
 
     def capture_product_logs(self):
         """Host-owned capture before shutdown/restoration; no public log output."""
@@ -238,6 +239,8 @@ class Transport:
 
     @observed('Requesting VM shutdown through its owned SSH transport')
     def poweroff(self):
+        if self.lease is not None:
+            self.lease.close_probe()
         # Submit once. A disconnect is uncertain; the owning controller must
         # independently observe this exact instance off, never replay input.
         self.call(['systemctl', '--no-ask-password', '--no-block', 'poweroff'],
@@ -412,6 +415,8 @@ class Transport:
             result = self._probe_ready(boot_id=True, timeout=330,
                 previous_boot_sha256=previous_boot_sha256, diagnostic=diagnostic)
             diagnostic['outcome'] = 'changed-boot'
+            if self.lease is not None:
+                self.lease.set_probe_transport(self)
             return result
         except BaseException as error:
             codes = {'transport:' + code: code for code in (
@@ -503,6 +508,8 @@ class Transport:
         require(type(previous_boot_sha256) is str
                 and re.fullmatch(r'[0-9a-f]{64}', previous_boot_sha256),
                 'transport:invalid-previous-boot')
+        if self.lease is not None:
+            self.lease.close_probe()
         program = ('import hashlib,os,pathlib,sys; '
             'assert hashlib.sha256(pathlib.Path("/proc/sys/kernel/random/boot_id").read_bytes())'
             '.hexdigest()==sys.argv[1]; '

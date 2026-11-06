@@ -940,6 +940,12 @@ rotates its keys nor adjusts its clock. It requires the current online app
 snapshot's private credential record, or the dedicated baseline-maintenance
 transport, and the existing maintenance ownership journal; manually started
 guests and active test controllers are refused.
+For lightweight diagnostics during an active test, use
+`tools/test-vm --vm NAME probe memory` instead. The installed helper authenticates
+the requester to the active owner's fixed read-only probe endpoint without
+acquiring another checkout. See the [VM mandate](Mandates/VM-Mandate.MD#owned-maintenance-and-execution)
+for the diagnostic bounds and lifecycle contract. This does not enable arbitrary
+guest commands during tests.
 The default command deadline is 120 seconds; `--timeout` accepts 1–86400 seconds.
 This is finite command execution, without an interactive terminal.
 The probe authenticates as guest root independently of the foreground desktop

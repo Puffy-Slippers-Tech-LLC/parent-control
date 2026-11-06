@@ -818,11 +818,49 @@ def test_replacement_or_unowned_attempt_never_receives_vm_actions(lease_rig, mut
     assert lease.source.domain.revertToSnapshot.call_count == 1
 
 
-def test_busy_controller_lock_refuses_even_with_valid_identity(lease_rig, monkeypatch):
+def test_busy_controller_lock_refuses_even_with_valid_identity(lease_rig, monkeypatch, request):
     lease, _ = lease_rig
+    request.addfinalizer(lease.release)
     lease.view.graphics_type = 'vnc'
     with patch('vm_probe.prepare_maintenance_transport'):
         control.operate(lease, 'start', [])
+    # Fixed diagnostics borrow the active owner's transport, never its checkout
+    # receipt. Serving a sample must leave concurrent test/maintenance exclusion
+    # and command status intact. Use a private socket and mocked guest only.
+    import live_vm_probe as live
+    import vm_transport
+    import uuid
+    sample = {'boot_sha256': 'a' * 64, 'sample_monotonic_ns': 1,
+        'meminfo_kib': {key: 1 for key in ('MemTotal', 'MemAvailable', 'MemFree', 'Cached',
+            'Buffers', 'SReclaimable', 'Shmem', 'SwapTotal', 'SwapFree')},
+        'vmstat': {key: 0 for key in ('pswpin', 'pswpout', 'pgmajfault', 'oom_kill')},
+        'pressure_total_us': {'some': 0, 'full': 0}}
+    probe_transport = Mock()
+    probe_transport.call.return_value = json.dumps(sample).encode()
+    endpoint = '\0onpc-test-probe-' + uuid.uuid4().hex
+    monkeypatch.setattr(live, 'address', lambda vm: endpoint)
+    monkeypatch.setattr(live, 'peer_uid', lambda peer: 0)
+    monkeypatch.setattr(live, 'os', SimpleNamespace(geteuid=lambda: 0,
+                                                  environ={'PKEXEC_UID': '1000'}))
+    monkeypatch.setattr(vm_transport, 'Transport', lambda *a, **k: probe_transport)
+    lease.commands.directory = lease.directory
+    lease.commands.last_returncode = 73
+    config = dict(directory=str(lease.directory), run=lease.state['run'],
+                  domain_uuid=lease.source.uuid, domain_id=lease.state['domain_id'])
+    lease.set_probe_transport(SimpleNamespace(config=config, commands=lease.commands))
+    assert lease.live_probe is not None
+    command_status = lease.commands.last_returncode
+    assert live.request(lease.source.uuid, 1000)['sample'] == sample
+    assert lease.commands.last_returncode == command_status
+    calls = probe_transport.call.call_count
+    with pytest.raises(ValueError, match='unavailable'):
+        live.request(lease.source.uuid, 1001)
+    assert probe_transport.call.call_count == calls
+    probe = lease.live_probe
+    with patch.object(probe, 'close', side_effect=KeyboardInterrupt):
+        with pytest.raises(KeyboardInterrupt):
+            lease.close_probe()
+    assert lease.live_probe is probe
     concurrent = reopened(lease)
     try:
         with pytest.raises(runner.Error, match='busy-controller'):
@@ -830,6 +868,8 @@ def test_busy_controller_lock_refuses_even_with_valid_identity(lease_rig, monkey
     finally:
         concurrent.release()
         lease.release()
+    with pytest.raises(ValueError, match='unavailable'):
+        live.request(lease.source.uuid, 1000)
     assert lease.source.domain.revertToSnapshot.call_count == 1
 
     # Direct callers may have passed admission before blocking on this lock.
@@ -1553,6 +1593,10 @@ def test_root_guest_dispatch_keeps_arbitrary_command_inside_the_fixed_controller
                        *VM_ARGS, '--expected-uuid', UUID, 'exec', '--timeout', '600', '--', *guest]
     with pytest.raises(ValueError, match='--vm'):
         dispatch(root, ['vm', 'exec', '--', *guest])
+    assert dispatch(root, ['vm', 'probe', 'memory', *VM_ARGS]) == []
+    for extra in (['exec'], ['memory', '--', 'sh'], ['memory', '--timeout', '600']):
+        with pytest.raises(ValueError, match='probe memory'):
+            dispatch(root, ['vm', *VM_ARGS, 'probe', *extra])
 
 
 @pytest.mark.parametrize('fault,scene',

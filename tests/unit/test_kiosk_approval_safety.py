@@ -96,7 +96,11 @@ def test_bound_prompt_refuses_changed_request_before_another_recipient_read():
 
 @pytest.mark.parametrize('mode', ['sequence', 'wrong-scope', 'crossed-request', 'replay'])
 def test_temporary_access_secret_binds_each_parent_and_requires_fresh_proofs(mode):
-    from flatpak_temporary_access import PLAN, REQUESTS
+    # Exercise the password guard with finite request inputs. Importing the
+    # complete customer case makes this safety test depend on unrelated plans.
+    requests = {'first': ('other-child', 'parent', 30, False),
+                'included': ('other-child', 'other-parent', 30, True),
+                'replacement': ('other-child', 'parent', 30, False)}
     result = run_perl(r'''
 use strict;
 use warnings;
@@ -133,14 +137,14 @@ my $ok = eval {
     1;
 };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
-''', mode, PLAN.prefix, json.dumps({name: [*binding[:3], int(binding[3])]
-                                  for name, binding in REQUESTS.items()}))
+''', mode, 'flatpak-temporary-access', json.dumps({name: [*binding[:3], int(binding[3])]
+                                               for name, binding in requests.items()}))
     value = json.loads(result.stdout)
-    names = list(REQUESTS) if mode == 'sequence' else ['first'] if mode == 'replay' else []
+    names = list(requests) if mode == 'sequence' else ['first'] if mode == 'replay' else []
     assert value['ok'] == (mode == 'sequence')
     assert value['events'] == [event for name in names for event in (
         ['proof', name + '-approval-qualified'], ['proof', name + '-approval-rechecked'],
-        ['delivery', REQUESTS[name][1], name + '-kiosk-mate-approval'])]
+        ['delivery', requests[name][1], name + '-kiosk-mate-approval'])]
 
 
 def test_shell_cancel_proof_requires_the_bound_request_and_a_new_challenge():
@@ -231,7 +235,8 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
                                  'work-recovery', 'expired-recovery', 'kiosk-recovery', 'kiosk-recovery-wrong-scope',
                                  'app-restart-request', 'sign-out-request', 'reboot-request',
                                  'process-update-request', 'process-update-wrong-soft', 'session-update-request',
-                                 'sign-out-expired-recovery', 'expired-recovery-wrong-scope'])
+                                 'sign-out-expired-recovery', 'reboot-expired-recovery',
+                                 'expired-recovery-wrong-scope'])
 def test_composed_kiosk_secret_scope_and_single_use(mode):
     # Execute the real password guard; replace only the secret delivery sink.
     # No password is supplied, and each isolated Perl process owns its latch.
@@ -242,13 +247,16 @@ def test_composed_kiosk_secret_scope_and_single_use(mode):
     from kiosk_recovery import PLAN as KIOSK_PLAN
     from app_restart_active import PLAN as RESTART_PLAN, SIGN_OUT_PLAN, REBOOT_PLAN
     from app_restart_expired import PLAN as EXPIRED_PLAN, SIGN_OUT_PLAN as EXPIRED_SIGN_OUT_PLAN
+    from app_restart_expired import REBOOT_PLAN as EXPIRED_REBOOT_PLAN
     from update_process_case import PLAN as UPDATE_PLAN
     from update_session_case import PLAN as SESSION_PLAN
     transition = [PLAN.prefix + '-soft-opening', 'soft-opening-', list(PLAN.kiosk_request)]
     revocation = [REVOCATION_PLAN.prefix + '-request', 'request-', list(REVOCATION_PLAN.kiosk_request)]
     recovery = [RECOVERY_PLAN.prefix, list(RECOVERY_PLAN.kiosk_request)]
-    if mode in ('expired-recovery', 'sign-out-expired-recovery', 'expired-recovery-wrong-scope'):
-        expired = EXPIRED_PLAN if mode == 'expired-recovery' else EXPIRED_SIGN_OUT_PLAN
+    if mode in ('expired-recovery', 'sign-out-expired-recovery', 'reboot-expired-recovery',
+                'expired-recovery-wrong-scope'):
+        expired = (EXPIRED_PLAN if mode == 'expired-recovery' else
+                   EXPIRED_REBOOT_PLAN if mode == 'reboot-expired-recovery' else EXPIRED_SIGN_OUT_PLAN)
         recovery = [expired.prefix, list(expired.kiosk_request)]
     restart = (REBOOT_PLAN if mode == 'reboot-request' else
                SIGN_OUT_PLAN if mode == 'sign-out-request' else RESTART_PLAN)
@@ -327,7 +335,8 @@ my $ok = eval {
         onpc_password::enter_kiosk_mate_password($first, 'request-1200');
         onpc_password::enter_kiosk_mate_password($first, 'request-1200');
     } elsif ($mode eq 'work-recovery' || $mode eq 'expired-recovery'
-            || $mode eq 'sign-out-expired-recovery' || $mode eq 'expired-recovery-wrong-scope') {
+            || $mode eq 'sign-out-expired-recovery' || $mode eq 'reboot-expired-recovery'
+            || $mode eq 'expired-recovery-wrong-scope') {
         my $setup = bless {prefix => $recovery->[0] . '-profile-request',
             stage_prefix => 'profile-request-', review => 0}, 'onpc_journey';
         onpc_password::enter_kiosk_mate_password($setup, 'long-request');
@@ -358,7 +367,8 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
         assert deliveries == [['delivery', 'parent', 'kiosk-final-kiosk-mate-request-1200']]
         assert [event for event in value['events'] if event[0] == 'proof'] == [
             ['proof', 'kiosk-final-approval-' + proof] for proof in ('qualified', 'rechecked')]
-    elif mode in ('work-recovery', 'expired-recovery', 'sign-out-expired-recovery'):
+    elif mode in ('work-recovery', 'expired-recovery', 'sign-out-expired-recovery',
+                  'reboot-expired-recovery'):
         assert value['ok'] == 1
         assert deliveries == [
             ['delivery', 'parent', 'profile-request-kiosk-mate-long-request'],

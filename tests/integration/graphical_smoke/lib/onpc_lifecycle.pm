@@ -162,19 +162,24 @@ sub app_restart_active {
 }
 
 sub app_restart_expired {
-    my ($exchange, $declared, $challenges, $request, $sign_out) = @_;
+    my ($exchange, $declared, $challenges, $request, $sign_out, $reboot) = @_;
     $sign_out //= 0;
-    onpc_progress::operation($sign_out
+    $reboot //= 0;
+    onpc_progress::operation($reboot
+        ? 'Rebooting, letting child time expire and approving a fresh session'
+        : $sign_out
         ? 'Signing the child out, letting time expire and approving a fresh session'
         : 'Reopening the apps, letting child time expire and approving recovery');
-    die 'app-restart-expired:binding' unless (@_ == 4 || @_ == 5) && ($sign_out == 0 || $sign_out == 1)
+    die 'app-restart-expired:binding' unless (@_ == 4 || @_ == 5 || @_ == 6)
+        && ($sign_out == 0 || $sign_out == 1) && ($reboot == 0 || $reboot == 1)
+        && (!$reboot || $sign_out)
         && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,1200,0';
     require onpc_app_rows;
     require onpc_desktop_session;
     my $journey = onpc_journey->new(exchange => $exchange,
-        prefix => $sign_out ? 'sign-out-in-expired' : 'app-restart-expired', review => 0);
+        prefix => $reboot ? 'reboot-expired' : $sign_out ? 'sign-out-in-expired' : 'app-restart-expired', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -204,7 +209,12 @@ sub app_restart_expired {
     $leave->('original-leave');
     $enter->('before-parent', 'parent', 'retained');
     $journey->seen('before-policy');
-    if ($sign_out) {
+    if ($reboot) {
+        $journey->seen($_) for qw(reboot-requested reboot-greeter);
+        $enter->('returned-parent', 'parent', 'fresh');
+        my $parent = $journey->scope('returned-parent-launch');
+        onpc_parent::launch($parent, $parent->seen('desktop'), 'management');
+    } elsif ($sign_out) {
         $leave->('boundary-parent-leave');
         $enter->('boundary-child-entry', 'child', 'retained');
         my $section = $journey->scope('boundary-child');
@@ -213,6 +223,8 @@ sub app_restart_expired {
     } else {
         my $restart = $journey->scope('reopen');
         reopen($restart, 'parent', $restart->seen('prior-window'), 'management');
+    }
+    if (!$sign_out || $reboot) {
         my $selected = $journey->scope('returned-child');
         $selected->consume_observation('parent-selected', onpc_parent::select_child($selected, 'child',
             $selected->seen('child-picker-opened'), 'child-picker-opened',

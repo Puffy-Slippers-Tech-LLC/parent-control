@@ -1,4 +1,4 @@
-"""Expired-grant persistence across app reopening and fresh child sessions."""
+"""Expired-grant persistence across app reopening, sign-out and reboot."""
 from copy import deepcopy
 from dataclasses import replace
 import time
@@ -163,6 +163,34 @@ SIGN_OUT_PLAN = replace(PLAN, prefix='sign-out-in-expired', worker_mode='sign_ou
 )
 
 
+REBOOT_BOUNDARY = {
+    **desktop_return('original-leave', account='child'),
+    **enter('before-parent', 'parent', 'retained'),
+    'before-policy': 'ui:revoke-saved-balances',
+    'reboot-requested': 'system:parent-desktop-identity',
+    'reboot-greeter': 'ui:gdm-list',
+    **enter('returned-parent', 'parent', 'fresh'),
+    'returned-parent-launch-desktop': 'ui:desktop',
+    'returned-parent-launch-parent-command': 'ui:parent-command-launch',
+    'returned-parent-launch-parent-window': 'ui:parent-window',
+    **prefixed_stages('returned-child', parent_selection(screen_limits=True)),
+    'returned-policy': 'ui:revoke-saved-balances',
+    **desktop_return('returned-parent-leave', account='parent'),
+}
+REBOOT_SCREENS = {**SETUP, **REBOOT_BOUNDARY, **EXPIRY, **SIGN_OUT_RECOVERY}
+REBOOT_PLAN = replace(SIGN_OUT_PLAN, prefix='reboot-expired', worker_mode='reboot_expired',
+    screen_tags=REBOOT_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+        **{stage: phase for phase, screens in (
+            ('step-1', SETUP), ('step-2', REBOOT_BOUNDARY), ('step-3', EXPIRY),
+            ('step-4', SIGN_OUT_RECOVERY)) for stage in screens}, 'installed-greeter': 'start'},
+    invocations=tuple(stage for stage in SIGN_OUT_PLAN.invocations if stage in REBOOT_SCREENS),
+    challenges={prefix: binding for prefix, binding in SIGN_OUT_PLAN.challenges.items()
+                if prefix + '-entry-guard' in REBOOT_SCREENS},
+    reboot_transition=('reboot-requested', 'reboot-greeter'),
+)
+
+
 class AppRestartExpiredJourney(GrantOnlyProfileJourney, AppPolicyJourney):
     def __init__(self, context, progress, plan, *, actions=None):
         super().__init__(context, progress, plan, grant_seconds=GRANT_SECONDS,
@@ -284,4 +312,13 @@ def execute_sign_out(recorder, context):
                              journey_type=AppRestartExpiredJourney)
 
 
-E2E_CASES = {'app-restart-expired': execute, 'sign-out-in-expired': execute_sign_out}
+def execute_reboot(recorder, context):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    context.fixture_subsets = ACTIVITY_SUBSETS
+    context.fixture_caller = 'E2E-022/reboot-expired'
+    record_installed_journey(recorder, context, REBOOT_PLAN, timeout=3000,
+                             journey_type=AppRestartExpiredJourney)
+
+
+E2E_CASES = {'app-restart-expired': execute, 'sign-out-in-expired': execute_sign_out,
+             'reboot-expired': execute_reboot}

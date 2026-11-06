@@ -1276,6 +1276,15 @@ and complete owned-window absence. Fresh Riley then launches and submits the
 same system Flatpak with independent owned-window/submitted-draft readback and
 untouched policy and limits.
 
+Case 108 uses `flatpak_app_launch.SOFT_COMMAND_PLAN` and the same worker's
+enabled, soft-blocked Flatpak command binding. Parent gives Jordan 30 daily
+minutes with zero grant and saves A's conditional access with independent row
+readback. Fresh Jordan command execution must produce the app-specific
+administrator-policy denial and complete owned-window absence. Fresh Riley then
+launches and submits the same system Flatpak, with independent owned-window and
+submitted-draft reads and untouched policy and limits. No approval, match-editor
+visit, launcher-visibility check or alternate route is used.
+
 Case 93 uses `snap_app_launch.DISABLED_PLAN` and the same worker's disabled
 Allowed Snap command binding. Parent independently reads Jordan's untouched
 limits-off/zero-allowance settings before saving and reading A's Allowed rule.

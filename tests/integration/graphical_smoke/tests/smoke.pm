@@ -842,6 +842,13 @@ sub run {
                             'disabled', 'command', 'hard-blocked', 'flatpak');
         return;
     }
+    if ($ready->{flatpak_command_soft_blocked}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
+                            'enabled', 'command', 'soft-blocked', 'flatpak');
+        return;
+    }
     if ($ready->{snap_grid_allowed}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

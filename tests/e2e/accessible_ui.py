@@ -712,7 +712,7 @@ BASELINE_ACCESS_OPERATIONS = {f'access-{name}-{action}': (MATCH_APPS[role], acti
 BASELINE_ACCESS_OPERATIONS.update({f'access-snap-{action}': (SNAP_POLICY_APP, action)
                                    for action in ('allowed', 'row')})
 BASELINE_ACCESS_OPERATIONS.update({f'access-flatpak-{action}': (FLATPAK_POLICY_APP, action)
-                                   for action in ('allowed', 'permanent', 'row')})
+                                   for action in (*ACCESS_CHOICES, 'row')})
 BASELINE_ACCESS_OPERATIONS.update({f'access-flatpak-{name}-{action}': (FLATPAK_POLICY_APPS[role], action)
     for name, role in (('hard', 'H'), ('soft', 'S'))
     for action in (*ACCESS_CHOICES, 'row')})

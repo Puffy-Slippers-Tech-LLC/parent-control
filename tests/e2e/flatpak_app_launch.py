@@ -12,9 +12,10 @@ JORDAN_ENTRY = prefixed_stages('jordan-entry', desktop_entry('other-child', sour
 RILEY_ENTRY = prefixed_stages('riley-entry', desktop_entry('child', source='gdm', entry='fresh'))
 
 
-def command_plan(*, limits=True, hard_blocked=False):
-    rule = 'hard' if hard_blocked else 'allowed'
-    access = 'permanent' if hard_blocked else 'allowed'
+def command_plan(*, limits=True, rule='allowed'):
+    access = {'allowed': 'allowed', 'hard': 'permanent', 'soft': 'conditional'}[rule]
+    policy = 'allowed' if rule == 'allowed' else rule + '-blocked'
+    blocked = rule != 'allowed'
     setup = {
         **app_policy_entry(child='existing', initial_rows=False,
                            allowance='time-explanation-setup-thirty-read' if limits else None),
@@ -23,7 +24,7 @@ def command_plan(*, limits=True, hard_blocked=False):
     }
     jordan = {
         'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
-        **({'jordan-denied-command': 'ui:flatpak-allowed-command-blocked'} if hard_blocked else
+        **({'jordan-denied-command': 'ui:flatpak-allowed-command-blocked'} if blocked else
            prefixed_stages('jordan-use', native_usable_app('command', kind='flatpak', role='A'))),
     }
     riley = {
@@ -32,8 +33,8 @@ def command_plan(*, limits=True, hard_blocked=False):
             'command', kind='flatpak', role='A', child='child')),
     }
     return JourneyPlan(
-        prefix='flatpak-command-' + ('hard-blocked' if hard_blocked else 'allowed'),
-        worker_mode='flatpak_command_' + ('hard_blocked' if hard_blocked else 'allowed')
+        prefix='flatpak-command-' + policy,
+        worker_mode='flatpak_command_' + policy.replace('-', '_')
                     + ('' if limits else '_disabled'),
         screen_tags={**setup, **jordan, **riley},
         phases={'ready': 'setup', 'setup-detached': 'setup',
@@ -41,7 +42,7 @@ def command_plan(*, limits=True, hard_blocked=False):
                 **{stage: 'step-2' for stage in jordan},
                 **{stage: 'step-3' for stage in riley}},
         advance_after={'installed-greeter': 'step-1', rule + '-row': 'step-2',
-                       ('jordan-denied-command' if hard_blocked else 'jordan-use-submitted'): 'step-3'},
+                       ('jordan-denied-command' if blocked else 'jordan-use-submitted'): 'step-3'},
         stage_actions={'desktop': 'native-verify'},
         child_bindings={**({'allowance-configured': 'existing'} if limits else {}),
                         rule + '-save': 'existing', rule + '-row': 'existing'},
@@ -63,8 +64,9 @@ def command_plan(*, limits=True, hard_blocked=False):
 
 PLAN = command_plan()
 DISABLED_PLAN = command_plan(limits=False)
-HARD_COMMAND_PLAN = command_plan(hard_blocked=True)
-HARD_COMMAND_DISABLED_PLAN = command_plan(limits=False, hard_blocked=True)
+HARD_COMMAND_PLAN = command_plan(rule='hard')
+HARD_COMMAND_DISABLED_PLAN = command_plan(limits=False, rule='hard')
+SOFT_COMMAND_PLAN = command_plan(rule='soft')
 
 
 def execute(recorder, context, *, plan=PLAN):
@@ -76,4 +78,5 @@ def execute(recorder, context, *, plan=PLAN):
 E2E_CASES = {'flatpak-command-allowed-enabled': execute,
              'flatpak-command-allowed-disabled': partial(execute, plan=DISABLED_PLAN),
              'flatpak-command-hard-blocked-enabled': partial(execute, plan=HARD_COMMAND_PLAN),
-             'flatpak-command-hard-blocked-disabled': partial(execute, plan=HARD_COMMAND_DISABLED_PLAN)}
+             'flatpak-command-hard-blocked-disabled': partial(execute, plan=HARD_COMMAND_DISABLED_PLAN),
+             'flatpak-command-soft-blocked-enabled': partial(execute, plan=SOFT_COMMAND_PLAN)}

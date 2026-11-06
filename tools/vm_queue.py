@@ -69,9 +69,11 @@ def preparation(root, tool, args, concurrency, vms):
         statuses = {name: result['status'] if isinstance(result, dict) else result
                     for name, result in results.items()}
         for name, status in statuses.items():
-            print(f'{tool}: {name}: status {status}', flush=True)
+            message = f'{tool}: {name}: status {status}'
+            print('\033[31m' + message + '\033[0m' if status else message, flush=True)
             if isinstance(results[name], dict) and results[name].get('error'):
-                print(f'{tool}: {name}: {results[name]["error"]}', file=sys.stderr, flush=True)
+                print(f'\033[31m{tool}: {name}: {results[name]["error"]}\033[0m',
+                      file=sys.stderr, flush=True)
         status = 130 if control.stopped.is_set() else next((value for value in statuses.values() if value), 0)
         return statuses, status
 

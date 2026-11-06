@@ -1,9 +1,10 @@
 # Agent adapter proposal
 
-Status: Codex session preparation, interactive protocol extraction and batch
-presentation normalization are implemented; model/preflight extraction and
-configuration-driven agent selection remain proposed. Live-agent qualification
-is outstanding.
+Status: Codex session preparation, interactive protocol extraction, batch
+presentation normalization, model/profile preflight and remaining caller/profile
+integration are implemented. Current Codex policy has been reconciled with the
+adapter boundary. Claude policy migration and configuration-driven agent selection
+remain proposed. Live-agent qualification is outstanding.
 
 The repository should select its coding agent solely from the checked-in
 top-level `agent` field in [config/environment.json](../config/environment.json).
@@ -25,8 +26,7 @@ in [agent_codex.py](../tools/agent_codex.py). Repair, plans, E2E, translation an
 Git helpers now supply session requirements instead of changing native argument
 lists. Capacity attempts reprepare requests under the same adapter. Process
 supervision, mailbox/result acceptance and workflow budgets retain their owners.
-The existing executable check is preserved; this slice does not add authentication
-or capability preflight. `PreparedSession` now carries a per-session
+The existing executable check is preserved. `PreparedSession` now carries a per-session
 `SessionProtocol` for interactive execution. `CodexProtocol` in `agent_codex.py`
 owns app-server framing, RPC requests/responses, coordinator thread/turn filtering,
 steering/interruption races and native output/error decoding. It emits
@@ -39,25 +39,50 @@ native event/error decoding, reasoning suppression and terminal capacity
 classification. Both transports supply `SessionEvent` values to the shared
 renderer, reusing its existing item vocabulary. Usage retains the CLI's reported
 turn scope and missing counters; displayed messages and helper activity never
-replace the native coordinator result file or workflow validation. Native
-model-profile resolution and strict configuration selection remain future steps.
-No Claude runtime dependency is introduced.
+replace the native coordinator result file or workflow validation.
+`ModelProfile` and `resolve_profile` expose native model/effort pairs through the
+adapter. Repair and translation catalogue checks now use
+`PreparedSession.preflight`; plan and E2E startup also check their requested
+coordinator/helper profiles. `CodexAdapter` owns the bounded `debug models`
+request, catalogue validation, listed effort checks and role-profile resolution
+from its existing TOML assets. Missing CLI/catalogue capabilities fail before task
+work; preflight never installs or authenticates a CLI. The catalogue advertises
+support; it does not establish authentication, live model access or transport
+compatibility. Workflow owners retain effort ladders, explicit override policy,
+promotion timing, budgets and capacity retry delays. The adapter maps the existing
+Sol-to-Astra capacity fallback, checked when needed without spending a new logical
+session. Native role assets join the controller reload inventory. Strict
+configuration selection remains a future step. No Claude runtime dependency is
+introduced.
+
+Git close-out and merge/stash-restoration conflict sessions resolve the pinned
+`commit_helper` and `conflict_resolver` profiles through the adapter, retaining
+the existing executable check during session preparation. They retain Sol High
+independently of coordinator overrides; deterministic Git operations do not
+prepare or preflight an agent. Git catalogue qualification remains outstanding;
+no additional subprocess runs outside its supervisor. Shared workflow prompts render resolved model and
+helper profiles rather than duplicating native model names. Native role assets
+retain their model/effort pins and permissions; their instructions refer to those
+configured pins. The current goal API, fresh helper context, independent Astra
+backend review and workflow-specific escalation/delegation rules remain enforced.
+The owning execution/test policies distinguish that extraction from the proposed
+Claude policy migration below. Setup/SSH/Watch native assumptions remain for their
+later delivery step; no alternative runtime or selection is enabled here.
 
 ## Next implementation step
 
-Continue delivery step 2 with **Codex native model/profile and preflight
-extraction**. Start at `available_models` in
-[fix_tests.py](../tools/fix_tests.py), `available_model` in
-[sync_whatsnew.py](../tools/sync_whatsnew.py), and the model/tier requirements in
-[plan_launcher.py](../tools/plan_launcher.py) and
-[write_e2e.py](../tools/write_e2e.py). Move native catalogue/capability checks and
-profile resolution behind `agent_codex.py`; keep workflow escalation timing,
-explicit override behavior, session budgets and capacity retry policy with their
-existing owners. Preserve current profiles and agent-free help/listing behavior;
-report missing readiness without installing or authenticating a CLI. Do not redo
-session preparation or transport decoding, or enable Claude/configuration
-selection. Live-agent qualification is still outstanding; passing source/unit
-checks and launcher help do not establish it.
+Complete delivery step 2 with **bounded Codex live-agent qualification** through
+the extracted shared boundary. Use a disposable checkout and maintained
+ownership/storage routes. Exercise batch and interactive finite passing/failing
+results, native goal activation, fresh delegated roles, coordinator result
+ownership, pending input at completion, interruption/cleanup and Git helper
+profiles/catalogue readiness. Preserve explicit overrides, escalation timing, budgets, read-only
+roles, independent backend review and agent-free operations. Report actual
+CLI/model readiness limits and retain unresolved qualification explicitly;
+source/unit checks and launcher help do not establish native compatibility.
+Do not enable Claude/configuration selection or redo delivered extraction. The
+remaining Claude policy migrations are still proposed, as described in
+[Models, roles and repository policy](#models-roles-and-repository-policy).
 
 ## Configuration and scope
 
@@ -94,15 +119,15 @@ dependency and package payload maps.
 | Area | Existing coupling | Proposed change |
 | --- | --- | --- |
 | Configuration | [vm_config.py](../tests/integration/vm_config.py) owns the shared document reader; [vm_selection.py](../tools/vm_selection.py) exposes it to launchers | Keep one document parser; add strict live agent selection at the adapter entry point |
-| Shared execution | [detached_launcher.py](../tools/detached_launcher.py) prepares sessions and transport decoders through the Codex adapter, supervises processes and retries capacity failures | Retain ownership/supervision; finish extracting model-profile resolution |
+| Shared execution | [detached_launcher.py](../tools/detached_launcher.py) prepares sessions and transport decoders through the Codex adapter, supervises processes and retries capacity failures | Retain ownership/supervision; native fallback mapping and readiness now belong to the adapter |
 | Conversation | [launcher_chat.py](../tools/launcher_chat.py) consumes adapter events and retains shared mailbox/status and completion gates | Keep mailbox, status validation and input/result serialization shared; qualify native transport behavior |
 | Presentation | [launcher_render.py](../tools/launcher_render.py) consumes shared events from both Codex transports | Qualify the same common event format with the future Claude adapter |
-| Repair | [fix_tests.py](../tools/fix_tests.py) pins Sol, validates the Codex model catalogue and supplies repair tiers | Request workflow roles and capability tiers from the selected adapter |
-| E2E | [write_e2e.py](../tools/write_e2e.py) pins coordinator tiers, adviser roles and native configuration | Preserve its acceptance/escalation engine; resolve models and roles through the adapter |
-| Ordinary plans | [plan_launcher.py](../tools/plan_launcher.py) embeds model defaults, delegation and capacity fallback | Keep plan selection and completion guards; pass structured session requirements |
-| Translation | [sync_whatsnew.py](../tools/sync_whatsnew.py) requests read-only sessions and bounded translator roles through the adapter; model preflight still uses Codex | Preserve launcher-owned catalogue writes and finish adapting model preflight |
-| Git recovery | [launcher_git.py](../tools/launcher_git.py) and [launcher_worktrees.py](../tools/launcher_worktrees.py) launch pinned Sol sessions | Use the parent's selected adapter for dependent agent sessions; keep deterministic Git transactions shared |
-| Policies and roles | [AGENTS.md](../AGENTS.md), [Execution-Plans.md](Execution-Plans.md), [tests/README.md](../tests/README.md), and agent-role TOMLs name Codex APIs/models | Revise the owning policies and render native role definitions from shared role requirements |
+| Repair | [fix_tests.py](../tools/fix_tests.py) supplies repair tiers and override policy; native profiles/catalogue checks use the adapter | Retain escalation and verification ownership when selection is enabled |
+| E2E | [write_e2e.py](../tools/write_e2e.py) resolves coordinator/adviser profiles and checks catalogue capabilities through the adapter | Preserve its acceptance/escalation engine when selection is enabled |
+| Ordinary plans | [plan_launcher.py](../tools/plan_launcher.py) resolves defaults/helper profiles and preflights through the adapter | Keep plan selection, completion guards and capacity retry timing shared |
+| Translation | [sync_whatsnew.py](../tools/sync_whatsnew.py) requests read-only sessions, bounded translator roles and model preflight through the adapter | Preserve launcher-owned catalogue writes when selection is enabled |
+| Git recovery | [launcher_git.py](../tools/launcher_git.py) and [launcher_worktrees.py](../tools/launcher_worktrees.py) resolve pinned profiles and prepare sessions through the adapter | Qualify catalogue readiness and inherit the parent's selection when enabled; keep deterministic Git transactions shared |
+| Policies and roles | Shared prompts render resolved profiles; [AGENTS.md](../AGENTS.md), [Execution-Plans.md](Execution-Plans.md), [tests/README.md](../tests/README.md) and native role TOMLs retain current Codex requirements | Qualify and revise the owning policies before Claude execution; render its native roles from shared requirements |
 | Setup | [setup.sh](../setup.sh), [install_codex_rules.py](../tools/install_codex_rules.py), [setup_checkout.sh](../tools/setup_checkout.sh), and `config/codex-*` manage Codex rules/readiness | Add the selected agent's setup/readiness path without changing the public setup entry point |
 | Remote and Watch | [launcher_controller.py](../tools/launcher_controller.py) and [extension.js](../vscode/onpc-watch/extension.js) check specifically for Codex on SSH startup | Resolve on the executing checkout, prepare its CLI environment and display the recorded agent |
 | Supporting assets | Existing test doubles, skills, ignore rules, source archives and launcher reload inventories contain Codex assumptions | Adapt affected consumers without introducing a second workflow or unrelated test matrix |
@@ -112,13 +137,13 @@ dependency and package payload maps.
 Use composition beneath the existing launcher engines, following the
 [extension boundary](Execution-Plans.md#extension-boundary). Start with three
 small modules: `tools/agent_adapter.py`, `tools/agent_codex.py`, and proposed
-`tools/agent_claude.py`. The first two implement session preparation, the
+`tools/agent_claude.py`. The first two implement session preparation, model/profile preflight, the
 interactive protocol and batch presentation; the Claude module does not yet exist. Do not build a plugin framework or a generic
 multi-provider orchestration service.
 
 The intended `agent_adapter.py` boundary owns the common session request, fixed
 adapter selection, workflow/role vocabulary, and normalized events/results/errors.
-Session preparation, the interactive protocol and batch presentation contracts are implemented. Each concrete
+Session preparation, model/profile preflight, the interactive protocol and batch presentation contracts are implemented. Each concrete
 adapter owns native CLI/SDK details and its supported model profiles. Shared
 launcher code must not index into native argument lists or insert Codex `-c`
 values. For example, translation requests a read-only session directly instead

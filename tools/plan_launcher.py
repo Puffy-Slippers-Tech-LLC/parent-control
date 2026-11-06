@@ -23,6 +23,7 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detached_launcher as launcher
+from agent_adapter import capacity_fallback, resolve_profile
 from execution_plan import Plan, Task, local_file, local_path, plan_namespace, queue_state
 from launcher_git import (GitReconciliationRequired, OwnershipReconciliationRequired,
                           closeout_lock, commit_push_propagate, git_output,
@@ -42,8 +43,8 @@ from launcher_runtime import (AgentCapacityUnavailable, CAPACITY_RETRY_DELAYS, S
 class PlanWorkflow:
     name: str
     plan: str | None = None
-    model: str = 'gpt-6.1-sol'
-    effort: str = 'high'
+    model: str = resolve_profile('implementation').model
+    effort: str = resolve_profile('implementation').effort
     commit_prefix: str | None = 'TA'
     vm: bool = False
     max_sessions: int = 5
@@ -68,8 +69,8 @@ def capacity_session_spec(spec, state):
     """A capacity fallback never mutates the workflow's configured model/effort."""
     recovery = state.get('capacity_recovery', {})
     if (capacity_retry(state) and recovery.get('failures') == len(CAPACITY_RETRY_DELAYS) + 1
-            and spec.model == 'gpt-6.1-sol'):
-        return replace(spec, model='gpt-6-astra')
+            and capacity_fallback(spec.model) is not None):
+        return replace(spec, model=capacity_fallback(spec.model))
     return spec
 
 
@@ -132,10 +133,11 @@ def validate_result(plan, state, result):
 
 
 def session_command(root, spec, run=None):
+    worker = resolve_profile('worker')
     shell_environment = []
     if run is not None:
         shell_environment.append(('ONPC_WORKFLOW_DIRECTORY', str(run)))
-    # Preserve canonical queue bindings across fresh Codex command environments.
+    # Preserve canonical queue bindings across fresh agent command environments.
     from vm_selection import VARIABLE, BATCH
     for name in (VARIABLE, BATCH):
         if name in os.environ:
@@ -143,11 +145,13 @@ def session_command(root, spec, run=None):
     return launcher.agent_command(root, spec.model, spec.effort, run,
         schema=Path(__file__).with_name('plan_response.schema.json'), standard_speed=True,
         delegation=launcher.Delegation(roles=('backend_reviewer', 'monitor', 'worker'),
-            max_concurrent=3, model='gpt-6.1-sol', effort='medium'),
+            max_concurrent=3, model=worker.model, effort=worker.effort),
         shell_environment=shell_environment)
 
 
 def session_prompt(plan, spec, state):
+    worker = resolve_profile('worker')
+    monitor = resolve_profile('monitor')
     return f"""Implement only task {state['task_id']}: {state['task']['title']}.
 Read AGENTS.md, docs/Execution-Plans.md, master {plan.path}, ordered queue
 {plan.queue}, and the selected brief
@@ -163,11 +167,11 @@ have used {state.get('repair_sessions', 0)}/{MAX_REPAIR_SESSIONS}. Driver repair
 use only the separate repair allowance and preserve this same task's acceptance.
 Capacity fallback applies only to this session and preserves reasoning effort;
 the next session uses the workflow's configured model again. There is no
-automatic escalation for task difficulty. By default, use GPT-6.1 Sol subagents of appropriate effort as needed;
-routine read-only monitoring uses plan_monitor (Low), routine
-coverage refreshes and bounded implementation use plan_worker (Medium).
+automatic escalation for task difficulty. By default, use {worker.model} subagents of appropriate effort as needed;
+routine read-only monitoring uses plan_monitor ({monitor.model} {monitor.effort}), routine
+coverage refreshes and bounded implementation use plan_worker ({worker.model} {worker.effort}).
 For product backend code involving core functionalities, follow AGENTS.md's
-model, effort, consultation and mandatory independent Astra xHigh review
+model, effort, consultation and mandatory independent backend review
 requirements. These take precedence over the coordinator/subagent defaults above.
 Delegate scoped implementation or review to subagents configured as required by
 AGENTS.md when the coordinator or plan_worker defaults do not meet those requirements.
@@ -735,6 +739,8 @@ RESPONSE_VALIDATOR_SOURCES = (
     'plan_launcher.py', 'execution_plan.py', 'document_checks.py',
     'launcher_runtime.py', 'detached_launcher.py',
     'agent_adapter.py', 'agent_codex.py',
+    'backend_reviewer.toml', 'plan_monitor.toml', 'plan_worker.toml',
+    'write_e2e_adviser.toml', 'sync_whatsnew_translator.toml',
     'launcher_reload.py',
     'launcher_observer.py', 'launcher_view.py', 'launcher_display.py', 'launcher_progress.py',
     'launcher_session.py', 'launcher_chat.py', 'launcher_render.py', 'watch_output.py',
@@ -912,6 +918,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 validate_closeout_ownership(root, [], state)
             state.setdefault('started_at', time.time())
             active_spec = capacity_session_spec(spec, state)
+            if active_spec.model != spec.model:
+                session_command(root, active_spec).preflight()
             if not retrying_capacity:
                 state.pop('capacity_recovery', None)
                 state['task_sessions'] += 1
@@ -965,7 +973,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                     status, reason = 1, f'model capacity recovery exhausted: {error}'
                     break
                 if fallback:
-                    print(f'{spec.name}: model still at capacity; using gpt-6-astra '
+                    print(f'{spec.name}: model still at capacity; using {capacity_fallback(spec.model)} '
                           f'{spec.effort} for this session only.', flush=True)
                 else:
                     print(f'{spec.name}: model at capacity; retrying this session after '
@@ -1147,7 +1155,7 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             if previous is not None and (previous / 'task-info.json').exists():
                 initial_info.update(json.loads((previous / 'task-info.json').read_text()))
             if records or initial.get('phase') != 'complete':
-                session_command(root, spec)  # Dependency/transport preflight, no model session.
+                session_command(root, spec).preflight()  # No task/model session.
             if validation_error is not None:
                 if (not initial.get('in_flight') and not initial.get('pending_completion')
                         and not initial.get('git_reconciliation') and not initial.get('pull_intent')

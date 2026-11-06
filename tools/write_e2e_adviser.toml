@@ -10,8 +10,8 @@ Follow AGENTS.md and the applicable repository contracts. Answer only the
 coordinator's bounded diagnosis or review question using current source and
 retained evidence. Do not edit files, run tests/builds, control the VM, launch
 background work, spawn agents, stage changes or advance/close a task. Do not
-read prior Codex sessions, histories or memories. This bounded diagnosis and
-review role uses only GPT-6.1 Sol Max. Astra is prohibited for all work and advice.
+read prior Codex sessions, histories or memories. Use only this role's configured
+model and effort for bounded diagnosis and review; do not switch profiles.
 Require a concrete escalation reason: an unsuccessful High repair with no better
 explanation, conflicting evidence preventing a defensible correction, or an
 unresolved consequential security, concurrency or ownership design question.

@@ -91,6 +91,13 @@ new launchers and session prompts must follow this same completion policy.
 
 ## Execution and delegation
 
+The requirements below remain the enforced Codex policy. Native model/effort
+profiles are resolved through [the agent adapter](../tools/agent_adapter.py),
+with Codex role assets owning helper profiles. Workflows still own escalation
+timing, overrides, budgets and acceptance. The
+[Claude policy migration](Agent_Adapter.md#models-roles-and-repository-policy)
+is proposed; profile extraction does not authorize it or replace native goals.
+
 At the start of every agentic session, including coordinators, workers, monitors,
 advisers and reviewers, activate this goal using Codex's `/goal` command:
 
@@ -703,7 +710,11 @@ branch's configured upstream with `git pull --no-rebase --ff --no-edit --no-auto
 then validates the accepted task's explicit owned paths, captured session changes,
 and its master and queue, then invokes the repository's
 [`$commit` skill](../.agents/skills/commit/SKILL.md) in a supervised GPT-6.1 Sol
-High session with the suggested message `TA: Completed task ID`. The skill owns
+High session with the suggested message `TA: Completed task ID`. The adapter's
+`commit_helper` profile supplies that pinned
+model/effort pair; session preparation retains the existing executable check. Loading
+the shared Git modules or doing deterministic Git work requires no agent CLI.
+The skill owns
 the commit, source push and
 [shared worktree propagation](#shared-worktree-propagation). `execute-plan`
 inherits this policy. Only successful Git close-out counts the task against the
@@ -913,7 +924,9 @@ Existing stashes remain untouched.
 
 Merge and stash-restoration conflicts start supervised, unattended GPT-6.1 Sol
 High resolution turns in the affected destination, using the shared agent and
-cleanup infrastructure. No developer question is required. The resolver combines
+cleanup infrastructure and the adapter's `conflict_resolver` profile.
+The current profile remains pinned independently of coordinator overrides.
+No developer question is required. The resolver combines
 both branches' intended changes, preserves destination active work (including
 partial staging and untracked files), and validates affected behavior. It never
 chooses ours/theirs wholesale, commits active work, force-pushes or drops a stash;

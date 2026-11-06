@@ -9,6 +9,7 @@ import fcntl
 import json
 
 import detached_launcher as launcher
+from agent_adapter import capacity_fallback
 
 
 class TaskLimitReached(Exception):
@@ -24,7 +25,7 @@ CAPACITY_RETRY_DELAYS = (5, 10, 20, 40, 80)
 
 def capacity_failure(model, failures, *, delays=CAPACITY_RETRY_DELAYS):
     """One bounded policy for every launcher's logical model session."""
-    fallback = failures == len(delays) + 1 and model == 'gpt-6.1-sol'
+    fallback = failures == len(delays) + 1 and capacity_fallback(model) is not None
     exhausted = failures > len(delays) and not fallback
     delay = delays[failures - 1] if failures <= len(delays) else 0
     return delay, fallback, exhausted

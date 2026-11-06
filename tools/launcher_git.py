@@ -18,6 +18,7 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detached_launcher as launcher
+from agent_adapter import resolve_profile
 
 
 class GitReconciliationRequired(ValueError):
@@ -721,7 +722,8 @@ if __name__ == '__main__':
         raise SystemExit('private commit skill supervisor entry point')
     root, session, owner = Path(root), Path(session), int(owner)
     intent = json.loads((session / 'intent.json').read_text())
-    command = launcher.agent_command(root, 'gpt-6.1-sol', 'high', session,
+    model, effort = resolve_profile('commit_helper')
+    command = launcher.agent_command(root, model, effort, session,
         schema=session / 'response.schema.json',
         extra_directories=tuple(Path(target['path']) for target in intent['targets'] if target.get('path')))
     sys.exit(launcher.supervise(root, session, owner, 'agent', command))

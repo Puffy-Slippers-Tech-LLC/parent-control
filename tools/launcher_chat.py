@@ -7,9 +7,7 @@ module owns only the conversation protocol; observers never signal agent PIDs.
 import codecs
 import fcntl
 import json
-from pathlib import Path
 import time
-import tomllib
 
 import detached_launcher as launcher
 from launcher_render import SCROLLBACK_CHARACTERS, clean
@@ -183,14 +181,6 @@ def take_input(run):
         return entries
 
 
-def app_command(command):
-    """Preserve the launcher's policy overrides, replacing exec-only switches."""
-    config = [value for index, value in enumerate(command) if index and command[index - 1] == '-c']
-    return [command[0], 'app-server', '--listen', 'stdio://',
-            *[arg for value in config for arg in ('-c', value)],
-            '-c', 'approval_policy="never"', '-c', 'sandbox_mode="workspace-write"']
-
-
 class AppSession:
     def __init__(self, root, run, command, renderer, *, on_interrupted=None,
                  session_state=None):
@@ -201,12 +191,10 @@ class AppSession:
         self.task_session = state['task_sessions']
         self.task = state['task_id']
         update_task_info(run, self.task, {})
-        self.model = command[command.index('--model') + 1]
-        self.effort = ''
-        for index, value in enumerate(command):
-            if index and command[index - 1] == '-c' and value.partition('=')[0].strip() == 'model_reasoning_effort':
-                self.effort = tomllib.loads(value)['model_reasoning_effort']
-        self.schema = json.loads(Path(command[command.index('--output-schema') + 1]).read_text())
+        self.model = command.request.model
+        self.effort = command.request.effort
+        self.permissions = command.request.permissions
+        self.schema = json.loads(command.request.schema.read_text())
         self.prompt = (run / 'prompt.txt').read_text()
         self.thread = self.turn = None
         self.pending = b''
@@ -420,7 +408,8 @@ class AppSession:
             if method == 'initialize':
                 self.encode({'method': 'initialized', 'params': {}})
                 self.request('thread/start', {'model': self.model, 'cwd': str(self.root),
-                             'approvalPolicy': 'never', 'sandbox': 'workspace-write',
+                             'approvalPolicy': 'never',
+                             'sandbox': 'read-only' if self.permissions == 'read_only' else 'workspace-write',
                              'ephemeral': False})
             elif method == 'thread/start':
                 self.thread = result['thread']['id']

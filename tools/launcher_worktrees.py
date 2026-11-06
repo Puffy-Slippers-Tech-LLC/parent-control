@@ -861,7 +861,6 @@ if __name__ == '__main__':
     _, root, session, owner = sys.argv[1:]
     root, session, owner = Path(root), Path(session), int(owner)
     command = launcher.agent_command(root, 'gpt-6.1-sol', 'high', session,
-                                    schema=session / 'response.schema.json')
-    command[-1:-1] = ['-c', 'shell_environment_policy.set.ONPC_WORKFLOW_DIRECTORY='
-                     + json.dumps(str(session))]
+        schema=session / 'response.schema.json',
+        shell_environment=(('ONPC_WORKFLOW_DIRECTORY', str(session)),))
     sys.exit(launcher.supervise(root, session, owner, 'agent', command, nested=True))

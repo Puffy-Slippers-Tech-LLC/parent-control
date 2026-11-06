@@ -147,9 +147,7 @@ def next_tier(model, effort, *, category=''):
 
 
 def repair_command(root, model, effort, run=None):
-    command = agent_command(root, model, effort, run)
-    command[-1:-1] = ['-c', 'service_tier="default"', '-c', 'features.fast_mode=false']
-    return command
+    return agent_command(root, model, effort, run, standard_speed=True)
 
 
 def record_usage(run, metadata, usage=None, *, event='turn'):

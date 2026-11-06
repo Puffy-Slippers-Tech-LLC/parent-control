@@ -1,6 +1,7 @@
 # Agent adapter proposal
 
-Status: proposed design; adapter implementation is not part of this change.
+Status: Codex session preparation is implemented; protocol extraction and
+configuration-driven agent selection remain proposed.
 
 The repository should select its coding agent solely from the checked-in
 top-level `agent` field in [config/environment.json](../config/environment.json).
@@ -13,7 +14,36 @@ The compatibility fix in [vm_config.py](../tests/integration/vm_config.py)
 accepts the additional field as unused metadata. It does not validate agent
 capabilities, select Claude, or change the existing Codex commands. Until the
 proposal is implemented, both field values leave execution on the existing
-Codex path. The remainder of this document describes future changes.
+Codex path.
+
+The first implementation slice adds `SessionRequest`, `Delegation` and
+`PreparedSession` in [agent_adapter.py](../tools/agent_adapter.py), with native
+batch/app-server command preparation, role assets and fresh-session settings
+in [agent_codex.py](../tools/agent_codex.py). Repair, plans, E2E, translation and
+Git helpers now supply session requirements instead of changing native argument
+lists. Capacity attempts reprepare requests under the same adapter. Process
+supervision, mailbox/result acceptance and workflow budgets retain their owners.
+The existing executable check is preserved; this slice does not add authentication
+or capability preflight. The Codex conversation protocol and presentation still
+live in the existing launcher modules. Their extraction, common event/result/error
+normalization, native model-profile resolution and strict configuration selection
+remain future steps. No Claude runtime dependency is introduced.
+
+## Next implementation step
+
+Continue delivery step 2 with the **Codex interactive protocol extraction**.
+Start at `AppSession` in [launcher_chat.py](../tools/launcher_chat.py) and its
+supervision call in [detached_launcher.py](../tools/detached_launcher.py).
+Introduce the per-session protocol-handler contract in `agent_adapter.py` and
+move Codex RPC construction/decoding behind `agent_codex.py`. Keep mailbox/status
+handling, final result acceptance and process ownership in their shared owners;
+preserve the [input/completion contract](#native-transports-and-common-results).
+This slice is complete when those shared callers use the handler rather than
+constructing Codex RPCs, with their existing interruption and acceptance guards
+preserved. Keep batch presentation normalization and native model/preflight
+extraction for subsequent slices. Do not redo session preparation or enable
+Claude/configuration selection in this next step. Live-agent qualification is
+still outstanding; passing source/unit checks and launcher help do not establish it.
 
 ## Configuration and scope
 
@@ -50,13 +80,13 @@ dependency and package payload maps.
 | Area | Existing coupling | Proposed change |
 | --- | --- | --- |
 | Configuration | [vm_config.py](../tests/integration/vm_config.py) owns the shared document reader; [vm_selection.py](../tools/vm_selection.py) exposes it to launchers | Keep one document parser; add strict live agent selection at the adapter entry point |
-| Shared execution | [detached_launcher.py](../tools/detached_launcher.py) builds Codex commands, injects instructions, supervises processes and retries capacity failures | Retain ownership/supervision; delegate native commands, session protocol and model configuration |
+| Shared execution | [detached_launcher.py](../tools/detached_launcher.py) prepares sessions through the Codex adapter, supervises processes and retries capacity failures | Retain ownership/supervision; finish extracting native session protocol and model-profile resolution |
 | Conversation | [launcher_chat.py](../tools/launcher_chat.py) combines shared mailbox/status behavior with Codex app-server messages | Keep mailbox, status validation and input/result serialization shared; move Codex RPC into its adapter |
 | Presentation | [launcher_render.py](../tools/launcher_render.py) consumes Codex-shaped events | Render a small common event format produced by either adapter |
 | Repair | [fix_tests.py](../tools/fix_tests.py) pins Sol, validates the Codex model catalogue and supplies repair tiers | Request workflow roles and capability tiers from the selected adapter |
 | E2E | [write_e2e.py](../tools/write_e2e.py) pins coordinator tiers, adviser roles and native configuration | Preserve its acceptance/escalation engine; resolve models and roles through the adapter |
 | Ordinary plans | [plan_launcher.py](../tools/plan_launcher.py) embeds model defaults, delegation and capacity fallback | Keep plan selection and completion guards; pass structured session requirements |
-| Translation | [sync_whatsnew.py](../tools/sync_whatsnew.py) builds read-only Codex sessions and translator agents | Preserve launcher-owned catalogue writes and read-only translation sessions |
+| Translation | [sync_whatsnew.py](../tools/sync_whatsnew.py) requests read-only sessions and bounded translator roles through the adapter; model preflight still uses Codex | Preserve launcher-owned catalogue writes and finish adapting model preflight |
 | Git recovery | [launcher_git.py](../tools/launcher_git.py) and [launcher_worktrees.py](../tools/launcher_worktrees.py) launch pinned Sol sessions | Use the parent's selected adapter for dependent agent sessions; keep deterministic Git transactions shared |
 | Policies and roles | [AGENTS.md](../AGENTS.md), [Execution-Plans.md](Execution-Plans.md), [tests/README.md](../tests/README.md), and agent-role TOMLs name Codex APIs/models | Revise the owning policies and render native role definitions from shared role requirements |
 | Setup | [setup.sh](../setup.sh), [install_codex_rules.py](../tools/install_codex_rules.py), [setup_checkout.sh](../tools/setup_checkout.sh), and `config/codex-*` manage Codex rules/readiness | Add the selected agent's setup/readiness path without changing the public setup entry point |
@@ -67,13 +97,14 @@ dependency and package payload maps.
 
 Use composition beneath the existing launcher engines, following the
 [extension boundary](Execution-Plans.md#extension-boundary). Start with three
-small modules: proposed `tools/agent_adapter.py`, `tools/agent_codex.py`, and
-`tools/agent_claude.py`. These names describe new implementation files; they do
-not exist as part of this proposal. Do not build a plugin framework or a generic
+small modules: `tools/agent_adapter.py`, `tools/agent_codex.py`, and proposed
+`tools/agent_claude.py`. The first two implement the initial session-preparation
+slice; the Claude module does not yet exist. Do not build a plugin framework or a generic
 multi-provider orchestration service.
 
-`agent_adapter.py` owns the common session request, fixed adapter selection,
-workflow/role vocabulary, and normalized events/results/errors. Each concrete
+The intended `agent_adapter.py` boundary owns the common session request, fixed
+adapter selection, workflow/role vocabulary, and normalized events/results/errors.
+Only session preparation is implemented so far. Each concrete
 adapter owns native CLI/SDK details and its supported model profiles. Shared
 launcher code must not index into native argument lists or insert Codex `-c`
 values. For example, translation requests a read-only session directly instead
@@ -93,6 +124,15 @@ limits and any existing explicit model/effort setting. It also carries the
 controller's immutable selection snapshot. The snapshot is internal state,
 not a new command-line override. Pass it through existing controller/session
 state rather than rereading unrelated checkouts inside every helper.
+
+Keep these requirements independent of native configuration: request a role,
+write boundary, delegation limit and instruction text, not a Codex TOML path,
+`-c` fragment, RPC method or Claude permission-mode name. The concrete adapter
+renders native role assets and transport settings. A prepared session is a
+process specification plus protocol handler, not necessarily a `codex exec`
+argument list; the future Claude implementation may prepare an SDK bridge
+instead. Shared code changes models or permissions by preparing a revised
+request, never by editing that list.
 
 The protocol handler supplies initial input, decodes native output, accepts
 follow-up messages, requests turn interruption, and finalizes a candidate
@@ -167,6 +207,13 @@ or treat restarting a one-shot CLI as equivalent to steering an active turn.
 See [Claude programmatic execution](https://code.claude.com/docs/en/headless)
 and [streaming input](https://code.claude.com/docs/en/agent-sdk/streaming-vs-single-mode).
 
+Preflight must qualify the actual CLI/SDK pair and authentication used by the
+transport. Pin the SDK's `cli_path` to the checked executable rather than letting
+SDK discovery silently choose a different bundled CLI. Prefer the supported
+SDK client behind the bridge; its low-level custom `Transport` interface is
+documented as internal and unstable, not a maintained alternative to that bridge.
+See the [Python SDK reference](https://code.claude.com/docs/en/agent-sdk/python).
+
 Both adapters emit a bounded common vocabulary: session/turn lifecycle,
 assistant text, tool/command start and completion, command-output deltas, file
 changes, delegated-agent activity, usage, candidate result, and classified
@@ -182,6 +229,17 @@ before handing it to existing response validation. Never accept a successful
 process exit, partial stream, tool result, or helper's final message as the
 coordinator's completed workflow response.
 
+For Claude, `subtype="success"` alone is insufficient: the documented
+`ResultMessage` can still have `is_error=true`, including for a refusal or API
+failure. Inspect error, stop and terminal fields before exposing a candidate
+result. Bind it to the submitted user turn; background-task notification turns
+can also produce result messages and must not finish the workflow. Require the
+coordinator's `structured_output`, then run the existing workflow validator.
+The SDK currently validates JSON Schema draft-07; qualify all four existing
+schemas without weakening their validators or assuming arbitrary newer schema
+features work. See [result messages](https://code.claude.com/docs/en/agent-sdk/python#resultmessage)
+and [structured output](https://code.claude.com/docs/en/agent-sdk/structured-outputs).
+
 Preserve the current mailbox gate: drain pending user input before accepting
 completion; bind steering/interruption to the current session and turn; finish
 interrupted nested-test cleanup before continuing. An interrupt must not become
@@ -190,9 +248,21 @@ or message-queue semantics differ, reconcile them inside its adapter and expose
 only the shared behavior after qualification. Do not advertise interactive
 support before that behavior works.
 
+Claude's `interrupt()` does not clear buffered messages. Drain the interrupted
+turn through its terminal result before sending a continuation, discard its
+candidate output, and complete owned nested-test cleanup first. Queued streaming
+input is documented as sequential; it is not proof of Codex-style mid-turn
+steering. The adapter must qualify message delivery and interruption against
+the existing mailbox contract rather than acknowledging a queued message as
+already applied to the active turn. See [interruption and buffering](https://code.claude.com/docs/en/agent-sdk/python#claudesdkclient).
+
 Normalize usage without inventing missing counters or billing equivalence.
 Keep native model identity and provider-reported scope; do not assume cache,
 reasoning or delegated-agent tokens are counted identically by the two CLIs.
+In Claude streaming sessions, `usage` is per-turn and excludes subagents, while
+`model_usage` and `total_cost_usd` are cumulative across turns. Preserve those
+scopes; do not sum successive cumulative snapshots or merge them with per-turn
+counters as if they were disjoint. See [Claude usage accounting](https://code.claude.com/docs/en/agent-sdk/python#resultmessage).
 
 ## Models, roles and repository policy
 
@@ -203,12 +273,21 @@ read-only monitor, bounded adviser, independent backend reviewer, translator,
 commit helper and conflict resolver. Preserve per-workflow restrictions on
 delegation, concurrency, depth, freshness and write ownership.
 
-Preserve Codex's current profiles during extraction. Define and qualify a finite
-Claude profile table against the installed CLI and authenticated account;
-do not mechanically copy Sol/Astra model names or assume effort labels denote
-equivalent capability. Exact Claude profiles and their supported efforts must
-be settled before enabling their consuming workflow. Missing capability is a
-preflight blocker, never a silent downgrade or a reason to invoke Codex.
+The agreed default implementation-model mapping is:
+
+| Selected agent | Default model | Effort selection |
+| --- | --- | --- |
+| `codex` | GPT-6.1 Sol (`gpt-6.1-sol`) | Preserve the existing workflow's effort tiers |
+| `claude` | Claude Opus 5.5 (`claude-opus-5-5`) | Map workflow tiers to qualified, supported native efforts |
+
+Use the explicit Claude model ID rather than the moving `opus` alias. This is
+the repository's role mapping, not a claim of identical capability or cost at
+matching effort labels. See [Claude model selection](https://code.claude.com/docs/en/model-config).
+Preserve Codex's current profiles during extraction. Define and qualify the
+remaining Claude role/effort profiles against the installed CLI and authenticated
+account before enabling their consuming workflow. Do not mechanically copy
+Sol/Astra model names. Missing capability is a preflight blocker, never a silent
+downgrade or a reason to invoke Codex.
 
 Existing public `--model` and `--effort` options, where already present, remain
 within the configured agent. They cannot select a different adapter. A model
@@ -241,6 +320,16 @@ role restrictions do not drift across implementations. Native agent tools and
 lifecycle operations may differ; render the appropriate delegation instructions
 rather than requiring Claude to call Codex's `spawn_agent` API.
 
+Claude's `AgentDefinition` supplies native role prompts, models and tool sets.
+Non-fork helpers start without parent conversation history, but do not inherit
+the parent's system prompt, so render required shared instructions into each
+role and assignment. Explicitly deny `Agent(fork)` and disable unconfigured
+built-in agents; defining custom roles alone does not remove those alternatives.
+Qualify enforcement of concurrency, depth, allowed roles and wait/join behavior:
+do not assume `maxTurns` is a concurrency limit or that background delegation
+has the same defaults as Codex. An unenforceable required limit blocks the
+consuming workflow. See [SDK subagents](https://code.claude.com/docs/en/agent-sdk/subagents).
+
 ## Permissions, instructions and setup
 
 Keep the [approval contract](Approval-Tools.md) and validated public helpers as
@@ -257,6 +346,17 @@ not merely omit Edit/Write or rely on a read-only prompt. Preserve external
 directory limits needed for Git recovery and the separate Polkit boundary.
 See [Claude permissions](https://code.claude.com/docs/en/permissions).
 
+For a policy based on maintained command grants, disable automatic approval of
+all sandboxed Bash commands (`autoAllowBashIfSandboxed`), reject unapproved
+unsandboxed execution, and require sandbox startup to fail closed
+(`failIfUnavailable`). The Python SDK documents an unsandboxed fallback when
+the sandbox cannot start unless that last option is set. Tool allow rules are
+approvals, not a tool allowlist; `can_use_tool` runs only for unresolved prompts
+and cannot by itself intercept already approved operations. Qualify shell,
+file-tool and external-tool restrictions together, especially for read-only
+roles. See [SDK sandbox settings](https://code.claude.com/docs/en/agent-sdk/python#sandboxsettings)
+and [permission evaluation](https://code.claude.com/docs/en/agent-sdk/permissions).
+
 Share `AGENTS.md` rather than maintaining a second copy. Configure Claude's
 project-instruction loading explicitly; a small tracked `CLAUDE.md` importing
 `@AGENTS.md` is a compatibility option. Make the commit and goal skills available
@@ -264,6 +364,16 @@ through the selected agent's supported discovery path, with native-tool wording
 where needed. Disable unwanted automatic memory/history reuse and inherited
 conversation identities while preserving legitimate authentication and managed
 policies. See [Claude instruction loading](https://code.claude.com/docs/en/memory).
+
+Choose settings sources explicitly and disable auto memory separately;
+`setting_sources=[]` does not disable memory, global configuration or managed
+policy. If project discovery is disabled, explicitly supply the required
+instructions and skills instead of assuming `CLAUDE.md` loaded. Do not use
+`--bare` as a general fresh-context equivalent: it skips automatic project
+instructions, skills and other integrations, and does not read subscription
+OAuth credentials. Keep authentication and settings discovery separate, without
+relocating credentials to a disposable directory. See [SDK settings discovery](https://code.claude.com/docs/en/agent-sdk/claude-code-features#what-settingsources-does-not-control)
+and [bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode).
 
 Keep `./setup.sh` as the sole development setup entry point. Integrate selected
 agent policy preparation and readiness reporting there; do not install or
@@ -346,6 +456,15 @@ Reuse existing checks where possible. Perform bounded real-agent smoke checks
 for both adapters using a disposable checkout and maintained ownership/storage
 routes; CLI help or synthetic events alone do not establish native compatibility.
 No VM/product installation is required merely to qualify the agent transport.
+
+The Claude interface constraints above were checked against official
+documentation on 2026-11-06. They establish a feasible design route, not native
+qualification of the agreed default model or remaining role/effort profiles.
+Before enabling Claude, qualify
+the chosen CLI/SDK versions, supported authentication, bridge process-tree
+cleanup, required delegation limits and the result/input races described above.
+Do not install Claude or add a dependency on its SDK for the Codex extraction
+step; agent-free operations must retain their existing dependency boundary.
 
 Verify that the proposed development assets stay outside
 `Makefile.PACKAGE_SOURCE_FILES` and product-only archives; review

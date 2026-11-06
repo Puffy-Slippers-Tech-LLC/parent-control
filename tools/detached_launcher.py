@@ -5,6 +5,7 @@ processes, transcript retention and cancellation use one implementation.
 """
 
 from contextlib import contextmanager
+from dataclasses import replace
 import codecs
 import fcntl
 import hashlib
@@ -12,15 +13,14 @@ import json
 import os
 from pathlib import Path
 import selectors
-import shutil
 import signal
 import stat
 import subprocess
 import sys
 import time
-import tomllib
 import uuid
 from test_storage import scratch_descriptors
+from agent_adapter import Delegation, SessionRequest, prepare_session
 
 FRAME_DIRECTORY = 'ONPC_TEST_FRAME_DIRECTORY'
 WORKFLOW_DIRECTORY = 'ONPC_WORKFLOW_DIRECTORY'
@@ -139,11 +139,10 @@ def current_run(directory):
 
 
 def environment():
-    # Keep authentication, configuration and policy; discard inherited thread
-    # identities and launcher FD claims. No parent conversation is ever passed.
+    # Keep authentication, configuration and policy; discard launcher FD claims.
+    # The concrete adapter also discards native conversation identities.
     result = dict(os.environ)
-    for name in ('CODEX_THREAD_ID', 'CODEX_PARENT_THREAD_ID', 'CODEX_SESSION_ID',
-                 'ONPC_TEST_ACTIVITY_FD', 'ONPC_TEST_HOST_ACTIVITY_FD', 'ONPC_TEST_COMPATIBILITY_FD', 'ONPC_REGRESSION_EVENTS',
+    for name in ('ONPC_TEST_ACTIVITY_FD', 'ONPC_TEST_HOST_ACTIVITY_FD', 'ONPC_TEST_COMPATIBILITY_FD', 'ONPC_REGRESSION_EVENTS',
                  'ONPC_REGRESSION_INVENTORY', 'ONPC_TEST_RETRY_CASE', 'ONPC_TEST_COMPLETED_CASES',
                  FRAME_DIRECTORY, WORKFLOW_DIRECTORY, 'ONPC_REPAIR_STARTUP_FD',
                  'ONPC_REPAIR_WRITER_FD', 'ONPC_REPAIR_RECOVERY_ONLY',
@@ -172,34 +171,6 @@ Include this discovery requirement in every delegated assignment.
 """
 
 
-SESSION_GOAL = ('Simple, lean, robust, do not overengineer. If a problem can be solved '
-                'by simplier approaches, do not use more complex ones')
-
-GOAL_INSTRUCTIONS = f"""Before task work, use get_goal to inspect this session's actual
-Codex goal state. If absent, call create_goal with objective:
-{SESSION_GOAL}
-Verify that this exact goal is active. Literal /goal prompt text or following the
-objective as advice is insufficient. If goal activation fails, stop and report
-the failure through the workflow's existing blocker/error route; do not silently
-continue without it. Do not add a token budget or change task scope, acceptance,
-session limits or delegation policy. Complete the goal after verifying your
-bounded assignment, before the final handoff. Include these goal setup instructions
-and the exact objective in every fresh helper assignment, including workers,
-monitors, advisers and reviewers.
-
-"""
-
-
-SUBAGENT_CONTEXT_INSTRUCTIONS = """Every launcher session starts with fresh context.
-On every spawn_agent call, explicitly set fork_turns="none".
-Never omit fork_turns or use "all". Give every helper a self-contained assignment
-with its exact scope, paths, relevant instructions, current evidence and disjoint
-write ownership. This applies to workers, monitors, advisers and backend reviewers;
-it does not authorize delegation beyond the launcher's existing policy.
-
-"""
-
-
 TASK_TITLE_INSTRUCTIONS = """When creating or revising execution-plan tasks, write the
 task title itself as a short, plain-language explanation of what the task achieves.
 Use everyday words that make sense without technical background; keep commands,
@@ -212,67 +183,15 @@ contract in docs/Execution-Plans.md#plan-format.
 """
 
 
-BACKEND_REVIEW_INSTRUCTIONS = """For product backend code involving core functionalities,
-AGENTS.md requires an independent code review by the backend_reviewer agent
-(GPT-6 Astra xHigh) before completing the changes. This mandate applies across
-all launchers, including repair, recovery and optimization sessions. It overrides
-Sol-only and no-delegation rules only for this required review; keep the launcher's
-existing coordinator, implementation, consultation and escalation model policy.
-Do not request this review for changes outside core backend code. Give the reviewer
-the exact owned changes, relevant source/contracts and validation evidence in a
-fresh context. Pause implementation while it reviews; wait for its findings and
-close it before resuming. Resolve actionable findings and revalidate material
-revisions; obtain a fresh review of material backend revisions before completion.
-Record the review findings and resolution in the existing summary or handoff.
-A missing or failed review is incomplete work, never a completed change; use the
-launcher's existing continuation or blocker route. Review gives no test or installed
-acceptance credit. The reviewer cannot implement, test, control resources or delegate.
-"""
-
-
-def agent_command(root, model, effort, run=None, *, schema=None, adviser_config=None, delegation=False):
-    codex = shutil.which('codex')
-    if codex is None:
-        raise ValueError('Codex CLI is missing; install and authenticate it before running this launcher')
-    command = [codex, '--ask-for-approval', 'never', 'exec',
-            '--sandbox', 'workspace-write', '--model', model,
-            '-c', f'model_reasoning_effort="{effort}"',
-            '-c', 'history.persistence="none"', '-c', 'features.memories=false',
-            '-c', 'features.multi_agent=true',
-            '-c', 'features.multi_agent_v2=false',
-            '-c', 'agents.enabled=true',
-            '-c', 'developer_instructions=' + json.dumps(
-                GOAL_INSTRUCTIONS + SOURCE_DISCOVERY_INSTRUCTIONS + SUBAGENT_CONTEXT_INSTRUCTIONS
-                + TASK_TITLE_INSTRUCTIONS + BACKEND_REVIEW_INSTRUCTIONS),
-            '-c', 'agents.backend_reviewer.description="Mandatory independent review of core backend changes only; no implementation"',
-            '-c', 'agents.backend_reviewer.config_file=' + json.dumps(str(Path(__file__).with_name('backend_reviewer.toml'))),
-            '--json', '--color', 'never', '--cd', str(root)]
-    if adviser_config is None and not delegation:
-        # Review-only access does not enable ordinary worker/adviser delegation.
-        command += ['-c', 'agents.max_concurrent_threads_per_session=1',
-                    '-c', 'agents.max_depth=1']
-    if adviser_config is not None:
-        # V1 supports a depth bound. One child slot plus the coordinator's
-        # wait/close protocol keeps consultations sequential.
-        command += ['-c', 'agents.max_concurrent_threads_per_session=1',
-                    '-c', 'agents.max_depth=1',
-                    '-c', 'agents.default_subagent_model="gpt-6.1-sol"',
-                    '-c', 'agents.default_subagent_reasoning_effort="max"',
-                    '-c', 'agents.e2e_adviser.description="Bounded read-only diagnosis or review; no implementation or tests"',
-                    '-c', 'agents.e2e_adviser.config_file=' + json.dumps(str(adviser_config))]
-    if delegation:
-        if adviser_config is None:
-            command += ['-c', 'agents.max_concurrent_threads_per_session=3', '-c', 'agents.max_depth=1',
-                    '-c', 'agents.default_subagent_model="gpt-6.1-sol"',
-                    '-c', 'agents.default_subagent_reasoning_effort="medium"']
-        command += ['-c', 'agents.plan_monitor.description="Routine read-only monitoring; no resource ownership or mutations"',
-                    '-c', 'agents.plan_monitor.config_file=' + json.dumps(str(Path(__file__).with_name('plan_monitor.toml'))),
-                    '-c', 'agents.plan_worker.description="Bounded routine work or coverage refresh on explicitly assigned files"',
-                    '-c', 'agents.plan_worker.config_file=' + json.dumps(str(Path(__file__).with_name('plan_worker.toml')))]
-    if run is not None:
-        command += ['--output-schema', str(schema or Path(__file__).with_name('fix_tests_response.schema.json')),
-                    '--output-last-message', str(run / 'agent-result.json')]
-    return [*command, '-']
+def agent_command(root, model, effort, run=None, *, schema=None, permissions='workspace',
+                  delegation=Delegation(), standard_speed=False, shell_environment=(),
+                  extra_directories=()):
+    """Prepare a typed session; callers never modify native command arguments."""
+    return prepare_session(SessionRequest(root=root, model=model, effort=effort,
+        run=run, schema=schema or Path(__file__).with_name('fix_tests_response.schema.json'),
+        permissions=permissions, delegation=delegation, standard_speed=standard_speed,
+        shell_environment=tuple(shell_environment), extra_directories=tuple(extra_directories),
+        instructions=SOURCE_DISCOVERY_INSTRUCTIONS + TASK_TITLE_INSTRUCTIONS), environment())
 
 
 def descriptive_output(run):
@@ -315,16 +234,14 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
             hide_task_completion=hide_task_completion, on_usage=on_usage,
             interactive=interactive, task=task, session_state=session_state)
     from launcher_runtime import AgentCapacityUnavailable, capacity_failure
-    command = list(command)
-    model_index = command.index('--model') + 1
-    configured_model = command[model_index]
+    configured_model = command.request.model
     failures = 0
     previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
     try:
         while True:
             (run / 'agent-error.json').unlink(missing_ok=True)
             if on_model is not None:
-                on_model(command[model_index])
+                on_model(command.request.model)
             try:
                 return _supervise_once(root, run, os.dup(owner), kind, command, nested=nested,
                     hide_task_completion=hide_task_completion, on_usage=on_usage,
@@ -344,9 +261,10 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
                 for sig in previous:
                     signal.signal(sig, stop)
                 if fallback:
-                    command[model_index] = 'gpt-6-astra'
+                    delegation = command.request.delegation
                     if subagents_follow_model:
-                        command[-1:-1] = ['-c', 'agents.default_subagent_model="gpt-6-astra"']
+                        delegation = replace(delegation, model='gpt-6-astra')
+                    command = command.revised(model='gpt-6-astra', delegation=delegation)
                     print('Model still at capacity; using gpt-6-astra for this session only '
                           'with the same reasoning effort.', flush=True)
                 else:
@@ -367,7 +285,7 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
                            'Inspect and reconcile partial work before continuing the same task. '
                            'Preserve unrelated work, acceptance requirements and all permission, '
                            'delegation and cleanup boundaries. No preceding result is accepted. '
-                           f'The coordinator model for this attempt is {command[model_index]}; '
+                           f'The coordinator model for this attempt is {command.request.model}; '
                            'this overrides earlier coordinator model labels only. Reasoning effort '
                            'is unchanged. Any capacity fallback applies only to this logical session; '
                            'the next session returns to the configured model.\n')
@@ -418,13 +336,10 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         from launcher_chat import task_message
         session_view = dict(session=uuid.uuid4().hex, status='running',
             started_at=time.time(), interactive=interactive,
-            model=command[command.index('--model') + 1], effort='')
+            agent=command.adapter.name, model=command.request.model, effort=command.request.effort)
         if session_state is not None and 'repair_failure' in session_state:
             session_view.update(repair_failure=session_state['repair_failure'],
                                 task_session=session_state['task_sessions'])
-        for index, value in enumerate(command):
-            if index and command[index - 1] == '-c' and value.partition('=')[0].strip() == 'model_reasoning_effort':
-                session_view['effort'] = tomllib.loads(value)['model_reasoning_effort']
         view_path = run / 'session-view.json'
         previous_view = json.loads(view_path.read_text()) if view_path.exists() else {}
         session_transcript = SessionTranscript(sys.stdout, run,
@@ -437,7 +352,7 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
                                  if task is not None and not interactive else None)
     conversation = None
     if interactive:
-        from launcher_chat import AppSession, app_command
+        from launcher_chat import AppSession
 
         def interrupted_cleanup():
             if nested:
@@ -447,17 +362,18 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
                     atomic(run / 'nested.json', [])
                     (run / 'nested-closed').unlink(missing_ok=True)
 
+        command = command.revised(interactive=True)
         conversation = AppSession(root, run, command, renderer, on_interrupted=interrupted_cleanup,
                                   session_state=session_state)
-        command = app_command(command)
     source = (run / 'prompt.txt').open('rb') if kind == 'agent' and not interactive else None
     log = (run / 'last-test.log').open('wb') if kind != 'agent' else None
-    child_env = environment()
+    child_env = dict(command.environment) if kind == 'agent' else environment()
     if nested:
         child_env[WORKFLOW_DIRECTORY] = str(run)
     if kind != 'agent':
         child_env[FRAME_DIRECTORY] = str(run)
-    child = subprocess.Popen(command, cwd=root, env=child_env,
+    child = subprocess.Popen(command.argv if kind == 'agent' else command,
+                             cwd=command.cwd if kind == 'agent' else root, env=child_env,
                              stdin=subprocess.PIPE if interactive else source if source is not None else subprocess.DEVNULL,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE if renderer else subprocess.STDOUT,

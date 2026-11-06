@@ -132,17 +132,19 @@ def validate_result(plan, state, result):
 
 
 def session_command(root, spec, run=None):
-    command = launcher.agent_command(root, spec.model, spec.effort, run,
-        schema=Path(__file__).with_name('plan_response.schema.json'), delegation=True)
-    command[-1:-1] = ['-c', 'service_tier="default"', '-c', 'features.fast_mode=false']
+    shell_environment = []
     if run is not None:
-        command[-1:-1] = ['-c', 'shell_environment_policy.set.ONPC_WORKFLOW_DIRECTORY=' + json.dumps(str(run))]
+        shell_environment.append(('ONPC_WORKFLOW_DIRECTORY', str(run)))
     # Preserve canonical queue bindings across fresh Codex command environments.
     from vm_selection import VARIABLE, BATCH
     for name in (VARIABLE, BATCH):
         if name in os.environ:
-            command[-1:-1] = ['-c', f'shell_environment_policy.set.{name}=' + json.dumps(os.environ[name])]
-    return command
+            shell_environment.append((name, os.environ[name]))
+    return launcher.agent_command(root, spec.model, spec.effort, run,
+        schema=Path(__file__).with_name('plan_response.schema.json'), standard_speed=True,
+        delegation=launcher.Delegation(roles=('backend_reviewer', 'monitor', 'worker'),
+            max_concurrent=3, model='gpt-6.1-sol', effort='medium'),
+        shell_environment=shell_environment)
 
 
 def session_prompt(plan, spec, state):
@@ -732,6 +734,7 @@ def execute(root, spec, run, owner):
 RESPONSE_VALIDATOR_SOURCES = (
     'plan_launcher.py', 'execution_plan.py', 'document_checks.py',
     'launcher_runtime.py', 'detached_launcher.py',
+    'agent_adapter.py', 'agent_codex.py',
     'launcher_reload.py',
     'launcher_observer.py', 'launcher_view.py', 'launcher_display.py', 'launcher_progress.py',
     'launcher_session.py', 'launcher_chat.py', 'launcher_render.py', 'watch_output.py',

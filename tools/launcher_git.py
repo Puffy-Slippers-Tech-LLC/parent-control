@@ -720,10 +720,8 @@ if __name__ == '__main__':
     if mode != '--commit-skill':
         raise SystemExit('private commit skill supervisor entry point')
     root, session, owner = Path(root), Path(session), int(owner)
-    command = launcher.agent_command(root, 'gpt-6.1-sol', 'high', session,
-                                     schema=session / 'response.schema.json')
     intent = json.loads((session / 'intent.json').read_text())
-    for target in intent['targets']:
-        if target.get('path'):
-            command[-1:-1] = ['--add-dir', target['path']]
+    command = launcher.agent_command(root, 'gpt-6.1-sol', 'high', session,
+        schema=session / 'response.schema.json',
+        extra_directories=tuple(Path(target['path']) for target in intent['targets'] if target.get('path')))
     sys.exit(launcher.supervise(root, session, owner, 'agent', command))

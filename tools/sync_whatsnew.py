@@ -26,7 +26,6 @@ DEFAULT_EFFORT = 'high'
 DEFAULT_SUBAGENTS = 5
 DEFAULT_BATCH_SIZE = 24
 SCHEMA = Path(__file__).with_name('sync_whatsnew_response.schema.json')
-TRANSLATOR = Path(__file__).with_name('sync_whatsnew_translator.toml')
 
 
 def available_model(model, effort):
@@ -43,21 +42,12 @@ def available_model(model, effort):
 
 
 def agent_command(root, run, model, effort, subagents):
-    command = launcher.agent_command(root, model, effort, run, schema=SCHEMA)
-    command[command.index('--sandbox') + 1] = 'read-only'
-    # Later CLI -c settings override the shared transport's serial/write defaults.
-    command[-1:-1] = ['-c', 'service_tier="default"',
-                      '-c', 'features.fast_mode=false',
-                      '-c', f'features.multi_agent={str(bool(subagents)).lower()}',
-                      '-c', f'agents.enabled={str(bool(subagents)).lower()}']
-    if subagents:
-        command[-1:-1] = ['-c', f'agents.max_concurrent_threads_per_session={subagents}',
-                          '-c', 'agents.max_depth=1',
-                          '-c', f'agents.default_subagent_model={json.dumps(model)}',
-                          '-c', f'agents.default_subagent_reasoning_effort={json.dumps(effort)}',
-                          '-c', 'agents.whatsnew_translator.description="Read-only latest-release translator/reviewer"',
-                          '-c', 'agents.whatsnew_translator.config_file=' + json.dumps(str(TRANSLATOR))]
-    return command
+    return launcher.agent_command(root, model, effort, run, schema=SCHEMA,
+        permissions='read_only', standard_speed=True,
+        delegation=launcher.Delegation(
+            roles=('backend_reviewer', 'translator') if subagents else ('backend_reviewer',),
+            enabled=bool(subagents), max_concurrent=subagents or 1,
+            model=model if subagents else None, effort=effort if subagents else None))
 
 
 def assignments(work, subagents):

@@ -73,6 +73,7 @@ def launch_plan(route='command', *, limits=True, rule='allowed'):
 PLAN = launch_plan()
 GRID_PLAN = launch_plan('grid')
 HARD_GRID_PLAN = launch_plan('grid', rule='hard')
+SOFT_GRID_PLAN = launch_plan('grid', rule='soft')
 DISABLED_PLAN = launch_plan(limits=False)
 HARD_COMMAND_PLAN = launch_plan(rule='hard')
 HARD_COMMAND_DISABLED_PLAN = launch_plan(limits=False, rule='hard')
@@ -89,6 +90,7 @@ def execute(recorder, context, *, plan=PLAN):
 E2E_CASES = {'flatpak-command-allowed-enabled': execute,
              'flatpak-grid-allowed-enabled': partial(execute, plan=GRID_PLAN),
              'flatpak-grid-hard-blocked-enabled': partial(execute, plan=HARD_GRID_PLAN),
+             'flatpak-grid-soft-blocked-enabled': partial(execute, plan=SOFT_GRID_PLAN),
              'flatpak-command-allowed-disabled': partial(execute, plan=DISABLED_PLAN),
              'flatpak-command-hard-blocked-enabled': partial(execute, plan=HARD_COMMAND_PLAN),
              'flatpak-command-hard-blocked-disabled': partial(execute, plan=HARD_COMMAND_DISABLED_PLAN),

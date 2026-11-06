@@ -135,8 +135,8 @@ class JourneyPlan:
                     'ui:native-policy-activity', 'ui:native-policy-closed', 'ui:native-unmatched-soft-activity',
                     'ui:native-policy-soft-activity', 'ui:native-policy-soft-closed',
                     'ui:overlay-native-policy-soft-activity', 'ui:overlay-native-policy-soft-closed')
-                    or self.screen_tags[stage].removeprefix('ui:') in accessible_ui.SNAP_APP_BINDINGS
-                    and accessible_ui.SNAP_APP_BINDINGS[self.screen_tags[stage][3:]][2] == 'activity')
+                    or self.screen_tags[stage].removeprefix('ui:') in accessible_ui.PACKAGED_APP_BINDINGS
+                    and accessible_ui.PACKAGED_APP_BINDINGS[self.screen_tags[stage][3:]][2] == 'activity')
                     and type(binding) is tuple and len(binding) == 2
                     and binding[0] in stages and stages.index(binding[0]) < stages.index(stage)
                     and ((binding[1] in ('same', 'replaced')
@@ -558,11 +558,12 @@ class InstalledJourney:
 
     def check_activity(self, stage, observed):
         """Capture/compare before the worker can receive a durable reply."""
-        snap = accessible_ui.SNAP_APP_BINDINGS.get(self.plan.screen_tags.get(stage, '')[3:])
+        operation = self.plan.screen_tags.get(stage, '')[3:]
+        snap = accessible_ui.PACKAGED_APP_BINDINGS.get(operation)
         if snap is not None and snap[2] == 'activity':
             require(stage not in self.activity_observations, 'ui:app-activity-replay')
             current = AppActivityObservation.from_value(observed.get('ui', {}).get('activity'),
-                                                        binding='snap-' + snap[1])
+                binding=('flatpak-' if operation in accessible_ui.FLATPAK_APP_BINDINGS else 'snap-') + snap[1])
             if stage in self.plan.activity_checks:
                 earlier, result = self.plan.activity_checks[stage]
                 require(earlier in self.activity_observations, 'ui:missing-app-activity')

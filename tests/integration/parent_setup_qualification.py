@@ -2357,6 +2357,16 @@ class SnapCommandQualification(KioskEntryQualification):
         return SnapCommandJourney(context, progress)
 
 
+class FlatpakCommandQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from flatpak_command_usable import FlatpakCommandJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return FlatpakCommandJourney(context, progress)
+
+
 class SnapGridQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
@@ -2378,6 +2388,9 @@ class NativeActivityQualification(KioskEntryQualification):
 
 
 class RetainedAppVisitsQualification(KioskEntryQualification):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets
+    fixture_caller = 'check_e2e_retained_app_visits'
+
     @staticmethod
     def journey(context, progress):
         from app_snapshot import snapshot_name

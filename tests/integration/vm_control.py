@@ -454,7 +454,7 @@ def main(argv=None):
                                           'probe-retained-app-launch',
                                           'reproduce-transfer-refusal', 'probe-transfer-refusal',
                                           'reproduce-riley-native-grid', 'probe-riley-native-grid',
-                                          'reproduce-snap-grid',
+                                          'reproduce-snap-grid', 'reproduce-flatpak-command', 'probe-flatpak-command',
                                           'reproduce-native-denial', 'reproduce-grant-logout', 'reproduce-match-editor',
                                           'reproduce-app-rule-return', 'reproduce-revocation-return',
                                           'probe-app-rule-return',
@@ -602,12 +602,13 @@ def main(argv=None):
                              'reproduce-retained-unlock',
                              'reproduce-retained-app-visits',
                              'reproduce-transfer-refusal', 'reproduce-remembered-return', 'repeat-remembered-return',
-                             'enter-remembered-return', 'reproduce-riley-native-grid', 'reproduce-snap-grid'):
+                             'enter-remembered-return', 'reproduce-riley-native-grid', 'reproduce-snap-grid',
+                             'reproduce-flatpak-command'):
             from vm_probe import (reproduce_gdm_denial, reproduce_lock_denial,
                                   reproduce_retained_entry, reproduce_transfer_refusal,
                                   reproduce_remembered_return, repeat_remembered_return,
                                   enter_remembered_return, reproduce_riley_native_grid)
-            from vm_probe import reproduce_snap_grid
+            from vm_probe import reproduce_snap_grid, reproduce_flatpak_command
             from vm_probe import reproduce_retained_app_visits
             from vm_probe import reproduce_revoke_cancel
             from vm_probe import reproduce_delayed_approval
@@ -642,9 +643,14 @@ def main(argv=None):
              'reproduce-transfer-refusal': reproduce_transfer_refusal,
              'reproduce-riley-native-grid': reproduce_riley_native_grid,
              'reproduce-snap-grid': reproduce_snap_grid,
+             'reproduce-flatpak-command': reproduce_flatpak_command,
              'reproduce-remembered-return': reproduce_remembered_return,
              'repeat-remembered-return': repeat_remembered_return,
              'enter-remembered-return': enter_remembered_return}[args.action](lease)
+        elif args.action == 'probe-flatpak-command':
+            from vm_probe import probe_flatpak_command
+            resume(lease)
+            probe_flatpak_command(lease)
         elif args.action == 'sync-fixtures':
             from fixture_maintenance import synchronize
             resume(lease, fixture_maintenance=True)

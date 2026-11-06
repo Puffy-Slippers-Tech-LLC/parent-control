@@ -7,6 +7,7 @@ SUBSETS = ('native',)
 ACTIVITY_SUBSETS = ('native', 'activity', 'baseline-child')
 ACTIVITY_CALLER = 'check_e2e_baseline_journey'
 ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',
+                    'check_e2e_retained_app_visits',
                     'system-282', 'system-301',
                     'check_e2e_baseline_app_effects',
                     'check_e2e_natural_expiry',

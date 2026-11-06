@@ -2216,6 +2216,11 @@ Fedora 44. These add to the native scopes above. Other bindings remain pending;
 policy denial and policy-driven closure are deferred known product limitations,
 not active qualification prerequisites.
 
+The [Flatpak command](#flatpak-command-use) binding adds Jordan's system A/H/S
+fixtures and a distinguishable second S window on Ubuntu 26.04, with immutable
+activity capture and retained first-window comparison. Grid, other users and
+policy-denial bindings remain separate.
+
 The qualified FILE03 Save binding uses `AccessibleUI.save_chooser_operation`,
 `attachment_composition.save_handoff/save_cancellation` and matching
 `onpc_feedback_read` fragments. `check_e2e_save_chooser` qualifies Nautilus
@@ -3157,8 +3162,9 @@ Recording, collection, worker shutdown, owned cleanup and baseline restoration
 passed. Other target families remain pending.
 
 FLOW08 also includes Jordan's [Allowed Snap grid](#snap-grid-use) binding through
-the same usable-app composite; other Snap grid users and complete cases remain
-separate.
+the same usable-app composite and the [Flatpak command](#flatpak-command-use)
+binding for system A/H/S and separate S instances on Ubuntu 26.04. Other users,
+Flatpak routes and complete cases remain separate.
 
 | ID | Kind | Block and explicit contract | Callees, in order | Status |
 | --- | --- | --- | --- | --- |
@@ -3317,8 +3323,13 @@ remain pending.
 `onpc_app_rows` workers qualify Jamie/Parent retained and Riley fresh entry
 through `check_e2e_retained_app_visits` on Ubuntu 26.04/Fedora 44.
 Riley has public 900-second daily time/no grant. Each user launches the
-native-primary command once, submits/captures its immutable draft/window,
+shared native activity command once, submits/captures its immutable draft/window,
 records desktop and Switches User; preparation starts/ends at GDM.
+The qualification declares `ACTIVITY_SUBSETS` with the fixed
+`check_e2e_retained_app_visits` caller before journey construction, retaining
+shared readiness and independent activity-file verification. This clean
+Ubuntu 26.04 binding passed in `20261106T025708Z-03ba144c`, including all original
+window/draft comparisons, resumed use, refusals and owned cleanup.
 
 FLOW09 visits Jamie from GDM, Riley from Jamie and independently Jamie from
 Riley. `activity_entries` requires earlier capture before input;
@@ -3736,6 +3747,29 @@ the VM was independently observed off. Existing recipient and cleanup guards
 were reused, and the five new Flatpak privilege/scope checks plus nine existing
 Snap/source-retirement checks passed. Command execution, activity, grid behavior
 and other families remain outside this qualification.
+
+### Flatpak command use
+
+`flatpak_command_usable.PLAN` / `FlatpakCommandJourney`,
+`journey_blocks.native_usable_app(kind='flatpak')` and
+`onpc_app_rows::flatpak_command_usable` qualify APP01/02/03/04 and FLOW08 for
+Jordan's fixed A/H/S commands through `check_e2e_flatpak_command_usable`.
+`AccessibleUI.native_launch_command` selects the default system installation,
+`x86_64/stable` and the active Jordan desktop. `flatpak_app_owner` binds the
+public window's connection owner to unchanged per-instance application/runtime
+metadata and exact system deployment paths; unique public application/window
+IDs distinguish primary and secondary instances. UID, PID/start-time and
+non-zombie checks remain required because Flatpak may proxy the D-Bus connection.
+
+The Ubuntu 26.04 qualification passed in `20261106T023224Z-4734977e`: each
+command opened its independently owned window and submitted a normal draft;
+immutable captures distinguished both S windows and preserved the first S
+activity. Wrong-scope, echo-only and uncertain-input refusals, collection,
+worker/callback shutdown and baseline restoration passed. The affected Allowed
+Snap command and native retained-work checks passed in
+`20261106T023748Z-6f5ea08a` and `20261106T025708Z-03ba144c`, respectively;
+the selected VM was independently observed off. Other users, grid, enforcement
+and complete customer cases remain separate.
 
 ### Snap command use
 

@@ -203,6 +203,17 @@ OPERATIONS |= SNAP_APP_OPERATIONS
 STANDARD_OPERATIONS |= SNAP_APP_OPERATIONS
 SNAP_APP_OPERATIONS |= RILEY_SNAP_OPERATIONS
 OPERATIONS |= RILEY_SNAP_OPERATIONS
+FLATPAK_APP_BINDINGS = {
+    'flatpak-' + name + '-' + action: (role, instance, action)
+    for name, role, instance in (('allowed', 'A', 'primary'), ('hard', 'H', 'primary'),
+                                 ('soft', 'S', 'primary'), ('soft-second', 'S', 'secondary'))
+    for action in ('desktop', 'command-launch', 'opened', 'submit', 'submitted',
+                   'activity', 'close', 'closed')
+}
+FLATPAK_APP_OPERATIONS = frozenset(FLATPAK_APP_BINDINGS) | {'flatpak-command-refusals'}
+PACKAGED_APP_BINDINGS = {**SNAP_APP_BINDINGS, **FLATPAK_APP_BINDINGS}
+OPERATIONS |= FLATPAK_APP_OPERATIONS
+STANDARD_OPERATIONS |= FLATPAK_APP_OPERATIONS
 PARENT_NATIVE_OPERATIONS = frozenset('parent-native-' + suffix for suffix in (
     'desktop', 'command-launch', 'activity-launch', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed'))
 OPERATIONS |= PARENT_NATIVE_OPERATIONS
@@ -12878,16 +12889,19 @@ class AccessibleUI:
         never window acceptance; APP02 independently reads the public result.
         """
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(kind in ('native', 'snap'), 'ui:fixture-binding')
+        require(kind in ('native', 'snap', 'flatpak'), 'ui:fixture-binding')
         snap = kind == 'snap'
+        flatpak = kind == 'flatpak'
+        require(not flatpak or role in ('A', 'H', 'S') and child == EXISTING_CHILD
+                and not blocked and not locked and fixture == 'policy', 'ui:flatpak-binding')
         require(not snap or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
                 or child == CHILD and role == 'A' and instance == 'primary')
                 and not blocked and not locked and fixture == 'policy', 'ui:snap-binding')
-        require(snap or role is None or role in ('A', 'H', 'S', 'N') and child in (CHILD, EXISTING_CHILD)
+        require(snap or flatpak or role is None or role in ('A', 'H', 'S', 'N') and child in (CHILD, EXISTING_CHILD)
                 and fixture == 'policy' and (role != 'H' or blocked)
                 and (role != 'N' or child == EXISTING_CHILD and not blocked), 'ui:native-binding')
         require((instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'))
-                if snap else instance == ('secondary' if role in ('H', 'S') else 'primary'), 'ui:native-binding')
+                if snap or flatpak else instance == ('secondary' if role in ('H', 'S') else 'primary'), 'ui:native-binding')
         require(type(locked) is bool and (not locked or role == 'S' and blocked),
                 'ui:native-binding')
         require(type(blocked) is bool, 'ui:native-binding')
@@ -12899,6 +12913,9 @@ class AccessibleUI:
         def ready():
             nonlocal locked_session
             require_active_launch_session(unlocked=not locked)
+            if flatpak:
+                require(os.getuid() == os.geteuid() == pwd.getpwnam(
+                    CHILD_ACCOUNTS[EXISTING_CHILD]).pw_uid, 'ui:flatpak-session')
             if child == CHILD:
                 self.require_child_overlay_session()
             if locked:
@@ -12936,7 +12953,7 @@ class AccessibleUI:
         unit = ('onpc-test-native-' + os.urandom(16).hex() + '.service'
                 if blocked or child == CHILD else None)
         self.input_uncertain = True
-        executable = ('/usr/bin/snap' if snap else
+        executable = ('/usr/bin/flatpak' if flatpak else '/usr/bin/snap' if snap else
             '/opt/onpc-test-fixtures-activity/native-fixture' if fixture == 'activity' else
             '/opt/onpc-test-fixtures/Applications/' + {
                 'A': 'Exact Fixture.AppImage', 'H': 'Whitespace/Path With Spaces.AppImage',
@@ -12949,6 +12966,10 @@ class AccessibleUI:
             executable,
             *(['run', {'A': 'onpc-fixture-allowed', 'H': 'onpc-fixture-hard',
                        'S': 'onpc-fixture-soft'}[role]] if snap else []),
+            *(['run', '--system', '--arch=x86_64', '--branch=stable',
+               {'A': 'com.puffyslippers.ONPCTestApplication',
+                'H': 'com.puffyslippers.ONPCTestApplication.Hard',
+                'S': 'com.puffyslippers.ONPCTestApplication.Soft'}[role]] if flatpak else []),
             *(['--instance', instance] if role is not None else []),
         ], stdin=subprocess.DEVNULL, capture_output=True, check=not blocked, timeout=15)
         if not blocked and unit is not None and self.timing is not None:
@@ -13010,19 +13031,26 @@ class AccessibleUI:
                             instance='primary', role=None, child=CHILD, implicit_instance=False, kind='native'):
         """APP02/03: public owned window and finite independent activity projection."""
         require(submitted in ('No submitted draft', 'ONPC fixture draft'), 'ui:native-projection')
-        require(kind in ('native', 'snap'), 'ui:fixture-binding')
+        require(kind in ('native', 'snap', 'flatpak'), 'ui:fixture-binding')
         snap = kind == 'snap'
+        flatpak = kind == 'flatpak'
+        require(not flatpak or role in ('A', 'H', 'S') and child == EXISTING_CHILD
+                and instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'),
+                'ui:flatpak-binding')
         require(not snap or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
                 or child == CHILD and role == 'A' and instance == 'primary')
                 and instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'),
                 'ui:snap-binding')
-        require(snap or role is None and instance == 'primary' or role in ('A', 'S', 'N')
+        require(snap or flatpak or role is None and instance == 'primary' or role in ('A', 'S', 'N')
                 and instance == ('secondary' if role == 'S' else 'primary'), 'ui:native-binding')
         require(type(implicit_instance) is bool and (not implicit_instance or role == 'A'),
                 'ui:native-binding')
         if role is not None:
             require(child in (CHILD, EXISTING_CHILD) and (role != 'N' or child == EXISTING_CHILD),
                     'ui:native-child-binding')
+            if flatpak:
+                require(os.getuid() == os.geteuid() == pwd.getpwnam(
+                    CHILD_ACCOUNTS[EXISTING_CHILD]).pw_uid, 'ui:flatpak-session')
             if child == CHILD:
                 self.require_child_overlay_session()
             else:
@@ -13060,6 +13088,8 @@ class AccessibleUI:
                 'ui:native-entry')
         if snap:
             self.snap_app_owner(root, role, instance)
+        elif flatpak:
+            self.flatpak_app_owner(root, role, instance)
         elif role is not None:
             self.native_app_owner(root, role, instance, implicit_instance=implicit_instance)
         try:
@@ -13119,8 +13149,51 @@ class AccessibleUI:
         require(before[0] != 'Z' and fresh[0] != 'Z' and before[19] == fresh[19],
                 'ui:snap-owner-changed')
 
+    def flatpak_app_owner(self, root, role, instance):
+        """Bind the public window to Flatpak's live system deployment metadata.
+
+        Flatpak documents /.flatpak-info as the running instance's identity.
+        This is fixture identity verification, never a product-state probe.
+        """
+        import configparser
+        name = {'A': 'com.puffyslippers.ONPCTestApplication',
+                'H': 'com.puffyslippers.ONPCTestApplication.Hard',
+                'S': 'com.puffyslippers.ONPCTestApplication.Soft'}[role]
+        pid = root.get_process_id()
+        require(type(pid) is int and pid > 0, 'ui:flatpak-owner')
+        process = Path('/proc/' + str(pid))
+        before = (process / 'stat').read_text().rsplit(')', 1)[1].split()
+        require(process.stat().st_uid == os.getuid(), 'ui:flatpak-owner')
+        raw = (process / 'root/.flatpak-info').read_text()
+        require(0 < len(raw) <= 65536, 'ui:flatpak-owner')
+        info = configparser.ConfigParser(interpolation=None)
+        info.read_string(raw)
+        require(info.get('Application', 'name') == name
+                and info.get('Application', 'runtime') ==
+                    'runtime/com.puffyslippers.ONPCTestPlatform/x86_64/stable', 'ui:flatpak-owner')
+        metadata = info['Instance']
+        require(metadata.get('arch') == 'x86_64' and metadata.get('branch') == 'stable'
+                and re.fullmatch(r'[0-9]+', metadata.get('instance-id', '')) is not None,
+                'ui:flatpak-owner')
+        for key, ref in (('app', 'app/' + name),
+                         ('runtime', 'runtime/com.puffyslippers.ONPCTestPlatform')):
+            commit = metadata.get(key + '-commit', '')
+            require(re.fullmatch(r'[0-9a-f]{64}', commit) is not None
+                    and metadata.get(key + '-path') ==
+                        '/var/lib/flatpak/' + ref + '/x86_64/stable/' + commit + '/files',
+                    'ui:flatpak-system-scope')
+        # AT-SPI reports the D-Bus connection owner, which Flatpak may proxy.
+        # Its per-instance metadata binds the deployment; the unique public
+        # application/window IDs resolved above bind primary versus secondary.
+        # The proxy's argv is not the GUI's command line.
+        fresh = (process / 'stat').read_text().rsplit(')', 1)[1].split()
+        require(before[0] != 'Z' and fresh[0] != 'Z' and before[19] == fresh[19]
+                and (process / 'root/.flatpak-info').read_text() == raw,
+                'ui:flatpak-owner-changed')
+
     def snap_app_operation(self, operation):
-        require(operation in SNAP_APP_OPERATIONS, 'ui:snap-operation')
+        require(operation in SNAP_APP_OPERATIONS | FLATPAK_APP_OPERATIONS, 'ui:snap-operation')
+        kind = 'flatpak' if operation in FLATPAK_APP_OPERATIONS else 'snap'
         if operation == 'snap-grid-refusals':
             try:
                 self.native_app_snapshot('ONPC fixture draft', role='H',
@@ -13144,14 +13217,21 @@ class AccessibleUI:
                 finally:
                     self.input_uncertain = False
             return None
-        if operation == 'snap-command-refusals':
-            require(self.native_app_closed(kind='snap'), 'ui:snap-wrong-entry')
+        if operation in ('snap-command-refusals', 'flatpak-command-refusals'):
+            require(self.native_app_closed(kind=kind), 'ui:snap-wrong-entry')
+            if kind == 'flatpak':
+                try:
+                    self.native_launch_command(role='A', child=PARENT, kind=kind)
+                except UiError as error:
+                    require(str(error) == 'ui:flatpak-binding', 'ui:flatpak-wrong-refusal')
+                else:
+                    raise UiError('ui:flatpak-refusal-missing')
             for role, instance, uncertain, expected in (
                     ('A', 'secondary', False, 'ui:native-binding'),
                     ('A', 'primary', True, 'ui:uncertain-input')):
                 self.input_uncertain = uncertain
                 try:
-                    self.native_launch_command(instance, role=role, kind='snap')
+                    self.native_launch_command(instance, role=role, kind=kind)
                 except UiError as error:
                     require(str(error) == expected, 'ui:snap-wrong-refusal')
                 else:
@@ -13161,16 +13241,16 @@ class AccessibleUI:
             # No launch reply, including an echo, may substitute for a window.
             try:
                 self.native_app_snapshot('ONPC fixture draft', role='A',
-                                         child=EXISTING_CHILD, kind='snap')
+                                         child=EXISTING_CHILD, kind=kind)
             except UiError as error:
                 require(str(error) == 'ui:native-entry', 'ui:snap-wrong-refusal')
             else:
                 raise UiError('ui:snap-refusal-missing')
             return None
-        role, instance, action = SNAP_APP_BINDINGS[operation]
+        role, instance, action = PACKAGED_APP_BINDINGS[operation]
         arguments = dict(instance=instance, role=role,
                          child=CHILD if operation in RILEY_SNAP_OPERATIONS else EXISTING_CHILD,
-                         kind='snap')
+                         kind=kind)
         if action == 'search-ready':
             self.search_ready('overview')
         elif action == 'search-focused':
@@ -13185,7 +13265,8 @@ class AccessibleUI:
                 require_active_launch_session()
             self.focus_search_result(SNAP_SEARCH_PRODUCTS[role])
         elif action in ('desktop', 'closed'):
-            self.wait(lambda: self.native_app_closed(instance, kind='snap'), 'snap-closed')
+            self.wait(lambda: self.native_app_closed(instance, kind=kind,
+                complete_absence=kind == 'flatpak'), kind + '-closed')
         elif action == 'command-launch':
             self.native_launch_command(**arguments)
         elif action == 'submit':
@@ -13198,7 +13279,7 @@ class AccessibleUI:
         else:
             require(not self.input_uncertain, 'ui:uncertain-input')
             self.native_app_snapshot('ONPC fixture draft', **arguments)
-            self.activate_id('onpc-fixture-snap-' + instance + '-close')
+            self.activate_id('onpc-fixture-' + kind + '-' + instance + '-close')
 
     def native_app_owner(self, root, role, instance, *, implicit_instance=False):
         """Bind the GUI child to its live native policy executable and account."""
@@ -13233,7 +13314,7 @@ class AccessibleUI:
                           kind='native'):
         """One normal public action; no replay after uncertain delivery."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(kind == 'snap' or role is None and instance == 'primary' or role in ('A', 'S', 'N')
+        require(kind in ('snap', 'flatpak') or role is None and instance == 'primary' or role in ('A', 'S', 'N')
                 and instance == ('secondary' if role == 'S' else 'primary'), 'ui:native-binding')
         if role is not None and child == CHILD:
             self.require_child_overlay_session()
@@ -13247,7 +13328,7 @@ class AccessibleUI:
 
     def native_app_closed(self, instance='primary', *, desktop=True, complete_absence=False, kind='native'):
         """Complete owned absence; closure also recognizes the stable desktop."""
-        require(kind in ('native', 'snap') and instance in ('primary', 'secondary') and type(desktop) is bool
+        require(kind in ('native', 'snap', 'flatpak') and instance in ('primary', 'secondary') and type(desktop) is bool
                 and type(complete_absence) is bool, 'ui:native-binding')
         if desktop:
             self.standard_shell_desktop(no_prompt=True)
@@ -13917,7 +13998,7 @@ class AccessibleUI:
                                or operation == 'station-default-entry' else
                                None if operation in GREETER_OPERATIONS else 'desktop')
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
-        if operation in SNAP_APP_OPERATIONS:
+        if operation in SNAP_APP_OPERATIONS | FLATPAK_APP_OPERATIONS:
             value = self.snap_app_operation(operation)
             if value is not None:
                 result['activity'] = value

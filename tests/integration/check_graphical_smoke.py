@@ -1051,7 +1051,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                                     'native_fixtures', 'catalogue_search', 'catalogue_filters', 'policy_legend', 'match_save_cancel', 'match_editor', 'access_choices', 'policy_edit', 'named_app_set', 'rejected_parent_rule') and isinstance(value, bool)))),
         'smoke:native-fixtures-prerequisites')
     require(fixture_profile in ('native', 'snap', 'flatpak') and
-            (fixture_profile != 'flatpak' or native_fixtures) and
+            (fixture_profile != 'flatpak' or native_fixtures or native_app) and
             (fixture_profile == 'native' or (native_fixtures or native_app or native_grid_usable) and not any((catalogue_search,
              catalogue_filters, policy_legend, match_save_cancel, match_editor, access_choices,
              policy_edit, named_app_set, rejected_parent_rule))), 'smoke:fixture-profile')
@@ -1795,6 +1795,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-riley-native-grid-qualification'
         if native_app:
             result['scope'] = ('installed-snap-command-usable-qualification' if fixture_profile == 'snap'
+                               else 'installed-flatpak-command-usable-qualification' if fixture_profile == 'flatpak'
                                else 'installed-native-app-qualification')
         if native_denial:
             result['scope'] = 'installed-native-denial-qualification'
@@ -2347,6 +2348,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     if fixture_profile == 'snap':
                         from parent_setup_qualification import SnapCommandQualification
                         qualification_class = SnapCommandQualification
+                    elif fixture_profile == 'flatpak':
+                        from parent_setup_qualification import FlatpakCommandQualification
+                        qualification_class = FlatpakCommandQualification
                 if native_denial:
                     from parent_setup_qualification import NativeDenialQualification
                     qualification_class = NativeDenialQualification

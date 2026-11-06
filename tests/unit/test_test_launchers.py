@@ -19,6 +19,8 @@ import test_launcher as host
 import test_commands as commands
 
 VM_ARGS = ['--vm', vm_name()]
+VM_TARGETS = [(vm_name(fixture_path='common/ubuntu/common'), 'ubuntu'),
+              (vm_name(fixture_path='common/fedora/common'), 'fedora')]
 SYSTEM_BOOTSTRAP_ALIASES = ('check_parent_setup', 'check_parent_input',
                             'check_parent_standard_input')
 PRODUCT_FREE_FIXTURE_SELECTORS = ('check_fixture_system_product_free',
@@ -105,7 +107,7 @@ def test_fixture_qualification_refuses_other_target_before_preparing(monkeypatch
     ('system', ['check_fixture_transfer.py']),
     ('e2e', ['--qualify-transfer']),
 ])
-@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
 def test_transfer_freezes_exact_input_before_privileged_dispatch(
         monkeypatch, frozen_fixture_selection, category, arguments, vm, target):
     monkeypatch.setenv('ONPC_TEST_VM', vm)
@@ -149,7 +151,7 @@ def test_transfer_refuses_unqualified_target_before_input_preparation(monkeypatc
     ('system', ['check_fixture_serial.py']),
     ('e2e', ['--qualify-install']), ('e2e', ['--qualify-install-refusal']),
 ])
-@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
 def test_serial_freezes_exact_input_and_refuses_unknown_target_before_preparation(
         monkeypatch, frozen_fixture_selection, category, arguments, vm, target):
     families = json.loads((ROOT / 'config/environment.json').read_text())['families']
@@ -186,7 +188,7 @@ def test_serial_freezes_exact_input_and_refuses_unknown_target_before_preparatio
 
 
 @pytest.mark.parametrize('suffix', ['', '.py'])
-@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
 def test_recorded_serial_freezes_exact_input_before_dispatch(
         monkeypatch, frozen_fixture_selection, suffix, vm, target):
     monkeypatch.setenv('ONPC_TEST_VM', vm)
@@ -245,7 +247,7 @@ def test_product_free_fixture_target_refuses_before_package_or_fixture_input(mon
     *(('system', [name]) for name in PRODUCT_FREE_FIXTURE_SELECTORS),
     ('system', ['--area=lifecycle', '--test=first-configure', '--previous-artifacts=/tmp/onpc-previous']),
 ])
-@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
 def test_product_free_runner_freezes_exact_input_before_dispatch(
         monkeypatch, category, arguments, frozen_fixture_selection, vm, target):
     import vm_selection
@@ -280,7 +282,7 @@ def test_product_free_runner_freezes_exact_input_before_dispatch(
                 '--area=lifecycle', '--test=first-configure']),
 ])
 @pytest.mark.parametrize('suffix', ['', '.py'])
-@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
 def test_product_free_dispatcher_preserves_the_frozen_record(
         monkeypatch, category, arguments, frozen_fixture_selection, suffix, vm, target):
     monkeypatch.setenv('ONPC_TEST_VM', vm)
@@ -316,7 +318,7 @@ def test_source_proof_option_refuses_other_system_checks(monkeypatch, selector, 
 
 
 @pytest.mark.parametrize('suffix', ['', '.py'])
-@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
 def test_installed_system_freezes_original_input_and_actual_source_proof(
         monkeypatch, frozen_fixture_selection, suffix, vm, target):
     import vm_selection
@@ -362,7 +364,7 @@ def test_installed_system_target_refuses_before_any_input(monkeypatch, vm, suffi
 
 
 @pytest.mark.parametrize('fault', ['missing', 'duplicate', 'foreign-input', 'oversized', 'malformed'])
-@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
 def test_source_proof_handoff_requires_one_bound_record(monkeypatch, fault, frozen_fixture_selection, vm, target):
     monkeypatch.setenv('ONPC_TEST_VM', vm)
     frozen_fixture_selection = replace(frozen_fixture_selection, target=target,
@@ -387,7 +389,7 @@ def test_source_proof_handoff_requires_one_bound_record(monkeypatch, fault, froz
     *(('system', [name]) for name in PRODUCT_FREE_FIXTURE_SELECTORS),
     ('system', ['--artifacts=/tmp/onpc-packages']),
 ])
-@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'fedora'), (vm_name(1), 'ubuntu')])
+@pytest.mark.parametrize(('vm', 'target'), [(VM_TARGETS[0][0], 'fedora'), (VM_TARGETS[1][0], 'ubuntu')])
 def test_dispatcher_refuses_foreign_product_free_fixture_target(
         monkeypatch, category, arguments, frozen_fixture_selection, vm, target):
     monkeypatch.setenv('ONPC_TEST_VM', vm)
@@ -413,7 +415,7 @@ def source_proof_selection(selected):
 
 
 @pytest.mark.parametrize(('action', 'status'), [('start', 0), ('start', 7), ('sync-fixtures', 0)])
-@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
 def test_public_fixture_maintenance_keeps_one_selector_and_pins_sync_input(
         monkeypatch, frozen_fixture_selection, action, status, vm, target):
     from contextlib import contextmanager
@@ -484,7 +486,7 @@ def test_public_fixture_maintenance_keeps_one_selector_and_pins_sync_input(
 
 
 @pytest.mark.parametrize('failure', [None, 'retain-a', 'build-b', 'replace-b'])
-@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
 def test_live_refresh_orders_actual_a_use_before_b_build_and_recovers_failures(
         monkeypatch, frozen_fixture_selection, failure, vm, target):
     import dev_privileges
@@ -540,7 +542,7 @@ def test_live_refresh_orders_actual_a_use_before_b_build_and_recovers_failures(
         assert cleanup.call_args.args[0][-4:] == ['vm', '--vm', vm, 'stop']
 
 
-@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
 @pytest.mark.parametrize('selector', ['check_fixture_e2e_installed', 'check_fixture_e2e_product_free'])
 def test_e2e_qualification_freezes_input_and_source_proof(monkeypatch, frozen_fixture_selection, vm, target, selector):
     import vm_selection
@@ -575,7 +577,7 @@ def test_e2e_qualification_freezes_input_and_source_proof(monkeypatch, frozen_fi
     ('system', ['check_e2e_native_fixtures']),
     ('e2e', ['--ready']),
 ])
-@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
 def test_installed_e2e_freezes_before_privileged_dispatch(
         monkeypatch, frozen_fixture_selection, category, arguments, vm, target):
     monkeypatch.setenv('ONPC_TEST_VM', vm)
@@ -608,7 +610,7 @@ def test_installed_e2e_refuses_unqualified_target_before_preparing(monkeypatch, 
     control.run.assert_not_called()
 
 
-@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
 def test_e2e_preflight_preserves_frozen_selection_without_opening_bundle(
         monkeypatch, frozen_fixture_selection, vm, target):
     namespace = runpy.run_path(str(ROOT / 'tests/e2e/runner.py'))
@@ -633,7 +635,7 @@ def test_e2e_preflight_preserves_frozen_selection_without_opening_bundle(
 
 
 @pytest.mark.parametrize('suffix', ['', '.py'])
-@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
 def test_fixture_qualification_forwards_exact_frozen_selection(monkeypatch, suffix, vm, target, frozen_fixture_selection):
     import vm_selection
     fixture_path = 'selected-fixtures'
@@ -663,7 +665,7 @@ def test_fixture_qualification_forwards_exact_frozen_selection(monkeypatch, suff
 
 @pytest.mark.parametrize('failure', ['missing', 'duplicate', 'malformed', 'oversized',
     'unterminated', 'foreign-target', 'nonzero'])
-@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
 def test_fixture_qualification_rejects_invalid_child_result(monkeypatch, frozen_fixture_selection, failure, vm, target):
     import vm_selection
     monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(

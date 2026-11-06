@@ -1189,6 +1189,24 @@ def reproduce_grant_logout(lease, fixture_selection):
         boundary_operation='system:standard-logout', fixture_selection=selection, timeout=1800)
 
 
+def reproduce_flatpak_command(lease):
+    """Retain Jordan's first Flatpak command window for identity diagnosis."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from flatpak_command_usable import FlatpakCommandJourney
+    from tools.test_storage import named_input
+    assets = named_input(vm_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, FlatpakCommandJourney, None,
+        'allowed-opened', 'flatpak-command-usable', assets=assets,
+        boundary_operation='flatpak-allowed-opened')
+
+
+def probe_flatpak_command(lease):
+    """Read the first Flatpak window again without repeating its launch."""
+    observe_maintenance(lease, check='probe_flatpak_command', label='flatpak-command-probe',
+        intention='Checking Jordan first Flatpak window identity', ui_operation='flatpak-allowed-opened')
+
+
 def reproduce_snap_grid(lease):
     """Retain Jordan's first Snap grid launch for inspection in his desktop."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))

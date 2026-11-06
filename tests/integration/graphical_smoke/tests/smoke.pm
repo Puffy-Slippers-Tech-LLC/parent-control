@@ -881,6 +881,12 @@ sub run {
         onpc_app_rows::snap_command_usable(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{flatpak_command_usable}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::flatpak_command_usable(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{native_app}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

@@ -5,10 +5,12 @@ import json
 from tests.support.paths import ROOT
 
 
-def vm_entry(index=0):
+def vm_entry(index=0, *, fixture_path=None):
     document = json.loads((ROOT / 'config/environment.json').read_text())
-    return [entry for family in document['families'] for entry in family['vms']][index]
+    return [entry for family in document['families']
+            if fixture_path is None or family['fixture_path'] == fixture_path
+            for entry in family['vms']][index]
 
 
-def vm_name(index=0):
-    return vm_entry(index)['name']
+def vm_name(index=0, *, fixture_path=None):
+    return vm_entry(index, fixture_path=fixture_path)['name']

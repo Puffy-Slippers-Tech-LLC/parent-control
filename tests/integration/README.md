@@ -234,6 +234,10 @@ and grant/use/revocation history have Riley's A/H/S/N launchers before Parent op
 `NaturalExpiryQualification` binds `check_e2e_natural_expiry` to the same union
 so Riley's activity launch and use until natural lock receive the required
 child catalogue and activity files, with shared independent readback before input.
+`RetainedAppVisitsQualification` binds `check_e2e_retained_app_visits` to that
+same union before journey construction so Jamie and Riley can capture and
+resume their original activity windows after switching users. The fixed caller,
+shared readiness checks and independent activity-file verification remain required.
 `OverlayApprovedExitQualification` binds `check_e2e_overlay_approved_exit` to
 the same union so automatic approval exit can verify and resume the original
 child activity. Its immediate, translated and rejected/cancelled approval

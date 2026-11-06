@@ -552,7 +552,9 @@ sub native_usable_app {
         && (defined($desktop) || $route eq 'command')
         && ($child eq 'child' || $child eq 'other-child' || $child eq 'parent' && $route eq 'command')
         && ($gesture eq 'ret' || $kind eq 'snap' && $route eq 'grid' && $gesture eq 'ctrl-ret')
-        && ($kind eq 'snap' && defined($role)
+        && ($kind eq 'flatpak' && $route eq 'command' && $child eq 'other-child'
+            && defined($role) && $role =~ /\A(?:A|H|S)\z/
+            || $kind eq 'snap' && defined($role)
             && ($child eq 'other-child' && $role =~ /\A(?:A|H|S)\z/
                 || $child eq 'child' && $role eq 'A' && $gesture eq 'ret')
             || $kind eq 'native' && (!defined($role) || $role eq 'Alias' && $route eq 'grid' && $child eq 'other-child'
@@ -1006,13 +1008,28 @@ sub native_app {
 
 sub snap_command_usable {
     onpc_progress::operation('Checking the child can use each Snap app and keep work in two S windows');
+    _packaged_command_usable('snap-command-usable', @_);
+}
+
+sub flatpak_command_usable {
+    onpc_progress::operation('Checking Jordan can use each Flatpak app and keep work in two separate windows');
+    _packaged_command_usable('flatpak-command-usable', @_);
+}
+
+sub _packaged_command_usable {
+    my $prefix = shift;
     my ($exchange, $declared, $challenges) = @_;
-    die 'snap:arguments' unless @_ == 3;
-    my $journey = native_child_entry($exchange, $declared, $challenges, 'snap-command-usable');
+    die 'packaged:arguments' unless @_ == 3;
+    my $journey = native_child_entry($exchange, $declared, $challenges, $prefix);
     $journey->seen('refusals');
     for my $name ('allowed', 'hard', 'soft', 'soft-second') {
         my $flow = _native_activity_scope($journey, $name);
-        native_usable_app($flow, 'command', $flow->seen('desktop'));
+        if ($prefix eq 'flatpak-command-usable') {
+            my $role = $name eq 'allowed' ? 'A' : $name eq 'hard' ? 'H' : 'S';
+            native_usable_app($flow, 'command', $flow->seen('desktop'), 'other-child', $role, 'flatpak');
+        } else {
+            native_usable_app($flow, 'command', $flow->seen('desktop'));
+        }
         native_read_activity($flow, 'capture');
         native_read_activity($journey, 'soft-reread') if $name eq 'soft-second';
         native_finish_app($flow) unless $name eq 'soft';

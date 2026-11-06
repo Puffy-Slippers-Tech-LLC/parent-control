@@ -233,7 +233,9 @@ function activate(context) {
                 errors.report('Watch viewer failed', message.error);
             } else if (message?.type === 'copy' && runRoots.has(message.root) &&
                        typeof message.text === 'string') {
-                void vscode.env.clipboard.writeText(message.text).then(undefined,
+                void vscode.env.clipboard.writeText(message.text).then(() => {
+                    if (message.command === true) vscode.window.setStatusBarMessage('Command copied', 1500);
+                },
                     error => errors.report('Cannot copy tab content', error));
             } else if (message?.type === 'sessionView' &&
                        Array.isArray(message.roots) && message.roots.length <= runRoots.size &&

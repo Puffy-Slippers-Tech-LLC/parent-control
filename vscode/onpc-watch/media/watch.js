@@ -107,7 +107,8 @@
             type: 'launcherAction', root: entry.id, run: entry.run, kind: 'reload' }));
         labels.title = `${entry.server}\n${entry.label}`;
         const title = entry.launcher_command ? link(labels, '', () =>
-            vscode.postMessage({ type: 'copy', root: entry.id, text: entry.launcher_command })) :
+            vscode.postMessage({ type: 'copy', root: entry.id, text: entry.launcher_command,
+                command: true })) :
             element('span', '', labels);
         title.classList.add('run-launcher-label');
         title.textContent = entry.label;

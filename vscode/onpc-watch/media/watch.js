@@ -3,6 +3,10 @@
 
 (() => {
     const vscode = acquireVsCodeApi();
+    const reportError = error => vscode.postMessage({ type: 'watchError',
+        error: error instanceof Error ? error.stack || error.message : String(error) });
+    window.addEventListener('error', event => reportError(event.error || event.message));
+    window.addEventListener('unhandledrejection', event => reportError(event.reason));
     const grid = document.getElementById('grid');
     const viewers = document.getElementById('viewers');
     const resources = document.getElementById('resources');
@@ -474,6 +478,7 @@
             view.screenshot.disabled = true;
             view.waiting.hidden = false;
             view.waiting.textContent = error.message;
+            reportError(error);
         }
     }
 
@@ -993,7 +998,10 @@
                 section.input.value = '';
                 section.fitInput();
             }
-            if (!result.ok) section.error.textContent = result.error;
+            if (!result.ok) {
+                section.error.textContent = result.error;
+                reportError(result.error);
+            }
         }
         state = { scope: snapshot.scope, selected: snapshot.selected };
         persist();
@@ -1051,7 +1059,10 @@
 
     window.addEventListener('message', event => {
         if (event.data.type === 'snapshot') {
-            pending = pending.then(() => render(event.data)).catch(error => message(error.message))
+            pending = pending.then(() => render(event.data)).catch(error => {
+                message(error.message);
+                reportError(error);
+            })
                 .finally(() => vscode.postMessage({ type: 'rendered', id: event.data.id }));
         } else if (event.data.type === 'error') {
             for (const { section } of actions.values()) {

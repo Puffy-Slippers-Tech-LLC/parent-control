@@ -58,6 +58,24 @@ dialog both show the exact public command to run. Command errors remain visible
 in that terminal. Repair queue Stop retains its scope without reselecting VMs.
 Older runs without saved parameters require one normal launch
 before this control becomes available.
+
+Watch infrastructure failures open a shared **ONPC Watch error** dialog in an
+editor tab. Its full diagnostic text is selectable and scrollable horizontally
+and vertically; **Copy all** copies it, and **Close** dismisses it. Additional
+distinct errors append to the open dialog; identical reconnect failures do not
+reopen it repeatedly. Diagnostics also go to the **ONPC Watch** Output channel.
+This covers Watch connection, rendering, clipboard, screenshot and action
+failures. Launcher-owned **Error** tab contents remain separate and do not
+trigger this dialog.
+For a truncated VS Code terminal-exit notification, run **ONPC: Watch Terminal
+Diagnostic** from the command palette. It shows the last failed Watch terminal's
+full invocation, checkout, host and exit status in the same copyable dialog.
+VS Code's public terminal API does not provide process stderr or the native
+notification's private error text; read process output in the terminal or
+Launcher tab. Exceptions thrown while creating a terminal open the dialog
+automatically. Nonzero terminal exits are retained for this explicit command, since a
+launcher can also exit with an ordinary failed test result.
+
 Beside Stop/Resume, **Reload** (circular arrow) asks for confirmation with
 **Reload** and **Cancel**, showing the exact command. Confirming sends `--reload`
 with the saved parameters, stripping earlier lifecycle flags, on the same host

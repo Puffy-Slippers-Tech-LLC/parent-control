@@ -44,6 +44,8 @@
     "commands": [{
       "command": "onpc.watch", "category": "ONPC", "title": "Watch",
       "icon": "media/app-logo.png"
+    }, {
+      "command": "onpc.watchTerminalDiagnostic", "category": "ONPC", "title": "Watch Terminal Diagnostic"
     }],
     "menus": {
       "editor/title": [{

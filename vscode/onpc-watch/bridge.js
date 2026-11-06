@@ -123,12 +123,14 @@ function validate(snapshot) {
 }
 
 class Source {
-    constructor(config, log, changed) {
+    constructor(config, log, changed, reportError = () => {}) {
         this.config = config;
         this.log = log;
         this.changed = changed;
+        this.reportError = reportError;
         this.status = 'Connecting';
         this.authRefused = false;
+        this.stderr = '';
         this.retryAt = 0;
         this.backoff = 1000;
         this.frames = new Map();
@@ -147,8 +149,10 @@ class Source {
         this.child = child;
         this.status = 'Connecting';
         this.authRefused = false;
+        this.stderr = '';
+        this.stderrTruncated = false;
         this.changed();
-        let chunks = [], bytes = 0, errors = '';
+        let chunks = [], bytes = 0;
         child.stdout.on('data', data => {
             if (this.child !== child) return;
             // Accumulate without repeatedly copying a large PNG/recording response.
@@ -169,9 +173,15 @@ class Source {
         });
         child.stderr.on('data', data => {
             if (this.child !== child) return;
-            errors = (errors + data.toString()).slice(-4096);
-            if (remote && SSH_REFUSAL.test(errors)) this.authRefused = true;
-            this.log(`[${config.label}] ${data.toString().slice(-4096)}`);
+            this.stderr += data.toString();
+            if (remote && SSH_REFUSAL.test(this.stderr.slice(-8192))) this.authRefused = true;
+            // Full stderr is streamed to Output; don't retain an unbounded second
+            // copy for a connection that can remain healthy for days.
+            if (this.stderr.length > 128 * 1024) {
+                this.stderr = this.stderr.slice(-128 * 1024);
+                this.stderrTruncated = true;
+            }
+            this.log(`[${config.label}] ${data.toString()}`);
         });
         child.on('error', error => { if (this.child === child) this.fail(error.message); });
         // EPIPE can precede the final stdout reply and authentication diagnostics.
@@ -192,6 +202,8 @@ class Source {
     }
 
     fail(message, retry = true) {
+        const detail = [message, this.stderrTruncated ?
+            '[Earlier stderr is available in the ONPC Watch Output channel.]' : '', this.stderr].filter(Boolean).join('\n\n');
         if (this.authRefused) {
             message = 'SSH authentication or host-key verification refused; fix SSH access and click Reconnect.';
             retry = false;
@@ -210,6 +222,7 @@ class Source {
         this.backoff = Math.min(15000, this.backoff * 2);
         this.frames.clear();
         this.log(`[${this.config.label}] ${this.status}`);
+        this.reportError(`Watch connection failed: ${this.config.label}`, detail);
         this.changed();
     }
 
@@ -291,7 +304,7 @@ class Source {
 }
 
 class Bridge {
-    constructor(configs, log, changed = () => {}, resourceConfigs = configs) {
+    constructor(configs, log, changed = () => {}, resourceConfigs = configs, reportError = () => {}) {
         this.revision = 0;
         this.results = [];
         this.sources = configs.map(config => {
@@ -299,7 +312,7 @@ class Bridge {
                 this.revision++;
                 // Render on arrival, rather than adding another polling interval.
                 queueMicrotask(() => { if (!this.closed) changed(); });
-            });
+            }, reportError);
             source.results = this.results;
             return source;
         });
@@ -307,7 +320,7 @@ class Bridge {
             new Source(config, log, () => {
                 this.revision++;
                 queueMicrotask(() => { if (!this.closed) changed(); });
-            }));
+            }, reportError));
         this.displayedFrames = new Map();
         this.links = new Map();
         this.roots = new Map();

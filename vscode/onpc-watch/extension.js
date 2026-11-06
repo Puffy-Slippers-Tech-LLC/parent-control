@@ -7,6 +7,7 @@ const { spawn } = require('node:child_process');
 const { randomBytes } = require('node:crypto');
 const { fileURLToPath } = require('node:url');
 const { Bridge, configuration, resourceConfiguration } = require('./bridge');
+const { WatchErrors } = require('./errors');
 
 function checkout(folder) {
     if (folder.uri.scheme !== 'file') return undefined;
@@ -52,7 +53,27 @@ function html(webview, context) {
 function activate(context) {
     const panels = new Map();
     const output = vscode.window.createOutputChannel('ONPC Watch');
+    const errors = new WatchErrors(context, output);
+    const terminals = new Map();
+    let lastTerminalDiagnostic;
     context.subscriptions.push(output);
+    context.subscriptions.push(vscode.commands.registerCommand('onpc.watchTerminalDiagnostic', () => {
+        errors.report('Watch terminal diagnostic', lastTerminalDiagnostic || 'No failed Watch terminal has been recorded in this VS Code session.', true);
+    }));
+    context.subscriptions.push(vscode.window.onDidCloseTerminal(terminal => {
+        const invocation = terminals.get(terminal);
+        terminals.delete(terminal);
+        const status = terminal.exitStatus;
+        if (!invocation || !status || status.code === 0 ||
+                [vscode.TerminalExitReason.User, vscode.TerminalExitReason.Shutdown,
+                    vscode.TerminalExitReason.Extension].includes(status.reason)) return;
+        const diagnostic = `${invocation}\n\nExit code: ${status.code ?? 'unavailable'}\nExit reason: ${status.reason}\n\nVS Code does not expose this terminal's error text to extensions. Process output remains in the terminal and the Launcher tab, if the launcher started.`;
+        lastTerminalDiagnostic = diagnostic;
+        output.appendLine(diagnostic);
+        // VS Code exposes neither the native launch-error text nor a reliable
+        // startup-failure discriminator. A nonzero exit can be a test outcome;
+        // keep its diagnostic explicit instead of misreporting it as Watch failure.
+    }));
     function updateButton() {
         const available = vscode.workspace.isTrusted &&
             (vscode.workspace.workspaceFolders || []).some(folder => {
@@ -65,22 +86,22 @@ function activate(context) {
         vscode.workspace.onDidChangeWorkspaceFolders(updateButton),
         vscode.workspace.onDidGrantWorkspaceTrust(updateButton));
     updateButton();
-    context.subscriptions.push(vscode.commands.registerCommand('onpc.watch', async () => {
+    const openWatch = async () => {
         if (!vscode.workspace.isTrusted) {
-            vscode.window.showErrorMessage('Trust this workspace before opening ONPC Watch.');
+            errors.report('Cannot open Watch', 'Trust this workspace before opening ONPC Watch.');
             return;
         }
         let roots;
         try {
             roots = [...new Set((vscode.workspace.workspaceFolders || []).map(checkout).filter(Boolean))];
         } catch (error) {
-            vscode.window.showErrorMessage(`ONPC Watch: ${error.message}`);
+            errors.report('Cannot open Watch', error);
             return;
         }
         const root = roots.length === 1 ? roots[0] : roots.length &&
             await vscode.window.showQuickPick(roots, { placeHolder: 'Choose an ONPC checkout to watch' });
         if (!root) {
-            if (!roots.length) vscode.window.showErrorMessage('Open an ONPC repository folder to use ONPC Watch.');
+            if (!roots.length) errors.report('Cannot open Watch', 'Open an ONPC repository folder to use ONPC Watch.');
             return;
         }
         if (panels.has(root)) {
@@ -104,16 +125,16 @@ function activate(context) {
             const helper = spawn(command, args,
                 { stdio: [input === undefined ? 'ignore' : 'pipe', 'ignore', 'pipe'] });
             notifications.add(helper);
-            let errors = '';
-            const report = error => void vscode.window.showErrorMessage(`${label}: ${error}`);
-            helper.stderr.on('data', data => { errors = (errors + data.toString()).slice(-4096); });
+            let stderr = '';
+            const report = error => errors.report(label, error);
+            helper.stderr.on('data', data => { stderr += data.toString(); });
             helper.on('error', error => report(error.message));
             helper.on('close', code => {
                 notifications.delete(helper);
-                if (code || errors) report(errors || `desktop helper exited (${code})`);
+                if (code || stderr) report(stderr || `desktop helper exited (${code})`);
             });
             if (input !== undefined) {
-                helper.stdin.on('error', error => output.appendLine(`${label} input: ${error.message}`));
+                helper.stdin.on('error', error => report(error));
                 helper.stdin.end(input);
             }
         }
@@ -125,14 +146,16 @@ function activate(context) {
         }
         function failure(message) {
             stop();
-            output.appendLine(message);
+            errors.report('Watch bridge failed', message);
             if (!disposed) void panel.webview.postMessage({ type: 'error', message });
         }
         function poll() {
             if (!bridge || !ready || !panel.visible || rendering) return;
             // Sources advance independently, with the existing render backpressure.
-            bridge.tick({ ...selection, session_roots: [...sessionRoots] });
-            void publish();
+            try {
+                bridge.tick({ ...selection, session_roots: [...sessionRoots] });
+                void publish();
+            } catch (error) { failure(error.stack || error.message); }
         }
         async function publish() {
             if (!bridge || !ready || !panel.visible || disposed) return;
@@ -163,12 +186,13 @@ function activate(context) {
             try {
                 const values = vscode.workspace.getConfiguration('onpc.watch', vscode.Uri.file(root)).get('sources', []);
                 bridge = new Bridge(configuration(values, root), message => output.appendLine(message), publish,
-                    resourceConfiguration(root));
+                    resourceConfiguration(root), (title, error) => errors.report(title, error));
             } catch (error) { failure(error.message); return; }
             timer = setInterval(poll, 200);
             poll();
         }
         const messages = panel.webview.onDidReceiveMessage(message => {
+            try {
             if (message?.type === 'ready') {
                 sessionRoots.clear();
                 ready = true;
@@ -197,11 +221,13 @@ function activate(context) {
                     path.join(context.extensionUri.fsPath, 'screenshot.py')], 'Screenshot',
                     Buffer.from(message.png.slice('data:image/png;base64,'.length), 'base64'));
             } else if (message?.type === 'screenshotError' && typeof message.error === 'string') {
-                void vscode.window.showErrorMessage(`Cannot take screenshot: ${message.error}`);
+                errors.report('Cannot take screenshot', message.error);
+            } else if (message?.type === 'watchError' && typeof message.error === 'string') {
+                errors.report('Watch viewer failed', message.error);
             } else if (message?.type === 'copy' && runRoots.has(message.root) &&
                        typeof message.text === 'string') {
                 void vscode.env.clipboard.writeText(message.text).then(undefined,
-                    error => vscode.window.showErrorMessage(`Cannot copy tab content: ${error.message}`));
+                    error => errors.report('Cannot copy tab content', error));
             } else if (message?.type === 'sessionView' &&
                        Array.isArray(message.roots) && message.roots.length <= runRoots.size &&
                        message.roots.every(id => runRoots.has(id))) {
@@ -234,6 +260,7 @@ function activate(context) {
                        Number.isInteger(message.rows) && message.rows > 0 && message.rows <= message.tokens.length) {
                 void deleteRunTimes(message);
             }
+            } catch (error) { errors.report('Cannot handle Watch action', error); }
         });
         let deletingRunTimes = false;
         let confirmingLauncher = false;
@@ -279,16 +306,18 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c
     if [ -s "$NVM_DIR/nvm.sh" ]; then . "$NVM_DIR/nvm.sh"; fi
 fi
 exec "$@"`, 'onpc-watch', ...argv];
+                const shellPath = remote ? 'ssh' : argv[0];
+                const shellArgs = remote ? ['-t', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
+                    '-o', 'ConnectTimeout=5', '--', command.source.host, remoteArgv.map(quote).join(' ')] : argv.slice(1);
                 const terminal = vscode.window.createTerminal({
                     name: `${command.launcher}: ${message.kind} (${command.source.label})`,
-                    shellPath: remote ? 'ssh' : argv[0],
-                    shellArgs: remote ? ['-t', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
-                        '-o', 'ConnectTimeout=5', '--', command.source.host, remoteArgv.map(quote).join(' ')] : argv.slice(1),
+                    shellPath, shellArgs,
                     ...(remote ? {} : { cwd: command.root })
                 });
+                terminals.set(terminal, `Action: ${action}\nHost: ${command.source.label}\nCheckout: ${command.root}\nCommand: ${commandText}\n\nTerminal invocation:\n${[shellPath, ...shellArgs].map(quote).join(' ')}`);
                 terminal.show(true);
             } catch (error) {
-                void vscode.window.showErrorMessage(`Cannot ${message.kind} launcher: ${error.message}`);
+                errors.report(`Cannot ${message.kind} launcher`, error);
             } finally {
                 confirmingLauncher = false;
             }
@@ -305,7 +334,7 @@ exec "$@"`, 'onpc-watch', ...argv];
                 if (answer !== 'Delete' || !current || current !== bridge || disposed) return;
                 await current.deleteRunTimes(message.tokens);
             } catch (error) {
-                void vscode.window.showErrorMessage(`Cannot delete run times: ${error.message}`);
+                errors.report('Cannot delete run times', error);
             } finally {
                 deletingRunTimes = false;
                 poll();
@@ -330,7 +359,7 @@ exec "$@"`, 'onpc-watch', ...argv];
                     const video = vscode.window.createWebviewPanel('onpc.watch.recording', 'Watch recording', vscode.ViewColumn.Active, {});
                     video.webview.html = `<!DOCTYPE html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src data:; style-src 'unsafe-inline';"></head><body style="margin:0;background:#111"><video controls autoplay style="width:100%;height:100vh" src="data:video/webm;base64,${result.data}"></video></body></html>`;
                 } else throw new Error('Adapter returned an unsupported artifact.');
-            } catch (error) { void vscode.window.showErrorMessage(`Cannot open Watch artifact: ${error.message}`); }
+            } catch (error) { errors.report('Cannot open Watch artifact', error); }
         }
         const visibility = panel.onDidChangeViewState(() => {
             if (panel.visible) { reset = true; poll(); }
@@ -348,7 +377,9 @@ exec "$@"`, 'onpc-watch', ...argv];
         context.subscriptions.push(panel);
         panel.webview.html = html(panel.webview, context);
         start();
-    }));
+    };
+    context.subscriptions.push(vscode.commands.registerCommand('onpc.watch', () =>
+        openWatch().catch(error => errors.report('Cannot open Watch', error))));
 }
 
 module.exports = { activate };

@@ -184,10 +184,11 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reproduce-overlay-return', 'reproduce-panel-request', 'probe-panel-request',
                                       'reproduce-system-graphical-expiry',
                                       'reproduce-app-restart-choices', 'probe-app-restart-choices',
-                                      'reproduce-reboot-context',
+                                      'reproduce-reboot-context', 'reproduce-expired-sign-out',
                                       'reproduce-revoke-cancel', 'probe-revoke-balances',
                                       'reproduce-delayed-approval',
                                       'reproduce-countdown-minutes',
+                                      'reproduce-jordan-daily-access',
                                       'reproduce-natural-expiry',
                                       'reproduce-natural-access',
                                       'reproduce-countdown-grant',
@@ -240,7 +241,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                            'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
                            'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
                            'reproduce-panel-request', 'reproduce-app-restart-choices',
-                           'reproduce-reboot-context', 'reproduce-flatpak-grid')) != (args.fixture_selection is not None):
+                           'reproduce-reboot-context', 'reproduce-flatpak-grid',
+                           'reproduce-expired-sign-out')) != (args.fixture_selection is not None):
             raise ValueError('test-runner:fixture-sync-requires-selection')
         fixture_options = []
         if args.fixture_maintenance or args.action in ('sync-fixtures', 'reproduce-baseline-restoration',
@@ -249,7 +251,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                                       'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
                                                       'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
                                                       'reproduce-panel-request', 'reproduce-app-restart-choices',
-                                                      'reproduce-reboot-context', 'reproduce-flatpak-grid'):
+                                                      'reproduce-reboot-context', 'reproduce-flatpak-grid',
+                                                      'reproduce-expired-sign-out'):
             targets = vm_config.fixture_targets(root / 'config/environment.json')
             if configured.name not in targets:
                 raise ValueError('test-runner:fixture-target-not-qualified')

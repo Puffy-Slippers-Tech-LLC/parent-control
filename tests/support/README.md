@@ -378,6 +378,8 @@ Maintenance reproductions share `vm_probe.installed_reproduction_selection`
 for clean-input validation and attested running-snapshot binding. Keep each
 caller's package/fixture input declaration, journey and stopping point local;
 the system expiry history retains its distinct system fixture validation.
+Load an unrelated journey only when its diagnostic is selected. Its import-time
+plan checks must not block another reproduction; keep those checks on its own route.
 Single public reads share `vm_probe.observe_maintenance`, including intention,
 recovery session, registered private evidence, guarded transport and final lease
 check. Multi-action probes keep their finite order and assertions. These helpers
@@ -388,6 +390,11 @@ pytest state and mocked VM calls in both unit and cleanup inventories.
 qualification to that same reproduction owner. It observes Jordan's first
 opened window once, closes the worker and retains his desktop for guarded
 `exec` probes followed by `stop`; it supplies no acceptance credit.
+`reproduce-expired-sign-out` similarly binds `AppRestartExpiredJourney` and
+`SIGN_OUT_PLAN` to Riley's completed logout, reads `gdm-returned` once and retains
+the greeter without replying to that checkpoint. Inspect that exact greeter's
+own session bus through guarded `exec`, then finish with `stop`; the diagnostic
+does not continue into expiry or replacement approval and grants no case credit.
 
 Fixture provisioning qualifications reuse
 `system_fixture_preparation.register_staging`, as do system, standalone and E2E
@@ -411,13 +418,15 @@ its next page and exact saved-state comparisons. Match-editor qualifications
 share the same selection fragment without changing their entry assertions.
 
 Parent and child returns to the greeter reuse
-`onpc_desktop_session::switch_user` with the caller's scoped desktop receipt.
-Declare its desktop read, switch and independent greeter result with
-`journey_blocks.desktop_return(prefix, account=...)`, as in the active and
-expired app-reopening cases and native/Flatpak captured-closure qualifications;
+`onpc_desktop_session::switch_user` or `::log_out` with the caller's scoped
+desktop receipt. Declare its desktop read, command and independent greeter result
+with `journey_blocks.desktop_return(prefix, account=...)`; `action='logout'`
+ends the session, while the default switch preserves it. Active/expired
+persistence cases, Jordan's daily-access qualification and native/Flatpak
+captured-closure qualifications share this declaration;
 the next account or station entry stays local.
 The declared system operation binds the account; the helper consumes that
-receipt, performs the switch and independently observes the greeter. Retained
+receipt, submits the command and independently observes the greeter. Retained
 daily-access histories use this same operation for both accounts instead of
 spelling out the child switch separately. Session/work comparisons and the
 decision to switch or log out remain in each history.
@@ -427,7 +436,9 @@ TIME02 minute and final-second consumers reuse `countdown.CountdownSample`,
 public countdown, controller monotonic read brackets and boot identity; comparisons
 retain both immutable endpoints. `UiObservations.observe` brackets each TIME01
 read on the controller, independently of the guest's monotonic freshness marker.
-Subtract only timestamps from the same clock.
+Subtract only timestamps from the same clock and boot. For persistence across a
+guest reboot, compare controller read brackets, as in `AppRestartActiveJourney`'s
+animation reads; guest uptime restarts and cannot order preboot/postboot reads.
 The wait reacquires only public child reads under the original 90-second bound
 and TIME03 `interval_action`, retaining attempt ownership/deadline/cancellation.
 Unchanged reads supply no separate assertion; the changed endpoint must decrease
@@ -436,6 +447,15 @@ explicit two-second estimate tolerance. Final-second comparisons declare one-sec
 precision, with an explicit prior precision of 60 only for the transition.
 They require distinct decreases, include read latency and never demand each tick.
 An independently supplied stage read retains the earlier endpoint/deadline.
+
+Daily-only balance comparisons also need enough time before the guest's local
+midnight for the declared allowance and history. Malcontent caps its current-day
+deadline at midnight even when Parent reports a larger unused daily allowance.
+When those reads differ, compare the guest's timezone, current time and native
+deadline before changing elapsed-time tolerances or diagnosing an accounting
+defect. Preserve the comparison and use an eligible natural calendar window;
+clock changes belong only in disposable maintenance experiments.
+
 The daily, grant-only and combined retained-work cases compose
 `journey_blocks.countdown_activity` and `journey_checks.CountdownActivityJourney`.
 Each case keeps its own profile, progression stages, minute-edge bound, recorder
@@ -456,7 +476,12 @@ two-minute qualification on Fedora 44. All three current progressions and owned
 cleanup passed; complete consumers keep their own
 allowance, time bounds and independent results.
 
-`tools/test-vm --vm NAME reproduce-countdown-minutes` reuses that same journey
+`tools/test-vm --vm NAME reproduce-jordan-daily-access` reuses Jordan's shared
+qualification and stops before its balance comparison, retaining the public
+countdown and Jordan's actual desktop for native/timer and Parent-status probes.
+It uses the same maintenance envelope and guards as the other fixed routes.
+
+`tools/test-vm --vm NAME reproduce-countdown-minutes` reuses `CountdownMinutesJourney`
 in the maintenance envelope, stopping before the first progression invocation.
 It retains the public boundary read and child desktop for guarded guest probes;
 diagnosis supplies no acceptance result. The existing VM-control safety module
@@ -951,6 +976,12 @@ no trace request, as in the named-child Parent toggle; normalize it at the share
 decoder before enabling a trace-bound guard. Preserve nonempty source validation
 and child/save guards. Direct helper calls alone do not exercise that dispatch
 boundary; use the existing installed consumer for affected validation.
+
+Carry the explicit child binding through nested input helpers too. For example,
+`child_countdown_animation(child=...)` passes that child to `set_toggle`; allowing
+the inner guard to use its default Riley binding rejects Jordan's valid panel.
+Trace both children through the outer read, setter and session guard before a
+both-child journey. Keep wrong-account refusal and independent saved-value reads.
 
 Graphical qualification workers must load their helper modules with compile-time
 `use`, alongside the existing imports in `smoke.pm`. The loader's temporary Perl

@@ -2,7 +2,7 @@
 from accessible_ui import NAMED_CHILD_OPERATIONS
 from countdown import CountdownObservation, check_countdown_balance
 from installed_journey import JourneyPlan
-from journey_blocks import (desktop_entry, fresh_desktop, parent_management,
+from journey_blocks import (desktop_entry, desktop_return, fresh_desktop, parent_management,
                             prefixed_stages, rejected_gdm_return, retained_parent_entry)
 from journey_checks import RetainedDesktopJourney
 from private_artifacts import require
@@ -25,8 +25,7 @@ SCREENS = {
     'gdm-switched': 'ui:gdm-returned',
     **prefixed_stages('positive', ENTRIES['positive']),
     'countdown': 'ui:child-countdown-present',
-    **prefixed_stages('logout', {'desktop': 'ui:standard-desktop',
-        'logout': 'system:standard-logout', 'gdm-logged-out': 'ui:gdm-returned'}),
+    **desktop_return('logout', account='other-child', action='logout'),
     **prefixed_stages('return', ENTRIES['return']),
     **prefixed_stages('supplied', retained_parent_entry(source='same-user', desktop_observation=False)),
     'session-returned': 'system:parent-desktop-identity',

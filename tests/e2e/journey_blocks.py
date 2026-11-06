@@ -446,17 +446,18 @@ def fresh_desktop(account, expected='success', *, product_free=False):
     }
 
 
-def desktop_return(prefix, *, account):
-    """DESK03: read the bound desktop, switch user, then observe the greeter.
+def desktop_return(prefix, *, account, action='switch-user'):
+    """DESK03/04: read the bound desktop, leave, then observe the greeter.
 
-    Matches onpc_desktop_session::switch_user in the caller's journey scope.
+    Matches onpc_desktop_session::switch_user or ::log_out in the caller's scope.
     The caller retains its next account/station entry and retained-work checks.
     """
+    require(action in ('switch-user', 'logout'), 'journey:desktop-return-action')
     role = 'standard' if account == 'other-child' else account
     return prefixed_stages(prefix, {
         'desktop': fresh_desktop(account)['desktop'],
-        'switch-user': f'system:{role}-switch-user',
-        'gdm-switched': 'ui:gdm-returned',
+        action: f'system:{role}-{action}',
+        'gdm-switched' if action == 'switch-user' else 'gdm-logged-out': 'ui:gdm-returned',
     })
 
 

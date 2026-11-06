@@ -444,6 +444,7 @@ def main(argv=None):
                                           'reproduce-revoke-cancel', 'probe-revoke-balances',
                                           'reproduce-delayed-approval',
                                           'reproduce-countdown-minutes',
+                                          'reproduce-jordan-daily-access',
                                           'reproduce-natural-expiry',
                                           'reproduce-natural-access',
                                           'reproduce-countdown-grant',
@@ -463,7 +464,7 @@ def main(argv=None):
                                           'reproduce-overlay-return', 'reproduce-panel-request', 'probe-panel-request',
                                           'reproduce-system-graphical-expiry',
                                           'reproduce-app-restart-choices', 'probe-app-restart-choices',
-                                          'reproduce-reboot-context',
+                                          'reproduce-reboot-context', 'reproduce-expired-sign-out',
                                           'reproduce-remembered-return', 'probe-remembered-return',
                                           'repeat-remembered-return', 'enter-remembered-return'))
     parser.add_argument('keys', nargs='*', type=int)
@@ -497,7 +498,8 @@ def main(argv=None):
                                        'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
                                        'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
                                        'reproduce-panel-request', 'reproduce-app-restart-choices',
-                                       'reproduce-reboot-context', 'reproduce-flatpak-grid'))
+                                       'reproduce-reboot-context', 'reproduce-flatpak-grid',
+                                       'reproduce-expired-sign-out'))
                        == (args.fixture_selection is not None),
                        'vm-control:arguments')
         if args.new_name is not None:
@@ -551,12 +553,14 @@ def main(argv=None):
                              'reproduce-countdown-grant', 'reproduce-overlay-activity', 'reproduce-overlay-return',
                              'reproduce-system-graphical-expiry', 'reproduce-grant-logout',
                              'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-panel-request',
-                             'reproduce-app-restart-choices', 'reproduce-reboot-context', 'reproduce-flatpak-grid'):
+                             'reproduce-app-restart-choices', 'reproduce-reboot-context',
+                             'reproduce-flatpak-grid', 'reproduce-expired-sign-out'):
             from vm_probe import (reproduce_baseline_restoration, reproduce_natural_access,
                                   reproduce_countdown_grant, reproduce_overlay_activity, reproduce_overlay_return,
                                   reproduce_system_graphical_expiry, reproduce_grant_logout,
                                   reproduce_app_rule_return, reproduce_revocation_return, reproduce_panel_request,
-                                  reproduce_app_restart_choices, reproduce_reboot_context, reproduce_flatpak_grid)
+                                  reproduce_app_restart_choices, reproduce_reboot_context,
+                                  reproduce_flatpak_grid, reproduce_expired_sign_out)
             resume(lease)
             try:
                 reproduce = {'reproduce-natural-access': reproduce_natural_access,
@@ -571,7 +575,8 @@ def main(argv=None):
                              'reproduce-panel-request': reproduce_panel_request,
                              'reproduce-app-restart-choices': reproduce_app_restart_choices,
                              'reproduce-reboot-context': reproduce_reboot_context,
-                             'reproduce-flatpak-grid': reproduce_flatpak_grid}[args.action]
+                             'reproduce-flatpak-grid': reproduce_flatpak_grid,
+                             'reproduce-expired-sign-out': reproduce_expired_sign_out}[args.action]
                 reproduce(lease, fixture_selection)
             except BaseException:
                 if getattr(lease, 'maintenance_rebind_pending', False):
@@ -601,6 +606,7 @@ def main(argv=None):
                              'reproduce-revoke-cancel',
                              'reproduce-delayed-approval',
                              'reproduce-countdown-minutes',
+                             'reproduce-jordan-daily-access',
                              'reproduce-natural-expiry',
                              'reproduce-countdown-resume',
                              'reproduce-panel-language',
@@ -619,6 +625,7 @@ def main(argv=None):
             from vm_probe import reproduce_revoke_cancel
             from vm_probe import reproduce_delayed_approval
             from vm_probe import reproduce_countdown_minutes, reproduce_countdown_resume
+            from vm_probe import reproduce_jordan_daily_access
             from vm_probe import reproduce_panel_language
             from vm_probe import reproduce_retained_unlock
             from vm_probe import reproduce_natural_expiry
@@ -641,6 +648,7 @@ def main(argv=None):
              'reproduce-revoke-cancel': reproduce_revoke_cancel,
              'reproduce-delayed-approval': reproduce_delayed_approval,
              'reproduce-countdown-minutes': reproduce_countdown_minutes,
+             'reproduce-jordan-daily-access': reproduce_jordan_daily_access,
              'reproduce-natural-expiry': reproduce_natural_expiry,
              'reproduce-countdown-resume': reproduce_countdown_resume,
              'reproduce-panel-language': reproduce_panel_language,

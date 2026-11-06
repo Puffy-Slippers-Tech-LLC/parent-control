@@ -674,6 +674,15 @@ def reproduce_delayed_approval(lease):
                             boundary_operation='overlay-shell-rechecked')
 
 
+def reproduce_jordan_daily_access(lease):
+    """Retain Jordan's daily-only desktop before comparing its countdown."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from jordan_daily_access import JordanDailyAccessJourney, PLAN
+    return reproduce_denial(lease, JordanDailyAccessJourney, PLAN,
+                            'countdown', 'jordan-daily-access',
+                            boundary_operation='child-countdown-present')
+
+
 def reproduce_countdown_minutes(lease):
     """Retain the real daily-only child desktop before minute sampling."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1093,6 +1102,19 @@ def reproduce_app_restart_choices(lease, fixture_selection):
         timeout=1800)
 
 
+def reproduce_expired_sign_out(lease, fixture_selection):
+    """Retain Riley's normal sign-out before the independent greeter read."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from app_restart_expired import AppRestartExpiredJourney, SIGN_OUT_PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, AppRestartExpiredJourney, SIGN_OUT_PLAN,
+        'boundary-child-gdm-logged-out', 'expired-sign-out', assets=assets,
+        boundary_operation='gdm-returned', fixture_selection=selection, timeout=1800)
+
+
 def reproduce_reboot_context(lease, fixture_selection):
     """Retain case 120's Parent desktop before its single reboot submission."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1371,7 +1393,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from panel_request_case import PanelRequestJourney, PLAN as PANEL_REQUEST_PLAN
         from app_restart_active import (AppRestartActiveJourney, PLAN as APP_RESTART_PLAN,
                                         REBOOT_PLAN)
-        from flatpak_grid import FlatpakGridJourney, PLAN as FLATPAK_GRID_PLAN
+        if surface == 'flatpak-grid':
+            from flatpak_grid import FlatpakGridJourney, PLAN as FLATPAK_GRID_PLAN
+        from app_restart_expired import AppRestartExpiredJourney, SIGN_OUT_PLAN
         restoration = (surface == 'baseline-restoration'
             and journey_type is BaselineJourney and plan is PLAN
             and boundary == 'restore-saved' and boundary_operation == 'parent-save-disabled'
@@ -1419,7 +1443,11 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         flatpak_grid = (surface == 'flatpak-grid'
             and journey_type is FlatpakGridJourney and plan is FLATPAK_GRID_PLAN
             and boundary == 'restored-opened' and boundary_operation == 'flatpak-soft-opened')
-        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid)
+        expired_sign_out = (surface == 'expired-sign-out'
+            and journey_type is AppRestartExpiredJourney and plan is SIGN_OUT_PLAN
+            and boundary == 'boundary-child-gdm-logged-out'
+            and boundary_operation == 'gdm-returned')
+        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or expired_sign_out)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1472,6 +1500,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                                        'overlay-activity': 'check_e2e_overlay_translated_approval',
                                        'panel-request': 'E2E-012/excluded-first',
                                        'reboot-context': 'E2E-022/reboot-active',
+                                       'expired-sign-out': 'E2E-022/sign-out-in-expired',
                                        'overlay-return': 'check_e2e_compose_approval_and_return_to_the_child'
                                        }.get(surface, ACTIVITY_CALLER))
             context.installed_snapshot = lease.installed_name

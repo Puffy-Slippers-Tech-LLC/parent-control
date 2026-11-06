@@ -146,14 +146,6 @@ FORM_COMPARISONS = {
 }
 
 
-def logout(prefix, account):
-    role = 'standard' if account == 'other-child' else account
-    return prefixed_stages(prefix, {
-        'desktop': fresh_desktop(account)['desktop'],
-        'logout': f'system:{role}-logout', 'gdm-logged-out': 'ui:gdm-returned',
-    })
-
-
 # Both active lifecycle branches share their finite preparation and untouched
 # form comparisons. Sign-out invalidates child windows and uses fresh launches.
 SIGN_OUT_SETUP = {}
@@ -183,9 +175,9 @@ for stage, tag in SETUP.items():
 SIGN_OUT_BOUNDARY = {
     **desktop_return('boundary-parent-leave', account='parent'),
     **enter('boundary-jordan-entry', 'other-child', 'retained'),
-    **logout('boundary-jordan', 'other-child'),
+    **desktop_return('boundary-jordan', account='other-child', action='logout'),
     **enter('boundary-riley-entry', 'child', 'retained'),
-    **logout('boundary-riley', 'child'),
+    **desktop_return('boundary-riley', account='child', action='logout'),
     **enter('boundary-parent-entry', 'parent', 'retained'),
 }
 SIGN_OUT_RETURN = {}

@@ -20,7 +20,7 @@ def baseline_restoration(args, configured):
                'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
                'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
                'reproduce-panel-request', 'reproduce-app-restart-choices', 'reproduce-reboot-context',
-               'reproduce-flatpak-grid')
+               'reproduce-flatpak-grid', 'reproduce-expired-sign-out')
     if not args or args[0] not in actions:
         return None
     targets = vm_config.fixture_targets()
@@ -40,7 +40,7 @@ def baseline_restoration(args, configured):
                            'reproduce-native-denial', 'reproduce-grant-logout', 'reproduce-match-editor',
                            'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-panel-request',
                            'reproduce-app-restart-choices', 'reproduce-reboot-context',
-                           'reproduce-flatpak-grid'):
+                           'reproduce-flatpak-grid', 'reproduce-expired-sign-out'):
                 from test_storage import named_input
                 assets = named_input(vm_source=True, package_source=True, fixture_source=True)
                 if not assets.is_dir():

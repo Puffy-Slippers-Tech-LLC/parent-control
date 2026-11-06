@@ -50,6 +50,7 @@ class SessionPanel(LauncherDisplay):
         self.text_width = 1
         self.simplified_cache = None
         self.webview_cache = None
+        self.webview_text = {}
         self.result_pending = ''
         self.result_activity = 'orphan'
         self.result_detail_pending = False
@@ -81,7 +82,7 @@ class SessionPanel(LauncherDisplay):
         activity = self.result_activity if incremental else 'orphan'
         detail_pending = self.result_detail_pending if incremental else False
         for line in logs:
-            text = Text.from_ansi(line)
+            text = self.line_text(line)
             plain = text.plain
             if plain.startswith('• '):
                 if activity is not None and rows and clean(rows[-1]).strip():
@@ -111,6 +112,11 @@ class SessionPanel(LauncherDisplay):
             self.result_activity = activity
             self.result_detail_pending = detail_pending
         return rows
+
+    def line_text(self, line):
+        # These values are read only; callers copy before changing their style.
+        text = self.webview_text.get(line)
+        return Text.from_ansi(line) if text is None else text
 
     def simplified_lines(self, logs):
         """Project retained full output locally, so observer reloads apply now."""
@@ -142,7 +148,7 @@ class SessionPanel(LauncherDisplay):
                 rows[activity] = line
 
         for line in source:
-            text = Text.from_ansi(line)
+            text = self.line_text(line)
             plain = text.plain
             # Older supervisors emitted unknown items (including sleep) as
             # bare JSON. Recognize them even after prose when reloading logs.
@@ -338,6 +344,9 @@ class SessionPanel(LauncherDisplay):
         source = (*self.transcript, *([self.pending] if self.pending else []))
         signature = source, self.hide_tool_results, self.simplified
         if self.webview_cache is None or self.webview_cache[0] != signature:
+            # A streamed update changes the tail, not the whole transcript.
+            # Retain decoded rows only within the existing history budget.
+            self.webview_text = {line: self.line_text(line) for line in source}
             logs = self.visible_lines(source)
             if self.simplified:
                 logs = self.simplified_lines(logs) if logs else None

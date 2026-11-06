@@ -180,14 +180,23 @@ class Viewer:
         self.timing_records = {}
 
     def cached_spans(self, root, kind, lines):
-        """Retain only the latest rendering of each run's text body."""
+        """Reuse unchanged rows when a streaming update changes the text tail."""
         key = root, kind
-        previous = self.span_cache.get(key)
-        if previous is None or previous[0] != lines:
-            # Rich Text is mutable; keep a value snapshot for comparison.
-            saved = [line if isinstance(line, str) else line.copy() for line in lines]
-            self.span_cache[key] = saved, status_spans(lines)
-        return self.span_cache[key][1]
+        previous = self.span_cache.get(key, {})
+        current, rows = {}, []
+        for line in lines:
+            if isinstance(line, str):
+                spans = current.get(line, previous.get(line))
+                if spans is None:
+                    spans = status_spans([line])
+                current[line] = spans
+            else:
+                # Rich Text is mutable; never cache it by object identity.
+                spans = status_spans([line])
+            rows.extend(spans)
+        # Drop rows that left this body's bounded transcript.
+        self.span_cache[key] = current
+        return rows
 
     def launcher_command(self, action):
         """Resolve only a displayed, unchanged run into its public invocation."""

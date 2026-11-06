@@ -6,6 +6,14 @@ Investigation date: 2026-11-04. Status: unresolved vendor-package compatibility
 failure. This affects both VM preparation and the product's native enforcement
 dependency; passing preparation alone is insufficient to close it.
 
+Reported to Fedora under the `fapolicyd` component as
+[Bug 2568044: fapolicyd fails to start with file-libs 5.48: suspected compiled magic database format mismatch](https://bugzilla.redhat.com/show_bug.cgi?id=2568044)
+on 2026-11-06 UTC. The report includes the native reproducer, package versions,
+startup diagnostics and package-integrity verification without mentioning this
+product. It describes the format mismatch as suspected and notes that
+`fapolicyd 2.0.2` has not been tested; filing the report does not resolve the
+compatibility failure.
+
 ### Affected environment
 
 | Item | Observed value |

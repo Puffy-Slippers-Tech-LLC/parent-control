@@ -116,6 +116,10 @@ whats_new
 
 TARGET_BATCH_SECONDS = 90
 
+# vm_control_cleanup_safety retains module-local guest doubles and private lease
+# files. Its live-probe check uses a unique abstract socket and drains its thread
+# before releasing the lease; no libvirt or shared endpoint is accessed.
+
 ESTIMATES = {
     **CLEANUP_ESTIMATES,
     'test_test_launchers.py': 6,

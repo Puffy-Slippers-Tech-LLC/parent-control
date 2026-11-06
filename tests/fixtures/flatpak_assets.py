@@ -32,5 +32,8 @@ def metadata(name):
 
 def desktop_entry(name, title):
     assert (name, title) in {(item[1], item[2]) for item in ASSETS}
+    role = next(role for role, app, _ in ASSETS if app == name)
+    instance = {'A': 'primary', 'H': 'hard', 'S': 'soft'}[role]
     return (f'[Desktop Entry]\nType=Application\nName={title}\nIcon={name}\n'
-            'Exec=onpc-test-application\n')
+            'SingleMainWindow=false\n'
+            f'Exec=onpc-test-application --instance {instance}\n')

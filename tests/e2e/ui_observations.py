@@ -2045,7 +2045,7 @@ class UiObservations:
         policy_bindings = {**accessible_ui.BASELINE_NATIVE_BINDINGS, **accessible_ui.NATIVE_DENIAL_BINDINGS}
         if operation in accessible_ui.PACKAGED_APP_BINDINGS:
             _role, instance, action = accessible_ui.PACKAGED_APP_BINDINGS[operation]
-            if action == 'grid':
+            if action in ('grid', 'grid-hidden'):
                 expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
             if action in ('opened', 'submitted'):
                 expected['activity'] = {'draft': 'ONPC fixture draft',

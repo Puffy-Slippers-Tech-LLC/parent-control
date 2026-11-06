@@ -1067,7 +1067,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                                     'native_fixtures', 'catalogue_search', 'catalogue_filters', 'policy_legend', 'match_save_cancel', 'match_editor', 'access_choices', 'policy_edit', 'named_app_set', 'rejected_parent_rule') and isinstance(value, bool)))),
         'smoke:native-fixtures-prerequisites')
     require(fixture_profile in ('native', 'snap', 'flatpak') and
-            (fixture_profile != 'flatpak' or native_fixtures or native_app or native_policy_closure) and
+            (fixture_profile != 'flatpak' or native_fixtures or native_app or native_grid_usable or native_policy_closure) and
             (fixture_profile == 'native' or (native_fixtures or native_app or native_grid_usable
              or native_policy_closure and fixture_profile == 'flatpak') and not any((catalogue_search,
              catalogue_filters, policy_legend, match_save_cancel, match_editor, access_choices,
@@ -1807,6 +1807,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 result['scope'] = 'installed-flatpak-fixtures-qualification'
         if native_grid_usable:
             result['scope'] = ('installed-snap-grid-qualification' if fixture_profile == 'snap'
+                               else 'installed-flatpak-grid-qualification' if fixture_profile == 'flatpak'
                                else 'installed-native-grid-usable-qualification')
         if riley_native_grid:
             result['scope'] = 'installed-riley-native-grid-qualification'
@@ -2371,6 +2372,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     if fixture_profile == 'snap':
                         from parent_setup_qualification import SnapGridQualification
                         qualification_class = SnapGridQualification
+                    elif fixture_profile == 'flatpak':
+                        from parent_setup_qualification import FlatpakGridQualification
+                        qualification_class = FlatpakGridQualification
                 if riley_native_grid:
                     from parent_setup_qualification import RileyNativeGridQualification
                     qualification_class = RileyNativeGridQualification

@@ -1223,6 +1223,19 @@ def reproduce_flatpak_command(lease):
         boundary_operation='flatpak-allowed-opened')
 
 
+def reproduce_flatpak_grid(lease, fixture_selection):
+    """Retain Jordan's restored grid launch beside his submitted S/secondary."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from flatpak_grid import FlatpakGridJourney, PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, FlatpakGridJourney, PLAN,
+        'restored-opened', 'flatpak-grid', assets=assets,
+        boundary_operation='flatpak-soft-opened', fixture_selection=selection, timeout=1800)
+
+
 def probe_flatpak_command(lease):
     """Read the first Flatpak window again without repeating its launch."""
     observe_maintenance(lease, check='probe_flatpak_command', label='flatpak-command-probe',
@@ -1358,6 +1371,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from panel_request_case import PanelRequestJourney, PLAN as PANEL_REQUEST_PLAN
         from app_restart_active import (AppRestartActiveJourney, PLAN as APP_RESTART_PLAN,
                                         REBOOT_PLAN)
+        from flatpak_grid import FlatpakGridJourney, PLAN as FLATPAK_GRID_PLAN
         restoration = (surface == 'baseline-restoration'
             and journey_type is BaselineJourney and plan is PLAN
             and boundary == 'restore-saved' and boundary_operation == 'parent-save-disabled'
@@ -1402,7 +1416,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             and journey_type is AppRestartActiveJourney and plan is REBOOT_PLAN
             and boundary == 'reboot-requested'
             and boundary_operation == REBOOT_PLAN.screen_tags[boundary])
-        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context)
+        flatpak_grid = (surface == 'flatpak-grid'
+            and journey_type is FlatpakGridJourney and plan is FLATPAK_GRID_PLAN
+            and boundary == 'restored-opened' and boundary_operation == 'flatpak-soft-opened')
+        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1444,8 +1461,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if selected_setup:
             from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS
             context.fixture_selection = fixture_selection
-            context.fixture_subsets = ('native',) if surface in ('native-denial', 'grant-logout', 'match-editor') else ACTIVITY_SUBSETS
-            context.fixture_caller = ({'native-denial': None,
+            context.fixture_subsets = ('native',) if surface in ('native-denial', 'grant-logout', 'match-editor', 'flatpak-grid') else ACTIVITY_SUBSETS
+            context.fixture_caller = ({'native-denial': None, 'flatpak-grid': None,
                                        'app-rule-return': 'E2E-006/disabled-pattern',
                                        'revocation-return': 'E2E-007/zero-single',
                                        'match-editor': None,

@@ -490,11 +490,11 @@ sub native_search {
     die 'native:search-binding' unless (@_ >= 2 && @_ <= 5)
         && ref($journey) eq 'onpc_journey'
         && ($kind eq 'native' && ($role eq 'A' || $role eq 'Alias')
-            || $kind eq 'snap' && $role =~ /\A(?:A|H|S)\z/)
+            || ($kind eq 'snap' || $kind eq 'flatpak') && $role =~ /\A(?:A|H|S)\z/)
         && ($result_stage eq 'app-grid' || $result_stage eq 'refusals');
     my %snap = (A => 'Allowed', H => 'Hard', S => 'Soft');
     return onpc_parent::search_whole_query(
-        $journey, $desktop, $kind eq 'snap' ? 'ONPC Snap ' . $snap{$role} . ' Fixture'
+        $journey, $desktop, $kind ne 'native' ? 'ONPC ' . ($kind eq 'flatpak' ? 'Flatpak' : 'Snap') . ' ' . $snap{$role} . ' Fixture'
             : $role eq 'Alias' ? 'ONPC Shared Target Fixture' : 'ONPC Allowed Fixture', $result_stage);
 }
 
@@ -551,10 +551,10 @@ sub native_usable_app {
         && defined($route) && ($route eq 'command' || $route eq 'grid')
         && (defined($desktop) || $route eq 'command')
         && ($child eq 'child' || $child eq 'other-child' || $child eq 'parent' && $route eq 'command')
-        && ($gesture eq 'ret' || $kind eq 'snap' && $route eq 'grid' && $gesture eq 'ctrl-ret')
-        && ($kind eq 'flatpak' && $route eq 'command' && defined($role)
+        && ($gesture eq 'ret' || ($kind eq 'snap' || $kind eq 'flatpak') && $route eq 'grid' && $gesture eq 'ctrl-ret')
+        && ($kind eq 'flatpak' && defined($role)
             && ($child eq 'other-child' && $role =~ /\A(?:A|H|S)\z/
-                || $child eq 'child' && $role eq 'A' && $gesture eq 'ret')
+                || $child eq 'child' && $role eq 'A' && $route eq 'command' && $gesture eq 'ret')
             || $kind eq 'snap' && defined($role)
             && ($child eq 'other-child' && $role =~ /\A(?:A|H|S)\z/
                 || $child eq 'child' && $role eq 'A' && $gesture eq 'ret')
@@ -563,7 +563,7 @@ sub native_usable_app {
             ($role =~ /\A(?:A|S)\z/ && $child eq 'child'
                 || $role =~ /\A(?:N|unmatched-soft)\z/ && $child eq 'other-child')));
     my $opened = $route eq 'command' ? native_open_command($journey, $desktop)
-        : $kind eq 'snap' ? native_launch_grid($journey,
+        : $kind ne 'native' ? native_launch_grid($journey,
             native_search($journey, $desktop, 'app-grid', $role, $kind), $gesture)
                                    : native_open_grid($journey, $desktop, $role);
     return native_use_app($journey, $opened);
@@ -1077,6 +1077,62 @@ sub _packaged_command_usable {
         native_finish_app($flow) unless $name eq 'soft';
     }
     native_finish_app(_native_activity_scope($journey, 'soft'));
+    $journey->finish();
+}
+
+sub flatpak_grid {
+    onpc_progress::operation('Checking that Parent blocks and restores the child app-grid entry without losing other work');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'flatpak:grid-arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'flatpak-grid', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen($_) for qw(saved-settings apps-page);
+    my $leaving = $journey->scope('leave-parent');
+    onpc_desktop_session::switch_user($leaving, $leaving->seen('desktop'));
+    onpc_desktop_session::enter_desktop(
+        $journey, 'gdm', 'other-child', 'fresh', 'success', 'fresh');
+    for my $binding (['allowed', 'A'], ['hard', 'H'], ['soft', 'S']) {
+        my ($name, $role) = @$binding;
+        my $flow = $journey->scope($name);
+        native_usable_app($flow, 'grid', $flow->seen('desktop'), 'other-child', $role, 'flatpak');
+        if ($role eq 'A') {
+            native_read_activity($journey, 'allowed-capture');
+        } else {
+            native_finish_app($flow);
+        }
+    }
+    onpc_desktop_session::enter_desktop(
+        $journey, 'desktop', 'parent', 'retained', 'success', 'block-parent', 'other-child');
+    $journey->seen($_) for qw(block-apps block-save block-row);
+    onpc_desktop_session::enter_desktop(
+        $journey, 'desktop', 'other-child', 'retained', 'success', 'blocked-child', 'parent');
+    my $blocked = $journey->scope('blocked');
+    # Hiding is an independent read with no Enter. The qualified command
+    # supplies the separate execution-denial witness after returning to desktop.
+    native_search($blocked, $blocked->seen('desktop'), 'app-grid', 'S', 'flatpak');
+    $journey->seen('blocked-denied');
+    native_read_activity($journey, 'allowed-after-block');
+    onpc_desktop_session::enter_desktop(
+        $journey, 'desktop', 'parent', 'retained', 'success', 'restore-parent', 'other-child');
+    $journey->seen($_) for qw(restore-apps restore-save restore-row);
+    onpc_desktop_session::enter_desktop(
+        $journey, 'desktop', 'other-child', 'retained', 'success', 'restored-child', 'parent');
+    my $earlier = $journey->scope('earlier');
+    native_usable_app($earlier, 'command', $earlier->seen('desktop'), 'other-child', 'S', 'flatpak');
+    native_read_activity($journey, 'earlier-capture');
+    my $restored = $journey->scope('restored');
+    # Shell Ctrl+Enter requests a new window; Enter could activate S/secondary
+    # and conceal a failed launch. Both original activities must remain intact.
+    native_usable_app($restored, 'grid', $restored->seen('desktop'), 'other-child', 'S', 'flatpak', 'ctrl-ret');
+    native_read_activity($journey, $_) for qw(restored-capture earlier-reread allowed-preserved);
+    native_finish_app($restored);
+    native_finish_app($earlier);
+    native_finish_app($journey->scope('allowed'));
     $journey->finish();
 }
 

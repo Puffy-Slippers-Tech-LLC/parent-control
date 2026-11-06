@@ -920,6 +920,12 @@ sub run {
             ($ready->{app_rule_changes_disabled_case} || $ready->{app_rule_changes_disabled_pattern_case}) ? 1 : 0);
         return;
     }
+    if ($ready->{flatpak_grid}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::flatpak_grid(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{snap_grid}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

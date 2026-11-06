@@ -2403,6 +2403,16 @@ class SnapGridQualification(KioskEntryQualification):
         return SnapGridJourney(context, progress)
 
 
+class FlatpakGridQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from flatpak_grid import FlatpakGridJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return FlatpakGridJourney(context, progress)
+
+
 class NativeActivityQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

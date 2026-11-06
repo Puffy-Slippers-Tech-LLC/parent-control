@@ -454,7 +454,7 @@ def main(argv=None):
                                           'probe-retained-app-launch',
                                           'reproduce-transfer-refusal', 'probe-transfer-refusal',
                                           'reproduce-riley-native-grid', 'probe-riley-native-grid',
-                                          'reproduce-snap-grid', 'reproduce-flatpak-command', 'probe-flatpak-command',
+                                          'reproduce-snap-grid', 'reproduce-flatpak-grid', 'reproduce-flatpak-command', 'probe-flatpak-command',
                                           'reproduce-update-no-action',
                                           'reproduce-native-denial', 'reproduce-grant-logout', 'reproduce-match-editor',
                                           'reproduce-app-rule-return', 'reproduce-revocation-return',
@@ -497,7 +497,7 @@ def main(argv=None):
                                        'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
                                        'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
                                        'reproduce-panel-request', 'reproduce-app-restart-choices',
-                                       'reproduce-reboot-context'))
+                                       'reproduce-reboot-context', 'reproduce-flatpak-grid'))
                        == (args.fixture_selection is not None),
                        'vm-control:arguments')
         if args.new_name is not None:
@@ -551,12 +551,12 @@ def main(argv=None):
                              'reproduce-countdown-grant', 'reproduce-overlay-activity', 'reproduce-overlay-return',
                              'reproduce-system-graphical-expiry', 'reproduce-grant-logout',
                              'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-panel-request',
-                             'reproduce-app-restart-choices', 'reproduce-reboot-context'):
+                             'reproduce-app-restart-choices', 'reproduce-reboot-context', 'reproduce-flatpak-grid'):
             from vm_probe import (reproduce_baseline_restoration, reproduce_natural_access,
                                   reproduce_countdown_grant, reproduce_overlay_activity, reproduce_overlay_return,
                                   reproduce_system_graphical_expiry, reproduce_grant_logout,
                                   reproduce_app_rule_return, reproduce_revocation_return, reproduce_panel_request,
-                                  reproduce_app_restart_choices, reproduce_reboot_context)
+                                  reproduce_app_restart_choices, reproduce_reboot_context, reproduce_flatpak_grid)
             resume(lease)
             try:
                 reproduce = {'reproduce-natural-access': reproduce_natural_access,
@@ -570,7 +570,8 @@ def main(argv=None):
                              'reproduce-revocation-return': reproduce_revocation_return,
                              'reproduce-panel-request': reproduce_panel_request,
                              'reproduce-app-restart-choices': reproduce_app_restart_choices,
-                             'reproduce-reboot-context': reproduce_reboot_context}[args.action]
+                             'reproduce-reboot-context': reproduce_reboot_context,
+                             'reproduce-flatpak-grid': reproduce_flatpak_grid}[args.action]
                 reproduce(lease, fixture_selection)
             except BaseException:
                 if getattr(lease, 'maintenance_rebind_pending', False):

@@ -156,6 +156,8 @@ NATIVE_PRODUCT = 'ONPC Allowed Fixture'
 NATIVE_ALIAS_PRODUCT = 'ONPC Shared Target Fixture'
 SNAP_SEARCH_PRODUCTS = {'A': 'ONPC Snap Allowed Fixture',
                         'H': 'ONPC Snap Hard Fixture', 'S': 'ONPC Snap Soft Fixture'}
+FLATPAK_SEARCH_PRODUCTS = {'A': 'ONPC Flatpak Allowed Fixture',
+                           'H': 'ONPC Flatpak Hard Fixture', 'S': 'ONPC Flatpak Soft Fixture'}
 NATIVE_EXECUTION_MARKERS = (
     ('permission-denied', b'Permission denied'),
     ('operation-not-permitted', b'Operation not permitted'),
@@ -210,6 +212,12 @@ FLATPAK_APP_BINDINGS = {
     for action in ('desktop', 'command-launch', 'opened', 'submit', 'submitted',
                    'activity', 'close', 'closed')
 }
+FLATPAK_APP_BINDINGS.update({
+    'flatpak-' + name + '-' + action: (role, instance, action)
+    for name, role, instance in (('allowed', 'A', 'primary'), ('hard', 'H', 'hard'),
+                                 ('soft', 'S', 'soft'))
+    for action in ('search-ready', 'search-focused', 'search-entered', 'grid', 'grid-hidden')
+})
 FLATPAK_APP_BINDINGS.update({
     'flatpak-' + name + '-' + action: (role, 'primary', action)
     for name, role in (('hard', 'H'), ('soft', 'S'))
@@ -7817,7 +7825,8 @@ class AccessibleUI:
 
     def launchable_result(self, product):
         """SEARCH04's owned Shell launcher branch, without input."""
-        require(product in (PRODUCT, NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT, *SNAP_SEARCH_PRODUCTS.values()), 'ui:search-binding')
+        require(product in (PRODUCT, NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT, *SNAP_SEARCH_PRODUCTS.values(),
+                            *FLATPAK_SEARCH_PRODUCTS.values()), 'ui:search-binding')
         if not self.provider_contracts['gnome-shell']['application_id']:
             owner, nodes, snapshot, facts = self.shell_search_snapshot()
             if owner is None:
@@ -12794,7 +12803,8 @@ class AccessibleUI:
 
     def search_query(self, expected):
         """Read only the overview's public search field; never arbitrary text."""
-        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT, *SNAP_SEARCH_PRODUCTS.values()), 'ui:search-binding')
+        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT,
+                             *SNAP_SEARCH_PRODUCTS.values(), *FLATPAK_SEARCH_PRODUCTS.values()), 'ui:search-binding')
         if not self.provider_contracts['gnome-shell']['application_id']:
             field = self.shell_search_field()
             if field is None:
@@ -12818,7 +12828,8 @@ class AccessibleUI:
 
     def shell_query_matches(self, field, expected):
         """Read the field from the caller's fresh scoped Shell observation."""
-        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT, *SNAP_SEARCH_PRODUCTS.values()), 'ui:search-binding')
+        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT,
+                             *SNAP_SEARCH_PRODUCTS.values(), *FLATPAK_SEARCH_PRODUCTS.values()), 'ui:search-binding')
         text = field.get_text_iface()
         require(text is not None, 'ui:search-text-unavailable')
         count = self.api.Text.get_character_count(text)
@@ -12910,7 +12921,8 @@ class AccessibleUI:
     def focus_search_result(self, product=PRODUCT):
         """Qualify the exact launcher recipient before the worker sends Enter."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(product in (PRODUCT, NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT, *SNAP_SEARCH_PRODUCTS.values()), 'ui:search-binding')
+        require(product in (PRODUCT, NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT, *SNAP_SEARCH_PRODUCTS.values(),
+                            *FLATPAK_SEARCH_PRODUCTS.values()), 'ui:search-binding')
         self.wait(lambda: self.search_query(product), 'parent-search-query')
         target = self.wait(lambda: self.launchable_result(product), 'parent-search-result')
         def fresh_recipient():
@@ -13316,19 +13328,35 @@ class AccessibleUI:
                          child=CHILD if operation in RILEY_SNAP_OPERATIONS | RILEY_FLATPAK_OPERATIONS
                          else EXISTING_CHILD,
                          kind=kind)
+        products = FLATPAK_SEARCH_PRODUCTS if kind == 'flatpak' else SNAP_SEARCH_PRODUCTS
         if action == 'search-ready':
             self.search_ready('overview')
         elif action == 'search-focused':
             self.focus_search_field()
             self.search_ready('overview', focused=True)
         elif action == 'search-entered':
-            self.wait_search(lambda: self.search_query(SNAP_SEARCH_PRODUCTS[role]), 'snap-search-query')
+            self.wait_search(lambda: self.search_query(products[role]), kind + '-search-query')
         elif action == 'grid':
             if operation in RILEY_SNAP_OPERATIONS:
                 self.require_child_overlay_session()
             else:
                 require_active_launch_session()
-            self.focus_search_result(SNAP_SEARCH_PRODUCTS[role])
+            self.focus_search_result(products[role])
+        elif action == 'grid-hidden':
+            require(kind == 'flatpak', 'ui:flatpak-grid-binding')
+            require_active_launch_session()
+            stable = time.monotonic()
+            def hidden():
+                nonlocal stable
+                require(self.search_query(products[role]), 'ui:flatpak-search-query')
+                if self.launchable_result(products[role]) is not None:
+                    stable = time.monotonic()
+                    return False
+                return time.monotonic() - stable >= 2
+            self.wait(hidden, 'flatpak-hidden-grid', prompt_in_predicate=True)
+            self.prepare_launch_desktop()
+            self.wait(lambda: self.native_app_closed(instance, kind=kind, complete_absence=True),
+                      'flatpak-hidden-window-absence')
         elif action in ('desktop', 'closed'):
             self.wait(lambda: self.native_app_closed(instance, kind=kind,
                 complete_absence=kind == 'flatpak'), kind + '-closed')
@@ -14073,7 +14101,7 @@ class AccessibleUI:
             value = self.snap_app_operation(operation)
             if value is not None:
                 result['activity'] = value
-            if operation in SNAP_APP_BINDINGS and SNAP_APP_BINDINGS[operation][2] == 'grid':
+            if operation in PACKAGED_APP_BINDINGS and PACKAGED_APP_BINDINGS[operation][2] in ('grid', 'grid-hidden'):
                 result['provider'] = self.shell_provider_metadata()
         elif operation in SHORTCUT_OPERATIONS:
             result['shortcut'] = self.shortcut_operation(operation)

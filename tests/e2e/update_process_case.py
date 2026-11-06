@@ -13,10 +13,9 @@ from kiosk_approved_flow import obtain_time
 from named_app_set import APPS, named_app_set, saved_rows
 from native_fixtures import NativeFixtures
 from package_command import NOTICE
-from package_install import observe_release
-from package_upgrade import PackageUpgradeJourney, upgrade_current
+from package_upgrade import (PackageUpgradeJourney, activated_entry,
+                             install_previous_release, upgrade_current)
 from private_artifacts import require
-from update_no_action import install_old
 
 
 CHOICES = dict(child='existing-fixture-child', approver='fixture-parent',
@@ -104,17 +103,6 @@ PLAN = JourneyPlan(
 )
 
 
-def activated_entry(journey, guard):
-    guard()
-    result, current = observe_release(journey.previous_package, 'previous',
-                                     journey.release_entry, changed_boot=True)
-    require(current['boot'] == journey.boot and journey.reboot_observed,
-            'update-process:old-release-not-activated')
-    journey.activated_entry = current
-    guard()
-    return result
-
-
 def verify_native_after_reboot(journey, guard):
     guard()
     require(journey.reboot_observed, 'update-process:reboot-required')
@@ -129,7 +117,8 @@ class ProcessUpdateJourney(PackageUpgradeJourney):
         require(not context.installed_snapshot, 'update-process:product-free-required')
         context.product_free = True
         context.asset_transfer = AssetTransfer(context.verified)
-        actions = {'native-verify': verify_native_after_reboot, 'install-previous': install_old,
+        actions = {'native-verify': verify_native_after_reboot,
+                   'install-previous': install_previous_release,
                    'upgrade-entry': activated_entry, 'upgrade-current': upgrade_current}
         super().__init__(context, progress, plan, actions=actions, activation='process-restart')
         self.parent_before = self.grant_before = self.approval_started = None

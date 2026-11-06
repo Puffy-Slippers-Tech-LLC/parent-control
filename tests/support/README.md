@@ -1170,6 +1170,17 @@ Callers retain phase boundaries, assertions and current/previous package binding
 the guarded command and independent result. The fragment adds no resource or
 cleanup lifetime; existing unit/cleanup classifications remain applicable.
 
+Update consumers reuse `package_upgrade.install_previous_release` and
+`activated_entry` for the earlier installation and its independently observed
+activation reboot. Keep these mechanics in the shared lifecycle owner rather
+than importing them from a runnable qualification or copying them into a case.
+`upgrade_entry` adds the qualification's replay/artifact refusals around that
+same activation operation; consumers retain their own plans, saved settings,
+grant comparisons and final outcomes. Check the intended update profile against
+the [shipped activation manifests](../../docs/TestAutomation/E2E-Building-Blocks.md#no-action-package-update)
+before VM input; a source change or increasing package version alone does not
+establish which activation the update requires.
+
 `restart_notice.RestartNoticeJourney` adds the three fresh-install modal bindings
 over that package fragment and the shared fresh-desktop/station entries.
 `AccessibleUI.restart_notice`, `restart_action`, `restart_closed` and

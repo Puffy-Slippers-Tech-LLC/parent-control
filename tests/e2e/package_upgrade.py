@@ -37,6 +37,14 @@ def entry_refusal(journey, guard):
     return {**result, 'package_entry_refused': True}
 
 
+def install_previous_release(journey, guard):
+    """Install the bound earlier release without the qualification's refusal matrix."""
+    command = PackageCommand(journey.transport, journey.context.verified)
+    journey.release_entry = command.read_identity()
+    require(journey.release_entry['version'] is None, 'package-upgrade:product-free-required')
+    return submit_release(journey, guard, OLD_INSTALL, 'previous_package')
+
+
 def install_previous(journey, guard):
     command = PackageCommand(journey.transport, journey.context.verified)
     inputs = command.verified.upgrade_inputs['packages']
@@ -60,13 +68,20 @@ def install_previous(journey, guard):
     return submit_release(journey, guard, OLD_INSTALL, 'previous_package')
 
 
-def upgrade_entry(journey, guard):
+def activated_entry(journey, guard):
+    """Bind the earlier release's observed activation to this journey's boot."""
     guard()
     result, current = observe_release(journey.previous_package, 'previous',
                                      journey.release_entry, changed_boot=True)
     require(current['boot'] == journey.boot and journey.reboot_observed,
             'package-upgrade:activation-required')
     journey.activated_entry = current
+    guard()
+    return result
+
+
+def upgrade_entry(journey, guard):
+    result = activated_entry(journey, guard)
     command = PackageCommand(journey.transport, journey.context.verified)
     inputs = command.verified.upgrade_inputs['packages']
     refuse_input(command, OLD_INSTALL, inputs['previous']['sha256'], command.identity, 'package:replay')

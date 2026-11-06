@@ -3,9 +3,9 @@ from copy import deepcopy
 from dataclasses import replace
 
 from journey_blocks import parent_management
-from package_command import NOTICE, OLD_INSTALL, PackageCommand
-from package_install import submit_release
-from package_upgrade import PLAN as UPGRADE_PLAN, PackageUpgradeJourney, upgrade_actions
+from package_command import NOTICE
+from package_upgrade import (PLAN as UPGRADE_PLAN, PackageUpgradeJourney,
+                             install_previous_release, upgrade_actions)
 from private_artifacts import require
 
 tags = {stage: tag for stage, tag in UPGRADE_PLAN.screen_tags.items()
@@ -26,16 +26,9 @@ PLAN = replace(UPGRADE_PLAN, prefix='update-no-action', worker_mode='update_no_a
         'upgrade-reread': 'same-usable-parent-window-and-child-settings'})
 
 
-def install_old(journey, guard):
-    command = PackageCommand(journey.transport, journey.context.verified)
-    journey.release_entry = command.read_identity()
-    require(journey.release_entry['version'] is None, 'update-no-action:product-free-required')
-    return submit_release(journey, guard, OLD_INSTALL, 'previous_package')
-
-
 class UpdateNoActionJourney(PackageUpgradeJourney):
     def __init__(self, context, progress, plan=PLAN, *, activation='none'):
-        actions = {**upgrade_actions(), 'install-previous': install_old}
+        actions = {**upgrade_actions(), 'install-previous': install_previous_release}
         super().__init__(context, progress, plan, actions=actions, activation=activation)
         self.activation = activation
         self.parent_before = None

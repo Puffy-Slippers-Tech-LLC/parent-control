@@ -326,7 +326,7 @@ balances, policy rounds, retained-window endpoints and closure assertions in eac
 consumer; the shared entry does not qualify other children or allowance bindings.
 The existing worker continues to use `onpc_parent::set_allowance` and the shared
 native launch/use/close operations. These helpers add no resource or cleanup owner.
-Native and Snap launch cases also reuse `app_policy_entry(initial_rows=False)`
+Native, Snap and Flatpak launch cases also reuse `app_policy_entry(initial_rows=False)`
 when their own saved-rule read supplies the policy result. Keep each case's plan,
 fixture actions, child entries and expected settings local; do not derive a
 different fixture family's case by filtering and replacing a runnable case's plan.
@@ -336,6 +336,16 @@ from these fragments rather than removing allowance stages from an enabled plan.
 Keep authentication invocations bound to the explicit `fresh_desktop` fragments;
 a broad `child-` prefix also matches Parent's child-picker stages and must not
 turn those reads into desktop authentication invocations.
+
+Flatpak command variants compose `flatpak_app_launch.command_plan(limits=..., rule=...)`
+and the same `onpc_app_launch::run` worker. Keep the fixed dispatch bindings in
+`smoke.pm` together; another rule or limits variant needs no copied worker handoff.
+Bind each policy save/read and any allowance checkpoint explicitly to `existing`
+in `JourneyPlan.child_bindings`: selecting Jordan in Parent does not bind later
+observer calls implicitly. The `flatpak-allowed-command-blocked` operation names
+fixture A, not its saved access choice; both Hard and Soft cases reuse that
+app-specific command denial and complete window-absence check. Riley's separate
+launch and submitted-draft result still prove the rule is scoped to Jordan.
 
 For ordered access-rule transitions, prepare matching once through FLOW19 and
 compare its saved value after each tested access save. Repeating a match save

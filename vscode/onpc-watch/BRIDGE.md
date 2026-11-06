@@ -106,6 +106,9 @@ They contain text, never HTML. `text` is a string, optional flags are booleans,
 `color` is a CSS color string or null, and `link` is a string reference of at most
 8192 characters or null.
 Links are adapter-owned artifact references; the renderer interprets no URI paths.
+Optional `launcher_rows` uses the same span format for terminal output with
+recording links, preserving its line breaks. Older adapters omit it and the
+Launcher tab displays `launcher_output` as plain text.
 `session_view` is null or `{rows, input_enabled, working, model, simplified}`.
 `input_enabled` and `simplified` are booleans; `working` and `model` are strings.
 Only the requested run needs a transcript body. An idle run must keep its retained

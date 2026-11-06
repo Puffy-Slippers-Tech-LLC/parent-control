@@ -643,10 +643,17 @@
                 section.toggle.disabled = true;
                 section.working.textContent = section.model.textContent = '';
             }
-            if (section.launcherText !== entry.launcher_output) {
+            const launcherSignature = JSON.stringify([entry.launcher_output, entry.launcher_rows]);
+            if (section.launcherText !== launcherSignature) {
                 const follow = section.launcher.scrollHeight - section.launcher.clientHeight - section.launcher.scrollTop < 24;
-                section.launcherText = entry.launcher_output;
-                section.launcher.textContent = terminal(entry.launcher_output || 'Waiting for launcher output…');
+                section.launcherText = launcherSignature;
+                section.launcher.replaceChildren();
+                if (entry.launcher_output && entry.launcher_rows) {
+                    entry.launcher_rows.forEach((row, index) => {
+                        if (index) section.launcher.appendChild(document.createTextNode('\n'));
+                        for (const part of row) runSpan(section.launcher, { ...part, text: terminal(part.text) });
+                    });
+                } else section.launcher.textContent = terminal(entry.launcher_output || 'Waiting for launcher output…');
                 if (follow) section.launcher.scrollTop = section.launcher.scrollHeight;
             }
             // The adapter owns retained state, including late final status updates.

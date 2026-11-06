@@ -111,6 +111,7 @@ function validate(snapshot) {
         snapshot.runs.some(run => !run || !identifier(run.id) || typeof run.label !== 'string' ||
             typeof run.active !== 'boolean' || typeof run.status !== 'string' ||
             (run.run !== null && typeof run.run !== 'string') || typeof run.launcher_output !== 'string' ||
+            (Object.hasOwn(run, 'launcher_rows') && !rows(run.launcher_rows)) ||
             (Object.hasOwn(run, 'launcher_command') && typeof run.launcher_command !== 'string') ||
             (run.session !== null && !identifier(run.session)) ||
             ['session_active', 'session_inactive', 'session_waiting'].some(field => typeof run[field] !== 'boolean') ||
@@ -472,6 +473,7 @@ class Bridge {
                     session_view: sessionView && { ...sessionView,
                         input_enabled: connected && sessionView.input_enabled,
                         rows: rows(sessionView.rows) },
+                    launcher_rows: run.launcher_rows && rows(run.launcher_rows),
                     rows: rows(run.rows), error_rows: rows(run.error_rows) });
             }
             for (const entry of value?.entries || []) {

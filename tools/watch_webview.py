@@ -29,7 +29,7 @@ from tests.integration.watch_activity import TerminalControls
 
 
 def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
-                 session_waiting=False):
+                 session_waiting=False, launcher=False):
     """Keep status colors and emphasis without sending HTML or terminal controls."""
     from rich.text import Text
     from rich.console import Console
@@ -40,9 +40,10 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
     rows = []
     waiting_heading = False
     for line in lines:
-        compact = isinstance(line, str) and line.startswith(COMPACT_LINE)
+        compact = not launcher and isinstance(line, str) and line.startswith(COMPACT_LINE)
         text = line.copy() if isinstance(line, Text) else (
-            compact_text(line) if compact else Text.from_ansi(line.replace(SESSION_LINE, '')))
+            compact_text(line) if compact else Text.from_ansi(
+                line if launcher else line.replace(SESSION_LINE, '')))
         if not compact and '](' in text.plain:
             # Transcript rows include presentation indentation. Parse the prose
             # without treating that indentation as a Markdown code block.
@@ -67,6 +68,12 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
                 position = end
             linked.append_text(text[position:])
             text = linked
+        if launcher:
+            # Preserve terminal lines; only recording markup becomes a link.
+            rows.append([dict(text=clean(segment.text), link=segment.style.link
+                              if segment.style else None)
+                         for segment in text.render(console)])
+            continue
         summary_label = re.match(r'^(Total Tasks:|Total Duration:|Ended:)', text.plain)
         if summary_label:
             text.stylize('bold', 0, summary_label.end())
@@ -188,7 +195,7 @@ class Viewer:
             if isinstance(line, str):
                 spans = current.get(line, previous.get(line))
                 if spans is None:
-                    spans = status_spans([line])
+                    spans = status_spans([line], launcher=kind == 'launcher')
                 current[line] = spans
             else:
                 # Rich Text is mutable; never cache it by object identity.
@@ -478,6 +485,7 @@ class Viewer:
                 active=active or session.active, status=status, rows=self.status_cache[root][1],
                 run=str(output.run) if output.run is not None else None,
                 launcher_output=self.launcher_logs[root],
+                launcher_rows=self.cached_spans(root, 'launcher', self.launcher_logs[root].split('\n')),
                 error_rows=self.cached_spans(root, 'error', error_lines),
                 session=session.identity,
                 session_active=session.active,
@@ -665,7 +673,7 @@ class Viewer:
                 label=f'[{self.roots[Path(root)]}] {name}', active=active, locked=locked))
         self.images = {entry: value for entry, value in self.images.items() if entry in shown}
         self.artifact_links = {part['link'] for run in runs
-            for row in [*run['rows'], *run['error_rows'],
+            for row in [*run['rows'], *run['error_rows'], *run['launcher_rows'],
                         *((run.get('session_view') or {}).get('rows', []))]
             for part in row if part.get('link')}
         run_times = []

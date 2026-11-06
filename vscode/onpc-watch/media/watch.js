@@ -18,6 +18,15 @@
     const viewers = document.getElementById('viewers');
     const resources = document.getElementById('resources');
     const servers = document.getElementById('servers');
+    let readerStatus = document.getElementById('reader-status');
+    // An open webview can retain older HTML across an extension update.
+    if (!readerStatus) {
+        readerStatus = document.createElement('span');
+        readerStatus.id = 'reader-status';
+        readerStatus.setAttribute('role', 'status');
+        readerStatus.setAttribute('aria-live', 'polite');
+        servers.before(readerStatus);
+    }
     const runs = document.getElementById('runs');
     const layout = document.getElementById('watch');
     const divider = document.getElementById('divider');
@@ -1098,7 +1107,6 @@
             state.selected, selected => select(state.scope, selected));
         resourceCharts(snapshot);
         serverStatus(snapshot.servers || []);
-        const readerStatus = document.getElementById('reader-status');
         const connectionText = (snapshot.connections || []).map(source => `${source.label}: ${source.connected ? 'Connected' :
             source.failed ? (source.retrying ? 'Reader delayed—reconnecting' : 'Disconnected—Reconnect required') : 'Connecting'}`).join(' | ');
         if (readerStatus.textContent !== connectionText) readerStatus.textContent = connectionText;

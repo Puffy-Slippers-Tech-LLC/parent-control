@@ -49,6 +49,7 @@ class SessionPanel(LauncherDisplay):
         self.text_identity = None
         self.text_width = 1
         self.simplified_cache = None
+        self.webview_cache = None
         self.result_pending = ''
         self.result_activity = 'orphan'
         self.result_detail_pending = False
@@ -334,10 +335,16 @@ class SessionPanel(LauncherDisplay):
 
     def webview(self):
         """Expose the shared transcript/composer to a native webview host."""
-        logs = [*self.transcript, *([self.pending] if self.pending else [])]
-        logs = self.visible_lines(logs)
-        if self.simplified:
-            logs = self.simplified_lines(logs) if logs else self.text_output or []
+        source = (*self.transcript, *([self.pending] if self.pending else []))
+        signature = source, self.hide_tool_results, self.simplified
+        if self.webview_cache is None or self.webview_cache[0] != signature:
+            logs = self.visible_lines(source)
+            if self.simplified:
+                logs = self.simplified_lines(logs) if logs else None
+            self.webview_cache = signature, logs
+        logs = self.webview_cache[1]
+        if logs is None:
+            logs = self.text_output or []
         return dict(lines=[*logs, *self.details, *self.streaming_lines], working=self.working(),
                     model=' '.join(filter(None, (self.chat_state.get('model'),
                                                 self.chat_state.get('effort')))),

@@ -26,7 +26,7 @@ reader's filesystem layout, Python modules, libvirt or Unix-socket protocol.
   EOF inside a message is a failed connection. The bridge drains stdout/stderr
   before classifying process closure. The local reader also accepts legacy
   unversioned snapshot requests; session actions use the schema below.
-- Watch requests at 200 ms intervals while visible and ready to render, with at most one request in
+- Watch requests at 500 ms intervals while visible and ready to render, with at most one request in
   flight per source. Responses render immediately with UI backpressure. Slow
   sources skip requests, rather than accumulating a frame queue or blocking peers.
   Hidden Watch panels stop requesting; an already pending request may finish.

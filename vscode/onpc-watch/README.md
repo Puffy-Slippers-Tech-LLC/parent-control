@@ -309,10 +309,14 @@ run/session state and artifact validation.
 
 Frames travel over private stdio, directly or over SSH, with one request in flight
 per source and no listener port. The bridge forwards existing PNGs without
-re-encoding, requests snapshots at the existing 200 ms interval, and renders
+re-encoding, requests snapshots at 500 ms intervals, and renders
 responses on arrival. Unchanged images are omitted. A slow source cannot block
 another source. Hidden tabs stop requesting snapshots; closing Watch stops only
 its readers/connections. Nothing is installed in the product or in a guest VM.
+The reader reuses unchanged session/error formatting and desktop PNGs when only
+the cursor moves. Session updates retain unchanged transcript rows in the browser
+and reuse filtered history in the reader. This observation cadence does not change launcher execution
+or test recording rates.
 No npm packages or compilation step are needed.
 
 ## Local and SSH sources

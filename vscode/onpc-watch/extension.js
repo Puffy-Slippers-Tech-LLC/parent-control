@@ -188,7 +188,8 @@ function activate(context) {
                 bridge = new Bridge(configuration(values, root), message => output.appendLine(message), publish,
                     resourceConfiguration(root), (title, error) => errors.report(title, error));
             } catch (error) { failure(error.message); return; }
-            timer = setInterval(poll, 200);
+            // Observation need not run at the launcher's recording cadence.
+            timer = setInterval(poll, 500);
             poll();
         }
         const messages = panel.webview.onDidReceiveMessage(message => {

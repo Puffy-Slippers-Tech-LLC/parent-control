@@ -271,23 +271,37 @@
                     rows.push(row);
                 }
             }
-            section.activity.replaceChildren();
-            section.activity.hidden = !latest;
-            for (const part of latest || []) runSpan(section.activity, part);
-            section.output.replaceChildren(...rows.map(row => {
+            const activitySignature = JSON.stringify(latest);
+            if (section.activitySignature !== activitySignature) {
+                section.activitySignature = activitySignature;
+                section.activity.replaceChildren();
+                section.activity.hidden = !latest;
+                for (const part of latest || []) runSpan(section.activity, part);
+            }
+            // Streaming usually changes only the final row. Keep the retained
+            // transcript's DOM instead of rebuilding every span on each update.
+            if (!section.output.children.length) section.output.textContent = '';
+            rows.forEach((row, index) => {
+                const signature = JSON.stringify(row);
+                const previous = section.output.children[index];
+                if (previous?.rowSignature === signature) return;
                 const line = document.createElement('div');
+                line.rowSignature = signature;
                 if (!row.length) line.textContent = '\u00a0';
                 for (const part of row) {
                     runSpan(line, part);
                 }
-                return line;
-            }));
+                if (previous) previous.replaceWith(line);
+                else section.output.append(line);
+            });
+            while (section.output.children.length > rows.length) section.output.lastElementChild.remove();
+            if (!rows.length) section.output.textContent = '';
             section.outputSignature = signature;
             if (follow) section.output.scrollTop = section.output.scrollHeight;
         }
-        section.working.textContent = view.working || '';
+        if (section.working.textContent !== (view.working || '')) section.working.textContent = view.working || '';
         section.working.hidden = !view.working;
-        section.model.textContent = view.model;
+        if (section.model.textContent !== view.model) section.model.textContent = view.model;
         section.toggle.setAttribute('aria-checked', String(view.simplified));
         section.toggle.disabled = !section.entry.session || !section.entry.connected || Boolean(view.unavailable);
         section.input.disabled = !view.input_enabled || !section.entry.connected;
@@ -465,9 +479,11 @@
             const [frame, cursor] = await Promise.all([
                 image(data.image), data.cursor ? image(data.cursor.image) : undefined
             ]);
-            view.canvas.width = data.width;
-            view.canvas.height = data.height;
+            // Assigning either dimension resets the backing buffer and context.
+            if (view.canvas.width !== data.width) view.canvas.width = data.width;
+            if (view.canvas.height !== data.height) view.canvas.height = data.height;
             const context = view.canvas.getContext('2d', { alpha: false });
+            context.clearRect(0, 0, data.width, data.height);
             context.drawImage(frame, 0, 0);
             if (cursor) context.drawImage(cursor, data.cursor.x, data.cursor.y);
             view.screenshot.disabled = !view.canvas.width || !view.canvas.height;
@@ -616,6 +632,7 @@
                 section.output.textContent = 'No active session';
                 section.activity.replaceChildren();
                 section.activity.hidden = true;
+                section.activitySignature = undefined;
                 section.outputSignature = undefined;
                 section.input.disabled = true;
                 section.toggle.disabled = true;
@@ -711,7 +728,8 @@
                 status.append(icon);
                 element('strong', 'host-name', status);
             }
-            resources.append(row);
+            const index = snapshot.hosts.indexOf(host);
+            if (resources.children[index] !== row) resources.insertBefore(row, resources.children[index] || null);
             const signature = JSON.stringify([host.sample, host.status, host.label, host.transport]);
             if (resourceSamples.get(host.id) === signature) continue;
             resourceSamples.set(host.id, signature);
@@ -1037,15 +1055,15 @@
                 view.source = entry.source;
             }
             if (grid.children[index] !== view.body) grid.insertBefore(view.body, grid.children[index] || null);
-            view.title.textContent = entry.label;
-            view.heading.textContent = entry.heading;
-            view.step.textContent = entry.step;
+            if (view.title.textContent !== entry.label) view.title.textContent = entry.label;
+            if (view.heading.textContent !== entry.heading) view.heading.textContent = entry.heading;
+            if (view.step.textContent !== entry.step) view.step.textContent = entry.step;
             if (view.memory && view.memorySample !== entry.memory?.sample) {
                 view.memorySample = entry.memory?.sample;
                 view.memory.querySelector('.memory-value').textContent = entry.memory?.text || '—';
                 drawChart(view.memory.querySelector('canvas'), entry.memory?.segments || [], '153, 102, 217');
             }
-            view.status.textContent = entry.status;
+            if (view.status.textContent !== entry.status) view.status.textContent = entry.status;
             const text = terminal(entry.activity);
             if (view.activity.textContent !== text) {
                 const follow = view.activity.scrollHeight - view.activity.clientHeight - view.activity.scrollTop < 24;

@@ -166,6 +166,7 @@ class Viewer:
         self.outputs = {}
         self.launcher_reader = JsonReader()
         self.status_cache = {}
+        self.span_cache = {}
         self.launcher_logs = {}
         self.launcher_controls = {}
         self.sessions = {}
@@ -177,6 +178,16 @@ class Viewer:
         self.run_times_scope = None
         self.run_times_at = 0
         self.timing_records = {}
+
+    def cached_spans(self, root, kind, lines):
+        """Retain only the latest rendering of each run's text body."""
+        key = root, kind
+        previous = self.span_cache.get(key)
+        if previous is None or previous[0] != lines:
+            # Rich Text is mutable; keep a value snapshot for comparison.
+            saved = [line if isinstance(line, str) else line.copy() for line in lines]
+            self.span_cache[key] = saved, status_spans(lines)
+        return self.span_cache[key][1]
 
     def launcher_command(self, action):
         """Resolve only a displayed, unchanged run into its public invocation."""
@@ -451,14 +462,14 @@ class Viewer:
             session_view = None
             if str(root) in session_roots and session.panel:
                 session_view = session.panel.webview()
-                session_view['rows'] = status_spans(session_view.pop('lines'))
+                session_view['rows'] = self.cached_spans(root, 'session', session_view.pop('lines'))
                 session_view['input_enabled'] = session.input_enabled
             sections.append(dict(id=str(root), checkout=str(output.root), label=f'[{branch}]' +
                 (f' {label}' + (f' ({status})' if status else '') if label else ''),
                 active=active or session.active, status=status, rows=self.status_cache[root][1],
                 run=str(output.run) if output.run is not None else None,
                 launcher_output=self.launcher_logs[root],
-                error_rows=status_spans(error_lines),
+                error_rows=self.cached_spans(root, 'error', error_lines),
                 session=session.identity,
                 session_active=session.active,
                 session_number=session_number, session_inactive=session_inactive,
@@ -501,12 +512,16 @@ class Viewer:
                      zlib.crc32(pixels), zlib.crc32(cursor),
                      *(meta[key] for key in ('cursor_on', 'cursor_x', 'cursor_y', 'hot_x', 'hot_y',
                                             'cursor_width', 'cursor_height')))
-        if self.images.get(entry) == signature:
+        previous = self.images.get(entry)
+        if previous is not None and previous[0] == signature:
             return {}
-        self.images[entry] = signature
+        # Cursor movement must not re-encode an unchanged full-size desktop.
+        encoded = (previous[1] if previous is not None and previous[0][:5] == signature[:5]
+                   else png(pixels, meta['width'], meta['height'], meta['stride'],
+                            red_first=meta['format'] in (0x20030888, 0x20038888)))
+        self.images[entry] = signature, encoded
         image = dict(width=meta['width'], height=meta['height'],
-            image=png(pixels, meta['width'], meta['height'], meta['stride'],
-                      red_first=meta['format'] in (0x20030888, 0x20038888)))
+                     image=encoded)
         if cursor and meta['cursor_on']:
             image['cursor'] = dict(image=png(cursor, meta['cursor_width'], meta['cursor_height'],
                 meta['cursor_width'] * 4, rgba=True), x=meta['cursor_x'] - meta['hot_x'],

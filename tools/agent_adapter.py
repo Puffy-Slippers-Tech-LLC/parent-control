@@ -1,7 +1,7 @@
 """Session preparation and protocol boundary; acceptance belongs to launchers.
 
-This extraction deliberately pins Codex. Configuration-driven selection and
-batch normalization are separate steps, not implicit provider fallbacks.
+This extraction deliberately pins Codex. Configuration-driven selection is a
+separate step, not an implicit provider fallback.
 """
 
 from dataclasses import dataclass, replace
@@ -46,16 +46,27 @@ class AgentAdapter(Protocol):
 
 @dataclass(frozen=True)
 class SessionEvent:
-    """Interactive transport output, never workflow acceptance evidence.
+    """Normalized transport/presentation output, never acceptance evidence.
 
     Text events carry id/text/complete; item events carry a renderer item and
-    complete flag. Failure data carries message/context/details/task_error and
-    capacity. Native RPC names and IDs stay inside the concrete handler.
+    complete flag. Usage carries the provider's counters under usage, preserving
+    absent counters. Diagnostics carry plain text or an inert value. Failures
+    carry message/context/details/capacity; batch failures also mark terminal,
+    with an optional inert diagnostic payload for display, and interactive
+    failures supply task_error for shared status handling.
+    Native wire names and request IDs stay inside the concrete handler.
     """
     kind: Literal['ready', 'turn_completed', 'retry_input',
                   'discard_result', 'text', 'text_delta', 'item', 'diagnostic',
                   'command_output', 'usage', 'notice', 'failure']
     data: dict
+
+
+class BatchPresentation(Protocol):
+    """Decode batch stdout only; the native result file retains its owner."""
+
+    def feed(self, data: bytes) -> Iterator[SessionEvent]: ...
+    def finish(self) -> Iterator[SessionEvent]: ...
 
 
 class SessionProtocol(Protocol):
@@ -95,6 +106,7 @@ class PreparedSession:
     environment: dict[str, str]
     cwd: Path
     protocol: SessionProtocol | None = None
+    presentation: BatchPresentation | None = None
 
     def revised(self, **changes) -> 'PreparedSession':
         """Reprepare under the same adapter, including capacity attempts."""

@@ -1,7 +1,7 @@
 # Agent adapter proposal
 
-Status: Codex session preparation and interactive protocol extraction are
-implemented; batch normalization, model/preflight extraction and
+Status: Codex session preparation, interactive protocol extraction and batch
+presentation normalization are implemented; model/preflight extraction and
 configuration-driven agent selection remain proposed. Live-agent qualification
 is outstanding.
 
@@ -32,25 +32,32 @@ owns app-server framing, RPC requests/responses, coordinator thread/turn filteri
 steering/interruption races and native output/error decoding. It emits
 `SessionEvent` values for the shared conversation in `launcher_chat.py`, which
 retains mailbox/status handling, candidate task binding and result persistence.
-The supervisor still owns pipes, cancellation and nested-test cleanup. Interactive
-items use the existing renderer vocabulary; batch presentation normalization,
-native model-profile resolution and strict configuration selection remain future
-steps. No Claude runtime dependency is introduced.
+The supervisor still owns pipes, cancellation and nested-test cleanup.
+`PreparedSession.presentation` supplies a `BatchPresentation` decoder for batch
+stdout. `CodexBatchPresentation` in `agent_codex.py` owns JSONL framing,
+native event/error decoding, reasoning suppression and terminal capacity
+classification. Both transports supply `SessionEvent` values to the shared
+renderer, reusing its existing item vocabulary. Usage retains the CLI's reported
+turn scope and missing counters; displayed messages and helper activity never
+replace the native coordinator result file or workflow validation. Native
+model-profile resolution and strict configuration selection remain future steps.
+No Claude runtime dependency is introduced.
 
 ## Next implementation step
 
-Continue delivery step 2 with **Codex batch presentation normalization**.
-Start at `AgentRenderer` in [launcher_render.py](../tools/launcher_render.py) and
-the batch supervision path in [detached_launcher.py](../tools/detached_launcher.py).
-Move native batch event/error decoding behind `agent_codex.py` and reuse the
-small shared event vocabulary where appropriate. Preserve usage scope, private
-reasoning suppression, capacity classification and the distinction between
-displayed helper output and the coordinator's schema result. Keep batch result
-ownership, response validation and process supervision in their existing owners.
-Do not redo session preparation or interactive RPC extraction, or enable
-Claude/configuration selection. Native model/preflight extraction remains a
-subsequent slice. Live-agent qualification is still outstanding; passing
-source/unit checks and launcher help do not establish it.
+Continue delivery step 2 with **Codex native model/profile and preflight
+extraction**. Start at `available_models` in
+[fix_tests.py](../tools/fix_tests.py), `available_model` in
+[sync_whatsnew.py](../tools/sync_whatsnew.py), and the model/tier requirements in
+[plan_launcher.py](../tools/plan_launcher.py) and
+[write_e2e.py](../tools/write_e2e.py). Move native catalogue/capability checks and
+profile resolution behind `agent_codex.py`; keep workflow escalation timing,
+explicit override behavior, session budgets and capacity retry policy with their
+existing owners. Preserve current profiles and agent-free help/listing behavior;
+report missing readiness without installing or authenticating a CLI. Do not redo
+session preparation or transport decoding, or enable Claude/configuration
+selection. Live-agent qualification is still outstanding; passing source/unit
+checks and launcher help do not establish it.
 
 ## Configuration and scope
 
@@ -87,9 +94,9 @@ dependency and package payload maps.
 | Area | Existing coupling | Proposed change |
 | --- | --- | --- |
 | Configuration | [vm_config.py](../tests/integration/vm_config.py) owns the shared document reader; [vm_selection.py](../tools/vm_selection.py) exposes it to launchers | Keep one document parser; add strict live agent selection at the adapter entry point |
-| Shared execution | [detached_launcher.py](../tools/detached_launcher.py) prepares sessions and interactive handlers through the Codex adapter, supervises processes and retries capacity failures | Retain ownership/supervision; finish extracting batch decoding and model-profile resolution |
+| Shared execution | [detached_launcher.py](../tools/detached_launcher.py) prepares sessions and transport decoders through the Codex adapter, supervises processes and retries capacity failures | Retain ownership/supervision; finish extracting model-profile resolution |
 | Conversation | [launcher_chat.py](../tools/launcher_chat.py) consumes adapter events and retains shared mailbox/status and completion gates | Keep mailbox, status validation and input/result serialization shared; qualify native transport behavior |
-| Presentation | [launcher_render.py](../tools/launcher_render.py) consumes Codex-shaped events | Render a small common event format produced by either adapter |
+| Presentation | [launcher_render.py](../tools/launcher_render.py) consumes shared events from both Codex transports | Qualify the same common event format with the future Claude adapter |
 | Repair | [fix_tests.py](../tools/fix_tests.py) pins Sol, validates the Codex model catalogue and supplies repair tiers | Request workflow roles and capability tiers from the selected adapter |
 | E2E | [write_e2e.py](../tools/write_e2e.py) pins coordinator tiers, adviser roles and native configuration | Preserve its acceptance/escalation engine; resolve models and roles through the adapter |
 | Ordinary plans | [plan_launcher.py](../tools/plan_launcher.py) embeds model defaults, delegation and capacity fallback | Keep plan selection and completion guards; pass structured session requirements |
@@ -105,13 +112,13 @@ dependency and package payload maps.
 Use composition beneath the existing launcher engines, following the
 [extension boundary](Execution-Plans.md#extension-boundary). Start with three
 small modules: `tools/agent_adapter.py`, `tools/agent_codex.py`, and proposed
-`tools/agent_claude.py`. The first two implement session preparation and the
-interactive protocol; the Claude module does not yet exist. Do not build a plugin framework or a generic
+`tools/agent_claude.py`. The first two implement session preparation, the
+interactive protocol and batch presentation; the Claude module does not yet exist. Do not build a plugin framework or a generic
 multi-provider orchestration service.
 
 The intended `agent_adapter.py` boundary owns the common session request, fixed
 adapter selection, workflow/role vocabulary, and normalized events/results/errors.
-Session preparation and the interactive protocol contract are implemented. Each concrete
+Session preparation, the interactive protocol and batch presentation contracts are implemented. Each concrete
 adapter owns native CLI/SDK details and its supported model profiles. Shared
 launcher code must not index into native argument lists or insert Codex `-c`
 values. For example, translation requests a read-only session directly instead

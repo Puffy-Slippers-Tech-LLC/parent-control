@@ -21,7 +21,7 @@ sub run {
         && ($route eq 'command' || ($route eq 'grid' && $control eq 'enabled'))
         && ($policy eq 'allowed' || $policy eq 'hard-blocked' || $policy eq 'soft-blocked')
         && ($kind eq 'native' || $kind eq 'snap' && $policy eq 'allowed'
-            || $kind eq 'flatpak' && $policy eq 'allowed' && $control eq 'enabled' && $route eq 'command');
+            || $kind eq 'flatpak' && $policy eq 'allowed' && $route eq 'command');
     my $rule = $policy eq 'allowed' ? 'allowed' : $policy eq 'hard-blocked' ? 'hard' : 'soft';
     my $access = $rule eq 'allowed' ? 'allowed' : $rule eq 'hard' ? 'permanent' : 'conditional';
     my $journey = onpc_journey->new(

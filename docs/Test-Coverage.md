@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5807</span>/<span style="color: gray">0</span>/5807 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5814</span>/<span style="color: gray">0</span>/5814 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">224</span>/<span style="color: gray">0</span>/224 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">295</span>/<span style="color: gray">0</span>/295 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -15,8 +15,8 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">89</span>/<span style="color: gray">107</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6479</span>/<span style="color: gray">107</span>/6586** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">90</span>/<span style="color: gray">106</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6487</span>/<span style="color: gray">106</span>/6593** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">88</span>/<span style="color: gray">107</span>/195 |
+| customer-journey | <span style="color: green">89</span>/<span style="color: gray">106</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -90,6 +90,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [92](#scenario-92) | Use supported launch routes under each app rule (control: enabled; policy: allowed; route: snap command) | `E2E-019/snap-command-allowed-enabled` | ready |
 | [93](#scenario-93) | Use supported launch routes under each app rule (control: disabled; policy: allowed; route: snap command) | `E2E-019/snap-command-allowed-disabled` | ready |
 | [104](#scenario-104) | Use supported launch routes under each app rule (control: enabled; policy: allowed; route: flatpak command) | `E2E-019/flatpak-command-allowed-enabled` | ready |
+| [105](#scenario-105) | Use supported launch routes under each app rule (control: disabled; policy: allowed; route: flatpak command) | `E2E-019/flatpak-command-allowed-disabled` | ready |
 | [116](#scenario-116) | Customer lifecycle persistence and resume (boundary: app restart; grant: active) | `E2E-022/app-restart-active` | ready |
 | [117](#scenario-117) | Customer lifecycle persistence and resume (boundary: app restart; grant: expired) | `E2E-022/app-restart-expired` | ready |
 | [118](#scenario-118) | Customer lifecycle persistence and resume (boundary: sign out in; grant: active) | `E2E-022/sign-out-in-active` | ready |
@@ -153,7 +154,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[98](#scenario-98)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-allowed-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[100](#scenario-100)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[102](#scenario-102)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: flatpak grid)</span> | <span style="color: gray">`E2E-019/flatpak-grid-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[105](#scenario-105)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: allowed; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-allowed-disabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[106](#scenario-106)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[107](#scenario-107)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[108](#scenario-108)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
@@ -1008,6 +1008,20 @@ Variant: control: disabled; policy: allowed; route: snap command
 Case: `E2E-019/flatpak-command-allowed-enabled` · Category: customer-journey · Status: **ready**
 
 Variant: control: enabled; policy: allowed; route: flatpak command
+
+**Steps:**
+
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
+
+### Scenario 105
+
+**Use supported launch routes under each app rule (control: disabled; policy: allowed; route: flatpak command)**
+
+Case: `E2E-019/flatpak-command-allowed-disabled` · Category: customer-journey · Status: **ready**
+
+Variant: control: disabled; policy: allowed; route: flatpak command
 
 **Steps:**
 
@@ -2072,26 +2086,6 @@ Pending: Customer recipe is documented; required public blocks and full installe
 Case: `E2E-019/flatpak-grid-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
 Variant: control: enabled; policy: soft blocked; route: flatpak grid
-
-**Steps:**
-
-- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 105
-
-**Use supported launch routes under each app rule (control: disabled; policy: allowed; route: flatpak command)**
-
-Case: `E2E-019/flatpak-command-allowed-disabled` · Category: customer-journey · Status: **pending**
-
-Variant: control: disabled; policy: allowed; route: flatpak command
 
 **Steps:**
 

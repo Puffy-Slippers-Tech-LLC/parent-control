@@ -3791,8 +3791,19 @@ binding uses `overlay-flatpak-allowed-*` and checks Riley's actual UID against
 the unchanged system deployment metadata; Riley's policy remains untouched.
 Collection, worker shutdown, owned cleanup and baseline restoration passed,
 coverage was regenerated and the VM was observed off. This qualifies Riley's
-Allowed A command use and that complete enabled case only; disabled limits,
-other roles, grid and enforcement remain separate.
+Allowed A command use and that complete enabled case only; other roles, grid
+and enforcement remain separate.
+
+Case 105 (`flatpak_app_launch.DISABLED_PLAN` and the same worker's disabled
+Allowed command binding) passed on Ubuntu 26.04 in
+`20261106T075655Z-cac5262c`. Parent independently read Jordan's untouched
+limits-off/zero-allowance settings and saved/read A's Allowed row without an
+allowance or approval. Fresh Jordan and Riley each launched the same system
+Flatpak and submitted the normal draft, with independent owned-window/result
+readback and Riley's policy untouched. The affected enabled case 104 passed in
+`20261106T080521Z-c27b8464`. Both runs passed collection, worker shutdown, owned
+cleanup and baseline restoration; coverage was regenerated and the VM was
+observed off. This adds the complete disabled Allowed command case only.
 
 ### Snap command use
 
@@ -4333,6 +4344,7 @@ or alternative launch substitutes for the declared route.
 | 86 / `snap_app_launch.GRID_PLAN`, `run(..., 'enabled', 'grid', 'allowed', 'snap')` | Parent gives Jordan 30 daily minutes/zero grant and saves A's Allowed Snap access with independent readback. Fresh Jordan and then fresh Riley open the same strict/system package through the app grid and submit the normal draft with independent window/result reads; Riley's policy and limits stay untouched. Passed on selected Fedora 44. |
 | 92 / `snap_app_launch.PLAN`, `run(..., 'enabled', 'command', 'allowed', 'snap')` | Parent gives Jordan 30 daily minutes/zero grant and saves A's Allowed Snap access with independent row readback. Jordan then Riley freshly enter, launch the same strict/system package by command and submit the normal draft with independent result reads; Riley's policy and limits stay untouched. Qualified on Fedora 44. |
 | 104 / `flatpak_app_launch.PLAN`, `run(..., 'enabled', 'command', 'allowed', 'flatpak')` | Parent gives Jordan 30 daily minutes/zero grant and saves A's Allowed Flatpak access with independent row readback. Fresh Jordan and Riley each launch and submit the same system Flatpak by command, with independent window/result reads and Riley's policy untouched. Passed on Ubuntu 26.04; see [Flatpak command use](#flatpak-command-use). |
+| 105 / `flatpak_app_launch.DISABLED_PLAN`, `run(..., 'disabled', 'command', 'allowed', 'flatpak')` | Parent reads Jordan's untouched limits-off/zero-allowance settings and saves/reads A's Allowed Flatpak row without an allowance or approval. Fresh Jordan and Riley each launch and submit the same system Flatpak by command, with independent window/result readback and Riley's policy untouched. Passed on Ubuntu 26.04; see [Flatpak command use](#flatpak-command-use). |
 | 187 / `shared_launchers_case.PLAN`, `onpc_fresh_thirty_allowance::shared_launchers_case` | Jordan's A and Alias share one native target. Block A with Alias Allowed, restore both, block Alias with A Allowed, then restore both again. Each child visit independently proves both denials or both usable apps. Saved choices, Parent session/window, child selection and allowance persist across the complete history; [Ubuntu qualification](#native-fixture-preparation). |
 
 The Allowed native-A bindings are qualified on Ubuntu 26.04 and Fedora 44.

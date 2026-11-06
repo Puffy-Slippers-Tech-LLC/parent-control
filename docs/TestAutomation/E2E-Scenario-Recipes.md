@@ -1250,6 +1250,13 @@ and submitted result. Riley's policy and disabled limits remain untouched.
 There is no approval, match-editor visit, launcher-visibility assertion or
 alternate route.
 
+Case 105 uses `flatpak_app_launch.DISABLED_PLAN` and the same worker's disabled
+Allowed Flatpak command binding. Parent independently reads Jordan's untouched
+limits-off/zero-allowance settings, then saves and reads A's Allowed row without
+preparing an allowance or approval. Fresh Jordan and then fresh Riley launch the
+same system Flatpak command and submit the normal draft, with independent owned
+window and submitted-result readback. Riley's policy and limits remain untouched.
+
 Case 93 uses `snap_app_launch.DISABLED_PLAN` and the same worker's disabled
 Allowed Snap command binding. Parent independently reads Jordan's untouched
 limits-off/zero-allowance settings before saving and reading A's Allowed rule.

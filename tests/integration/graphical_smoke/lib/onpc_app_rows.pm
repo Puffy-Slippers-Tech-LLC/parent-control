@@ -672,7 +672,8 @@ sub native_policy_closure {
             $journey->seen('restore-apps');
             edit_policy($journey, fixture_app('A'), 'match-precise', 'allowed', 'restore', []);
         }
-        $journey->seen($name . '-leave-parent-' . $_) for qw(desktop switch greeter);
+        my $leaving = $journey->scope($name . '-leave-parent');
+        onpc_desktop_session::switch_user($leaving, $leaving->seen('desktop'));
         onpc_desktop_session::enter_desktop(
             $journey, 'gdm', 'other-child', 'fresh', 'success', $name . '-fresh');
         my $activity = $journey->scope($name . '-activity');
@@ -713,7 +714,8 @@ sub flatpak_policy_closure {
     for my $name ('hard', 'soft') {
         onpc_desktop_session::enter_desktop(
             $journey, 'gdm', 'parent', 'retained', 'success', 'next-parent') if $name eq 'soft';
-        $journey->seen($name . '-leave-parent-' . $_) for qw(desktop switch greeter);
+        my $leaving = $journey->scope($name . '-leave-parent');
+        onpc_desktop_session::switch_user($leaving, $leaving->seen('desktop'));
         onpc_desktop_session::enter_desktop(
             $journey, 'gdm', 'other-child', 'fresh', 'success', $name . '-fresh');
         my $activity = $journey->scope($name . '-activity');

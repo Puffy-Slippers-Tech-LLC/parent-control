@@ -5821,6 +5821,14 @@ account/profile, execution order, independent result endpoints and failure stop
 before later input. Inspect shared consumers when their contract changes;
 unchanged transport, decoding and recording need no renewed qualification.
 
+For a named child's policy journey, trace every reused allowance and app-edit
+operation through `JourneyPlan.child_bindings`, not only the final row reads.
+An operation's checkpoint name does not select its child. Match the worker's
+child argument to the controller's binding and independent settings/balance
+reads, including setup stages added by `app_policy_entry`. Reuse the existing
+`NAMED_CHILD_OPERATIONS` inventory when selecting those stages; preserve its
+wrong-child refusals rather than changing the observer's default child.
+
 Match the supplied action names exactly to the final plan's `stage_actions`
 values, including after replacing or filtering a reused declaration. For native
 or Snap fixtures, a case that only verifies readiness uses

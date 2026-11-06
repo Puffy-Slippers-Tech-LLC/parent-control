@@ -3,7 +3,7 @@ from dataclasses import replace
 
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
 from installed_journey import JourneyPlan
-from journey_blocks import (app_policy_entry, desktop_entry, native_blocked_app,
+from journey_blocks import (app_policy_entry, desktop_entry, desktop_return, native_blocked_app,
                             native_usable_app, prefixed_stages)
 from policy_edits import NativePolicyJourney, policy_edit
 from private_artifacts import EvidenceError, require
@@ -20,8 +20,7 @@ for name, route, access in (('hard', 'grid', 'permanent'), ('soft', 'command', '
         POLICIES['restore'] = policy_edit(MATCH_APPS['A'], 'match-precise', 'allowed', 'restore')
         SCREENS.update({**ENTRIES['restore-parent'], 'restore-apps': 'ui:existing-apps',
                         **POLICIES['restore']})
-    SCREENS.update(prefixed_stages(name + '-leave-parent', {
-        'desktop': 'ui:desktop', 'switch': 'system:parent-switch-user', 'greeter': 'ui:gdm-returned'}))
+    SCREENS.update(desktop_return(name + '-leave-parent', account='parent'))
     ENTRIES[name + '-fresh'] = prefixed_stages(name + '-fresh', desktop_entry(
         'other-child', source='gdm', entry='fresh'))
     ENTRIES[name + '-parent'] = prefixed_stages(name + '-parent', desktop_entry(

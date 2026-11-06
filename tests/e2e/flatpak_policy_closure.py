@@ -2,7 +2,8 @@
 from accessible_ui import FLATPAK_POLICY_APPS, NAMED_CHILD_OPERATIONS
 from flatpak_fixtures import fixture_actions
 from installed_journey import JourneyPlan
-from journey_blocks import app_policy_entry, desktop_entry, native_usable_app, prefixed_stages
+from journey_blocks import (app_policy_entry, desktop_entry, desktop_return,
+                            native_usable_app, prefixed_stages)
 from policy_edits import AppPolicyJourney
 from ui_observations import SettingsObservation
 
@@ -15,8 +16,7 @@ for name, role, access in (('hard', 'H', 'permanent'), ('soft', 'S', 'conditiona
         ENTRIES['next-parent'] = prefixed_stages('next-parent', desktop_entry(
             'parent', source='gdm', entry='retained'))
         SCREENS.update(ENTRIES['next-parent'])
-    SCREENS.update(prefixed_stages(name + '-leave-parent', {
-        'desktop': 'ui:desktop', 'switch': 'system:parent-switch-user', 'greeter': 'ui:gdm-returned'}))
+    SCREENS.update(desktop_return(name + '-leave-parent', account='parent'))
     for suffix, account, source, entry, source_account in (
             ('fresh', 'other-child', 'gdm', 'fresh', None),
             ('parent', 'parent', 'desktop', 'retained', 'other-child'),

@@ -393,7 +393,8 @@ Parent and child returns to the greeter reuse
 `onpc_desktop_session::switch_user` with the caller's scoped desktop receipt.
 Declare its desktop read, switch and independent greeter result with
 `journey_blocks.desktop_return(prefix, account=...)`, as in the active and
-expired app-reopening cases; the next account or station entry stays local.
+expired app-reopening cases and native/Flatpak captured-closure qualifications;
+the next account or station entry stays local.
 The declared system operation binds the account; the helper consumes that
 receipt, performs the switch and independently observes the greeter. Retained
 daily-access histories use this same operation for both accounts instead of

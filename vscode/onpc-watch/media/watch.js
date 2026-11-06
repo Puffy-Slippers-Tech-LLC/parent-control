@@ -6,7 +6,13 @@
     initializeWatchErrors(vscode);
     const reportError = error => vscode.postMessage({ type: 'watchError',
         error: error instanceof Error ? error.stack || error.message : String(error) });
-    window.addEventListener('error', event => reportError(event.error || event.message));
+    window.addEventListener('error', event => {
+        // The browser defers undelivered resize observations to another frame;
+        // this notification is not a failed viewer or a thrown callback error.
+        if (!event.error && ['ResizeObserver loop completed with undelivered notifications.',
+            'ResizeObserver loop limit exceeded'].includes(event.message)) return;
+        reportError(event.error || event.message);
+    });
     window.addEventListener('unhandledrejection', event => reportError(event.reason));
     const grid = document.getElementById('grid');
     const viewers = document.getElementById('viewers');
@@ -168,7 +174,7 @@
             if (view === 'session' && (entry.session_inactive ?? !entry.session_active)) item.classList.add('session-inactive');
             if (section.view === view) item.setAttribute('aria-current', 'page');
         }
-        section.tabObserver = new ResizeObserver(() => {
+        section.tabObserver = new ResizeObserver(() => requestAnimationFrame(() => {
             if (!links.isConnected) return;
             // Measure compact tabs first so widening always restores a single row.
             links.classList.remove('wrapped');
@@ -179,7 +185,7 @@
             links.style.maxWidth = `${singleRowWidth}px`;
             links.style.setProperty('--run-tab-width', `${Math.max(...widths)}px`);
             links.classList.toggle('wrapped', singleRowWidth > links.getBoundingClientRect().width + 0.5);
-        });
+        }));
         section.tabObserver.observe(links);
     }
 
@@ -240,7 +246,7 @@
         const inputObserver = new ResizeObserver(([entry]) => {
             if (entry.contentRect.width === inputWidth) return;
             inputWidth = entry.contentRect.width;
-            fitInput();
+            requestAnimationFrame(() => { if (input.isConnected) fitInput(); });
         });
         inputObserver.observe(input);
         const error = element('div', 'session-error', body);
@@ -751,7 +757,7 @@
         const width = rows.reduce((total, row) => total + row.offsetWidth, 0) + Math.max(0, rows.length - 1) * 16;
         resources.classList.toggle('stacked', width > resources.clientWidth);
     }
-    new ResizeObserver(layoutResources).observe(resources);
+    new ResizeObserver(() => requestAnimationFrame(layoutResources)).observe(resources);
 
     function resourceCharts(snapshot) {
         const ids = new Set(snapshot.hosts.map(host => host.id));

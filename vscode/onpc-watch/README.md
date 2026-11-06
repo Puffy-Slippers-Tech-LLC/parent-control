@@ -77,8 +77,8 @@ SSH connection failures also light the error icon; the failed host's footer clou
 icon provides another way to inspect them. They also appear in footer
 status tooltips and the Output channel. Launcher-owned **Error** tab contents remain separate and do not
 trigger this dialog.
-The footer shows each source's connection state, including **Reader delayed—reconnecting**
-after an automatic retry and **Connected** after a successful response.
+The footer omits reader connection messages; server icons retain connection
+status tooltips.
 Recovery retains panels, selected tabs, scroll positions and the last received
 frame. Retained frames remain labelled as old until fresh pixels arrive; actions
 and session input are disabled while their source is disconnected. Switching to

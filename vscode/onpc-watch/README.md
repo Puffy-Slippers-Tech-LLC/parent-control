@@ -342,8 +342,12 @@ responses on arrival. Unchanged images are omitted. A slow source cannot block
 another source. Hidden tabs stop requesting snapshots; closing Watch stops only
 its readers/connections. Nothing is installed in the product or in a guest VM.
 The reader reuses unchanged session/error formatting and desktop PNGs when only
-the cursor moves. Session updates retain unchanged transcript rows in the browser
-and reuse filtered history in the reader. This observation cadence does not change launcher execution
+the cursor moves. Updated readers also omit unchanged transcript/status bodies and
+send cursor-only updates without the desktop PNG. The browser retains the decoded
+desktop and unchanged transcript rows. Older readers continue using full snapshots.
+Metadata caching evicts the least recently used entries within 64 entries and
+4 MiB of JSON source data, while rechecking file ownership and safety on every read.
+This observation cadence does not change launcher execution
 or test recording rates.
 No npm packages or compilation step are needed.
 

@@ -174,6 +174,7 @@ class Viewer:
         self.launcher_reader = JsonReader()
         self.status_cache = {}
         self.span_cache = {}
+        self.sent_runs = {}
         self.launcher_logs = {}
         self.launcher_controls = {}
         self.sessions = {}
@@ -518,7 +519,7 @@ class Viewer:
         for feed, _meta in self.vms.values():
             feed.close()
 
-    def screen(self, entry, frame, visible):
+    def screen(self, entry, frame, visible, *, updates=False):
         if not visible or frame == 'waiting' or (frame is not None and frame[1]['state'] != 'live'):
             self.images.pop(entry, None)
             return {'screen': None}
@@ -537,8 +538,9 @@ class Viewer:
                    else png(pixels, meta['width'], meta['height'], meta['stride'],
                             red_first=meta['format'] in (0x20030888, 0x20038888)))
         self.images[entry] = signature, encoded
-        image = dict(width=meta['width'], height=meta['height'],
-                     image=encoded)
+        image = dict(width=meta['width'], height=meta['height'])
+        if not updates or previous is None or previous[0][:5] != signature[:5]:
+            image['image'] = encoded
         if cursor and meta['cursor_on']:
             image['cursor'] = dict(image=png(cursor, meta['cursor_width'], meta['cursor_height'],
                 meta['cursor_width'] * 4, rgba=True), x=meta['cursor_x'] - meta['hot_x'],
@@ -668,7 +670,8 @@ class Viewer:
             render = active if selected == 'all' else selected == identifier
             if render:
                 shown.add(entry)
-            view.update(self.screen(entry, frames_by_entry[entry], render))
+            view.update(self.screen(entry, frames_by_entry[entry], render,
+                                    updates=request.get('updates', False)))
             values.append(dict(view, id=identifier, source=identity(Path(root)),
                 label=f'[{self.roots[Path(root)]}] {name}', active=active, locked=locked))
         self.images = {entry: value for entry, value in self.images.items() if entry in shown}
@@ -700,7 +703,7 @@ class Viewer:
             self.run_times = None
             self.run_times_scope = None
             self.timing_records.clear()
-        return dict(protocol=1, capabilities=dict(sessions=True, session_roots=True,
+        response = dict(protocol=1, capabilities=dict(sessions=True, session_roots=True, updates=True,
                     artifacts=True, delete_run_times=True),
                     scope=scope, selected=selected, entries=values,
                     run_times=run_times,
@@ -708,6 +711,26 @@ class Viewer:
                     checkouts=[dict(id=str(root), label=branch) for root, branch in self.roots.items()],
                     resources=self.resources.text(), resource_sample=self.resources.last,
                     resource_charts=self.resources.charts)
+        # Keep full state internally for input/artifact guards. Only the wire
+        # representation omits unchanged bodies, and only after negotiation.
+        previous_runs = self.sent_runs if not request.get('reset') else {}
+        self.sent_runs = {run['id']: run for run in runs}
+        if request.get('updates'):
+            response['updates'] = True
+            response['runs'] = []
+            for run in runs:
+                previous = previous_runs.get(run['id'])
+                update = dict(run)
+                if previous and (previous['run'], previous['session']) == (run['run'], run['session']):
+                    for field in ('rows', 'error_rows', 'launcher_output', 'launcher_rows'):
+                        if run.get(field) == previous.get(field):
+                            update.pop(field, None)
+                    if run['session_view'] and previous['session_view'] and (
+                            run['session_view']['rows'] == previous['session_view']['rows']):
+                        update['session_view'] = {key: value for key, value in run['session_view'].items()
+                                                  if key != 'rows'}
+                response['runs'].append(update)
+        return response
 
 
 def main():
@@ -753,13 +776,14 @@ def main():
                 print(json.dumps(dict(protocol=1, artifact_result=viewer.artifact(artifact)),
                                  separators=(',', ':')), flush=True)
                 continue
-            if (set(request) - {'protocol', 'scope', 'selected', 'reset', 'session_root', 'session_roots', 'session_action'} or
+            if (set(request) - {'protocol', 'scope', 'selected', 'reset', 'updates', 'session_root', 'session_roots', 'session_action'} or
                     any(type(request.get(key, 'all')) is not str for key in ('scope', 'selected')) or
                     type(request.get('session_root', '')) is not str or
                     type(request.get('session_roots', [])) is not list or
                     any(type(root) is not str or not 0 < len(root) <= 4096
                         for root in request.get('session_roots', [])) or
-                    type(request.get('reset', False)) is not bool):
+                    type(request.get('reset', False)) is not bool or
+                    type(request.get('updates', False)) is not bool):
                 raise ValueError('watch: invalid request')
             action = request.get('session_action')
             if action is not None and (type(action) is not dict

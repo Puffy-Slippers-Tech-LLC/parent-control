@@ -75,6 +75,24 @@ adapter also publishes `checkout` on each run for viewer ordering.
 Every snapshot includes current metadata for the selected scope, even when
 pixels or transcript bodies are omitted. Viewers outside `scope` may be omitted.
 
+Adapters may advertise `capabilities.updates: true`. Only after that advertisement,
+the bridge sends optional `updates: true`. Such responses set `updates: true` and
+may omit unchanged run body fields (`rows`, `error_rows`, `launcher_output`,
+`launcher_rows`, and `session_view.rows`). Omission reuses the preceding snapshot's
+field for the same run ID, run identity and session identity. Run membership and
+all other metadata remain complete; a null session view clears its body. A new
+identity, newly opened session body or reset requires full bodies. State is scoped
+to one connection; reconnects and `reset: true` require full visible images and bodies.
+Without negotiation, snapshots keep the full format below.
+
+In an update response, `screen.image` may also be omitted to reuse the preceding
+desktop for that viewer's producer identity and dimensions. Cursor metadata is
+complete: an omitted cursor removes it. A missing base desktop is an invalid
+response. The bridge reconstructs and validates full snapshots before routing
+actions/artifacts, then omits unchanged bodies and desktop PNGs on delivery to
+its webview. The webview retains a decoded desktop per visible card and releases
+it when cleared or removed.
+
 The response contains these fields:
 
 | Field | Shape and meaning |

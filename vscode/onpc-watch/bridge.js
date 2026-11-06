@@ -4,6 +4,7 @@
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
+const { isDeepStrictEqual } = require('node:util');
 
 const VERSION = 1;
 const MAX_RESPONSE = 96 * 1024 * 1024;
@@ -11,6 +12,7 @@ const MAX_REQUEST = 512 * 1024;
 const SSH_REFUSAL = /Permission denied|Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED|Too many authentication failures/i;
 const key = (source, value) => JSON.stringify([source, value]);
 const quote = value => "'" + value.replace(/'/g, "'\\''") + "'";
+const RUN_BODIES = ['rows', 'error_rows', 'launcher_output', 'launcher_rows'];
 
 function configuration(values, root) {
     if (!Array.isArray(values) || values.length > 16) throw new Error('Watch sources must be an array of at most 16 sources.');
@@ -234,7 +236,7 @@ class Source {
     send(request, pending = {}) {
         const line = JSON.stringify({ protocol: VERSION, ...request }) + '\n';
         if (Buffer.byteLength(line) > MAX_REQUEST) throw new Error('Watch request too large.');
-        this.pending = pending;
+        this.pending = { ...pending, updates: request.updates === true, reset: request.reset === true };
         this.timeout = setTimeout(() => this.fail('Watch request timed out.', true, true), 10000);
         this.child.stdin.write(line);
     }
@@ -244,6 +246,29 @@ class Source {
         if (value?.protocol !== VERSION) throw new Error('Incompatible Watch bridge; protocol 1 required.');
         const pending = this.pending;
         if (!pending.resolve) {
+            if (value.updates === true) {
+                if (!pending.updates) throw new Error('Unrequested Watch updates.');
+                const previousRuns = new Map(!pending.reset ? this.snapshot?.runs.map(run => [run.id, run]) : []);
+                for (const run of Array.isArray(value.runs) ? value.runs : []) {
+                    const previous = previousRuns.get(run?.id);
+                    if (!previous || previous.run !== run.run || previous.session !== run.session) continue;
+                    for (const field of RUN_BODIES) {
+                        if (!Object.hasOwn(run, field) && Object.hasOwn(previous, field)) run[field] = previous[field];
+                    }
+                    if (run.session_view && previous.session_view && !Object.hasOwn(run.session_view, 'rows')) {
+                        run.session_view.rows = previous.session_view.rows;
+                    }
+                }
+                for (const entry of Array.isArray(value.entries) ? value.entries : []) {
+                    if (!entry?.screen || Object.hasOwn(entry.screen, 'image')) continue;
+                    const previous = !pending.reset && this.snapshot?.entries.find(item =>
+                        item.id === entry.id && item.source === entry.source);
+                    const frame = previous && this.frames.get(entry.id);
+                    if (frame && frame.width === entry.screen.width && frame.height === entry.screen.height) {
+                        entry.screen.image = frame.image;
+                    }
+                }
+            }
             validate(value);
             if (pending.action ? (value.session_result?.id !== pending.action.id ||
                     typeof value.session_result.ok !== 'boolean' ||
@@ -281,6 +306,7 @@ class Source {
         }
         const action = this.actions.shift();
         this.send({ ...request, reset: !this.snapshot || this.status !== 'Connected',
+            ...(this.snapshot?.capabilities.updates === true ? { updates: true } : {}),
             ...(action ? { session_action: action } : {}) }, { action });
     }
 
@@ -331,6 +357,7 @@ class Bridge {
                 queueMicrotask(() => { if (!this.closed) changed(); });
             }, reportError));
         this.displayedFrames = new Map();
+        this.displayedRuns = new Map();
         this.links = new Map();
         this.roots = new Map();
         this.timings = new Map();
@@ -492,7 +519,11 @@ class Bridge {
                     label: (labelSources ? `[${label}] ` : '') + entry.label,
                     status: connected ? entry.status : source.status,
                     memory: connected ? entry.memory : null,
-                    ...(shown && changed ? { screen: frame || null } : {}) });
+                    ...(shown && changed ? { screen: frame && !request.reset && previous?.source === entry.source &&
+                        previous.frame?.image === frame.image && previous.frame.width === frame.width &&
+                        previous.frame.height === frame.height ?
+                        { width: frame.width, height: frame.height, ...(frame.cursor ? { cursor: frame.cursor } : {}) } :
+                        frame || null } : {}) });
             }
         }
         for (const source of this.resourceSources) {
@@ -514,7 +545,24 @@ class Bridge {
                 deletable: (previous?.deletable ?? true) && Boolean(row.delete_token) });
         }
         const times = [...latestTimes.values()].sort((a, b) => b.seconds - a.seconds || a.title.localeCompare(b.title));
-        return { entries, runs, checkouts, hosts, servers: [...servers.values()], run_times: times,
+        const previousRuns = request.reset ? new Map() : this.displayedRuns;
+        this.displayedRuns = new Map(runs.map(run => [run.id, run]));
+        const updates = runs.map(run => {
+            const previous = previousRuns.get(run.id);
+            const update = { ...run };
+            if (previous && previous.run === run.run && previous.session === run.session) {
+                for (const field of RUN_BODIES) {
+                    if (isDeepStrictEqual(run[field], previous[field])) delete update[field];
+                }
+                if (run.session_view && previous.session_view &&
+                        isDeepStrictEqual(run.session_view.rows, previous.session_view.rows)) {
+                    const { rows, ...view } = run.session_view;
+                    update.session_view = view;
+                }
+            }
+            return update;
+        });
+        return { entries, runs: updates, checkouts, hosts, servers: [...servers.values()], run_times: times,
             scope: checkouts.some(checkout => checkout.id === request.scope) ? request.scope : 'all',
             selected,
             session_results: this.results.splice(0) };

@@ -45,7 +45,7 @@
     function sessionHeading(section) {
         const entry = section.entry;
         const signature = JSON.stringify([entry.run, entry.server, entry.transport, entry.label, entry.status, entry.session, entry.session_active,
-            entry.session_number, entry.session_inactive, entry.launcher_controls, entry.launcher_command, entry.launcher_action_command, entry.active, section.view, section.collapsed]);
+            entry.session_number, entry.session_inactive, entry.launcher_controls, entry.launcher_command, entry.launcher_action_command, entry.launcher_reload_command, entry.active, section.view, section.collapsed]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
         section.tabObserver?.disconnect();
@@ -81,6 +81,22 @@
         button.append(actionIcon);
         button.addEventListener('click', () => vscode.postMessage({
             type: 'launcherAction', root: entry.id, run: entry.run, kind }));
+        const reload = element('button', 'run-copy run-launcher-action', server);
+        reload.type = 'button';
+        reload.dataset.kind = 'reload';
+        reload.title = 'Reload launcher';
+        reload.setAttribute('aria-label', reload.title);
+        if (entry.launcher_reload_command) reload.title += `\n${entry.launcher_reload_command}`;
+        reload.disabled = !entry.launcher_controls || !entry.launcher_reload_command || entry.status === 'Stopping';
+        const reloadIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        reloadIcon.setAttribute('viewBox', '0 0 20 20');
+        reloadIcon.setAttribute('aria-hidden', 'true');
+        const reloadShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        reloadShape.setAttribute('d', 'M16 3v5h-5 M16 8a6 6 0 1 0 0 5');
+        reloadIcon.append(reloadShape);
+        reload.append(reloadIcon);
+        reload.addEventListener('click', () => vscode.postMessage({
+            type: 'launcherAction', root: entry.id, run: entry.run, kind: 'reload' }));
         labels.title = `${entry.server}\n${entry.label}`;
         const title = element('span', 'run-launcher-label', labels);
         title.textContent = entry.label;

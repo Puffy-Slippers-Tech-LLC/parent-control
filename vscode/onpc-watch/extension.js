@@ -188,7 +188,7 @@ function activate(context) {
                 void panel.webview.postMessage({ type: 'error', message: 'Reconnecting. Unacknowledged input will not be resent; review the session before sending again.' });
                 start();
             } else if (message?.type === 'launcherAction' && runRoots.has(message.root) &&
-                       typeof message.run === 'string' && ['stop', 'cancel-stop', 'resume'].includes(message.kind)) {
+                       typeof message.run === 'string' && ['stop', 'cancel-stop', 'resume', 'reload'].includes(message.kind)) {
                 void launchControl(message);
             } else if (message?.type === 'screenshot' && typeof message.png === 'string' &&
                        message.png.length <= 45 * 1024 * 1024 &&
@@ -243,7 +243,7 @@ function activate(context) {
             const current = bridge;
             try {
                 let command = await current.launcherCommand(message.root, message.run, message.kind);
-                const action = { stop: 'Stop', resume: 'Resume', 'cancel-stop': 'Cancel stop request' }[message.kind];
+                const action = { stop: 'Stop', resume: 'Resume', reload: 'Reload', 'cancel-stop': 'Cancel stop request' }[message.kind];
                 const commandText = [ `tools/${command.launcher}`, ...command.argv ].map(value =>
                     /^[\w@%+=:,./-]+$/.test(value) ? value : "'" + value.replace(/'/g, "'\\''") + "'").join(' ');
                 const answer = await vscode.window.showWarningMessage(

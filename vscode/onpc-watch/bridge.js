@@ -477,7 +477,8 @@ class Bridge {
     async launcherCommand(root, run, kind) {
         const route = this.roots.get(root);
         const current = route?.source.snapshot?.runs.find(item => item.id === route.id);
-        if (!['stop', 'cancel-stop', 'resume'].includes(kind) || !current?.launcher_controls || current.run !== run) {
+        if (!['stop', 'cancel-stop', 'resume', 'reload'].includes(kind) || !current?.launcher_controls || current.run !== run ||
+                (kind === 'reload' && !current.launcher_reload_command)) {
             throw new Error('Launcher changed; refresh before trying again.');
         }
         const result = await route.source.launcherCommand({ root: route.id, run, kind });

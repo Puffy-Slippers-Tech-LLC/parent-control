@@ -463,6 +463,8 @@ class Viewer:
                     kind = 'cancel-stop' if status == 'Stop Requested' else 'stop' if active or session.active else 'resume'
                     sections[-1]['launcher_action_command'] = shlex.join([f'tools/{name}',
                         *launcher_arguments(record, kind, execution_plan=output.execution_plan)])
+                    sections[-1]['launcher_reload_command'] = shlex.join([f'tools/{name}',
+                        *launcher_arguments(record, 'reload', execution_plan=output.execution_plan)])
             except (OSError, ValueError, AttributeError, TypeError):
                 sections[-1]['launcher_controls'] = False
         # Exiting one launcher must not remove its tabs while another checkout
@@ -695,7 +697,7 @@ def main():
                 if (set(request) - {'protocol', 'launcher_action'} or type(action) is not dict
                         or set(action) != {'root', 'run', 'kind'}
                         or any(type(value) is not str for value in action.values())
-                        or action['kind'] not in ('stop', 'cancel-stop', 'resume')):
+                        or action['kind'] not in ('stop', 'cancel-stop', 'resume', 'reload')):
                     raise ValueError('watch: invalid launcher action')
                 print(json.dumps(dict(protocol=1, launcher_result=viewer.launcher_command(action))), flush=True)
                 continue

@@ -39,7 +39,7 @@ nav button[aria-pressed="true"] {
 .run-titlebar { display: flex; flex: 1 1 0; min-width: min-content; align-items: flex-end; gap: 8px; }
 .run-label, .run-tab { font-size: var(--vscode-font-size); }
 .run-label {
-    flex: 1 1 8ch; width: 0; min-width: 8ch;
+    flex: 1 1 8ch; width: 0; min-width: calc(8ch + 32px);
 }
 .run-server { display: flex; align-items: center; gap: 4px; }
 .run-server svg {

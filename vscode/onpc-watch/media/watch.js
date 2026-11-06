@@ -3,6 +3,7 @@
 
 (() => {
     const vscode = acquireVsCodeApi();
+    initializeWatchErrors(vscode);
     const reportError = error => vscode.postMessage({ type: 'watchError',
         error: error instanceof Error ? error.stack || error.message : String(error) });
     window.addEventListener('error', event => reportError(event.error || event.message));

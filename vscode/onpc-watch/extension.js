@@ -7,7 +7,7 @@ const { spawn } = require('node:child_process');
 const { randomBytes } = require('node:crypto');
 const { fileURLToPath } = require('node:url');
 const { Bridge, configuration, resourceConfiguration } = require('./bridge');
-const { WatchErrors } = require('./errors');
+const { WatchErrors, errorDialog } = require('./errors');
 
 function checkout(folder) {
     if (folder.uri.scheme !== 'file') return undefined;
@@ -28,7 +28,7 @@ function html(webview, context) {
     const nonce = randomBytes(16).toString('hex');
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src ${webview.cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
         <link rel="stylesheet" href="${style}"><title>ONPC Watch</title></head>
         <body><div id="watch">
         <aside id="runs" aria-label="Run status across worktrees"><p class="empty" role="status">Waiting for tests…</p></aside>
@@ -48,6 +48,7 @@ function html(webview, context) {
         <footer><button id="restart" title="Reconnect to the watch backend">Reconnect</button>
         <span id="servers" aria-label="Server connection status"></span>
         <span id="resources"></span></footer>
+        ${errorDialog(nonce)}
         <script nonce="${nonce}" src="${script}"></script></body></html>`;
 }
 
@@ -115,6 +116,7 @@ function activate(context) {
                 localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')]
             });
         panels.set(root, panel);
+        errors.attach(panel);
         let bridge, timer, ready = false, rendering = false, renderedRevision = -1;
         let renderNumber = 0;
         let selection = { scope: 'all', selected: 'all' }, reset = true, disposed = false;

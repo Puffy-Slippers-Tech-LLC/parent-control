@@ -59,8 +59,9 @@ in that terminal. Repair queue Stop retains its scope without reselecting VMs.
 Older runs without saved parameters require one normal launch
 before this control becomes available.
 
-Watch infrastructure failures open a shared **ONPC Watch error** dialog in an
-editor tab. Its full diagnostic text is selectable and scrollable horizontally
+Watch infrastructure failures open a shared **ONPC Watch error** dialog over
+Watch, with the live view visible through a translucent gray backdrop. When no
+Watch tab is open, errors use a separate editor tab. Its full diagnostic text is selectable and scrollable horizontally
 and vertically; **Copy all** copies it, and **Close** dismisses it. Additional
 distinct errors append to the open dialog; identical failures do not reopen it,
 even after dismissal, for the rest of the VS Code session. Diagnostics also go

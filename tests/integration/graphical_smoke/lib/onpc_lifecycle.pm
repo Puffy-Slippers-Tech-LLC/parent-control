@@ -24,14 +24,19 @@ sub reopen {
 }
 
 sub app_restart_active {
-    onpc_progress::operation('Reopening the apps while the child keeps approved time and work');
-    my ($exchange, $declared, $challenges, $request) = @_;
-    die 'app-restart-active:binding' unless @_ == 4 && ref($exchange) eq 'CODE'
+    my ($exchange, $declared, $challenges, $request, $sign_out) = @_;
+    $sign_out //= 0;
+    onpc_progress::operation($sign_out
+        ? 'Signing each child out and back in with saved choices and approved time'
+        : 'Reopening the apps while the child keeps approved time and work');
+    die 'app-restart-active:binding' unless (@_ == 4 || @_ == 5) && ($sign_out == 0 || $sign_out == 1)
+        && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
     require onpc_app_rows;
     require onpc_desktop_session;
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'app-restart-active', review => 0);
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => $sign_out ? 'sign-out-in-active' : 'app-restart-active', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -57,6 +62,7 @@ sub app_restart_active {
     $enter->('setup-return', 'parent', 'retained');
     $select->('riley-setup', 'child');
     $journey->seen('riley-time');
+    $journey->seen('riley-policy-before') if $sign_out;
     $select->('jordan-setup', 'existing');
     $journey->seen($_) for qw(no-grant jordan-time);
     $leave->('setup-leave');
@@ -64,7 +70,19 @@ sub app_restart_active {
     $journey->seen($_) for qw(seed-riley-select seed-riley-parent seed-station-cancel seed-station-returned);
     $enter->('seed-riley', 'child', 'fresh');
     $journey->seen("seed-riley-form-$_") for qw(launch approver custom text apps read cancel returned);
+    if ($sign_out) {
+        $journey->seen($_) for qw(riley-animation-set riley-animation-read);
+        my $app = $journey->scope('riley-before-app');
+        onpc_app_rows::native_usable_app($app, 'command', $app->seen('desktop'), 'child', 'A');
+    }
     $leave->('seed-riley-leave');
+    if ($sign_out) {
+        $enter->('riley-policy-entry', 'parent', 'retained');
+        $select->('riley-policy-select', 'child');
+        $journey->seen('riley-policy-after');
+        $select->('riley-policy-finish', 'existing');
+        $leave->('riley-policy-leave');
+    }
     my $approval = $journey->scope('request');
     $approval->{kiosk_request} = [@$request];
     onpc_request_flow::prepare($approval, 'new', 'new', 'observed',
@@ -75,6 +93,7 @@ sub app_restart_active {
     $leave->('issued-leave');
     $enter->('original-entry', 'other-child', 'fresh');
     $journey->seen('original-countdown');
+    $journey->seen($_) for $sign_out ? qw(jordan-animation-set jordan-animation-read) : ();
     onpc_app_rows::native_activity_entry($journey, 'original', 'command', 'other-child', 1, 'policy');
     $journey->seen("jordan-$_") for qw(launch custom text apps read cancel returned);
     $leave->('original-leave');
@@ -82,9 +101,20 @@ sub app_restart_active {
     $journey->seen($_) for qw(capture-jordan capture-riley-select capture-riley capture-cancel capture-returned);
     $enter->('before-parent', 'parent', 'retained');
     $journey->seen('before-policy');
-    my $restart = $journey->scope('reopen');
-    reopen($restart, 'parent', $restart->seen('prior-window'), 'management');
-    $journey->seen('boundary-wait');
+    if ($sign_out) {
+        $leave->('boundary-parent-leave');
+        for my $binding (['jordan', 'other-child'], ['riley', 'child']) {
+            my ($child, $role) = @$binding;
+            $enter->("boundary-$child-entry", $role, 'retained');
+            my $section = $journey->scope("boundary-$child");
+            onpc_desktop_session::log_out($section, $section->seen('desktop'));
+        }
+        $enter->('boundary-parent-entry', 'parent', 'retained');
+    } else {
+        my $restart = $journey->scope('reopen');
+        reopen($restart, 'parent', $restart->seen('prior-window'), 'management');
+        $journey->seen('boundary-wait');
+    }
     $select->('returned-jordan', 'existing');
     $journey->seen('returned-policy');
     $select->('returned-riley', 'child');
@@ -93,16 +123,27 @@ sub app_restart_active {
     $leave->('returned-parent-leave');
     onpc_gdm::enter_station($journey->scope('returned-station'), '');
     $journey->seen($_) for qw(returned-riley returned-jordan-select returned-jordan returned-cancel returned-greeter);
-    $enter->('returned-riley-entry', 'child', 'retained');
+    $enter->('returned-riley-entry', 'child', $sign_out ? 'fresh' : 'retained');
+    $journey->seen('returned-riley-animation') if $sign_out;
     $journey->seen("returned-riley-form-$_") for qw(launch read cancel returned);
+    if ($sign_out) {
+        my $app = $journey->scope('riley-after-app');
+        onpc_app_rows::native_usable_app($app, 'command', $app->seen('desktop'), 'child', 'A');
+    }
     $leave->('returned-riley-leave');
     $enter->('final-parent', 'parent', 'retained');
     $journey->seen('final-policy');
     $leave->('final-parent-leave');
-    $enter->('returned-jordan-entry', 'other-child', 'retained');
+    $enter->('returned-jordan-entry', 'other-child', $sign_out ? 'fresh' : 'retained');
+    $journey->seen('returned-jordan-animation') if $sign_out;
     $journey->seen("returned-jordan-form-$_") for qw(launch read cancel returned);
-    onpc_app_rows::native_activity_resume($journey, 'resume');
-    $journey->seen($_) for qw(original-close original-closed);
+    if ($sign_out) {
+        my $app = $journey->scope('new-allowed');
+        onpc_app_rows::native_usable_app($app, 'command', $app->seen('desktop'), 'other-child');
+    } else {
+        onpc_app_rows::native_activity_resume($journey, 'resume');
+        $journey->seen($_) for qw(original-close original-closed);
+    }
     onpc_app_rows::native_blocked_app($journey->scope('hard'), 'H');
     my $soft = $journey->scope('soft');
     onpc_app_rows::native_usable_app($soft, 'command', $soft->seen('desktop'), 'other-child', 'unmatched-soft');

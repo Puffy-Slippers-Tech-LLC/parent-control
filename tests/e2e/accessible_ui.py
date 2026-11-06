@@ -737,7 +737,7 @@ GDM_DENIAL_OPERATIONS = frozenset({
 })
 NAMED_CHILD_OPERATIONS = (NAMED_CUSTOM_OPERATIONS | NAMED_TIME_OPERATIONS
                           | ALLOWANCE_KEYBOARD_OPERATIONS.keys() | RETAINED_PARENT_OPERATIONS
-                          | GDM_DENIAL_OPERATIONS | COUNTDOWN_OPERATIONS
+                          | GDM_DENIAL_OPERATIONS | COUNTDOWN_OPERATIONS | PANEL_ANIMATION_OPERATIONS
                           | {'revoke-balances', 'revoke-saved-balances', 'revoke-cleared-balances',
                              'revoke-open', 'revoke-warning', 'revoke-cancel', 'revoke-confirm'}
                           | {'parent-toggle-enabled', 'parent-toggle-disabled'})
@@ -6124,7 +6124,7 @@ class AccessibleUI:
                 'limit_enabled': toggle.get_state_set().contains(self.api.StateType.CHECKED),
                 'allowance': labels}
 
-    def set_toggle(self, identity, desired, *, root, diagnostic=False):
+    def set_toggle(self, identity, desired, *, root, diagnostic=False, child=CHILD):
         """UI17: set a registered owned switch to an explicit state."""
         require(identity in ('parent-screen-limit-toggle', 'kiosk-soft-apps-toggle',
                 'child-countdown-animation-toggle',
@@ -6133,7 +6133,7 @@ class AccessibleUI:
                 and type(desired) is bool,
                 'ui:toggle-binding')
         if identity == 'child-countdown-animation-toggle':
-            self.require_child_overlay_session()
+            self.require_child_overlay_session(child)
         # A complete lookup may legitimately omit a hidden GTK stack page.
         # Retry incomplete reads, but never wait for a missing input target to
         # appear or substitute another control.
@@ -8441,18 +8441,18 @@ class AccessibleUI:
             self.invalidate_observation()
         return self.wait(transition_read, 'natural-expiry-result', prompt_in_predicate=True)
 
-    def child_countdown_animation(self, desired=None):
+    def child_countdown_animation(self, desired=None, *, child=CHILD):
         """PANEL01/02: owned canonical preference, without popup navigation."""
         require(desired is None or type(desired) is bool, 'ui:panel-animation-binding')
-        self.require_child_overlay_session()
+        self.require_child_overlay_session(child)
         root = self.id_target('child-screen-time-indicator', showing=False)
         if desired is not None:
-            self.set_toggle('child-countdown-animation-toggle', desired, root=root)
+            self.set_toggle('child-countdown-animation-toggle', desired, root=root, child=child)
         value = self.get_value('child-countdown-animation-toggle')
         require(type(value) is bool and (desired is None or value is desired),
                 'ui:panel-animation-result')
         require_active_launch_session()
-        return {'child': 'fixture-child', 'surface': 'desktop', 'animation': value,
+        return {'child': CHILD_IDENTITIES[child], 'surface': 'desktop', 'animation': value,
                 'observed_monotonic_ns': time.monotonic_ns()}
 
     def child_countdown_menu(self):
@@ -14096,7 +14096,7 @@ class AccessibleUI:
                 or getattr(self, 'overlay_request', None) is not None else child)
         elif operation in PANEL_ANIMATION_OPERATIONS:
             desired = (None if operation.endswith('-read') else operation.endswith('-on'))
-            result['panel_animation'] = self.child_countdown_animation(desired)
+            result['panel_animation'] = self.child_countdown_animation(desired, child=child)
         elif operation == 'child-countdown-animation-wrong-account-refused':
             try:
                 self.child_countdown_animation(True)
@@ -14895,10 +14895,11 @@ def countdown_seconds(text):
     return int(text), int(text)
 
 
-def validate_panel_animation(value):
+def validate_panel_animation(value, *, child='fixture-child'):
     require(type(value) is dict and set(value) == {
         'child', 'surface', 'animation', 'observed_monotonic_ns'}
-        and value['child'] == 'fixture-child' and value['surface'] == 'desktop'
+        and child in ('fixture-child', 'existing-fixture-child')
+        and value['child'] == child and value['surface'] == 'desktop'
         and type(value['animation']) is bool
         and type(value['observed_monotonic_ns']) is int
         and value['observed_monotonic_ns'] > 0, 'ui:panel-animation-response')

@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **160 — [E2E-022: sign-out-in-active](E2E-Tasks/160-case-118.md)**.
+Next task: **161 — [E2E-022: sign-out-in-expired](E2E-Tasks/161-case-119.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

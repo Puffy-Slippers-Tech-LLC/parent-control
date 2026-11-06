@@ -19,6 +19,7 @@ use onpc_parent_access ();
 use onpc_parent_terminal ();
 use onpc_command_help ();
 use onpc_desktop_session ();
+use onpc_lifecycle ();
 use onpc_kiosk_entry ();
 use onpc_public_desktop_selection ();
 use onpc_station_shortcuts ();
@@ -1382,6 +1383,13 @@ sub run {
         require onpc_lifecycle;
         onpc_lifecycle::app_restart_active(\&exchange, $ready->{invocations},
             $ready->{challenge_bindings}, $ready->{kiosk_request});
+        return;
+    }
+    if ($ready->{sign_out_in_active}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_lifecycle::app_restart_active(\&exchange, $ready->{invocations},
+            $ready->{challenge_bindings}, $ready->{kiosk_request}, 1);
         return;
     }
     if ($ready->{app_restart}) {

@@ -2095,7 +2095,8 @@ class UiObservations:
                     accessible_ui.CHILD_IDENTITIES[accessible_ui.NAMED_CUSTOM_CHILDREN[child or 'child']])
         if operation in accessible_ui.PANEL_ANIMATION_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'panel_animation'}, 'ui:response')
-            value = accessible_ui.validate_panel_animation(result['panel_animation'])
+            value = accessible_ui.validate_panel_animation(result['panel_animation'],
+                child=accessible_ui.CHILD_IDENTITIES[accessible_ui.NAMED_CUSTOM_CHILDREN[child or 'child']])
             require(operation.endswith('-read') or value['animation'] is operation.endswith('-on'),
                     'ui:panel-animation-result')
             expected['panel_animation'] = value

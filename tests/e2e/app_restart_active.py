@@ -1,5 +1,6 @@
-"""Case 116: reopening the apps preserves choices, approved time and work."""
+"""Active-grant persistence across app reopening and fresh child sessions."""
 from copy import deepcopy
+from dataclasses import replace
 import time
 
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS, countdown_seconds
@@ -145,6 +146,91 @@ FORM_COMPARISONS = {
 }
 
 
+def logout(prefix, account):
+    role = 'standard' if account == 'other-child' else account
+    return prefixed_stages(prefix, {
+        'desktop': fresh_desktop(account)['desktop'],
+        'logout': f'system:{role}-logout', 'gdm-logged-out': 'ui:gdm-returned',
+    })
+
+
+# Both active lifecycle branches share their finite preparation and untouched
+# form comparisons. Sign-out invalidates child windows and uses fresh launches.
+SIGN_OUT_SETUP = {}
+for stage, tag in SETUP.items():
+    SIGN_OUT_SETUP[stage] = tag
+    if stage == 'riley-time':
+        SIGN_OUT_SETUP['riley-policy-before'] = 'ui:revoke-saved-balances'
+    elif stage == 'seed-riley-form-returned':
+        SIGN_OUT_SETUP.update({
+            'riley-animation-set': 'ui:child-countdown-animation-off',
+            'riley-animation-read': 'ui:child-countdown-animation-read',
+            **prefixed_stages('riley-before-app', native_usable_app('command', child='child', role='A')),
+        })
+    elif stage == 'seed-riley-leave-gdm-switched':
+        SIGN_OUT_SETUP.update({
+            **enter('riley-policy-entry', 'parent', 'retained'),
+            **prefixed_stages('riley-policy-select', parent_selection(screen_limits=True)),
+            'riley-policy-after': 'ui:revoke-saved-balances',
+            **prefixed_stages('riley-policy-finish', parent_selection(child='existing', screen_limits=True)),
+            **desktop_return('riley-policy-leave', account='parent'),
+        })
+    elif stage == 'original-countdown':
+        SIGN_OUT_SETUP.update({
+            'jordan-animation-set': 'ui:child-countdown-animation-on',
+            'jordan-animation-read': 'ui:child-countdown-animation-read',
+        })
+SIGN_OUT_BOUNDARY = {
+    **desktop_return('boundary-parent-leave', account='parent'),
+    **enter('boundary-jordan-entry', 'other-child', 'retained'),
+    **logout('boundary-jordan', 'other-child'),
+    **enter('boundary-riley-entry', 'child', 'retained'),
+    **logout('boundary-riley', 'child'),
+    **enter('boundary-parent-entry', 'parent', 'retained'),
+}
+SIGN_OUT_RETURN = {}
+for stage, tag in RETURN.items():
+    if stage in ('original-close', 'original-closed') or stage.startswith('resume-'):
+        continue
+    if stage.startswith(('returned-riley-entry-', 'returned-jordan-entry-')) and tag.endswith('-entry-retained'):
+        tag = tag.removesuffix('retained') + 'fresh'
+    SIGN_OUT_RETURN[stage] = ('ui:revoke-saved-balances'
+                              if stage == 'returned-riley-settings' else tag)
+    if stage == 'returned-riley-entry-desktop':
+        SIGN_OUT_RETURN['returned-riley-animation'] = 'ui:child-countdown-animation-read'
+    elif stage == 'returned-riley-form-returned':
+        SIGN_OUT_RETURN.update(prefixed_stages('riley-after-app',
+            native_usable_app('command', child='child', role='A')))
+    elif stage == 'returned-jordan-entry-desktop':
+        SIGN_OUT_RETURN['returned-jordan-animation'] = 'ui:child-countdown-animation-read'
+    elif stage == 'returned-jordan-form-returned':
+        SIGN_OUT_RETURN.update(prefixed_stages('new-allowed', native_usable_app('command')))
+SIGN_OUT_SCREENS = {**SIGN_OUT_SETUP, **SIGN_OUT_BOUNDARY, **SIGN_OUT_RETURN}
+SIGN_OUT_PLAN = replace(PLAN, prefix='sign-out-in-active', worker_mode='sign_out_in_active',
+    screen_tags=SIGN_OUT_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+        **{stage: 'step-1' for stage in SIGN_OUT_SETUP}, 'installed-greeter': 'start',
+        **{stage: 'step-2' for stage in SIGN_OUT_BOUNDARY},
+        **{stage: 'step-3' if index <= list(SIGN_OUT_RETURN).index('returned-policy') else 'step-4'
+           for index, stage in enumerate(SIGN_OUT_RETURN)}},
+    advance_after={'before-policy': 'step-2', 'boundary-parent-entry-desktop': 'step-3',
+                   'returned-policy': 'step-4'},
+    stage_actions={'desktop': 'native-verify'},
+    child_bindings={stage: ('child' if stage.startswith(('riley-', 'returned-riley-')) else 'existing')
+                    for stage, tag in SIGN_OUT_SCREENS.items()
+                    if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
+    invocations=tuple(stage for stage in SIGN_OUT_SCREENS if stage in {
+        prefix + '-' + leaf for prefix, role in LOGINS.items() for leaf in fresh_desktop(role)}),
+    challenges={prefix: (role, prefix + '-' +
+        ('recipient-qualified' if role == 'parent' else
+         'child-recipient-qualified' if role == 'child' else 'standard-recipient-qualified'),
+        prefix + '-' + ('recipient-rechecked' if role == 'parent' else
+         'child-recipient-rechecked' if role == 'child' else 'standard-recipient-rechecked'))
+        for prefix, role in LOGINS.items()},
+    activity_entries={}, activity_checks={},
+)
+
+
 class AppRestartActiveJourney(AppPolicyJourney):
     def __init__(self, context, progress, plan, *, actions=None):
         super().__init__(context, progress, plan, actions=actions)
@@ -153,6 +239,8 @@ class AppRestartActiveJourney(AppPolicyJourney):
         self.forms = {}
         self.original_balance = None
         self.final_balance = None
+        self.riley_policy = None
+        self.animations = {}
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
@@ -164,10 +252,25 @@ class AppRestartActiveJourney(AppPolicyJourney):
             self.approval_started = time.monotonic_ns()
         if stage in ('issued-policy', 'before-policy', 'returned-policy', 'final-policy'):
             self.check_policy(stage, observed)
-        if stage == 'returned-riley-settings':
+        if self.plan is SIGN_OUT_PLAN and stage in (
+                'riley-policy-before', 'riley-policy-after', 'returned-riley-settings'):
+            self.check_riley_policy(stage, observed)
+        elif stage == 'returned-riley-settings':
             require(observed['ui']['retained_parent']['settings'] == {
                 'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['30 minutes']},
                 'app-restart-active:riley-settings')
+        if self.plan is SIGN_OUT_PLAN and ('animation' in stage):
+            value = observed['ui']['panel_animation']
+            jordan = 'jordan' in stage
+            child = 'existing-fixture-child' if jordan else 'fixture-child'
+            require(value['child'] == child and value['animation'] is jordan,
+                    'sign-out-in-active:animation-choice')
+            require(stage not in self.animations, 'sign-out-in-active:animation-replay')
+            if not stage.endswith('-set'):
+                before = self.animations[('jordan' if jordan else 'riley') + '-animation-set']
+                require(value['observed_monotonic_ns'] > before['observed_monotonic_ns'],
+                        'sign-out-in-active:independent-animation-read')
+            self.animations[stage] = deepcopy(value)
         if stage in FORM_COMPARISONS or stage in FORM_COMPARISONS.values():
             value = RequestObservation.from_request(observed['ui']['request'],
                 operation=self.plan.screen_tags[stage][3:])
@@ -222,6 +325,30 @@ class AppRestartActiveJourney(AppPolicyJourney):
         if stage == 'final-policy':
             self.final_balance = (deepcopy(balances), bounds)
 
+    def check_riley_policy(self, stage, observed):
+        value = observed['ui']['revoke_cancel']
+        require(value['settings'] == {'child': 'fixture-child',
+            'limit_enabled': True, 'allowance': ['30 minutes']},
+            'sign-out-in-active:riley-settings')
+        saved = {key: deepcopy(value[key]) for key in ('settings', 'apps', 'rules')}
+        balances, bounds = value['balances'], tuple(self.ui.read_bounds)
+        require(balances['one_time']['seconds'] == 0 and balances['daily']['seconds'] >= 300
+                and abs(balances['total']['seconds'] - balances['daily']['seconds'])
+                    <= balances['total']['precision_seconds'], 'sign-out-in-active:riley-time')
+        if stage == 'riley-policy-before':
+            require(self.riley_policy is None, 'sign-out-in-active:riley-policy-replay')
+            self.riley_policy = (saved, deepcopy(balances), bounds)
+        else:
+            require(self.riley_policy is not None, 'sign-out-in-active:riley-policy-missing')
+            policy, before, earlier = self.riley_policy
+            elapsed = (bounds[1] - earlier[0]) / 1e9
+            tolerance = before['daily']['precision_seconds'] + balances['daily']['precision_seconds'] + 2
+            require(saved == policy and 0 < elapsed < 1800
+                    and before['daily']['seconds'] - elapsed - tolerance
+                        < balances['daily']['seconds'] <= before['daily']['seconds'] + tolerance,
+                    'sign-out-in-active:riley-policy-or-time-changed')
+            observed.setdefault('comparison', {})['riley_policy_and_elapsed_time_preserved'] = True
+
 
 def execute(recorder, context):
     record_installed_journey(recorder, context, PLAN, timeout=3000,
@@ -229,4 +356,12 @@ def execute(recorder, context):
         actions={**fixture_actions(include_refusal=False), 'real-interval': interval_action(2)})
 
 
-E2E_CASES = {'app-restart-active': execute}
+def execute_sign_out(recorder, context):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    context.fixture_subsets = ACTIVITY_SUBSETS
+    context.fixture_caller = 'E2E-022/sign-out-in-active'
+    record_installed_journey(recorder, context, SIGN_OUT_PLAN, timeout=3600,
+        journey_type=AppRestartActiveJourney, actions=fixture_actions(include_refusal=False))
+
+
+E2E_CASES = {'app-restart-active': execute, 'sign-out-in-active': execute_sign_out}

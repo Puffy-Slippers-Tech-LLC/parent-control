@@ -136,7 +136,7 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
                                  'grant-request', 'grant-wrong-scope', 'grant-wrong-child',
                                  'transition-request', 'transition-wrong-duration', 'revocation-request',
                                  'work-recovery', 'expired-recovery', 'kiosk-recovery', 'kiosk-recovery-wrong-scope',
-                                 'app-restart-request'])
+                                 'app-restart-request', 'sign-out-request'])
 def test_composed_kiosk_secret_scope_and_single_use(mode):
     # Execute the real password guard; replace only the secret delivery sink.
     # No password is supplied, and each isolated Perl process owns its latch.
@@ -145,13 +145,14 @@ def test_composed_kiosk_secret_scope_and_single_use(mode):
     from grant_work_recovery import INCLUDED_PLAN as RECOVERY_PLAN
     from panel_request_case import PLAN as PANEL_PLAN
     from kiosk_recovery import PLAN as KIOSK_PLAN
-    from app_restart_active import PLAN as RESTART_PLAN
+    from app_restart_active import PLAN as RESTART_PLAN, SIGN_OUT_PLAN
     from app_restart_expired import PLAN as EXPIRED_PLAN
     transition = [PLAN.prefix + '-soft-opening', 'soft-opening-', list(PLAN.kiosk_request)]
     revocation = [REVOCATION_PLAN.prefix + '-request', 'request-', list(REVOCATION_PLAN.kiosk_request)]
     recovery = [RECOVERY_PLAN.prefix, list(RECOVERY_PLAN.kiosk_request)]
     if mode == 'expired-recovery':
         recovery = [EXPIRED_PLAN.prefix, list(EXPIRED_PLAN.kiosk_request)]
+    restart = SIGN_OUT_PLAN if mode == 'sign-out-request' else RESTART_PLAN
     result = run_perl(r'''
 use strict;
 use warnings;
@@ -207,7 +208,7 @@ if ($mode eq 'revocation-request') {
     $first = bless {prefix => $revocation->[0], stage_prefix => $revocation->[1],
         kiosk_request => $revocation->[2], review => 0}, 'onpc_journey';
 }
-if ($mode eq 'app-restart-request') {
+if ($mode eq 'app-restart-request' || $mode eq 'sign-out-request') {
     $first = bless {prefix => $restart->[0] . '-request', stage_prefix => 'request-',
         kiosk_request => $restart->[1], review => 0}, 'onpc_journey';
 }
@@ -229,7 +230,7 @@ my $ok = eval {
         onpc_password::enter_kiosk_mate_password($return, 'bound-request');
     } elsif ($mode =~ /^profile-/) {
         onpc_password::enter_kiosk_mate_password($first, 'request-1200');
-    } elsif ($mode =~ /^(?:grant|transition|revocation|app-restart)-/) {
+    } elsif ($mode =~ /^(?:grant|transition|revocation|app-restart|sign-out)-/) {
         onpc_password::enter_kiosk_mate_password($first, 'bound-request');
     } else {
         onpc_password::enter_kiosk_mate_password($first, 'bound-request');
@@ -240,7 +241,7 @@ my $ok = eval {
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
 ''', mode, json.dumps(transition), json.dumps(revocation), json.dumps(recovery),
         PANEL_PLAN.prefix, KIOSK_PLAN.prefix,
-        json.dumps([RESTART_PLAN.prefix, list(RESTART_PLAN.kiosk_request)]))
+        json.dumps([restart.prefix, list(restart.kiosk_request)]))
     value = json.loads(result.stdout)
     deliveries = [event for event in value['events'] if event[0] == 'delivery']
     if mode == 'kiosk-recovery':
@@ -263,7 +264,8 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
         assert [event for event in value['events'] if event[0] == 'proof'] == [
             ['proof', request + '-approval-' + proof]
             for request in ('first', 'second') for proof in ('qualified', 'rechecked')]
-    elif mode in ('grant-request', 'transition-request', 'revocation-request', 'app-restart-request'):
+    elif mode in ('grant-request', 'transition-request', 'revocation-request', 'app-restart-request',
+                  'sign-out-request'):
         assert value['ok'] == 1
         scope = 'soft-opening' if mode == 'transition-request' else 'request'
         assert deliveries == [['delivery', 'parent', scope + '-kiosk-mate-approval']]

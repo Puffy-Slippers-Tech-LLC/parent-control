@@ -827,6 +827,13 @@ sub run {
                             'disabled', 'command', 'hard-blocked');
         return;
     }
+    if ($ready->{flatpak_grid_allowed}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
+                            'enabled', 'grid', 'allowed', 'flatpak');
+        return;
+    }
     for my $binding (
         ['flatpak_command_allowed', 'enabled', 'allowed'],
         ['flatpak_command_allowed_disabled', 'disabled', 'allowed'],

@@ -226,7 +226,8 @@ FLATPAK_APP_BINDINGS.update({
 FLATPAK_APP_BINDINGS['flatpak-allowed-command-blocked'] = ('A', 'primary', 'command-blocked')
 FLATPAK_APP_OPERATIONS = frozenset(FLATPAK_APP_BINDINGS) | {'flatpak-command-refusals'}
 RILEY_FLATPAK_OPERATIONS = frozenset('overlay-flatpak-allowed-' + action for action in
-    ('desktop', 'command-launch', 'opened', 'submit', 'submitted'))
+    ('desktop', 'command-launch', 'search-ready', 'search-focused', 'search-entered',
+     'grid', 'opened', 'submit', 'submitted'))
 FLATPAK_APP_BINDINGS.update({operation: ('A', 'primary', operation.removeprefix('overlay-flatpak-allowed-'))
                              for operation in RILEY_FLATPAK_OPERATIONS})
 PACKAGED_APP_BINDINGS = {**SNAP_APP_BINDINGS, **FLATPAK_APP_BINDINGS}
@@ -13337,7 +13338,7 @@ class AccessibleUI:
         elif action == 'search-entered':
             self.wait_search(lambda: self.search_query(products[role]), kind + '-search-query')
         elif action == 'grid':
-            if operation in RILEY_SNAP_OPERATIONS:
+            if operation in RILEY_SNAP_OPERATIONS | RILEY_FLATPAK_OPERATIONS:
                 self.require_child_overlay_session()
             else:
                 require_active_launch_session()

@@ -1240,6 +1240,15 @@ Jordan logs out, Riley enters fresh and launches and uses the same package.
 Riley's policy and disabled time limits remain untouched. There is no approval,
 match-editor visit, launcher-visibility assertion or alternate route.
 
+Case 98 uses `flatpak_app_launch.GRID_PLAN` / `onpc_app_launch::run` with the
+enabled, Allowed Flatpak grid binding. FIX06 verifies the default system
+installation, runtime, app commits and exported launchers. Parent gives Jordan
+30 daily minutes with zero grant, saves A's Allowed access and independently
+reads its saved row. Fresh Jordan and then fresh Riley each find and open the
+same Flatpak A from the app grid, submit the normal draft and independently
+read the owned window and submitted result. Riley's policy and disabled limits
+remain untouched. There is no approval or alternate launch route.
+
 Case 104 uses `flatpak_app_launch.PLAN` / `onpc_app_launch::run` with the enabled,
 Allowed Flatpak command binding. FIX06 verifies the default system installation,
 runtime, app commits and exported launchers. Parent gives Jordan 30 daily minutes

@@ -12,7 +12,7 @@ JORDAN_ENTRY = prefixed_stages('jordan-entry', desktop_entry('other-child', sour
 RILEY_ENTRY = prefixed_stages('riley-entry', desktop_entry('child', source='gdm', entry='fresh'))
 
 
-def command_plan(*, limits=True, rule='allowed'):
+def launch_plan(route='command', *, limits=True, rule='allowed'):
     access = {'allowed': 'allowed', 'hard': 'permanent', 'soft': 'conditional'}[rule]
     policy = 'allowed' if rule == 'allowed' else rule + '-blocked'
     blocked = rule != 'allowed'
@@ -25,16 +25,16 @@ def command_plan(*, limits=True, rule='allowed'):
     jordan = {
         'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
         **({'jordan-denied-command': 'ui:flatpak-allowed-command-blocked'} if blocked else
-           prefixed_stages('jordan-use', native_usable_app('command', kind='flatpak', role='A'))),
+           prefixed_stages('jordan-use', native_usable_app(route, kind='flatpak', role='A'))),
     }
     riley = {
         'jordan-logout': 'system:standard-logout', **RILEY_ENTRY,
         **prefixed_stages('riley-use', native_usable_app(
-            'command', kind='flatpak', role='A', child='child')),
+            route, kind='flatpak', role='A', child='child')),
     }
     return JourneyPlan(
-        prefix='flatpak-command-' + policy,
-        worker_mode='flatpak_command_' + policy.replace('-', '_')
+        prefix='flatpak-' + route + '-' + policy,
+        worker_mode='flatpak_' + route + '_' + policy.replace('-', '_')
                     + ('' if limits else '_disabled'),
         screen_tags={**setup, **jordan, **riley},
         phases={'ready': 'setup', 'setup-detached': 'setup',
@@ -62,12 +62,13 @@ def command_plan(*, limits=True, rule='allowed'):
     )
 
 
-PLAN = command_plan()
-DISABLED_PLAN = command_plan(limits=False)
-HARD_COMMAND_PLAN = command_plan(rule='hard')
-HARD_COMMAND_DISABLED_PLAN = command_plan(limits=False, rule='hard')
-SOFT_COMMAND_PLAN = command_plan(rule='soft')
-SOFT_COMMAND_DISABLED_PLAN = command_plan(limits=False, rule='soft')
+PLAN = launch_plan()
+GRID_PLAN = launch_plan('grid')
+DISABLED_PLAN = launch_plan(limits=False)
+HARD_COMMAND_PLAN = launch_plan(rule='hard')
+HARD_COMMAND_DISABLED_PLAN = launch_plan(limits=False, rule='hard')
+SOFT_COMMAND_PLAN = launch_plan(rule='soft')
+SOFT_COMMAND_DISABLED_PLAN = launch_plan(limits=False, rule='soft')
 
 
 def execute(recorder, context, *, plan=PLAN):
@@ -77,6 +78,7 @@ def execute(recorder, context, *, plan=PLAN):
 
 
 E2E_CASES = {'flatpak-command-allowed-enabled': execute,
+             'flatpak-grid-allowed-enabled': partial(execute, plan=GRID_PLAN),
              'flatpak-command-allowed-disabled': partial(execute, plan=DISABLED_PLAN),
              'flatpak-command-hard-blocked-enabled': partial(execute, plan=HARD_COMMAND_PLAN),
              'flatpak-command-hard-blocked-disabled': partial(execute, plan=HARD_COMMAND_DISABLED_PLAN),

@@ -3887,6 +3887,19 @@ through `native_usable_app('command', kind='snap', role='A', child='child')`.
 Its `snap_app_launch.PLAN` / `onpc_app_launch::run(..., 'enabled', 'command',
 'allowed', 'snap')` composition independently reads Jordan's saved Allowed Snap
 row before both children's fresh entry and use. Collection, worker shutdown,
+Case 98 (`flatpak_app_launch.GRID_PLAN` / `onpc_app_launch::run`) passed on
+Ubuntu 26.04 in `scenario-5ed92cfda3ba49ee91e49347619fac66`. Parent saved
+Jordan's 30-minute daily allowance with zero grant and independently read A's
+Allowed row. Fresh Jordan and Riley each opened the same system Flatpak A from
+the grid and submitted the normal draft, with independent owned-window and
+submitted-result reads. This adds Riley's A/primary grid binding through
+`native_usable_app('grid', kind='flatpak', role='A', child='child')`, preserving
+the shared account, exact-launcher, recipient and uncertain-input guards.
+The affected command case 104 passed in
+`scenario-195d328b275f4bf0bec33b68f619f643`. Both runs passed collection,
+worker shutdown, owned cleanup and baseline restoration; coverage was refreshed
+after each case and the VM was observed off. Other grid rules remain separate.
+
 owned cleanup and baseline restoration passed. Affected native-command case 81
 passed separately on the same target; coverage was refreshed after each case.
 Case 93 qualified the limits-off composition through

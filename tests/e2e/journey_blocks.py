@@ -227,7 +227,7 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
             'journey:fixture-binding')
     if kind == 'flatpak':
         require((route == 'command' or instance == 'primary') and (child == 'other-child'
-                or child == 'child' and role == 'A' and instance == 'primary' and route == 'command') and role in ('A', 'H', 'S')
+                or child == 'child' and role == 'A' and instance == 'primary') and role in ('A', 'H', 'S')
                 and type(desktop_observation) is bool and instance in ('primary', 'secondary')
                 and (instance == 'primary' or role == 'S'), 'journey:flatpak-binding')
         name = {'A': 'allowed', 'H': 'hard', 'S': 'soft'}[role]

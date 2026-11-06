@@ -128,7 +128,10 @@ def _snap_target(entry, executable: str):
     if not command.is_symlink():
         LOG.warning("catalog.003")
         return None
-    if os.path.realpath(command) not in SNAP_LAUNCHERS or not command.is_file():
+    # Some distributions make /usr/bin/snap itself a symlink to snapd.
+    # Compare both resolved identities, retaining the public command below.
+    if (os.path.realpath(command) not in {os.path.realpath(path) for path in SNAP_LAUNCHERS}
+            or not command.is_file()):
         LOG.warning("catalog.004")
         return None
     LOG.debug("catalog.005")

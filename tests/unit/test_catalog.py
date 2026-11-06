@@ -170,9 +170,20 @@ class CatalogTests(unittest.TestCase):
                 application = _application(
                     launcher, "thunderbird_thunderbird.desktop", root,
                 )
+                # Ubuntu's public snap launcher can itself point to snapd;
+                # Fedora's direct launcher above must retain the same identity.
+                snap_daemon = root / "usr/lib/snapd/snapd"
+                snap_daemon.parent.mkdir(parents=True)
+                snap_daemon.touch()
+                snap_binary.unlink()
+                snap_binary.symlink_to(snap_daemon)
+                linked_application = _application(
+                    launcher, "thunderbird_thunderbird.desktop", root,
+                )
 
         self.assertEqual(application["name"], "Thunderbird Mail")
         self.assertEqual(application["targets"], (str(command),))
+        self.assertEqual(linked_application, application)
 
     def test_snap_metadata_does_not_bless_an_unrelated_symlink(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -587,9 +587,9 @@ class AppActivityObservation:
 
 
 def compare_app_activity(observed, expected, *, result='same'):
-    """UI12: compare explicit observations; replacement never proves retention."""
+    """UI12: compare explicit observations; separate windows never prove retention."""
     require(type(observed) is AppActivityObservation and type(expected) is AppActivityObservation
-            and result in ('same', 'replaced', 'closed'), 'ui:app-comparison-binding')
+            and result in ('same', 'replaced', 'closed', 'separate'), 'ui:app-comparison-binding')
     if result == 'closed':
         require(observed.binding == expected.binding and expected.pid is not None
                 and expected.owner is not None and observed.owner == expected.owner,
@@ -600,6 +600,10 @@ def compare_app_activity(observed, expected, *, result='same'):
     require(observed.pid is not None and expected.pid is not None,
             'ui:app-comparison-binding')
     require(observed.owner == expected.owner, 'ui:app-activity-owner-changed')
+    if result == 'separate':
+        require(observed.pid != expected.pid and observed.endpoint != expected.endpoint,
+                'ui:app-windows-not-separate')
+        return {'separate_window': True, 'outcome': 'passed'}
     same_window = (observed.binding, observed.pid, observed.endpoint) == (
         expected.binding, expected.pid, expected.endpoint)
     require(same_window if result == 'same' else not same_window, 'ui:app-window-changed')

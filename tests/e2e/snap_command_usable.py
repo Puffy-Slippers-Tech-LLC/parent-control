@@ -2,7 +2,7 @@
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop, native_usable_app
 from snap_fixtures import fixture_actions
-from private_artifacts import require
+from ui_observations import compare_app_activity
 
 
 SCREENS = {
@@ -48,8 +48,6 @@ class SnapCommandJourney(InstalledJourney):
     def check_activity(self, stage, observed):
         super().check_activity(stage, observed)
         if stage == 'soft-second-capture':
-            first = self.activity_observations['soft-capture']
-            second = self.activity_observations[stage]
-            require(first.pid != second.pid and first.endpoint != second.endpoint,
-                    'snap:separate-window')
-            observed['comparison'] = {'separate_window': True, 'outcome': 'passed'}
+            observed['comparison'] = compare_app_activity(
+                self.activity_observations[stage], self.activity_observations['soft-capture'],
+                result='separate')

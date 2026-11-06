@@ -560,11 +560,11 @@ class InstalledJourney:
     def check_activity(self, stage, observed):
         """Capture/compare before the worker can receive a durable reply."""
         operation = self.plan.screen_tags.get(stage, '')[3:]
-        snap = accessible_ui.PACKAGED_APP_BINDINGS.get(operation)
-        if snap is not None and snap[2] == 'activity':
+        packaged = accessible_ui.PACKAGED_APP_BINDINGS.get(operation)
+        if packaged is not None and packaged[2] == 'activity':
             require(stage not in self.activity_observations, 'ui:app-activity-replay')
             current = AppActivityObservation.from_value(observed.get('ui', {}).get('activity'),
-                binding=('flatpak-' if operation in accessible_ui.FLATPAK_APP_BINDINGS else 'snap-') + snap[1])
+                binding=('flatpak-' if operation in accessible_ui.FLATPAK_APP_BINDINGS else 'snap-') + packaged[1])
             if stage in self.plan.activity_checks:
                 earlier, result = self.plan.activity_checks[stage]
                 require(earlier in self.activity_observations, 'ui:missing-app-activity')

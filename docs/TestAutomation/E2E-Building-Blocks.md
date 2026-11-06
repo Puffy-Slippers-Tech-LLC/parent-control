@@ -3698,6 +3698,15 @@ offline capture verifies the installed package digests. Preparation retires the
 copied builder/runtime sources and transfer bytes before capture. Installed Snap
 packages remain baseline-owned prerequisites rather than FIX04 transfer inputs.
 
+The Snap fixture launchers declare `SingleMainWindow=false`, matching the GUI's
+separate-process windows. Keep this standard desktop key in the shared builder
+and verify it with current pinned package inputs. GNOME can otherwise classify
+a running GTK fixture as single-window and make Ctrl+Enter activate its existing
+window. Investigate with the earlier draft still open, and load changed launcher
+metadata before the child desktop starts; editing it under a running Shell can
+leave its cached capability unchanged. Historical packages retain their exact
+receipt/digest checks before baseline reconciliation replaces them.
+
 [SnapFixtures](../../tests/e2e/snap_fixtures.py) independently reads active package
 digests, actual confinement, system scope and installed launcher identities after
 restore. It never installs or repairs. `check_e2e_snap_fixtures` composes that
@@ -3854,6 +3863,11 @@ Affected native grid/command case 62 and Allowed Snap command case 92 passed on
 the same target. Collection, callback/worker shutdown, owned cleanup and baseline
 restoration passed; the VM was observed off. No fixture or baseline input change
 was needed.
+
+The same grid binding is also qualified on Ubuntu 26.04 through
+`check_e2e_snap_grid`, with the explicit multiwindow launcher declaration and
+Overview-scoped search lookup. The separate S windows and preserved earlier
+draft passed through the shared activity comparisons.
 
 Case 86's `snap_app_launch.GRID_PLAN` / `onpc_app_launch::run(..., 'enabled',
 'grid', 'allowed', 'snap')` adds Riley's finite Allowed A grid binding through
@@ -5549,6 +5563,19 @@ product-result ownership. Unrelated Terminal result refuses. Current composition
 types the full query once and closes Overview directly after result verification;
 first-character/empty-query checkpoints are not required. This route alone does
 not qualify launch or standard-account unavailability.
+
+The semantic Shell launcher lookup is confined to the unique showing `Overview`
+panel within the already bound Shell owner. A running app can also expose a
+same-name dock button outside that panel; it is not a search result. Keep this
+surface restriction in `AccessibleUI.launchable_result` for all consumers, and
+retain ambiguity rejection within Overview. Diagnose repeated-launch failures
+with the original window still open so that these distinct targets remain
+observable; do not select the first matching Shell button.
+
+The current `check_e2e_shell_search` wrapper qualifies this lookup on Ubuntu
+26.04 through both Parent search-launch entries and the standard child's
+unavailable management search. `check_e2e_snap_grid` covers the running-app
+search with the original fixture window still open.
 
 Standard entry connects only to the canonical other-child's owned bus. GDM07
 uses intended-account selection with two fresh standard-specific recipient proofs;

@@ -289,6 +289,22 @@ supplies snapshot infrastructure acceptance only.
 
 ## Host and guest boundaries
 
+Declare a qualification's `fixture_subsets` and `fixture_caller`, or the case
+context's matching fields, before shared attempt preparation when a journey
+needs more than the default native closure.
+Use the qualified profiles in
+[e2e_fixture_preparation.py](../integration/e2e_fixture_preparation.py), including
+`ACTIVITY_SUBSETS` for retained native work. Attaching a desktop worker does not
+provision extra files; pass that existing fixture context to `run_attached`.
+Check this declaration before diagnosing a missing activity fixture as a launch
+or product failure. Preserve the finite caller allowlist and readiness refusals.
+
+Snap and Flatpak separate-window checks reuse
+`ui_observations.compare_app_activity(result='separate')` on their immutable
+captures. It requires both different processes and different public endpoints;
+the caller keeps the capture order and the later original-window preservation
+comparison. A replacement check alone cannot establish two distinct windows.
+
 `product_logs.py` owns the guest reader and pytest snapshots;
 `vm_transport.Transport.capture_product_logs` owns host transfer before shutdown.
 Keep host transport imports out of staged guest readers: `guest_inputs.Bundle`

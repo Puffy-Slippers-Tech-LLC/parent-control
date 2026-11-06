@@ -349,7 +349,7 @@ def _build_snap(output: Path, runtime: Path, triplet: str, loader: Path) -> None
     (stage / 'bin/gui').chmod(0o755)
     _write_text(stage / 'meta/gui/onpc-test-application.desktop',
         '[Desktop Entry]\nType=Application\nName=ONPC Snap Test Application\n'
-        'Exec=onpc-test-application\nTerminal=false\n')
+        'Exec=onpc-test-application\nTerminal=false\nSingleMainWindow=false\n')
     _run(['snap', 'pack', '--check-skeleton', str(stage)])
     _set_reproducible_times(stage)
     # The package builder supplies SOURCE_DATE_EPOCH, but squashfs-tools rejects
@@ -369,7 +369,7 @@ def _build_snap(output: Path, runtime: Path, triplet: str, loader: Path) -> None
             previous.unlink()
         _write_text(stage / f'meta/gui/{name}.desktop',
             f'[Desktop Entry]\nType=Application\nName={title}\n'
-            f'Exec={name}\nTerminal=false\n')
+            f'Exec={name}\nTerminal=false\nSingleMainWindow=false\n')
         _write_text(stage / 'fixture-role', role + '\n')
         _run(['snap', 'pack', '--check-skeleton', str(stage)])
         _set_reproducible_times(stage)

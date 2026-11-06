@@ -2,7 +2,7 @@
 from installed_journey import JourneyPlan
 from journey_blocks import app_policy_entry, fresh_desktop, native_usable_app, prefixed_stages
 from snap_fixtures import SnapFixtureJourney
-from private_artifacts import require
+from ui_observations import compare_app_activity
 
 
 SCREENS = {
@@ -50,8 +50,6 @@ class SnapGridJourney(SnapFixtureJourney):
     def check_activity(self, stage, observed):
         super().check_activity(stage, observed)
         if stage == 'soft-capture':
-            first = self.activity_observations['earlier-capture']
-            second = self.activity_observations[stage]
-            require(first.pid != second.pid and first.endpoint != second.endpoint,
-                    'snap:grid-separate-window')
-            observed['comparison'] = {'separate_window': True, 'outcome': 'passed'}
+            observed['comparison'] = compare_app_activity(
+                self.activity_observations[stage], self.activity_observations['earlier-capture'],
+                result='separate')

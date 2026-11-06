@@ -28,7 +28,7 @@ def read_password():
     """Read one literal assignment for the caller, never an environment password."""
     try:
         uid = os.getuid()
-        if uid == 0:
+        if uid == 0 or os.geteuid() == 0:
             # Installed dispatchers preserve the authenticated caller while
             # deliberately setting HOME=/root. Never use root's credential.
             caller = os.environ.get('PKEXEC_UID', '')

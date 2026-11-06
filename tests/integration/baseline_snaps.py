@@ -190,6 +190,11 @@ def package_readback(name, row, *, expected=None, title=None):
             and sum(command.count(path) for path in command_paths) == 1
             and not entry.getboolean('Hidden', fallback=False)
             and not entry.getboolean('NoDisplay', fallback=False), 'launcher')
+    # Pinned current inputs must advertise their real multiwindow support.
+    # Historical packages are inspected without expected bytes during guarded
+    # reconciliation, before their recorded digest authorizes replacement.
+    require(expected is None or entry.get('SingleMainWindow') == 'false',
+            'launcher-multi-window')
     active = daemon_snap(name)
     require(all(active.get(key) == value for key, value in {
         'name': name, 'version': assets.VERSION, 'revision': revision, 'status': 'active',

@@ -7811,6 +7811,15 @@ class AccessibleUI:
             if owner is None:
                 return None
             scoped = self.snapshot_scope(nodes, snapshot, owner)
+            # Running apps also have Shell-owned dock buttons with the same
+            # name. Only Overview owns this search result; a dock button cannot
+            # authorize search input, even when it is showing and sensitive.
+            overviews = [node for node in scoped if facts[node]['role'] == 'panel'
+                         and facts[node]['name'] == 'Overview' and facts[node]['showing']]
+            require(len(overviews) <= 1, 'ui:shell-overview-ambiguous')
+            if not overviews:
+                return None
+            scoped = self.snapshot_scope(nodes, snapshot, overviews[0])
             candidates = []
             for node in scoped:
                 if (facts[node]['role'] not in ('button', 'push button')

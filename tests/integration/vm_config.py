@@ -82,9 +82,10 @@ def read_document(path=None):
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise ValueError('vm-config:unreadable; check config/environment.json') from error
     if (not isinstance(document, dict) or not {'families'} <= set(document) or
-            not set(document) <= {'families', 'concurrency', 'backup_root', 'hosts', 'branches', 'launchers'} or
+            not set(document) <= {'families', 'concurrency', 'backup_root', 'hosts', 'branches', 'launchers', 'agent'} or
             not isinstance(document['families'], list) or not document['families']):
         raise ValueError('vm-config:fields')
+    # Reserved agent metadata is accepted but does not select an agent yet.
     if 'backup_root' in document:
         absolute_path(document['backup_root'], 'backup_root')
     host_registry(document)

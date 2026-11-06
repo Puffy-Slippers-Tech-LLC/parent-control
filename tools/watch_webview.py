@@ -498,7 +498,7 @@ class Viewer:
                 name, argv = record.get('launcher'), record.get('argv')
                 if (sections[-1]['launcher_controls'] and isinstance(name, str)
                         and isinstance(argv, list) and all(isinstance(arg, str) for arg in argv)):
-                    sections[-1]['launcher_command'] = shlex.join([f'tools/{name}', *argv])
+                    sections[-1]['launcher_command'] = shlex.join([f'tools/{name}', '--branch', branch, *argv])
                     kind = 'cancel-stop' if status == 'Stop Requested' else 'stop' if active or session.active else 'resume'
                     sections[-1]['launcher_action_command'] = shlex.join([f'tools/{name}',
                         *launcher_arguments(record, kind, execution_plan=output.execution_plan)])

@@ -102,7 +102,9 @@ shortened title with its action buttons and the widest tab below it. Hover over 
 launcher title to see its saved command with all parameters, including
 argument quoting. The title remains a short `[branch] launcher (status)` link.
 Clicking copies the full runnable command with its saved parameters, such as
-`tools/write-e2e <parameters>`, relative to the repository root. Older runs without
+`tools/write-e2e --branch worktree <parameters>`, relative to the repository root.
+The explicit branch selects the displayed launcher's checkout even when run from
+`main`. Older runs without
 saved parameters show only the plain title.
 The name comes from the launcher's `current.json`
 publication, including custom plan launcher names. Older runs without a published

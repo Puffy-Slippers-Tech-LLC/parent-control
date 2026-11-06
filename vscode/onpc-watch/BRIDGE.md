@@ -169,6 +169,8 @@ Runs may publish optional `launcher_controls: true` when their original public
 command parameters are retained. Older adapters/runs leave controls disabled.
 Optional `launcher_command` is a display-only string containing the saved public
 command and all arguments, shell-quoted for the launcher title and hover tooltip.
+It includes `--branch NAME` for the displayed checkout so copying the command
+preserves its destination when invoked from another configured checkout.
 Clicking the title copies this string to the clipboard; it never executes it.
 Optional `launcher_action_command` contains the resolved public command for the
 current stop, cancel-stop or resume button's hover tooltip.

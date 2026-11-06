@@ -1561,6 +1561,10 @@ class UiObservations:
         # previews even for product-free GDM observations before installation.
         # Every product value still comes from the live Application UI service.
         program = guest_ui_program()
+        if operation == 'gdm-returned':
+            # Keep privilege/session reacquisition inside the existing guarded
+            # guest command, with one deadline and no retry of input operations.
+            program = 'GREETER_RETURN_PROGRAM = ' + repr(program) + '\n' + program
         version = json.loads((system.ROOT / 'data/app.json').read_bytes())['version']
         self.boot_proof = None
         binding = []

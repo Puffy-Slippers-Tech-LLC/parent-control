@@ -14937,7 +14937,8 @@ def validate_shell_metadata(value):
     return value
 
 
-def greeter_account(*, station_branch=False, station_required=False, timeout=None):
+def greeter_account(*, station_branch=False, station_required=False, timeout=None,
+                    deadline=None, identity=False, wait=True):
     """Resolve the sole active local greeter via public logind session metadata.
 
     Modern GDM can use a dynamic account instead of the legacy gdm UID. This
@@ -14947,9 +14948,11 @@ def greeter_account(*, station_branch=False, station_required=False, timeout=Non
     # enter here directly after SSH, without the former setup boot-complete
     # wait. Observe the public greeter within its own finite boot budget.
     require(not station_required or station_branch, 'ui:station-account-binding')
+    require(not identity or not station_branch, 'ui:greeter-identity-binding')
     started = time.monotonic()
     require(timeout is None or timeout == 120, 'ui:greeter-timeout-binding')
-    deadline = started + (timeout if timeout is not None else 90 if station_branch else 300)
+    limit = started + (timeout if timeout is not None else 90 if station_branch else 300)
+    deadline = min(deadline, limit) if deadline is not None else limit
     last_scan = []
 
     def check_deadline(remaining):
@@ -15020,7 +15023,7 @@ def greeter_account(*, station_branch=False, station_required=False, timeout=Non
                             'ui:station-branch-owner')
                     found.append((uid, owner))
                 else:
-                    found.append(uid)
+                    found.append((session, uid) if identity else uid)
         else:
             last_scan = scan  # Never retain a partial inventory as complete evidence.
         require(len(found) <= 1, 'ui:greeter-identity')
@@ -15029,7 +15032,14 @@ def greeter_account(*, station_branch=False, station_required=False, timeout=Non
         if found and not (station_required and found[0][1] != 'station'):
             if station_branch:
                 return pwd.getpwuid(found[0][0]), found[0][1]
+            if identity:
+                # Dynamic accounts can disappear immediately after logind's
+                # scan. Discovery does not need NSS; resolve only in the
+                # disposable observer, then revalidate before accepting it.
+                return found[0]
             return pwd.getpwuid(found[0])
+        if not wait:
+            return None
         # SSH can become ready before GDM after an installed snapshot boots.
         # Repeat only confirmed absence, never ambiguity or an unresolved read.
         time.sleep(min(.2, remaining))
@@ -15581,6 +15591,65 @@ def crash_report_diagnostic(directory='/var/crash'):
     return diagnostic
 
 
+def greeter_return_binding(deadline):
+    """One current logind/session-bus binding, or confirmed absence."""
+    selected = greeter_account(deadline=deadline, identity=True, wait=False)
+    if selected is None:
+        return None
+    _session, uid = selected
+    runtime = Path('/run/user') / str(uid)
+    try:
+        directory, bus = runtime.lstat(), (runtime / 'bus').lstat()
+    except FileNotFoundError:
+        return None
+    require(stat.S_ISDIR(directory.st_mode) and directory.st_uid == uid,
+            'ui:runtime-owner')
+    require(stat.S_ISSOCK(bus.st_mode) and bus.st_uid == uid,
+            'ui:session-bus')
+    return (*selected, directory.st_dev, directory.st_ino, bus.st_dev, bus.st_ino)
+
+
+def wait_for_greeter_return(program):
+    """Reacquire only this read-only observation, under one overall deadline.
+
+    Each disposable observer permanently drops privileges to its newly selected
+    account. Its result is accepted only while the same logind session and owned
+    socket remain current. No input or credential operation uses this retry path.
+    """
+    require(os.geteuid() == 0 and sys.argv[1] == 'gdm-returned', 'ui:greeter-read-binding')
+    # Preserve the existing 300s identity + 20s socket + 45s UI allowance,
+    # while making every discovery/read consume the same finite budget.
+    deadline = time.monotonic() + 365
+    last = None
+    while time.monotonic() < deadline:
+        binding = greeter_return_binding(deadline)
+        if binding is not None:
+            source = ('GREETER_RETURN_BINDING = ' + repr(binding) + '\n' + program)
+            try:
+                last = subprocess.run(['/usr/bin/python3', '-I', '-', *sys.argv[1:]],
+                    input=source.encode(), capture_output=True,
+                    timeout=max(.001, deadline - time.monotonic()))
+            except subprocess.TimeoutExpired as error:
+                if error.stderr:
+                    sys.stderr.buffer.write(error.stderr)
+                break
+            current = greeter_return_binding(deadline)
+            if current == binding and last.returncode not in (0, 75):
+                sys.stderr.buffer.write(last.stderr)
+                raise SystemExit(last.returncode)
+            if last.returncode == 0 and current == binding:
+                require(0 < len(last.stdout) <= 2048, 'ui:response-size')
+                sys.stderr.buffer.write(last.stderr)
+                sys.stdout.buffer.write(last.stdout)
+                return
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            time.sleep(min(.2, remaining))
+    if last is not None:
+        sys.stderr.buffer.write(last.stderr)
+    raise UiError('ui:timeout:greeter-return')
+
+
 def main():
     kiosk_request = None
     if len(sys.argv) >= 5 and sys.argv[-2] == '--kiosk-request':
@@ -15618,6 +15687,13 @@ def main():
                 'ui:boot-identity')
         boot = hashlib.sha256(raw).hexdigest()
         require(not expected or expected == boot, 'ui:boot-changed')
+    if sys.argv[1] == 'gdm-returned' and 'GREETER_RETURN_PROGRAM' in globals():
+        wait_for_greeter_return(GREETER_RETURN_PROGRAM)
+        return
+    if 'GREETER_RETURN_BINDING' in globals():
+        require(sys.argv[1] == 'gdm-returned', 'ui:greeter-read-binding')
+        require(greeter_return_binding(time.monotonic() + 5) == GREETER_RETURN_BINDING,
+                'ui:greeter-binding-changed')
     greeter = sys.argv[1] in GREETER_OPERATIONS
     kiosk = sys.argv[1] in KIOSK_SESSION_OPERATIONS or sys.argv[1] == 'station-default-entry'
     require(os.geteuid() == 0, 'ui:fixture-identity')
@@ -15630,6 +15706,8 @@ def main():
             timeout=120 if sys.argv[1] in GDM_SESSION_OPERATIONS or
                 sys.argv[1] in GDM_STATION_DESKTOP_OPERATIONS else None)
         greeter, kiosk = branch_owner == 'greeter', branch_owner == 'station'
+    elif 'GREETER_RETURN_BINDING' in globals():
+        account = pwd.getpwuid(GREETER_RETURN_BINDING[1])
     else:
         account = greeter_account(timeout=120 if sys.argv[1] in GDM_SESSION_OPERATIONS else None) if greeter else pwd.getpwnam(
             'oh-no-parent-control' if kiosk else
@@ -15643,7 +15721,9 @@ def main():
     # Station entry is qualified by its public form. Bind the observation
     # client to the account without polling session services or treating their
     # readiness as a customer result.
-    environment = observation_environment(account, sys.argv[1])
+    environment = (session_environment(account, timeout=0)
+                   if 'GREETER_RETURN_BINDING' in globals()
+                   else observation_environment(account, sys.argv[1]))
     os.initgroups(account.pw_name, account.pw_gid)
     os.setgid(account.pw_gid)
     os.setuid(account.pw_uid)
@@ -15672,6 +15752,10 @@ def main():
         reset_observer=reset_atspi_client if kiosk else None,
         timing=lambda value: print(json.dumps(value, sort_keys=True), file=sys.stderr, flush=True),
         dispatch=lambda: GLib.MainContext.default().iteration(False))
+    if 'GREETER_RETURN_BINDING' in globals():
+        # A single fresh read per binding. The privileged owner alone controls
+        # reacquisition and the deadline; nested UI waits cannot renew it.
+        ui.timeout = 0
     ui.branch_owner = branch_owner
     ui.overlay_request = overlay_request
     ui.kiosk_request = kiosk_request
@@ -15978,6 +16062,15 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as error:
+        exit_code = 1
+        if 'GREETER_RETURN_BINDING' in globals() and sys.argv[1] == 'gdm-returned':
+            from gi.repository import GLib
+            if (isinstance(error, GLib.Error) or isinstance(error, UiError) and (
+                    str(error).startswith('ui:timeout:') or str(error) in (
+                        'ui:greeter-binding-changed', 'ui:incomplete-tree', 'ui:gdm-stale-tree'))):
+                # This child performs no input. Discard all of its identities;
+                # a fresh process must requalify the current greeter and tree.
+                exit_code = 75
         # No raw UI tree, account names, document contents or D-Bus errors.
         # Guarded UI refusals can wrap public query failures. Preserve their
         # fixed query notes and call sites too; the refusal alone loses the
@@ -15986,4 +16079,4 @@ if __name__ == '__main__':
               file=sys.stderr, flush=True)
         print(str(error) if isinstance(error, UiError) else 'ui:adapter-failed:' + type(error).__name__,
               file=sys.stderr, flush=True)
-        raise SystemExit(1)
+        raise SystemExit(exit_code)

@@ -284,8 +284,8 @@ rule or other platform policy. Local test permissions do not grant publication.
 One-time prerequisites belong to `./setup.sh --dependencies-only`; the focused
 `./setup.sh --ppa-build-tools` mode installs the clean builder. Use the recorded
 publisher key, configure GitHub SSH authentication and its known host key, and
-set the signing passphrase as a literal assignment in the release checkout's
-gitignored `.envrc`, as described under [Noninteractive signing](#noninteractive-signing).
+set the signing passphrase as a literal assignment in the user's private
+`~/.onpc-config/.envrc`, as described under [Noninteractive signing](#noninteractive-signing).
 Single-quote values containing dollar signs or backticks. The signer parses the
 assignment without executing `.envrc`, sends the value to GnuPG through a private
 pipe, and removes signing secrets from build, test, Git and upload environments.
@@ -630,22 +630,22 @@ choosing a version.
 
 **Never prompt for the signing passphrase, open a passphrase dialog, or ask for
 clipboard readiness or another “go ahead,” including on retries.** Read
-`APT_PACKAGE_PRIVATE_KEY_PASSPHRASE` from the release checkout's gitignored
-`./.envrc` inside the signing process. Manual configuration is described in the
+`APT_PACKAGE_PRIVATE_KEY_PASSPHRASE` from the user's private
+`~/.onpc-config/.envrc` inside the signing process. Manual configuration is described in the
 [README](../README.md#set-up-a-development-machine); `setup.sh` does not populate
 this value.
 
-Configure `.envrc` locally in the release enlistment before invoking the
-publisher, just as on the development checkout. The publisher's isolated
-staging clone invokes that enlistment's signer by absolute path; it does not
-copy `.envrc` into staging, package source, or release evidence. Gitignore alone
+Configure `~/.onpc-config/.envrc` once per user on each host before invoking the
+publisher; all checkouts and worktrees share it. The publisher's isolated
+staging clone invokes the release enlistment's signer by absolute path; it does not
+copy `~/.onpc-config/.envrc` into staging, package source, or release evidence. Gitignore alone
 does not exclude a file from `dpkg-source` archives.
-Keep the private key in GnuPG's key store and only the passphrase in `.envrc`.
+Keep the private key in GnuPG's key store and only the passphrase in `~/.onpc-config/.envrc`.
 
 The publisher configures its GnuPG adapter for batch/loopback operation and
 supplies the passphrase through a private file descriptor. The value is loaded
 only in the signer and kept out of build/test environments, command arguments,
-tool output, logs, reports and tracked files. Do not read `.envrc` through a tool
+tool output, logs, reports and tracked files. Do not read `~/.onpc-config/.envrc` through a tool
 that returns its contents to the conversation. A missing, empty, placeholder or
 rejected value produces a redacted configuration error, with no prompt fallback.
 

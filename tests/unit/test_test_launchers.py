@@ -1532,7 +1532,7 @@ def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
     monkeypatch.setattr(type(ROOT), 'read_bytes', read_inventory)
     with pytest.raises(ValueError, match='selection:pending'):
         commands.plan(ROOT, 'e2e', ['--id=66', '--artifacts=/tmp/onpc-future'])
-    password.assert_called_once_with(ROOT)
+    password.assert_called_once_with()
 
 
 def test_privileged_parent_symlink_is_rejected(checkout):

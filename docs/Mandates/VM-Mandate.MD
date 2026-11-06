@@ -403,4 +403,4 @@ the existing case or unfinished brief, linked here.
   Ordinary setup and E2E runners never prepare or replace it implicitly; invoke
   the preapproved auto-mode preparation separately when needed.
   Baseline preparation and E2E require the literal `TEST_ACCOUNT_PASSWORD` in the
-  host's private `.envrc`; E2E never changes passwords.
+  host user's private `~/.onpc-config/.envrc`; E2E never changes passwords.

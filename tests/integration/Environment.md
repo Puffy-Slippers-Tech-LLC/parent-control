@@ -24,7 +24,7 @@ identity-checked cleanup. Availability changes do not erase accepted UUID pins.
 For SSH entries, `name` is also the alias resolved through private OpenSSH
 configuration. The optional public `ssh_port` is an integer from 1 to 65535,
 defaulting to 22; `./setup.sh --connect-server` applies it to the local SSH profile.
-Keep addresses, usernames, keys, passwords and `.envrc`
+Keep addresses, usernames, keys, passwords and `~/.onpc-config/.envrc`
 outside Git; the registry contains no SSH credentials. SSH execution is not yet
 implemented: online SSH selections explicitly refuse instead of accessing local
 libvirt. The disabled SSH entry may remain tracked while the host is unavailable.
@@ -76,8 +76,8 @@ prerequisites. App preparation refreshes snapshots with clipboard sharing disabl
 Disabled older layouts remain valid for owned cleanup. The watch panels remain
 read-only; clipboard sharing is available through the interactive VM console.
 
-Set a literal `TEST_ACCOUNT_PASSWORD` in the host checkout's private mode-0600
-`.envrc`, then run `tools/prepare-vm --vm NAME --mode manual` on the development host with the
+Set a literal `TEST_ACCOUNT_PASSWORD` in the host user's private mode-0600
+`~/.onpc-config/.envrc`, then run `tools/prepare-vm --vm NAME --mode manual` on the development host with the
 product-free Ubuntu 26.04 VM off. Missing, empty, placeholder or unsafe
 credentials fail before privilege dispatch or VM access. The old `make prepare-vm`
 target, `make prepare-baseline` alias and `./setup.sh --prepare-baseline` mode
@@ -671,7 +671,7 @@ account-testing dependencies remain unchanged.
 Account preparation is repeatable: existing test accounts retain their UIDs and
 homes, and absent administrator-group memberships need no removal. Each run
 reconciles and verifies the configured picture, display name, shell, roles and
-unlocked status, and sets the shared password from the host's `.envrc` on all
+unlocked status, and sets the shared password from the host user's `~/.onpc-config/.envrc` on all
 four accounts. Failed runs can be retried after resolving the
 reported prerequisite; the product-free guest guards still apply.
 
@@ -682,7 +682,7 @@ keyring matching the new password on the next login. Account UIDs and homes are
 retained; missing accounts are created. Repeating preparation without an
 intervening login creates no additional keyring backup.
 
-E2E reads the same `.envrc` password, verifies it against the prepared accounts
+E2E reads the same `~/.onpc-config/.envrc` password, verifies it against the prepared accounts
 without writing to the guest, and uses it for login. Missing configuration fails
 before build/VM work; a password that differs from the baseline is refused with
 an instruction to run preparation again. E2E never rotates account passwords or

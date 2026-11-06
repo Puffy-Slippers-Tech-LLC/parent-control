@@ -19,28 +19,34 @@ def test_signer_uses_original_checkout_and_is_directly_executable():
     ('APT_PACKAGE_PRIVATE_KEY_PASSPHRASE="spaces and punctuation !" # comment', b'spaces and punctuation !'),
     ('APT_PACKAGE_PRIVATE_KEY_PASSPHRASE=plain-literal', b'plain-literal'),
 ])
-def test_reads_literal_assignments_without_a_shell(tmp_path, assignment, expected):
-    (tmp_path / '.envrc').write_text(assignment + '\n')
-    assert signing.read_passphrase(tmp_path) == expected
+def test_reads_literal_assignments_without_a_shell(tmp_path, monkeypatch, assignment, expected):
+    monkeypatch.setenv('HOME', str(tmp_path))
+    (tmp_path / '.onpc-config').mkdir()
+    (tmp_path / '.onpc-config' / '.envrc').write_text(assignment + '\n')
+    assert signing.read_passphrase() == expected
 
 
 @pytest.mark.parametrize('value', ['', "''", '$(touch /tmp/should-never-exist)', '"$HOME"',
                                   '`id`', 'one; id', 'placeholder', '"unterminated'])
-def test_invalid_values_fail_without_echoing_them(tmp_path, value):
-    (tmp_path / '.envrc').write_text('APT_PACKAGE_PRIVATE_KEY_PASSPHRASE=' + value + '\n')
+def test_invalid_values_fail_without_echoing_them(tmp_path, monkeypatch, value):
+    monkeypatch.setenv('HOME', str(tmp_path))
+    (tmp_path / '.onpc-config').mkdir()
+    (tmp_path / '.onpc-config' / '.envrc').write_text('APT_PACKAGE_PRIVATE_KEY_PASSPHRASE=' + value + '\n')
     with pytest.raises(ValueError):
-        signing.read_passphrase(tmp_path)
+        signing.read_passphrase()
 
 
-def test_duplicate_assignment_and_symlinks_are_refused(tmp_path):
-    path = tmp_path / '.envrc'
+def test_duplicate_assignment_and_symlinks_are_refused(tmp_path, monkeypatch):
+    monkeypatch.setenv('HOME', str(tmp_path))
+    (tmp_path / '.onpc-config').mkdir()
+    path = tmp_path / '.onpc-config' / '.envrc'
     path.write_text("APT_PACKAGE_PRIVATE_KEY_PASSPHRASE='one'\n" * 2)
     with pytest.raises(ValueError):
-        signing.read_passphrase(tmp_path)
+        signing.read_passphrase()
     path.unlink()
     path.symlink_to(tmp_path / 'missing')
     with pytest.raises(OSError):
-        signing.read_passphrase(tmp_path)
+        signing.read_passphrase()
 
 
 @pytest.mark.parametrize('returncode', [0, 2])

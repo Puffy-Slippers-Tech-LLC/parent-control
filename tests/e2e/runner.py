@@ -90,7 +90,7 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
         elif fixture_selection['target'] not in ('ubuntu', 'fedora'):
             raise ValueError('fixtures:transfer-target-not-qualified')
     if not args.list:
-        password_config.read_password(root)
+        password_config.read_password()
     if args.qualify_transfer or args.qualify_install or args.qualify_install_refusal:
         if args.list or args.scenario is not None or args.id is not None or args.ready:
             raise ValueError('e2e:qualification-cannot-select-scenarios')

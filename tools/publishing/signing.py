@@ -12,9 +12,9 @@ ROOT = Path(__file__).resolve().parents[2]
 VARIABLE = 'APT_PACKAGE_PRIVATE_KEY_PASSPHRASE'
 
 
-def read_passphrase(root=ROOT):
+def read_passphrase():
     """Read a literal shell assignment, without sourcing/executing .envrc."""
-    path = root / '.envrc'
+    path = Path.home() / '.onpc-config' / '.envrc'
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(descriptor, encoding='utf-8') as stream:
         info = os.fstat(stream.fileno())
@@ -78,7 +78,7 @@ def main(argv=None):
     except (OSError, ValueError):
         # Do not print exception text: shlex, OS errors and GPG diagnostics may
         # contain configuration bytes, private identities or paths.
-        print('\033[31mSigning failed: check the configured key and literal passphrase in .envrc.\033[0m',
+        print('\033[31mSigning failed: check the configured key and literal passphrase in ~/.onpc-config/.envrc.\033[0m',
               file=sys.stderr)
         return 1
 

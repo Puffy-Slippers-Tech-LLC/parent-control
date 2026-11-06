@@ -134,4 +134,4 @@ class FixtureCredentials:
             print('e2e:fixture-credentials-rejected', file=sys.stderr, flush=True)
             if isinstance(error, KeyboardInterrupt):
                 raise KeyboardInterrupt('credential:provisioning-interrupted') from None
-            raise EvidenceError('credential:verification-failed; check .envrc and run tools/prepare-vm') from None
+            raise EvidenceError('credential:verification-failed; check ~/.onpc-config/.envrc and run tools/prepare-vm') from None

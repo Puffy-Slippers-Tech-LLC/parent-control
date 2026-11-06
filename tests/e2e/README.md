@@ -1841,7 +1841,7 @@ recipient checks, single-use delivery, private staging or log filtering. This is
 a trusted-helper contract, not a sandbox against arbitrary testapi calls.
 
 `FixtureCredentials` reads the literal `TEST_ACCOUNT_PASSWORD` from the host
-checkout's private mode-0600 `.envrc`. All four canonical fixture roles share
+user's private mode-0600 `~/.onpc-config/.envrc`. All four canonical fixture roles share
 that password, which also works for manual login. Execution preflight rejects
 missing configuration before artifact builds, privilege checks or VM access;
 there is no generated-password or environment-variable fallback.

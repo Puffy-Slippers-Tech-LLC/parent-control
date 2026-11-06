@@ -32,18 +32,30 @@ DejaVu fonts and XKB keyboard data. Tests report missing prerequisites and do
 not install them. Fixture builds produce temporary payloads; they do not install
 the product or a fixture Snap on the development host.
 
-For VM tests and release signing, create `.envrc` only if absent:
+For VM tests and release signing, keep one private `~/.onpc-config/.envrc` per user on each
+host. All checkouts, branches and worktrees read that same file directly; no
+checkout-local copy or shell sourcing is needed.
+
+If you already have a checkout-local `.envrc` or `~/.envrc`, create
+`~/.onpc-config` with permissions `700` and move the file to
+`~/.onpc-config/.envrc` instead of copying the example, then set file permissions
+to `600`. If `~/.onpc-config/.envrc` already exists,
+merge the two required assignments privately without overwriting other settings.
+Checkout-local `.envrc` files are no longer read.
+
+For a new host without existing credentials, create the file only if absent:
 
 ```sh
-cp .envrc.example ./.envrc
-chmod 600 ./.envrc
+mkdir -p -m 700 "$HOME/.onpc-config"
+cp -n './.envrc.example' "$HOME/.onpc-config/.envrc"
+chmod 600 "$HOME/.onpc-config/.envrc"
 ```
 
-Set `APT_PACKAGE_PRIVATE_KEY_PASSPHRASE` in `.envrc` from password manager's “Oh No Parent Control” entry. Keep the value out of `.envrc.example` and version control. See [signing setup](docs/Publishing.md#noninteractive-signing).
+Set `APT_PACKAGE_PRIVATE_KEY_PASSPHRASE` in `~/.onpc-config/.envrc` from password manager's “Oh No Parent Control” entry. Keep the value out of `.envrc.example` and version control. See [signing setup](docs/Publishing.md#noninteractive-signing).
 
 Also set `TEST_ACCOUNT_PASSWORD` to your chosen password for all four VM test
 accounts. Baseline preparation and E2E tests require this literal assignment
-in the private `.envrc` file; neither uses an environment-variable fallback.
+in the private `~/.onpc-config/.envrc` file; neither uses an environment-variable fallback.
 You can use the same password to log in manually. Do not commit it or put the
 real value in `.envrc.example`.
 
@@ -226,7 +238,7 @@ the warning and every safety check. Manual work omits `--y` to keep confirmation
 Refresh the installed dispatcher with `./setup.sh --test-tools-only` when updating
 from a version without this flag.
 
-The command validates `.envrc` first. Existing accounts keep their UIDs and homes;
+The command validates `~/.onpc-config/.envrc` first. Existing accounts keep their UIDs and homes;
 their password, picture, display name, role, shell and unlocked status are reconciled with the
 fixture definitions. Existing keyrings are backed up so GNOME can create ones
 matching the shared password.

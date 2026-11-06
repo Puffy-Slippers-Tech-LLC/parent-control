@@ -122,7 +122,7 @@ utilities are not imported: maintained project guards and diagnostics remain the
 authority. Obsolete `.codex-staged-*` snapshots are ignored and unused.
 
 Provision signing configuration/private keys, SSH/Git credentials,
-Codex login, plugin account connections and `.envrc` secrets separately on each
+Codex login, plugin account connections and `~/.onpc-config/.envrc` secrets separately on each
 host. Server setup supplies missing checkout-local Git identity as described below;
 other modes only report missing identity. Setup preserves existing Git settings
 and reports missing upstream;
@@ -131,7 +131,9 @@ lists. See [signing setup](Publishing.md#noninteractive-signing) for publishing.
 
 ### Local state and worktree portability
 
-Besides `.envrc`, keep `.aws/`, Codex login/trust/plugin caches, SSH/signing keys
+The user's private `~/.onpc-config/.envrc` is shared across all checkouts and worktrees on
+that host; checkout-local `.envrc` files are not read.
+Besides `~/.onpc-config/.envrc`, keep `.aws/`, Codex login/trust/plugin caches, SSH/signing keys
 and `~/.config/copr` credentials local. Only the two allowlisted `.codex/` files
 are shared. Git configuration (identity, signing and publishing-checkout selection),
 hooks and worktree metadata also belong to the host, not the source tree.

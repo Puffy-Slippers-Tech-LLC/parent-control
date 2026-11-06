@@ -1,4 +1,4 @@
-"""Read the shared fixture credential without executing the checkout's .envrc."""
+"""Read the shared fixture credential without executing ~/.onpc-config/.envrc."""
 
 import ctypes
 import hmac
@@ -10,9 +10,8 @@ import stat
 import sys
 import threading
 
-ROOT = Path(__file__).resolve().parents[2]
 VARIABLE = 'TEST_ACCOUNT_PASSWORD'
-MESSAGE = 'Set a nonempty literal TEST_ACCOUNT_PASSWORD in .envrc before preparing or testing the VM.'
+MESSAGE = 'Set a nonempty literal TEST_ACCOUNT_PASSWORD in ~/.onpc-config/.envrc before preparing or testing the VM.'
 _crypt_lock = threading.Lock()
 
 
@@ -24,15 +23,15 @@ def validate(value):
     return value
 
 
-def read_password(root=ROOT):
+def read_password():
     """Only a single literal assignment is accepted; never consult environment."""
     try:
-        path = Path(root) / '.envrc'
+        path = Path.home() / '.onpc-config' / '.envrc'
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
         with os.fdopen(fd, encoding='utf-8') as stream:
             info = os.fstat(stream.fileno())
             if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
-                    or info.st_uid != Path(root).stat().st_uid
+                    or info.st_uid != os.getuid()
                     or info.st_mode & 0o077 or info.st_size > 65536):
                 raise ValueError(MESSAGE)
             values = []

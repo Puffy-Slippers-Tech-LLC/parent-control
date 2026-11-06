@@ -252,11 +252,13 @@ def main(argv=None):
         if str(error) == 'suite:package-version-changed':
             # No guest lease has been acquired. The public launcher may safely
             # rebuild inputs after a concurrent checkout version update.
-            print('prepare-appsnapshot: checkout version changed; rebuild required', file=sys.stderr)
+            print('\033[31mprepare-appsnapshot: checkout version changed; rebuild required\033[0m',
+                  file=sys.stderr)
             return 7
         if system.error_category(error) == 'unexpected-failure-or-interruption':
             system.log('exception-type=' + type(error).__name__)
-        print('prepare-appsnapshot: ' + system.error_category(error), file=sys.stderr)
+        print('\033[31mprepare-appsnapshot: ' + system.error_category(error) + '\033[0m',
+              file=sys.stderr)
         return 1
 
 

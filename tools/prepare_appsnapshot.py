@@ -123,5 +123,5 @@ def main(argv=None):
             return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,
                 'appsnapshot', '--resume', '--overwrite', args.overwrite, *vm_arguments()], cwd=root, env=environment)
     except (ValueError, OSError) as error:
-        print('prepare-appsnapshot: ' + str(error), file=sys.stderr)
+        print('\033[31mprepare-appsnapshot: ' + str(error) + '\033[0m', file=sys.stderr)
         return 2

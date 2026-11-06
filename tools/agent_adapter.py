@@ -1,12 +1,12 @@
-"""Session preparation boundary; execution and acceptance belong to launchers.
+"""Session preparation and protocol boundary; acceptance belongs to launchers.
 
-This first extraction deliberately pins Codex. Configuration-driven selection
-and protocol normalization are separate steps, not implicit provider fallbacks.
+This extraction deliberately pins Codex. Configuration-driven selection and
+batch normalization are separate steps, not implicit provider fallbacks.
 """
 
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Iterator, Literal, Protocol
 
 
 Role = Literal['backend_reviewer', 'monitor', 'worker', 'adviser', 'translator']
@@ -45,12 +45,56 @@ class AgentAdapter(Protocol):
 
 
 @dataclass(frozen=True)
+class SessionEvent:
+    """Interactive transport output, never workflow acceptance evidence.
+
+    Text events carry id/text/complete; item events carry a renderer item and
+    complete flag. Failure data carries message/context/details/task_error and
+    capacity. Native RPC names and IDs stay inside the concrete handler.
+    """
+    kind: Literal['ready', 'turn_completed', 'retry_input',
+                  'discard_result', 'text', 'text_delta', 'item', 'diagnostic',
+                  'command_output', 'usage', 'notice', 'failure']
+    data: dict
+
+
+class SessionProtocol(Protocol):
+    """One fresh interactive session; no process, mailbox or filesystem writes.
+
+    The supervisor drains outgoing bytes and feeds stdout chunks. Events are
+    consumed in order before polling input/acceptance. Completion requires a
+    terminal coordinator turn and settled input requests; it is only a candidate
+    until the shared mailbox and workflow guards accept it. Interrupted turns
+    must drain before cleanup and continuation. finalize_result decodes only;
+    task identity, schema validation and result persistence remain shared.
+    """
+    outgoing: bytearray
+
+    @property
+    def ready(self) -> bool: ...
+
+    @property
+    def active_turn(self) -> bool: ...
+
+    @property
+    def turn_requests_pending(self) -> bool: ...
+
+    def start(self) -> None: ...
+    def start_turn(self, text: str) -> None: ...
+    def steer(self, text: str) -> None: ...
+    def interrupt(self) -> None: ...
+    def feed(self, data: bytes) -> Iterator[SessionEvent]: ...
+    def finalize_result(self, text: str) -> dict | None: ...
+
+
+@dataclass(frozen=True)
 class PreparedSession:
     adapter: AgentAdapter
     request: SessionRequest
     argv: tuple[str, ...]
     environment: dict[str, str]
     cwd: Path
+    protocol: SessionProtocol | None = None
 
     def revised(self, **changes) -> 'PreparedSession':
         """Reprepare under the same adapter, including capacity attempts."""

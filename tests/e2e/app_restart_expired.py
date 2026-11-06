@@ -1,5 +1,6 @@
-"""Case 117: reopened apps preserve policy, natural expiry and retained work."""
+"""Expired-grant persistence across app reopening and fresh child sessions."""
 from copy import deepcopy
+from dataclasses import replace
 import time
 
 from accessible_ui import MATCH_APPS, MATCH_RULES, countdown_seconds
@@ -122,6 +123,48 @@ PLAN = JourneyPlan(
 )
 
 
+# Sign-out ends the original activity. Keep the same real grant, saved-policy
+# comparisons and recovery, then prove access with new windows in a fresh session.
+SIGN_OUT_BOUNDARY = {
+    **desktop_return('original-leave', account='child'),
+    **enter('before-parent', 'parent', 'retained'),
+    'before-policy': 'ui:revoke-saved-balances',
+    **desktop_return('boundary-parent-leave', account='parent'),
+    **enter('boundary-child-entry', 'child', 'retained'),
+    'boundary-child-desktop': 'ui:fresh-child-desktop',
+    'boundary-child-logout': 'system:child-logout',
+    'boundary-child-gdm-logged-out': 'ui:gdm-returned',
+    **enter('returned-parent', 'parent', 'retained'),
+    'returned-policy': 'ui:revoke-saved-balances',
+    **desktop_return('returned-parent-leave', account='parent'),
+}
+SIGN_OUT_RECOVERY = {
+    stage: (tag.removesuffix('retained') + 'fresh'
+            if stage in ('denied-child-entry-guard', 'recovered-child-entry-guard') else tag)
+    for stage, tag in RECOVERY.items()
+    if not stage.startswith('resume-') and stage not in (
+        'retained-work', 'original-close', 'original-closed')
+}
+SIGN_OUT_SCREENS = {**SETUP, **SIGN_OUT_BOUNDARY, **EXPIRY, **SIGN_OUT_RECOVERY}
+SIGN_OUT_PLAN = replace(PLAN, prefix='sign-out-in-expired', worker_mode='sign_out_in_expired',
+    screen_tags=SIGN_OUT_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+        **{stage: phase for phase, screens in (
+            ('step-1', SETUP), ('step-2', SIGN_OUT_BOUNDARY), ('step-3', EXPIRY),
+            ('step-4', SIGN_OUT_RECOVERY)) for stage in screens}, 'installed-greeter': 'start'},
+    advance_after={'original-capture': 'step-2', 'returned-parent-leave-gdm-switched': 'step-3',
+                   'expiry-wait-last': 'step-4'},
+    invocations=tuple(stage for stage in SIGN_OUT_SCREENS if stage in {
+        prefix + '-' + leaf for prefix, (role, expected) in LOGINS.items()
+        for leaf in fresh_desktop(role, expected)} or stage in rejected_gdm_return()),
+    challenges={prefix: (role, prefix + '-' + ('child-' if role == 'child' else '')
+                        + 'recipient-qualified',
+                        prefix + '-' + ('child-' if role == 'child' else '')
+                        + 'recipient-rechecked') for prefix, (role, _expected) in LOGINS.items()},
+    activity_entries={}, activity_checks={},
+)
+
+
 class AppRestartExpiredJourney(GrantOnlyProfileJourney, AppPolicyJourney):
     def __init__(self, context, progress, plan, *, actions=None):
         super().__init__(context, progress, plan, grant_seconds=GRANT_SECONDS,
@@ -235,4 +278,12 @@ def execute(recorder, context):
                              journey_type=AppRestartExpiredJourney)
 
 
-E2E_CASES = {'app-restart-expired': execute}
+def execute_sign_out(recorder, context):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    context.fixture_subsets = ACTIVITY_SUBSETS
+    context.fixture_caller = 'E2E-022/sign-out-in-expired'
+    record_installed_journey(recorder, context, SIGN_OUT_PLAN, timeout=3000,
+                             journey_type=AppRestartExpiredJourney)
+
+
+E2E_CASES = {'app-restart-expired': execute, 'sign-out-in-expired': execute_sign_out}

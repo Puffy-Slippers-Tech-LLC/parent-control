@@ -136,7 +136,8 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
                                  'grant-request', 'grant-wrong-scope', 'grant-wrong-child',
                                  'transition-request', 'transition-wrong-duration', 'revocation-request',
                                  'work-recovery', 'expired-recovery', 'kiosk-recovery', 'kiosk-recovery-wrong-scope',
-                                 'app-restart-request', 'sign-out-request'])
+                                 'app-restart-request', 'sign-out-request',
+                                 'sign-out-expired-recovery', 'expired-recovery-wrong-scope'])
 def test_composed_kiosk_secret_scope_and_single_use(mode):
     # Execute the real password guard; replace only the secret delivery sink.
     # No password is supplied, and each isolated Perl process owns its latch.
@@ -146,12 +147,13 @@ def test_composed_kiosk_secret_scope_and_single_use(mode):
     from panel_request_case import PLAN as PANEL_PLAN
     from kiosk_recovery import PLAN as KIOSK_PLAN
     from app_restart_active import PLAN as RESTART_PLAN, SIGN_OUT_PLAN
-    from app_restart_expired import PLAN as EXPIRED_PLAN
+    from app_restart_expired import PLAN as EXPIRED_PLAN, SIGN_OUT_PLAN as EXPIRED_SIGN_OUT_PLAN
     transition = [PLAN.prefix + '-soft-opening', 'soft-opening-', list(PLAN.kiosk_request)]
     revocation = [REVOCATION_PLAN.prefix + '-request', 'request-', list(REVOCATION_PLAN.kiosk_request)]
     recovery = [RECOVERY_PLAN.prefix, list(RECOVERY_PLAN.kiosk_request)]
-    if mode == 'expired-recovery':
-        recovery = [EXPIRED_PLAN.prefix, list(EXPIRED_PLAN.kiosk_request)]
+    if mode in ('expired-recovery', 'sign-out-expired-recovery', 'expired-recovery-wrong-scope'):
+        expired = EXPIRED_PLAN if mode == 'expired-recovery' else EXPIRED_SIGN_OUT_PLAN
+        recovery = [expired.prefix, list(expired.kiosk_request)]
     restart = SIGN_OUT_PLAN if mode == 'sign-out-request' else RESTART_PLAN
     result = run_perl(r'''
 use strict;
@@ -221,11 +223,13 @@ my $ok = eval {
     if ($mode =~ /^kiosk-recovery/) {
         onpc_password::enter_kiosk_mate_password($first, 'request-1200');
         onpc_password::enter_kiosk_mate_password($first, 'request-1200');
-    } elsif ($mode eq 'work-recovery' || $mode eq 'expired-recovery') {
+    } elsif ($mode eq 'work-recovery' || $mode eq 'expired-recovery'
+            || $mode eq 'sign-out-expired-recovery' || $mode eq 'expired-recovery-wrong-scope') {
         my $setup = bless {prefix => $recovery->[0] . '-profile-request',
             stage_prefix => 'profile-request-', review => 0}, 'onpc_journey';
         onpc_password::enter_kiosk_mate_password($setup, 'long-request');
-        my $return = bless {prefix => $recovery->[0], stage_prefix => '',
+        my $return = bless {prefix => $recovery->[0],
+            stage_prefix => $mode eq 'expired-recovery-wrong-scope' ? 'profile-request-' : '',
             kiosk_request => $recovery->[1], review => 0}, 'onpc_journey';
         onpc_password::enter_kiosk_mate_password($return, 'bound-request');
     } elsif ($mode =~ /^profile-/) {
@@ -249,7 +253,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
         assert deliveries == [['delivery', 'parent', 'kiosk-final-kiosk-mate-request-1200']]
         assert [event for event in value['events'] if event[0] == 'proof'] == [
             ['proof', 'kiosk-final-approval-' + proof] for proof in ('qualified', 'rechecked')]
-    elif mode in ('work-recovery', 'expired-recovery'):
+    elif mode in ('work-recovery', 'expired-recovery', 'sign-out-expired-recovery'):
         assert value['ok'] == 1
         assert deliveries == [
             ['delivery', 'parent', 'profile-request-kiosk-mate-long-request'],
@@ -257,6 +261,11 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
         assert [event for event in value['events'] if event[0] == 'proof'] == [
             ['proof', prefix + 'approval-' + proof]
             for prefix in ('profile-request-', '') for proof in ('qualified', 'rechecked')]
+    elif mode == 'expired-recovery-wrong-scope':
+        assert value['ok'] == 0
+        assert deliveries == [['delivery', 'parent', 'profile-request-kiosk-mate-long-request']]
+        assert [event for event in value['events'] if event[0] == 'proof'] == [
+            ['proof', 'profile-request-approval-' + proof] for proof in ('qualified', 'rechecked')]
     elif mode == 'two-requests':
         assert value['ok'] == 1
         assert deliveries == [['delivery', 'parent', request + '-kiosk-mate-approval']

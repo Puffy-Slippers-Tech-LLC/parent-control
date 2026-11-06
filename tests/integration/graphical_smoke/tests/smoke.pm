@@ -1381,12 +1381,12 @@ sub run {
         onpc_set_allowance::run(\&exchange);
         return;
     }
-    if ($ready->{app_restart_expired}) {
+    if ($ready->{app_restart_expired} || $ready->{sign_out_in_expired}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
         require onpc_lifecycle;
         onpc_lifecycle::app_restart_expired(\&exchange, $ready->{invocations},
-            $ready->{challenge_bindings}, $ready->{kiosk_request});
+            $ready->{challenge_bindings}, $ready->{kiosk_request}, $ready->{sign_out_in_expired} ? 1 : 0);
         return;
     }
     if ($ready->{app_restart_active}) {

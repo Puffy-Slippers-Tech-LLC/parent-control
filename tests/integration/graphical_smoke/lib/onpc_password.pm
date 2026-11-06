@@ -136,7 +136,7 @@ sub enter_kiosk_mate_password {
             my $work_recovery = ($journey->{prefix} // '') eq 'grant-work-recovery'
                 && ($journey->{stage_prefix} // '') eq ''
                 && ref($request) eq 'ARRAY' && join(',', @$request) =~ /\Achild,parent,1200,[01]\z/;
-            my $expired_restart = ($journey->{prefix} // '') eq 'app-restart-expired'
+            my $expired_restart = ($journey->{prefix} // '') =~ /\A(?:app-restart|sign-out-in)-expired\z/
                 && ($journey->{stage_prefix} // '') eq ''
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,1200,0';
             die 'secret:challenge' unless ($delayed || $grant_access || $app_restart || $app_transition || $work_recovery || $expired_restart ||
@@ -179,7 +179,7 @@ sub enter_kiosk_mate_password {
                 || ($journey->{prefix} // '') eq 'countdown-grant-profile-request'
                 && ($journey->{stage_prefix} // '') eq 'profile-request-' && $long_request
                 || (($journey->{prefix} // '') eq 'grant-work-recovery-profile-request'
-                    || ($journey->{prefix} // '') eq 'app-restart-expired-profile-request')
+                    || ($journey->{prefix} // '') =~ /\A(?:app-restart|sign-out-in)-expired-profile-request\z/)
                 && ($journey->{stage_prefix} // '') eq 'profile-request-' && $long_request
                 || ($journey->{prefix} // '') eq 'countdown-combined-profile-request'
                 && ($journey->{stage_prefix} // '') eq 'profile-request-'

@@ -289,6 +289,17 @@ supplies snapshot infrastructure acceptance only.
 
 ## Host and guest boundaries
 
+Snap and Flatpak fixture readers share [PackagedFixtures](../e2e/native_fixtures.py) for
+the pinned transport, source rechecks, bounded canonical reply and final guard.
+Keep each package's installed identity, confinement and catalogue checks in its
+own reader; native provisioning retains its separate selection/readiness route.
+
+When a journey needs concurrent packaged-app work, declare distinct public
+instances in the fixture and its exported launcher before baseline capture.
+Declare independent-window support there when the fixture provides it. Check
+these captured inputs before adding a workaround to the shared launch adapter;
+see the qualified [Flatpak grid boundary](../../docs/TestAutomation/E2E-Building-Blocks.md#flatpak-grid-use).
+
 Declare a qualification's `fixture_subsets` and `fixture_caller`, or the case
 context's matching fields, before shared attempt preparation when a journey
 needs more than the default native closure.
@@ -1313,7 +1324,11 @@ Case 46 composes that same immediate approval with the existing native activity
 entry/resume worker and `KioskRequestJourney` countdown comparison. Overlay
 countdown plans may use the finite `estimate` binding: the captured public
 estimate is independently bounded against the earlier Parent balance and elapsed
-time before comparison. Kiosk plans retain their explicit numeric expectation.
+time before comparison. Repeated kiosk approvals after child use or an active
+grant also bind each countdown to that request's fresh immutable estimate, as in
+`flatpak_temporary_access`. Keep the journey's independent estimate checks;
+the initial unused-child balance no longer describes those later requests.
+Fresh unused-child kiosk histories retain their explicit numeric expectation.
 Host regressions exercise immutable capture, stale/missing/replayed results,
 refusal before durable reply and complete worker titles/failure stops. These
 extend existing private pytest fixtures and bounded waited Perl children without

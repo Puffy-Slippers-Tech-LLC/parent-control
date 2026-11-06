@@ -9,8 +9,8 @@ from watch_activity import operation
 from installed_journey import InstalledJourney
 from journey_checks import allowed_app_rows
 from native_fixture_qualification import PLAN
+from native_fixtures import PackagedFixtures
 import session_control
-import prepare_vm
 from tests.fixtures import snap_assets
 
 
@@ -62,24 +62,9 @@ def guest_source():
         '\nprint(json.dumps(guest_read(sys.argv[1], sys.argv[2]), sort_keys=True))\n').encode()
 
 
-class SnapFixtures:
-    def __init__(self, transport, verified):
-        self.transport, self.verified = transport, verified
-        self.identity = dict(transport.config)
-        self.used = False
-
-    def read(self, action):
-        require(self.transport.config == self.identity, 'snap:wrong-attempt')
-        self.transport.guard(self.identity)
-        self.verified.recheck()
-        raw = self.transport.call(['/usr/bin/python3', '-I', '-', action,
-            prepare_vm.preparation_digest()], input=guest_source(), timeout=180)
-        require(type(raw) is bytes and 0 < len(raw) <= 16384, 'snap:response-bound')
-        value = json.loads(raw)
-        require(raw == (json.dumps(value, sort_keys=True) + '\n').encode(), 'snap:response')
-        self.transport.guard(self.identity)
-        self.verified.recheck()
-        return value
+class SnapFixtures(PackagedFixtures):
+    kind = 'snap'
+    guest_source = staticmethod(guest_source)
 
     def refuse(self):
         with operation('Checking Snap fixture refusal outside the parent desktop'):

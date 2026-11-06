@@ -8,9 +8,9 @@ from pathlib import Path
 from installed_journey import InstalledJourney
 from journey_checks import allowed_app_rows
 from native_fixture_qualification import PLAN as NATIVE_PLAN
+from native_fixtures import PackagedFixtures
 from private_artifacts import require
 from watch_activity import operation
-import prepare_vm
 import session_control
 from tests.fixtures import flatpak_assets
 
@@ -84,24 +84,9 @@ def guest_source():
             '\nprint(json.dumps(guest_read(sys.argv[1], sys.argv[2]), sort_keys=True))\n').encode()
 
 
-class FlatpakFixtures:
-    def __init__(self, transport, verified):
-        self.transport, self.verified = transport, verified
-        self.identity = dict(transport.config)
-        self.used = False
-
-    def read(self, action):
-        require(self.transport.config == self.identity, 'flatpak:wrong-attempt')
-        self.transport.guard(self.identity)
-        self.verified.recheck()
-        raw = self.transport.call(['/usr/bin/python3', '-I', '-', action,
-            prepare_vm.preparation_digest()], input=guest_source(), timeout=180)
-        require(type(raw) is bytes and 0 < len(raw) <= 16384, 'flatpak:response-bound')
-        value = json.loads(raw)
-        require(raw == (json.dumps(value, sort_keys=True) + '\n').encode(), 'flatpak:response')
-        self.transport.guard(self.identity)
-        self.verified.recheck()
-        return value
+class FlatpakFixtures(PackagedFixtures):
+    kind = 'flatpak'
+    guest_source = staticmethod(guest_source)
 
     def refuse(self):
         with operation('Checking Flatpak fixture refusal outside the parent desktop'):

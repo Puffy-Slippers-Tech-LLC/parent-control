@@ -1,4 +1,4 @@
-"""Read-only verification of baseline or attempt-provisioned native fixtures."""
+"""Read-only fixture verification and shared packaged-fixture transport."""
 import hashlib
 import json
 from pathlib import Path
@@ -36,6 +36,35 @@ def guest_source():
     source += ('import io\nrequest = sys.argv.pop()\n'
                'sys.stdin = io.TextIOWrapper(io.BytesIO(request.encode()))\n')
     return source.encode() + Path(__file__).with_name('native_fixtures_guest.py').read_bytes()
+
+
+class PackagedFixtures:
+    """Guarded read exchange shared by the Snap and Flatpak fixture readers.
+
+    Concrete readers supply their fixed kind/source and retain package-specific
+    verification, refusal observations and the single-use verification latch.
+    This transport owns no provisioning, VM lifetime or cleanup.
+    """
+    def __init__(self, transport, verified):
+        self.transport, self.verified = transport, verified
+        self.identity = dict(transport.config)
+        self.used = False
+
+    def read(self, action):
+        import prepare_vm
+
+        kind = self.kind
+        require(self.transport.config == self.identity, kind + ':wrong-attempt')
+        self.transport.guard(self.identity)
+        self.verified.recheck()
+        raw = self.transport.call(['/usr/bin/python3', '-I', '-', action,
+            prepare_vm.preparation_digest()], input=self.guest_source(), timeout=180)
+        require(type(raw) is bytes and 0 < len(raw) <= 16384, kind + ':response-bound')
+        value = json.loads(raw)
+        require(raw == (json.dumps(value, sort_keys=True) + '\n').encode(), kind + ':response')
+        self.transport.guard(self.identity)
+        self.verified.recheck()
+        return value
 
 
 class NativeFixtures:

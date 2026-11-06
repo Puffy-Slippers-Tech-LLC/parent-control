@@ -31,6 +31,7 @@ ppa_build
 sync_whatsnew
 about_dialog
 baseline_snap_safety
+baseline_flatpak_safety
 adapters
 app_policy
 app_termination

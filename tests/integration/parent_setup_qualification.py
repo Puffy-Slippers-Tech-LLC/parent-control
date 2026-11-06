@@ -2337,6 +2337,16 @@ class SnapFixtureQualification(KioskEntryQualification):
         return SnapFixtureJourney(context, progress)
 
 
+class FlatpakFixtureQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from flatpak_fixtures import FlatpakFixtureJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return FlatpakFixtureJourney(context, progress)
+
+
 class SnapCommandQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

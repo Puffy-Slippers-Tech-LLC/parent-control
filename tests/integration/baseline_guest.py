@@ -24,8 +24,13 @@ SOURCE_STAGING = STAGE + '/source-staging.json'
 STAGED_MOVABLE_SOURCES = (*prepare_vm.SNAPSHOT_SOURCE_SYMBOLS,
                          'common/oh_no_parent_control_ui/gtk_automation.py',
                          'tests/fixtures/gui_runtime.py', 'tests/fixtures/gui_application.py',
-                         'tests/fixtures/snap_assets.py', 'tests/integration/baseline_snaps.py')
-PRIOR_SNAP_STAGED_SOURCES = set(STAGED_MOVABLE_SOURCES) - {
+                         'tests/fixtures/snap_assets.py', 'tests/integration/baseline_snaps.py',
+                         'tests/fixtures/flatpak_assets.py', 'tests/integration/baseline_flatpaks.py',
+                         'tests/fixtures/onpc_test_application.c')
+PRIOR_FLATPAK_STAGED_SOURCES = set(STAGED_MOVABLE_SOURCES) - {
+    'tests/fixtures/flatpak_assets.py', 'tests/integration/baseline_flatpaks.py',
+    'tests/fixtures/onpc_test_application.c'}
+PRIOR_SNAP_STAGED_SOURCES = PRIOR_FLATPAK_STAGED_SOURCES - {
     'tests/fixtures/snap_assets.py', 'tests/integration/baseline_snaps.py'}
 PRIOR_STAGED_SOURCES = PRIOR_SNAP_STAGED_SOURCES - {
     'tests/fixtures/build_test_applications.py', 'tests/fixtures/gui_runtime.py',
@@ -185,7 +190,8 @@ def recover_source_staging(g):
     require(type(record) is dict and set(record) == {'purpose', 'files', 'pending'}
             and record['purpose'] == 'onpc-preparation-source-staging-v1'
             and type(record['files']) is dict
-            and set(record['files']) in (set(STAGED_MOVABLE_SOURCES), PRIOR_SNAP_STAGED_SOURCES,
+            and set(record['files']) in (set(STAGED_MOVABLE_SOURCES), PRIOR_FLATPAK_STAGED_SOURCES,
+                PRIOR_SNAP_STAGED_SOURCES,
                 PRIOR_STAGED_SOURCES,
                 PRIOR_STAGED_SOURCES - {'tests/fixtures/native_assets.py'})
             and record['pending'] in (None, *record['files']),
@@ -274,6 +280,7 @@ def verify_clean_sources(g):
     """No movable source bytes survive capture; avatar and recovery data stay."""
     paths = (*prepare_vm.FIXTURE_SOURCE_FILES, 'tests/fixtures/gui_runtime.py',
              'tests/fixtures/snap_assets.py', 'tests/integration/baseline_snaps.py',
+             'tests/fixtures/flatpak_assets.py', 'tests/integration/baseline_flatpaks.py',
              'common/oh_no_parent_control_ui/gtk_automation.py')
     require(not any(g.exists(STAGE + '/checkout/' + relative)
                     or g.is_symlink(STAGE + '/checkout/' + relative) for relative in paths),
@@ -315,18 +322,23 @@ def prepare(capture, guestfs, password, *, mode='manual'):
     with operation('Preparing baseline artifacts; VM is powered off'), built_artifacts(
             prepare_vm.vm_config.selected().require_package_format(), caller) as artifacts:
         from build_test_artifacts import verify
-        from tests.fixtures import snap_assets
+        from tests.fixtures import snap_assets, flatpak_assets
         manifest = verify(artifacts)
         fixture_root = artifacts / manifest['artifacts']['fixtures']['path']
         hashes = json.loads((fixture_root / 'SHA256SUMS.json').read_bytes())['files']
         payload = {name: (fixture_root / name).read_bytes() for name in snap_assets.packages()}
         require(all(hashlib.sha256(data).hexdigest() == hashes[name]
                     for name, data in payload.items()), 'guest:snap-input-digest')
+        flatpak_payload = {name: (fixture_root / name).read_bytes()
+                          for name in (*flatpak_assets.declarations().values(), flatpak_assets.MANIFEST)}
+        require(hashlib.sha256(flatpak_payload[flatpak_assets.MANIFEST]).hexdigest()
+                == hashes[flatpak_assets.MANIFEST], 'guest:flatpak-input-digest')
         with operation('Preparing and validating the baseline VM'):
-            return prepare_with_snaps(capture, guestfs, password, mode=mode, snap_payload=payload)
+            return prepare_with_snaps(capture, guestfs, password, mode=mode, snap_payload=payload,
+                                      flatpak_payload=flatpak_payload)
 
 
-def prepare_with_snaps(capture, guestfs, password, *, mode, snap_payload):
+def prepare_with_snaps(capture, guestfs, password, *, mode, snap_payload, flatpak_payload):
     """Operate only on the off, journal-bound source selected by the controller."""
     require(mode in ('auto', 'manual'), 'guest:preparation-mode')
     print('prepare-vm: Staging baseline setup on disk; VM is powered off', flush=True)
@@ -404,6 +416,14 @@ def prepare_with_snaps(capture, guestfs, password, *, mode, snap_payload):
         write(g, STAGE + '/snap-inputs/SHA256SUMS.json', json.dumps({
             name: hashlib.sha256(data).hexdigest() for name, data in snap_payload.items()},
             sort_keys=True).encode())
+        from tests.fixtures import flatpak_assets
+        require(set(flatpak_payload) == {*flatpak_assets.declarations().values(), flatpak_assets.MANIFEST},
+                'guest:flatpak-input-manifest')
+        for name, data in flatpak_payload.items():
+            write(g, STAGE + '/flatpak-inputs/' + name, data)
+        write(g, STAGE + '/flatpak-inputs/SHA256SUMS.json', json.dumps({
+            name: hashlib.sha256(data).hexdigest() for name, data in flatpak_payload.items()
+            if name != flatpak_assets.MANIFEST}, sort_keys=True).encode())
         label_preparation(g)
     with operation('Running no-app setup and guest system updates' if mode == 'auto'
                    else 'Running no-app prerequisite setup'):
@@ -430,8 +450,9 @@ def prepare_with_snaps(capture, guestfs, password, *, mode, snap_payload):
             require(False, 'guest:preparation-failed; diagnostics:' + preparation_failure(
                 g, attempt=capture.state.get('operation')))
         require(not g.exists(STAGE + '/password'), 'guest:preparation-secret-retained')
-        from baseline_fixtures import verify_snaps
+        from baseline_fixtures import verify_snaps, verify_flatpaks
         verify_snaps(g)
+        verify_flatpaks(g)
         for name, data in snap_payload.items():
             path = STAGE + '/snap-inputs/' + name
             from baseline_fixtures import regular
@@ -444,6 +465,18 @@ def prepare_with_snaps(capture, guestfs, password, *, mode, snap_payload):
         require(json.loads(g.read_file(manifest_path)) == {
             name: hashlib.sha256(data).hexdigest() for name, data in snap_payload.items()},
             'guest:snap-input-manifest')
+        g.rm(manifest_path)
+        for name, data in flatpak_payload.items():
+            path = STAGE + '/flatpak-inputs/' + name
+            regular(g, path, 0, 0, 0o600)
+            require(g.checksum('sha256', path) == hashlib.sha256(data).hexdigest(),
+                    'guest:flatpak-input-changed')
+            g.rm(path)
+        manifest_path = STAGE + '/flatpak-inputs/SHA256SUMS.json'
+        regular(g, manifest_path, 0, 0, 0o600)
+        require(json.loads(g.read_file(manifest_path)) == {
+            name: hashlib.sha256(data).hexdigest() for name, data in flatpak_payload.items()
+            if name != flatpak_assets.MANIFEST}, 'guest:flatpak-input-manifest')
         g.rm(manifest_path)
         hashes = [line.split(':') for line in g.read_file('/etc/shadow').decode('ascii').splitlines()]
         for account in prepare_vm.IDENTITIES:

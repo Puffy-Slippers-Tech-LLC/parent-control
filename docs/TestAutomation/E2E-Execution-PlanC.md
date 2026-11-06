@@ -13,7 +13,7 @@ Task queue: [Plan C ordered checklist](E2E-Task-QueueC.md).
 
 ## Next task
 
-Next task: **116p — [Prepare the Flatpak fixture baseline](E2E-Tasks/116p-flatpak-fixtures.md)**.
+Next task: **116b — [Launch and use Flatpak fixtures by command](E2E-Tasks/116b-flatpak-command-usable.md)**.
 
 This plan owns its queue, unchanged task briefs and next-task pointer.
 It can run independently of all unfinished work in

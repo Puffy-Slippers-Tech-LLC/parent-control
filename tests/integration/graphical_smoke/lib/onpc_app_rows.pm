@@ -71,6 +71,16 @@ sub native_entry {
     $journey->consume_observation('parent-selected', $selected);
 }
 
+sub flatpak_fixtures {
+    onpc_progress::operation('Reading prepared Flatpak apps and their public Parent defaults');
+    my ($exchange) = @_;
+    die 'flatpak:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'flatpak-fixtures', review => 0);
+    native_entry($journey);
+    read_rows($journey, $_) for ('apps-page', 'app-rows', 'reopened-rows');
+    $journey->finish();
+}
+
 # PARENT10 composes the qualified text replacement and complete row read.
 # Caller-owned invocation names allow independent reuse without hidden reopen.
 sub search {

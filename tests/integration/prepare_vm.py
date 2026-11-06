@@ -82,7 +82,9 @@ SCRIPT_FILES = tuple(path for path in LEGACY_SCRIPT_FILES
     'tests/__init__.py', 'tests/fixtures/__init__.py',
     'tests/fixtures/baseline_environment.py', 'tests/fixtures/snap_assets.py',
     'tests/integration/baseline_snaps.py', 'tests/fixtures/build_test_applications.py',
-    'tests/fixtures/gui_runtime.py', 'tests/fixtures/gui_application.py')
+    'tests/fixtures/gui_runtime.py', 'tests/fixtures/gui_application.py',
+    'tests/fixtures/flatpak_assets.py', 'tests/integration/baseline_flatpaks.py',
+    'tests/fixtures/onpc_test_application.c')
 
 
 def preparation_files(os_id=None):
@@ -90,7 +92,9 @@ def preparation_files(os_id=None):
 
 
 SNAPSHOT_SOURCE_SYMBOLS = {
-    'tests/fixtures/build_test_applications.py': ('_build_snap',),
+    'tests/fixtures/build_test_applications.py': (
+        '_build_snap', '_build_flatpak', '_compile_native', '_copy_gui_runtime',
+        '_write_text', '_set_reproducible_times'),
     'tests/integration/baseline_fixtures.py': (
         'RECORD', 'PURPOSE', 'CLEAN_PURPOSE', 'RETIRE_RECORD', 'environment_files', '_clean_declaration',
         'movable_files', '_present', '_retirement_plan', 'reconcile_clean', 'verify_clean',
@@ -104,7 +108,7 @@ SNAPSHOT_SOURCE_SYMBOLS = {
         'NATIVE_RULES_SOURCE_PATTERN', '_native_open_rule',
         '_native_rules_source', '_native_rules_record', '_preflight_native_rules',
         'reconcile_native_rules', 'verify_native_rules', 'fixture_accounts',
-        'verify_native_policy_sources', 'verify_snaps'),
+        'verify_native_policy_sources', 'verify_snaps', 'verify_flatpaks'),
     'tests/fixtures/native_trust.py': (
         'TRUST_RECORD', 'TRUST_FILE', 'TRUST_PENDING', 'TRUST_PURPOSE', 'FIXTURE_RECORD',
         'BACKEND_CONFIG', 'BACKEND_RECORD', 'BACKEND_PENDING', 'BACKEND_PURPOSE',
@@ -1061,6 +1065,10 @@ def main(password=None) -> int:
                           if 'system_support' in value})
         print('prepare-vm: [stage:snap-fixtures] strict installed mode verified; '
               'system-support:' + ','.join(support), file=sys.stderr)
+        from baseline_flatpaks import reconcile as reconcile_flatpaks
+        reconcile_flatpaks(digest, runner=runner)
+        print('prepare-vm: [stage:flatpak-fixtures] system runtime and A/H/S apps verified',
+              file=sys.stderr)
         print(f"prepare-vm: [stage:hostname] setting test guest hostname to {HOSTNAME}", file=sys.stderr)
         runner.run(["hostnamectl", "set-hostname", HOSTNAME])
         guest = dataclasses.replace(guest, hostname=HOSTNAME)
@@ -1114,16 +1122,16 @@ def main(password=None) -> int:
         elif isinstance(error, OSError):
             frames = traceback.extract_tb(error.__traceback__)
             locations = ','.join(f'{frame.name}:{frame.lineno}' for frame in frames
-                if Path(frame.filename).name in ('prepare_vm.py', 'baseline_snaps.py'))
+                if Path(frame.filename).name in ('prepare_vm.py', 'baseline_snaps.py', 'baseline_flatpaks.py'))
             print(f'prepare-vm: local operation errno:{error.errno}; at:{locations}', file=sys.stderr)
             detail = "[io:failed] a required local operation failed"
         elif isinstance(error, ValueError):
             frames = traceback.extract_tb(error.__traceback__)
             locations = ','.join(f'{frame.name}:{frame.lineno}' for frame in frames
-                if Path(frame.filename).name in ('prepare_vm.py', 'baseline_snaps.py'))
+                if Path(frame.filename).name in ('prepare_vm.py', 'baseline_snaps.py', 'baseline_flatpaks.py'))
             print(f'prepare-vm: validation failed at:{locations}', file=sys.stderr)
             detail = (str(error) if re.fullmatch(
-                r'snap-fixtures:[a-z-]+; refresh with tools/prepare-vm', str(error)) else
+                r'(?:snap|flatpak)-fixtures:[a-z-]+; refresh with tools/prepare-vm', str(error)) else
                 '[io:failed] a required local operation failed')
         else:
             detail = "[io:failed] a required local operation failed"

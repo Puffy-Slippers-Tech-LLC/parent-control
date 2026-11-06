@@ -89,7 +89,8 @@ def test_copied_snap_sources_require_their_exact_receipt_before_retirement(subst
     target = guest.STAGE + '/checkout/tests/fixtures/snap_assets.py'
 
     def metadata(path):
-        regular = path.endswith(('.py', '.json'))
+        regular = path == guest.SOURCE_STAGING or path in {
+            guest.STAGE + '/checkout/' + name for name in record['files']}
         return {'st_mode': (stat.S_IFREG | 0o600) if regular else (stat.S_IFDIR | 0o700),
                 'st_uid': 0, 'st_gid': 0, 'st_nlink': 1}
 

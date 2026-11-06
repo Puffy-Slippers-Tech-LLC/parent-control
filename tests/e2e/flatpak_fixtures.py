@@ -1,0 +1,162 @@
+"""FIX06 read-only Flatpak verification and independent Parent catalogue reads."""
+import hashlib
+import inspect
+import json
+from dataclasses import replace
+from pathlib import Path
+
+from installed_journey import InstalledJourney
+from journey_checks import allowed_app_rows
+from native_fixture_qualification import PLAN as NATIVE_PLAN
+from private_artifacts import require
+from watch_activity import operation
+import prepare_vm
+import session_control
+from tests.fixtures import flatpak_assets
+
+# Reuse valid entry and independent catalogue reads. Existing recipient and
+# row-refusal coverage remains with its shared owner, not this profile.
+PLAN = replace(NATIVE_PLAN, prefix='flatpak-fixtures', worker_mode='flatpak_fixtures',
+    screen_tags={stage: tag for stage, tag in NATIVE_PLAN.screen_tags.items()
+                 if stage not in ('wrong-child', 'wrong-page')},
+    phases={stage: phase for stage, phase in NATIVE_PLAN.phases.items()
+            if stage not in ('wrong-child', 'wrong-page')},
+    stage_actions={'desktop': 'native-verify'})
+
+
+def guest_read(action, source):
+    import grp
+    import os
+    import pwd
+    import json
+    from pathlib import Path
+    import session_control
+    import baseline_flatpaks as fixtures
+    require = session_control.require
+    require(os.geteuid() == 0 and action in ('read', 'refuse'), 'flatpak-authority')
+    parent = pwd.getpwnam(session_control.ACCOUNTS['parent'])
+    require(parent.pw_uid >= 1000 and grp.getgrnam(session_control.administrator_group()).gr_gid
+            in os.getgrouplist(parent.pw_name, parent.pw_gid), 'flatpak-administrator')
+    if action == 'refuse':
+        try:
+            session_control.source_session(session_control.sessions(), parent.pw_uid)
+        except session_control.SessionError:
+            return {'wrong_entry_refused': True}
+        require(False, 'flatpak-refusal-entry')
+    recipient = session_control.source_session(session_control.sessions(), parent.pw_uid)
+    marker = json.loads(fixtures.read(Path('/etc/oh-no-parent-control-test-baseline.json')))
+    fixtures.require(marker['preparation_script_sha256'] == source, 'stale-baseline')
+    # A user installation or override could shadow the declared system scope
+    # in the Parent catalogue or the child's later command route.
+    for username in set(session_control.ACCOUNTS.values()):
+        account = pwd.getpwnam(username)
+        home = Path(account.pw_dir)
+        require(home == Path('/home') / username, 'flatpak-account-home')
+        root = home / '.local/share/flatpak'
+        for ref in fixtures.assets.declarations():
+            fixtures.require(not os.path.lexists(root / ref), 'user-scope')
+        for name in ('global', *(item[1] for item in fixtures.assets.ASSETS)):
+            fixtures.require(not os.path.lexists(root / 'overrides' / name), 'user-override')
+    saved = fixtures.record()
+    result = fixtures.verify(saved['manifest'], source=source)
+    require(session_control.source_session(session_control.sessions(), parent.pw_uid) == recipient,
+            'flatpak-recipient-changed')
+    return result
+
+
+def guest_source():
+    root = Path(__file__).resolve().parents[2]
+    source = 'import sys, types, json\n'
+    for package in ('tests', 'tests.fixtures'):
+        source += (f'm = types.ModuleType({package!r}); m.__path__ = []; '
+                   f'sys.modules[{package!r}] = m\n')
+    modules = {
+        'tests.fixtures.snap_assets': root / 'tests/fixtures/snap_assets.py',
+        'tests.fixtures.flatpak_assets': root / 'tests/fixtures/flatpak_assets.py',
+        'baseline_snaps': root / 'tests/integration/baseline_snaps.py',
+        'baseline_flatpaks': root / 'tests/integration/baseline_flatpaks.py',
+        'session_control': Path(session_control.__file__),
+    }
+    for name, path in modules.items():
+        source += (f'm = types.ModuleType({name!r}); sys.modules[{name!r}] = m\n'
+                   f'exec({path.read_text()!r}, m.__dict__)\n')
+    return (source + inspect.getsource(guest_read) +
+            '\nprint(json.dumps(guest_read(sys.argv[1], sys.argv[2]), sort_keys=True))\n').encode()
+
+
+class FlatpakFixtures:
+    def __init__(self, transport, verified):
+        self.transport, self.verified = transport, verified
+        self.identity = dict(transport.config)
+        self.used = False
+
+    def read(self, action):
+        require(self.transport.config == self.identity, 'flatpak:wrong-attempt')
+        self.transport.guard(self.identity)
+        self.verified.recheck()
+        raw = self.transport.call(['/usr/bin/python3', '-I', '-', action,
+            prepare_vm.preparation_digest()], input=guest_source(), timeout=180)
+        require(type(raw) is bytes and 0 < len(raw) <= 16384, 'flatpak:response-bound')
+        value = json.loads(raw)
+        require(raw == (json.dumps(value, sort_keys=True) + '\n').encode(), 'flatpak:response')
+        self.transport.guard(self.identity)
+        self.verified.recheck()
+        return value
+
+    def refuse(self):
+        with operation('Checking Flatpak fixture refusal outside the parent desktop'):
+            value = self.read('refuse')
+            require(value == {'wrong_entry_refused': True}, 'flatpak:refusal')
+            return value
+
+    def verify(self):
+        require(not self.used, 'flatpak:replay')
+        self.used = True
+        with operation('Reading the system Flatpak runtime, apps, confinement and launchers'):
+            first = self.read('read')
+            require(set(first) == set(flatpak_assets.declarations())
+                    and self.read('read') == first, 'flatpak:independent-readback')
+            return {'installed_apps': 3, 'independent_readback': True,
+                    'scope': 'system', 'confinement': 'flatpak', 'installed': first}
+
+
+def fixture_actions(*, include_refusal=True):
+    require(type(include_refusal) is bool, 'flatpak:action-binding')
+    def controller(journey):
+        if not hasattr(journey, 'flatpak_fixtures'):
+            journey.flatpak_fixtures = FlatpakFixtures(journey.transport, journey.context.verified)
+        return journey.flatpak_fixtures
+
+    def refuse(journey, guard):
+        guard()
+        return controller(journey).refuse()
+
+    def verify(journey, guard):
+        guard()
+        return controller(journey).verify()
+
+    return ({'native-refuse': refuse, 'native-verify': verify} if include_refusal
+            else {'native-verify': verify})
+
+
+class FlatpakFixtureJourney(InstalledJourney):
+    def __init__(self, context, progress, plan=PLAN):
+        super().__init__(context, progress, plan, actions=fixture_actions(include_refusal=False))
+        self.initial_rows = None
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage not in ('app-rows', 'reopened-rows'):
+            return
+        rows = allowed_app_rows(self, observed)
+        expected = tuple(sorted(('parent-app-' + hashlib.sha256(
+            (name + '.desktop').encode()).hexdigest()[:16], 'allowed', 'precise')
+            for _, name, _ in flatpak_assets.ASSETS))
+        actual = tuple(row for row in rows.rows if row[0] in {item[0] for item in expected})
+        require(actual == expected, 'flatpak:catalogue-defaults')
+        if stage == 'app-rows':
+            self.initial_rows = rows
+        else:
+            require(self.initial_rows == rows, 'flatpak:independent-catalogue')
+        observed['comparison'].update(declared_flatpak_launchers=3, allowed_defaults=True,
+                                      default_matches=True)

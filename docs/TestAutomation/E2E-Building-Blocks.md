@@ -3532,7 +3532,7 @@ authentication outcome or app behavior being tested.
 | ID | Kind | Supporting operation and boundary | Existing source | Status |
 | --- | --- | --- | --- | --- |
 | FIX04 | A | Transfer the existing verified asset manifest to the powered-off guarded guest before the attempt; stage finite synthetic files through guarded SSH. No asset installation or arbitrary bundle interface. | `AssetTransfer.provision` / `observe` in [asset_transfer.py](../../tests/e2e/asset_transfer.py); case 1 qualification. `SyntheticFiles.call('stage')` supplies the [synthetic text files](#synthetic-file-commands); its six finite `profile` values supply the qualified [attachment boundaries](#attachment-rejection-boundaries), with exact receipt/readback and cleanup. Reusable fixture readiness belongs to FIX06, not transfer or installation during an attempt. `stage_upgrade_assets` and `VerifiedInputs(upgrade=True)` supply the [qualified genuine v1.2/current dual-package binding](#verified-upgrade-asset-transfer). | existing transfer, synthetic-text, six attachment-boundary profiles and Ubuntu amd64 dual-package upgrade transfer ready |
-| FIX06 | A | Independently verify one declared reusable fixture profile after baseline restore. Read-only files, launchers and ownership checks; no installation, repair, app launch or product-state setup. | Native: `NativeFixtures.verify` / `fixture_actions` in [native_fixtures.py](../../tests/e2e/native_fixtures.py), with guarded reads in [native_fixtures_guest.py](../../tests/e2e/native_fixtures_guest.py); see [native preparation](#native-fixture-preparation). Native Jordan-bound verification/catalogue qualified by `check_e2e_native_fixtures`; `check_e2e_shared_target_launchers` adds Jordan's fifteen-file A/Alias profile and distinct Parent rows on Ubuntu 26.04, with affected regression. Chinese: `fixture_actions(profile='chinese')` and `chinese_language_assets.verify`; [language preparation](#chinese-language-preparation-and-desktop-language-setup). `check_e2e_chinese_language_assets` qualified wrong-entry refusal, independent valid readback and unchanged state on Ubuntu 26.04. Snap: `SnapFixtures.verify` / `fixture_actions` in [snap_fixtures.py](../../tests/e2e/snap_fixtures.py); `check_e2e_snap_fixtures` qualified A/H/S installed readback and Jordan's independent Parent catalogue/default-rule reads on Fedora 44; see [Snap preparation](#snap-fixture-preparation). New profiles require their own verification before consumers and do not broaden FIX04. FIX05 retains the separate real Lunar profile. | native file/catalogue, Jordan A/Alias on Ubuntu 26.04, Chinese assets and Snap A/H/S on Fedora 44 ready; other profiles planned |
+| FIX06 | A | Independently verify one declared reusable fixture profile after baseline restore. Read-only files, launchers and ownership checks; no installation, repair, app launch or product-state setup. | Native: `NativeFixtures.verify` / `fixture_actions` in [native_fixtures.py](../../tests/e2e/native_fixtures.py), with guarded reads in [native_fixtures_guest.py](../../tests/e2e/native_fixtures_guest.py); see [native preparation](#native-fixture-preparation). Native Jordan-bound verification/catalogue qualified by `check_e2e_native_fixtures`; `check_e2e_shared_target_launchers` adds Jordan's fifteen-file A/Alias profile and distinct Parent rows on Ubuntu 26.04, with affected regression. Chinese: `fixture_actions(profile='chinese')` and `chinese_language_assets.verify`; [language preparation](#chinese-language-preparation-and-desktop-language-setup). `check_e2e_chinese_language_assets` qualified wrong-entry refusal, independent valid readback and unchanged state on Ubuntu 26.04. Snap: `SnapFixtures.verify` / `fixture_actions` in [snap_fixtures.py](../../tests/e2e/snap_fixtures.py); `check_e2e_snap_fixtures` qualified A/H/S installed readback and Jordan's independent Parent catalogue/default-rule reads on Fedora 44; see [Snap preparation](#snap-fixture-preparation). Flatpak: `FlatpakFixtures.verify` / `fixture_actions` in [flatpak_fixtures.py](../../tests/e2e/flatpak_fixtures.py); `check_e2e_flatpak_fixtures` qualified system runtime/A/H/S identities, confinement, launchers and Jordan's independent Parent catalogue/default-rule reads on Ubuntu 26.04; see [Flatpak preparation](#flatpak-fixture-preparation). New profiles require their own verification before consumers and do not broaden FIX04. FIX05 retains the separate real Lunar profile. | native file/catalogue, Jordan A/Alias on Ubuntu 26.04, Chinese assets, Snap A/H/S on Fedora 44 and Flatpak runtime/A/H/S on Ubuntu 26.04 ready; other profiles planned |
 | FIX03 | A | Prepare only a declared multiple/no-child/no-approver/locked-approver profile; do not generalize FIX02 into arbitrary mutation. | `EmptyAccountFixture.prepare` / `e2e_dynamic_account.prepare_empty` changes canonical child roles while preserving identities, administrators and station. `kiosk_no_child.PLAN` / `onpc_kiosk_no_child::run` and `check_e2e_kiosk_no_child` require exact empty children, explanation, disabled Request/duration/soft/approver controls and absent prompt. `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run` adds normal Cancel/GDM return. Other finite profiles are specified below; outer restoration owns undo. | ready; multiple/no-child/no-approver/locked-approver profiles |
 | FIX01 | A | Create one eligible account at the declared durable checkpoint while Parent stays open. Customer acceptance requires later visible discovery/selection. | `DynamicAccountFixture.create` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
 | FIX02 | A | Make the exact two canonical eligible child fixtures ineligible at the declared checkpoint before Parent launches; preserve the request station. Unexpected account sets refuse. | `EmptyAccountFixture.prepare` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
@@ -3704,6 +3704,38 @@ baseline). This slice verifies strict installation mode; it does not qualify
 every kernel sandbox feature. See the
 [Snap response fields](https://github.com/canonical/snapd/blob/master/client/packages.go)
 and [system capability command](https://forum.snapcraft.io/t/internal-debugging-commands/5341).
+
+### Flatpak fixture preparation
+
+FIX06's finite [Flatpak declaration](../../tests/fixtures/flatpak_assets.py)
+defines independent A/H/S application IDs, desktop IDs and titles, plus one
+repository-owned `x86_64/stable` runtime. All three start Allowed with precise
+matches; their role names never seed product policy.
+
+The existing artifact builder exports the real runtime and app commits and four
+offline bundles. `tools/prepare-vm` stages them under its owned preparation root;
+[baseline_flatpaks.py](../../tests/integration/baseline_flatpaks.py) reconciles only
+the default system installation through the shared package runner. Existing
+matching commits are reused. Private durable intent permits exact owned updates
+and interrupted retry; unowned collisions, overrides, wrong manifests and
+unexpected scopes refuse. Builder, declaration, executable/GUI/runtime sources
+and lifecycle code bind baseline identity. Offline capture checks the installed
+commits/metadata, and retires transferred bundles and copied sources.
+
+[FlatpakFixtures.verify](../../tests/e2e/flatpak_fixtures.py) reads the restored
+runtime/app commits, metadata, system installation paths, confinement and
+exported desktop entries twice without installing or repairing. It refuses user
+installations/overrides that could shadow the declared scope and binds both
+reads to the same administrator desktop and preparation identity.
+`check_e2e_flatpak_fixtures` reuses the shared Parent row-reading composition to
+check Jordan's three exact identities and Allowed/precise defaults independently
+after navigating away and reopening the list. This installed scope passed on
+Ubuntu 26.04 (`onpc-Ubuntu26.04-1`) in `20261106T014550Z-5b34bbd7`, including
+collection, worker/callback shutdown, owned cleanup and baseline restoration;
+the VM was independently observed off. Existing recipient and cleanup guards
+were reused, and the five new Flatpak privilege/scope checks plus nine existing
+Snap/source-retirement checks passed. Command execution, activity, grid behavior
+and other families remain outside this qualification.
 
 ### Snap command use
 

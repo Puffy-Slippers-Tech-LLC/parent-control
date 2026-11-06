@@ -1285,6 +1285,12 @@ sub run {
         onpc_app_rows::catalogue_search(\&exchange);
         return;
     }
+    if ($ready->{flatpak_fixtures}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::flatpak_fixtures(\&exchange);
+        return;
+    }
     if ($ready->{native_fixtures}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

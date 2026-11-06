@@ -64,6 +64,29 @@ def verify_snaps(g):
     return record
 
 
+def verify_flatpaks(g):
+    """Offline capture proof for the finite installed Flatpak commits."""
+    from baseline_flatpaks import RECORD, PURPOSE, ROOT, validate_manifest
+    regular(g, str(RECORD), 0, 0, 0o600)
+    require(g.filesize(str(RECORD)) < 65536, 'flatpak-record')
+    saved = json.loads(g.read_file(str(RECORD)))
+    marker = json.loads(g.read_file(str(prepare_vm.MARKER)))
+    require(type(saved) is dict and set(saved) == {'purpose', 'source', 'manifest', 'pending'}
+            and saved['purpose'] == PURPOSE and saved['pending'] is None
+            and saved['source'] == marker['preparation_script_sha256'], 'flatpak-record')
+    validate_manifest(saved['manifest'], current=True)
+    for ref, item in saved['manifest'].items():
+        path = str(ROOT / ref / item['commit'] / 'metadata')
+        info = g.lstatns(path)
+        require(stat.S_ISREG(info['st_mode']) and info['st_uid'] == info['st_gid'] == 0
+                and not info['st_mode'] & 0o022 and g.realpath(path) == path,
+                'flatpak-deployment')
+        require(g.checksum('sha256', path) == item['metadata'], 'flatpak-installed-digest')
+        active = str(ROOT / ref / 'active')
+        require(g.is_symlink(active) and g.readlink(active) == item['commit'], 'flatpak-active')
+    return saved
+
+
 def environment_files(identities, os_id='ubuntu'):
     from tests.fixtures.baseline_environment import (
         desktop_settings_files, automatic_update_files, native_policy_files)

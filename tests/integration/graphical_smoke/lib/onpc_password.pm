@@ -152,7 +152,7 @@ sub enter_kiosk_mate_password {
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,1200,0';
             my $expired_daily = ($journey->{prefix} // '') eq 'expired-daily-replacement'
                 && ($journey->{stage_prefix} // '') eq ''
-                && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,1200,0';
+                && ref($request) eq 'ARRAY' && join(',', @$request) =~ /\Achild,parent,1200,[01]\z/;
             die 'secret:challenge' unless ($temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily ||
                     ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
                     && ($journey->{stage_prefix} // '') eq '')

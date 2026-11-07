@@ -202,6 +202,7 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
                                  'process-update-request', 'process-update-wrong-soft', 'session-update-request',
                                  'sign-out-expired-recovery', 'reboot-expired-recovery',
                                  'daily-expired-recovery', 'daily-expired-wrong-scope',
+                                 'daily-expired-included', 'daily-expired-included-wrong-scope',
                                  'expired-recovery-wrong-scope', 'idle-requests', 'idle-crossed-duration'])
 def test_composed_kiosk_secret_scope_and_single_use(mode):
     # Execute the real password guard; replace only the secret delivery sink.
@@ -216,8 +217,8 @@ def test_composed_kiosk_secret_scope_and_single_use(mode):
         expired = ('app-restart-expired' if mode == 'expired-recovery' else
                    'reboot-expired' if mode == 'reboot-expired-recovery' else 'sign-out-in-expired')
         recovery = [expired, ['child', 'parent', 1200, False]]
-    if mode in ('daily-expired-recovery', 'daily-expired-wrong-scope'):
-        recovery = ['expired-daily-replacement', ['child', 'parent', 1200, False]]
+    if mode.startswith('daily-expired-'):
+        recovery = ['expired-daily-replacement', ['child', 'parent', 1200, 'included' in mode]]
     restart = ('reboot-active' if mode == 'reboot-request' else
                'sign-out-in-active' if mode == 'sign-out-request' else 'app-restart-active')
     result = run_password_guard(r'''
@@ -285,13 +286,15 @@ my $ok = eval {
     } elsif ($mode eq 'work-recovery' || $mode eq 'expired-recovery'
             || $mode eq 'sign-out-expired-recovery' || $mode eq 'reboot-expired-recovery'
             || $mode eq 'daily-expired-recovery' || $mode eq 'daily-expired-wrong-scope'
+            || $mode eq 'daily-expired-included' || $mode eq 'daily-expired-included-wrong-scope'
             || $mode eq 'expired-recovery-wrong-scope') {
         my $setup = bless {prefix => $recovery->[0] . '-profile-request',
             stage_prefix => 'profile-request-', review => 0}, 'onpc_journey';
         onpc_password::enter_kiosk_mate_password($setup, 'long-request');
         my $return = bless {prefix => $recovery->[0],
             stage_prefix => ($mode eq 'expired-recovery-wrong-scope'
-                || $mode eq 'daily-expired-wrong-scope') ? 'profile-request-' : '',
+                || $mode eq 'daily-expired-wrong-scope'
+                || $mode eq 'daily-expired-included-wrong-scope') ? 'profile-request-' : '',
             kiosk_request => $recovery->[1], review => 0}, 'onpc_journey';
         onpc_password::enter_kiosk_mate_password($return, 'bound-request');
     } elsif ($mode =~ /^profile-/) {
@@ -327,7 +330,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
         assert [event for event in value['events'] if event[0] == 'proof'] == [
             ['proof', 'kiosk-final-approval-' + proof] for proof in ('qualified', 'rechecked')]
     elif mode in ('work-recovery', 'expired-recovery', 'sign-out-expired-recovery',
-                  'reboot-expired-recovery', 'daily-expired-recovery'):
+                  'reboot-expired-recovery', 'daily-expired-recovery', 'daily-expired-included'):
         assert value['ok'] == 1
         assert deliveries == [
             ['delivery', 'parent', 'profile-request-kiosk-mate-long-request'],
@@ -335,7 +338,8 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
         assert [event for event in value['events'] if event[0] == 'proof'] == [
             ['proof', prefix + 'approval-' + proof]
             for prefix in ('profile-request-', '') for proof in ('qualified', 'rechecked')]
-    elif mode in ('expired-recovery-wrong-scope', 'daily-expired-wrong-scope'):
+    elif mode in ('expired-recovery-wrong-scope', 'daily-expired-wrong-scope',
+                  'daily-expired-included-wrong-scope'):
         assert value['ok'] == 0
         assert deliveries == [['delivery', 'parent', 'profile-request-kiosk-mate-long-request']]
         assert [event for event in value['events'] if event[0] == 'proof'] == [

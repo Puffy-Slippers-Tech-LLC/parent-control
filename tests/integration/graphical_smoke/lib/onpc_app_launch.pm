@@ -53,11 +53,8 @@ sub run {
     if ($policy eq 'allowed') {
         onpc_app_rows::native_usable_app($jordan, $route, $jordan->seen('desktop'), 'other-child',
                                        $kind ne 'native' ? 'A' : undef, $kind);
-    } elsif ($kind eq 'flatpak' && $route eq 'grid') {
-        # A completed hidden-grid observation sends no Enter. The exact
-        # command then independently proves execution is denied as well.
-        onpc_app_rows::native_search($jordan, $jordan->seen('desktop'), 'app-grid', 'A', 'flatpak');
-        $jordan->seen('command');
+    } elsif ($kind eq 'flatpak') {
+        onpc_app_rows::flatpak_blocked_app($jordan, 'A', $route, 'command');
     } else {
         onpc_app_rows::native_blocked_app($jordan, 'A', $route);
     }

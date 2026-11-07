@@ -2,7 +2,8 @@
 from functools import partial
 from accessible_ui import FLATPAK_POLICY_APP
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import app_policy_entry, desktop_entry, native_usable_app, prefixed_stages
+from journey_blocks import (app_policy_entry, desktop_entry, flatpak_blocked_app,
+                            native_usable_app, prefixed_stages)
 from policy_edits import AppPolicyJourney
 from flatpak_fixtures import fixture_actions
 from ui_observations import SettingsObservation
@@ -22,14 +23,7 @@ def launch_plan(route='command', *, limits=True, rule='allowed'):
         rule + '-save': 'ui:access-flatpak-' + access,
         rule + '-row': 'ui:access-flatpak-row',
     }
-    denied = {
-        **(prefixed_stages('jordan-denied', {
-            stage: tag for stage, tag in native_usable_app('grid', kind='flatpak', role='A').items()
-            if stage in ('desktop', 'search-ready', 'search-focused', 'search-entered')})
-           if route == 'grid' else {}),
-        **({'jordan-denied-app-grid': 'ui:flatpak-allowed-grid-hidden'} if route == 'grid' else {}),
-        'jordan-denied-command': 'ui:flatpak-allowed-command-blocked',
-    }
+    denied = flatpak_blocked_app('jordan-denied', 'A', route, command_stage='command')
     jordan = {
         'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
         **(denied if blocked else

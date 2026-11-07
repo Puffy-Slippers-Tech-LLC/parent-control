@@ -569,6 +569,22 @@ sub native_usable_app {
     return native_use_app($journey, $opened);
 }
 
+# FLOW08: hidden Flatpak grid entry, then an independent command denial.
+sub flatpak_blocked_app {
+    onpc_progress::operation('Checking that the child cannot open the blocked Flatpak app');
+    my ($journey, $role, $route, $command_stage) = @_;
+    $command_stage //= 'denied';
+    die 'flatpak:denial-binding' unless (@_ == 3 || @_ == 4)
+        && ref($journey) eq 'onpc_journey' && $role =~ /\A(?:A|H|S)\z/
+        && ($route eq 'command' || $route eq 'grid')
+        && ($command_stage eq 'denied' || $command_stage eq 'command');
+    # The hidden-grid observation sends no Enter. Command denial is a separate
+    # result, not a fallback launch after uncertain input.
+    native_search($journey, $journey->seen('desktop'), 'app-grid', $role, 'flatpak')
+        if $route eq 'grid';
+    return $journey->seen($command_stage);
+}
+
 # FLOW08: exact command denial, or the declared grid attempt/result operation.
 sub native_blocked_app {
     onpc_progress::operation('Checking that the child cannot open the blocked app');
@@ -1111,11 +1127,7 @@ sub flatpak_grid {
     $journey->seen($_) for qw(block-apps block-save block-row);
     onpc_desktop_session::enter_desktop(
         $journey, 'desktop', 'other-child', 'retained', 'success', 'blocked-child', 'parent');
-    my $blocked = $journey->scope('blocked');
-    # Hiding is an independent read with no Enter. The qualified command
-    # supplies the separate execution-denial witness after returning to desktop.
-    native_search($blocked, $blocked->seen('desktop'), 'app-grid', 'S', 'flatpak');
-    $journey->seen('blocked-denied');
+    flatpak_blocked_app($journey->scope('blocked'), 'S', 'grid');
     native_read_activity($journey, 'allowed-after-block');
     onpc_desktop_session::enter_desktop(
         $journey, 'desktop', 'parent', 'retained', 'success', 'restore-parent', 'other-child');

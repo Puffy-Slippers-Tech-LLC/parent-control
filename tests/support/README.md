@@ -289,6 +289,12 @@ supplies snapshot infrastructure acceptance only.
 
 ## Host and guest boundaries
 
+Inventory subprocesses must keep the checkout being documented after environment
+sanitization. `generate_test_coverage.capture` uses the launcher's existing
+`ONPC_LAUNCHER_CONTROLLER_ROOT` binding; a working directory alone does not
+override `run-tests`' configured default branch. Never repair another checkout's
+unfinished work to make the current checkout's collection pass.
+
 Snap and Flatpak fixture readers share [PackagedFixtures](../e2e/native_fixtures.py) for
 the pinned transport, source rechecks, bounded canonical reply and final guard.
 Keep each package's installed identity, confinement and catalogue checks in its
@@ -348,9 +354,16 @@ Keep authentication invocations bound to the explicit `fresh_desktop` fragments;
 a broad `child-` prefix also matches Parent's child-picker stages and must not
 turn those reads into desktop authentication invocations.
 
-Flatpak command variants compose `flatpak_app_launch.command_plan(limits=..., rule=...)`
+Flatpak command/grid variants compose `flatpak_app_launch.launch_plan(route=..., limits=..., rule=...)`
 and the same `onpc_app_launch::run` worker. Keep the fixed dispatch bindings in
 `smoke.pm` together; another rule or limits variant needs no copied worker handoff.
+Flatpak denials reuse `journey_blocks.flatpak_blocked_app` and the matching
+`onpc_app_rows::flatpak_blocked_app` worker in launch cases, temporary-approval
+histories and the standalone grid qualification. The
+grid binding keeps both the hidden-launcher read and independent command-policy
+denial; it never attempts a hidden grid entry. Callers keep role, route, stage
+prefix, policy order, other-child use and retained-work comparisons. The shared
+fragment adds no input, process, storage or cleanup owner.
 Bind each policy save/read and any allowance checkpoint explicitly to `existing`
 in `JourneyPlan.child_bindings`: selecting Jordan in Parent does not bind later
 observer calls implicitly. The `flatpak-allowed-command-blocked` operation names

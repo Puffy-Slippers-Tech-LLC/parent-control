@@ -4,7 +4,8 @@ from accessible_ui import (FLATPAK_POLICY_APPS, KIOSK_BOUND_OPERATIONS,
 from flatpak_fixtures import fixture_actions
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (app_policy_entry, desktop_entry, desktop_return,
-                            fresh_desktop, native_usable_app, prefixed_stages, station_entry)
+                            flatpak_blocked_app, fresh_desktop, native_usable_app,
+                            prefixed_stages, station_entry)
 from private_artifacts import require
 from request_composition import KioskRequestJourney
 from access_choices import AccessChoiceJourney
@@ -17,18 +18,6 @@ ROWS = (('allowed', 'A', 'allowed'), ('hard', 'H', 'permanent'),
 REQUESTS = {'first': ('other-child', 'parent', 300, False),
             'included': ('other-child', 'other-parent', 300, True),
             'replacement': ('other-child', 'parent', 300, False)}
-
-
-def denied_app(prefix, role, route):
-    """Hidden grid entries also require the independent command-denial witness."""
-    name = 'hard' if role == 'H' else 'soft'
-    stages = {}
-    if route == 'grid':
-        stages = {**prefixed_stages(prefix, {
-            stage: tag for stage, tag in native_usable_app('grid', role=role, kind='flatpak').items()
-            if stage in ('desktop', 'search-ready', 'search-focused', 'search-entered')}),
-            prefix + '-app-grid': 'ui:flatpak-' + name + '-grid-hidden'}
-    return {**stages, prefix + '-denied': 'ui:flatpak-' + name + '-command-blocked'}
 
 
 def temporary_access_plan(route, surface):
@@ -47,7 +36,8 @@ def temporary_access_plan(route, surface):
         **prefixed_stages('initial', desktop_entry('other-child', source='gdm', entry='fresh')),
         **prefixed_stages('allowed', native_usable_app(route, role='A', kind='flatpak')),
         'allowed-capture': 'ui:flatpak-allowed-policy-activity',
-        **denied_app('initial-hard', 'H', route), **denied_app('initial-soft', 'S', route)})
+        **flatpak_blocked_app('initial-hard', 'H', route),
+        **flatpak_blocked_app('initial-soft', 'S', route)})
     activities, entries, countdowns, bindings = {}, {}, {}, {}
     logins = {'initial': ('other-child', 'initial-'), 'final': ('parent', 'final-')}
     step2 = len(screens)
@@ -65,10 +55,10 @@ def temporary_access_plan(route, surface):
             'allowed-submit': 'ui:flatpak-allowed-resubmit',
             'allowed-submitted': 'ui:flatpak-allowed-submitted',
             'allowed-original': 'ui:flatpak-allowed-policy-activity',
-            **denied_app('hard', 'H', route),
+            **flatpak_blocked_app('hard', 'H', route),
             **({**prefixed_stages('soft', native_usable_app(route, role='S', kind='flatpak')),
                 'soft-capture': 'ui:flatpak-soft-policy-activity'} if soft else
-               denied_app('soft', 'S', route)),
+               flatpak_blocked_app('soft', 'S', route)),
         }
         screens.update(prefixed_stages(name, group))
         bound_operations = KIOSK_BOUND_OPERATIONS if surface == 'kiosk' else OVERLAY_BOUND_OPERATIONS

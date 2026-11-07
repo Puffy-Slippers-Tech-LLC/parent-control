@@ -61,7 +61,7 @@ with captured process output and exit status. Repair queue Stop retains its scop
 Older runs without saved parameters require one normal launch
 before this control becomes available.
 
-Watch infrastructure failures show a flashing red **×** at the bottom left,
+Watch infrastructure failures show a flashing red circle with a white **!** at the bottom left,
 before **Reconnect**. Hovering highlights the icon; clicking opens the shared
 **ONPC Watch error** dialog and stops the flashing. The icon remains available
 to reopen the latest details, and a new distinct error after dismissal flashes
@@ -75,8 +75,8 @@ flashing for the rest of the VS Code session. Diagnostics also go
 to the **ONPC Watch** Output channel.
 This covers local Watch connection, rendering, clipboard, screenshot and action
 failures. Recoverable request timeouts retry for both local and remote readers.
-SSH connection failures also light the error icon; the failed host's footer cloud
-icon provides another way to inspect them. They also appear in footer
+SSH connection failures do not trigger the flashing error icon; the failed host's footer cloud
+icon opens their details. They also appear in footer
 status tooltips and the Output channel. Launcher-owned **Error** tab contents remain separate and do not
 trigger this dialog.
 The footer omits reader connection messages; server icons retain connection

@@ -1,6 +1,6 @@
 """Finite native fixture identities shared by builder and guarded preparation.
 
-A/H/S/N are later policy roles. Preparation leaves all four Allowed.
+A/H/S/N/C are later policy roles. Preparation leaves all five Allowed.
 """
 import hashlib
 import re
@@ -19,6 +19,7 @@ ASSETS = (
     ('H', 'Whitespace/Path With Spaces.AppImage', 'ONPC Hard Fixture', 'Whitespace native catalogue fixture', 'precise'),
     ('S', 'Versioned/Lunar Client-3.7.17.AppImage', 'ONPC Soft Fixture', 'Versioned native catalogue fixture', 'pattern'),
     ('N', 'PrismLauncher.AppImage', 'ONPC Nonmatching Fixture', 'Unrelated native catalogue fixture', 'precise'),
+    ('C', 'Comma/Path,With,Commas.AppImage', 'ONPC Comma Fixture', 'Comma native catalogue fixture', 'precise'),
 )
 # A second Jordan launcher, deliberately sharing A's exact executable bytes/path.
 SHARED_ALIAS = ('Alias', ASSETS[0][1], 'ONPC Shared Target Fixture',
@@ -26,7 +27,7 @@ SHARED_ALIAS = ('Alias', ASSETS[0][1], 'ONPC Shared Target Fixture',
 LAUNCHERS = (*ASSETS, SHARED_ALIAS)
 GUI_FILES = ('onpc-test-gui.py', 'gtk_automation.py')
 # Keep unrepresentable whitespace nonmatches outside A and S wildcard groups.
-GUI_DIRECTORIES = ('', 'Versioned/', 'Whitespace/')
+GUI_DIRECTORIES = ('', 'Versioned/', 'Whitespace/', 'Comma/')
 # Keep the earlier generated/baseline S file as an untrusted compatibility
 # control. The active launcher and policy pattern use only Versioned.
 LEGACY_S = 'Lunar Client-3.7.17.AppImage'
@@ -51,7 +52,7 @@ def activity_sources():
 
 
 def desktop_id(role):
-    assert role in ('A', 'H', 'S', 'N', 'Alias')
+    assert role in ('A', 'H', 'S', 'N', 'C', 'Alias')
     return 'com.puffyslippers.ONPCTest.' + role + '.desktop'
 
 
@@ -59,7 +60,7 @@ def desktop_entry(asset):
     role, filename, name, description, match = asset
     # Policy journeys keep Allowed work open while launching/denying H or S.
     # Match the command route's distinct public secondary-window identity.
-    instance = ' --instance secondary' if role in ('H', 'S') else ''
+    instance = ' --instance secondary' if role in ('H', 'S', 'C') else ''
     return ('[Desktop Entry]\nType=Application\n' + f'Name={name}\nComment={description}\n'
             'Icon=applications-system\n' + f'Exec="{PREFIX}/{filename}"{instance}\nTerminal=false\n')
 
@@ -122,7 +123,7 @@ def native_policy_files(expected, child_uids):
     """Closed Fedora baseline admissions; product denials precede these rules.
 
     Only the two prepared children may open the shared Python runtimes or
-    execute the four active native payloads. These inputs remain untrusted.
+    execute the five active native payloads. These inputs remain untrusted.
     Source keys bind every copy of each runtime to identical expected bytes.
     """
     required = runtime_sources()
@@ -137,7 +138,7 @@ def native_policy_files(expected, child_uids):
         raise ValueError('native:baseline-policy-inputs')
     executables = [expected[key] for key in executable_sources()]
     gui = [expected[key] for key in gui_sources()]
-    if (len(set(executables)) != 4 or gui != gui[:len(GUI_FILES)] * len(GUI_DIRECTORIES)
+    if (len(set(executables)) != len(ASSETS) or gui != gui[:len(GUI_FILES)] * len(GUI_DIRECTORIES)
             or len(set(gui)) != 2 or set(gui) & set(executables)):
         raise ValueError('native:baseline-policy-inputs')
     subject = ','.join(str(uid) for uid in sorted(child_uids))

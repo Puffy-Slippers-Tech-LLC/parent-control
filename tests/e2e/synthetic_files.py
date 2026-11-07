@@ -11,15 +11,15 @@ from watch_activity import operation
 class SyntheticFiles:
     def __init__(self, transport, profile='standard', *, expected=None):
         require(profile in ('standard', 'single', 'count', 'sixth', 'maximum', 'oversized', 'total', 'overflow',
-                            'name180', 'name181', 'hidden', 'mixed', 'zip', 'save', 'native-space'),
+                            'name180', 'name181', 'hidden', 'mixed', 'zip', 'save', 'native-space', 'native-comma'),
                 'files:profile')
-        require((profile == 'native-space' and type(expected) is dict
+        require((profile in ('native-space', 'native-comma') and type(expected) is dict
                  and set(expected) == {'source', 'nonmatching'}
                  and all(type(value) is str and len(value) == 64
                          and all(c in '0123456789abcdef' for c in value)
                          for value in expected.values())
                  and expected['source'] != expected['nonmatching'])
-                or profile != 'native-space' and expected is None, 'files:expected')
+                or profile not in ('native-space', 'native-comma') and expected is None, 'files:expected')
         self.transport = transport
         self.profile = profile
         self.expected = dict(expected) if expected is not None else None
@@ -61,11 +61,11 @@ class SyntheticFiles:
                    'sys.modules["guest_files"] = guest_files\n'
                    f'exec({files_source!r}, guest_files.__dict__)\n')
         program = modules.encode() + program
-        if self.profile == 'native-space':
+        if self.profile in ('native-space', 'native-comma'):
             previous = {'expected': self.expected, 'previous': previous}
         raw = self.transport.call([
             '/usr/sbin/runuser', '--user',
-            'onpc-child-jordan' if self.profile == 'native-space' else 'onpc-parent-jamie', '--',
+            'onpc-child-jordan' if self.profile in ('native-space', 'native-comma') else 'onpc-parent-jamie', '--',
             '/usr/bin/python3', '-I', '-', name,
             json.dumps(previous, sort_keys=True),
             *([] if self.profile == 'standard' else [self.profile])], input=program, timeout=30)

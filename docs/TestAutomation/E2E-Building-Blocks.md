@@ -2497,8 +2497,33 @@ lifetimes, exact identical bytes, final logout, collection, worker shutdown and
 baseline restoration passed. Affected both-child grid/command case 62 passed
 in `scenario-965b812b88c544d1a3748f83a0ee8d03`, including collection and cleanup.
 The selector has no standalone system registration and supplies no complete
-case-188 credit. Comma inputs and original/copy Hard/Soft policy effects remain
-with their declared consumers; this qualifies only the finite Allowed copy.
+case-188 credit. The [comma binding](#comma-bearing-executable-copy) extends the
+same mechanism; original/copy Hard/Soft policy effects remain with case 188.
+
+#### Comma-bearing executable copy
+
+`native_assets.ASSETS` adds the distinct `C` executable
+`Applications/Comma/Path,With,Commas.AppImage`, its adjacent GUI modules and
+`C.desktop`. FIX06's native profile independently verifies nineteen source keys,
+including all five distinct executable contents and Jordan's six launchers.
+The unchanged space fixture and distinct N remain available.
+
+`native_space_path.copy_actions('comma')` uses
+`SyntheticFiles(profile='native-comma', expected=...)` to copy C to the exact
+`Applications/Comma/Copied,Path,With,Commas.AppImage` destination. It reuses the
+space copy's child, directory, exclusive-write, content, inode and cleanup guards.
+`native_usable_app('command', role='CommaCopy')` binds the same shared command,
+public window owner, Submit/readback and normal-close operations to that copy.
+No arbitrary source, destination or program binding is admitted.
+
+`check_e2e_qualify_native_fixtures_with_spaces_and_commas` passed on Ubuntu 26.04
+on 2026-11-07: fresh native readiness, identical copy, Allowed launch/use,
+normal closure, copy cleanup and logout passed. Affected both-child grid/command
+case 62 also passed, including collection, worker shutdown and baseline restoration.
+The focused selector has no standalone system registration. This qualifies the
+added Allowed copy on Ubuntu only; case 188 still owns both originals/copies'
+Hard/Soft policy effects and unaffected-N results. No saved VM state or complete
+case-188 acceptance transfers to that consumer.
 
 ### Time and ordinary lifecycle boundaries
 
@@ -4138,7 +4163,7 @@ policy-driven closure or deferred-case acceptance.
 ### Native fixture preparation
 
 FIX06's declaration is [native_assets.py](../../tests/fixtures/native_assets.py).
-The [builder](../../tests/fixtures/build_test_applications.py) gives A/H/S/N
+The [builder](../../tests/fixtures/build_test_applications.py) gives A/H/S/N/C
 distinct executable bytes while preserving GUI kind. Preparation leaves all
 launchers Allowed; policy setup remains a customer action.
 
@@ -4149,6 +4174,7 @@ launchers Allowed; policy setup remains a customer action.
 | H | `H.desktop` | `Whitespace/Path With Spaces.AppImage` | ONPC Hard Fixture | Whitespace native catalogue fixture | precise |
 | S | `S.desktop` | `Versioned/Lunar Client-3.7.17.AppImage` | ONPC Soft Fixture | Versioned native catalogue fixture | pattern (`Versioned/Lunar Client-*.AppImage`) |
 | N | `N.desktop` | `PrismLauncher.AppImage` | ONPC Nonmatching Fixture | Unrelated native catalogue fixture | precise |
+| C | `C.desktop` | `Comma/Path,With,Commas.AppImage` | ONPC Comma Fixture | Comma native catalogue fixture | precise |
 
 S's adjacent GUI/automation modules live in `Applications/Versioned`; H uses
 `Applications/Whitespace`, and A/N use `Applications`. Isolating H preserves
@@ -4159,7 +4185,7 @@ Jordan-owned 0755 and contains only S and its two modules. Extra/stale files,
 links, changed bytes/modes or foreign ownership refuse. Active and legacy S
 remain excluded from file trust.
 
-The current native profile has 15 active source keys; Riley uses ten runtime
+The current native profile has 19 active source keys; Riley uses thirteen runtime
 files plus its own A launcher. Earlier ten/seven-file and twelve/nine-file
 qualifications do not verify this changed placement. The
 [compatible fixture scope](#c04p1-compatible-fixture-applicability) and
@@ -4179,7 +4205,7 @@ secondary for the delivered finite C04p core-effects history; those exact
 Submit/result bindings are qualified on both declared targets. Broader roles,
 routes and compositions remain pending. Distinct bytes alone do not
 prove window identity. `Alias.desktop` shares A's exact target; A/H/S/N retain
-four distinct executable contents. Alias placement/readback and public launch
+four distinct executable contents; C adds a fifth distinct executable. Alias placement/readback and public launch
 readiness are implemented by `shared_target_launchers.PLAN` /
 `onpc_app_rows::shared_target_launchers`. Task 229a's
 `check_e2e_shared_target_launchers` passed on Ubuntu 26.04 in

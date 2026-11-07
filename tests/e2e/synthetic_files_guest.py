@@ -72,11 +72,18 @@ BOUNDARY_PROFILES = {
 NATIVE_SPACE_PARENT = Path('/opt/onpc-test-fixtures/Applications/Whitespace')
 NATIVE_SPACE_SOURCE = 'Path With Spaces.AppImage'
 NATIVE_SPACE_COPY = 'Copied Path With Spaces.AppImage'
+NATIVE_COMMA_PARENT = Path('/opt/onpc-test-fixtures/Applications/Comma')
+NATIVE_COMMA_SOURCE = 'Path,With,Commas.AppImage'
+NATIVE_COMMA_COPY = 'Copied,Path,With,Commas.AppImage'
 
 
-def native_space_operate(home, operation, request):
+def native_space_operate(home, operation, request, profile='native-space'):
     """FILE05: one Jordan-owned executable copy, never arbitrary file input."""
     import pwd
+    require(profile in ('native-space', 'native-comma'))
+    parent_path, source_name, copy_name = (
+        (NATIVE_SPACE_PARENT, NATIVE_SPACE_SOURCE, NATIVE_SPACE_COPY) if profile == 'native-space'
+        else (NATIVE_COMMA_PARENT, NATIVE_COMMA_SOURCE, NATIVE_COMMA_COPY))
     child = pwd.getpwnam('onpc-child-jordan')
     require(os.getuid() == os.geteuid() == child.pw_uid
             and home == Path(child.pw_dir) == Path('/home/onpc-child-jordan'))
@@ -94,7 +101,7 @@ def native_space_operate(home, operation, request):
         parent = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         stack.callback(os.close, parent)
         chain = []
-        for name in NATIVE_SPACE_PARENT.parts[1:]:
+        for name in parent_path.parts[1:]:
             fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
             stack.callback(os.close, fd)
             info = os.fstat(fd)
@@ -113,11 +120,11 @@ def native_space_operate(home, operation, request):
         def readback():
             guard()
             names = set(os.listdir(parent))
-            base = {NATIVE_SPACE_SOURCE, 'onpc-test-gui.py', 'gtk_automation.py'}
-            require(names in (base, base | {NATIVE_SPACE_COPY}))
-            result = {'directory': chain[-1][3], 'destination': str(NATIVE_SPACE_PARENT / NATIVE_SPACE_COPY),
+            base = {source_name, 'onpc-test-gui.py', 'gtk_automation.py'}
+            require(names in (base, base | {copy_name}))
+            result = {'directory': chain[-1][3], 'destination': str(parent_path / copy_name),
                       'files': {}}
-            for name in (NATIVE_SPACE_SOURCE, NATIVE_SPACE_COPY):
+            for name in (source_name, copy_name):
                 if name not in names:
                     continue
                 data, entry = read_regular(parent, name, owner=child.pw_uid,
@@ -131,28 +138,28 @@ def native_space_operate(home, operation, request):
 
         current = readback()
         if operation == 'stage':
-            require(previous is None and set(current['files']) == {NATIVE_SPACE_SOURCE})
+            require(previous is None and set(current['files']) == {source_name})
         elif operation == 'absent':
             require(previous == {'absent': True}
-                    and set(current['files']) == {NATIVE_SPACE_SOURCE})
+                    and set(current['files']) == {source_name})
             return {'absent': True}
         else:
             require(current == previous)
             if operation == 'copy':
-                require(set(current['files']) == {NATIVE_SPACE_SOURCE})
-                data, entry = read_regular(parent, NATIVE_SPACE_SOURCE, owner=child.pw_uid,
+                require(set(current['files']) == {source_name})
+                data, entry = read_regular(parent, source_name, owner=child.pw_uid,
                                           mode=0o755, limit=2 * 1024 * 1024)
-                require(identity(entry) == current['files'][NATIVE_SPACE_SOURCE]['identity'])
+                require(identity(entry) == current['files'][source_name]['identity'])
                 guard()
-                write_exclusive(parent, NATIVE_SPACE_COPY, data, owner=child.pw_uid,
+                write_exclusive(parent, copy_name, data, owner=child.pw_uid,
                                 group=child.pw_gid, mode=0o755)
             elif operation == 'cleanup':
-                require(set(current['files']) == {NATIVE_SPACE_SOURCE, NATIVE_SPACE_COPY})
+                require(set(current['files']) == {source_name, copy_name})
                 guard()
-                require(identity(os.stat(NATIVE_SPACE_COPY, dir_fd=parent, follow_symlinks=False))
-                        == current['files'][NATIVE_SPACE_COPY]['identity'])
-                os.unlink(NATIVE_SPACE_COPY, dir_fd=parent)
-                require(set(readback()['files']) == {NATIVE_SPACE_SOURCE})
+                require(identity(os.stat(copy_name, dir_fd=parent, follow_symlinks=False))
+                        == current['files'][copy_name]['identity'])
+                os.unlink(copy_name, dir_fd=parent)
+                require(set(readback()['files']) == {source_name})
                 return {'absent': True}
         return readback()
 
@@ -650,8 +657,8 @@ def save_operate(home, operation, previous):
 
 def operate(home, operation, previous, profile='standard'):
     """Validate everything before the first mutation; failures never clean up."""
-    if profile == 'native-space':
-        return native_space_operate(home, operation, previous)
+    if profile in ('native-space', 'native-comma'):
+        return native_space_operate(home, operation, previous, profile)
     require(operation in ('stage', 'read', 'copy', 'rename', 'cleanup', 'absent', 'open-text', 'probe-text', 'open-zip', 'probe-zip', 'change-source', 'probe-source', 'saved'))
     require(profile in ('standard', 'zip', 'save') or profile in BOUNDARY_PROFILES)
     require(operation != 'saved' or profile == 'save')
@@ -774,7 +781,7 @@ def diagnostic_zip_refusal(error):
 def main():
     import pwd
     require(len(sys.argv) in (3, 4))
-    user = ('onpc-child-jordan' if len(sys.argv) == 4 and sys.argv[3] == 'native-space'
+    user = ('onpc-child-jordan' if len(sys.argv) == 4 and sys.argv[3] in ('native-space', 'native-comma')
             else 'onpc-parent-jamie')
     account = pwd.getpwnam(user)
     require(os.getuid() == os.geteuid() == account.pw_uid and account.pw_dir == '/home/' + user)

@@ -503,9 +503,9 @@ def build_payload():
         result['trusted-activity'] = _compile_native(root, identity='trusted-activity').read_bytes()
         result['onpc-test-gui.py'] = GUI_SOURCE.read_bytes()
         result['gtk_automation.py'] = GTK_AUTOMATION_SOURCE.read_bytes()
-    require(len({result[role] for role, *_ in assets.ASSETS}) == 4)
+    require(len({result[role] for role, *_ in assets.ASSETS}) == len(assets.ASSETS))
     require(len({result[key] for key in ('mechanical', *assets.TRUSTED_NATIVE, 'trusted-activity',
-                                        *(role for role, *_ in assets.ASSETS))}) == 8)
+                                        *(role for role, *_ in assets.ASSETS))}) == 4 + len(assets.ASSETS))
     return result
 
 

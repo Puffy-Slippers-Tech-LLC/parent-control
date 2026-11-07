@@ -789,7 +789,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          attachment_boundaries=False, feedback_reset=False, feedback_block_semantics=False,
          feedback_formats=False, feedback_link_semantics=False, real_interval=False,
          independent_network=False, public_connectivity_controls=False, native_grid_usable=False,
-         riley_native_grid=False, native_denial=False, native_space_path=False, native_policy_closure=False, shared_target_launchers=False,
+         riley_native_grid=False, native_denial=False, native_space_path=False, native_comma_path=False, native_policy_closure=False, shared_target_launchers=False,
          native_app=False, flatpak_retained_work=False, app_activity=False, retained_app_visits=False, chinese_language_assets=False, desktop_language=False,
          chinese_native_auth=False, parent_language=False, kiosk_language=False, overlay_language=False,
          panel_language_refresh=False,
@@ -1031,6 +1031,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         and approval_flow is None and not any(value for name, value in locals().items()
             if name not in ('assets', 'provision_credentials', 'native_space_path')
             and isinstance(value, bool)))), 'smoke:native-space-path-prerequisites')
+    require(type(native_comma_path) is bool and (not native_comma_path or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and approval_flow is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'native_comma_path')
+            and isinstance(value, bool)))), 'smoke:native-comma-path-prerequisites')
     require(type(native_denial) is bool and (not native_denial or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1852,6 +1857,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-native-denial-qualification'
         if native_space_path:
             result['scope'] = 'installed-native-space-path-qualification'
+        if native_comma_path:
+            result['scope'] = 'installed-native-comma-path-qualification'
         if native_policy_closure:
             result['scope'] = 'installed-' + fixture_profile + '-policy-closure-qualification'
         if flatpak_retained_work:
@@ -2102,7 +2109,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if (product_free_entry or parent_entry is not None or lock_surface is not None or parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or kiosk_preferences_confinement or baseline_app_effects or baseline_auth_pause or baseline_journey or active_grant_disable or confinement_usability
-                        or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or panel_language_refresh or overlay_reminder_editing or kiosk_reminder_binding or reminder_fullscreen_preference or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or native_denial or native_space_path or native_policy_closure or flatpak_retained_work or shared_target_launchers or app_activity or retained_app_visits
+                        or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or panel_language_refresh or overlay_reminder_editing or kiosk_reminder_binding or reminder_fullscreen_preference or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or native_denial or native_space_path or native_comma_path or native_policy_closure or flatpak_retained_work or shared_target_launchers or app_activity or retained_app_visits
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or revoke_cancel or revocation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
@@ -2441,6 +2448,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if native_space_path:
                     from parent_setup_qualification import NativeSpacePathQualification
                     qualification_class = NativeSpacePathQualification
+                if native_comma_path:
+                    from parent_setup_qualification import NativeCommaPathQualification
+                    qualification_class = NativeCommaPathQualification
                 if native_policy_closure:
                     from parent_setup_qualification import NativePolicyClosureQualification
                     qualification_class = NativePolicyClosureQualification

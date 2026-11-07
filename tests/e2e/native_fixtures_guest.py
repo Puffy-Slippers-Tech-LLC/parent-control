@@ -97,7 +97,7 @@ def readback(child, expected, *, selected=False):
     require(type(expected) is dict and set(expected) == set(sources())
             and all(type(value) is str and len(value) == 64
                     and all(c in '0123456789abcdef' for c in value) for value in expected.values())
-            and len({expected[source] for source in executable_sources()}) == 4)
+            and len({expected[source] for source in executable_sources()}) == len(ASSETS))
     verify_native_policy(expected, selected=selected)
     result = {}
     with versioned_directory(child):
@@ -119,7 +119,7 @@ def riley_readback(shared_owner, expected, *, catalogue=False):
     require(type(expected) is dict and set(expected) == set(names)
             and all(type(value) is str and len(value) == 64
                     and all(c in '0123456789abcdef' for c in value) for value in expected.values())
-            and len({expected[source] for source in executable_sources()}) == 4)
+            and len({expected[source] for source in executable_sources()}) == len(ASSETS))
     verify_native_policy(expected, selected=catalogue)
     riley = pwd.getpwnam(session_control.ACCOUNTS['child'])
     require(riley.pw_uid >= 1000 and riley.pw_uid != shared_owner.pw_uid)

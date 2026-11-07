@@ -119,7 +119,7 @@ class NativeFixtures:
         expected = ({name: files[name] for name in names}
                     if self.profile != 'chinese' else {})
         if self.profile not in ('chinese', 'activity'):
-            require(len({expected[name] for name in executable_sources()}) == 4, 'native:identical-roles')
+            require(len({expected[name] for name in executable_sources()}) == len(ASSETS), 'native:identical-roles')
         raw = self.transport.call(['/usr/bin/python3', '-I', '-', action,
                                    ('baseline-child-selected' if selected_child else
                                     'activity-selected' if selected_activity else

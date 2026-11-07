@@ -2543,6 +2543,16 @@ class NativeSpacePathQualification(ChallengesQualification):
         return NativeSpacePathJourney(context, progress)
 
 
+class NativeCommaPathQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from native_space_path import NativeSpacePathJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return NativeSpacePathJourney(context, progress, profile='comma')
+
+
 class NativeAppQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

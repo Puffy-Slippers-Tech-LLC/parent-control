@@ -23,7 +23,7 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detached_launcher as launcher
-from agent_adapter import capacity_fallback, resolve_profile
+from agent_adapter import AgentSelection, capacity_fallback, resolve_profile, resolve_selection
 from execution_plan import Plan, Task, local_file, local_path, plan_namespace, queue_state
 from launcher_git import (GitReconciliationRequired, OwnershipReconciliationRequired,
                           closeout_lock, commit_push_propagate, git_output,
@@ -65,12 +65,12 @@ def coordinator_repair(state):
     return any(state.get(key) for key in ('git_reconciliation', 'result_recovery'))
 
 
-def capacity_session_spec(spec, state):
+def capacity_session_spec(spec, state, *, selection=None):
     """A capacity fallback never mutates the workflow's configured model/effort."""
     recovery = state.get('capacity_recovery', {})
     if (capacity_retry(state) and recovery.get('failures') == len(CAPACITY_RETRY_DELAYS) + 1
-            and capacity_fallback(spec.model) is not None):
-        return replace(spec, model=capacity_fallback(spec.model))
+            and capacity_fallback(spec.model, selection=selection) is not None):
+        return replace(spec, model=capacity_fallback(spec.model, selection=selection))
     return spec
 
 
@@ -132,8 +132,9 @@ def validate_result(plan, state, result):
         return
 
 
-def session_command(root, spec, run=None):
-    worker = resolve_profile('worker')
+def session_command(root, spec, run=None, *, selection=None, logical_tier=None):
+    selection = selection or resolve_selection(root)
+    worker = resolve_profile('worker', selection=selection)
     shell_environment = []
     if run is not None:
         shell_environment.append(('ONPC_WORKFLOW_DIRECTORY', str(run)))
@@ -146,12 +147,12 @@ def session_command(root, spec, run=None):
         schema=Path(__file__).with_name('plan_response.schema.json'), standard_speed=True,
         delegation=launcher.Delegation(roles=('backend_reviewer', 'monitor', 'worker'),
             max_concurrent=3, model=worker.model, effort=worker.effort),
-        shell_environment=shell_environment)
+        shell_environment=shell_environment, selection=selection, logical_tier=logical_tier)
 
 
-def session_prompt(plan, spec, state):
-    worker = resolve_profile('worker')
-    monitor = resolve_profile('monitor')
+def session_prompt(plan, spec, state, *, selection=None):
+    worker = resolve_profile('worker', selection=selection)
+    monitor = resolve_profile('monitor', selection=selection)
     return f"""Implement only task {state['task_id']}: {state['task']['title']}.
 Read AGENTS.md, docs/Execution-Plans.md, master {plan.path}, ordered queue
 {plan.queue}, and the selected brief
@@ -640,10 +641,10 @@ def reconcile_plan(root, spec, identity, *, check=False, merge_tasks=(), base=No
                     reconciled=not check, checked=check)
 
 
-def closeout(plan, spec, run, state):
+def closeout(plan, spec, run, state, *, selection=None):
     with closeout_lock(plan.root, run, state):
         try:
-            return _closeout(plan, spec, run, state)
+            return _closeout(plan, spec, run, state, selection=selection)
         except SessionResultRejected as error:
             state.update(phase='recover', in_flight=False, plan_queue=plan.queue)
             retain_result_rejection(run, error, label=spec.name, checkpoint=state)
@@ -666,7 +667,7 @@ def closeout(plan, spec, run, state):
             return False
 
 
-def _closeout(plan, spec, run, state):
+def _closeout(plan, spec, run, state, *, selection=None):
     result = state['pending_completion']
     if not state.get('pull_intent'):
         validate_session_result(result, lambda result: validate_result(plan, state, result))
@@ -689,7 +690,8 @@ def _closeout(plan, spec, run, state):
         if state.get('commit_intent') is None:
             paths = stage_task(plan.root, paths, required_paths=(plan.path, plan.queue), stage=False)
         commit_push_propagate(plan.root, run, state, paths,
-                              f"{spec.commit_prefix}: Completed task {state['task_id']}", git=git_output)
+                              f"{spec.commit_prefix}: Completed task {state['task_id']}", git=git_output,
+                              selection=selection)
     state.update(phase='complete', in_flight=False, summary=result['summary'], handoff=result['handoff'])
     state.pop('pending_completion', None)
     state.pop('commit_intent', None)
@@ -794,23 +796,33 @@ def worker(root, run, owner, spec, state, *, reloading=False):
     reload = False
     reload_request = ReloadRequest(run)
     reload_reason = 'upstream changes or manual reload requested; reloading at a safe boundary'
+    # A controller restart has no live session to inherit. Retained selection
+    # is provenance only; new recovery helpers resolve current config lazily.
+    selection = None
     try:
+        if reloading and capacity_retry(state):
+            if 'agent_selection' not in state:
+                # A pre-selection controller cannot supply a live pin. Resume
+                # as a fresh recovery session without inventing old provenance.
+                state['capacity_recovery']['restart'] = True
+            else:
+                selection = AgentSelection.from_record(state['agent_selection'], root=root)
         # exec retains ownership and this live checkpoint. Reloading code is
         # not a fresh admission: continue without replaying startup validation.
         from launcher_worktrees import pull_at_boundary
+        if state.get('recovery_run'):
+            launcher.finish_nested(root, Path(state['recovery_run']))
         if state.get('upstream_pull'):
-            pull_at_boundary(root, run, state)
+            pull_at_boundary(root, run, state, selection=selection if capacity_retry(state) else None)
             reload_request.check()
         plan = load_plan(root, spec.plan, state)
         state.setdefault('selected_tasks', list(state.get('queue_before') or plan.state()))
         refresh_live_plan(plan, state)
-        if state.get('recovery_run'):
-            launcher.finish_nested(root, Path(state['recovery_run']))
         if reloading and (run / 'cancel').exists():
             raise launcher.Stopped()
         if state.get('pending_completion') and not (reloading and launcher.accept_stop(run)):
             publish_progress(run, state['task_id'], [heading(), 'Recovering accepted task close-out…'])
-            if closeout(plan, spec, run, state):
+            if closeout(plan, spec, run, state, selection=selection):
                 completed_task()
                 print(f"{spec.name}: recovered task {state['task_id']} close-out.", flush=True)
         while True:
@@ -820,7 +832,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 reason = 'stopped at a session boundary'
                 break
             from launcher_worktrees import pull_at_boundary
-            pull_at_boundary(root, run, state)
+            pull_at_boundary(root, run, state, selection=selection if capacity_retry(state) else None)
             # A valid continuation can need new startup recovery just as a
             # rejected response can need repaired guards. Never spend another
             # session, select another task or wait for an answer under old code.
@@ -917,9 +929,15 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 # while their worktree, mode and index still prove ownership.
                 validate_closeout_ownership(root, [], state)
             state.setdefault('started_at', time.time())
-            active_spec = capacity_session_spec(spec, state)
-            if active_spec.model != spec.model:
-                session_command(root, active_spec).preflight()
+            if not retrying_capacity:
+                selection = resolve_selection(root)
+            if selection is None:
+                raise ValueError('capacity retry has no live agent selection')
+            active_spec = capacity_session_spec(spec, state, selection=selection)
+            prepared = session_command(root, active_spec, selection=selection)
+            prepared.preflight()
+            state['agent_selection'] = selection.record()
+            state['logical_tier'] = f'{spec.model} {spec.effort}'
             if not retrying_capacity:
                 state.pop('capacity_recovery', None)
                 state['task_sessions'] += 1
@@ -937,7 +955,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             remaining = sum(not done for done in state['queue_before'].values())
             budget.update(lambda value: value.update(remaining=remaining + value['completed']))
             launcher.atomic(run / 'checkpoint.json', state)
-            (run / 'prompt.txt').write_text(session_prompt(plan, active_spec, state)
+            (run / 'prompt.txt').write_text(session_prompt(plan, active_spec, state, selection=selection)
                                            + task_info_instructions(run, state['task_id']))
             launcher.atomic(run / 'nested.json', [])
             (run / 'nested-closed').unlink(missing_ok=True)
@@ -964,7 +982,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             except AgentCapacityUnavailable as error:
                 launcher.finish_nested(root, run)
                 failures = state.get('capacity_recovery', {}).get('failures', 0) + 1
-                delay, fallback, exhausted = capacity_failure(spec.model, failures, delays=CAPACITY_RETRY_DELAYS)
+                delay, fallback, exhausted = capacity_failure(spec.model, failures,
+                    delays=CAPACITY_RETRY_DELAYS, selection=selection)
                 state.update(phase='recover', in_flight=False, capacity_recovery={
                     'message': str(error), 'retry_after': time.time() + delay,
                     'session': state['total_sessions'], 'failures': failures, 'exhausted': exhausted})
@@ -973,7 +992,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                     status, reason = 1, f'model capacity recovery exhausted: {error}'
                     break
                 if fallback:
-                    print(f'{spec.name}: model still at capacity; using {capacity_fallback(spec.model)} '
+                    print(f'{spec.name}: model still at capacity; using {capacity_fallback(spec.model, selection=selection)} '
                           f'{spec.effort} for this session only.', flush=True)
                 else:
                     print(f'{spec.name}: model at capacity; retrying this session after '
@@ -998,7 +1017,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             if result['status'] == 'task_complete':
                 state['pending_completion'] = result
                 launcher.atomic(run / 'checkpoint.json', state)
-                if closeout(plan, spec, run, state):
+                if closeout(plan, spec, run, state, selection=selection):
                     completed_task()
             elif result['status'] == 'blocked':
                 state.update(phase='blocked', blocker=result['blocker'], blocker_id=uuid.uuid4().hex)
@@ -1155,7 +1174,9 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             previous = launcher.current_run(selected.parent)
             if previous is not None and (previous / 'task-info.json').exists():
                 initial_info.update(json.loads((previous / 'task-info.json').read_text()))
-            if records or initial.get('phase') != 'complete':
+            if ((records or initial.get('phase') != 'complete')
+                    and not any(initial.get(key) for key in
+                                ('pending_completion', 'upstream_pull', 'commit_intent', 'recovery_run'))):
                 session_command(root, spec).preflight()  # No task/model session.
             if validation_error is not None:
                 if (not initial.get('in_flight') and not initial.get('pending_completion')
@@ -1233,7 +1254,12 @@ if __name__ == '__main__':
             {'reloading': True} if mode == '--reload-worker' else {})))
     if mode == '--supervise':
         try:
-            status = launcher.supervise(root, run, owner, 'agent', session_command(root, spec, run),
+            state = json.loads((run / 'checkpoint.json').read_text())
+            selection = (AgentSelection.from_record(state['agent_selection'], root=root)
+                         if 'agent_selection' in state else resolve_selection(root))
+            status = launcher.supervise(root, run, owner, 'agent',
+                                       session_command(root, spec, run, selection=selection,
+                                                       logical_tier=state.get('logical_tier')),
                                        nested=True, interactive=True, hide_task_completion=True,
                                        capacity_recovery=False)  # The resumable controller owns these retries.
         except AgentCapacityUnavailable:

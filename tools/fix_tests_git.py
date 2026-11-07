@@ -19,6 +19,7 @@ def validated_fingerprint(path):
 class RepairCommits:
     def __init__(self, root, run):
         self.root, self.run = root, run
+        self.selections = {}
         self.guard = lambda: None
         path = run / 'checkpoint.json'
         self.state = json.loads(path.read_text()) if path.exists() else {'repairs': {}}
@@ -42,8 +43,11 @@ class RepairCommits:
         elif self.state['repairs'][key]['args'] != list(args):
             raise ValueError('pending repair selectors changed; resume the original selection')
 
-    def capture_session(self, target, before):
-        entry = self.state['repairs'][self.key(target)]
+    def capture_session(self, target, before, *, selection=None):
+        key = self.key(target)
+        if selection is not None:
+            self.selections[key] = selection
+        entry = self.state['repairs'][key]
         entry['stage_candidates'] = list(dict.fromkeys([
             *entry['stage_candidates'], *session_changes(self.root, before)]))
         self.save()
@@ -78,11 +82,13 @@ class RepairCommits:
                                  for path in entry['stage_paths']}
         self.save()
 
-    def verified(self, target, *, attempt=None):
+    def verified(self, target, *, attempt=None, selection=None):
         key = self.key(target)
         entry = self.state['repairs'].get(key)
         if entry is None:  # The loop can report the same pass again at category completion.
             return
+        if selection is not None:
+            self.selections[key] = selection
         if attempt is not None:
             entry['verification_attempt'] = attempt
         self.state['pending'] = key
@@ -161,7 +167,8 @@ class RepairCommits:
                 paths = self.state['commit_intent']['paths']
             category, case, vm = entry['failure']
             message = f'TA: Fixed {category} {case or "infrastructure"}' + (f' on {vm}' if vm else '')
-            commit = commit_push_propagate(self.root, self.run, self.state, paths, message, git=git_output)
+            commit = commit_push_propagate(self.root, self.run, self.state, paths, message,
+                                          git=git_output, selection=self.selections.get(key))
             print(f'fix-tests: committed and pushed verified repair: {commit}', flush=True)
             self.state['last_commit'] = commit
         queued = self.state.get('queued_failure')
@@ -170,6 +177,7 @@ class RepairCommits:
             if failure_target(queued['failure'], queued['category']) == tuple(entry['failure']):
                 self.state.pop('queued_failure')
         del self.state['repairs'][key]
+        self.selections.pop(key, None)
         for field in ('pending', 'commit_intent', 'pull_intent', 'worktree_propagation'):
             self.state.pop(field, None)
         self.save()

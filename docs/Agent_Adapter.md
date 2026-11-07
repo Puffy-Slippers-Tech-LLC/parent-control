@@ -1,10 +1,10 @@
 # Agent adapter execution plan
 
 Task queue: [Ordered task queue](Agent-Adapter-Task-Queue.md).
-Next task: **014 — [Preserve agent selection across sessions and recovery](Agent-Adapter-Tasks/014-selection-lifetime.md)**.
+Next task: **015 — [Prepare agent readiness through setup and SSH](Agent-Adapter-Tasks/015-setup-ssh.md)**.
 
 Status: the bounded Codex extraction, inactive Claude transport foundation and
-strict selection preparation are complete. Three shared integration tasks remain active and can proceed
+shared selection lifetime are complete. Two shared integration tasks remain active and can proceed
 without paid Claude access. Live Claude qualification and implementation that
 depends on it remain future work under [Out of scope](#out-of-scope), not blockers
 in the active queue. Planning does not enable Claude or grant qualification credit.
@@ -36,7 +36,7 @@ Run all remaining active tasks:
 tools/execute-plan 'docs/Agent_Adapter.md'
 ```
 
-The launcher starts task 014 and follows its active dependency chain through
+The launcher starts task 015 and follows its active dependency chain through
 016. It excludes rows below `## Deferred future work`. Deferred work requires
 an explicit scope change: move the selected dependency-ordered rows above that
 boundary, update this sole next-task pointer, and validate before execution.
@@ -62,8 +62,10 @@ Claude activation remain future work. Their ordered briefs are below the queue's
 [deferred-work boundary](Agent-Adapter-Task-Queue.md#deferred-future-work).
 
 Strict configuration parsing and the immutable selection API are prepared by
-task 013; existing runtime callers remain pinned to Codex. Caller plumbing,
-setup/SSH readiness and Watch/provenance integration are active tasks 014–016. They must
+task 013. Task 014's caller snapshots and recovery plumbing are complete with
+the available host checks passed. Restricted disposable-session checks were
+skipped at the developer's direction and remain unqualified.
+Setup/SSH readiness and Watch integration remain in tasks 015–016. These tasks must
 preserve Codex behavior and reject unqualified Claude execution explicitly;
 they do not require a Claude subscription, SDK installation or model request.
 

@@ -110,7 +110,9 @@ def dispatch(entry):
         from vm_selection import vm_config
         path = root / 'config/environment.json'
         if path.exists() or selected is not None:
-            document = vm_config.read_document(path)
+            # Dispatch and agent-free inspection use branch metadata only.
+            # The destination resolves its live selection after dispatch.
+            document = vm_config.read_document(path, validate_agent=False)
             defaults = vm_config.launcher_registry(document)
             explicit = selected is not None
             # Plans B/C are independent of the original write-e2e owner and its

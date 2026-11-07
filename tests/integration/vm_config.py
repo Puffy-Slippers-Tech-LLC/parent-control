@@ -75,7 +75,7 @@ def validate_name(name):
     return name
 
 
-def read_document(path=None):
+def read_document(path=None, *, validate_agent=True):
     path = CONFIG if path is None else path
     try:
         document = json.loads(path.read_text(encoding='utf-8'), object_pairs_hook=unique_keys)
@@ -85,7 +85,7 @@ def read_document(path=None):
             not set(document) <= {'families', 'concurrency', 'backup_root', 'hosts', 'branches', 'launchers', 'agent'} or
             not isinstance(document['families'], list) or not document['families']):
         raise ValueError('vm-config:fields')
-    if 'agent' in document and document['agent'] not in ('codex', 'claude'):
+    if validate_agent and 'agent' in document and document['agent'] not in ('codex', 'claude'):
         raise ValueError('vm-config:agent must be exactly codex or claude')
     if 'backup_root' in document:
         absolute_path(document['backup_root'], 'backup_root')
@@ -265,7 +265,7 @@ def absolute_path(value, field):
 
 
 def backup_root(path=None, *, vm=None):
-    hosts = host_registry(read_document(path))
+    hosts = host_registry(read_document(path, validate_agent=False))
     host = hosts[vm.host.name] if vm is not None else next(
         (host for host in hosts.values() if host.transport == 'local'), None)
     if host is None or host.backup_root is None:
@@ -274,7 +274,7 @@ def backup_root(path=None, *, vm=None):
 
 
 def configuration(path=None):
-    document = read_document(path)
+    document = read_document(path, validate_agent=False)
     hosts = host_registry(document)
     concurrency = sum(host.concurrency for host in hosts.values() if host.enabled)
     result = {}

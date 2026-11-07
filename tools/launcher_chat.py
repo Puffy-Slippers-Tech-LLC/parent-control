@@ -195,6 +195,8 @@ class AppSession:
         update_task_info(run, self.task, {})
         self.model = command.request.model
         self.effort = command.request.effort
+        self.agent = command.adapter.name
+        self.logical_tier = command.request.logical_tier
         self.prompt = (run / 'prompt.txt').read_text()
         self.protocol = command.protocol
         if self.protocol is None:
@@ -230,6 +232,7 @@ class AppSession:
             'session': self.session, 'task_session': self.task_session,
             'task_id': self.task, 'status': status, 'started_at': self.started_at,
             'model': self.model, 'effort': self.effort,
+            'agent': self.agent, 'logical_tier': self.logical_tier,
             'progress_key': self.progress_key}
         if status == 'running' and self.turn_started_at is not None:
             state['turn_started_at'] = self.turn_started_at

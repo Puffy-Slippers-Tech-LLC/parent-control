@@ -23,9 +23,9 @@ class AgentCapacityUnavailable(ValueError):
 CAPACITY_RETRY_DELAYS = (5, 10, 20, 40, 80)
 
 
-def capacity_failure(model, failures, *, delays=CAPACITY_RETRY_DELAYS):
+def capacity_failure(model, failures, *, delays=CAPACITY_RETRY_DELAYS, selection=None):
     """One bounded policy for every launcher's logical model session."""
-    fallback = failures == len(delays) + 1 and capacity_fallback(model) is not None
+    fallback = failures == len(delays) + 1 and capacity_fallback(model, selection=selection) is not None
     exhausted = failures > len(delays) and not fallback
     delay = delays[failures - 1] if failures <= len(delays) else 0
     return delay, fallback, exhausted

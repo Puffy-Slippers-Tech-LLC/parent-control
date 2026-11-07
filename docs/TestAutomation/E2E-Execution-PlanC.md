@@ -13,7 +13,7 @@ Task queue: [Plan C ordered checklist](E2E-Task-QueueC.md).
 
 ## Next task
 
-Next task: **167 — [E2E-022: suspend-wake-active](E2E-Tasks/167-case-124.md)**.
+Next task: **166 — [Observe time denial after suspend and wake](E2E-Tasks/166-suspend.md)**.
 
 This plan owns its queue, unchanged task briefs and next-task pointer.
 It can run independently of all unfinished work in

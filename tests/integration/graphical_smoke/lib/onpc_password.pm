@@ -131,7 +131,7 @@ sub enter_kiosk_mate_password {
             my $grant_access = ($journey->{prefix} // '') =~ /\A(?:grant-access|revocation)-case-request\z/
                 && ($journey->{stage_prefix} // '') eq 'request-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
-            my $app_restart = ($journey->{prefix} // '') =~ /\A(?:app-restart-active|sign-out-in-active|reboot-active)-request\z/
+            my $app_restart = ($journey->{prefix} // '') =~ /\A(?:app-restart-active|sign-out-in-active|reboot-active|suspend-wake-active)-request\z/
                 && ($journey->{stage_prefix} // '') eq 'request-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
             my $idle = ($journey->{prefix} // '') =~ /\Aidle-active-expired-(request|recovery)\z/

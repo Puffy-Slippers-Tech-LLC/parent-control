@@ -1518,13 +1518,13 @@ sub run {
             $ready->{reboot_expired} ? 1 : 0);
         return;
     }
-    if ($ready->{app_restart_active} || $ready->{idle_active_expired}) {
+    if ($ready->{app_restart_active} || $ready->{idle_active_expired} || $ready->{suspend_wake_active}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
         require onpc_lifecycle;
         onpc_lifecycle::app_restart_active(\&exchange, $ready->{invocations},
             $ready->{challenge_bindings}, $ready->{kiosk_request}, 0, 0,
-            $ready->{idle_active_expired} ? 1 : 0);
+            $ready->{idle_active_expired} ? 1 : 0, $ready->{suspend_wake_active} ? 1 : 0);
         return;
     }
     if ($ready->{sign_out_in_active} || $ready->{reboot_active}) {

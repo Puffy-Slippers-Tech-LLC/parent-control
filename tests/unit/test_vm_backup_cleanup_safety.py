@@ -7,6 +7,7 @@ import os
 import runpy
 import shutil
 import stat
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -967,14 +968,71 @@ def test_backup_root_validation_is_shared_with_other_registry_consumers(tmp_path
         vm_config.registry(config)
 
 
-def test_optional_backup_root_allows_non_backup_registry_consumers(tmp_path):
-    config = tmp_path / 'registry.json'
-    config.write_text(json.dumps({'families': [
+def test_optional_backup_root_allows_non_backup_registry_consumers(tmp_path, monkeypatch, capsys):
+    from dataclasses import FrozenInstanceError
+    from agent_adapter import resolve_selection
+
+    # Keep the existing shared configuration guard in one place: malformed
+    # selection must never authorize a different or unqualified agent process.
+    root = tmp_path / 'checkout'
+    (root / 'config').mkdir(parents=True)
+    config = root / 'config/environment.json'
+    document = {'families': [
         {'family': 'fixture', 'package_format': 'deb', 'fixture_path': 'common/ubuntu/common',
-         'vms': [{'name': 'Guest', 'disk_anchor': '/disk'}]}]}))
+         'vms': [{'name': 'Guest', 'disk_anchor': '/disk'}]}]}
+    config.write_text(json.dumps(document))
     assert vm_config.registry(config)['Guest'].name == 'Guest'
     with pytest.raises(ValueError, match='backup_root is required'):
         vm_config.backup_root(config)
+    with pytest.raises(ValueError, match='agent is required for a live session'):
+        resolve_selection(root)
+
+    # Neither ambient provider hints nor a later edit may change a snapshot.
+    monkeypatch.setenv('ONPC_AGENT', 'claude')
+    monkeypatch.setenv('PATH', '')
+    document['agent'] = 'codex'
+    config.write_text(json.dumps(document))
+    codex = resolve_selection(root / '.')
+    assert (codex.name, codex.root, codex.execution_qualified) == ('codex', root.resolve(), True)
+    assert codex.adapter().name == 'codex'
+    with pytest.raises(FrozenInstanceError):
+        codex.name = 'claude'
+
+    document['agent'] = 'claude'
+    config.write_text(json.dumps(document))
+    assert vm_config.registry(config)['Guest'].name == 'Guest'
+    claude = resolve_selection(root)
+    assert claude.name == 'claude' and not claude.execution_qualified
+    # Refusal must precede even loading the optional Claude transport/SDK.
+    monkeypatch.setitem(sys.modules, 'agent_claude', None)
+    monkeypatch.setitem(sys.modules, 'claude_agent_sdk', None)
+    with pytest.raises(ValueError, match='not qualified.*no agent was started or fallback selected'):
+        claude.adapter()
+    assert codex.name == 'codex' and codex.adapter().name == 'codex'
+
+    # Agent-free inspection stays available with no CLI or optional SDK.
+    from test_commands import main
+    assert main(['--help']) == 0
+    assert 'Usage:' in capsys.readouterr().out
+    assert main(['--list']) == 0
+    assert 'unit' in json.loads(capsys.readouterr().out)
+
+    for value in ('Codex', '', 'other', None, True, 1, [], {}):
+        document['agent'] = value
+        config.write_text(json.dumps(document))
+        with pytest.raises(ValueError, match='agent must be exactly codex or claude'):
+            vm_config.read_document(config)
+        with pytest.raises(ValueError, match='executing checkout.*agent must be exactly'):
+            resolve_selection(root)
+    config.write_text('{"agent":"codex","agent":"claude","families":[{}]}')
+    with pytest.raises(ValueError, match='duplicate-key'):
+        resolve_selection(root)
+    config.write_text('{"families":[{}],"unknown":true,"agent":"codex"}')
+    with pytest.raises(ValueError, match='vm-config:fields'):
+        resolve_selection(root)
+    config.unlink()
+    with pytest.raises(ValueError, match='executing checkout.*unreadable'):
+        resolve_selection(root)
 
 
 def test_restore_keeps_original_snapshot_definitions_before_replacing_metadata(backup_rig):

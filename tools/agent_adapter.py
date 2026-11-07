@@ -1,7 +1,7 @@
 """Session preparation and protocol boundary; acceptance belongs to launchers.
 
-This extraction deliberately pins Codex. Configuration-driven selection is a
-separate step, not an implicit provider fallback.
+Existing callers remain pinned to Codex until their selection handoff is wired.
+The selection API prepares that boundary without enabling unqualified execution.
 """
 
 from dataclasses import dataclass, replace
@@ -12,6 +12,45 @@ from typing import Iterator, Literal, NamedTuple, Protocol
 Role = Literal['backend_reviewer', 'monitor', 'worker', 'adviser', 'translator']
 ProfileRole = Literal['implementation', 'repair', 'backend_reviewer', 'monitor',
                       'worker', 'adviser', 'translator', 'commit_helper', 'conflict_resolver']
+
+
+@dataclass(frozen=True)
+class AgentSelection:
+    """One logical session's choice from its executing checkout, never provenance."""
+
+    name: Literal['codex', 'claude']
+    root: Path
+
+    @property
+    def execution_qualified(self) -> bool:
+        # Transport foundations do not grant workflow execution capabilities.
+        return self.name == 'codex'
+
+    def adapter(self) -> 'AgentAdapter':
+        """Fixed qualified mapping; no config-supplied import or executable."""
+        if not self.execution_qualified:
+            raise ValueError(f'Agent {self.name!r} selected by {self.root} is not qualified '
+                             'for workflow execution; no agent was started or fallback selected')
+        from agent_codex import CodexAdapter
+        return CodexAdapter()
+
+
+def resolve_selection(root: Path) -> AgentSelection:
+    """Read only the executing checkout, after branch/host dispatch has settled.
+
+    Legacy agent-free documents may omit agent; a live selection must not.
+    Resolving records configuration, not CLI readiness or model access. Callers
+    retain this frozen value through turns/helpers/retries without rereading it.
+    """
+    from vm_selection import read_document
+    root = root.resolve()
+    try:
+        document = read_document(root / 'config/environment.json')
+        if 'agent' not in document:
+            raise ValueError('agent is required for a live session')
+    except ValueError as error:
+        raise ValueError(f'Cannot select an agent for executing checkout {root}: {error}') from error
+    return AgentSelection(document['agent'], root)
 
 
 class ModelProfile(NamedTuple):

@@ -1,10 +1,10 @@
 # Agent adapter execution plan
 
 Task queue: [Ordered task queue](Agent-Adapter-Task-Queue.md).
-Next task: **013 — [Validate the configured agent](Agent-Adapter-Tasks/013-selection-validation.md)**.
+Next task: **014 — [Preserve agent selection across sessions and recovery](Agent-Adapter-Tasks/014-selection-lifetime.md)**.
 
-Status: the bounded Codex extraction and inactive Claude transport foundation
-are complete. Four shared integration tasks remain active and can proceed
+Status: the bounded Codex extraction, inactive Claude transport foundation and
+strict selection preparation are complete. Three shared integration tasks remain active and can proceed
 without paid Claude access. Live Claude qualification and implementation that
 depends on it remain future work under [Out of scope](#out-of-scope), not blockers
 in the active queue. Planning does not enable Claude or grant qualification credit.
@@ -36,7 +36,7 @@ Run all remaining active tasks:
 tools/execute-plan 'docs/Agent_Adapter.md'
 ```
 
-The launcher starts task 013 and follows its active dependency chain through
+The launcher starts task 014 and follows its active dependency chain through
 016. It excludes rows below `## Deferred future work`. Deferred work requires
 an explicit scope change: move the selected dependency-ordered rows above that
 boundary, update this sole next-task pointer, and validate before execution.
@@ -61,8 +61,9 @@ Claude-specific workflow/host/skill integration, two-agent acceptance and final
 Claude activation remain future work. Their ordered briefs are below the queue's
 [deferred-work boundary](Agent-Adapter-Task-Queue.md#deferred-future-work).
 
-Shared configuration, immutable session selection, caller plumbing, setup/SSH
-readiness and Watch/provenance integration are active tasks 013–016. They must
+Strict configuration parsing and the immutable selection API are prepared by
+task 013; existing runtime callers remain pinned to Codex. Caller plumbing,
+setup/SSH readiness and Watch/provenance integration are active tasks 014–016. They must
 preserve Codex behavior and reject unqualified Claude execution explicitly;
 they do not require a Claude subscription, SDK installation or model request.
 

@@ -85,7 +85,8 @@ def read_document(path=None):
             not set(document) <= {'families', 'concurrency', 'backup_root', 'hosts', 'branches', 'launchers', 'agent'} or
             not isinstance(document['families'], list) or not document['families']):
         raise ValueError('vm-config:fields')
-    # Reserved agent metadata is accepted but does not select an agent yet.
+    if 'agent' in document and document['agent'] not in ('codex', 'claude'):
+        raise ValueError('vm-config:agent must be exactly codex or claude')
     if 'backup_root' in document:
         absolute_path(document['backup_root'], 'backup_root')
     host_registry(document)

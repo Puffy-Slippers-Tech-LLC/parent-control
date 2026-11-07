@@ -300,7 +300,7 @@ def graphical_history(command):
     accounts = identities()
     child = accounts['child']
     path = FIXTURE / 'graphical-history.json'
-    if command in ('host-ready', 'revoke-ready'):
+    if command in ('host-ready', 'revoke-ready', 'approval-ready'):
         guest.require(not path.exists(), 'expiry:graphical-history-replayed')
         wait_for(lambda: (FIXTURE / 'seeded.json').is_file(), 'expiry:gdm-seed-not-observed')
         seeded = json.loads((FIXTURE / 'seeded.json').read_text())
@@ -315,6 +315,7 @@ def graphical_history(command):
         history = {'run': marker['run'], 'boot': boot, 'session': session,
                    'scope': props['Scope'], 'grants': 0,
                    'foreground_revoke': command == 'revoke-ready',
+                   'pending_approval': command == 'approval-ready',
                    'other_state': hashlib.sha256(repr(account_state(accounts['other'])).encode()).hexdigest()}
         with path.open('x') as stream:
             json.dump(history, stream)
@@ -366,23 +367,109 @@ def graphical_history(command):
             path.write_text(json.dumps(history))
             deadline = grant(child, seconds)
             return {'remaining_seconds': deadline - time.time()}
-        if command == 'host-complete':
+        if command in ('host-complete', 'approval-complete'):
             guest.require(history['grants'] == 4 and not history.get('complete'),
                           'expiry:graphical-history-incomplete')
+            guest.require((command == 'approval-complete') == history.get('pending_approval', False),
+                          'expiry:graphical-history-kind')
+            if history.get('pending_approval'):
+                guest.require(history.get('approvals') == ['approval-natural', 'approval-peer'],
+                              'expiry:approval-history-incomplete')
             history['complete'] = True
             path.write_text(json.dumps(history))
             return {'completed': True}
-        sequence = ('natural-grant', 'natural-recovery', 'peer-grant', 'peer-recovery')
+        sequence = (('approval-natural', 'natural-recovery', 'approval-peer', 'peer-recovery')
+                    if history.get('pending_approval') else
+                    ('natural-grant', 'natural-recovery', 'peer-grant', 'peer-recovery'))
         index = history['grants']
         guest.require(index < len(sequence) and command == sequence[index],
                       'expiry:graphical-history-order')
-        seconds = (45, 1200, 15, 1200)[index]
+        seconds = ((300, 1200, 300, 1200) if history.get('pending_approval') else
+                   (45, 1200, 15, 1200))[index]
         history['grants'] += 1
         path.write_text(json.dumps(history))
     deadline = grant(child, seconds)
     remaining = deadline - time.time()
     guest.require(0 < remaining <= seconds, 'expiry:graphical-history-grant')
     return {'remaining_seconds': remaining}
+
+
+def pending_approval(command):
+    """Hold one real challenge until the host finishes its expiry observation.
+
+    The owning SSH command retains both pidfds and cancels the challenge in its
+    context cleanup. A fixed attempt-local finish file coordinates the existing
+    streaming transport; no detached process or inherited VM owner is created.
+    """
+    import select
+    from system_caller import PersistentCaller, TextAgent
+
+    guest.guard()
+    guest.require(command in ('approval-natural', 'approval-peer'), 'expiry:approval-command')
+    began = time.monotonic()
+    accounts = identities()
+    child = accounts['child']
+    finish = FIXTURE / (command + '.finish')
+    guest.require(not finish.exists() and not finish.is_symlink(), 'expiry:approval-replayed')
+    with PersistentCaller(child) as caller, TextAgent(caller) as agent:
+        graphical_history(command)
+        extension = account_property(child, LIMITS, 'ActiveExtension')
+        expiry = sum(extension)
+        caller.send({'kind': 'call', 'method': 'RequestOwnAccess', 'signature': '(uub)',
+                     'args': (accounts['parent'], 300, False), 'timeout_ms': 900000})
+        agent.prompt(accounts['parent'], pwd.getpwnam('onpc-parent-casey').pw_uid)
+        busy = call(accounts['parent'], 'SetParentControl', '(ubu)', (child, True, 1440))
+        guest.require(busy.get('error') == guest.BUS + '.Error.Busy',
+                      'expiry:approval-transaction-not-held')
+        remaining = expiry - time.time()
+        guest.require(remaining >= 180, 'expiry:approval-insufficient-headroom')
+        print('onpc-approval-ready:' + json.dumps({
+            'remaining_seconds': remaining, 'elapsed_seconds': time.monotonic() - began}), flush=True)
+        deadline = time.monotonic() + remaining + 180
+        while not finish.exists():
+            guest.guard()
+            guest.require(time.monotonic() < deadline, 'expiry:approval-observation-deadline')
+            guest.require(caller.child.poll() is None and agent.child.poll() is None
+                          and not select.select([caller.child.stdout], [], [], 0)[0],
+                          'expiry:approval-ended-before-observation')
+            time.sleep(0.25)
+        # Still the same live challenge after the independently observed result.
+        guest.require(not select.select([caller.child.stdout], [], [], 0)[0]
+                      and agent.child.poll() is None and time.time() >= expiry,
+                      'expiry:approval-not-pending-across-expiry')
+        agent.close()
+        result = accepted(caller.receive())
+        guest.require(result[1] in ('denied', 'cancelled') and result[2] == 0,
+                      'expiry:approval-not-cancelled')
+    guest.require(account_property(child, LIMITS, 'ActiveExtension') == extension,
+                  'expiry:pending-approval-changed-grant')
+    path = FIXTURE / 'graphical-history.json'
+    history = json.loads(path.read_text())
+    history.setdefault('approvals', []).append(command)
+    path.write_text(json.dumps(history))
+    print('onpc-approval-complete', flush=True)
+
+
+def finish_pending_approval():
+    guest.guard()
+    history = json.loads((FIXTURE / 'graphical-history.json').read_text())
+    guest.require(history['run'] == guest.guard()['run'] and history.get('pending_approval')
+                  and history['boot'] == Path('/proc/sys/kernel/random/boot_id').read_text()
+                  and history['grants'] in (1, 3), 'expiry:approval-finish-order')
+    command = 'approval-natural' if history['grants'] == 1 else 'approval-peer'
+    with (FIXTURE / (command + '.finish')).open('x') as stream:
+        stream.write('finish\n')
+
+
+def verify_pending_approval(record):
+    guest.guard()
+    history = json.loads((FIXTURE / 'graphical-history.json').read_text())
+    guest.require(history.get('pending_approval') is True and history.get('complete') is True
+                  and history.get('approvals') == ['approval-natural', 'approval-peer']
+                  and history['grants'] == 4, 'expiry:approval-history-incomplete')
+    record('onpc.expiry.pending-approval',
+           'challenge-ready-180s-before-expiry; pending-through-original-deadline; '
+           'timed-protection; cancellation-without-grant; original-work-recovered; peer-input-preserved')
 
 
 def verify_foreground_revoke(record):
@@ -399,7 +486,8 @@ def verify_foreground_revoke(record):
 def verify(record):
     guest.guard()
     history = json.loads((FIXTURE / 'graphical-history.json').read_text())
-    guest.require(history.get('complete') is True and not history.get('foreground_revoke'),
+    guest.require(history.get('complete') is True and not history.get('foreground_revoke')
+                  and not history.get('pending_approval'),
                   'expiry:graphical-history-incomplete')
     # Retain completed observations even if a native dependency later stalls
     # and pytest cannot finish its JUnit document. The outer collector already
@@ -496,12 +584,18 @@ if __name__ == '__main__':
     guest.guard()
     commands = ('host-ready', 'natural-grant', 'natural-recovery',
                 'peer-grant', 'peer-recovery', 'host-complete', 'revoke-ready',
-                'revoke-zero', 'revoke-positive-setup', 'revoke-positive', 'revoke-complete')
+                'revoke-zero', 'revoke-positive-setup', 'revoke-positive', 'revoke-complete',
+                'approval-ready', 'approval-complete')
     guest.require(len(sys.argv) == 2 and sys.argv[1] in (
-        'prepare', 'broker-ready', 'host-observe', *commands),
+        'prepare', 'broker-ready', 'host-observe', 'approval-natural', 'approval-peer',
+        'approval-finish', *commands),
                   'expiry:graphical-arguments')
     if sys.argv[1] == 'host-observe':
         print(json.dumps(startup_observation(), sort_keys=True))
+    elif sys.argv[1] in ('approval-natural', 'approval-peer'):
+        pending_approval(sys.argv[1])
+    elif sys.argv[1] == 'approval-finish':
+        finish_pending_approval()
     elif sys.argv[1] in commands:
         print(json.dumps(graphical_history(sys.argv[1]), sort_keys=True))
     else:

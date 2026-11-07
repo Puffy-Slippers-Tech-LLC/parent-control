@@ -1742,7 +1742,8 @@ outside acceptance.
 
 ### E2E-038
 
-Implementation status: All cases pending.
+The [shared expiry composition](../../tests/e2e/daily_soft_expiry.py) implements
+the no-action, unlock and fresh-login branches. The inventory owns registration status.
 
 **Keep daily access after a grant ends and restore soft-app blocks.** Cases 164, 165, 166, 167, 168, 169, 170.
 

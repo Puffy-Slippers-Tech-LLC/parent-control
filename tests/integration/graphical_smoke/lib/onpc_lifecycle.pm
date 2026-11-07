@@ -210,10 +210,12 @@ sub app_restart_active {
 }
 
 sub expired_daily_replacement {
-    onpc_progress::operation('Replacing expired extra time before the child signs in again');
-    my ($exchange, $declared, $challenges, $request) = @_;
-    die 'expired-daily:binding' unless @_ == 4 && ref($exchange) eq 'CODE'
+    onpc_progress::operation('Replacing expired extra time before the child returns');
+    my ($exchange, $declared, $challenges, $request, $retained) = @_;
+    $retained //= 0;
+    die 'expired-daily:binding' unless (@_ == 4 || @_ == 5) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && ($retained == 0 || $retained == 1)
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,1200,0';
     require onpc_app_rows;
     require onpc_desktop_session;
@@ -249,9 +251,12 @@ sub expired_daily_replacement {
     onpc_allowance_boundaries::custom_value($journey, 'daily', 30);
     $journey->seen('before-departure');
     $leave->('daily-parent-leave');
-    $enter->('departure-child', 'child', 'retained');
-    my $departure = $journey->scope('departure');
-    onpc_desktop_session::log_out($departure, $departure->seen('desktop'));
+    $journey->seen('original-session') if $retained;
+    unless ($retained) {
+        $enter->('departure-child', 'child', 'retained');
+        my $departure = $journey->scope('departure');
+        onpc_desktop_session::log_out($departure, $departure->seen('desktop'));
+    }
     $journey->seen($_) for qw(expiry-wait-first expiry-wait-last);
     $enter->('expired-parent', 'parent', 'retained');
     $journey->seen('expired-balances');
@@ -259,8 +264,9 @@ sub expired_daily_replacement {
     $journey->{kiosk_request} = [@$request];
     onpc_request_flow::obtain_time($journey, 'observed',
         'fixture-child', 'fixture-parent', 1200, 0, 'automatic');
-    $enter->('replacement-child', 'child', 'fresh');
+    $enter->('replacement-child', 'child', $retained ? 'retained' : 'fresh');
     $journey->seen('replacement-countdown');
+    onpc_app_rows::native_read_activity($journey, 'original-soft-closed') if $retained;
     $journey->seen($_) for qw(hard-denied soft-denied);
     my $allowed = $journey->scope('allowed');
     onpc_app_rows::native_usable_app($allowed, 'command', $allowed->seen('desktop'), 'child', 'A');

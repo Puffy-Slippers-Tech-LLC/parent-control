@@ -46,16 +46,17 @@ places 28 px icon buttons after the hostname on the same row as copy and collaps
 **Stop** (solid square) while active, **Undo** while a cancellable stop is pending,
 or **Resume** (play) while idle. It is disabled once stopping begins,
 while disconnected, or when saved command parameters are unavailable. Clicking
-asks for confirmation with **Stop**, **Resume** or **Cancel stop request**, and **Cancel**. Confirming opens a
-VS Code terminal on that same host and checkout. Watch uses its shared
+asks for confirmation with **Stop**, **Resume** or **Cancel stop request**, and **Cancel**.
+Confirming Resume sends the command silently in the background on that same host
+and checkout, without opening a VS Code terminal. Follow progress in Watch.
+Stop and cancel-stop open a VS Code terminal. Watch uses its shared
 `Output.execution_plan` property to identify execution-plan runs: Resume reruns
 their saved command with the same parameters. Other launchers, including `fix-tests` and `run-tests`,
 receive only `--resume`, which restores their saved selection. Stop and cancel-stop
 use the retained parameters with `--stop` or `--cancel-stop`. Earlier lifecycle
 flags (`--stop`, `--cancel-stop`, `--resume`, `--reload`, `--reset`) are removed
 from replayed parameters. The action button's hover tooltip and confirmation
-dialog both show the exact public command to run. Command errors remain visible
-in that terminal and failed actions light the footer error icon
+dialog both show the exact public command to run. Failed actions light the footer error icon
 with captured process output and exit status. Repair queue Stop retains its scope without reselecting VMs.
 Older runs without saved parameters require one normal launch
 before this control becomes available.
@@ -94,7 +95,7 @@ The diagnostic includes the invocation, checkout, host, exit status and up to th
 last 1,048,576 characters of process output, with terminal control sequences
 removed; omitted earlier output is explicitly labelled.
 Closing an action terminal does not open an error dialog.
-Local and SSH action terminals load NVM's selected default when `codex` is
+Local and SSH actions load NVM's selected default when `codex` is
 missing from their inherited PATH, so GUI startup does not hide an NVM-installed
 CLI or its Node interpreter. Codex must already be installed and authenticated.
 **ONPC: Watch Terminal Diagnostic** reopens the last failed action's captured

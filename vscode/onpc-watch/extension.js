@@ -144,6 +144,33 @@ function actionTerminal({ name, shellPath, shellArgs, cwd, invocation, failed })
     return terminal;
 }
 
+function actionBackground({ shellPath, shellArgs, cwd, invocation, failed }) {
+    const child = spawn(shellPath, shellArgs, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    const limit = 1024 * 1024;
+    let transcript = '', omitted = false, finished = false;
+    for (const stream of [child.stdout, child.stderr]) {
+        stream.setEncoding('utf8');
+        stream.on('data', data => {
+            transcript += data;
+            if (transcript.length > limit) {
+                transcript = transcript.slice(-limit);
+                omitted = true;
+            }
+        });
+    }
+    const finish = (code, signal, error) => {
+        if (finished) return;
+        finished = true;
+        if (error || code !== 0) {
+            failed(`${invocation}\n\nExit code: ${code ?? 'unavailable'}\nSignal: ${signal || 'none'}\n` +
+                (error ? `\n${error.stack || error}\n` : '') +
+                `\nProcess output${omitted ? ' (last 1,048,576 characters; earlier output omitted)' : ''}:\n${stripVTControlCharacters(transcript)}`);
+        }
+    };
+    child.on('error', error => finish(null, null, error));
+    child.on('close', (code, signal) => finish(code, signal));
+}
+
 function checkout(folder) {
     if (folder.uri.scheme !== 'file') return undefined;
     let root = fs.realpathSync(folder.uri.fsPath);
@@ -418,7 +445,7 @@ function activate(context) {
                 if (answer !== action) return;
                 if (disposed || current !== bridge) return;
                 command = await current.launcherCommand(message.root, message.run, message.kind);
-                // Recheck the publication when the terminal actually starts, and
+                // Recheck the publication when the action actually starts, and
                 // pin dispatch to this checkout rather than a launcher default branch.
                 const bootstrap = `import json, os, subprocess, sys
 from pathlib import Path
@@ -438,6 +465,7 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c
                 const argv = ['/usr/bin/python3', '-IBu', '-c', bootstrap,
                     JSON.stringify({ root: command.root, run: command.run, launcher: command.launcher, argv: command.argv })];
                 const remote = command.source.transport === 'ssh';
+                const background = message.kind === 'resume';
                 const quote = value => "'" + value.replace(/'/g, "'\\''") + "'";
                 // GUI and SSH environments can both omit NVM from PATH.
                 // Match public SSH launcher startup without sourcing interactive rc files.
@@ -447,13 +475,14 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c
 fi
 exec "$@"`, 'onpc-watch', ...argv];
                 const shellPath = remote ? 'ssh' : actionArgv[0];
-                const shellArgs = remote ? ['-t', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
+                const shellArgs = remote ? [background ? '-T' : '-t', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
                     '-o', 'ConnectTimeout=5', '--', command.source.host, actionArgv.map(quote).join(' ')] : actionArgv.slice(1);
-                actionTerminal({
+                const runAction = background ? actionBackground : actionTerminal;
+                runAction({
                     name: `${command.launcher}: ${message.kind} (${command.source.label})`,
                     shellPath, shellArgs,
                     ...(remote ? {} : { cwd: command.root }),
-                    invocation: `Action: ${action}\nHost: ${command.source.label}\nCheckout: ${command.root}\nCommand: ${commandText}\n\nTerminal invocation:\n${[shellPath, ...shellArgs].map(quote).join(' ')}`,
+                    invocation: `Action: ${action}\nHost: ${command.source.label}\nCheckout: ${command.root}\nCommand: ${commandText}\n\nProcess invocation:\n${[shellPath, ...shellArgs].map(quote).join(' ')}`,
                     failed(diagnostic) {
                         lastTerminalDiagnostic = diagnostic;
                         errors.report(`Cannot ${message.kind} launcher`, diagnostic);

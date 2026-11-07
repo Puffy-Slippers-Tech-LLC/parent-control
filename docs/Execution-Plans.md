@@ -179,9 +179,13 @@ configured subagents when the coordinator or routine `plan_worker` defaults do
 not meet those requirements.
 The mandatory independent **Astra xHigh** review for core backend changes applies
 across **all launchers**, including repair, recovery and optimization. The shared
-`detached_launcher.agent_command` injects this instruction and configures a
+`detached_launcher.agent_command` injects this instruction and requests a
 read-only `backend_reviewer` role, so a new launcher inherits the mandate while
-choosing its own coordinator model and effort. Resolve actionable findings and
+choosing its own coordinator model and effort. Native role files currently
+inherit the parent sandbox; separately enforced helper isolation and explicit
+retirement remain [unqualified](Agent_Adapter.md#trusted-worktree-follow-up).
+The required read-only and join/close boundaries remain unchanged.
+Resolve actionable findings and
 revalidate material revisions before completion. No review is required by this
 exception for changes outside core backend code. Review supplies no acceptance
 credit and changes no generic implementation, consultation or escalation policy.
@@ -712,7 +716,8 @@ and its master and queue, then invokes the repository's
 [`$commit` skill](../.agents/skills/commit/SKILL.md) in a supervised GPT-6.1 Sol
 High session with the suggested message `TA: Completed task ID`. The adapter's
 `commit_helper` profile supplies that pinned
-model/effort pair; session preparation retains the existing executable check. Loading
+model/effort pair. Its supervised caller checks catalogue readiness before
+starting task supervision, retaining the executable check during preparation. Loading
 the shared Git modules or doing deterministic Git work requires no agent CLI.
 The skill owns
 the commit, source push and
@@ -926,6 +931,8 @@ Merge and stash-restoration conflicts start supervised, unattended GPT-6.1 Sol
 High resolution turns in the affected destination, using the shared agent and
 cleanup infrastructure and the adapter's `conflict_resolver` profile.
 The current profile remains pinned independently of coordinator overrides.
+The resolver's supervised caller likewise checks catalogue readiness before
+starting task supervision. Catalogue support does not prove live model access.
 No developer question is required. The resolver combines
 both branches' intended changes, preserves destination active work (including
 partial staging and untracked files), and validates affected behavior. It never

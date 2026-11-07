@@ -865,4 +865,5 @@ if __name__ == '__main__':
     command = launcher.agent_command(root, model, effort, session,
         schema=session / 'response.schema.json',
         shell_environment=(('ONPC_WORKFLOW_DIRECTORY', str(session)),))
+    command.preflight()
     sys.exit(launcher.supervise(root, session, owner, 'agent', command, nested=True))

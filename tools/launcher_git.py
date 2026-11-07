@@ -726,4 +726,5 @@ if __name__ == '__main__':
     command = launcher.agent_command(root, model, effort, session,
         schema=session / 'response.schema.json',
         extra_directories=tuple(Path(target['path']) for target in intent['targets'] if target.get('path')))
+    command.preflight()
     sys.exit(launcher.supervise(root, session, owner, 'agent', command))

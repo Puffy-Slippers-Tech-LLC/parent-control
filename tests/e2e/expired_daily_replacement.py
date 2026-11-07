@@ -99,6 +99,24 @@ PLAN = JourneyPlan(
     assertions_after={'allowed-submitted': 'visible-result'},
 )
 
+INCLUDED_REPLACEMENT = {
+    **obtain_time(initial='observed', child='fixture-child', approver='fixture-parent',
+                  duration_seconds=RECOVERY_SECONDS, allow_soft=True, exit='automatic'),
+    **enter('replacement-child'),
+    'replacement-countdown': 'ui:child-countdown-present',
+    'hard-denied': 'ui:overlay-native-hard-command-blocked',
+    **prefixed_stages('soft', native_usable_app('command', child='child', role='S')),
+    **prefixed_stages('allowed', native_usable_app('command', child='child', role='A')),
+}
+INCLUDED_SCREENS = {**PREPARATION, **EXPIRY, **INCLUDED_REPLACEMENT}
+INCLUDED_PLAN = replace(PLAN, screen_tags=INCLUDED_SCREENS,
+    phases={stage: 'step-3' if stage in INCLUDED_REPLACEMENT else PLAN.phases[stage]
+            for stage in ('ready', 'setup-detached', *INCLUDED_SCREENS)},
+    child_bindings={stage: 'child' for stage, tag in INCLUDED_SCREENS.items()
+                    if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
+    kiosk_request=('child', 'parent', RECOVERY_SECONDS, True),
+)
+
 RETAINED_EXPIRY = {
     **desktop_return('daily-parent-leave', account='parent'),
     'original-session': 'system:child-retained-locked',
@@ -208,7 +226,8 @@ class ExpiredDailyReplacementJourney(GrantOnlyProfileJourney, AppPolicyJourney):
             value = observed['ui']['valid_choice']
             require(all(value['request'][key] == expected for key, expected in {
                     'child': 'fixture-child', 'approver': 'fixture-parent',
-                    'duration_seconds': RECOVERY_SECONDS, 'allow_soft': False}.items())
+                    'duration_seconds': RECOVERY_SECONDS,
+                    'allow_soft': self.plan.kiosk_request[3]}.items())
                     and value['estimate']['kind'] == 'fixed'
                     and value['estimate']['seconds'] > RECOVERY_SECONDS + 900,
                     'expired-daily:replacement-choices')
@@ -249,4 +268,13 @@ def execute_retained(recorder, context):
                              journey_type=ExpiredDailyReplacementJourney)
 
 
-E2E_CASES = {'excluded-new-login': execute, 'excluded-retained-unlock': execute_retained}
+def execute_included(recorder, context):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    context.fixture_subsets = ACTIVITY_SUBSETS
+    context.fixture_caller = 'E2E-025/included-new-login'
+    record_installed_journey(recorder, context, INCLUDED_PLAN, timeout=3000,
+                             journey_type=ExpiredDailyReplacementJourney)
+
+
+E2E_CASES = {'excluded-new-login': execute, 'excluded-retained-unlock': execute_retained,
+             'included-new-login': execute_included}

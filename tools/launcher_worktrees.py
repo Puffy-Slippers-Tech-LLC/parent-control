@@ -75,7 +75,7 @@ def transaction_lock(root, run, *, git=git_output):
                 except (ValueError, AttributeError):
                     command = ''
                 if waiting != command:
-                    label = f' \033[1;36m`{command}`\033[0m' if command else ''
+                    label = f' \033[1;94m`{command}`\033[0m' if command else ''
                     print(f'Git: waiting for another launcher{label} '
                           'to finish repository synchronization.', flush=True)
                     waiting = command

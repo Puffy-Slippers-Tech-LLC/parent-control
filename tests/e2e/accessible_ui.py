@@ -267,7 +267,7 @@ BASELINE_NATIVE_BINDINGS = {
     'overlay-native-' + role + '-' + action: (asset, action)
     for role, asset, actions in (
         ('allowed', 'A', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed')),
-        ('soft', 'S', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed', 'command-blocked')),
+        ('soft', 'S', ('desktop', 'command-launch', 'opened', 'submit', 'resubmit', 'submitted', 'close', 'closed', 'command-blocked')),
         ('hard', 'H', ('command-blocked',)))
     for action in actions
 }

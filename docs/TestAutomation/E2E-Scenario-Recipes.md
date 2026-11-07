@@ -1461,11 +1461,10 @@ inequality. Both cases retain actual gameplay through extended natural expiry.
 
 ### E2E-025
 
-Implementation status: Cases 132, 133 and 134 use
+Implementation status: Cases 132–135 use
 [`expired_daily_replacement.py`](../../tests/e2e/expired_daily_replacement.py)
-and `onpc_lifecycle::expired_daily_replacement`; their fresh-login and retained-unlock,
-soft-excluded journeys and fresh-login soft-included journey passed on Ubuntu 26.04.
-The retained-unlock soft-included variant remains pending.
+and `onpc_lifecycle::expired_daily_replacement`; all four fresh-login/retained-unlock
+and soft-excluded/included bindings passed on Ubuntu 26.04.
 
 **Replace an expired grant before returning with daily time left.** Cases 132, 133, 134, 135.
 
@@ -1473,7 +1472,7 @@ Bindings: soft-apps = excluded / included; entry = new-login / retained-unlock.
 
 1. Ready app assets and expiry observer; FLOW13(grant-only,10 minutes,soft included) → C → FLOW08(soft) → APP04 → P → PARENT06(daily 30,still enabled) → PARENT08 → PARENT09(D>G>0). Require at least 300 seconds of original G at this read so the declared session departure occurs before expiry.
 2. Retained: G; fresh: C(retained while grant active) → DESK04. TIME03(to expired) → P → PARENT09(D>0,G=0).
-3. G → FLOW06(replacement with variant choice) → C(declared entry) → FLOW08(hard/soft); retained additionally APP02/APP04(expected earlier soft activity).
+3. G → FLOW06(replacement with variant choice) → C(declared entry). Retained additionally checks APP02/APP04(expected earlier soft activity); included compares and resubmits the original draft, then closes that window normally. FLOW08 independently checks new hard/soft launches and usable A.
 
 ### E2E-026
 

@@ -154,6 +154,34 @@ RETAINED_PLAN = replace(PLAN,
     activity_checks={'original-soft-closed': ('original-capture', 'closed')},
 )
 
+RETAINED_INCLUDED_REPLACEMENT = {
+    **obtain_time(initial='observed', child='fixture-child', approver='fixture-parent',
+                  duration_seconds=RECOVERY_SECONDS, allow_soft=True, exit='automatic'),
+    **prefixed_stages('replacement-child', desktop_entry('child', source='gdm', entry='retained')),
+    'replacement-countdown': 'ui:child-countdown-present',
+    'original-soft-return-opened': 'ui:overlay-native-policy-soft-activity',
+    'original-soft-return-submit': 'ui:overlay-native-soft-resubmit',
+    'original-soft-return-submitted': 'ui:overlay-native-soft-submitted',
+    'original-soft-return-close': 'ui:overlay-native-soft-close',
+    'original-soft-return-closed': 'ui:overlay-native-soft-closed',
+    'hard-denied': 'ui:overlay-native-hard-command-blocked',
+    **prefixed_stages('soft', native_usable_app('command', child='child', role='S')),
+    **prefixed_stages('allowed', native_usable_app('command', child='child', role='A')),
+}
+RETAINED_INCLUDED_SCREENS = {**PREPARATION, **RETAINED_EXPIRY, **RETAINED_INCLUDED_REPLACEMENT}
+RETAINED_INCLUDED_PLAN = replace(RETAINED_PLAN, screen_tags=RETAINED_INCLUDED_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: phase for phase, screens in (
+                ('step-1', PREPARATION), ('step-2', RETAINED_EXPIRY),
+                ('step-3', RETAINED_INCLUDED_REPLACEMENT)) for stage in screens},
+            'installed-greeter': 'start'},
+    invocations=tuple(stage for stage in RETAINED_INCLUDED_SCREENS if stage in LOGIN_STAGES),
+    child_bindings={stage: 'child' for stage, tag in RETAINED_INCLUDED_SCREENS.items()
+                    if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
+    kiosk_request=('child', 'parent', RECOVERY_SECONDS, True),
+    activity_checks={'original-soft-return-opened': ('original-capture', 'same')},
+)
+
 
 class ExpiredDailyReplacementJourney(GrantOnlyProfileJourney, AppPolicyJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
@@ -209,13 +237,13 @@ class ExpiredDailyReplacementJourney(GrantOnlyProfileJourney, AppPolicyJourney):
                                           'saved_policy_unchanged': True}
         if stage == 'original-session':
             self.original_session = observed['system']['session_sha256']
-        if stage == 'replacement-child-entry-guard' and self.plan is RETAINED_PLAN:
+        if stage == 'replacement-child-entry-guard' and self.plan.activity_entries:
             require(self.original_session is not None
                     and observed['system']['session_sha256'] == self.original_session,
                     'expired-daily:retained-session-replaced')
             observed['comparison'] = {'same_retained_child_session': True}
         if stage == 'departure-desktop' or (stage == 'daily-parent-leave-desktop'
-                                            and self.plan is RETAINED_PLAN):
+                                            and self.plan.activity_entries):
             # Refuse the departure if navigation consumed the original grant.
             require(self.original_sample is not None, 'expired-daily:missing-original-sample')
             balance, bounds = self.original_sample
@@ -276,5 +304,14 @@ def execute_included(recorder, context):
                              journey_type=ExpiredDailyReplacementJourney)
 
 
+def execute_retained_included(recorder, context):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    context.fixture_subsets = ACTIVITY_SUBSETS
+    context.fixture_caller = 'E2E-025/included-retained-unlock'
+    record_installed_journey(recorder, context, RETAINED_INCLUDED_PLAN, timeout=3000,
+                             journey_type=ExpiredDailyReplacementJourney)
+
+
 E2E_CASES = {'excluded-new-login': execute, 'excluded-retained-unlock': execute_retained,
-             'included-new-login': execute_included}
+             'included-new-login': execute_included,
+             'included-retained-unlock': execute_retained_included}

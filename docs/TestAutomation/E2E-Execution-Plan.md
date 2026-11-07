@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **108 — [E2E-025: included-retained-unlock](E2E-Tasks/108-case-135.md)**.
+Next task: **202 — [E2E-036: daily-positive](E2E-Tasks/202-case-160.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

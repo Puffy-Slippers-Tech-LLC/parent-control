@@ -216,8 +216,7 @@ sub expired_daily_replacement {
     die 'expired-daily:binding' unless (@_ == 4 || @_ == 5) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ($retained == 0 || $retained == 1)
-        && ref($request) eq 'ARRAY' && join(',', @$request) =~ /\Achild,parent,1200,[01]\z/
-        && (!$retained || !$request->[3]);
+        && ref($request) eq 'ARRAY' && join(',', @$request) =~ /\Achild,parent,1200,[01]\z/;
     require onpc_app_rows;
     require onpc_desktop_session;
     require onpc_allowance_boundaries;
@@ -267,7 +266,16 @@ sub expired_daily_replacement {
         'fixture-child', 'fixture-parent', 1200, $request->[3], 'automatic');
     $enter->('replacement-child', 'child', $retained ? 'retained' : 'fresh');
     $journey->seen('replacement-countdown');
-    onpc_app_rows::native_read_activity($journey, 'original-soft-closed') if $retained;
+    if ($retained) {
+        if ($request->[3]) {
+            onpc_app_rows::native_activity_resume($journey, 'original-soft-return');
+            # Both denied probes and new soft launches use the secondary fixture
+            # slot. Close only after proving the original work remains usable.
+            onpc_app_rows::native_finish_app($journey->scope('original-soft-return'));
+        } else {
+            onpc_app_rows::native_read_activity($journey, 'original-soft-closed');
+        }
+    }
     $journey->seen('hard-denied');
     if ($request->[3]) {
         my $soft = $journey->scope('soft');

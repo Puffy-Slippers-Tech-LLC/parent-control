@@ -11,7 +11,8 @@ from journey_checks import DailyTimeProfileJourney
 from native_fixtures import fixture_actions
 from natural_expiry_observation import (
     LOCK_VERIFICATION_SECONDS, RECOVERY_SECONDS,
-    SAMPLE_INTERVAL_SECONDS, await_engineering_expiry, await_natural_expiry, engineering_deadline,
+    SAMPLE_INTERVAL_SECONDS, FOREGROUND_REVOCATION_RESPONSE_SECONDS,
+    await_engineering_expiry, await_natural_expiry, engineering_deadline,
 )
 from private_artifacts import require
 import session_control
@@ -170,8 +171,13 @@ def _system_history_command(transport, command):
         timeout=120)
     require(type(raw) is bytes and 0 < len(raw) < 1024, 'expiry:history-response')
     value = json.loads(raw)
-    if command == 'host-complete':
+    if command in ('host-complete', 'revoke-complete'):
         require(value == {'completed': True}, 'expiry:history-incomplete')
+        return value
+    if command in ('revoke-zero', 'revoke-positive'):
+        require(type(value) is dict and set(value) == {'revoked_monotonic_ns'}
+                and type(value['revoked_monotonic_ns']) is int
+                and value['revoked_monotonic_ns'] > 0, 'expiry:revoke-response')
         return value
     require(type(value) is dict and set(value) == {'remaining_seconds'}
             and type(value['remaining_seconds']) in (int, float)
@@ -303,13 +309,119 @@ class SystemGraphicalExpiryJourney(InstalledJourney):
             time.sleep(SAMPLE_INTERVAL_SECONDS)
 
 
+REVOKE_SCREENS = {
+    'return-greeter': 'system:child-return-greeter',
+    **prefixed_stages('initial', desktop_entry('child', source='gdm', entry='retained')),
+    **native_activity_entry('activity', child='child'),
+    'revoke-zero': 'ui:child-natural-expiry-observe',
+    'lock-input-ready': 'ui:child-natural-expiry-engineering-lock-ready',
+    'lock-result': 'ui:child-natural-expiry-engineering-lock-result',
+    'recovery-greeter': 'system:child-return-greeter',
+    **prefixed_stages('recovered', desktop_entry('child', source='gdm', entry='retained')),
+    **native_activity_resume('recovery-activity', child='child'),
+    'recovery-work': 'ui:overlay-native-activity',
+    'revoke-positive': 'ui:child-natural-expiry-observe',
+    **native_activity_resume('positive-activity', child='child'),
+    'positive-work': 'ui:overlay-native-activity',
+}
+REVOKE_PLAN = JourneyPlan(
+    prefix='system-foreground-revoke', worker_mode='system_foreground_revoke',
+    screen_tags=REVOKE_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' for stage in REVOKE_SCREENS}},
+    invocations=tuple(stage for stage in REVOKE_SCREENS if stage in _SYSTEM_ENTRIES
+                      or stage in ('revoke-zero', 'lock-input-ready', 'lock-result',
+                                   'recovery-work', 'revoke-positive', 'positive-work')),
+    challenges={prefix: ('child', prefix + '-child-recipient-qualified',
+                         prefix + '-child-recipient-rechecked')
+                for prefix in ('initial', 'recovered')},
+    stage_actions={'revoke-zero': 'revoke-zero', 'lock-result': 'positive-setup',
+                   'recovery-work': 'reset-observer', 'revoke-positive': 'revoke-positive'},
+    activity_entries={'revoke-zero': 'activity-capture',
+                      'recovered-entry-guard': 'activity-capture'},
+    activity_checks={stage: ('activity-capture', 'same') for stage in (
+        'recovery-activity-opened', 'recovery-work', 'positive-activity-opened', 'positive-work')},
+)
+
+
+class ForegroundRevokeJourney(SystemGraphicalExpiryJourney):
+    def __init__(self, context, progress, plan=REVOKE_PLAN, *, actions=None, transport=None):
+        if actions is None:
+            actions = {
+            'revoke-zero': self.revoke_zero, 'positive-setup': self.positive_setup,
+            'reset-observer': self.reset_observer, 'revoke-positive': self.revoke_positive}
+        super().__init__(context, progress, plan, transport=transport, actions=actions)
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage in ('revoke-zero', 'revoke-positive'):
+            value = observed['ui']['natural_expiry']
+            require(value['state'] == 'desktop' and value['session_sha256'] == self.original_session
+                    and 600 < value['seconds'] <= 1200, 'expiry:revoke-entry')
+            compare_app_activity(AppActivityObservation.from_value(value['activity']),
+                                 self.activity_observations['activity-capture'])
+
+    @staticmethod
+    def revoke_zero(journey, guard):
+        guard()
+        value = _system_history_command(journey.transport, 'revoke-zero')
+        triggered = value['revoked_monotonic_ns']
+        journey.ui.natural_expiry_deadline_ns = triggered + int(
+            FOREGROUND_REVOCATION_RESPONSE_SECONDS * 1e9)
+        result = journey.ui.observe('child-natural-expiry-wait-lock')['natural_expiry']
+        guard()
+        require(journey.ui.boot_proof == journey.boot
+                and result['session_sha256'] == journey.original_session
+                and result['lock_read_bounds'][0] >= triggered, 'expiry:revoke-lock-identity')
+        journey.lock_deadline = engineering_deadline(time.monotonic(), LOCK_VERIFICATION_SECONDS)
+        return {'revoked_monotonic_ns': triggered, 'lock': result}
+
+    @staticmethod
+    def positive_setup(journey, guard):
+        return journey._recover(journey, guard, 'revoke-positive-setup')
+
+    @staticmethod
+    def reset_observer(journey, guard):
+        guard()
+        journey.ui = UiObservations(journey.transport, progress=journey.watch_progress)
+        journey.ui.boot_guard = journey.boot
+        return {'observer_reset_after_verified_recovery': True}
+
+    @staticmethod
+    def revoke_positive(journey, guard):
+        guard()
+        value = _system_history_command(journey.transport, 'revoke-positive')
+        observe_until = time.monotonic() + FOREGROUND_REVOCATION_RESPONSE_SECONDS
+        finish_by = engineering_deadline(time.monotonic(), LOCK_VERIFICATION_SECONDS)
+        # Keep the child foreground throughout the same response window. Each
+        # input uses fresh session/app proofs; a cached positive grant cannot
+        # satisfy the independently observed daily-only countdown.
+        while True:
+            guard()
+            result = journey.ui.observe('child-natural-expiry-activity')['natural_expiry']
+            require(journey.ui.boot_proof == journey.boot and result['state'] == 'desktop'
+                    and result['session_sha256'] == journey.original_session
+                    and result['acted'] and 0 < result['seconds'] <= 1200
+                    and time.monotonic() < finish_by,
+                    'expiry:positive-revoke-input')
+            compare_app_activity(AppActivityObservation.from_value(result['activity']),
+                                 journey.activity_observations['activity-capture'])
+            if time.monotonic() >= observe_until:
+                require(result['seconds'] <= 900, 'expiry:positive-revoke-stale-grant')
+                return {'daily_only_seconds': result['seconds'],
+                        'usable_through_response_window': True}
+            time.sleep(SAMPLE_INTERVAL_SECONDS)
+
+
 def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected_inputs,
-                               progress, context, credentials=None):
+                               progress, context, credentials=None, foreground_revoke=False):
     """Compose engineering input checks before the installed PAM password tests."""
     from desktop_session import run_attached
-    _system_history_command(transport, 'host-ready')
-    result = run_attached(directory, lease, transport, ledger, SYSTEM_PLAN,
+    _system_history_command(transport, 'revoke-ready' if foreground_revoke else 'host-ready')
+    result = run_attached(directory, lease, transport, ledger,
+        REVOKE_PLAN if foreground_revoke else SYSTEM_PLAN,
         expected_inputs=expected_inputs, progress=progress, context=context,
-        credentials=credentials, journey_type=SystemGraphicalExpiryJourney, timeout=1800)
-    _system_history_command(transport, 'host-complete')
+        credentials=credentials, journey_type=(ForegroundRevokeJourney if foreground_revoke
+                                              else SystemGraphicalExpiryJourney), timeout=1800)
+    _system_history_command(transport, 'revoke-complete' if foreground_revoke else 'host-complete')
     return result

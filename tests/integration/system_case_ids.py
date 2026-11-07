@@ -629,6 +629,8 @@ CASES = (
                  'Restore the extension when a child signs in or unlocks'),
     CaseIdentity(302, 'session', 'test_usage_reader_failure_recovery',
                  'Safely refuse unavailable usage and recover the same time query'),
+    CaseIdentity(303, 'session', 'test_foreground_revocation',
+                 'Revoke time while the child keeps using the desktop'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

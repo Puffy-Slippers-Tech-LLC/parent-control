@@ -1448,6 +1448,13 @@ sub run {
             $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{system_foreground_revoke}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_desktop_session::foreground_revoke(\&exchange,
+            $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{system_graphical_expiry}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

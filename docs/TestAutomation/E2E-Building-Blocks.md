@@ -4143,6 +4143,17 @@ same-window comparisons and normal use after Cancel on Ubuntu 26.04 in
 and retains that desktop before its first post-Cancel activity read; it supplies
 diagnostic context, not customer acceptance.
 
+Case 135's retained, soft-included replacement passed on Ubuntu 26.04 through
+`expired_daily_replacement.RETAINED_INCLUDED_PLAN` and
+`onpc_lifecycle::expired_daily_replacement`. After the original grant expired
+with daily time left, the replacement approval returned to the same child
+session and original S window/draft. `native_activity_resume` reused
+`overlay-native-soft-resubmit` for guarded input and independent submitted-label
+readback. Normal closure then freed the shared secondary fixture slot before
+independent Hard denial, new Soft launch/use and Allowed launch/use. Collection,
+worker shutdown and owned baseline restoration passed; other bindings remain
+under their declared recipes and qualifications.
+
 Retained-work activity uses the distinct root-owned
 `/opt/onpc-test-fixtures-activity/native-fixture` and two adjacent modules,
 trusted only by their exact file receipt. `native_activity_entry` binds

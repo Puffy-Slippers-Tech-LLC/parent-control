@@ -1195,6 +1195,13 @@ checks, stores the immutable session identity and refuses changed, missing or
 replayed observations before the recorder reply. `desktop_session` supplies
 the two denial plans and their finite endpoints; future consumers bind their own
 names instead of inheriting a qualification's checkpoint comparison.
+This observation requires the greeter to be the sole active graphical session,
+as well as an inactive, locked child desktop. If Parent is still using the
+computer, complete Parent's shared `desktop_return` and its independent greeter
+result before capturing the retained child. A locked child alone does not meet
+the entry guard. The replacement-time cases in
+[expired_daily_replacement.py](../e2e/expired_daily_replacement.py) use that order
+before waiting for the original grant to expire.
 Lock declarations/execution already share `journey_blocks.lock_challenge` /
 `onpc_desktop_session::observe_lock` and `lock_recipient` /
 `onpc_desktop_session::lock_recipient`. The

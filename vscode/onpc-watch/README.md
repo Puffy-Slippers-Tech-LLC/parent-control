@@ -187,7 +187,9 @@ New output starts at the top; streaming additions preserve your scroll position.
 During task close-out, the title shows `[branch] launcher (Closing Task)`, with
 `Closing Task` in green. This includes processing the finished task response
 while **Session** is struck through, validation, and the commit skill's commit,
-push and propagation. The suffix disappears when **Status** shows the task's
+push and propagation, including repository synchronization waits while an
+accepted completion is retained for Git reconciliation.
+The suffix disappears when **Status** shows the task's
 green checkmark. Stop and reload notices take priority.
 For every execution-plan launcher, completed and current task headings end with
 ` | <duration>` from the retained task clock across sessions. The session summary

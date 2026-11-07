@@ -143,7 +143,7 @@ nav button[aria-pressed="true"] {
 }
 .run-status > div { min-height: 1lh; }
 .run-status-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.run-summary { flex: 0 0 auto; }
+.run-summary { flex: 0 0 auto; white-space: pre; overflow-wrap: normal; }
 .run-history { min-height: calc(1lh + 16px); }
 .run-history.has-summary { border-top: 1px solid currentColor; }
 .run-latest { flex: 0 0 auto; padding: 0 8px 8px; }

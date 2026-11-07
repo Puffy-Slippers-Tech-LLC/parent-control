@@ -13,7 +13,7 @@ Task queue: [Plan C ordered checklist](E2E-Task-QueueC.md).
 
 ## Next task
 
-Next task: **125 — [E2E-020: remove](E2E-Tasks/125-case-111.md)**.
+Next task: **166a — [Suspend and wake before a grant expires](E2E-Tasks/166a-suspend-active-grant.md)**.
 
 This plan owns its queue, unchanged task briefs and next-task pointer.
 It can run independently of all unfinished work in

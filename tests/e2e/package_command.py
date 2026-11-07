@@ -36,7 +36,10 @@ PURGE_COMPLETE = 'oh-no-parent-control: saved-state purge outcome=accepted'
 UNRELATED = 'reconfigure-unrelated-libc6'
 BINDINGS = (BINDING, OLD_INSTALL, UPGRADE, *LIFECYCLE, UNRELATED)
 CATALOGUE = {'install-catalogue-old': ('old', '1.0', None),
-             'update-catalogue-new': ('new', '2.0', '1.0')}
+             'update-catalogue-new': ('new', '2.0', '1.0'),
+             'install-catalogue-new': ('new', '2.0', None),
+             'remove-catalogue-new': ('new', '2.0', '2.0'),
+             'reinstall-catalogue-new': ('new', '2.0', None)}
 
 
 def guest_catalogue(binding, expected):
@@ -90,7 +93,8 @@ def guest_catalogue(binding, expected):
     os.environ.update(PATH='/usr/sbin:/usr/bin:/sbin:/bin', LANG='C.UTF-8',
                       DEBIAN_FRONTEND='noninteractive', TERM='dumb')
     os.dup2(1, 2)
-    argv = (*ARGV[:-1], str(path))
+    argv = ((*ARGV[:3], 'remove', '-y', 'onpc-catalogue-fixture')
+            if binding == 'remove-catalogue-new' else (*ARGV[:-1], str(path)))
     os.execv(argv[0], argv)
 
 
@@ -414,7 +418,12 @@ class PackageCommand:
         require(type(status) is int and status == 0, 'package:command-failed')
         version = CATALOGUE[self.binding][1]
         result = self.transport.call(['/usr/bin/dpkg-query', '-W', '-f=${Status}\\n${Version}\\n',
-                                      'onpc-catalogue-fixture'], timeout=30)
+                                      'onpc-catalogue-fixture'], timeout=30, check=False)
+        if self.binding == 'remove-catalogue-new':
+            require(self.transport.commands.last_returncode == 1 and not result,
+                    'package:removed-fixture')
+            return {'operation': self.binding, 'outcome': 'passed', 'removed': True}
+        require(self.transport.commands.last_returncode == 0, 'package:installed-version')
         require(result.decode().splitlines() == ['install ok installed', version],
                 'package:installed-version')
         return {'operation': self.binding, 'outcome': 'passed', 'version': version}

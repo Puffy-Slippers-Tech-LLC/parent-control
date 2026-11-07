@@ -2187,8 +2187,9 @@ the complete command-help case owns one final public desktop result.
 
 E2E-020 refreshes the catalogue after Save through LIFE01(Parent), then PARENT02
 selects the target child before reading the loaded catalogue. Switching children
-reuses cached lists. This finite composition remains unqualified; existing
-selection and reopen callables do not qualify the complete refresh journey.
+reuses cached lists. Cases 110/111 qualify this finite fixture composition on
+Ubuntu 26.04 through `catalogue_update_case` and the shared
+`onpc_fresh_thirty_allowance::catalogue_refresh` worker.
 Await fresh public results within deadlines, accounting for observation latency.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
@@ -4237,8 +4238,20 @@ admits this exact updated executable while retaining its unique-unit, EXEC-step
 and permission-error checks; exit status alone cannot establish denial.
 The complete case passed on Ubuntu 26.04 in
 `scenario-f3bcfa5077a242c1a43bdb6955d22e38`, with collection, worker shutdown,
-owned cleanup and baseline restoration passed. Remove/reinstall remains in
-case 111.
+owned cleanup and baseline restoration passed.
+
+Case 111 uses `catalogue_update_case.REMOVE_PLAN` and the same journey/worker.
+Its fixed `install-catalogue-new`, `remove-catalogue-new` and
+`reinstall-catalogue-new` commands bind the same verified 2.0 DEB, active
+administrator, installed version and single-use transaction markers. Removal
+requires independent package absence. The original owned wildcard draft stays
+open through removal and Save; LIFE01/PARENT02 refresh then reads a complete
+loaded catalogue with empty search and all filters selected before proving the
+app absent. Reinstallation and another refresh must expose the retained wildcard
+and Hard rule before any edits. Fresh Jordan entry must deny the same executable
+with complete window absence. This continuous case passed on Ubuntu 26.04 in
+`scenario-54a6e034ab694e27887149518aa446da`, including collection, worker shutdown,
+owned cleanup and baseline restoration. Other fixture formats remain unqualified.
 
 #### Captured native activity closure
 

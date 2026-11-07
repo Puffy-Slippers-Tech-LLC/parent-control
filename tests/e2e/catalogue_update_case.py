@@ -1,4 +1,5 @@
-"""Case 110: save the retained parent draft across a real fixture update."""
+"""Cases 110/111: retain a parent draft across a real fixture package change."""
+from dataclasses import replace
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
 from asset_transfer import AssetTransfer
 from feedback_composition import text_fragment
@@ -7,6 +8,7 @@ from journey_blocks import (app_policy_entry, desktop_entry, parent_reopen,
                             parent_selection, prefixed_stages)
 from package_command import PackageCommand
 from policy_edits import AppPolicyJourney
+from private_artifacts import require
 from ui_observations import SettingsObservation
 
 
@@ -53,12 +55,35 @@ PLAN = JourneyPlan(
                                'child-entry-standard-recipient-rechecked')},
 )
 
+# Removal uses the same verified 2.0 package before and after the gap. Its
+# precise rule becomes a nondefault wildcard while the original editor is open.
+REMOVED_REFRESH = {**prefixed_stages('removed-reopen', parent_reopen()),
+    **prefixed_stages('removed-jordan', parent_selection(child='existing', screen_limits=True)),
+    'removed-loaded-apps': 'ui:existing-apps', 'removed-row-absent': 'ui:match-update-absent'}
+REMOVE_SCREENS = {**SETUP, **DRAFT, **SAVE, **REMOVED_REFRESH, **REFRESH, **RESULT}
+REMOVE_PLAN = replace(PLAN, prefix='catalogue-remove', worker_mode='catalogue_remove_case',
+    screen_tags=REMOVE_SCREENS,
+    phases={**PLAN.phases, **{stage: 'step-3' for stage in REMOVED_REFRESH}},
+    stage_actions={'desktop': 'install-catalogue-new',
+                   'draft-before-update': 'remove-catalogue-new',
+                   'removed-row-absent': 'reinstall-catalogue-new'},
+    child_bindings={stage: 'existing' for stage, tag in REMOVE_SCREENS.items()
+                    if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
+    settings_checks={**PLAN.settings_checks,
+        'removed-jordan-parent-selected': SettingsObservation(
+            'existing-fixture-child', True, ('30 minutes',))},
+    match_checks={**PLAN.match_checks, 'opened-rule': (APP, MATCH_RULES[-2])})
+
 
 class CatalogueUpdateJourney(AppPolicyJourney):
     def __init__(self, context, progress, plan, *, actions=None):
         context.asset_transfer = AssetTransfer(context.verified)
+        require(actions is None, 'catalogue:unexpected-actions')
+        bindings = ({'install-old': 'install-catalogue-old', 'update-new': 'update-catalogue-new'}
+                    if plan is PLAN else {binding: binding for binding in REMOVE_PLAN.stage_actions.values()})
         super().__init__(context, progress, plan, actions={
-            'install-old': self.install_old, 'update-new': self.update_new})
+            name: (lambda journey, guard, binding=binding: self.change(binding, guard))
+            for name, binding in bindings.items()})
 
     def change(self, binding, guard):
         guard()
@@ -67,16 +92,14 @@ class CatalogueUpdateJourney(AppPolicyJourney):
         guard()
         return command.read_fixture_result()
 
-    def install_old(self, journey, guard):
-        return self.change('install-catalogue-old', guard)
-
-    def update_new(self, journey, guard):
-        return self.change('update-catalogue-new', guard)
-
-
 def execute(recorder, context):
     record_installed_journey(recorder, context, PLAN, timeout=1800,
                              journey_type=CatalogueUpdateJourney)
 
 
-E2E_CASES = {'update': execute}
+def execute_remove(recorder, context):
+    record_installed_journey(recorder, context, REMOVE_PLAN, timeout=1800,
+                             journey_type=CatalogueUpdateJourney)
+
+
+E2E_CASES = {'update': execute, 'remove': execute_remove}

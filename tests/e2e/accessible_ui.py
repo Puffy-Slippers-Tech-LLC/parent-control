@@ -704,6 +704,7 @@ BASELINE_POLICY_DRAFTS = {'match-hard-precise': MATCH_APPS['H'],
 BASELINE_MATCH_OPERATIONS = {f'match-{name}-{action}': (MATCH_APPS[role], action)
     for name, role in (('hard', 'H'), ('soft', 'S'), ('alias', 'Alias'), ('update', 'Update'))
     for action in ('open', 'read', 'row', 'save', 'cancel', 'reset')}
+BASELINE_MATCH_OPERATIONS['match-update-absent'] = (MATCH_APPS['Update'], 'absent')
 MATCH_OPERATIONS = frozenset('match-' + action for action in
     ('open', 'read', 'row', 'save', 'cancel', 'reset', 'rejected', 'wrong-app', 'ambiguous'))
 MATCH_INVALID = {key: ('A match rule is required' if key in ('empty', 'whitespace') else
@@ -7618,6 +7619,18 @@ class AccessibleUI:
         require(operation in MATCH_OPERATIONS, 'ui:match-operation')
         app, action = BASELINE_MATCH_OPERATIONS.get(operation,
             (MATCH_APP, operation.removeprefix('match-')))
+        if action == 'absent':
+            # Read the complete loaded catalogue with all filters cleared.
+            # An incomplete observation or a filtered row cannot prove removal.
+            def absent():
+                rows = self.app_rows(child)
+                require(self.id_target('parent-app-search').getText() == ''
+                        and all(set(self.get_value('parent-filter-' + kind)) == set(options)
+                                for kind, options in FILTER_OPTIONS.items()),
+                        'ui:removed-app-filtered')
+                require(app not in {row[0] for row in rows}, 'ui:removed-app-present')
+                return {'app': app, 'absent': True}
+            return self.wait(absent, 'removed-app-absence')
         if action in ('wrong-app', 'ambiguous'):
             try:
                 if action == 'wrong-app':

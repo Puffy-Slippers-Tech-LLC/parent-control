@@ -1341,8 +1341,9 @@ part of the case.
 
 ### E2E-020
 
-Implementation status: Update case 110 is implemented and passed on Ubuntu
-26.04 through `catalogue_update_case.py`. Remove case 111 remains pending.
+Implementation status: Cases 110 and 111 are implemented through
+`catalogue_update_case.py`. Both use the verified catalogue fixture DEB packages
+on Ubuntu 26.04; case 111 removes and reinstalls the same 2.0 package.
 
 **Catalog update/disappearance between display and save.** Cases 110, 111.
 

@@ -2531,7 +2531,9 @@ class UiObservations:
             value = result.get('match')
             app, action = accessible_ui.BASELINE_MATCH_OPERATIONS.get(operation,
                 (accessible_ui.MATCH_APP, operation.removeprefix('match-')))
-            if action in ('save', 'cancel', 'reset', 'rejected'):
+            if action == 'absent':
+                require(value == {'app': app, 'absent': True}, 'ui:match-response')
+            elif action in ('save', 'cancel', 'reset', 'rejected'):
                 require(value == {'closed': action}, 'ui:match-response')
             elif action.startswith('invalid-'):
                 key = action.removeprefix('invalid-')

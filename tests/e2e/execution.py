@@ -230,7 +230,8 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
             stage_assets = system.stage_upgrade_assets if upgrade_consumer else system.stage_assets
             stage_assets(asset_source, staged, commands,
                          **({'package_only': True} if package_only else {}),
-                         **({'catalogue_update': True} if case['case_id'] == 'E2E-020/update' else {}))
+                         **({'catalogue_update': True}
+                            if case['scenario_id'] == 'E2E-020' else {}))
             staged.chmod(0o700)
             source_check = preflight_source(staged, root=root, upgrade=upgrade_consumer,
                 **({'package_only': True} if package_only else {}))

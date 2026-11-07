@@ -924,6 +924,12 @@ sub run {
         onpc_app_rows::shared_target_launchers(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{native_space_path}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::native_space_path(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{native_denial}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

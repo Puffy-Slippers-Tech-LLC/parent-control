@@ -17,9 +17,10 @@ import tempfile
 import time
 import zipfile
 import zlib
+from contextlib import ExitStack
 from datetime import date
 from download_destination import DIRECTORY as SAVE_DIRECTORY, download_directory
-from guest_files import read_regular
+from guest_files import read_regular, write_exclusive
 
 ZIP_NAME = 'Synthetic archive.zip'
 ZIP_ARTIFACT = 'synthetic-archive'
@@ -67,6 +68,93 @@ BOUNDARY_PROFILES = {
     'hidden': {'Hidden\u200b.txt': b'H'},
     'mixed': {'Accepted.txt': b'A', 'Oversized.txt': b'O' * (5 * 1024 * 1024 + 1)},
 }
+
+NATIVE_SPACE_PARENT = Path('/opt/onpc-test-fixtures/Applications/Whitespace')
+NATIVE_SPACE_SOURCE = 'Path With Spaces.AppImage'
+NATIVE_SPACE_COPY = 'Copied Path With Spaces.AppImage'
+
+
+def native_space_operate(home, operation, request):
+    """FILE05: one Jordan-owned executable copy, never arbitrary file input."""
+    import pwd
+    child = pwd.getpwnam('onpc-child-jordan')
+    require(os.getuid() == os.geteuid() == child.pw_uid
+            and home == Path(child.pw_dir) == Path('/home/onpc-child-jordan'))
+    require(operation in ('stage', 'copy', 'read', 'cleanup', 'absent')
+            and type(request) is dict and set(request) == {'expected', 'previous'})
+    expected, previous = request['expected'], request['previous']
+    require(type(expected) is dict and set(expected) == {'source', 'nonmatching'}
+            and all(type(value) is str and len(value) == 64
+                    and all(c in '0123456789abcdef' for c in value)
+                    for value in expected.values())
+            and expected['source'] != expected['nonmatching'])
+    with ExitStack() as stack:
+        # Pin each ancestor and the destination directory before inspecting or
+        # writing. Directory timestamps may change; identity/owner/mode may not.
+        parent = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        stack.callback(os.close, parent)
+        chain = []
+        for name in NATIVE_SPACE_PARENT.parts[1:]:
+            fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+            stack.callback(os.close, fd)
+            info = os.fstat(fd)
+            require(info.st_uid in (0, child.pw_uid) and not info.st_mode & 0o022)
+            chain.append((parent, name, fd, identity(info)[:5]))
+            parent = fd
+        require(info.st_uid == child.pw_uid and info.st_gid == child.pw_gid
+                and stat.S_IMODE(info.st_mode) == 0o755)
+        fcntl.flock(parent, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+        def guard():
+            for ancestor, name, pinned, receipt in chain:
+                require(identity(os.fstat(pinned))[:5] == receipt
+                        == identity(os.stat(name, dir_fd=ancestor, follow_symlinks=False))[:5])
+
+        def readback():
+            guard()
+            names = set(os.listdir(parent))
+            base = {NATIVE_SPACE_SOURCE, 'onpc-test-gui.py', 'gtk_automation.py'}
+            require(names in (base, base | {NATIVE_SPACE_COPY}))
+            result = {'directory': chain[-1][3], 'destination': str(NATIVE_SPACE_PARENT / NATIVE_SPACE_COPY),
+                      'files': {}}
+            for name in (NATIVE_SPACE_SOURCE, NATIVE_SPACE_COPY):
+                if name not in names:
+                    continue
+                data, entry = read_regular(parent, name, owner=child.pw_uid,
+                                            mode=0o755, limit=2 * 1024 * 1024)
+                digest = hashlib.sha256(data).hexdigest()
+                require(entry.st_gid == child.pw_gid and digest == expected['source'])
+                result['files'][name] = {'identity': identity(entry), 'sha256': digest,
+                                         'size': len(data)}
+            guard()
+            return result
+
+        current = readback()
+        if operation == 'stage':
+            require(previous is None and set(current['files']) == {NATIVE_SPACE_SOURCE})
+        elif operation == 'absent':
+            require(previous == {'absent': True}
+                    and set(current['files']) == {NATIVE_SPACE_SOURCE})
+            return {'absent': True}
+        else:
+            require(current == previous)
+            if operation == 'copy':
+                require(set(current['files']) == {NATIVE_SPACE_SOURCE})
+                data, entry = read_regular(parent, NATIVE_SPACE_SOURCE, owner=child.pw_uid,
+                                          mode=0o755, limit=2 * 1024 * 1024)
+                require(identity(entry) == current['files'][NATIVE_SPACE_SOURCE]['identity'])
+                guard()
+                write_exclusive(parent, NATIVE_SPACE_COPY, data, owner=child.pw_uid,
+                                group=child.pw_gid, mode=0o755)
+            elif operation == 'cleanup':
+                require(set(current['files']) == {NATIVE_SPACE_SOURCE, NATIVE_SPACE_COPY})
+                guard()
+                require(identity(os.stat(NATIVE_SPACE_COPY, dir_fd=parent, follow_symlinks=False))
+                        == current['files'][NATIVE_SPACE_COPY]['identity'])
+                os.unlink(NATIVE_SPACE_COPY, dir_fd=parent)
+                require(set(readback()['files']) == {NATIVE_SPACE_SOURCE})
+                return {'absent': True}
+        return readback()
 
 
 def require(value):
@@ -583,6 +671,8 @@ def save_operate(home, operation, previous):
 
 def operate(home, operation, previous, profile='standard'):
     """Validate everything before the first mutation; failures never clean up."""
+    if profile == 'native-space':
+        return native_space_operate(home, operation, previous)
     require(operation in ('stage', 'read', 'copy', 'rename', 'cleanup', 'absent', 'open-text', 'probe-text', 'open-zip', 'probe-zip', 'change-source', 'probe-source', 'saved'))
     require(profile in ('standard', 'zip', 'save') or profile in BOUNDARY_PROFILES)
     require(operation != 'saved' or profile == 'save')
@@ -705,8 +795,10 @@ def diagnostic_zip_refusal(error):
 def main():
     import pwd
     require(len(sys.argv) in (3, 4))
-    account = pwd.getpwnam('onpc-parent-jamie')
-    require(os.getuid() == account.pw_uid and account.pw_dir == '/home/onpc-parent-jamie')
+    user = ('onpc-child-jordan' if len(sys.argv) == 4 and sys.argv[3] == 'native-space'
+            else 'onpc-parent-jamie')
+    account = pwd.getpwnam(user)
+    require(os.getuid() == os.geteuid() == account.pw_uid and account.pw_dir == '/home/' + user)
     require(len(sys.argv[2]) <= 4096)
     previous = json.loads(sys.argv[2])
     try:

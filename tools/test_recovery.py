@@ -4,6 +4,35 @@ import test_activity
 import test_retention
 
 
+def before_queue(root, argv):
+    """Recover retained claims before a fresh batch takes its activity gate.
+
+    The standalone cleanup owns VM admission and excludes competing queue
+    writers before returning claims to pending. A resumed queue instead keeps
+    its original ownership and lets its workers recover normally.
+    """
+    import json
+    import os
+    from vm_selection import BATCH
+    from test_commands import host_only_request, is_inspection
+    if (BATCH not in os.environ or '--resume' in argv or is_inspection(argv)
+            or host_only_request(argv)):
+        return 0
+    from test_checkpoint import family_claims_pending
+    from regression_process import Control
+    import test_launcher
+    with Control().installed() as control:
+        for name in json.loads(os.environ[BATCH])['vms']:
+            if not family_claims_pending(root, name):
+                continue
+            print(f'Automatic recovery: recovering retained queue claims for {name}.', flush=True)
+            status = control.run([str(root / 'tools/cleanup-e2e'), '--vm', name, '--vm-only'],
+                                 cwd=root, env=test_launcher.environment(root))
+            if status:
+                return status
+        return 130 if control.stopped.is_set() else 0
+
+
 def before_run(root, argv, *, categories=None):
     # Help/collection and owned aggregate children must remain read-only here.
     from test_commands import host_only_request, is_inspection

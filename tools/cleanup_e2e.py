@@ -18,6 +18,8 @@ def main(argv=None):
     scope = parser.add_mutually_exclusive_group()
     scope.add_argument('--vm', help='VM name/ID, comma-separated list, all-enabled (default), or all; cleanup remains serial')
     scope.add_argument('--host-only', action='store_true', help='host retention only; no VM access')
+    parser.add_argument('--vm-only', action='store_true',
+                        help='recover explicit --vm selection without host retention cleanup')
     parser.add_argument('--discard-completed', action='store_true',
                         help='explicitly remove all completed execution-retention results; not workflow/session logs')
     parser.add_argument('--if-available', action='store_true',
@@ -33,6 +35,8 @@ def main(argv=None):
     try:
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
+        if args.vm_only and (not args.vm or args.host_only):
+            raise ValueError('--vm-only requires an explicit --vm selection')
         if args.if_available and (args.host_only or args.discard_completed
                 or args.discard_unpublished_input or args.transfer_batch_input
                 or args.transfer_batch_appsnapshot):
@@ -108,7 +112,7 @@ def main(argv=None):
                         print(f'cleanup-e2e: returned {recovered} interrupted family cases to pending', flush=True)
             if status:
                 return status
-        return cleanup_host(root)
+        return 0 if args.vm_only else cleanup_host(root)
     except Busy as error:
         print('cleanup-e2e: ' + str(error), file=sys.stderr)
         return Busy.status

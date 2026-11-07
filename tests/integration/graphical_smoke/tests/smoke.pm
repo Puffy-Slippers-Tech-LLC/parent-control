@@ -97,7 +97,7 @@ sub exchange {
     my $deadline = time + ($stage =~ /\Apublic-/ ? 120 : $stage eq 'setup-detached' ? 1500
         # Natural expiry can consume the complete real ten-minute grant, plus
         # observation/transport time. Its controller keeps the product deadline.
-        : $stage eq 'minute-progression' || $stage eq 'natural-expiry'
+        : $stage eq 'minute-progression' || $stage eq 'natural-expiry' || $stage eq 'peer-expiry'
             || $stage eq 'expiry-wait' ? 900
         : $stage eq 'package-submitted' || $stage eq 'upgrade-submitted' ? 780
         : $stage eq 'reboot-installed-greeter' || $stage eq 'second-reboot-greeter'

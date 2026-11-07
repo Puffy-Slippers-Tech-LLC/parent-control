@@ -13,7 +13,7 @@ Task queue: [Plan C ordered checklist](E2E-Task-QueueC.md).
 
 ## Next task
 
-Next task: **172b — [Keep expiry moving during approval](E2E-Tasks/172b-approval-expiry.md)**.
+Next task: **172c — [Apply the latest time decision at expiry](E2E-Tasks/172c-policy-expiry.md)**.
 
 This plan owns its queue, unchanged task briefs and next-task pointer.
 It can run independently of all unfinished work in

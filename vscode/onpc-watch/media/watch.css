@@ -142,6 +142,19 @@ nav button[aria-pressed="true"] {
     font: var(--vscode-editor-font-size) var(--vscode-editor-font-family);
 }
 .run-status > div { min-height: 1lh; }
+.run-status-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.run-summary { flex: 0 0 auto; }
+.run-history { min-height: calc(1lh + 16px); }
+.run-history.has-summary { border-top: 1px solid currentColor; }
+.run-latest { flex: 0 0 auto; padding: 0 8px 8px; }
+.run-latest-label {
+    display: flex; align-items: center; gap: 8px; margin: 0 -8px 4px;
+    font-size: 1em; font-weight: bold;
+}
+.run-latest-label::before, .run-latest-label::after { content: ''; border-top: 1px solid currentColor; }
+.run-latest-label::before { flex: 0 0 16px; }
+.run-latest-label::after { flex: 1; }
+.run-latest .run-status { padding: 0; height: 4lh; overflow-y: auto; }
 .run-separator { margin: .5lh -8px; border: 0; border-top: 1px solid currentColor; }
 #divider { cursor: ew-resize; touch-action: none; background: var(--vscode-panel-border); }
 #divider:hover, #divider:focus-visible, .resizing #divider { background: var(--vscode-focusBorder); }

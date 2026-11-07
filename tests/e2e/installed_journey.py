@@ -120,7 +120,8 @@ class JourneyPlan:
                     and accessible_ui.validate_kiosk_request(binding)[0] == self.kiosk_request[0]
                     for stage, binding in self.kiosk_requests.items()),
                 self.prefix + ':kiosk-stage-bindings')
-        require(self.kiosk_request is None or self.overlay_request is None,
+        require(self.kiosk_request is None or self.overlay_request is None
+                or tuple(self.kiosk_request) == tuple(self.overlay_request),
                 self.prefix + ':request-surface-binding')
         require(not any(type(tag) is str and tag.removeprefix('ui:') in accessible_ui.KIOSK_BOUND_OPERATIONS -
                         {'child-countdown-present'} for tag in self.screen_tags.values())

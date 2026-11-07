@@ -156,7 +156,10 @@ sub enter_kiosk_mate_password {
             my $daily_soft = ($journey->{prefix} // '') eq 'daily-soft-profile-profile-request'
                 && ($journey->{stage_prefix} // '') eq 'profile-request-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,6,1';
-            die 'secret:challenge' unless ($temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily || $daily_soft ||
+            my $offline = ($journey->{prefix} // '') eq 'offline-approvals-station'
+                && ($journey->{stage_prefix} // '') eq 'station-'
+                && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,180,1';
+            die 'secret:challenge' unless ($temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily || $daily_soft || $offline ||
                     ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
                     && ($journey->{stage_prefix} // '') eq '')
                 && ref($request) eq 'ARRAY' && @$request == 4
@@ -287,8 +290,12 @@ sub enter_overlay_shell_password {
                 && join(',', @{$journey->{overlay_request}}) eq
                     ($row eq 'included' ? 'other-child,other-parent,300,1' : 'other-child,parent,300,0');
         }
+        my $offline = ($journey->{prefix} // '') eq 'offline-approvals-overlay'
+            && ($journey->{stage_prefix} // '') eq 'overlay-'
+            && ref($journey->{overlay_request}) eq 'ARRAY'
+            && join(',', @{$journey->{overlay_request}}) eq 'child,parent,180,1';
         my $composed = (($journey->{prefix} // '') eq 'overlay-approval-return'
-            || $delayed || $panel || $temporary_access) && !$reject;
+            || $delayed || $panel || $temporary_access || $offline) && !$reject;
         my $role = 'parent';
         if ($composed) {
             my $binding = $journey->{overlay_request};
@@ -301,7 +308,7 @@ sub enter_overlay_shell_password {
         }
         die 'secret:challenge' if $baseline && (($journey->{stage_prefix} // '') ne
             'overlay-' . ($reject ? 'rejection' : 'approval') . '-');
-        my $id = ($baseline || $delayed || $temporary_access ? $journey->{stage_prefix} : '')
+        my $id = ($baseline || $delayed || $temporary_access || $offline ? $journey->{stage_prefix} : '')
             . 'overlay-shell-' . ($reject ? 'rejection' : 'approval');
         die 'secret:challenge' unless (@_ == 1 || $reject) && ref($journey) eq 'onpc_journey'
             && $prefix =~ /\A[a-z][a-z0-9-]*\z/

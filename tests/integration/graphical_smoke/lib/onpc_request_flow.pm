@@ -512,6 +512,11 @@ sub shell_approve {
             || ($journey->{prefix} // '') eq 'overlay-approval-flow'
             || ($journey->{prefix} // '') eq 'overlay-approval-return'
                 && ref($journey->{overlay_request}) eq 'ARRAY' && $exit eq 'automatic'
+            || ($journey->{prefix} // '') eq 'offline-approvals-overlay'
+                && ($journey->{stage_prefix} // '') eq 'overlay-'
+                && ref($journey->{overlay_request}) eq 'ARRAY'
+                && join(',', @{$journey->{overlay_request}}) eq 'child,parent,180,1'
+                && $exit eq 'automatic'
             || ($journey->{prefix} // '') eq 'panel-request-case'
                 && ref($journey->{overlay_request}) eq 'ARRAY'
                 && join(',', @{$journey->{overlay_request}}) =~ /\Achild,(?:parent,30,0|other-parent,30,1)\z/

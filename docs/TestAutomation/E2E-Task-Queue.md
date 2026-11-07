@@ -281,11 +281,11 @@ empty draft without another Send. Visible confirmation remains in E2E-032 /
 case 156. The combined journey remains pending.
 
 Excluded tasks: **237** (separate offline station journey).
-The developer combined both request screens into [task 236 / case 194](E2E-Tasks/236-case-194.md).
+The developer combined both request screens into task 236 / case 194.
 Task 237, its brief and inventory case 195 are absorbed, neither completed nor
 deferred; do not recreate the separate journey or reuse case ID 195. Each offline
 approval and its time/app results remain required before proceeding, with one
-settings preparation and final revocation before reconnection. Task 236 remains pending.
+settings preparation and final revocation before reconnection. Task 236 is complete.
 
 Excluded tasks: **128 and 134** (opposite gameplay time/display pairings).
 The [E2E-024 recipe](E2E-Scenario-Recipes.md#e2e-024) retains daily-dominant
@@ -615,7 +615,7 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 107 | Let soft apps open after replacing expired time and signing in again | 065a, 079b, 079a, 052c, 197a | Cases 134; complete soft-included fresh-sign-in journey passed on Ubuntu 26.04 in `20261107T034708Z-f219eb95`: original grant preserved through the larger allowance save, sign-out before natural expiry, public positive daily/zero grant, replacement approval, matching countdown, Hard denial and usable Soft/Allowed command launches. Affected soft-excluded case 132 passed in `20261107T041620Z-eeec5681`. All 53 approval-safety checks, source checks, listing, coverage after each pass, collection, worker shutdown and owned baseline restoration passed; VM observed off. | 40–60 (exception) |
 | [x] | 108 | Keep a child's open work when replacement time includes blocked apps | 065a, 079b, 079a, 052c, 197k | Cases 135; retained soft-included journey passed on Ubuntu 26.04 in `20261107T045800Z-41c62ca1`: natural original-grant expiry with positive daily time, replacement approval, same child session and original S window/draft, resumed original work, Hard denial and new Soft/Allowed use. Required retained soft-excluded case 133 passed in `20261107T055231Z-f7aab748`, including earlier S closure, Hard/Soft denial and Allowed use. A fresh controller resolved the earlier countdown response-format mismatch. Host safety/source checks, listing, Markdown links, coverage after each pass, collection, worker shutdown, owned cleanup and baseline restoration passed; VM observed off. | 40–60 (exception) |
 | [x] | 202 | Check that revoking app access preserves a child's daily time | 065a, 079b, 079a | Cases 160; passed on Ubuntu 26.04 in `20261107T064158Z-95aa0044`: real soft-included approval, original child work, fifteen-minute daily allowance with limits off/on, independently zero grant before Revoke, Cancel preservation, Confirm daily-time preservation, original soft-app closure, Hard/Soft command denial and usable original Allowed work. Required active-grant case 19 passed in `20261107T070448Z-16dbc602`, including other-child continuity. All 53 approval-safety checks, source/traceability, listing, coverage refreshes, collection, worker shutdown and owned baseline restoration passed; VM observed off. | 20–30 |
-| [ ] | 236 | [E2E-043: both-surfaces](E2E-Tasks/236-case-194.md) | 193, 079b, 079a, 052a, 050, 048b | Cases 194 | 40–60 (exception) |
+| [x] | 236 | Approve extra time on both child screens while offline | 193, 079b, 079a, 052a, 050, 048b | Cases 194; passed on Ubuntu 26.04 in `20261107T075255Z-5ed3a9da`: one offline preparation, separate three-minute desktop/station approvals with independent added-time/countdown and Allowed/Soft/Hard results, then one revocation with original Soft closure, retained Allowed work and denied Soft/Hard launches before Internet recovery. Removed a duplicate inherited balance comparison while preserving replay guards. All 57 credential-safety checks, source/traceability, listing, coverage refresh, collection, worker shutdown, owned cleanup and baseline restoration passed; VM observed off. | 40–60 (exception) |
 | [ ] | 273 | [E2E-049: native-grid-child-overlay](E2E-Tasks/273-case-231.md) | 197, 079b, 079a, 180 | Cases 231 | 20–30 |
 | [ ] | 274 | [E2E-049: native-grid-kiosk](E2E-Tasks/274-case-232.md) | 197k, 079b, 079a, 180 | Cases 232 | 20–30 |
 | [ ] | 280 | [E2E-049: native-command-kiosk](E2E-Tasks/280-case-238.md) | 197k, 079b, 079a, 180 | Cases 238 | 20–30 |

@@ -6,17 +6,17 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5837</span>/<span style="color: gray">0</span>/5837 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5840</span>/<span style="color: gray">0</span>/5840 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">224</span>/<span style="color: gray">0</span>/224 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">295</span>/<span style="color: gray">0</span>/295 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">51</span>/<span style="color: gray">0</span>/51 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
+| Installed system | <span style="color: green">50</span>/<span style="color: gray">0</span>/50 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">110</span>/<span style="color: gray">86</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6531</span>/<span style="color: gray">86</span>/6617** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">111</span>/<span style="color: gray">85</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6534</span>/<span style="color: gray">85</span>/6619** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">109</span>/<span style="color: gray">86</span>/195 |
+| customer-journey | <span style="color: green">110</span>/<span style="color: gray">85</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -129,6 +129,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [191](#scenario-191) | Read Help, About and command usage on each surface (surface: child overlay) | `E2E-042/child-overlay` | ready |
 | [192](#scenario-192) | Read Help, About and command usage on each surface (surface: kiosk) | `E2E-042/kiosk` | ready |
 | [193](#scenario-193) | Read Help, About and command usage on each surface (surface: command help) | `E2E-042/command-help` | ready |
+| [194](#scenario-194) | Use local controls and approvals while offline | `E2E-043/both-surfaces` | ready |
 | [205](#scenario-205) | Review or decline an error report | `E2E-045/parent` | ready |
 | [223](#scenario-223) | Approve after the displayed estimate has aged (balance: daily only; surface: child overlay) | `E2E-048/daily-only-child-overlay` | ready |
 | [224](#scenario-224) | Approve after the displayed estimate has aged (balance: daily only; surface: kiosk) | `E2E-048/daily-only-kiosk` | ready |
@@ -205,7 +206,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[188](#scenario-188)</span> | <span style="color: gray">Search the app list and edit match rules (flow: special paths)</span> | <span style="color: gray">`E2E-041/special-paths`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[189](#scenario-189)</span> | <span style="color: gray">Search the app list and edit match rules (flow: pattern files)</span> | <span style="color: gray">`E2E-041/pattern-files`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[190](#scenario-190)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: parent links)</span> | <span style="color: gray">`E2E-042/parent-links`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[194](#scenario-194)</span> | <span style="color: gray">Use local controls and approvals while offline</span> | <span style="color: gray">`E2E-043/both-surfaces`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[196](#scenario-196)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: ordinary; time: daily reset)</span> | <span style="color: gray">`E2E-044/ordinary-daily-reset`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[197](#scenario-197)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: ordinary; time: rest of day)</span> | <span style="color: gray">`E2E-044/ordinary-rest-of-day`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[198](#scenario-198)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: ordinary; time: fixed grant)</span> | <span style="color: gray">`E2E-044/ordinary-fixed-grant`</span> | <span style="color: gray">pending</span> |
@@ -1564,6 +1564,21 @@ Variant: surface: command help
 - Parent-links case 190 is excluded from E2E scheduling and UI-owned. For either active request-form case, enable the child's limits and give 30 daily minutes through Parent, enter the form and record unfinished request choices. For command help, sign in as the parent and qualify the desktop.
 - Read the installed product/version and legal/contact information in About. Kiosk provides that information within its request-only session. Command-help reads both installed help commands and manuals through bounded guarded SSH stdout. Link completeness and clickability are shared UI checks.
 - Close About and return to the unchanged unfinished request, retaining station restrictions where applicable. Command help must open no management or request window. Installed Parent information and return are owned by case 151.
+
+### Scenario 194
+
+**Use local controls and approvals while offline**
+
+Case: `E2E-043/both-surfaces` · Category: customer-journey · Status: **ready**
+
+Variant: surface: both
+
+**Steps:**
+
+- Remove Internet access through the shared distro-independent LIFE06 VM helper, preserving test control. In Parent enable limits and save the allowance and hard/soft app rules.
+- Enter the child-overlay form, read its estimate and approve 3 minutes including soft apps through a fresh local parent's prompt. Observe success, added time, allowed/soft app use, hard refusal and ticking time before proceeding.
+- Sign out normally, enter the station form and approve another 3 minutes including soft apps through fresh local authentication. Observe success, sign in as the child and independently check added time, allowed/soft app use, hard refusal and ticking time while still offline.
+- Revoke once through Parent, confirm no grant, soft-app closure/refused relaunch, retained allowed access and hard refusal, then reconnect. Use one offline policy preparation with a fresh 30-minute daily allowance and one native app per rule; no reset, revocation or reconnection between approvals.
 
 ### Scenario 205
 
@@ -3004,27 +3019,6 @@ Variant: surface: parent links
 - Close About and return to the unchanged unfinished request, retaining station restrictions where applicable. Command help must open no management or request window. Installed Parent information and return are owned by case 151.
 
 Pending: Excluded from E2E scheduling: local Parent Help/About link availability belongs to tests/ui/test\_about\_release.py::test\_about\_displays\_release\_notices and shared UI coverage. Installed product information and return to unchanged management are owned by E2E-030 case 151. Retain this stable ID and historical task; no duplicate customer journey or new E2E task.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 194
-
-**Use local controls and approvals while offline**
-
-Case: `E2E-043/both-surfaces` · Category: customer-journey · Status: **pending**
-
-Variant: surface: both
-
-**Steps:**
-
-- Remove Internet access through the shared distro-independent LIFE06 VM helper, preserving test control. In Parent enable limits and save the allowance and hard/soft app rules.
-- Enter the child-overlay form, read its estimate and approve 3 minutes including soft apps through a fresh local parent's prompt. Observe success, added time, allowed/soft app use, hard refusal and ticking time before proceeding.
-- Sign out normally, enter the station form and approve another 3 minutes including soft apps through fresh local authentication. Observe success, sign in as the child and independently check added time, allowed/soft app use, hard refusal and ticking time while still offline.
-- Revoke once through Parent, confirm no grant, soft-app closure/refused relaunch, retained allowed access and hard refusal, then reconnect. Use one offline policy preparation with a fresh 30-minute daily allowance and one native app per rule; no reset, revocation or reconnection between approvals.
-
-Pending: Combined offline desktop/station recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 

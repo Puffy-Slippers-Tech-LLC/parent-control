@@ -440,7 +440,7 @@ def main(argv=None):
                                           'reproduce-baseline-restoration',
                                           'probe-kiosk-latency', 'probe-kiosk-prompt-latency',
                                           'reproduce-lock-denial',
-                                          'reproduce-retained-entry', 'probe-lock-curtain',
+                                          'reproduce-retained-entry', 'probe-lock-curtain', 'probe-lock-time-denial',
                                           'reproduce-revoke-cancel', 'probe-revoke-balances',
                                           'reproduce-delayed-approval',
                                           'reproduce-countdown-minutes',
@@ -449,6 +449,7 @@ def main(argv=None):
                                           'reproduce-natural-access',
                                           'reproduce-countdown-grant',
                                           'reproduce-suspend-active-grant',
+                                          'reproduce-suspend-expired-grant',
                                           'reproduce-countdown-resume',
                                           'reproduce-panel-language',
                                           'reproduce-retained-unlock',
@@ -496,6 +497,7 @@ def main(argv=None):
         runner.require((args.action in ('sync-fixtures', 'reproduce-baseline-restoration',
                                        'reproduce-natural-access', 'reproduce-natural-expiry', 'reproduce-countdown-grant',
                                        'reproduce-suspend-active-grant',
+                                       'reproduce-suspend-expired-grant',
                                        'reproduce-overlay-activity', 'reproduce-overlay-return',
                                        'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
                                        'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
@@ -552,13 +554,13 @@ def main(argv=None):
             from vm_disk_rename import rename_disk
             rename_disk(lease)
         elif args.action in ('reproduce-baseline-restoration', 'reproduce-natural-access', 'reproduce-natural-expiry',
-                             'reproduce-countdown-grant', 'reproduce-suspend-active-grant', 'reproduce-overlay-activity', 'reproduce-overlay-return',
+                             'reproduce-countdown-grant', 'reproduce-suspend-active-grant', 'reproduce-suspend-expired-grant', 'reproduce-overlay-activity', 'reproduce-overlay-return',
                              'reproduce-system-graphical-expiry', 'reproduce-grant-logout',
                              'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-panel-request',
                              'reproduce-app-restart-choices', 'reproduce-reboot-context',
                              'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-expired-sign-out'):
             from vm_probe import (reproduce_baseline_restoration, reproduce_natural_access, reproduce_natural_expiry,
-                                  reproduce_countdown_grant, reproduce_suspend_active_grant, reproduce_overlay_activity, reproduce_overlay_return,
+                                  reproduce_countdown_grant, reproduce_suspend_active_grant, reproduce_suspend_expired_grant, reproduce_overlay_activity, reproduce_overlay_return,
                                   reproduce_system_graphical_expiry, reproduce_grant_logout,
                                   reproduce_app_rule_return, reproduce_revocation_return, reproduce_panel_request,
                                   reproduce_app_restart_choices, reproduce_reboot_context,
@@ -570,6 +572,7 @@ def main(argv=None):
                              'reproduce-baseline-restoration': reproduce_baseline_restoration,
                              'reproduce-countdown-grant': reproduce_countdown_grant,
                              'reproduce-suspend-active-grant': reproduce_suspend_active_grant,
+                             'reproduce-suspend-expired-grant': reproduce_suspend_expired_grant,
                              'reproduce-overlay-activity': reproduce_overlay_activity,
                              'reproduce-overlay-return': reproduce_overlay_return,
                              'reproduce-system-graphical-expiry': reproduce_system_graphical_expiry,
@@ -706,6 +709,10 @@ def main(argv=None):
             from vm_probe import probe_lock_curtain
             resume(lease)
             probe_lock_curtain(lease)
+        elif args.action == 'probe-lock-time-denial':
+            from vm_probe import probe_lock_time_denial
+            resume(lease)
+            probe_lock_time_denial(lease)
         elif args.action == 'probe-kiosk-approval':
             from vm_probe import probe_kiosk_approval
             resume(lease)

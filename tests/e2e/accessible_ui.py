@@ -1584,8 +1584,8 @@ CHILD_LOCK_OPERATIONS = frozenset(operation.replace('parent-', 'child-', 1)
 LOCK_RECIPIENT_OPERATIONS |= frozenset(operation.replace('parent-', 'child-', 1)
     for operation in LOCK_RECIPIENT_OPERATIONS)
 LOCK_SURFACE_OPERATIONS |= CHILD_LOCK_OPERATIONS
-LOCK_SURFACE_OPERATIONS |= frozenset(('child-lock-time-denied',))
-CHILD_LOCK_OPERATIONS |= frozenset(('child-lock-time-denied',))
+LOCK_SURFACE_OPERATIONS |= frozenset(('child-lock-time-denied', 'child-lock-time-denial-ready'))
+CHILD_LOCK_OPERATIONS |= frozenset(('child-lock-time-denied', 'child-lock-time-denial-ready'))
 CHILD_DESKTOP_OPERATIONS |= CHILD_LOCK_OPERATIONS
 OPERATIONS |= LOCK_SURFACE_OPERATIONS
 
@@ -8866,7 +8866,8 @@ class AccessibleUI:
             else:
                 raise UiError('ui:lock-unlocked-accepted')
             return {'refused': ['unlocked-session']}
-        entry = ('restriction' if operation == 'parent-lock-time-denied' else
+        denial = operation in ('parent-lock-time-denied', 'parent-lock-time-denial-ready')
+        entry = ('restriction' if denial else
                  'curtain' if operation in ('parent-lock-curtain', 'parent-lock-reveal-ready') else 'challenge')
         value = self.shell_lock_snapshot(uid, entry)
         if value is None:
@@ -8939,7 +8940,7 @@ class AccessibleUI:
                   'recipient': identity if field is not None else None,
                   'surface_id': self.mate_challenge_identity(owner.get_process_id(), (owner, window)),
                   'provider': self._shell_provider_metadata(owner)}
-        if operation == 'parent-lock-time-denied':
+        if denial:
             result['reason'] = 'time-limit'
             result['authentication_blocked'] = True
         if operation in LOCK_RECIPIENT_OPERATIONS:

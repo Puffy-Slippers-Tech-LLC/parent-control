@@ -1470,7 +1470,8 @@ sub run {
     if ($ready->{suspend_active_grant}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
-        onpc_challenges::suspend_active_grant(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        onpc_challenges::suspend_active_grant(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
+            $ready->{kiosk_request});
         return;
     }
     if ($ready->{daily_soft_profile} || $ready->{daily_soft_expiry}) {

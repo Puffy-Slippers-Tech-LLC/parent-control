@@ -247,6 +247,28 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
         ['delivery', role, 'overlay-shell-approval']]}
 
 
+@pytest.mark.parametrize('scope,binding,accepted', [
+    ('profile-request-', 'long-request', True),
+    ('first-', 'long-request', False),
+    ('profile-request-', 'request-1200', False),
+])
+def test_expired_suspend_approval_keeps_its_secret_scope(scope, binding, accepted):
+    result = run_password_guard(r'''
+my ($scope, $request) = @ARGV;
+my $journey = bless {prefix => 'suspend-expired-grant-profile-request',
+    stage_prefix => $scope, review => 0}, 'onpc_journey';
+my $ok = eval { onpc_password::enter_kiosk_mate_password($journey, $request); 1 };
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+''', scope, binding)
+    value = json.loads(result.stdout)
+    assert bool(value['ok']) is accepted
+    assert value['events'] == ([
+        ['proof', 'profile-request-approval-qualified'],
+        ['proof', 'profile-request-approval-rechecked'],
+        ['delivery', 'parent', 'profile-request-kiosk-mate-long-request'],
+    ] if accepted else [])
+
+
 @pytest.mark.parametrize('mode', ['two-requests', 'replay', 'wrong-scope', 'wrong-child',
                                  'profile-setup', 'profile-wrong-scope', 'suspend-profile',
                                  'grant-request', 'grant-wrong-scope', 'grant-wrong-child',

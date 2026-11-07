@@ -208,18 +208,35 @@ sub natural_expiry {
 }
 
 sub suspend_active_grant {
-    onpc_progress::operation('Waking and unlocking the same child work before extra time expires');
-    my ($exchange, $declared, $challenges) = @_;
-    die 'suspend-active-grant:plan' unless @_ == 3 && ref($exchange) eq 'CODE';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'suspend-active-grant', review => 0);
+    my ($exchange, $declared, $challenges, $request) = @_;
+    die 'suspend-active-grant:plan' unless (@_ == 3 || @_ == 4) && ref($exchange) eq 'CODE'
+        && (!defined($request) || ref($request) eq 'ARRAY'
+            && join('/', @$request) eq 'child/parent/600/1');
+    my $expired = defined($request);
+    onpc_progress::operation($expired ? 'Checking that time expiring during sleep blocks the child desktop'
+        : 'Waking and unlocking the same child work before extra time expires');
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => $expired ? 'suspend-expired-grant' : 'suspend-active-grant', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
-    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 1200, 'default', 1);
+    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0,
+        $expired ? 600 : 1200, 'default', 1);
     onpc_gdm::sign_in_challenge($journey, 'child-login',
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
     onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
-    $journey->seen($_) for qw(initial-countdown suspend wake-session);
+    $journey->seen('initial-countdown');
+    $journey->seen($_) for $expired ? qw(expiry-wait suspend-countdown) : ();
+    $journey->seen($_) for qw(suspend wake-session);
+    if ($expired) {
+        # Expiry during sleep exposes the native restriction directly. Pin it
+        # before an independent denial read; no reveal or credential input.
+        $journey->consume_observation('denial-ready', $journey->seen('denial-ready'));
+        $journey->seen('time-denied');
+        $journey->seen($_) for qw(return-greeter denied-returned retained-after);
+        $journey->finish();
+        return;
+    }
     onpc_desktop_session::observe_lock($journey, 'challenge');
     onpc_desktop_session::unlock_success($journey);
     $journey->seen($_) for qw(returned-session returned-countdown);

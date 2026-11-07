@@ -43,6 +43,7 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Child indicator unit adapter | [indicator.mjs](../child/support/indicator.mjs) | Fresh Node VM context and explicit platform doubles; nested-Shell tests retain real lifecycle/input coverage. |
 | External desktop input delivery | [mutter_input.py](../ui/mutter_input.py) | Supporting desktop/provider operations retain their qualified input transport and owned session cleanup. Product panel and GTK controls use the Application UI API facade. |
 | Desktop input inside an installed check | [desktop_session.py](../e2e/desktop_session.py) `run_attached` | Reuse the caller's held running VNC lease and guarded transport with an existing journey plan. Credentials are verified read-only before input; the worker closes at the completed controller-stage boundary while the caller retains its session, watch and restoration. Pass the existing fixture context for activity/retained-work operations. Attach before any engineering password mutation; never reset credentials or session state to repair an observed history. This seam claims neither worker-module completion nor customer-journey acceptance. |
+| Package changes during a journey | [package_command.py](../e2e/package_command.py) `PackageCommand` | Product and catalogue-fixture commands share single-use submission, disk admission, guarded transport, input rechecks and bounded output. Keep package identity/phase checks and independent completion/version results in their respective readers. Cases own the package-change order and public policy/draft assertions; see the [catalogue update/removal bindings](../../docs/TestAutomation/E2E-Building-Blocks.md#native-launch-denial-qualification). Installed engineering histories retain `system_guest`'s checkout installation through `make install`. |
 
 ## Development-only extension isolation
 
@@ -399,6 +400,15 @@ cases in [app_restart_expired.py](../e2e/app_restart_expired.py) share preparati
 and recovery while retaining this distinction; do not copy retained-window
 assertions into a fresh-session history or replace a retained-work result with
 a new launch.
+
+Suspend consumers reuse `InstalledJourney.submit_suspend` and
+`Transport.suspend_wake`, including the host-observed asleep interval and single
+owned wake. The guest cannot service SSH while asleep, so do not wait for SSH
+before waking it. Keep same-boot/session and original usable-work comparisons
+in the consumer, with enough grant headroom for guarded unlock and readback.
+The [LIFE03 binding](../../docs/TestAutomation/E2E-Building-Blocks.md#time-and-ordinary-lifecycle-boundaries)
+owns the required baseline power/graphics settings and qualified target scope;
+do not add a consumer-specific wake method or unlock workaround.
 
 Maintenance reproductions share `vm_probe.installed_reproduction_selection`
 for clean-input validation and attested running-snapshot binding. Keep each

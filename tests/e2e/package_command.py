@@ -393,19 +393,7 @@ class PackageCommand:
             require(context['package_sha256'] == self.verified.inputs['package_sha256'],
                     'package:wrong-artifact')
             self.validate_fixture(binding)
-            self.attempted, self.binding = True, binding
-            self.transport.package_attempts.add(binding)
-            received = 0
-            def bound(chunk):
-                nonlocal received
-                received += len(chunk)
-                require(received <= LIMIT, 'package:output-bound')
-            with package_operation(self.transport, 'Guest catalogue package transaction: ' + binding,
-                                   lease=getattr(self.verified, 'lease', None)):
-                self.transport.guard(self.identity)
-                raw = self.transport.call(['/usr/bin/python3', '-I', '-', binding, item['sha256']],
-                    input=guest_source(), timeout=660, check=False, on_output=bound)
-            self.receipt = (raw, self.transport.commands.last_returncode)
+            self._submit_transaction(binding, [binding, item['sha256']])
         return {'submitted': True}
 
     def read_fixture_result(self):
@@ -468,23 +456,28 @@ class PackageCommand:
                 self.read_unrelated(entry=True)
                 arguments.append(json.dumps({**self.package_identities(),
                     'unrelated': UNRELATED_PACKAGE}, sort_keys=True))
-            self.attempted = True  # Even transport failure is uncertain input.
-            self.binding = binding
-            self.transport.package_attempts.add(binding)
-            received = 0
-            def bound(chunk):
-                nonlocal received
-                received += len(chunk)
-                require(received <= LIMIT, 'package:output-bound')
-            with package_operation(self.transport, 'Guest package transaction: ' + binding,
-                                   lease=getattr(self.verified, 'lease', None)):
-                self.transport.guard(self.identity)
-                self.verified.recheck()
-                raw = self.transport.call(['/usr/bin/python3', '-I', '-', *arguments],
-                    input=guest_source(), timeout=660, check=False, on_output=bound)
-            status = self.transport.commands.last_returncode
-            self.receipt = (raw, status)
+            self._submit_transaction(binding, arguments)
         return {'submitted': True}
+
+    def _submit_transaction(self, binding, arguments):
+        """Consume once before guarded execution; callers own preflight and results."""
+        self.attempted = True  # Even transport failure is uncertain input.
+        self.binding = binding
+        self.transport.package_attempts.add(binding)
+        received = 0
+
+        def bound(chunk):
+            nonlocal received
+            received += len(chunk)
+            require(received <= LIMIT, 'package:output-bound')
+
+        with package_operation(self.transport, 'Guest package transaction: ' + binding,
+                               lease=getattr(self.verified, 'lease', None)):
+            self.transport.guard(self.identity)
+            self.verified.recheck()
+            raw = self.transport.call(['/usr/bin/python3', '-I', '-', *arguments],
+                input=guest_source(), timeout=660, check=False, on_output=bound)
+        self.receipt = (raw, self.transport.commands.last_returncode)
 
     def read_unrelated(self, *, entry=False):
         """Independent public distribution read through the same guarded transport."""

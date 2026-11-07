@@ -216,7 +216,8 @@ sub expired_daily_replacement {
     die 'expired-daily:binding' unless (@_ == 4 || @_ == 5) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ($retained == 0 || $retained == 1)
-        && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,1200,0';
+        && ref($request) eq 'ARRAY' && join(',', @$request) =~ /\Achild,parent,1200,[01]\z/
+        && (!$retained || !$request->[3]);
     require onpc_app_rows;
     require onpc_desktop_session;
     require onpc_allowance_boundaries;
@@ -263,11 +264,17 @@ sub expired_daily_replacement {
     $leave->('expired-parent-leave');
     $journey->{kiosk_request} = [@$request];
     onpc_request_flow::obtain_time($journey, 'observed',
-        'fixture-child', 'fixture-parent', 1200, 0, 'automatic');
+        'fixture-child', 'fixture-parent', 1200, $request->[3], 'automatic');
     $enter->('replacement-child', 'child', $retained ? 'retained' : 'fresh');
     $journey->seen('replacement-countdown');
     onpc_app_rows::native_read_activity($journey, 'original-soft-closed') if $retained;
-    $journey->seen($_) for qw(hard-denied soft-denied);
+    $journey->seen('hard-denied');
+    if ($request->[3]) {
+        my $soft = $journey->scope('soft');
+        onpc_app_rows::native_usable_app($soft, 'command', $soft->seen('desktop'), 'child', 'S');
+    } else {
+        $journey->seen('soft-denied');
+    }
     my $allowed = $journey->scope('allowed');
     onpc_app_rows::native_usable_app($allowed, 'command', $allowed->seen('desktop'), 'child', 'A');
     $journey->finish();

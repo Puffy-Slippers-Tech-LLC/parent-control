@@ -1458,10 +1458,11 @@ inequality. Both cases retain actual gameplay through extended natural expiry.
 
 ### E2E-025
 
-Implementation status: Cases 132 and 133 use
+Implementation status: Cases 132, 133 and 134 use
 [`expired_daily_replacement.py`](../../tests/e2e/expired_daily_replacement.py)
 and `onpc_lifecycle::expired_daily_replacement`; their fresh-login and retained-unlock,
-soft-excluded journeys passed on Ubuntu 26.04. The soft-included variants remain pending.
+soft-excluded journeys and fresh-login soft-included journey passed on Ubuntu 26.04.
+The retained-unlock soft-included variant remains pending.
 
 **Replace an expired grant before returning with daily time left.** Cases 132, 133, 134, 135.
 

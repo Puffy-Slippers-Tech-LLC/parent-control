@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5824</span>/<span style="color: gray">0</span>/5824 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5834</span>/<span style="color: gray">0</span>/5834 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">224</span>/<span style="color: gray">0</span>/224 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">295</span>/<span style="color: gray">0</span>/295 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -15,8 +15,8 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">106</span>/<span style="color: gray">90</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6513</span>/<span style="color: gray">90</span>/6603** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">107</span>/<span style="color: gray">89</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6524</span>/<span style="color: gray">89</span>/6613** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">105</span>/<span style="color: gray">90</span>/195 |
+| customer-journey | <span style="color: green">106</span>/<span style="color: gray">89</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -109,6 +109,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [122](#scenario-122) | Customer lifecycle persistence and resume (boundary: idle; grant: active to expired) | `E2E-022/idle-active-expired` | ready |
 | [132](#scenario-132) | Replace an expired grant before returning with daily time left (entry: new login; soft apps: excluded) | `E2E-025/excluded-new-login` | ready |
 | [133](#scenario-133) | Replace an expired grant before returning with daily time left (entry: retained unlock; soft apps: excluded) | `E2E-025/excluded-retained-unlock` | ready |
+| [134](#scenario-134) | Replace an expired grant before returning with daily time left (entry: new login; soft apps: included) | `E2E-025/included-new-login` | ready |
 | [136](#scenario-136) | Customer package update and activation (activation: process) | `E2E-026/process` | ready |
 | [137](#scenario-137) | Customer package update and activation (activation: session) | `E2E-026/session` | ready |
 | [139](#scenario-139) | Install through remove, reinstall and purge | `E2E-027/continuous` | ready |
@@ -177,7 +178,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[127](#scenario-127)</span> | <span style="color: gray">Zero allowance to kiosk approval, real gameplay and expiry (gameplay: fullscreen)</span> | <span style="color: gray">`E2E-023/fullscreen`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[128](#scenario-128)</span> | <span style="color: gray">Additional time accumulates during gameplay (gameplay: windowed; time: daily dominant)</span> | <span style="color: gray">`E2E-024/daily-dominant-windowed`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[131](#scenario-131)</span> | <span style="color: gray">Additional time accumulates during gameplay (gameplay: fullscreen; time: grant dominant)</span> | <span style="color: gray">`E2E-024/grant-dominant-fullscreen`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[134](#scenario-134)</span> | <span style="color: gray">Replace an expired grant before returning with daily time left (entry: new login; soft apps: included)</span> | <span style="color: gray">`E2E-025/included-new-login`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[135](#scenario-135)</span> | <span style="color: gray">Replace an expired grant before returning with daily time left (entry: retained unlock; soft apps: included)</span> | <span style="color: gray">`E2E-025/included-retained-unlock`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[138](#scenario-138)</span> | <span style="color: gray">Customer package update and activation (activation: reboot)</span> | <span style="color: gray">`E2E-026/reboot`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[153](#scenario-153)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: validation)</span> | <span style="color: gray">`E2E-031/validation`</span> | <span style="color: gray">pending</span> |
@@ -1281,6 +1281,20 @@ Variant: entry: new login; soft apps: excluded
 Case: `E2E-025/excluded-retained-unlock` · Category: customer-journey · Status: **ready**
 
 Variant: entry: retained unlock; soft apps: excluded
+
+**Steps:**
+
+- Set zero daily time, approve a short grant including soft apps and open recognizable soft-blocked work. While it remains open, return to Parent and raise the daily allowance above the grant without toggling limits. The running app remains, although new soft launches are blocked.
+- Switch away, or sign out for new-login, and let the grant expire while daily time remains. Read zero grant and positive daily balance in Parent before requesting replacement.
+- Approve replacement station time with the declared soft-app choice before fresh sign-in or retained unlock. Check hard/soft launches. Retained cases compare earlier soft work: included preserves it and excluded closes it.
+
+### Scenario 134
+
+**Replace an expired grant before returning with daily time left (entry: new login; soft apps: included)**
+
+Case: `E2E-025/included-new-login` · Category: customer-journey · Status: **ready**
+
+Variant: entry: new login; soft apps: included
 
 **Steps:**
 
@@ -2466,26 +2480,6 @@ Variant: gameplay: fullscreen; time: grant dominant
 - Use Parent and real approval to establish and read the declared dominant balance. Sign in as the child and play the real game in the declared mode.
 - While time remains, request additional time and approve. Windowed variants launch the overlay through the direct child app command. Fullscreen variants explicitly test graphical launch: reveal the normal Shell panel entry and open the overlay through it. Read the new countdown against the earlier larger balance and elapsed navigation time.
 - Return to the same game and continue beyond the earlier remaining interval until the extended time runs out and the desktop locks.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 134
-
-**Replace an expired grant before returning with daily time left (entry: new login; soft apps: included)**
-
-Case: `E2E-025/included-new-login` · Category: customer-journey · Status: **pending**
-
-Variant: entry: new login; soft apps: included
-
-**Steps:**
-
-- Set zero daily time, approve a short grant including soft apps and open recognizable soft-blocked work. While it remains open, return to Parent and raise the daily allowance above the grant without toggling limits. The running app remains, although new soft launches are blocked.
-- Switch away, or sign out for new-login, and let the grant expire while daily time remains. Read zero grant and positive daily balance in Parent before requesting replacement.
-- Approve replacement station time with the declared soft-app choice before fresh sign-in or retained unlock. Check hard/soft launches. Retained cases compare earlier soft work: included preserves it and excluded closes it.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 

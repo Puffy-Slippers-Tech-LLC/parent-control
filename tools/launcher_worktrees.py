@@ -9,6 +9,7 @@ from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
+import shlex
 import signal
 import stat
 import subprocess
@@ -35,6 +36,23 @@ class _PushAdvanced(Exception):
     """A checked-out destination has a saved refetch/remerge retry."""
 
 
+def _synchronization_command(root, run, git):
+    """Use the public invocation, including for a repair pipeline worker."""
+    try:
+        source = launcher.propagation_source_run(root, run)
+        record = json.loads((source.parent / 'current.json').read_text())
+        if (record.get('run') != source.name or not isinstance(record.get('launcher'), str)
+                or not isinstance(record.get('argv'), list)
+                or not all(isinstance(arg, str) for arg in record['argv'])):
+            return ''
+        branch = git(root, 'symbolic-ref', '--quiet', '--short', 'HEAD', check=False)
+        selection = ['--branch', branch.stdout.strip()] if not branch.returncode else []
+        command = shlex.join(['tools/' + record['launcher'], *selection, *record['argv']])
+        return ''.join(char if char.isprintable() else repr(char)[1:-1] for char in command)
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return ''
+
+
 @contextmanager
 def transaction_lock(root, run, *, git=git_output):
     """One reentrant source-closeout/propagation owner across all worktrees."""
@@ -44,24 +62,36 @@ def transaction_lock(root, run, *, git=git_output):
         yield
         return
     with launcher.lock(common / 'onpc-worktree-propagation.lock') as lock:
-        waiting = False
+        waiting = None
         while True:
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 break
             except BlockingIOError:
-                if not waiting:
-                    print('Git: waiting for another launcher to finish repository synchronization.', flush=True)
-                    waiting = True
+                try:
+                    command = json.loads(os.pread(lock, 128 * 1024, 0)).get('command', '')
+                    if not isinstance(command, str):
+                        command = ''
+                except (ValueError, AttributeError):
+                    command = ''
+                if waiting != command:
+                    label = f' \033[1;36m`{command}`\033[0m' if command else ''
+                    print(f'Git: waiting for another launcher{label} '
+                          'to finish repository synchronization.', flush=True)
+                    waiting = command
                 if (run / 'cancel').exists():
                     raise launcher.Stopped()
                 time.sleep(0.1)
-        print('Git: repository synchronization lock acquired.', flush=True)
-        _held.paths = held | {str(common)}
         try:
+            owner = json.dumps({'command': _synchronization_command(root, run, git)}).encode()
+            os.pwrite(lock, owner, 0)
+            os.ftruncate(lock, len(owner))
+            print('Git: repository synchronization lock acquired.', flush=True)
+            _held.paths = held | {str(common)}
             yield
         finally:
             _held.paths = held
+            os.ftruncate(lock, 0)
     print('Git: repository synchronization lock released.', flush=True)
 
 

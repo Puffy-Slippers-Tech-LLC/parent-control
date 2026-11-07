@@ -69,10 +69,17 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
             linked.append_text(text[position:])
             text = linked
         if launcher:
-            # Preserve terminal lines; only recording markup becomes a link.
-            rows.append([dict(text=clean(segment.text), link=segment.style.link
-                              if segment.style else None)
-                         for segment in text.render(console)])
+            # Preserve launcher emphasis as text spans in the webview, too.
+            spans = []
+            for segment in text.render(console):
+                style = segment.style
+                color = style.color if style else None
+                themed = color and (color.type.name == 'DEFAULT' or
+                                   (color.type.name == 'STANDARD' and color.number in (0, 7, 15)))
+                spans.append(dict(text=clean(segment.text), bold=bool(style and style.bold),
+                                  link=style.link if style else None,
+                                  color=color.get_truecolor().hex if color and not themed else None))
+            rows.append(spans)
             continue
         summary_label = re.match(r'^(Total Tasks:|Total Duration:|Ended:)', text.plain)
         if summary_label:

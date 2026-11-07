@@ -18,3 +18,8 @@ def test_usage_reader_failure_recovery(record_testsuite_property):
 def test_foreground_revocation(record_testsuite_property):
     from system_graphical_expiry import verify_foreground_revoke
     verify_foreground_revoke(record_testsuite_property)
+
+
+def test_expiry_during_pending_approval(record_testsuite_property):
+    from system_graphical_expiry import verify_pending_approval
+    verify_pending_approval(record_testsuite_property)

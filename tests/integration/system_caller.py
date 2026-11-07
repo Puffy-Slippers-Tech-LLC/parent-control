@@ -399,9 +399,12 @@ def execute(connection, operation, Gio, GLib):
         method = operation['method']
         parameters = GLib.Variant(operation['signature'], operation['args'])
     try:
+        timeout = operation.get('timeout_ms', 90000)
+        guest.require(type(timeout) is int and 1 <= timeout <= 1800000,
+                      'caller:operation-timeout')
         result = connection.call_sync(
             destination, path, interface, method, parameters,
-            None, Gio.DBusCallFlags.NONE, 90000, None)
+            None, Gio.DBusCallFlags.NONE, timeout, None)
         return {'result': result.unpack()}
     except GLib.Error as error:
         # Preserve the public error name, never arbitrary exception text.

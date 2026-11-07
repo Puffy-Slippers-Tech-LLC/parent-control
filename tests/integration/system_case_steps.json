@@ -2537,6 +2537,15 @@
     ],
     "expected": "The unavailable read returns an error rather than a balance, recovery succeeds without policy or clock injection, both children's account state stays unchanged, and the owned service mask is removed."
   },
+  "304": {
+    "summary": "Protect child input when time expires during a parent's decision",
+    "steps": [
+      "Prepare the child's original work and a genuine parent authentication challenge at least three minutes before expiry.",
+      "Keep that same challenge pending across the original deadline and independently observe timely input protection.",
+      "Cancel the challenge without a password or new grant, recover the original work, and repeat across expiry while another user keeps working."
+    ],
+    "expected": "Expiry protects the retained child desktop without ending the parent's challenge; cancellation preserves the original grant, recovery preserves the child's work, another user's input stays usable, and owned cleanup completes."
+  },
   "299": {
     "summary": "Restore the extension from Parent controls",
     "steps": [

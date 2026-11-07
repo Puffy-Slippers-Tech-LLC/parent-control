@@ -740,7 +740,8 @@ def execute(root, spec, run, owner):
 RESPONSE_VALIDATOR_SOURCES = (
     'plan_launcher.py', 'execution_plan.py', 'document_checks.py',
     'launcher_runtime.py', 'detached_launcher.py',
-    'agent_adapter.py', 'agent_codex.py',
+    # Hash optional native sources without importing their runtime dependencies.
+    'agent_adapter.py', 'agent_codex.py', 'agent_claude.py', 'agent_claude_bridge.py',
     'backend_reviewer.toml', 'plan_monitor.toml', 'plan_worker.toml',
     'write_e2e_adviser.toml', 'sync_whatsnew_translator.toml',
     'launcher_reload.py',

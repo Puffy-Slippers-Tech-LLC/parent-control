@@ -471,16 +471,12 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c
                 const remote = command.source.transport === 'ssh';
                 const background = message.kind === 'resume';
                 const quote = value => "'" + value.replace(/'/g, "'\\''") + "'";
-                // GUI and SSH environments can both omit NVM from PATH.
-                // Match public SSH launcher startup without sourcing interactive rc files.
-                const actionArgv = ['/bin/bash', '-c', `if ! command -v codex >/dev/null 2>&1; then
-    export NVM_DIR="\${NVM_DIR:-$HOME/.nvm}"
-    if [ -s "$NVM_DIR/nvm.sh" ]; then . "$NVM_DIR/nvm.sh"; fi
-fi
-exec "$@"`, 'onpc-watch', ...argv];
-                const shellPath = remote ? 'ssh' : actionArgv[0];
+                // The destination launcher verifies its checkout and uses the
+                // shared adapter environment/readiness route at agent admission.
+                // Observation and stop actions need no coding CLI or NVM.
+                const shellPath = remote ? 'ssh' : argv[0];
                 const shellArgs = remote ? [background ? '-T' : '-t', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
-                    '-o', 'ConnectTimeout=5', '--', command.source.host, actionArgv.map(quote).join(' ')] : actionArgv.slice(1);
+                    '-o', 'ConnectTimeout=5', '--', command.source.host, argv.map(quote).join(' ')] : argv.slice(1);
                 const runAction = background ? actionBackground : actionTerminal;
                 runAction({
                     name: `${command.launcher}: ${message.kind} (${command.source.label})`,

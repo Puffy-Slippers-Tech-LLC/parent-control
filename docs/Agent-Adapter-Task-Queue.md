@@ -13,7 +13,7 @@ Do not rerun completed tasks solely to refresh evidence.
 | [x] | 013 | Validate the configured agent | 003 | Strict shared parsing and immutable selection preparation, without enabling Claude execution | Complete; 7 focused checks, agent-free inspection and Markdown links passed |
 | [x] | 014 | Preserve agent selection across sessions and recovery | 013 | Shared caller/helper/retry/Git selection lifetime and provenance, qualified on Codex; reject unqualified Claude | Complete; available host checks passed; restricted disposable checks skipped by request |
 | [x] | 015 | Prepare agent readiness through setup and SSH | 014 | Shared readiness and executing-checkout dispatch, preserving supported Codex startup without paid Claude access | Complete; focused host, shell, source and links passed; no live SSH/full setup; optional internal rules check denied by policy |
-| [ ] | 016 | [Show agent provenance and track adapter assets](Agent-Adapter-Tasks/016-watch-assets.md) | 015 | Watch/session presentation, startup reuse, reload/dependency and development asset inventories | 30–45 min; presentation/reload boundary exception |
+| [x] | 016 | Show agent provenance and track adapter assets | 015 | Watch/session presentation, startup reuse, reload/dependency and development asset inventories | Complete; focused host/source, syntax, review, package and links passed; unrelated ownership resolved |
 
 Tasks 013–016 need no live Claude requests, Claude SDK installation or Claude
 policy migration. Each owns affected Codex and agent-free checks. They must

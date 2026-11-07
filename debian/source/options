@@ -1,6 +1,8 @@
 tar-ignore = .coverage
 tar-ignore = .agents
 tar-ignore = .codex
+tar-ignore = .claude
+tar-ignore = CLAUDE.md
 tar-ignore = .git
 tar-ignore = .hypothesis
 tar-ignore = .pytest_cache

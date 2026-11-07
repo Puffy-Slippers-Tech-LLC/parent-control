@@ -1,11 +1,11 @@
 # Agent adapter execution plan
 
 Task queue: [Ordered task queue](Agent-Adapter-Task-Queue.md).
-Next task: **016 — [Show agent provenance and track adapter assets](Agent-Adapter-Tasks/016-watch-assets.md)**.
+Next task: none.
 
 Status: the bounded Codex extraction, inactive Claude transport foundation and
-shared selection lifetime and setup/SSH readiness are complete. Watch integration
-remains active and can proceed without paid Claude access. Live Claude qualification and implementation that
+shared selection lifetime, setup/SSH readiness and Watch integration are complete.
+Live Claude qualification and implementation that
 depends on it remain future work under [Out of scope](#out-of-scope), not blockers
 in the active queue. Planning does not enable Claude or grant qualification credit.
 
@@ -36,7 +36,7 @@ Run all remaining active tasks:
 tools/execute-plan 'docs/Agent_Adapter.md'
 ```
 
-The launcher starts task 016. It excludes rows below `## Deferred future work`. Deferred work requires
+No active tasks remain. The launcher excludes rows below `## Deferred future work`. Deferred work requires
 an explicit scope change: move the selected dependency-ordered rows above that
 boundary, update this sole next-task pointer, and validate before execution.
 No new launcher or provider command-line option is needed.
@@ -67,8 +67,12 @@ skipped at the developer's direction and remain unqualified.
 Task 015 routes setup readiness and SSH agent admission through the native
 adapter while preserving Codex and refusing unqualified Claude. Focused host,
 shell and source checks passed; no live remote or full setup qualification was
-performed. Watch integration remains in task 016 and requires no Claude
-subscription, SDK installation or model request.
+performed. Task 016 displays recorded agent/model/effort with unknown legacy
+provenance, reuses launcher readiness for Watch actions and tracks optional adapter
+sources in controller dependency inventories. Focused host/source checks,
+JavaScript syntax, independent read-only review, DEB/RPM builds and Markdown links
+passed. No live SSH or Claude qualification was performed; no Watch-widget tests
+or native Claude policy/skill assets were added.
 
 Paid Claude model access, authentication and a compatible SDK must be prepared
 separately before live qualification. Authentication alone is insufficient;

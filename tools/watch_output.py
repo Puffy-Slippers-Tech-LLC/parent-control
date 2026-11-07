@@ -567,7 +567,7 @@ class SessionOutput:
                 panel.chat_state = dict(session=None, status='starting')
         # Workflow transitions can publish only mailbox/lifecycle fields.
         # Keep the supervisor's display metadata without reusing its input identity.
-        for name in ('model', 'effort'):
+        for name in ('agent', 'model', 'effort', 'logical_tier'):
             if name not in panel.chat_state and name in state:
                 panel.chat_state[name] = state[name]
         try:

@@ -209,6 +209,64 @@ sub app_restart_active {
     $journey->finish();
 }
 
+sub expired_daily_replacement {
+    onpc_progress::operation('Replacing expired extra time before the child signs in again');
+    my ($exchange, $declared, $challenges, $request) = @_;
+    die 'expired-daily:binding' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,1200,0';
+    require onpc_app_rows;
+    require onpc_desktop_session;
+    require onpc_allowance_boundaries;
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => 'expired-daily-replacement', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $enter = sub {
+        my ($prefix, $role, $entry) = @_;
+        onpc_desktop_session::enter_desktop($journey, 'gdm', $role, $entry, 'success', $prefix);
+    };
+    my $leave = sub {
+        my ($prefix) = @_;
+        my $section = $journey->scope($prefix);
+        onpc_desktop_session::switch_user($section, $section->seen('desktop'));
+    };
+    onpc_app_rows::named_app_set($journey, 'gdm', 'fresh', 'new', 'child', [
+        ['A', 'match-precise', 'allowed'], ['H', 'match-hard-precise', 'permanent'],
+        ['S', 'match-soft-wildcard', 'conditional']], 'rules');
+    $enter->('setup-return', 'parent', 'retained');
+    onpc_parent::grant_only_time_profile($journey, 'desktop', 'same-user', 'retained',
+        0, 0, 600, 'default', 0);
+    $enter->('original-entry', 'child', 'fresh');
+    $journey->seen('original-countdown');
+    my $soft = $journey->scope('original-soft');
+    onpc_app_rows::native_usable_app($soft, 'command', $soft->seen('desktop'), 'child', 'S');
+    onpc_app_rows::native_read_activity($journey, 'original-capture');
+    $leave->('original-leave');
+    $enter->('daily-parent', 'parent', 'retained');
+    $journey->seen('daily-page');
+    onpc_allowance_boundaries::custom_value($journey, 'daily', 30);
+    $journey->seen('before-departure');
+    $leave->('daily-parent-leave');
+    $enter->('departure-child', 'child', 'retained');
+    my $departure = $journey->scope('departure');
+    onpc_desktop_session::log_out($departure, $departure->seen('desktop'));
+    $journey->seen($_) for qw(expiry-wait-first expiry-wait-last);
+    $enter->('expired-parent', 'parent', 'retained');
+    $journey->seen('expired-balances');
+    $leave->('expired-parent-leave');
+    $journey->{kiosk_request} = [@$request];
+    onpc_request_flow::obtain_time($journey, 'observed',
+        'fixture-child', 'fixture-parent', 1200, 0, 'automatic');
+    $enter->('replacement-child', 'child', 'fresh');
+    $journey->seen('replacement-countdown');
+    $journey->seen($_) for qw(hard-denied soft-denied);
+    my $allowed = $journey->scope('allowed');
+    onpc_app_rows::native_usable_app($allowed, 'command', $allowed->seen('desktop'), 'child', 'A');
+    $journey->finish();
+}
+
 sub app_restart_expired {
     my ($exchange, $declared, $challenges, $request, $sign_out, $reboot) = @_;
     $sign_out //= 0;

@@ -1456,7 +1456,10 @@ inequality. Both cases retain actual gameplay through extended natural expiry.
 
 ### E2E-025
 
-Implementation status: All cases pending.
+Implementation status: Case 132 uses
+[`expired_daily_replacement.py`](../../tests/e2e/expired_daily_replacement.py)
+and `onpc_lifecycle::expired_daily_replacement`; its fresh-login, soft-excluded
+journey passed on Ubuntu 26.04. The other variants remain pending.
 
 **Replace an expired grant before returning with daily time left.** Cases 132, 133, 134, 135.
 

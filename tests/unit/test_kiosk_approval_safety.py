@@ -244,6 +244,7 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
                                  'app-restart-request', 'sign-out-request', 'reboot-request',
                                  'process-update-request', 'process-update-wrong-soft', 'session-update-request',
                                  'sign-out-expired-recovery', 'reboot-expired-recovery',
+                                 'daily-expired-recovery', 'daily-expired-wrong-scope',
                                  'expired-recovery-wrong-scope', 'idle-requests', 'idle-crossed-duration'])
 def test_composed_kiosk_secret_scope_and_single_use(mode):
     # Execute the real password guard; replace only the secret delivery sink.
@@ -256,6 +257,7 @@ def test_composed_kiosk_secret_scope_and_single_use(mode):
     from app_restart_active import PLAN as RESTART_PLAN, SIGN_OUT_PLAN, REBOOT_PLAN
     from app_restart_expired import PLAN as EXPIRED_PLAN, SIGN_OUT_PLAN as EXPIRED_SIGN_OUT_PLAN
     from app_restart_expired import REBOOT_PLAN as EXPIRED_REBOOT_PLAN
+    from expired_daily_replacement import PLAN as DAILY_EXPIRED_PLAN
     from update_process_case import PLAN as UPDATE_PLAN
     from update_session_case import PLAN as SESSION_PLAN
     from idle_active_expired import PLAN as IDLE_PLAN
@@ -267,6 +269,8 @@ def test_composed_kiosk_secret_scope_and_single_use(mode):
         expired = (EXPIRED_PLAN if mode == 'expired-recovery' else
                    EXPIRED_REBOOT_PLAN if mode == 'reboot-expired-recovery' else EXPIRED_SIGN_OUT_PLAN)
         recovery = [expired.prefix, list(expired.kiosk_request)]
+    if mode in ('daily-expired-recovery', 'daily-expired-wrong-scope'):
+        recovery = [DAILY_EXPIRED_PLAN.prefix, list(DAILY_EXPIRED_PLAN.kiosk_request)]
     restart = (REBOOT_PLAN if mode == 'reboot-request' else
                SIGN_OUT_PLAN if mode == 'sign-out-request' else RESTART_PLAN)
     result = run_perl(r'''
@@ -354,12 +358,14 @@ my $ok = eval {
         onpc_password::enter_kiosk_mate_password($first, 'request-1200');
     } elsif ($mode eq 'work-recovery' || $mode eq 'expired-recovery'
             || $mode eq 'sign-out-expired-recovery' || $mode eq 'reboot-expired-recovery'
+            || $mode eq 'daily-expired-recovery' || $mode eq 'daily-expired-wrong-scope'
             || $mode eq 'expired-recovery-wrong-scope') {
         my $setup = bless {prefix => $recovery->[0] . '-profile-request',
             stage_prefix => 'profile-request-', review => 0}, 'onpc_journey';
         onpc_password::enter_kiosk_mate_password($setup, 'long-request');
         my $return = bless {prefix => $recovery->[0],
-            stage_prefix => $mode eq 'expired-recovery-wrong-scope' ? 'profile-request-' : '',
+            stage_prefix => ($mode eq 'expired-recovery-wrong-scope'
+                || $mode eq 'daily-expired-wrong-scope') ? 'profile-request-' : '',
             kiosk_request => $recovery->[1], review => 0}, 'onpc_journey';
         onpc_password::enter_kiosk_mate_password($return, 'bound-request');
     } elsif ($mode =~ /^profile-/) {
@@ -395,7 +401,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
         assert [event for event in value['events'] if event[0] == 'proof'] == [
             ['proof', 'kiosk-final-approval-' + proof] for proof in ('qualified', 'rechecked')]
     elif mode in ('work-recovery', 'expired-recovery', 'sign-out-expired-recovery',
-                  'reboot-expired-recovery'):
+                  'reboot-expired-recovery', 'daily-expired-recovery'):
         assert value['ok'] == 1
         assert deliveries == [
             ['delivery', 'parent', 'profile-request-kiosk-mate-long-request'],
@@ -403,7 +409,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
         assert [event for event in value['events'] if event[0] == 'proof'] == [
             ['proof', prefix + 'approval-' + proof]
             for prefix in ('profile-request-', '') for proof in ('qualified', 'rechecked')]
-    elif mode == 'expired-recovery-wrong-scope':
+    elif mode in ('expired-recovery-wrong-scope', 'daily-expired-wrong-scope'):
         assert value['ok'] == 0
         assert deliveries == [['delivery', 'parent', 'profile-request-kiosk-mate-long-request']]
         assert [event for event in value['events'] if event[0] == 'proof'] == [

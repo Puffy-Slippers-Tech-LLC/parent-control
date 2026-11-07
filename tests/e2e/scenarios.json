@@ -1712,7 +1712,7 @@
         "rationale": "Both soft-app choices by both entry routes with daily time remaining. E2E-009 owns zero-daily recovery; E2E-038 owns return without replacement."
       },
       "variants": [
-        {"coverage_id": 132, "id": "excluded-new-login", "owner": "continuous-journeys", "parameters": {"soft-apps": "excluded", "entry": "new-login"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 132, "id": "excluded-new-login", "owner": "continuous-journeys", "parameters": {"soft-apps": "excluded", "entry": "new-login"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/expired_daily_replacement.py", "test_id": "excluded-new-login"}},
         {"coverage_id": 133, "id": "excluded-retained-unlock", "owner": "continuous-journeys", "parameters": {"soft-apps": "excluded", "entry": "retained-unlock"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 134, "id": "included-new-login", "owner": "continuous-journeys", "parameters": {"soft-apps": "included", "entry": "new-login"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 135, "id": "included-retained-unlock", "owner": "continuous-journeys", "parameters": {"soft-apps": "included", "entry": "retained-unlock"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}

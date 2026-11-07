@@ -150,7 +150,10 @@ sub enter_kiosk_mate_password {
             my $expired_restart = ($journey->{prefix} // '') =~ /\A(?:app-restart|sign-out-in|reboot)-expired\z/
                 && ($journey->{stage_prefix} // '') eq ''
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,1200,0';
-            die 'secret:challenge' unless ($temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart ||
+            my $expired_daily = ($journey->{prefix} // '') eq 'expired-daily-replacement'
+                && ($journey->{stage_prefix} // '') eq ''
+                && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,1200,0';
+            die 'secret:challenge' unless ($temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily ||
                     ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
                     && ($journey->{stage_prefix} // '') eq '')
                 && ref($request) eq 'ARRAY' && @$request == 4
@@ -190,6 +193,7 @@ sub enter_kiosk_mate_password {
                 || ($journey->{prefix} // '') eq 'countdown-grant-profile-request'
                 && ($journey->{stage_prefix} // '') eq 'profile-request-' && $long_request
                 || (($journey->{prefix} // '') eq 'grant-work-recovery-profile-request'
+                    || ($journey->{prefix} // '') eq 'expired-daily-replacement-profile-request'
                     || ($journey->{prefix} // '') =~ /\A(?:app-restart|sign-out-in|reboot)-expired-profile-request\z/)
                 && ($journey->{stage_prefix} // '') eq 'profile-request-' && $long_request
                 || ($journey->{prefix} // '') eq 'countdown-combined-profile-request'

@@ -659,7 +659,7 @@ sub native_usable_app {
             || $role eq 'S' && $child eq 'other-child'
             || $route eq 'command' &&
             ($role =~ /\A(?:A|S)\z/ && $child eq 'child'
-                || $role =~ /\A(?:N|unmatched-soft|SpaceCopy)\z/ && $child eq 'other-child')));
+                || $role =~ /\A(?:N|unmatched-soft|SpaceCopy|CommaCopy)\z/ && $child eq 'other-child')));
     my $opened = $route eq 'command' ? native_open_command($journey, $desktop)
         : $kind ne 'native' ? native_launch_grid($journey,
             native_search($journey, $desktop, 'app-grid', $role, $kind), $gesture)
@@ -1177,14 +1177,16 @@ sub native_child_entry {
 }
 
 sub native_space_path {
-    onpc_progress::operation('Checking the child can copy and use an app with spaces in its name');
-    my ($exchange, $declared, $challenges) = @_;
-    die 'native:space-arguments' unless @_ == 3;
-    my $journey = native_child_entry($exchange, $declared, $challenges, 'native-space-path');
-    for my $entry ('first', 'independent') {
+    my ($exchange, $declared, $challenges, $profile) = @_;
+    $profile //= 'space';
+    die 'native:space-arguments' unless (@_ == 3 || @_ == 4) && $profile =~ /\A(?:space|comma)\z/;
+    onpc_progress::operation('Checking the child can copy and use an app with ' . $profile . ' characters in its name');
+    my $journey = native_child_entry($exchange, $declared, $challenges, 'native-' . $profile . '-path');
+    for my $entry ($profile eq 'space' ? ('first', 'independent') : ('first')) {
         $journey->seen($entry . '-copy');
         my $app = $journey->scope($entry . '-app');
-        native_usable_app($app, 'command', $app->seen('desktop'), 'other-child', 'SpaceCopy');
+        native_usable_app($app, 'command', $app->seen('desktop'), 'other-child',
+            $profile eq 'space' ? 'SpaceCopy' : 'CommaCopy');
         native_finish_app($app);
         $journey->seen($entry . '-cleanup');
     }

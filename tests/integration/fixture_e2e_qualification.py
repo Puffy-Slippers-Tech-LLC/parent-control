@@ -1,5 +1,6 @@
 """Installed fixture proof and finite baseline child catalogue qualification."""
 from copy import deepcopy
+import hashlib
 import os
 from pathlib import Path
 import sys
@@ -31,11 +32,12 @@ from tests.fixtures import native_assets
 
 def catalogue_journey(context, progress, result, previous):
     """Finite catalogue/save checks within the existing qualified Parent envelope."""
-    from accessible_ui import MATCH_APPS, MATCH_OTHER_APP, MATCH_RULES
+    from accessible_ui import MATCH_RULES
     from parent_toggle import ParentToggleJourney
     from ui_observations import SettingsObservation, compare_settings
 
-    apps = {**MATCH_APPS, 'N': MATCH_OTHER_APP}
+    apps = {role: 'parent-app-' + hashlib.sha256(native_assets.desktop_id(role).encode()).hexdigest()[:16]
+            for role, *_ in native_assets.ASSETS}
 
     class CatalogueJourney(ParentToggleJourney):
         def step(self, guard):
@@ -82,8 +84,8 @@ def catalogue_journey(context, progress, result, previous):
             super().check_settings(stage, observed)
             if stage == 'setup-detached':
                 setup = observed['setup']
-                system.require(setup['child_fixture'] == {'verified': 4,
-                    'verified_files': len(native_assets.sources()), 'child_role': 'child',
+                system.require(setup['child_fixture'] == {'verified': len(native_assets.ASSETS),
+                    'verified_files': len(native_assets.sources(alias=False)), 'child_role': 'child',
                     'independent_readback': True}, 'fixture-e2e:child-consumer-not-verified')
                 system.require(setup['activity_fixture'] == {
                     'verified_files': len(native_assets.activity_sources()),

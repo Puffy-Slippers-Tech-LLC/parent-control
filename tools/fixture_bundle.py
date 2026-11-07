@@ -228,7 +228,7 @@ def target_build(source, workspace, target, environment):
     if toolchain.get('target') != TARGETS[target]:
         raise ValueError('fixture target compiler identity mismatch')
     proofs = toolchain.pop('abi', None)
-    identities = ('mechanical', 'A', 'H', 'S', 'N', 'trusted-hard', 'trusted-soft',
+    identities = ('mechanical', 'A', 'H', 'S', 'N', 'C', 'trusted-hard', 'trusted-soft',
                   'trusted-activity')
     if type(proofs) is not dict or set(proofs) != set(identities):
         raise ValueError('fixture target ABI proof inventory mismatch')

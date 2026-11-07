@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **035a — [Qualify the comma-containing native fixture](E2E-Tasks/035a-qualify-native-fixtures-with-spaces-and-commas.md)**.
+Next task: **230 — [E2E-041: special-paths](E2E-Tasks/230-case-188.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

@@ -4784,7 +4784,22 @@ Obligation 148 reuses the real threaded broker conflict/rollback/retry tests
 dispatch in [`test_private_dbus_service.py`](../../tests/component/test_private_dbus_service.py),
 and system 255's installed bus/agent Busy/release and authenticated recovery.
 No separate installed qualifier is scheduled for those covered assertions.
-Obligations 140–146 and 149–150 retain their specific missing fault/observation
+Obligation **143**'s installed usage-reader residual is owned by
+`system_session_expiry.verify_usage_reader_recovery`, registered as
+`session::test_usage_reader_failure_recovery` (system **302**). It reads through
+the broker's actual child-identity helper, prevents activation of the real timer
+service, requires a backend error without a fabricated balance or account writes,
+restores the service and repeats the identical query. Both children's preferences,
+limits, grant and app filter remain unchanged; the owned mask is removed before
+outer baseline restoration. No policy, usage or time injection, graphical expiry,
+PAM or approval matrix is included. Installed qualification passed on Ubuntu
+26.04 in `20261107T153537Z-9e216938`: unavailable reads returned an error,
+the identical retry succeeded, both children's saved state stayed unchanged,
+and collection, owned cleanup and baseline restoration passed. The stop uses
+the shared command budget to accommodate the daemon's normal inactivity exit.
+The engineering obligation number 143 is retained; the unrelated historical
+system numeric identity 143 remains retired and is not reused.
+Obligations 140–142, 144–146 and 149–150 retain their specific missing fault/observation
 or recovery assertions in the queue briefs; their existing system/component
 matrices are reused rather than implemented again. This mapping supplies no
 new installed result.

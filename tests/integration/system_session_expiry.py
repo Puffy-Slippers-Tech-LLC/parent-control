@@ -6,6 +6,7 @@ outer VM lease restores the guest; no process or session is discovered for killi
 """
 
 import ctypes
+import configparser
 from contextlib import contextmanager
 import json
 import os
@@ -87,6 +88,66 @@ def grant(uid, seconds):
     guest.require(account_property(uid, LIMITS, 'ActiveExtension') == [issued, seconds],
                   'expiry:fixture-grant-readback')
     return issued + seconds
+
+
+def verify_usage_reader_recovery(record):
+    """Obligation 143: real child-scoped usage read, outage and identical retry.
+
+    No policy, grant, clock or usage records are injected. The broker has no
+    cached estimate: an unavailable read must return an error, never a balance.
+    The outer installed runner owns account isolation and baseline restoration.
+    """
+    accounts = identities()
+    child, parent = accounts['child'], accounts['parent']
+    operation = ('GetTimeStatus', '(uu)', (child, 120))
+    before = {uid: account_state(uid) for uid in (child, accounts['other'])}
+    initial = accepted(call(parent, *operation), category='usage-read:initial-query')
+    guest.require(len(initial) == 4 and initial[2] == 120
+                  and initial[3] == max(initial[:2]) + 120,
+                  'usage-read:initial-estimate')
+    record('onpc.usage-read.initial', 'real-child-scoped-query-succeeded')
+
+    # Use the dependency's actual D-Bus activation unit; never guess an alias
+    # or mask an arbitrary unit supplied by fixture state.
+    activation = configparser.ConfigParser()
+    activation.read('/usr/share/dbus-1/system-services/org.freedesktop.MalcontentTimer1.service')
+    unit = activation.get('D-BUS Service', 'SystemdService')
+    guest.require(unit == 'malcontent-timerd.service', 'usage-read:activation-unit')
+    mask = Path('/run/systemd/system') / unit
+    guest.require(not mask.exists() and not mask.is_symlink(), 'usage-read:foreign-mask')
+    guest.run(['systemctl', 'mask', '--runtime', unit], timeout=30)
+    identity = mask.lstat()
+    try:
+        guest.require(stat.S_ISLNK(identity.st_mode) and identity.st_uid == identity.st_gid == 0
+                      and os.readlink(mask) == '/dev/null', 'usage-read:mask-owner')
+        # The daemon can finish at its 30-second inactivity boundary. Allow
+        # systemd's native 90-second stop budget plus transport headroom rather
+        # than racing that normal exit with a 30-second command deadline.
+        guest.run(['systemctl', 'stop', unit])
+        guest.require(guest.run(['systemctl', 'show', unit, '--property=ActiveState', '--value'])
+                      == 'inactive', 'usage-read:service-not-stopped')
+        reply = call(parent, *operation)
+        guest.require(reply == {'error': guest.BUS + '.Error.BackendFailure'},
+                      'usage-read:outage-not-refused')
+        guest.require(all(account_state(uid) == value for uid, value in before.items()),
+                      'usage-read:outage-account-writes')
+        record('onpc.usage-read.refused', 'backend-unavailable; no-balance; accounts-unchanged')
+    finally:
+        current = mask.lstat()
+        guest.require(stat.S_ISLNK(current.st_mode) and current.st_uid == current.st_gid == 0
+                      and (current.st_dev, current.st_ino) == (identity.st_dev, identity.st_ino)
+                      and os.readlink(mask) == '/dev/null', 'usage-read:mask-replaced')
+        guest.run(['systemctl', 'unmask', '--runtime', unit], timeout=30)
+        guest.run(['systemctl', 'start', unit], timeout=30)
+
+    recovered = accepted(call(parent, *operation), category='usage-read:retry-query')
+    guest.require(len(recovered) == 4 and recovered[2] == 120
+                  and recovered[3] == max(recovered[:2]) + 120,
+                  'usage-read:recovered-estimate')
+    guest.require(not mask.exists() and not mask.is_symlink()
+                  and all(account_state(uid) == value for uid, value in before.items()),
+                  'usage-read:recovery-account-writes-or-mask')
+    record('onpc.usage-read.recovered', 'identical-query-succeeded; accounts-unchanged; mask-removed')
 
 
 def pam_probe(service):

@@ -263,16 +263,19 @@ sub panel_request_case {
 
 sub flatpak_temporary_access {
     onpc_progress::operation('Changing Jordan\'s temporary app access through three parent approvals');
-    my ($exchange, $declared, $challenges, $route, $kind) = @_;
+    my ($exchange, $declared, $challenges, $route, $kind, $surface) = @_;
     $route //= 'command';
     $kind //= 'flatpak';
-    die 'temporary-access:arguments' unless (@_ >= 3 && @_ <= 5) && ref($exchange) eq 'CODE'
+    $surface //= $route eq 'grid' ? 'overlay' : 'kiosk';
+    die 'temporary-access:arguments' unless (@_ >= 3 && @_ <= 6) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
-        && ($kind eq 'flatpak' && ($route eq 'command' || $route eq 'grid')
-            || $kind eq 'native' && $route eq 'grid');
+        && ($kind eq 'flatpak' && ($route eq 'command' && $surface eq 'kiosk'
+                                  || $route eq 'grid' && $surface eq 'overlay')
+            || $kind eq 'native' && $route eq 'grid' && ($surface eq 'overlay' || $surface eq 'kiosk'));
     my $seconds = $kind eq 'native' ? 30 : 300;
     my $journey = onpc_journey->new(exchange => $exchange,
-        prefix => $kind eq 'native' ? 'native-grid-temporary-access'
+        prefix => $kind eq 'native' ? ($surface eq 'kiosk' ? 'native-grid-kiosk-temporary-access'
+                                                                       : 'native-grid-temporary-access')
             : $route eq 'grid' ? 'flatpak-grid-temporary-access' : 'flatpak-temporary-access', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
@@ -294,18 +297,18 @@ sub flatpak_temporary_access {
         my ($name, $approver, $soft) = @$row;
         my $request = $journey->scope($name);
         my $parent = $approver eq 'parent' ? 'fixture-parent' : 'other-fixture-parent';
-        if ($route eq 'grid') {
+        if ($surface eq 'overlay') {
             $request->{overlay_request} = ['other-child', $approver, $seconds, $soft];
             $request->seen('independent-launch');
             prepare($request, 'open', 'open', 'observed', 'existing-fixture-child', $parent, $seconds, $soft, 'overlay');
             overlay_approve($request, 'automatic');
         } else {
-            $request->{kiosk_request} = ['other-child', $approver, 300, $soft];
+            $request->{kiosk_request} = ['other-child', $approver, $seconds, $soft];
             my $leave = $request->scope('leave-child');
             onpc_desktop_session::switch_user($leave, $leave->seen('desktop'));
             onpc_gdm::enter_station($request, '');
-            prepare($request, 'open', 'open', 'observed', 'existing-fixture-child', $parent, 300, $soft, 'kiosk');
-            approve($request, 'existing-fixture-child', $parent, 300, $soft, 'automatic');
+            prepare($request, 'open', 'open', 'observed', 'existing-fixture-child', $parent, $seconds, $soft, 'kiosk');
+            approve($request, 'existing-fixture-child', $parent, $seconds, $soft, 'automatic');
             # Desktop challenges belong to the enclosing journey, not this request.
             onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained',
                                                'success', $name . '-retained');

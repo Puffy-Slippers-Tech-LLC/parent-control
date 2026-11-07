@@ -2114,9 +2114,13 @@ those station cases.
 
 ### E2E-049
 
-The native grid/child-overlay binding uses `native_temporary_access.PLAN` and
-the shared `onpc_request_flow::flatpak_temporary_access` worker's native binding.
-Its three 30-second requests bind Jordan and each selected approver through the
+The native grid/child-overlay binding uses `native_temporary_access.PLAN`; the
+native grid/station binding uses the same module's `KIOSK_PLAN` / `execute_kiosk`.
+Both use the shared `onpc_request_flow::flatpak_temporary_access` worker's native
+binding, with the request surface explicit. Station approvals return to the
+retained child through the enclosing journey's declared login challenges and
+compare its original Allowed activity before the next app checks.
+Each binding's three 30-second requests bind Jordan and each selected approver through the
 same guarded approval operations. Native H/S launchers use the secondary fixture
 window so the original Allowed work remains independently observable. Blocked
 native grid entries use the shared visible-launch or attributed command-denial

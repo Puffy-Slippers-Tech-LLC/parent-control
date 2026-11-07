@@ -4183,7 +4183,14 @@ command-denial witness without asserting launcher visibility. Each approval
 keeps A usable and H denied; inclusion opens S and replacement exclusion closes
 that captured S activity. Final Parent reads preserve the saved A/H/S choices.
 Collection, owned cleanup and baseline restoration passed, as did the affected
-case 62 regression. Kiosk and other platform bindings retain their own scope.
+case 62 regression. Case 232's `native_temporary_access.KIOSK_PLAN` adds the
+native grid/station binding on Ubuntu 26.04: the same three 30-second requests,
+each selected approver in a real prompt, retained child/countdown and original
+Allowed work, Soft inclusion followed by captured closure and denied relaunch,
+continued Hard denial and unchanged saved choices passed. Its shared worker
+selects `surface=kiosk` explicitly and binds each request's credential scope;
+desktop challenges remain on the enclosing journey. Collection, owned cleanup
+and baseline restoration passed. Other platform bindings retain their own scope.
 
 The historical `native_grid_usable.PLAN` / `check_e2e_native_grid_usable` qualification covers Jordan
 grid use on Shell `50.1-0ubuntu1.2`, `en_US.UTF-8`, `xkb/us`.

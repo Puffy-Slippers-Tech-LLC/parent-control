@@ -1692,8 +1692,6 @@ def select(root, argv):
 
     def command(run, owner):
         args = parse()
-        if args.tasks is None:
-            args.tasks = 1
         state = initial_state(root, run.parent, defer_closeout=True)
         if args.closeout_only:
             if not state.get('pending_completion') or not state.get('closeout_recovery_run'):

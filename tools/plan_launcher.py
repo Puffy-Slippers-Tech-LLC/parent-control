@@ -1056,7 +1056,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
 def main(spec=PlanWorkflow('execute-plan'), argv=None):
     root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description='Run or resume an ordered execution plan.', allow_abbrev=False)
-    parser.add_argument('--plan', default=spec.plan, required=spec.plan is None,
+    parser.add_argument('plan', metavar='PATH', default=spec.plan,
+                        nargs='?' if spec.plan is not None else None,
                         help='checkout-relative master Markdown plan')
     parser.add_argument('--vm', help='registered selector; omitted: configured enabled queue for VM workflows')
     parser.add_argument('--check', action='store_true', help='validate plan, queue and unfinished briefs without execution')
@@ -1168,12 +1169,11 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             else:
                 remaining = len(records)
             initial_remaining = remaining
-            warn_remaining(task_limit(args.tasks if args.tasks is not None else 1), remaining, label=spec.name)
+            warn_remaining(task_limit(args.tasks), remaining, label=spec.name)
             return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), '--worker',
                     str(root), str(selected), str(owner), json.dumps(asdict(spec))]
         def start(selected):
-            TaskBudget(selected).initialize(args.tasks if args.tasks is not None else 1,
-                                            remaining=initial_remaining)
+            TaskBudget(selected).initialize(args.tasks, remaining=initial_remaining)
             launcher.atomic(selected / 'checkpoint.json', initial)
             if initial_info:
                 launcher.atomic(selected / 'task-info.json', initial_info)

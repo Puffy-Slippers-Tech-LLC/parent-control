@@ -1000,8 +1000,8 @@ configured launcher default branch; `--planb` and `--planc` default to the curre
 branch. Explicit `--branch` overrides these defaults. Shared VM/Git locks
 still apply. Do not run concurrent coding agents in the same checkout.
 
-`--tasks N` limits completed tasks and defaults to `1`. There is no total
-session limit. Each task can use at most 5 sessions per new launcher process.
+`--tasks N` limits completed tasks and defaults to `0` (all remaining). There is
+no total session limit. Each task can use at most 5 sessions per new launcher process.
 A restarted launcher retains the task's cumulative
 session count and adds 5 to it for that process's task cap. Attaching to a
 running launcher does not renew the cap. If the task is still incomplete at

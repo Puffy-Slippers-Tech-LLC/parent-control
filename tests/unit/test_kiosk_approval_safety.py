@@ -248,7 +248,7 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
                                  'grant-request', 'grant-wrong-scope', 'grant-wrong-child',
                                  'transition-request', 'transition-wrong-duration', 'revocation-request',
                                  'work-recovery', 'expired-recovery', 'kiosk-recovery', 'kiosk-recovery-wrong-scope',
-                                 'app-restart-request', 'sign-out-request', 'reboot-request',
+                                 'app-restart-request', 'sign-out-request', 'reboot-request', 'suspend-request',
                                  'process-update-request', 'process-update-wrong-soft', 'session-update-request',
                                  'reboot-update-request',
                                  'sign-out-expired-recovery', 'reboot-expired-recovery',
@@ -270,7 +270,8 @@ def test_composed_kiosk_secret_scope_and_single_use(mode):
         recovery = [expired, ['child', 'parent', 1200, False]]
     if mode.startswith('daily-expired-'):
         recovery = ['expired-daily-replacement', ['child', 'parent', 1200, 'included' in mode]]
-    restart = ('reboot-active' if mode == 'reboot-request' else
+    restart = ('suspend-wake-active' if mode == 'suspend-request' else
+               'reboot-active' if mode == 'reboot-request' else
                'sign-out-in-active' if mode == 'sign-out-request' else 'app-restart-active')
     result = run_password_guard(r'''
 my $mode = shift @ARGV;
@@ -308,7 +309,7 @@ if ($mode eq 'revocation-request') {
     $first = bless {prefix => $revocation->[0], stage_prefix => $revocation->[1],
         kiosk_request => $revocation->[2], review => 0}, 'onpc_journey';
 }
-if ($mode eq 'app-restart-request' || $mode eq 'sign-out-request' || $mode eq 'reboot-request') {
+if ($mode eq 'app-restart-request' || $mode eq 'sign-out-request' || $mode eq 'reboot-request' || $mode eq 'suspend-request') {
     $first = bless {prefix => $restart->[0] . '-request', stage_prefix => 'request-',
         kiosk_request => $restart->[1], review => 0}, 'onpc_journey';
 }
@@ -350,7 +351,7 @@ my $ok = eval {
         onpc_password::enter_kiosk_mate_password($return, 'bound-request');
     } elsif ($mode =~ /^profile-/) {
         onpc_password::enter_kiosk_mate_password($first, 'request-1200');
-    } elsif ($mode =~ /^(?:grant|transition|revocation|app-restart|sign-out|reboot|process-update|session-update)-/) {
+    } elsif ($mode =~ /^(?:grant|transition|revocation|app-restart|sign-out|reboot|suspend|process-update|session-update)-/) {
         onpc_password::enter_kiosk_mate_password($first, 'bound-request');
     } else {
         onpc_password::enter_kiosk_mate_password($first, 'bound-request');
@@ -405,7 +406,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
             ['proof', request + '-approval-' + proof]
             for request in ('first', 'second') for proof in ('qualified', 'rechecked')]
     elif mode in ('grant-request', 'transition-request', 'revocation-request', 'app-restart-request',
-                  'sign-out-request', 'reboot-request', 'process-update-request', 'session-update-request',
+                  'sign-out-request', 'reboot-request', 'suspend-request', 'process-update-request', 'session-update-request',
                   'reboot-update-request'):
         assert value['ok'] == 1
         scope = 'soft-opening' if mode == 'transition-request' else 'request'

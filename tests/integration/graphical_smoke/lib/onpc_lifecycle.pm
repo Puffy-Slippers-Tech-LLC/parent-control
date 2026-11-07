@@ -24,28 +24,32 @@ sub reopen {
 }
 
 sub app_restart_active {
-    my ($exchange, $declared, $challenges, $request, $sign_out, $reboot, $idle) = @_;
+    my ($exchange, $declared, $challenges, $request, $sign_out, $reboot, $idle, $suspend) = @_;
     $sign_out //= 0;
     $reboot //= 0;
     $idle //= 0;
-    onpc_progress::operation($idle
+    $suspend //= 0;
+    onpc_progress::operation($suspend
+        ? 'Waking the child with the same approved time, work and saved choices'
+        : $idle
         ? 'Returning from idle before and after child time expires, then approving recovery'
         : $reboot
         ? 'Rebooting while both children keep saved choices and approved time'
         : $sign_out
         ? 'Signing each child out and back in with saved choices and approved time'
         : 'Reopening the apps while the child keeps approved time and work');
-    die 'app-restart-active:binding' unless (@_ >= 4 && @_ <= 7)
+    die 'app-restart-active:binding' unless (@_ >= 4 && @_ <= 8)
         && ($sign_out == 0 || $sign_out == 1) && ($reboot == 0 || $reboot == 1)
         && (!$reboot || $sign_out)
         && ($idle == 0 || $idle == 1) && (!$idle || (!$sign_out && !$reboot))
+        && ($suspend == 0 || $suspend == 1) && (!$suspend || (!$idle && !$sign_out && !$reboot))
         && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
     require onpc_app_rows;
     require onpc_desktop_session;
     my $journey = onpc_journey->new(exchange => $exchange,
-        prefix => $idle ? 'idle-active-expired' : $reboot ? 'reboot-active'
+        prefix => $suspend ? 'suspend-wake-active' : $idle ? 'idle-active-expired' : $reboot ? 'reboot-active'
             : $sign_out ? 'sign-out-in-active' : 'app-restart-active', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
@@ -117,7 +121,16 @@ sub app_restart_active {
         $enter->('before-parent', 'parent', 'retained');
         $journey->seen('before-policy');
     }
-    if ($idle) {
+    if ($suspend) {
+        $leave->('boundary-parent-leave');
+        $enter->('boundary-child', 'other-child', 'retained');
+        $journey->seen($_) for qw(boundary-countdown suspend wake-session wake-return wake-greeter);
+        $enter->('wake-child', 'other-child', 'retained');
+        $journey->seen($_) for qw(returned-session wake-countdown);
+        onpc_app_rows::native_activity_resume($journey, 'wake-resume');
+        $leave->('wake-leave');
+        $enter->('boundary-parent', 'parent', 'retained');
+    } elsif ($idle) {
         $enter->('early-child', 'other-child', 'retained');
         $journey->seen($_) for qw(early-idle early-countdown);
         onpc_app_rows::native_activity_resume($journey, 'early-resume');

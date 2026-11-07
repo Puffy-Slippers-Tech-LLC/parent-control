@@ -93,20 +93,26 @@ def main():
         return
     if sys.argv[1:] not in ([], ['--headless'], ['--check'], ['--write-rules']):
         raise ValueError('use setup.sh, --check or --write-rules')
+    if sys.argv[1:] == ['--write-rules']:
+        write_checkout_file(root / '.codex/rules/tests.rules', render(root))
+        return
+    prepare_checkout(root, headless='--headless' in sys.argv,
+                     check=sys.argv[1:] == ['--check'])
+
+
+def prepare_checkout(root, *, headless=False, check=False):
+    """Prepare only Codex-owned files; preserve personal settings and trust."""
     source = render(root)
     destination = root / '.codex/rules/tests.rules'
-    if sys.argv[1:] == ['--write-rules']:
-        write_checkout_file(destination, source)
-        return
     if destination.read_text() != source:
         raise ValueError('tracked rules are stale; regenerate with python3 -IB tools/install_codex_rules.py --write-rules and commit them')
     tomllib.loads((root / '.codex/config.toml').read_text())
-    if sys.argv[1:] == ['--check']:
+    if check:
         print('codex-rules-install: tracked settings and tool inventory valid')
         return
     codex_home = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex')))
     marketplace = codex_home / '.tmp/bundled-marketplaces/openai-bundled'
-    if '--headless' not in sys.argv and marketplace.is_dir():
+    if not headless and marketplace.is_dir():
         desktop = (root / 'config/codex-desktop.toml').read_text().replace(
             '"@MARKETPLACE@"', json.dumps(str(marketplace)))
         install_desktop_defaults(codex_home / 'config.toml', desktop)

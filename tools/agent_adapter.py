@@ -43,7 +43,8 @@ class AgentSelection:
         """Fixed qualified mapping; no config-supplied import or executable."""
         if not self.execution_qualified:
             raise ValueError(f'Agent {self.name!r} selected by {self.root} is not qualified '
-                             'for workflow execution; no agent was started or fallback selected')
+                             'for workflow execution; no agent was started or fallback selected. '
+                             'Configure a qualified agent before starting a workflow')
         from agent_codex import CodexAdapter
         return CodexAdapter()
 
@@ -101,6 +102,10 @@ class SessionRequest:
 
 class AgentAdapter(Protocol):
     name: str
+
+    def setup(self, root: Path, *, headless: bool) -> None: ...
+
+    def readiness(self, root: Path, environment: dict[str, str]) -> str: ...
 
     def resolve_profile(self, role: ProfileRole, *, model: str | None = None,
                         effort: str | None = None) -> ModelProfile: ...
@@ -208,3 +213,51 @@ def capacity_fallback(model: str, *, selection: AgentSelection | None = None) ->
         return selection.adapter().capacity_fallback(model)
     from agent_codex import CodexAdapter
     return CodexAdapter().capacity_fallback(model)
+
+
+def setup_agent(root: Path, *, headless: bool = False) -> None:
+    """User-owned native policy preparation, called only by setup.sh.
+
+    Unqualified selections are informational during setup, never permission to
+    prepare another provider or install/authenticate a CLI. Installer failures
+    for a qualified provider still fail setup normally.
+    """
+    try:
+        selection = resolve_selection(root)
+        adapter = selection.adapter()
+    except ValueError as error:
+        print(f'setup: action needed: {error}')
+        return
+    adapter.setup(selection.root, headless=headless)
+
+
+def report_readiness(root: Path, environment: dict[str, str]) -> None:
+    """Bounded account-local readiness, without starting a model session."""
+    selection = None
+    try:
+        selection = resolve_selection(root)
+        message = selection.adapter().readiness(selection.root, environment)
+        print(f'setup: agent {selection.name} selected by {selection.root}: {message}')
+    except (OSError, ValueError) as error:
+        context = f'agent {selection.name} selected by {selection.root}: ' if selection else ''
+        print(f'setup: action needed: {context}{error}')
+
+
+if __name__ == '__main__':
+    import os
+    import sys
+
+    # Isolated Python setup invocations do not add the script directory.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    root = Path(__file__).resolve().parents[1]
+    try:
+        if sys.argv[1:] in (['--setup'], ['--setup', '--headless']):
+            setup_agent(root, headless='--headless' in sys.argv)
+        elif sys.argv[1:] == ['--readiness']:
+            report_readiness(root, dict(os.environ))
+        else:
+            sys.exit('agent setup: invoke through ./setup.sh')
+    except ValueError as error:
+        sys.exit(f'agent setup: {error}')
+    except OSError as error:
+        sys.exit(f'agent setup: filesystem operation failed (errno={error.errno})')

@@ -56,13 +56,6 @@ if [[ ${1-} == --headless ]]; then
     done
     echo 'setup: registered Git worktrees (Watch discovers these from the starting checkout):'
     git -C "$script_dir" worktree list
-    if ! command -v codex >/dev/null 2>&1; then
-        echo 'setup: action needed: install the Codex CLI for this account before using tools/fix-tests'
-    elif timeout 15s codex login status >/dev/null 2>&1; then
-        echo 'setup: Codex login verified for the automation account'
-    else
-        echo 'setup: action needed: run codex login for this account, then rerun ./setup.sh --server'
-    fi
     # Read-only and bounded: never prompt, accept a new Git host key, or push.
     if timeout 20s env GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false GCM_INTERACTIVE=Never \
         GIT_SSH_COMMAND='ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10' \

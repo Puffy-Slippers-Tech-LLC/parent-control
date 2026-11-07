@@ -18,6 +18,7 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Fixture producer lifetime | [fixture_producer.py](../../tools/fixture_producer.py) | `Store.producer(transaction_id=..., compatibility_key=..., build_key=...)` owns one unfinished slot. Allocate scratch/staging before writes, pass `Producer.environment()` to build commands and forward `scratch_descriptors()` through every subprocess layer. `Producer.verifying()` records the verification phase. Context exit cleans only recorded allocations after every descendant lease closes; failed cleanup requires exact `Store.recover(transaction_id)` before another reservation. |
 | Immutable native fixture construction | [fixture_bundle.py](../../tools/fixture_bundle.py), [fixture_manifest.py](../../tools/fixture_manifest.py) | Use the [frozen bundle contract](#frozen-native-fixture-bundles). Full fixture/package callers retain their separate input contracts. |
 | Attempt-owned SSH fixture provisioning | [fixture_provision.py](../../tools/fixture_provision.py) | Use the [provisioning boundary](#attempt-owned-fixture-provisioning). Runner dispatch remains unavailable until target qualification. |
+| Guest fixture file receipts and bounded I/O | [guest_files.py](../e2e/guest_files.py) | Fixture provisioning, native readiness and synthetic file operations share `identity`, `read_regular` and `write_exclusive`. Callers keep finite paths, owner/mode/size expectations, exact-content assertions and cleanup receipts; do not copy descriptor/read loops into another suite. |
 | Checkout paths and script imports | [paths.py](paths.py), [modules.py](modules.py) | Normal imports use `pyproject.toml`'s `pythonpath`. `load_module(name, path)` loads a fresh standalone script with a unique test-only name; failures restore the registry. |
 | Broker configuration and recording adapters | [configuration.py](configuration.py), [broker.py](broker.py) | Fresh mutable state, explicit clocks/callbacks/failures and no OS calls. |
 | Unit orchestration without GTK construction | [objects.py](objects.py) | Bind actual class methods to explicit state instead of copying method source. |
@@ -290,6 +291,15 @@ or customer acceptance. Ubuntu's delivered
 supplies snapshot infrastructure acceptance only.
 
 ## Host and guest boundaries
+
+For a copied executable, reuse FILE05's `SyntheticFiles` operation and its
+[qualified copy binding](../../docs/TestAutomation/E2E-Building-Blocks.md#space-bearing-executable-copy).
+Carry the exact source/copy receipt through independent readback and cleanup;
+identical bytes do not authorize adopting a replacement inode. The copied path
+also needs its explicit shared launch and live-owner binding: a successful copy
+alone does not prove the child can open and use it. Keep policy effects and
+original-versus-copy assertions in the consuming case, separate from copy
+qualification.
 
 Fixture qualifications share `qualification_storage.run_qualification` for
 private allocation, result writing and failure reporting. Each caller keeps its

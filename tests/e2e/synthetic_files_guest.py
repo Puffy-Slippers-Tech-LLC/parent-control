@@ -20,7 +20,7 @@ import zlib
 from contextlib import ExitStack
 from datetime import date
 from download_destination import DIRECTORY as SAVE_DIRECTORY, download_directory
-from guest_files import read_regular, write_exclusive
+from guest_files import identity, read_regular, require, write_exclusive
 
 ZIP_NAME = 'Synthetic archive.zip'
 ZIP_ARTIFACT = 'synthetic-archive'
@@ -157,16 +157,6 @@ def native_space_operate(home, operation, request):
         return readback()
 
 
-def require(value):
-    if not value:
-        raise ValueError('files:refused')
-
-
-def identity(info):
-    return [info.st_dev, info.st_ino, info.st_uid, info.st_gid, info.st_mode,
-            info.st_size, info.st_mtime_ns, info.st_ctime_ns]
-
-
 def directory(path):
     require(path.is_absolute() and path.resolve() == path)
     info = path.lstat()
@@ -186,30 +176,19 @@ def snapshot(root, contents=CONTENTS):
     names.sort()
     require(len(names) <= len(contents) and set(names) <= set(contents))
     result = {'directory': identity(info), 'files': {}}
-    for name in names:
-        path = root / name
-        before = path.lstat()
-        require(stat.S_ISREG(before.st_mode) and before.st_uid == os.getuid()
-                and before.st_nlink == 1 and stat.S_IMODE(before.st_mode) == 0o600
-                and before.st_size == len(contents[name]))
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-        try:
-            require(identity(os.fstat(fd)) == identity(before))
-            chunks = []
-            remaining = len(contents[name])
-            while remaining:
-                chunk = os.read(fd, min(remaining, 65536))
-                require(chunk)
-                chunks.append(chunk)
-                remaining -= len(chunk)
-            content = b''.join(chunks)
-            require(content == contents[name] and os.read(fd, 1) == b'')
-        finally:
-            os.close(fd)
-        require(identity(path.lstat()) == identity(before))
-        result['files'][name] = {'identity': identity(before),
-                                 'sha256': hashlib.sha256(content).hexdigest(),
-                                 'size': len(content)}
+    parent = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        require(identity(os.fstat(parent)) == identity(info))
+        for name in names:
+            content, before = read_regular(parent, name, owner=os.getuid(), mode=0o600,
+                                           limit=len(contents[name]))
+            require(content == contents[name])
+            result['files'][name] = {'identity': identity(before),
+                                     'sha256': hashlib.sha256(content).hexdigest(),
+                                     'size': len(content)}
+        require(identity(os.fstat(parent)) == identity(info))
+    finally:
+        os.close(parent)
     require(identity(root.lstat()) == identity(info))
     return result
 

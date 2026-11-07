@@ -173,6 +173,11 @@ spans the panel above the completed task recaps and current task/session rows.
 The **Total Tasks:** and **Total Duration:** labels are bold. When the whole plan
 finishes, the summary adds **Ended:** with the local completion time (`HH:MM`),
 and the launcher title, including `(finished)`, turns green.
+During task close-out, the title shows `[branch] launcher (Closing Task)`, with
+`Closing Task` in green. This includes processing the finished task response
+while **Session** is struck through, validation, and the commit skill's commit,
+push and propagation. The suffix disappears when **Status** shows the task's
+green checkmark. Stop and reload notices take priority.
 For every execution-plan launcher, completed and current task headings end with
 ` | <duration>` from the retained task clock across sessions. The session summary
 ends with ` | <duration>` from its owner session clock.

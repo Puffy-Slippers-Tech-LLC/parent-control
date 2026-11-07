@@ -264,6 +264,28 @@ class Output:
             details.append('\033[32mLauncher has stopped.\033[0m')
         return steps, details
 
+    def closing_task(self, steps, *, session_inactive):
+        """Keep close-out visible until its accepted green recap is published."""
+        if not self.execution_plan:
+            return False
+        from launcher_progress import progress_keys
+        try:
+            state = self.reader.read(self.run / 'checkpoint.json', limit=2 * 1024 * 1024)
+            keys = progress_keys(state)
+            if not any(not step.get('replaces') and step['key'] in keys for step in steps):
+                return False
+            if state.get('pending_completion') or state.get('phase') == 'complete':
+                return True
+            # The Session tab can become inactive before the controller saves
+            # pending_completion, while it validates the finished task response.
+            if session_inactive and state.get('in_flight'):
+                result = self.reader.read(self.run / 'agent-result.json', limit=2 * 1024 * 1024)
+                return (result.get('status') == 'task_complete'
+                        and result.get('task_id') == state.get('task_id'))
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+        return False
+
     def progress(self, active, data=b''):
         from launcher_render import LauncherDisplay
         if self.display is None:

@@ -15,11 +15,14 @@ import time
 from pathlib import Path
 from typing import Callable
 
+from .child_bus import connect_child_bus
+
 UUID = "oh-no-parent-control@tech.puffyslippers.com"
 SCHEMA = "org.gnome.shell"
 ENABLED_KEY = "enabled-extensions"
 DISABLED_KEY = "disabled-extensions"
 DISABLE_ALL_KEY = "disable-user-extensions"
+DISABLE_VERSION_CHECK_KEY = "disable-extension-version-validation"
 COMMAND_TIMEOUT_SECONDS = 10
 LIVE_SETTINGS_TIMEOUT_SECONDS = 4
 LOG = get_logger("extension-manager")
@@ -70,7 +73,8 @@ def _command_diagnostics(arguments):
            else "none")
     return {
         "tool": tool if tool in {"gsettings", "gnome-extensions", "gdbus"} else "other",
-        "key": key if key in {ENABLED_KEY, DISABLED_KEY, DISABLE_ALL_KEY, "none"} else "other",
+        "key": key if key in {ENABLED_KEY, DISABLED_KEY, DISABLE_ALL_KEY,
+                              DISABLE_VERSION_CHECK_KEY, "none"} else "other",
     }
 
 
@@ -460,6 +464,98 @@ class ExtensionManager:
         if not self._verify_setting(key, self._boolean(account, key) == value, "switch"):
             raise RuntimeError("GNOME extension switch verification failed")
 
+    def _set_version_check(self, account, value, *, live):
+        """Observe this setting's unload/reload, never an old active instance."""
+        if not live or self._boolean(account, DISABLE_VERSION_CHECK_KEY) == value:
+            self._set_boolean(account, DISABLE_VERSION_CHECK_KEY, value)
+            return
+        from gi.repository import Gio, GLib
+
+        address = self.session_bus_address(account.pw_uid)
+        if address is None:
+            raise RuntimeError("child GNOME session is unavailable")
+        context = GLib.MainContext.new()
+        connection = attempt = subscription = None
+        connected = []
+        unloaded = reloaded = False
+        budget = getattr(self._command_context, "budget", None)
+        deadline = time.monotonic() + LIVE_SETTINGS_TIMEOUT_SECONDS
+        if budget is not None:
+            deadline = min(deadline, budget[0])
+
+        def remaining():
+            seconds = deadline - time.monotonic()
+            if seconds <= 0 or budget is not None and budget[1].is_set():
+                raise TimeoutError("child extension reload was interrupted")
+            return seconds
+
+        def wait_until(done):
+            while not done():
+                remaining()
+                if not context.iteration(False):
+                    time.sleep(min(0.01, remaining()))
+
+        def changed(_connection, _sender, _path, _interface, _member, parameters):
+            nonlocal unloaded, reloaded
+            if parameters.get_size() > 65536 or parameters.get_type_string() != "(sa{sv})":
+                return
+            uuid, info = parameters.unpack()
+            state = info.get("state")
+            if uuid != UUID or type(state) not in (int, float):
+                return
+            if state == 99:
+                unloaded = True
+            # INACTIVE can precede asynchronous enable; the final load states
+            # are ACTIVE, ERROR, OUT_OF_DATE or INITIALIZED (not enabled).
+            elif unloaded and state in {1, 3, 4, 6}:
+                reloaded = True
+
+        context.push_thread_default()
+        try:
+            attempt = connect_child_bus(account, address, context,
+                lambda result, error: connected.append((result, error)),
+                timeout=min(2, remaining()))
+            wait_until(lambda: bool(connected))
+            connection, error = connected[0]
+            if error is not None:
+                raise error
+            if address != self.session_bus_address(account.pw_uid):
+                raise RuntimeError("child GNOME session changed")
+
+            def bus_call(method, parameters, signature):
+                reply = connection.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus",
+                    "org.freedesktop.DBus", method, parameters, GLib.VariantType.new(signature),
+                    Gio.DBusCallFlags.NONE, max(1, int(remaining() * 1000)), None)
+                if reply.get_size() > 65536:
+                    raise ValueError("oversized child session reply")
+                return reply.unpack()
+
+            owner, = bus_call("GetNameOwner", GLib.Variant("(s)", ("org.gnome.Shell",)), "(s)")
+            subscription = connection.signal_subscribe(owner, "org.gnome.Shell.Extensions",
+                "ExtensionStateChanged", "/org/gnome/Shell", UUID,
+                Gio.DBusSignalFlags.NONE, changed)
+            # Round-trip on this connection orders AddMatch before the write
+            # performed on the child's separate settings connection.
+            bus_call("GetId", None, "(s)")
+            with self.command_budget(remaining(), budget[1] if budget else threading.Event()):
+                self._set_boolean(account, DISABLE_VERSION_CHECK_KEY, value)
+            wait_until(lambda: reloaded)
+        finally:
+            if attempt is not None:
+                attempt.cancel()
+                while attempt.pending:
+                    if not context.iteration(False):
+                        time.sleep(0.01)
+            try:
+                if connection is None and connected:
+                    connection = connected[0][0]
+                if connection is not None:
+                    if subscription is not None:
+                        connection.signal_unsubscribe(subscription)
+                    connection.close_sync(None)
+            finally:
+                context.pop_thread_default()
+
     def _runtime_uuids(self, account, state):
         result = self._run_command(
             account,
@@ -489,7 +585,7 @@ class ExtensionManager:
                                   result.stdout, None, None).unpack()
         state = _load_error_fields(info)["state"]
         if state != "error":
-            return state == "out-of-date"
+            return False
         # During async import GNOME uses ERROR before recording any error.
         # Its public history also preserves actual exceptions with empty text.
         result = self._run_command(account, (
@@ -553,13 +649,16 @@ class ExtensionManager:
                     DISABLED_KEY, self._list(account, DISABLED_KEY) == new_disabled, "offline")):
             raise RuntimeError("GNOME extension activation verification failed")
 
-    def _set_live(self, account, enabled):
+    def _set_live(self, account, enabled, *, version_check_changed=False):
         operation = "enable" if enabled else "disable"
         self._run_command(
             account, ("gnome-extensions", operation, "--quiet", UUID),
             require_live=True,
         )
-        configured, active = self._runtime_state(account)
+        # Changing version validation asynchronously reloads Shell's extensions.
+        # Wait for that transition without replaying the enable request.
+        configured, active = (self._wait_runtime_state(account, (enabled, enabled), check_failed=enabled)
+                              if version_check_changed else self._runtime_state(account))
         LOG.info("extension-manager.runtime-verification", expected=enabled,
                  configured=configured, active=active)
         if configured != enabled or active != enabled:
@@ -602,6 +701,25 @@ class ExtensionManager:
             if configured != enabled or active != enabled:
                 raise RuntimeError("GNOME extension runtime verification failed")
         LOG.info("extension-manager.005", configured=configured, active=active)
+
+    def _wait_runtime_state(self, account, expected, *, check_failed=False):
+        budget = getattr(self._command_context, "budget", None)
+        seconds = LIVE_SETTINGS_TIMEOUT_SECONDS
+        if budget is not None:
+            seconds = min(seconds, budget[0] - time.monotonic())
+        cancelled = budget[1] if budget is not None else threading.Event()
+        with self.command_budget(seconds, cancelled):
+            deadline = self._command_context.budget[0]
+            while True:
+                state = self._runtime_state(account)
+                if state == expected:
+                    return state
+                if check_failed and self._failed_live_extension(account):
+                    raise ChildExtensionFailed("child GNOME extension has failed")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return state
+                time.sleep(min(0.25, remaining))
 
     def _observe_disable_settings(self, account):
         # Diagnose delayed persistence versus a persistent Shell/settings
@@ -672,6 +790,7 @@ class ExtensionManager:
         if restore_switch and not recover_global_switch:
             LOG.error("extension-manager.007")
             raise RuntimeError("GNOME user extensions are disabled")
+        restore_version_check = enabled and not self._boolean(account, DISABLE_VERSION_CHECK_KEY)
 
         LOG.info("extension-manager.activation-step", stage="shell")
         shell_available = self._shell_is_available(account)
@@ -686,7 +805,7 @@ class ExtensionManager:
                 failed = False
             if failed:
                 raise ChildExtensionFailed("child GNOME extension has failed")
-        if (enabled and not restore_switch and UUID in old_enabled and
+        if (enabled and not restore_switch and not restore_version_check and UUID in old_enabled and
                 UUID not in old_disabled and
                 (not shell_available or old_runtime == (True, True))):
             return None
@@ -696,9 +815,13 @@ class ExtensionManager:
             LOG.info("extension-manager.rollback-result", outcome="started", restore_switch=bool(restore_switch), runtime=runtime)
             try:
                 try:
-                    if restore_switch:
-                        LOG.info("extension-manager.activation-step", stage="rollback-switch")
-                        self._set_boolean(account, DISABLE_ALL_KEY, True)
+                    try:
+                        if restore_version_check:
+                            self._set_version_check(account, False, live=shell_available)
+                    finally:
+                        if restore_switch:
+                            LOG.info("extension-manager.activation-step", stage="rollback-switch")
+                            self._set_boolean(account, DISABLE_ALL_KEY, True)
                 finally:
                     LOG.info("extension-manager.activation-step", stage="rollback-lists")
                     self._set_list(account, ENABLED_KEY, old_enabled)
@@ -710,7 +833,9 @@ class ExtensionManager:
                             DISABLED_KEY, self._list(account, DISABLED_KEY) == old_disabled, "rollback")):
                     raise RuntimeError("GNOME extension rollback verification failed")
                 if shell_available and self._shell_is_available(account):
-                    if self._runtime_state(account) != old_runtime:
+                    restored_runtime = (self._wait_runtime_state(account, old_runtime)
+                                        if restore_version_check else self._runtime_state(account))
+                    if restored_runtime != old_runtime:
                         raise RuntimeError("GNOME extension runtime rollback verification failed")
                     runtime = "matched"
             except Exception as rollback_error:
@@ -724,6 +849,10 @@ class ExtensionManager:
             LOG.info("extension-manager.rollback-result", outcome="accepted", restore_switch=bool(restore_switch), runtime=runtime)
 
         try:
+            if restore_version_check:
+                # Shell metadata has no open-ended version range. This is an
+                # account-wide preference, intentionally retained after success.
+                self._set_version_check(account, True, live=shell_available)
             if restore_switch:
                 # GNOME can set this switch after a failed session startup.
                 # Preserve the original state until the caller commits its
@@ -736,7 +865,7 @@ class ExtensionManager:
                 # Use GNOME's supported extension-management interface when a
                 # Shell owns it, and confirm that Shell actually activated or
                 # deactivated the extension rather than trusting settings only.
-                self._set_live(account, enabled)
+                self._set_live(account, enabled, version_check_changed=restore_version_check)
             else:
                 LOG.info("extension-manager.activation-step", stage="offline")
                 # Persist the desired state for Shell to consume at next login.
@@ -770,7 +899,7 @@ class ExtensionManager:
         if restore_switch:
             LOG.info("extension-manager.011")
         LOG.info("extension-manager.012", enabled=enabled)
-        return restore if restore_switch else None
+        return restore if restore_switch or restore_version_check else None
 
     def remove(self, uid: int) -> None:
         """Disable the product extension and remove its per-user list entries."""

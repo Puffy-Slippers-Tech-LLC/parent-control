@@ -2,7 +2,21 @@
 
 import pytest
 
+from tests.support.paths import ROOT
 from tests.support.package_scripts import Machine
+
+
+def test_gnome_dependencies_do_not_restrict_versions():
+    spec = (ROOT / 'rpm/oh-no-parent-control.spec.in').read_text()
+    requirements = [line.split(':', 1)[1].strip() for line in spec.splitlines()
+                    if line.startswith('Requires:')]
+    for name in ('gdm', 'gnome-kiosk', 'gnome-session', 'gnome-shell'):
+        assert [value for value in requirements if value.split()[0] == name] == [name]
+    control = (ROOT / 'debian/control').read_text()
+    dependencies = next(line.removeprefix('Depends: ') for line in control.splitlines()
+                        if line.startswith('Depends: ')).split(', ')
+    for name in ('gdm3', 'gnome-kiosk', 'gnome-shell'):
+        assert [value for value in dependencies if value.split()[0] == name] == [name]
 
 
 @pytest.mark.parametrize('distribution', ['ubuntu', 'fedora'])

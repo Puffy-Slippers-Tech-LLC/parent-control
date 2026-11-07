@@ -8,6 +8,8 @@ Unknown modules remain exclusive pending review.
 The extension-manager transport cases own private Unix socketpairs/pipes and
 GLib sources; their credential-drop subprocess is mocked. Every descriptor and
 source is released within its case; no live bus, account or shared path is used.
+Version-check reload cases dispatch private GLib sources with a mocked child
+connection and settings commands; subscription and close ownership stay local.
 
 Kiosk approval safety uses process-local clocks/observation doubles and bounded,
 reaped Perl children with captured pipes. Credential-reader checks use tiny

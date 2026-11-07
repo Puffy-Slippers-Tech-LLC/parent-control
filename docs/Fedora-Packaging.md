@@ -3,8 +3,10 @@
 This is a development target with local builds and a COPR publishing channel, not a
 release-qualified platform. The functional acceptance baseline remains Ubuntu
 26.04/GNOME 50. RPM installation does not gate on distribution identity, version
-or edition. Package dependencies still require GNOME Shell 50 and Malcontent
-0.14 or newer. Fedora 44 supplies
+or edition. GNOME packages have no version constraints; Malcontent still requires
+0.14 or newer. Managed child accounts disable Shell's account-wide extension
+version validation, so extension loading has no GNOME version gate. Actual load
+failures remain errors. Fedora 44 supplies
 [Malcontent 0.14](https://packages.fedoraproject.org/pkgs/malcontent/malcontent/fedora-44.html)
 and [GNOME Kiosk 50](https://packages.fedoraproject.org/pkgs/gnome-kiosk/gnome-kiosk/fedora-44.html).
 

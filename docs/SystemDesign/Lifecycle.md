@@ -23,7 +23,17 @@ identity, version or edition, and do not require an `os-release` file.
 `make install` selects the format from `INSTALL_PACKAGE`, an explicit
 `PACKAGE_FORMAT=deb|rpm`, or available package-manager commands. Native
 dependencies, account ownership and integration safety checks still apply.
-The child extension declares GNOME Shell 50;
+GNOME package dependencies have no version constraints. Child extension activation
+disables `org.gnome.shell disable-extension-version-validation` checks by setting
+that switch to true in each managed child account, with readback and transaction
+rollback. Shell reloads extensions when this account-wide preference changes;
+activation observes the child's Shell unload and finish reloading the extension
+before verifying activation. An already active instance cannot acknowledge the
+reload; rollback observes its own reload too. The preference applies
+to all of that child's extensions and remains after successful activation,
+disablement or package removal. Metadata retains the GNOME Shell 50 baseline
+declaration required by Shell's metadata format; it imposes no runtime version
+gate in managed child accounts. Actual import and activation errors still fail;
 [the overview](../System-Design.md) owns release qualification.
 
 ### Broker readiness

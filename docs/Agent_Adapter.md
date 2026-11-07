@@ -11,6 +11,10 @@ check catalogue readiness. Delegated write-boundary enforcement and explicit
 helper retirement before coordinator handoff remain unqualified and are deferred
 from step 2 by the user's scope decision.
 
+Delivery step 3 has an inactive [Claude transport foundation](#claude-transport-foundation).
+The user bounded this session to that foundation; it does not complete step 3
+or enable Claude, workflow policy migration or configuration selection.
+
 The repository should select its coding agent solely from the checked-in
 top-level `agent` field in [config/environment.json](../config/environment.json).
 The allowed values are `codex` and `claude`. Changing that field should switch
@@ -90,10 +94,45 @@ Do not add hooks, helper orchestration or native-runtime workarounds to this
 extraction step. Unexercised refusal/capacity recovery and full Git
 conflict/stash/close-out paths remain explicitly unqualified.
 
-The next planned implementation is delivery step 3, under a separately scoped
-Claude integration session and the proposed
-[policy migrations](#models-roles-and-repository-policy). This close-out does not
-start that work, enable Claude/configuration selection or redo delivered extraction.
+Continue delivery step 3 from the bounded foundation below. The next session is
+native transport qualification using an already authenticated CLI and compatible
+SDK, in a disposable checkout through maintained storage/supervision routes.
+Do not install or authenticate prerequisites during preflight. Keep role/policy
+migration, shared resolver/caller integration and later setup/SSH/Watch work out
+of that qualification session. Production selection remains disabled until
+delivery step 5's workflow gates pass. Preserve accepted Codex extraction checks.
+
+### Claude transport foundation
+
+[agent_claude.py](../tools/agent_claude.py) prepares an inactive `ClaudeAdapter`;
+[agent_claude_bridge.py](../tools/agent_claude_bridge.py) is its owned transport.
+The public resolver remains Codex-only. The foundation accepts only read-only,
+nondelegating transport assignments. Workspace writes, extra directories, shell
+settings, speed settings and workflow/helper profiles fail explicitly. It is not
+a qualified production workflow or a replacement for native goal/review policy.
+
+Batch invokes `claude -p` and normalizes only a successful native coordinator's
+`structured_output` into `agent-result.json`; workflow status remains unchanged.
+The interactive bridge lazily imports the optional SDK, pins its `cli_path`,
+and uses `ClaudeSDKClient`. Follow-ups wait for the current terminal result;
+they are not acknowledged as active-turn steering. Interruptions discard the
+candidate and drain the native turn and acknowledgement before shared cleanup.
+The supervisor and mailbox gates retain process and acceptance ownership.
+Provider turn counters and cumulative model/cost snapshots remain separate;
+no capacity retry or native model fallback is enabled.
+
+Only `Read`, `Glob` and `Grep` are exposed. Safe/restricted modes disable discovered
+customizations, external tools and delegation while retaining authentication and
+managed policy. `AGENTS.md` is supplied explicitly. Denials and fail-closed sandbox
+settings are requested without bypass mode; native enforcement remains unqualified.
+
+Bounded checks: installed Claude Code **2.1.319** version/help inspection and
+maintained source/traceability checks passed. No authentication commands, model
+requests, SDK/CLI installation or permanent tests were added. Independent review
+with the same simplicity goal found EOF, customization-isolation and input-order
+defects; all three corrections were reviewed and confirmed. Native SDK/model compatibility, the four schemas,
+result/input races, permission enforcement and process-tree cleanup still need
+live qualification; none receives passing credit from source checks or review.
 
 ## Configuration and scope
 
@@ -147,9 +186,10 @@ dependency and package payload maps.
 
 Use composition beneath the existing launcher engines, following the
 [extension boundary](Execution-Plans.md#extension-boundary). Start with three
-small modules: `tools/agent_adapter.py`, `tools/agent_codex.py`, and proposed
+small modules: `tools/agent_adapter.py`, `tools/agent_codex.py`, and
 `tools/agent_claude.py`. The first two implement session preparation, model/profile preflight, the
-interactive protocol and batch presentation; the Claude module does not yet exist. Do not build a plugin framework or a generic
+interactive protocol and batch presentation; the Claude module is an inactive,
+unqualified transport foundation with its owned SDK bridge. Do not build a plugin framework or a generic
 multi-provider orchestration service.
 
 The intended `agent_adapter.py` boundary owns the common session request, fixed

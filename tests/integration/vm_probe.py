@@ -1337,6 +1337,19 @@ def reproduce_flatpak_temporary_access(lease, fixture_selection):
         boundary_operation='child-countdown-present', fixture_selection=selection, timeout=1800)
 
 
+def reproduce_native_temporary_access(lease, fixture_selection):
+    """Retain Jordan's included Soft command launch for argument diagnosis."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from native_temporary_access import TemporaryAccessJourney, COMMAND_KIOSK_PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, TemporaryAccessJourney, COMMAND_KIOSK_PLAN,
+        'included-soft-command', 'native-temporary-access', assets=assets,
+        boundary_operation='native-soft-command-launch', fixture_selection=selection, timeout=1800)
+
+
 TIMER_TRACE = '''import hashlib,json,os,pathlib,signal,time
 from gi.repository import Gio,GLib
 boot=lambda:hashlib.sha256(pathlib.Path('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest()
@@ -1629,6 +1642,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             from flatpak_grid import FlatpakGridJourney, PLAN as FLATPAK_GRID_PLAN
         if surface == 'flatpak-temporary-access':
             from flatpak_temporary_access import TemporaryAccessJourney, GRID_PLAN
+        if surface == 'native-temporary-access':
+            from native_temporary_access import TemporaryAccessJourney as NativeTemporaryAccessJourney, COMMAND_KIOSK_PLAN
         from app_restart_expired import AppRestartExpiredJourney, SIGN_OUT_PLAN
         restoration = (surface == 'baseline-restoration'
             and journey_type is BaselineJourney and plan is PLAN
@@ -1689,11 +1704,14 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         flatpak_temporary_access = (surface == 'flatpak-temporary-access'
             and journey_type is TemporaryAccessJourney and plan is GRID_PLAN
             and boundary == 'included-countdown' and boundary_operation == 'child-countdown-present')
+        native_temporary_access = (surface == 'native-temporary-access'
+            and journey_type is NativeTemporaryAccessJourney and plan is COMMAND_KIOSK_PLAN
+            and boundary == 'included-soft-command' and boundary_operation == 'native-soft-command-launch')
         expired_sign_out = (surface == 'expired-sign-out'
             and journey_type is AppRestartExpiredJourney and plan is SIGN_OUT_PLAN
             and boundary == 'boundary-child-gdm-logged-out'
             and boundary_operation == 'gdm-returned')
-        system.require(selected_setup and (restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or expired_sign_out)
+        system.require(selected_setup and (restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or expired_sign_out)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1735,9 +1753,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if selected_setup:
             from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS
             context.fixture_selection = fixture_selection
-            context.fixture_subsets = ('native',) if surface in ('native-denial', 'grant-logout', 'match-editor', 'flatpak-grid', 'flatpak-temporary-access') else ACTIVITY_SUBSETS
+            context.fixture_subsets = ('native',) if surface in ('native-denial', 'grant-logout', 'match-editor', 'flatpak-grid', 'flatpak-temporary-access', 'native-temporary-access') else ACTIVITY_SUBSETS
             context.fixture_caller = ({'native-denial': None, 'flatpak-grid': None,
                                        'flatpak-temporary-access': None,
+                                       'native-temporary-access': None,
                                        'app-rule-return': 'E2E-006/disabled-pattern',
                                        'revocation-return': 'E2E-007/zero-single',
                                        'match-editor': None,
@@ -1828,7 +1847,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if surface == 'flatpak-temporary-access':
             from flatpak_fixtures import fixture_actions
             actions = fixture_actions(include_refusal=False)
-        if surface in ('match-editor', 'panel-request', 'app-restart-choices', 'reboot-context'):
+        if surface in ('match-editor', 'panel-request', 'app-restart-choices', 'reboot-context', 'native-temporary-access'):
             from native_fixtures import fixture_actions
             actions = fixture_actions(include_refusal=False)
             if surface == 'app-restart-choices':
@@ -1860,8 +1879,26 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                         else:
                             # This diagnostic must retain the already qualified
                             # prompt identity and normal fresh-proof deadline.
-                            observer = (journey.ui if surface in ('delayed-approval', 'suspend-active-grant', 'suspend-expired-grant')
+                            observer = (journey.ui if surface in ('delayed-approval', 'suspend-active-grant', 'suspend-expired-grant', 'native-temporary-access')
                                         else UiObservations(transport))
+                            if surface == 'native-temporary-access':
+                                import accessible_ui
+                                original_call = observer.call
+
+                                def admission_call(argv, operation, *, input=None):
+                                    system.require(operation == 'native-soft-command-launch'
+                                        and isinstance(input, bytes), 'diagnosis:admission-binding')
+                                    metadata = {'event': 'native-command-admission-host',
+                                        'argc': len(argv) - 2,
+                                        'operation_matches': argv[3] == operation,
+                                        'admitted': operation in accessible_ui.OPERATIONS,
+                                        'binding_matches': accessible_ui.NATIVE_DENIAL_BINDINGS.get(operation) == ('S', 'command-launch'),
+                                        'catalog_sha256': hashlib.sha256(json.dumps(sorted(accessible_ui.OPERATIONS)).encode()).hexdigest(),
+                                        'source_sha256': hashlib.sha256(input).hexdigest()}
+                                    (directory / 'admission-host.json').write_text(json.dumps(metadata))
+                                    return original_call(argv, operation, input=input)
+
+                                observer.call = admission_call
                             observed = observer.observe(boundary_operation, **(
                                 {'child': plan.child_bindings[boundary]}
                                 if plan is not None and boundary in plan.child_bindings else {}))
@@ -1899,6 +1936,37 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                     if original is None:
                         raise
         print(surface + '-diagnosis: scene retained; evidence=' + str(directory), flush=True)
+
+
+def probe_native_temporary_access(lease):
+    """Close known submitted Soft work, then probe its boot-bound relaunch."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from ui_observations import UiObservations
+    from qualification_storage import recovery_session, allocate
+    with operation('Probing Jordan\'s included Soft command'), recovery_session(
+            check='probe_native_temporary_access', lease=lease, live=True):
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-native-temporary-access-probe-'))
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
+        print('native-temporary-access-probe: evidence=' + str(directory), flush=True)
+        from vm_transport import BOOT_SHA256_PROBE
+        transport = connect(lease)
+        observer = UiObservations(transport)
+        observer.boot_guard = transport.call(
+            ['/usr/bin/python3', '-c', BOOT_SHA256_PROBE]).decode().strip()
+        results = []
+        for operation_name in ('native-soft-submitted', 'native-unmatched-soft-close',
+                               'native-unmatched-soft-closed', 'native-soft-command-launch',
+                               'native-soft-opened', 'native-soft-submit', 'native-soft-submitted'):
+            try:
+                results.append(observer.observe(operation_name))
+            except Exception as error:
+                results.append({'operation': operation_name, 'outcome': 'refused', 'error_type': type(error).__name__})
+                break
+        (directory / 'observed.json').write_text(json.dumps(results))
+        lease.guard()
+        print('native-temporary-access-probe: ' + results[-1]['outcome'], flush=True)
 
 
 def probe_vt6_input(lease, *, reboot=False, authenticate=False):

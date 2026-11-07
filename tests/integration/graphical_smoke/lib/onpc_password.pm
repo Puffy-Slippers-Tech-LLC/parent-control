@@ -128,7 +128,7 @@ sub enter_kiosk_mate_password {
                 && ($journey->{stage_prefix} // '') eq $1 . '-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq
                     ($1 eq 'included' ? 'other-child,other-parent,300,1' : 'other-child,parent,300,0');
-            $temporary_access ||= ($journey->{prefix} // '') =~ /\Anative-grid-kiosk-temporary-access-(first|included|replacement)\z/
+            $temporary_access ||= ($journey->{prefix} // '') =~ /\Anative-(?:grid|command)-kiosk-temporary-access-(first|included|replacement)\z/
                 && ($journey->{stage_prefix} // '') eq $1 . '-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq
                     ($1 eq 'included' ? 'other-child,other-parent,30,1' : 'other-child,parent,30,0');

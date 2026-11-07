@@ -1600,6 +1600,18 @@ the outer collector, worker collector and variable staging.
 
 ### Credential staging and password capture boundary
 
+`tools/test-vm --vm NAME reproduce-native-temporary-access` reuses case 238's
+shared command/station journey through Sam's approval and Jordan's retained
+Allowed work. At `included-soft-command` it observes the same single Soft
+launch, retaining bounded argument-admission diagnostics and the running scene.
+The original observer admission and input guards remain active. This engineering
+reproduction supplies no customer acceptance; inspect through guarded `exec`
+and finish with `tools/test-vm --vm NAME stop`.
+After a known successful Soft submission, `probe-native-temporary-access`
+independently reads that work, closes it, then launches and uses Soft again with
+the current boot identity bound to every observation. It refuses other starting
+states and never retries uncertain input.
+
 `tools/test-vm --vm NAME reproduce-kiosk-approval` reuses
 `RequestFlowJourney` / `kiosk_approved_flow.PLAN` in the same owned maintenance
 envelope. It completes the public Request action and real MATE prompt observation,

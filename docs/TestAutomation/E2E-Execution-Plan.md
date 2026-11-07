@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **280 — [E2E-049: native-command-kiosk](E2E-Tasks/280-case-238.md)**.
+Next task: **035d — [Qualify a native executable path containing a space](E2E-Tasks/035d-native-space-path.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

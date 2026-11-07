@@ -2117,8 +2117,11 @@ those station cases.
 
 The native grid/child-overlay binding uses `native_temporary_access.PLAN`; the
 native grid/station binding uses the same module's `KIOSK_PLAN` / `execute_kiosk`.
-Both use the shared `onpc_request_flow::flatpak_temporary_access` worker's native
-binding, with the request surface explicit. Station approvals return to the
+The native command/station binding uses `COMMAND_KIOSK_PLAN` /
+`execute_command_kiosk`, with the same finite approvals and app assertions.
+These bindings use the shared `onpc_request_flow::flatpak_temporary_access` worker's native
+binding, with the request surface explicit; the command binding selects
+`route=command` in that same worker. Station approvals return to the
 retained child through the enclosing journey's declared login challenges and
 compare its original Allowed activity before the next app checks.
 Each binding's three 30-second requests bind Jordan and each selected approver through the

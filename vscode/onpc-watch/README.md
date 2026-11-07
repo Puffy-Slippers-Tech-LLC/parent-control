@@ -167,11 +167,12 @@ The links remain available in every view, including while idle. The copy icon
 before **Status** copies the current tab's body as plain text to the clipboard;
 in **Session**, it copies the displayed transcript.
 For every execution-plan launcher, including `write-e2e`, **Status**
-starts with **Total Tasks: completed/unfinished/total**
-and **Total Duration**, using the shared launcher counters and colors. A divider
+starts with **Total Tasks: completed/unfinished/total | duration**
+on one pinned line, using the shared launcher counters and colors. Narrow panels
+scroll the summary horizontally instead of wrapping it. A divider
 spans the panel above the completed task recaps and current task/session rows.
-The **Total Tasks:** and **Total Duration:** labels are bold. When the whole plan
-finishes, the summary adds **Ended:** with the local completion time (`HH:MM`),
+The **Total Tasks:** label is bold. When the whole plan
+finishes, the same line adds **Ended:** with the local completion time (`HH:MM`),
 and the launcher title, including `(finished)`, turns green.
 The summary stays pinned at the top. Only the task/session history between the
 full-width dividers scrolls, following the bottom until you scroll up.

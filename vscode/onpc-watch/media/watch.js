@@ -821,8 +821,20 @@
             // status has no fixed summary and keeps all rows in the history.
             const summaryEnd = rows.findIndex(row => row.tagName === 'HR');
             const hasSummary = summaryEnd > 0 && entry.rows[0].some(part => part.text.startsWith('Total Tasks:'));
+            if (hasSummary) {
+                const summary = rows[0];
+                for (const row of rows.slice(1, summaryEnd)) {
+                    if (!row.textContent.trim()) continue;
+                    summary.append(' | ');
+                    if (row.textContent.startsWith('Total Duration:')) {
+                        summary.append(row.textContent.slice('Total Duration:'.length).trimStart());
+                    } else {
+                        summary.append(...row.childNodes);
+                    }
+                }
+            }
             section.summary.hidden = !hasSummary;
-            section.summary.replaceChildren(...(hasSummary ? rows.slice(0, summaryEnd) : []));
+            section.summary.replaceChildren(...(hasSummary ? [rows[0]] : []));
             section.history.classList.toggle('has-summary', hasSummary);
             section.history.replaceChildren(...(hasSummary ? rows.slice(summaryEnd + 1) : rows));
             if (section.followStatus) section.history.scrollTop = section.history.scrollHeight;

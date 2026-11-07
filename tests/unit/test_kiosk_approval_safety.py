@@ -255,7 +255,7 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
 def test_expired_suspend_approval_keeps_its_secret_scope(scope, binding, accepted):
     result = run_password_guard(r'''
 my ($scope, $request) = @ARGV;
-my $journey = bless {prefix => 'suspend-expired-grant-profile-request',
+my $journey = bless {prefix => 'suspend-wake-expired-profile-request',
     stage_prefix => $scope, review => 0}, 'onpc_journey';
 my $ok = eval { onpc_password::enter_kiosk_mate_password($journey, $request); 1 };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
@@ -277,7 +277,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
                                  'app-restart-request', 'sign-out-request', 'reboot-request', 'suspend-request',
                                  'process-update-request', 'process-update-wrong-soft', 'session-update-request',
                                  'reboot-update-request',
-                                 'sign-out-expired-recovery', 'reboot-expired-recovery',
+                                 'sign-out-expired-recovery', 'reboot-expired-recovery', 'suspend-expired-recovery',
                                  'daily-expired-recovery', 'daily-expired-wrong-scope',
                                  'daily-expired-included', 'daily-expired-included-wrong-scope',
                                  'expired-recovery-wrong-scope', 'idle-requests', 'idle-crossed-duration'])
@@ -290,9 +290,11 @@ def test_composed_kiosk_secret_scope_and_single_use(mode):
     revocation = ['revocation-case-request', 'request-', ['other-child', 'parent', 1200, True]]
     recovery = ['grant-work-recovery', ['child', 'parent', 1200, True]]
     if mode in ('expired-recovery', 'sign-out-expired-recovery', 'reboot-expired-recovery',
+                'suspend-expired-recovery',
                 'expired-recovery-wrong-scope'):
         expired = ('app-restart-expired' if mode == 'expired-recovery' else
-                   'reboot-expired' if mode == 'reboot-expired-recovery' else 'sign-out-in-expired')
+                   'reboot-expired' if mode == 'reboot-expired-recovery' else
+                   'sign-out-in-expired' if mode == 'sign-out-expired-recovery' else 'suspend-wake-expired')
         recovery = [expired, ['child', 'parent', 1200, False]]
     if mode.startswith('daily-expired-'):
         recovery = ['expired-daily-replacement', ['child', 'parent', 1200, 'included' in mode]]
@@ -363,6 +365,7 @@ my $ok = eval {
         onpc_password::enter_kiosk_mate_password($first, 'request-1200');
     } elsif ($mode eq 'work-recovery' || $mode eq 'expired-recovery'
             || $mode eq 'sign-out-expired-recovery' || $mode eq 'reboot-expired-recovery'
+            || $mode eq 'suspend-expired-recovery'
             || $mode eq 'daily-expired-recovery' || $mode eq 'daily-expired-wrong-scope'
             || $mode eq 'daily-expired-included' || $mode eq 'daily-expired-included-wrong-scope'
             || $mode eq 'expired-recovery-wrong-scope') {
@@ -410,7 +413,8 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
         assert [event for event in value['events'] if event[0] == 'proof'] == [
             ['proof', 'kiosk-final-approval-' + proof] for proof in ('qualified', 'rechecked')]
     elif mode in ('work-recovery', 'expired-recovery', 'sign-out-expired-recovery',
-                  'reboot-expired-recovery', 'daily-expired-recovery', 'daily-expired-included'):
+                  'reboot-expired-recovery', 'suspend-expired-recovery',
+                  'daily-expired-recovery', 'daily-expired-included'):
         assert value['ok'] == 1
         assert deliveries == [
             ['delivery', 'parent', 'profile-request-kiosk-mate-long-request'],

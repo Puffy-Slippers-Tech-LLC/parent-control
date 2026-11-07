@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5861</span>/<span style="color: gray">0</span>/5861 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5862</span>/<span style="color: gray">0</span>/5862 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">224</span>/<span style="color: gray">0</span>/224 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">295</span>/<span style="color: gray">0</span>/295 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -15,8 +15,8 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">114</span>/<span style="color: gray">82</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6558</span>/<span style="color: gray">82</span>/6640** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">115</span>/<span style="color: gray">81</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6560</span>/<span style="color: gray">81</span>/6641** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">113</span>/<span style="color: gray">82</span>/195 |
+| customer-journey | <span style="color: green">114</span>/<span style="color: gray">81</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -108,6 +108,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [121](#scenario-121) | Customer lifecycle persistence and resume (boundary: reboot; grant: expired) | `E2E-022/reboot-expired` | ready |
 | [122](#scenario-122) | Customer lifecycle persistence and resume (boundary: idle; grant: active to expired) | `E2E-022/idle-active-expired` | ready |
 | [124](#scenario-124) | Customer lifecycle persistence and resume (boundary: suspend wake; grant: active) | `E2E-022/suspend-wake-active` | ready |
+| [125](#scenario-125) | Customer lifecycle persistence and resume (boundary: suspend wake; grant: expired) | `E2E-022/suspend-wake-expired` | ready |
 | [132](#scenario-132) | Replace an expired grant before returning with daily time left (entry: new login; soft apps: excluded) | `E2E-025/excluded-new-login` | ready |
 | [133](#scenario-133) | Replace an expired grant before returning with daily time left (entry: retained unlock; soft apps: excluded) | `E2E-025/excluded-retained-unlock` | ready |
 | [134](#scenario-134) | Replace an expired grant before returning with daily time left (entry: new login; soft apps: included) | `E2E-025/included-new-login` | ready |
@@ -179,7 +180,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[113](#scenario-113)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: approve without soft)</span> | <span style="color: gray">`E2E-021/approve-without-soft`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[114](#scenario-114)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: approve with soft)</span> | <span style="color: gray">`E2E-021/approve-with-soft`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[115](#scenario-115)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: revoke)</span> | <span style="color: gray">`E2E-021/revoke`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[125](#scenario-125)</span> | <span style="color: gray">Customer lifecycle persistence and resume (boundary: suspend wake; grant: expired)</span> | <span style="color: gray">`E2E-022/suspend-wake-expired`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[126](#scenario-126)</span> | <span style="color: gray">Zero allowance to kiosk approval, real gameplay and expiry (gameplay: windowed)</span> | <span style="color: gray">`E2E-023/windowed`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[127](#scenario-127)</span> | <span style="color: gray">Zero allowance to kiosk approval, real gameplay and expiry (gameplay: fullscreen)</span> | <span style="color: gray">`E2E-023/fullscreen`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[128](#scenario-128)</span> | <span style="color: gray">Additional time accumulates during gameplay (gameplay: windowed; time: daily dominant)</span> | <span style="color: gray">`E2E-024/daily-dominant-windowed`</span> | <span style="color: gray">pending</span> |
@@ -1267,6 +1267,21 @@ Variant: boundary: idle; grant: active to expired
 Case: `E2E-022/suspend-wake-active` · Category: customer-journey · Status: **ready**
 
 Variant: boundary: suspend wake; grant: active
+
+**Steps:**
+
+- Save screen limits and app rules through Parent and approve this case's real grant with zero daily allowance. Active and combined idle cases explicitly save and read intended preferences on both forms without approving again; paired expired cases omit that repeated preference preparation. Read remaining grant time and its original deadline before leaving recognizable allowed work open. Cases 118/120 also publicly prepare positive daily access for Riley, save Jordan's countdown animation on and Riley's off, and independently read both. Capture public time and app rules before/after preference writes, allowing actual elapsed use.
+- Perform the declared app restart through its tested public route; use shared system commands for sign-out, reboot and suspend. Idle uses one real 10-minute grant: wait 15 seconds without child activity, return with positive reduced time at the original deadline, compare retained work and read Parent/both forms' saved choices before editing.
+- Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time. The combined idle case leaves the same child desktop idle again through that original deadline, without reset, sign-out, clock change or intervening approval.
+- Read saved Parent allowance/app rules before editing. Active cases 116/118/120/124 compare complete remembered choices on both forms. Paired expired cases 117/119/121/125 omit the repeated preference tour, prove original-deadline expiry and specific time denial, then explicitly select inputs and parent for real 20-minute replacement approval. Confirm positive usable time and correct allowed/soft/hard app results after recovery. Fresh entry after logout/reboot starts apps anew; retained return compares earlier Always Allowed work. Combined idle keeps its declared preference and recovery checks. Case 118 signs each child out and back in normally; case 120 uses its existing single reboot and fresh login for both children. Independently read Jordan's animation on and Riley's off after the boundary before editing, preserving original time limits, app rules and the positive grant deadline, with no additional approval or exhaustion wait.
+
+### Scenario 125
+
+**Customer lifecycle persistence and resume (boundary: suspend wake; grant: expired)**
+
+Case: `E2E-022/suspend-wake-expired` · Category: customer-journey · Status: **ready**
+
+Variant: boundary: suspend wake; grant: expired
 
 **Steps:**
 
@@ -2454,27 +2469,6 @@ Variant: transaction: revoke
 - Visit every declared retained desktop and inspect earlier activity and later launches. Revisit the other user's same activity.
 
 Pending: Requires a supported public route to distinct desktops for the same child; no backend session creation or repeated resume can qualify it.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 125
-
-**Customer lifecycle persistence and resume (boundary: suspend wake; grant: expired)**
-
-Case: `E2E-022/suspend-wake-expired` · Category: customer-journey · Status: **pending**
-
-Variant: boundary: suspend wake; grant: expired
-
-**Steps:**
-
-- Save screen limits and app rules through Parent and approve this case's real grant with zero daily allowance. Active and combined idle cases explicitly save and read intended preferences on both forms without approving again; paired expired cases omit that repeated preference preparation. Read remaining grant time and its original deadline before leaving recognizable allowed work open. Cases 118/120 also publicly prepare positive daily access for Riley, save Jordan's countdown animation on and Riley's off, and independently read both. Capture public time and app rules before/after preference writes, allowing actual elapsed use.
-- Perform the declared app restart through its tested public route; use shared system commands for sign-out, reboot and suspend. Idle uses one real 10-minute grant: wait 15 seconds without child activity, return with positive reduced time at the original deadline, compare retained work and read Parent/both forms' saved choices before editing.
-- Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time. The combined idle case leaves the same child desktop idle again through that original deadline, without reset, sign-out, clock change or intervening approval.
-- Read saved Parent allowance/app rules before editing. Active cases 116/118/120/124 compare complete remembered choices on both forms. Paired expired cases 117/119/121/125 omit the repeated preference tour, prove original-deadline expiry and specific time denial, then explicitly select inputs and parent for real 20-minute replacement approval. Confirm positive usable time and correct allowed/soft/hard app results after recovery. Fresh entry after logout/reboot starts apps anew; retained return compares earlier Always Allowed work. Combined idle keeps its declared preference and recovery checks. Case 118 signs each child out and back in normally; case 120 uses its existing single reboot and fresh login for both children. Independently read Jordan's animation on and Riley's off after the boundary before editing, preserving original time limits, app rules and the positive grant deadline, with no additional approval or exhaustion wait.
-
-Pending: Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.
 
 </div>
 

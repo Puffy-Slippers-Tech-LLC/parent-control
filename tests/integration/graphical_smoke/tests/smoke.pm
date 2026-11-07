@@ -1512,14 +1512,15 @@ sub run {
             $ready->{expired_daily_replacement_retained} ? 1 : 0);
         return;
     }
-    if ($ready->{app_restart_expired} || $ready->{sign_out_in_expired} || $ready->{reboot_expired}) {
+    if ($ready->{app_restart_expired} || $ready->{sign_out_in_expired} || $ready->{reboot_expired}
+            || $ready->{suspend_wake_expired}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
         require onpc_lifecycle;
         onpc_lifecycle::app_restart_expired(\&exchange, $ready->{invocations},
             $ready->{challenge_bindings}, $ready->{kiosk_request},
             ($ready->{sign_out_in_expired} || $ready->{reboot_expired}) ? 1 : 0,
-            $ready->{reboot_expired} ? 1 : 0);
+            $ready->{reboot_expired} ? 1 : 0, $ready->{suspend_wake_expired} ? 1 : 0);
         return;
     }
     if ($ready->{app_restart_active} || $ready->{idle_active_expired} || $ready->{suspend_wake_active}) {

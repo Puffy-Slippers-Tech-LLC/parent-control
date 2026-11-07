@@ -462,6 +462,13 @@ sub daily_soft_profile {
     $journey->declare_challenges($challenges);
     $journey->{kiosk_request} = $request;
     onpc_gdm::reattach_functional();
+    prepare_daily_soft_profile($journey);
+    $journey->finish();
+}
+
+sub prepare_daily_soft_profile {
+    my ($journey) = @_;
+    die 'flow18:journey' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     named_app_set($journey, 'gdm', 'fresh', 'new', 'child', [
         ['A', 'match-precise', 'allowed'], ['H', 'match-hard-precise', 'permanent'],
         ['S', 'match-soft-wildcard', 'conditional']], 'apps');
@@ -487,6 +494,32 @@ sub daily_soft_profile {
         $journey, 'gdm', 'child', 'retained', 'success', 'returned-child');
     native_read_activity($journey, 'soft-preserved');
     $journey->seen('positive-child-witness');
+}
+
+sub daily_soft_expiry {
+    onpc_progress::operation('Keeping child access after extra time expires with daily time left');
+    my ($exchange, $declared, $challenges, $request) = @_;
+    die 'flow18:binding' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,6,1';
+    # Keep FLOW18's qualified approval scope and exact request binding.
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'daily-soft-profile', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    $journey->{kiosk_request} = $request;
+    onpc_gdm::reattach_functional();
+    retained_app_activities($journey, [['peer', 'other-child', 'fresh']]);
+    prepare_daily_soft_profile($journey);
+    native_activity_entry($journey, 'allowed', 'command', 'child');
+    $journey->seen($_) for qw(expiry-wait-first expiry-wait-last expired-countdown);
+    native_activity_resume($journey, 'allowed-return');
+    my $soft = $journey->scope('expired-soft');
+    native_use_app($soft, $soft->seen('opened'));
+    native_finish_app($soft);
+    my $fresh = $journey->scope('new-soft');
+    native_usable_app($fresh, 'command', $fresh->seen('desktop'), 'child', 'S');
+    $journey->seen('final-child-countdown');
+    retained_app_visit($journey, 'peer-return', 'other-child', 'desktop', 'child');
     $journey->finish();
 }
 

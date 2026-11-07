@@ -2183,7 +2183,7 @@
         "rationale": "Seven distinct restoration paths; no duplicate active-grant recovery."
       },
       "variants": [
-        {"coverage_id": 164, "id": "none", "owner": "continuous-journeys", "parameters": {"restore": "none"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 164, "id": "none", "owner": "continuous-journeys", "parameters": {"restore": "none"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/daily_soft_expiry.py", "test_id": "none"}},
         {"coverage_id": 165, "id": "unlock", "owner": "continuous-journeys", "parameters": {"restore": "unlock"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 166, "id": "fresh-login", "owner": "continuous-journeys", "parameters": {"restore": "fresh-login"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 167, "id": "allowance-edit", "owner": "continuous-journeys", "parameters": {"restore": "allowance-edit"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},

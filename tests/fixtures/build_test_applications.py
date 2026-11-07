@@ -238,7 +238,7 @@ def _build_native_layout(output: Path, native: Path) -> None:
                             "roles": {role: name for role, name, _ in flatpak_assets.ASSETS}},
                 "snap": {"name": "onpc-test-application", "package": "onpc-test-application.snap"},
                 "gui": {"kinds": ["native", "flatpak", "snap", "game"],
-                        "instances": ["primary", "secondary"], "installed_qualified": False},
+                        "instances": ["primary", "secondary", "hard", "soft"], "installed_qualified": False},
             },
             indent=2,
             sort_keys=True,

@@ -2114,6 +2114,14 @@ those station cases.
 
 ### E2E-049
 
+The native grid/child-overlay binding uses `native_temporary_access.PLAN` and
+the shared `onpc_request_flow::flatpak_temporary_access` worker's native binding.
+Its three 30-second requests bind Jordan and each selected approver through the
+same guarded approval operations. Native H/S launchers use the secondary fixture
+window so the original Allowed work remains independently observable. Blocked
+native grid entries use the shared visible-launch or attributed command-denial
+witness, without asserting launcher visibility.
+
 The Flatpak command/station binding uses `flatpak_temporary_access.PLAN` /
 `TemporaryAccessJourney` and `onpc_request_flow::flatpak_temporary_access`.
 The Flatpak grid/child-overlay binding uses the same module's `GRID_PLAN` and
@@ -2124,6 +2132,9 @@ It composes the shared allowance, app, station and approval operations below.
 five-minute duration and Soft choice while retaining the same child. The shared
 observer refuses a changed request during authentication; the password owner
 admits only the exact scoped request and consumes two fresh recipient proofs.
+Both Flatpak routes bind A/H/S to distinct `primary`/`hard`/`soft` fixture
+windows. Allowed policy captures include the child-session owner, and each
+resubmission reads the same original window before and after the public action.
 Runtime readiness and executable bindings remain in the inventory.
 
 Snap cases 239/242 are deferred from active scheduling under the

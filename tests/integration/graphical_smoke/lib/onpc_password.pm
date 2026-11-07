@@ -282,13 +282,14 @@ sub enter_overlay_shell_password {
             && ($journey->{stage_prefix} // '') eq ''
             && ref($journey->{overlay_request}) eq 'ARRAY'
             && join(',', @{$journey->{overlay_request}}) =~ /\Achild,(?:parent,30,0|other-parent,30,1)\z/;
-        my $temporary_access = ($journey->{prefix} // '') =~ /\Aflatpak-grid-temporary-access-(first|included|replacement)\z/;
+        my $temporary_access = ($journey->{prefix} // '') =~ /\A(flatpak|native)-grid-temporary-access-(first|included|replacement)\z/;
         if ($temporary_access) {
-            my $row = $1;
+            my ($kind, $row) = ($1, $2);
+            my $seconds = $kind eq 'native' ? 30 : 300;
             die 'secret:challenge' unless ($journey->{stage_prefix} // '') eq "$row-"
                 && ref($journey->{overlay_request}) eq 'ARRAY'
                 && join(',', @{$journey->{overlay_request}}) eq
-                    ($row eq 'included' ? 'other-child,other-parent,300,1' : 'other-child,parent,300,0');
+                    ($row eq 'included' ? "other-child,other-parent,$seconds,1" : "other-child,parent,$seconds,0");
         }
         my $offline = ($journey->{prefix} // '') eq 'offline-approvals-overlay'
             && ($journey->{stage_prefix} // '') eq 'overlay-'

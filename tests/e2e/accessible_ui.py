@@ -153,6 +153,8 @@ STANDARD_OPERATIONS |= frozenset({'chinese-standard-desktop'})
 OPERATIONS |= frozenset({'standard-search-qualified'})
 STANDARD_OPERATIONS |= frozenset({'standard-search-qualified'})
 NATIVE_PRODUCT = 'ONPC Allowed Fixture'
+NATIVE_SOFT_PRODUCT = 'ONPC Soft Fixture'
+NATIVE_HARD_PRODUCT = 'ONPC Hard Fixture'
 NATIVE_ALIAS_PRODUCT = 'ONPC Shared Target Fixture'
 SNAP_SEARCH_PRODUCTS = {'A': 'ONPC Snap Allowed Fixture',
                         'H': 'ONPC Snap Hard Fixture', 'S': 'ONPC Snap Soft Fixture'}
@@ -207,8 +209,8 @@ SNAP_APP_OPERATIONS |= RILEY_SNAP_OPERATIONS
 OPERATIONS |= RILEY_SNAP_OPERATIONS
 FLATPAK_APP_BINDINGS = {
     'flatpak-' + name + '-' + action: (role, instance, action)
-    for name, role, instance in (('allowed', 'A', 'primary'), ('hard', 'H', 'primary'),
-                                 ('soft', 'S', 'primary'), ('soft-second', 'S', 'secondary'))
+    for name, role, instance in (('allowed', 'A', 'primary'), ('hard', 'H', 'hard'),
+                                 ('soft', 'S', 'soft'), ('soft-second', 'S', 'secondary'))
     for action in ('desktop', 'command-launch', 'opened', 'submit', 'submitted',
                    'activity', 'close', 'closed')
 }
@@ -219,11 +221,15 @@ FLATPAK_APP_BINDINGS.update({
     for action in ('search-ready', 'search-focused', 'search-entered', 'grid', 'grid-hidden')
 })
 FLATPAK_APP_BINDINGS.update({
-    'flatpak-' + name + '-' + action: (role, 'primary', action)
-    for name, role in (('hard', 'H'), ('soft', 'S'))
+    'flatpak-' + name + '-' + action: (role, instance, action)
+    for name, role, instance in (('hard', 'H', 'hard'), ('soft', 'S', 'soft'))
     for action in ('command-blocked', 'policy-activity', 'policy-closed')
 })
 FLATPAK_APP_BINDINGS['flatpak-allowed-command-blocked'] = ('A', 'primary', 'command-blocked')
+FLATPAK_APP_BINDINGS.update({
+    'flatpak-allowed-' + action: ('A', 'primary', action)
+    for action in ('policy-activity', 'resubmit')
+})
 FLATPAK_APP_OPERATIONS = frozenset(FLATPAK_APP_BINDINGS) | {'flatpak-command-refusals'}
 RILEY_FLATPAK_OPERATIONS = frozenset('overlay-flatpak-allowed-' + action for action in
     ('desktop', 'command-launch', 'search-ready', 'search-focused', 'search-entered',
@@ -281,6 +287,13 @@ NATIVE_DENIAL_BINDINGS = {
         ('nonmatching', 'N', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed')))
     for action in actions
 }
+NATIVE_DENIAL_BINDINGS.update({
+    'native-' + name + '-' + action: (role, action)
+    for name, role in (('hard', 'H'), ('soft', 'S'))
+    for action in ('desktop', 'search-ready', 'search-focused', 'search-entered',
+                   'grid-blocked', 'grid-denied',
+                   *(('grid', 'opened', 'submit', 'submitted') if role == 'S' else ()))
+})
 # A distinct, Allowed S executable is a nonmatch for A's precise rule. Keep
 # its secondary window open while the primary policy activity changes.
 NATIVE_DENIAL_BINDINGS.update({
@@ -1629,7 +1642,7 @@ def owned_surface_id(identity):
     are product IDs, not external-provider aliases or label-derived selectors.
     A surface itself is discovered by its unique ID by the caller.
     """
-    fixture = re.match(r'^(onpc-fixture-(?:native|flatpak|snap|game)-(?:primary|secondary))(?:-|$)', identity)
+    fixture = re.match(r'^(onpc-fixture-(?:(?:native|flatpak|snap|game)-(?:primary|secondary)|flatpak-(?:hard|soft)))(?:-|$)', identity)
     if fixture:
         return None if identity == fixture[1] else fixture[1]
     for prefix, surface in (('kiosk-system-notification', 'kiosk-system-notification'),
@@ -1716,8 +1729,9 @@ def prompt_diagnostic_id(identity, approved):
 
 
 def owned_applications(identity):
-    fixture = re.match(r'^onpc-fixture-(native|flatpak|snap|game)-(primary|secondary)(?:-|$)', identity)
+    fixture = re.match(r'^onpc-fixture-(native|flatpak|snap|game)-(primary|secondary|hard|soft)(?:-|$)', identity)
     if fixture:
+        require(fixture[1] == 'flatpak' or fixture[2] in ('primary', 'secondary'), 'ui:fixture-binding')
         return (f'com.puffyslippers.ONPCFixture.{fixture[1]}.{fixture[2]}',)
     if identity.startswith('kiosk-system-notification'):
         return ('com.puffyslippers.OhNoParentControl.KioskNotifications',)
@@ -7848,7 +7862,7 @@ class AccessibleUI:
 
     def launchable_result(self, product):
         """SEARCH04's owned Shell launcher branch, without input."""
-        require(product in (PRODUCT, NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT, *SNAP_SEARCH_PRODUCTS.values(),
+        require(product in (PRODUCT, NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT, NATIVE_SOFT_PRODUCT, NATIVE_HARD_PRODUCT, *SNAP_SEARCH_PRODUCTS.values(),
                             *FLATPAK_SEARCH_PRODUCTS.values()), 'ui:search-binding')
         if not self.provider_contracts['gnome-shell']['application_id']:
             owner, nodes, snapshot, facts = self.shell_search_snapshot()
@@ -12879,7 +12893,7 @@ class AccessibleUI:
 
     def search_query(self, expected):
         """Read only the overview's public search field; never arbitrary text."""
-        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT,
+        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT, NATIVE_SOFT_PRODUCT, NATIVE_HARD_PRODUCT,
                              *SNAP_SEARCH_PRODUCTS.values(), *FLATPAK_SEARCH_PRODUCTS.values()), 'ui:search-binding')
         if not self.provider_contracts['gnome-shell']['application_id']:
             field = self.shell_search_field()
@@ -12904,7 +12918,7 @@ class AccessibleUI:
 
     def shell_query_matches(self, field, expected):
         """Read the field from the caller's fresh scoped Shell observation."""
-        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT,
+        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT, NATIVE_SOFT_PRODUCT, NATIVE_HARD_PRODUCT,
                              *SNAP_SEARCH_PRODUCTS.values(), *FLATPAK_SEARCH_PRODUCTS.values()), 'ui:search-binding')
         text = field.get_text_iface()
         require(text is not None, 'ui:search-text-unavailable')
@@ -12997,7 +13011,7 @@ class AccessibleUI:
     def focus_search_result(self, product=PRODUCT):
         """Qualify the exact launcher recipient before the worker sends Enter."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(product in (PRODUCT, NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT, *SNAP_SEARCH_PRODUCTS.values(),
+        require(product in (PRODUCT, NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT, NATIVE_SOFT_PRODUCT, NATIVE_HARD_PRODUCT, *SNAP_SEARCH_PRODUCTS.values(),
                             *FLATPAK_SEARCH_PRODUCTS.values()), 'ui:search-binding')
         self.wait(lambda: self.search_query(product), 'parent-search-query')
         target = self.wait(lambda: self.launchable_result(product), 'parent-search-result')
@@ -13043,8 +13057,10 @@ class AccessibleUI:
                 and fixture == 'policy' and (role != 'H' or blocked)
                 and (role != 'Update' or child == EXISTING_CHILD and blocked)
                 and (role != 'N' or child == EXISTING_CHILD and not blocked), 'ui:native-binding')
-        require((instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'))
-                if snap or flatpak else instance == ('secondary' if role in ('H', 'S') else 'primary'), 'ui:native-binding')
+        require((instance == {'A': 'primary', 'H': 'hard', 'S': 'soft'}[role]
+                 or role == 'S' and instance == 'secondary') if flatpak else
+                (instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'))
+                if snap else instance == ('secondary' if role in ('H', 'S') else 'primary'), 'ui:native-binding')
         require(type(locked) is bool and (not locked or role == 'S' and blocked),
                 'ui:native-binding')
         require(type(blocked) is bool, 'ui:native-binding')
@@ -13189,7 +13205,8 @@ class AccessibleUI:
         flatpak = kind == 'flatpak'
         require(not flatpak or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
                 or child == CHILD and role == 'A' and instance == 'primary')
-                and instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'),
+                and (instance == {'A': 'primary', 'H': 'hard', 'S': 'soft'}[role]
+                     or role == 'S' and instance == 'secondary'),
                 'ui:flatpak-binding')
         require(not snap or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
                 or child == CHILD and role == 'A' and instance == 'primary')
@@ -13444,8 +13461,9 @@ class AccessibleUI:
             self.native_launch_command(blocked=True, **arguments)
         elif action in ('policy-activity', 'policy-closed'):
             return self.native_policy_activity(closed=action == 'policy-closed', role=role, kind=kind)
-        elif action == 'submit':
-            self.native_app_submit(**arguments)
+        elif action in ('submit', 'resubmit'):
+            self.native_app_submit(submitted='ONPC fixture draft' if action == 'resubmit'
+                                   else 'No submitted draft', **arguments)
         elif action in ('opened', 'submitted', 'activity'):
             return self.wait(lambda: self.native_app_snapshot(
                 'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
@@ -13503,7 +13521,9 @@ class AccessibleUI:
 
     def native_app_closed(self, instance='primary', *, desktop=True, complete_absence=False, kind='native'):
         """Complete owned absence; closure also recognizes the stable desktop."""
-        require(kind in ('native', 'snap', 'flatpak') and instance in ('primary', 'secondary') and type(desktop) is bool
+        require(kind in ('native', 'snap', 'flatpak')
+                and (instance in ('primary', 'secondary') or kind == 'flatpak' and instance in ('hard', 'soft'))
+                and type(desktop) is bool
                 and type(complete_absence) is bool, 'ui:native-binding')
         if desktop:
             self.standard_shell_desktop(no_prompt=True)
@@ -13515,9 +13535,10 @@ class AccessibleUI:
         """APP02: bind public presence/complete absence to the same child session."""
         require(type(closed) is bool and (kind == 'native' and role in ('A', 'S')
                 and (child == EXISTING_CHILD or child == CHILD and role == 'S')
-                or kind == 'flatpak' and role in ('H', 'S') and child == EXISTING_CHILD),
+                or kind == 'flatpak' and role in ('A', 'H', 'S') and child == EXISTING_CHILD),
                 'ui:native-binding')
-        instance = 'secondary' if kind == 'native' and role == 'S' else 'primary'
+        instance = ({'A': 'primary', 'H': 'hard', 'S': 'soft'}[role] if kind == 'flatpak'
+                    else 'secondary' if role == 'S' else 'primary')
         uid = os.getuid()
         require(uid == pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid == os.geteuid(),
                 'ui:native-activity-owner')
@@ -13544,6 +13565,24 @@ class AccessibleUI:
         # activity. H/S share the secondary slot, whose absence is still
         # required before and after each attributed execution denial.
         instance = 'secondary' if role in ('H', 'S') else 'primary'
+        product = NATIVE_SOFT_PRODUCT if role == 'S' else NATIVE_HARD_PRODUCT
+        if action == 'search-ready':
+            self.search_ready('overview')
+            return None
+        if action == 'search-focused':
+            self.focus_search_field()
+            self.search_ready('overview', focused=True)
+            return None
+        if action == 'search-entered':
+            self.wait_search(lambda: self.search_query(product), 'native-search-query')
+            return None
+        if action == 'grid':
+            self.focus_search_result(product)
+            return None
+        if action == 'grid-blocked':
+            return self.native_grid_blocked(product, instance=instance, child=child, role=role)
+        if action == 'grid-denied':
+            return self.native_grid_denied(instance)
         if action in ('desktop', 'closed'):
             self.wait(lambda: self.native_app_closed(instance), 'native-closed')
             return None
@@ -13568,6 +13607,36 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         self.native_app_snapshot('ONPC fixture draft', instance=instance, role=role, child=child)
         self.activate_id('onpc-fixture-native-' + instance + '-close')
+
+    def native_grid_blocked(self, product, *, instance='primary', child=EXISTING_CHILD, role=None):
+        """Choose visible-launch or attributed command denial before input."""
+        require(child == EXISTING_CHILD, 'ui:native-child-binding')
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        stable = time.monotonic()
+        def search_result():
+            require_active_launch_session()
+            require(self.native_app_closed(instance, desktop=False), 'ui:native-window-exists')
+            require(self.search_query(product), 'ui:native-search-query')
+            target = self.launchable_result(product)
+            return (target,) if target is not None or time.monotonic() - stable >= 2 else False
+        target, = self.wait(search_result, 'native-blocked-grid', prompt_in_predicate=True)
+        if target is None:
+            self.prepare_launch_desktop()
+            self.invalidate_observation()
+            self.native_launch_command(instance, child=child, role=role, blocked=True)
+            return False
+        self.focus_search_result(product)
+        return True
+
+    def native_grid_denied(self, instance='primary'):
+        stable = time.monotonic()
+        def denied():
+            require_active_launch_session()
+            require(self.native_app_closed(instance, desktop=False), 'ui:native-blocked-window')
+            return time.monotonic() - stable >= 15
+        self.wait(denied, 'native-blocked-absence', prompt_in_predicate=True)
+        self.prepare_launch_desktop()
+        self.wait(lambda: self.native_app_closed(instance), 'native-blocked-desktop')
 
     def native_app_operation(self, operation, *, child=EXISTING_CHILD):
         require(operation in NATIVE_APP_OPERATIONS, 'ui:native-operation')
@@ -13611,45 +13680,16 @@ class AccessibleUI:
         elif operation == 'native-search-entered':
             self.wait_search(lambda: self.search_query(product), 'native-search-query')
         elif operation == 'native-grid-blocked':
-            require(child == EXISTING_CHILD, 'ui:native-child-binding')
-            require(not self.input_uncertain, 'ui:uncertain-input')
-            # A complete, settled search chooses the route before input. Native
-            # launcher visibility is not an acceptance condition. Hidden entries
-            # need an attributed execution-denial witness for this same target.
-            stable = time.monotonic()
-            def search_result():
-                require_active_launch_session()
-                require(self.native_app_closed(desktop=False), 'ui:native-window-exists')
-                require(self.search_query(product), 'ui:native-search-query')
-                target = self.launchable_result(product)
-                return (target,) if target is not None or time.monotonic() - stable >= 2 else False
-            target, = self.wait(search_result, 'native-blocked-grid', prompt_in_predicate=True)
-            if target is None:
-                self.prepare_launch_desktop()
-                self.invalidate_observation()
-                self.native_launch_command(child=child, blocked=True)
-                return False
-            else:
-                # Shell launchers need the same guarded focus + worker Enter
-                # route as usable grid launches; they need not expose Action.
-                self.focus_search_result(product)
-                return True
+            return self.native_grid_blocked(product, child=child)
         elif operation == 'native-grid-denied':
             require(child == EXISTING_CHILD, 'ui:native-child-binding')
-            stable = time.monotonic()
-            def denied():
-                require_active_launch_session()
-                require(self.native_app_closed(desktop=False), 'ui:native-blocked-window')
-                return time.monotonic() - stable >= 15
-            self.wait(denied, 'native-blocked-absence', prompt_in_predicate=True)
-            self.prepare_launch_desktop()
-            self.wait(self.native_app_closed, 'native-blocked-desktop')
+            self.native_grid_denied()
         elif operation in ('native-grid', 'native-grid-refusals'):
             if operation == 'native-grid-refusals' and child == CHILD:
                 # Wrong declared result and uncertain input refuse before any
                 # provider discovery or focus/input. Never launch a substitute.
                 for product, uncertain, expected in (
-                        ('ONPC Hard Fixture', False, 'ui:search-binding'),
+                        ('ONPC Undeclared Fixture', False, 'ui:search-binding'),
                         (NATIVE_PRODUCT, True, 'ui:uncertain-input')):
                     self.input_uncertain = uncertain
                     try:
@@ -14209,11 +14249,12 @@ class AccessibleUI:
                      self.native_app_operation(operation.removeprefix('overlay-').removeprefix('parent-'),
                                              child=bound_child if overlay_native else
                                              PARENT if operation in PARENT_NATIVE_OPERATIONS else EXISTING_CHILD))
-            if operation in ('native-grid-blocked', 'native-alias-grid-blocked'):
+            if operation in ('native-grid-blocked', 'native-alias-grid-blocked',
+                              'native-hard-grid-blocked', 'native-soft-grid-blocked'):
                 result['grid_launch_required'] = value
             elif value is not None:
                 result['activity'] = value
-            if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals', 'native-alias-grid'):
+            if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals', 'native-alias-grid', 'native-soft-grid'):
                 result['provider'] = self.shell_provider_metadata()
         elif operation in BINDING_REMINDER_OPERATIONS or operation in BINDING_REMINDER_SELECTIONS:
             result.update(self.binding_reminder_operation(operation))

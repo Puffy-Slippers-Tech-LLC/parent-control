@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **273 — [E2E-049: native-grid-child-overlay](E2E-Tasks/273-case-231.md)**.
+Next task: **274 — [E2E-049: native-grid-kiosk](E2E-Tasks/274-case-232.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

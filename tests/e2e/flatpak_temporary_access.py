@@ -10,7 +10,7 @@ from private_artifacts import require
 from request_composition import KioskRequestJourney
 from access_choices import AccessChoiceJourney
 from request_flow import approval_and_return
-from ui_observations import SettingsObservation, compare_app_activity
+from ui_observations import SettingsObservation
 
 
 ROWS = (('allowed', 'A', 'allowed'), ('hard', 'H', 'permanent'),
@@ -71,6 +71,7 @@ def temporary_access_plan(route, surface):
             logins[name + '-retained'] = ('other-child', name + '-retained-')
         countdowns[name + '-countdown'] = (name + '-open-estimate', 'estimate', 1, 300)
     activities['replacement-soft-closed'] = ('included-soft-capture', 'closed')
+    activities['included-soft-capture'] = ('allowed-capture', 'separate')
     step3 = len(screens)
     screens.update({**prefixed_stages('final', desktop_entry('parent', source='desktop', entry='retained',
                                                           source_account='other-child')),
@@ -125,13 +126,6 @@ class TemporaryAccessJourney(KioskRequestJourney, AccessChoiceJourney):
                     and choice['estimate']['kind'] == 'fixed'
                     and choice['estimate']['seconds'] >= 300,
                     'temporary-access:request-margin')
-
-    def check_activity(self, stage, observed):
-        super().check_activity(stage, observed)
-        if stage == 'included-soft-capture':
-            observed['comparison'] = compare_app_activity(
-                self.activity_observations[stage], self.activity_observations['allowed-capture'],
-                result='separate')
 
 
 def execute(recorder, context):

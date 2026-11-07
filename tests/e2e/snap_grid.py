@@ -2,7 +2,6 @@
 from installed_journey import JourneyPlan
 from journey_blocks import app_policy_entry, fresh_desktop, native_usable_app, prefixed_stages
 from snap_fixtures import SnapFixtureJourney
-from ui_observations import compare_app_activity
 
 
 SCREENS = {
@@ -39,17 +38,11 @@ PLAN = JourneyPlan(
         'native-child-login': ('other-child', 'child-standard-recipient-qualified',
                                'child-standard-recipient-rechecked'),
     },
-    activity_checks={'earlier-reread': ('earlier-capture', 'same')},
+    activity_checks={'soft-capture': ('earlier-capture', 'separate'),
+                     'earlier-reread': ('earlier-capture', 'same')},
 )
 
 
 class SnapGridJourney(SnapFixtureJourney):
     def __init__(self, context, progress):
         super().__init__(context, progress, PLAN)
-
-    def check_activity(self, stage, observed):
-        super().check_activity(stage, observed)
-        if stage == 'soft-capture':
-            observed['comparison'] = compare_app_activity(
-                self.activity_observations[stage], self.activity_observations['earlier-capture'],
-                result='separate')

@@ -326,7 +326,11 @@ or product failure. Preserve the finite caller allowlist and readiness refusals.
 
 Snap and Flatpak separate-window checks reuse
 `ui_observations.compare_app_activity(result='separate')` on their immutable
-captures. It requires both different processes and different public endpoints;
+captures through `JourneyPlan.activity_checks[current] = (earlier, 'separate')`,
+as do native temporary-access journeys. Declare both endpoints in the plan
+instead of overriding `check_activity` just for this comparison. The shared
+controller checks the earlier capture before releasing the worker's reply.
+It requires both different processes and different public endpoints;
 the caller keeps the capture order and the later original-window preservation
 comparison. A replacement check alone cannot establish two distinct windows.
 
@@ -1096,6 +1100,12 @@ can still return a cached displayed balance. Reuse the guarded reload inside the
 read bracket for this binding. Selector navigation changes neither grant nor
 saved policy; elapsed limits and mutation/refusal assertions remain unchanged.
 The grant-access cases use `time-explanation-refresh-read` for the same reason.
+For no-grant revocation after an actual soft-app approval, establish G=0 before
+opening Revoke and keep that observation separate from Confirm's result. Case
+160 uses the qualified limits off/on transition and then reads positive daily
+time with G=0. An allowance edit alone preserves the running grant and cannot
+prepare this branch. Keep the original Allowed/Soft captures across the
+transition so Cancel preservation and Confirm closure refer to the same work.
 These operations add no process, storage, bus,
 display or cleanup owner. Renamed-endpoint, immutable-window and durable-reply
 regressions use the existing private recorder fixtures; existing unit/cleanup/

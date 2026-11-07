@@ -6,7 +6,7 @@ from journey_blocks import (app_policy_entry, desktop_entry, desktop_return,
                             flatpak_blocked_app, native_usable_app, prefixed_stages)
 from policy_edits import AppPolicyJourney
 from private_artifacts import require
-from ui_observations import SettingsObservation, compare_app_activity
+from ui_observations import SettingsObservation
 
 
 SCREENS = app_policy_entry(child='existing', initial_rows=False,
@@ -66,6 +66,7 @@ PLAN = JourneyPlan(
     access_checks={'block-row': (FLATPAK_POLICY_APPS['S'], 'conditional'),
                    'restore-row': (FLATPAK_POLICY_APPS['S'], 'allowed')},
     activity_checks={'allowed-after-block': ('allowed-capture', 'same'),
+                     'restored-capture': ('earlier-capture', 'separate'),
                      'earlier-reread': ('earlier-capture', 'same'),
                      'allowed-preserved': ('allowed-capture', 'same')},
     activity_entries={prefix + '-source-desktop': 'allowed-capture'
@@ -88,10 +89,3 @@ class FlatpakGridJourney(AppPolicyJourney):
     def __init__(self, context, progress, plan=PLAN):
         require(plan is PLAN, 'flatpak-grid:plan')
         super().__init__(context, progress, plan, actions=fixture_actions(include_refusal=False))
-
-    def check_activity(self, stage, observed):
-        super().check_activity(stage, observed)
-        if stage == 'restored-capture':
-            observed['comparison'] = compare_app_activity(
-                self.activity_observations[stage], self.activity_observations['earlier-capture'],
-                result='separate')

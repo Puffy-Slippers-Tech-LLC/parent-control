@@ -24,24 +24,29 @@ sub reopen {
 }
 
 sub app_restart_active {
-    my ($exchange, $declared, $challenges, $request, $sign_out, $reboot) = @_;
+    my ($exchange, $declared, $challenges, $request, $sign_out, $reboot, $idle) = @_;
     $sign_out //= 0;
     $reboot //= 0;
-    onpc_progress::operation($reboot
+    $idle //= 0;
+    onpc_progress::operation($idle
+        ? 'Returning from idle before and after child time expires, then approving recovery'
+        : $reboot
         ? 'Rebooting while both children keep saved choices and approved time'
         : $sign_out
         ? 'Signing each child out and back in with saved choices and approved time'
         : 'Reopening the apps while the child keeps approved time and work');
-    die 'app-restart-active:binding' unless (@_ == 4 || @_ == 5 || @_ == 6)
+    die 'app-restart-active:binding' unless (@_ >= 4 && @_ <= 7)
         && ($sign_out == 0 || $sign_out == 1) && ($reboot == 0 || $reboot == 1)
         && (!$reboot || $sign_out)
+        && ($idle == 0 || $idle == 1) && (!$idle || (!$sign_out && !$reboot))
         && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
     require onpc_app_rows;
     require onpc_desktop_session;
     my $journey = onpc_journey->new(exchange => $exchange,
-        prefix => $reboot ? 'reboot-active' : $sign_out ? 'sign-out-in-active' : 'app-restart-active', review => 0);
+        prefix => $idle ? 'idle-active-expired' : $reboot ? 'reboot-active'
+            : $sign_out ? 'sign-out-in-active' : 'app-restart-active', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -70,6 +75,7 @@ sub app_restart_active {
     $journey->seen('riley-policy-before') if $sign_out;
     $select->('jordan-setup', 'existing');
     $journey->seen($_) for qw(no-grant jordan-time);
+    $journey->seen('prepared-policy') if $idle;
     $leave->('setup-leave');
     onpc_gdm::enter_station($journey->scope('seed-station'), '');
     $journey->seen($_) for qw(seed-riley-select seed-riley-parent seed-station-cancel seed-station-returned);
@@ -89,13 +95,16 @@ sub app_restart_active {
         $leave->('riley-policy-leave');
     }
     my $approval = $journey->scope('request');
-    $approval->{kiosk_request} = [@$request];
+    my $grant_seconds = $idle ? 600 : 1200;
+    $approval->{kiosk_request} = ['other-child', 'parent', $grant_seconds, 1];
     onpc_request_flow::prepare($approval, 'new', 'new', 'observed',
-        'existing-fixture-child', 'fixture-parent', 1200, 1, 'kiosk');
-    onpc_request_flow::approve($approval, 'existing-fixture-child', 'fixture-parent', 1200, 1, 'automatic');
-    $enter->('issued-return', 'parent', 'retained');
-    $journey->seen('issued-policy');
-    $leave->('issued-leave');
+        'existing-fixture-child', 'fixture-parent', $grant_seconds, 1, 'kiosk');
+    onpc_request_flow::approve($approval, 'existing-fixture-child', 'fixture-parent', $grant_seconds, 1, 'automatic');
+    unless ($idle) {
+        $enter->('issued-return', 'parent', 'retained');
+        $journey->seen('issued-policy');
+        $leave->('issued-leave');
+    }
     $enter->('original-entry', 'other-child', 'fresh');
     $journey->seen('original-countdown');
     $journey->seen($_) for $sign_out ? qw(jordan-animation-set jordan-animation-read) : ();
@@ -104,9 +113,17 @@ sub app_restart_active {
     $leave->('original-leave');
     onpc_gdm::enter_station($journey->scope('capture-station'), '');
     $journey->seen($_) for qw(capture-jordan capture-riley-select capture-riley capture-cancel capture-returned);
-    $enter->('before-parent', 'parent', 'retained');
-    $journey->seen('before-policy');
-    if ($reboot) {
+    unless ($idle) {
+        $enter->('before-parent', 'parent', 'retained');
+        $journey->seen('before-policy');
+    }
+    if ($idle) {
+        $enter->('early-child', 'other-child', 'retained');
+        $journey->seen($_) for qw(early-idle early-countdown);
+        onpc_app_rows::native_activity_resume($journey, 'early-resume');
+        $leave->('early-leave');
+        $enter->('early-parent', 'parent', 'retained');
+    } elsif ($reboot) {
         $journey->seen($_) for qw(reboot-requested reboot-greeter);
         $enter->('boundary-parent-entry', 'parent', 'fresh');
         my $parent = $journey->scope('boundary-parent-launch');
@@ -141,9 +158,11 @@ sub app_restart_active {
         onpc_app_rows::native_usable_app($app, 'command', $app->seen('desktop'), 'child', 'A');
     }
     $leave->('returned-riley-leave');
-    $enter->('final-parent', 'parent', 'retained');
-    $journey->seen('final-policy');
-    $leave->('final-parent-leave');
+    unless ($idle) {
+        $enter->('final-parent', 'parent', 'retained');
+        $journey->seen('final-policy');
+        $leave->('final-parent-leave');
+    }
     $enter->('returned-jordan-entry', 'other-child', $sign_out ? 'fresh' : 'retained');
     $journey->seen('returned-jordan-animation') if $sign_out;
     $journey->seen("returned-jordan-form-$_") for qw(launch read cancel returned);
@@ -152,12 +171,41 @@ sub app_restart_active {
         onpc_app_rows::native_usable_app($app, 'command', $app->seen('desktop'), 'other-child');
     } else {
         onpc_app_rows::native_activity_resume($journey, 'resume');
-        $journey->seen($_) for qw(original-close original-closed);
+        $journey->seen($_) for $idle ? () : qw(original-close original-closed);
     }
-    onpc_app_rows::native_blocked_app($journey->scope('hard'), 'H');
-    my $soft = $journey->scope('soft');
-    onpc_app_rows::native_usable_app($soft, 'command', $soft->seen('desktop'), 'other-child', 'unmatched-soft');
-    $journey->seen('final-countdown');
+    unless ($idle) {
+        onpc_app_rows::native_blocked_app($journey->scope('hard'), 'H');
+        my $soft = $journey->scope('soft');
+        onpc_app_rows::native_usable_app($soft, 'command', $soft->seen('desktop'), 'other-child', 'unmatched-soft');
+    }
+    if ($idle) {
+        $journey->seen($_) for qw(tour-countdown expiry-wait expired-return expired-greeter);
+        $enter->('expired-parent', 'parent', 'retained');
+        $journey->seen('expired-policy');
+        $leave->('expired-parent-leave');
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained',
+            'time-denied', 'denied-child');
+        onpc_gdm::return_from_time_denial($journey,
+            'denied-return-ready', 'denied-return-state', 'denied-returned');
+        onpc_gdm::enter_station($journey->scope('recovery-station'), '');
+        $journey->seen('recovery-jordan');
+        my $recovery = $journey->scope('recovery');
+        $recovery->{kiosk_request} = [@$request];
+        onpc_request_flow::prepare($recovery, 'new', 'open', 'observed',
+            'existing-fixture-child', 'fixture-parent', 1200, 1, 'kiosk');
+        onpc_request_flow::approve($recovery, 'existing-fixture-child', 'fixture-parent', 1200, 1, 'automatic');
+        $enter->('recovered-parent', 'parent', 'retained');
+        $journey->seen('recovered-policy');
+        $leave->('recovered-parent-leave');
+        $enter->('recovered-child', 'other-child', 'retained');
+        $journey->seen('recovered-countdown');
+        onpc_app_rows::native_activity_resume($journey, 'recovered-resume');
+        onpc_app_rows::native_blocked_app($journey->scope('recovered-hard'), 'H');
+        my $soft = $journey->scope('recovered-soft');
+        onpc_app_rows::native_usable_app($soft, 'command', $soft->seen('desktop'), 'other-child', 'unmatched-soft');
+    } else {
+        $journey->seen('final-countdown');
+    }
     $journey->finish();
 }
 

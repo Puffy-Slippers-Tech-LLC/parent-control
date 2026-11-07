@@ -94,6 +94,9 @@ The diagnostic includes the invocation, checkout, host, exit status and up to th
 last 1,048,576 characters of process output, with terminal control sequences
 removed; omitted earlier output is explicitly labelled.
 Closing an action terminal does not open an error dialog.
+Local and SSH action terminals load NVM's selected default when `codex` is
+missing from their inherited PATH, so GUI startup does not hide an NVM-installed
+CLI or its Node interpreter. Codex must already be installed and authenticated.
 **ONPC: Watch Terminal Diagnostic** reopens the last failed action's captured
 diagnostic in the same copyable dialog.
 

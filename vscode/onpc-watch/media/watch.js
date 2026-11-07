@@ -235,7 +235,6 @@
         const activity = element('pre', 'session-activity', session);
         activity.hidden = true;
         const composer = element('div', 'session-composer', session);
-        const working = element('div', '', composer);
         const prompt = element('div', 'session-prompt', composer);
         const marker = element('span', 'session-prompt-marker', prompt);
         marker.textContent = '›';
@@ -262,7 +261,7 @@
         const model = element('span', 'session-model', footer);
         const simplified = element('label', 'session-simplified', footer);
         simplified.append('Simplified ');
-        const section = { session, output, activity, composer, working, input, error, model, fitInput, inputObserver };
+        const section = { session, output, activity, composer, input, error, model, fitInput, inputObserver };
         section.toggle = element('button', 'session-toggle', simplified);
         section.toggle.type = 'button';
         section.toggle.setAttribute('role', 'switch');
@@ -370,8 +369,6 @@
             section.outputSimplified = view.simplified;
             if (follow) section.output.scrollTop = section.output.scrollHeight;
         }
-        if (section.working.textContent !== (view.working || '')) section.working.textContent = view.working || '';
-        section.working.hidden = !view.working;
         if (section.model.textContent !== view.model) section.model.textContent = view.model;
         section.toggle.setAttribute('aria-checked', String(view.simplified));
         section.toggle.disabled = !section.entry.session || !section.entry.connected || Boolean(view.unavailable);
@@ -763,7 +760,7 @@
                 section.outputRows = undefined;
                 section.input.disabled = true;
                 section.toggle.disabled = true;
-                section.working.textContent = section.model.textContent = '';
+                section.model.textContent = '';
             }
             if (section.launcherText !== entry.launcher_output || section.launcherRows !== entry.launcher_rows) {
                 const follow = section.launcher.scrollHeight - section.launcher.clientHeight - section.launcher.scrollTop < 24;

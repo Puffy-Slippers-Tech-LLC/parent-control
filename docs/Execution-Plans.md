@@ -828,6 +828,10 @@ changes, unavailable permissions/prerequisites or failed pushes stop close-out.
 A blocker retains the accepted result and Git journal. Completion requires
 verified remote containment on the source and every destination, with the source
 checkout on its original branch.
+The shared close-out boundary also reports a terminal Git failure to the current
+task panel, replacing an earlier passing-test status with the close-out error.
+Panel reporting is best effort and must preserve the original Git failure if
+the task metadata cannot be read or written.
 
 The following placement rules apply to both skill and retained mechanical
 transactions. The detailed controller stash/merge/resolver recovery below

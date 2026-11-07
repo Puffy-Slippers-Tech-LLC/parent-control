@@ -435,16 +435,27 @@ def _propagate_worktrees(root, run, state, commit, *, git=None):
 def commit_push_propagate(root, run, state, paths, message, *, git=None):
     """Use $commit for new close-outs; resume existing mechanical transactions."""
     git = git or git_output
-    with closeout_lock(root, run, state):
-        intent = state.get('commit_intent')
-        if intent is None and state.get('worktree_propagation'):
-            raise ValueError('pending propagation has no commit intent; retain it for Git reconciliation')
-        if intent is None or intent.get('engine') == 'skill':
-            return retry_git_transport(lambda deadline: _commit_with_skill(
-                root, run, state, paths, message, git=git, retry_deadline=deadline),
-                cancelled=lambda: (run / 'cancel').exists())
-        return _legacy_commit_push_propagate(root, run, state, paths, message,
-                                             git=git_for_run(git, run))
+    try:
+        with closeout_lock(root, run, state):
+            intent = state.get('commit_intent')
+            if intent is None and state.get('worktree_propagation'):
+                raise ValueError('pending propagation has no commit intent; retain it for Git reconciliation')
+            if intent is None or intent.get('engine') == 'skill':
+                return retry_git_transport(lambda deadline: _commit_with_skill(
+                    root, run, state, paths, message, git=git, retry_deadline=deadline),
+                    cancelled=lambda: (run / 'cancel').exists())
+            return _legacy_commit_push_propagate(root, run, state, paths, message,
+                                                 git=git_for_run(git, run))
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        if state.get('task_id'):
+            from launcher_chat import update_task_info
+            try:
+                update_task_info(run, state['task_id'], {
+                    'last_error': 'Saving completed work failed: ' + str(error),
+                    'status': 'Investigating'})
+            except (OSError, ValueError) as status_error:
+                print(f'Could not update the task panel: {status_error}', file=sys.stderr)
+        raise
 
 
 def _commit_with_skill(root, run, state, paths, message, *, git, retry_deadline=None):
@@ -504,6 +515,15 @@ shape may be sandbox routing; inspect its exact argv against the existing grant
 before reporting a host filesystem failure. An actual denial remains a blocker.
 The task has already passed its checks and cleanup. Preserve that acceptance;
 do not repeat unchanged checks, implement another task or change expectations.
+Quote every Git revision and path operand as one literal shell argument, including
+ancestry expressions such as 'HEAD^1', 'HEAD~1', 'stash@{{0}}' and '<stash-id>^2'.
+For example, inspect a saved index with git diff '<stash-id>^1' '<stash-id>^2' --stat.
+Codex treats unquoted ^ and ~ as possible shell expansion, so the enclosing
+shell command can miss the existing Git prefix grant even on Bash.
+An argv-only execpolicy check does not validate the command tool's shell parsing.
+Do not add allow rules or shell wrappers to compensate for malformed quoting.
+Record the exact failed command and diagnostic if a correctly shaped command is
+denied; preserve the accepted result and saved work rather than bypassing policy.
 Use the suggested commit message. For merge or saved-work restoration conflicts,
 follow the skill's automatic conflict-resolution procedure, including its
 dedicated resolver and bounded continuation. Conflict resolution may edit the

@@ -49,7 +49,7 @@ class SessionPanel(LauncherDisplay):
         self.text_identity = None
         self.text_width = 1
         self.simplified_cache = None
-        self.webview_cache = None
+        self.webview_cache = {}
         self.webview_text = {}
         self.result_pending = ''
         self.result_activity = 'orphan'
@@ -339,25 +339,27 @@ class SessionPanel(LauncherDisplay):
             rows += editor_rows
         return rows[:height]
 
-    def webview(self):
+    def webview(self, *, simplified=None):
         """Expose the shared transcript/composer to a native webview host."""
+        simplified = self.simplified if simplified is None else simplified
         source = (*self.transcript, *([self.pending] if self.pending else []))
-        signature = source, self.hide_tool_results, self.simplified
-        if self.webview_cache is None or self.webview_cache[0] != signature:
+        signature = source, self.hide_tool_results
+        cached = self.webview_cache.get(simplified)
+        if cached is None or cached[0] != signature:
             # A streamed update changes the tail, not the whole transcript.
             # Retain decoded rows only within the existing history budget.
             self.webview_text = {line: self.line_text(line) for line in source}
             logs = self.visible_lines(source)
-            if self.simplified:
+            if simplified:
                 logs = self.simplified_lines(logs) if logs else None
-            self.webview_cache = signature, logs
-        logs = self.webview_cache[1]
+            self.webview_cache[simplified] = signature, logs
+        logs = self.webview_cache[simplified][1]
         if logs is None:
             logs = self.text_output or []
         return dict(lines=[*logs, *self.details, *self.streaming_lines], working=self.working(),
                     model=' '.join(filter(None, (self.chat_state.get('model'),
                                                 self.chat_state.get('effort')))),
-                    simplified=self.simplified)
+                    simplified=simplified)
 
     def working(self):
         started = self.chat_state.get('turn_started_at', self.chat_state.get('started_at'))

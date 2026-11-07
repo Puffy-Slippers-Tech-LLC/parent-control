@@ -173,6 +173,16 @@ spans the panel above the completed task recaps and current task/session rows.
 The **Total Tasks:** and **Total Duration:** labels are bold. When the whole plan
 finishes, the summary adds **Ended:** with the local completion time (`HH:MM`),
 and the launcher title, including `(finished)`, turns green.
+The summary stays pinned at the top. Only the task/session history between the
+full-width dividers scrolls, following the bottom until you scroll up.
+Below it, a pinned read-only box shows the latest text output. Its bold label
+sits within the divider line and matches **Session N** while a session is
+active; otherwise it shows **Launcher**.
+Session text uses the same simplified rendering even when the Session tab's
+Simplified switch is off. Launcher text uses the same terminal rendering and
+shows the latest nonempty block separated by blank lines. Both boxes show four
+lines at a time and scroll vertically to reveal the complete selected output.
+New output starts at the top; streaming additions preserve your scroll position.
 During task close-out, the title shows `[branch] launcher (Closing Task)`, with
 `Closing Task` in green. This includes processing the finished task response
 while **Session** is struck through, validation, and the commit skill's commit,

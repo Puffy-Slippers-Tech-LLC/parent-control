@@ -299,7 +299,7 @@ class Viewer:
             return dict(error=str(error))
 
     def run_status(self, session_root=None, session_roots=()):
-        from launcher_render import clean
+        from launcher_render import COMPACT_LINE, clean
         session_roots = set(session_roots)
         if session_root:
             session_roots.add(session_root)
@@ -490,6 +490,18 @@ class Viewer:
                 session_view = session.panel.webview()
                 session_view['rows'] = self.cached_spans(root, 'session', session_view.pop('lines'))
                 session_view['input_enabled'] = session.input_enabled
+            preview = []
+            if session.active and session.panel:
+                # Select the last prose block from the shared simplified view,
+                # preserving all of its rendered indentation, styles and links.
+                for line in session.panel.webview(simplified=True)['lines']:
+                    if line.startswith(COMPACT_LINE):
+                        continue
+                    if clean(line).startswith('• '):
+                        preview.clear()
+                    preview.append(line)
+                while preview and not clean(preview[-1]).strip():
+                    preview.pop()
             sections.append(dict(id=str(root), checkout=str(output.root), label=f'[{branch}]' +
                 (f' {label}' + (f' ({status})' if status else '') if label else ''),
                 active=active or session.active, status=status, rows=self.status_cache[root][1],
@@ -501,6 +513,7 @@ class Viewer:
                 session_active=session.active,
                 session_number=session_number, session_inactive=session_inactive,
                 session_waiting=waiting, session_deadline=deadline, session_question=prompt_id,
+                session_preview=self.cached_spans(root, 'session-preview', preview),
                 session_view=session_view))
             try:
                 record = self.launcher_reader.read(output.run.parent / 'current.json') if output.run else {}
@@ -690,6 +703,7 @@ class Viewer:
         self.images = {entry: value for entry, value in self.images.items() if entry in shown}
         self.artifact_links = {part['link'] for run in runs
             for row in [*run['rows'], *run['error_rows'], *run['launcher_rows'],
+                        *run['session_preview'],
                         *((run.get('session_view') or {}).get('rows', []))]
             for part in row if part.get('link')}
         run_times = []
@@ -735,7 +749,7 @@ class Viewer:
                 previous = previous_runs.get(run['id'])
                 update = dict(run)
                 if previous and (previous['run'], previous['session']) == (run['run'], run['session']):
-                    for field in ('rows', 'error_rows', 'launcher_output', 'launcher_rows'):
+                    for field in ('rows', 'error_rows', 'launcher_output', 'launcher_rows', 'session_preview'):
                         if run.get(field) == previous.get(field):
                             update.pop(field, None)
                     if run['session_view'] and previous['session_view'] and (

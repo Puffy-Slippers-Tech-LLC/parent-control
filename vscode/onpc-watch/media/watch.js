@@ -51,8 +51,15 @@
         section.errorStatus.hidden = view !== 'error';
         section.session.hidden = view !== 'session';
         sessionHeading(section);
+        runMinimum(section);
+        if (view === 'status' && section.followStatus) section.history.scrollTop = section.history.scrollHeight;
         vscode.postMessage({ type: 'sessionView', roots: [...sections]
             .filter(([, section]) => section.view === 'session').map(([id]) => id) });
+    }
+
+    function tabLabel(entry, view) {
+        return view === 'session' && entry.session_number ? `Session ${entry.session_number}` :
+            view === 'session' ? 'Session' : 'Launcher';
     }
 
     function sessionHeading(section) {
@@ -168,7 +175,7 @@
         controls.append(copy, collapse);
         const links = element('span', 'run-links', section.heading);
         for (const [view, label] of [['status', 'Status'], ['launcher', 'Launcher'], ['error', 'Error'], ['session', 'Session']]) {
-            const text = view === 'session' && entry.session_number ? `Session ${entry.session_number}` : label;
+            const text = ['session', 'launcher'].includes(view) ? tabLabel(entry, view) : label;
             const item = link(links, text, () => runView(entry.id, view));
             item.classList.add('run-tab');
             if (view === 'session' && (entry.session_inactive ?? !entry.session_active)) item.classList.add('session-inactive');
@@ -272,6 +279,72 @@
         return section;
     }
 
+    function transcriptRows(output, rows) {
+        // Streaming usually changes only the final row. Both transcript views
+        // share this renderer, including blank lines, links and styled spans.
+        if (!output.children.length) output.textContent = '';
+        rows.forEach((row, index) => {
+            const signature = JSON.stringify(row);
+            const previous = output.children[index];
+            if (previous?.rowSignature === signature) return;
+            const line = document.createElement('div');
+            line.rowSignature = signature;
+            if (!row.length) line.textContent = '\u00a0';
+            for (const part of row) runSpan(line, part);
+            if (previous) previous.replaceWith(line);
+            else output.append(line);
+        });
+        while (output.children.length > rows.length) output.lastElementChild.remove();
+        if (!rows.length) output.textContent = '';
+    }
+
+    function launcherRows(output, entry, latest = false) {
+        let rows = entry.launcher_output && entry.launcher_rows ||
+            terminal(entry.launcher_output || 'Waiting for launcher output…').split('\n')
+                .map(text => [{ text }]);
+        if (latest) {
+            let end = rows.length;
+            const blank = row => row.every(part => !terminal(part.text).trim());
+            while (end && blank(rows[end - 1])) end--;
+            let start = end - 1;
+            while (start > 0 && !blank(rows[start - 1])) start--;
+            rows = rows.slice(Math.max(0, start), end);
+        }
+        output.replaceChildren();
+        rows.forEach((row, index) => {
+            if (index) output.appendChild(document.createTextNode('\n'));
+            for (const part of row) runSpan(output, { ...part, text: terminal(part.text) });
+        });
+    }
+
+    function latestOutput(section) {
+        const entry = section.entry;
+        const session = entry.session && !(entry.session_inactive ?? !entry.session_active);
+        const label = tabLabel(entry, session ? 'session' : 'launcher');
+        section.latestLabel.textContent = label;
+        section.latest.setAttribute('aria-label', label);
+        const rows = session ? entry.session_preview : entry.launcher_rows;
+        const signature = JSON.stringify([entry.run, entry.session, Boolean(session), rows,
+            session ? null : entry.launcher_output]);
+        if (section.latestSignature === signature) return;
+        section.latestSignature = signature;
+        const source = JSON.stringify([entry.run, entry.session, Boolean(session)]);
+        const previousText = section.latestText || '';
+        const scrollTop = section.latest.scrollTop;
+        if (source !== section.latestSource) section.latest.replaceChildren();
+        if (session) {
+            transcriptRows(section.latest, rows || []);
+            if (!rows?.length) section.latest.textContent = 'Waiting for session output…';
+        } else launcherRows(section.latest, entry, true);
+        const text = section.latest.textContent.trimEnd();
+        // Appending streamed text is still the same output. Keep the reader's
+        // position; a replacement message or source starts at its first line.
+        section.latest.scrollTop = source === section.latestSource && previousText &&
+            text.startsWith(previousText) ? scrollTop : 0;
+        section.latestSource = source;
+        section.latestText = text;
+    }
+
     function sessionRows(section, view) {
         if (view.rows !== section.outputRows || view.simplified !== section.outputSimplified) {
             const follow = section.output.scrollHeight - section.output.clientHeight - section.output.scrollTop < 24;
@@ -292,24 +365,7 @@
                 section.activity.hidden = !latest;
                 for (const part of latest || []) runSpan(section.activity, part);
             }
-            // Streaming usually changes only the final row. Keep the retained
-            // transcript's DOM instead of rebuilding every span on each update.
-            if (!section.output.children.length) section.output.textContent = '';
-            rows.forEach((row, index) => {
-                const signature = JSON.stringify(row);
-                const previous = section.output.children[index];
-                if (previous?.rowSignature === signature) return;
-                const line = document.createElement('div');
-                line.rowSignature = signature;
-                if (!row.length) line.textContent = '\u00a0';
-                for (const part of row) {
-                    runSpan(line, part);
-                }
-                if (previous) previous.replaceWith(line);
-                else section.output.append(line);
-            });
-            while (section.output.children.length > rows.length) section.output.lastElementChild.remove();
-            if (!rows.length) section.output.textContent = '';
+            transcriptRows(section.output, rows);
             section.outputRows = view.rows;
             section.outputSimplified = view.simplified;
             if (follow) section.output.scrollTop = section.output.scrollHeight;
@@ -551,6 +607,14 @@
         }
     }
 
+    function runMinimum(section) {
+        const minimum = section.view === 'status' ? section.heading.offsetHeight +
+            section.summary.offsetHeight + section.preview.offsetHeight +
+            parseFloat(getComputedStyle(section.history).minHeight) : 100;
+        section.minimum = Math.max(100, minimum);
+        section.body.style.minHeight = `${section.minimum}px`;
+    }
+
     function runDivider(section) {
         const handle = section.divider;
         handle.setAttribute('role', 'separator');
@@ -563,10 +627,11 @@
                 if (!panel.collapsed) continue;
                 panel.collapsed = false;
                 sessionHeading(panel);
+                runMinimum(panel);
             }
             const total = previous.body.getBoundingClientRect().height + section.body.getBoundingClientRect().height;
-            if (total < 200) return;
-            const height = Math.max(100, Math.min(total - 100, top + delta));
+            if (total < previous.minimum + section.minimum) return;
+            const height = Math.max(previous.minimum, Math.min(total - section.minimum, top + delta));
             const weight = previous.weight + section.weight;
             previous.weight = weight * height / total;
             section.weight = weight - previous.weight;
@@ -609,6 +674,7 @@
         for (const [id, section] of sections) {
             if (!ids.has(id)) {
                 section.inputObserver.disconnect();
+                section.statusObserver.disconnect();
                 section.tabObserver?.disconnect();
                 section.body.remove();
                 section.divider.remove();
@@ -623,19 +689,39 @@
                 body.dataset.root = entry.id;
                 const divider = element('div', 'run-divider', runs);
                 const heading = element('h2', 'run-heading', body);
-                const content = element('pre', 'run-status', body);
+                const content = element('div', 'run-status-view', body);
+                const summary = element('pre', 'run-status run-summary', content);
+                const history = element('pre', 'run-status run-history', content);
+                const preview = element('div', 'run-latest', content);
+                const latestLabel = element('h3', 'run-latest-label', preview);
+                const latest = element('pre', 'run-status', preview);
+                latest.tabIndex = 0;
                 const launcher = element('pre', 'run-status', body);
                 launcher.setAttribute('aria-label', 'Launcher terminal output');
                 const errorStatus = element('pre', 'run-status', body);
                 errorStatus.setAttribute('aria-label', 'Last Error and Status');
-                section = Object.assign(sessionPanel(body), { body, divider, heading, content, launcher, errorStatus,
-                    view: 'status', weight: 1 });
+                section = Object.assign(sessionPanel(body), { body, divider, heading, content, summary, history,
+                    preview, latestLabel, latest, launcher, errorStatus,
+                    view: 'status', weight: 1, followStatus: true });
+                const panel = section;
+                history.addEventListener('scroll', () => {
+                    if (history.clientHeight) panel.followStatus =
+                        history.scrollHeight - history.clientHeight - history.scrollTop < 24;
+                });
+                panel.statusObserver = new ResizeObserver(() => {
+                    runMinimum(panel);
+                    if (panel.followStatus) history.scrollTop = history.scrollHeight;
+                });
+                panel.statusObserver.observe(history);
+                panel.statusObserver.observe(heading);
+                panel.statusObserver.observe(summary);
+                panel.statusObserver.observe(preview);
                 sections.set(entry.id, section);
                 runDivider(section);
             }
             const previous = section.entry;
             if (previous && previous.run === entry.run && previous.session === entry.session) {
-                for (const field of ['rows', 'error_rows', 'launcher_output', 'launcher_rows']) {
+                for (const field of ['rows', 'error_rows', 'launcher_output', 'launcher_rows', 'session_preview']) {
                     if (!Object.hasOwn(entry, field) && Object.hasOwn(previous, field)) entry[field] = previous[field];
                 }
                 if (entry.session_view && previous.session_view && !Object.hasOwn(entry.session_view, 'rows')) {
@@ -650,6 +736,7 @@
                 section.collapsed = !entry.active;
             }
             section.entry = entry;
+            if (!previous || previous.run !== entry.run) section.followStatus = true;
             if (!entry.connected) {
                 section.input.disabled = true;
                 section.toggle.disabled = true;
@@ -675,15 +762,10 @@
                 const follow = section.launcher.scrollHeight - section.launcher.clientHeight - section.launcher.scrollTop < 24;
                 section.launcherText = entry.launcher_output;
                 section.launcherRows = entry.launcher_rows;
-                section.launcher.replaceChildren();
-                if (entry.launcher_output && entry.launcher_rows) {
-                    entry.launcher_rows.forEach((row, index) => {
-                        if (index) section.launcher.appendChild(document.createTextNode('\n'));
-                        for (const part of row) runSpan(section.launcher, { ...part, text: terminal(part.text) });
-                    });
-                } else section.launcher.textContent = terminal(entry.launcher_output || 'Waiting for launcher output…');
+                launcherRows(section.launcher, entry);
                 if (follow) section.launcher.scrollTop = section.launcher.scrollHeight;
             }
+            latestOutput(section);
             // The adapter owns retained state, including late final status updates.
             if (section.errorRows !== entry.error_rows) {
                 section.errorRows = entry.error_rows;
@@ -702,7 +784,6 @@
             if (section.statusRows === entry.rows && section.signature === signature) return;
             section.signature = signature;
             section.statusRows = entry.rows;
-            const follow = section.content.scrollHeight - section.content.clientHeight - section.content.scrollTop < 24;
             const rows = entry.rows.map(row => {
                 if (row.map(part => part.text).join('').trim() === '─') {
                     const separator = document.createElement('hr');
@@ -736,8 +817,15 @@
                 waiting.textContent = entry.active ? 'Waiting for run status…' : 'Waiting for tests…';
                 rows.push(waiting);
             }
-            section.content.replaceChildren(...rows);
-            if (follow) section.content.scrollTop = section.content.scrollHeight;
+            // Execution-plan totals precede the first divider; ordinary runner
+            // status has no fixed summary and keeps all rows in the history.
+            const summaryEnd = rows.findIndex(row => row.tagName === 'HR');
+            const hasSummary = summaryEnd > 0 && entry.rows[0].some(part => part.text.startsWith('Total Tasks:'));
+            section.summary.hidden = !hasSummary;
+            section.summary.replaceChildren(...(hasSummary ? rows.slice(0, summaryEnd) : []));
+            section.history.classList.toggle('has-summary', hasSummary);
+            section.history.replaceChildren(...(hasSummary ? rows.slice(summaryEnd + 1) : rows));
+            if (section.followStatus) section.history.scrollTop = section.history.scrollHeight;
         });
         runDividers();
     }

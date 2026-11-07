@@ -1370,7 +1370,7 @@ Bindings: transaction = save / approve-without-soft / approve-with-soft / revoke
 
 ### E2E-022
 
-Implementation status: All cases pending.
+Executable bindings are tracked in the [scenario inventory](../../tests/e2e/scenarios.json).
 
 **Customer lifecycle persistence and resume.** Cases 116, 117, 118, 119, 120, 121, 122, 124, 125.
 

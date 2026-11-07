@@ -2516,7 +2516,15 @@ input followed wake. Greeter return preserved the same locked child. Provider:
 Shell `50.1-0ubuntu1.5`, `en_US.UTF-8`, US keyboard. Collection, worker/callback
 closure, owned cleanup, baseline restoration and preservation passed; VM off.
 The former active-only wrapper is retired; both plans retain the same worker
-and suspend/wake operation. Complete case 125 remains separate.
+and suspend/wake operation. Complete case 125 composes that operation and native
+denial with expired persistence setup/recovery in `suspend_wake_expired.PLAN` /
+`SuspendWakeExpiredJourney` and `onpc_lifecycle::app_restart_expired`. Its Ubuntu
+26.04 journey passed in `20261107T123121Z-2f210939`: the original deadline crossed
+during sleep, same-child denial, unchanged saved allowance/app rules, explicit
+twenty-minute replacement, positive usable time, retained work and Allowed/Hard/Soft
+results. The affected expired app-reopening case 117 passed in
+`20261107T130048Z-0778627f`; both attempts completed collection and owned cleanup.
+Other targets retain their separate acceptance.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |

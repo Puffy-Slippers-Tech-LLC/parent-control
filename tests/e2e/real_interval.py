@@ -52,3 +52,15 @@ def interval_action(duration):
             return wait_real_interval(duration, deadline=deadline,
                                       guard=guard, progress=progress)
     return action
+
+
+def wait_until(journey, guard, target):
+    """Reach one controller-monotonic target through bounded TIME03 intervals.
+
+    Callers own the target and independently check the product result. Every
+    chunk keeps the existing attempt deadline, ownership guard and watch output.
+    """
+    require(type(target) in (int, float) and math.isfinite(target), 'time03:target')
+    guard()
+    while (remaining := target - time.monotonic()) > 0:
+        interval_action(min(300, remaining))(journey, guard)

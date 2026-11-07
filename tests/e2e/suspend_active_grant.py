@@ -11,7 +11,7 @@ from journey_blocks import (fresh_desktop, prefixed_stages, native_activity_entr
                             grant_only_time_profile)
 from native_fixtures import fixture_actions
 from private_artifacts import require
-from real_interval import interval_action
+from real_interval import wait_until
 
 
 RETURN = {
@@ -129,9 +129,7 @@ class SuspendActiveGrantJourney(GrantOnlyProfileJourney):
     @staticmethod
     def wait_for_sleep(journey, guard):
         require(journey.original_deadline is not None, 'suspend-expired-grant:missing-countdown')
-        # TIME03 keeps checking ownership/cancellation throughout the real wait.
-        while (remaining := journey.original_deadline - 240 - time.monotonic()) > 0:
-            interval_action(min(300, remaining))(journey, guard)
+        wait_until(journey, guard, journey.original_deadline - 240)
         return {'original_deadline_monotonic': journey.original_deadline}
 
     @staticmethod

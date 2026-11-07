@@ -27,7 +27,6 @@ nav button[aria-pressed="true"] {
         color-mix(in srgb, var(--watch-accent) 30%, var(--vscode-editor-background)));
     display: grid; grid-template-columns: minmax(min-content, 30fr) 6px minmax(0, 70fr);
     flex: 1; min-height: 0; min-width: 0;
-    background: var(--watch-well);
 }
 #runs {
     display: flex; flex-direction: column; min-width: min-content; min-height: 0;

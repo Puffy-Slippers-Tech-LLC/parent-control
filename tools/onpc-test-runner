@@ -184,7 +184,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'probe-retained-app-launch',
                                       'reproduce-transfer-refusal', 'probe-transfer-refusal',
                                       'reproduce-riley-native-grid', 'probe-riley-native-grid',
-                                      'reproduce-snap-grid', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-flatpak-command', 'probe-flatpak-command',
+                                      'reproduce-snap-grid', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'probe-native-temporary-access', 'reproduce-flatpak-command', 'probe-flatpak-command',
                                       'reproduce-update-no-action',
                                       'reproduce-native-denial', 'reproduce-grant-logout', 'reproduce-match-editor',
                                       'reproduce-app-rule-return', 'reproduce-revocation-return',
@@ -254,7 +254,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                            'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
                            'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
                            'reproduce-panel-request', 'reproduce-app-restart-choices',
-                           'reproduce-reboot-context', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access',
+                           'reproduce-reboot-context', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access',
                            'reproduce-expired-sign-out')) != (args.fixture_selection is not None):
             raise ValueError('test-runner:fixture-sync-requires-selection')
         fixture_options = []
@@ -266,7 +266,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                                       'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
                                                       'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
                                                       'reproduce-panel-request', 'reproduce-app-restart-choices',
-                                                      'reproduce-reboot-context', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access',
+                                                      'reproduce-reboot-context', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access',
                                                       'reproduce-expired-sign-out'):
             targets = vm_config.fixture_targets(root / 'config/environment.json')
             if configured.name not in targets:

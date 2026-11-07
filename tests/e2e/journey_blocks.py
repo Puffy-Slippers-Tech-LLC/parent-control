@@ -258,7 +258,8 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
             'journey:native-desktop-binding')
     require(child in ('parent', 'child', 'other-child') and
             (child != 'parent' or route == 'command'), 'journey:native-child-binding')
-    require(role is None or role in ('Alias', 'S') and route == 'grid' and child == 'other-child'
+    require(role is None or role == 'Alias' and route == 'grid' and child == 'other-child'
+            or role == 'S' and child == 'other-child'
             or route == 'command' and
             (role in ('A', 'S') and child == 'child' or role in ('N', 'unmatched-soft') and child == 'other-child'),
             'journey:native-role-binding')

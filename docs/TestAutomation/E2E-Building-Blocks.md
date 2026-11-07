@@ -2215,6 +2215,11 @@ Await fresh public results within deadlines, accounting for observation latency.
 | APP05 | C | Prepare the real offline game's declared windowed/fullscreen mode and reproducible level through shared supported commands or keyboard shortcuts, then observe active gameplay. Game settings menus are supporting setup. | Bind startup options in the preceding APP01 launch, or use a fixed supported command/UI05 shortcut on the observed game; do not relaunch retained activity. UI01/UI03 verifies the mode/level, then APP03 proves actual gameplay input/effect. The selected game needs usable public observations; a menu or timer fixture is insufficient. | pending |
 | APP06 | A | Read one complete, account-scoped public projection of Lunar's tray/background control, Lunar window and Minecraft activity, with the recognized surrounding desktop. Presence/absence is explicit input; do not launch, reveal or quit anything. | No callable yet. The [Lunar profile slices](#lunar-client-preparation-and-observation-gate) separately qualify Lunar/tray, Minecraft activity and login observations, including absence and incomplete/wrong-owner refusal. UI22 composes repeated observations across the declared login interval; one final absent window cannot establish blocked autostart. [Consumer gate](#lunar-client-preparation-and-observation-gate). | pending |
 
+The native command/station binding in [E2E-049, case 238](E2E-Scenario-Recipes.md#e2e-049)
+additionally qualifies Jordan's S/secondary command launch, usable draft submission,
+immutable activity capture and closure after replacement exclusion on Ubuntu 26.04.
+It uses the shared APP01/02/03/04 operations while retaining the original A activity.
+
 APP01/02/03/04 also have the independently qualified
 [Snap command](#snap-command-use) and [Allowed Snap grid](#snap-grid-use)
 bindings for Jordan's A/H/S fixtures and a distinguishable second S window on

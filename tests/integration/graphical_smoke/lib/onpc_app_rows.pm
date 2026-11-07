@@ -656,7 +656,8 @@ sub native_usable_app {
             || $kind eq 'snap' && defined($role)
             && ($child eq 'other-child' && $role =~ /\A(?:A|H|S)\z/
                 || $child eq 'child' && $role eq 'A' && $gesture eq 'ret')
-            || $kind eq 'native' && (!defined($role) || $role =~ /\A(?:Alias|S)\z/ && $route eq 'grid' && $child eq 'other-child'
+            || $kind eq 'native' && (!defined($role) || $role eq 'Alias' && $route eq 'grid' && $child eq 'other-child'
+            || $role eq 'S' && $child eq 'other-child'
             || $route eq 'command' &&
             ($role =~ /\A(?:A|S)\z/ && $child eq 'child'
                 || $role =~ /\A(?:N|unmatched-soft)\z/ && $child eq 'other-child')));

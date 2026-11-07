@@ -292,7 +292,7 @@ NATIVE_DENIAL_BINDINGS.update({
     for name, role in (('hard', 'H'), ('soft', 'S'))
     for action in ('desktop', 'search-ready', 'search-focused', 'search-entered',
                    'grid-blocked', 'grid-denied',
-                   *(('grid', 'opened', 'submit', 'submitted') if role == 'S' else ()))
+                   *(('grid', 'command-launch', 'opened', 'submit', 'submitted') if role == 'S' else ()))
 })
 # A distinct, Allowed S executable is a nonmatch for A's precise rule. Keep
 # its secondary window open while the primary policy activity changes.
@@ -15813,7 +15813,15 @@ def main():
         overlay_request = validate_overlay_request(json.loads(sys.argv[-1]))
         del sys.argv[-2:]
         require(sys.argv[1] in OVERLAY_BOUND_OPERATIONS, 'ui:overlay-request-operation')
-    require(len(sys.argv) in (3, 4, 5, 6) and sys.argv[1] in OPERATIONS, 'ui:arguments')
+    arguments_admitted = len(sys.argv) in (3, 4, 5, 6) and sys.argv[1] in OPERATIONS
+    if not arguments_admitted:
+        print(json.dumps({'event': 'ui-argument-refusal', 'argc': len(sys.argv),
+            'operation_admitted': len(sys.argv) > 1 and sys.argv[1] in OPERATIONS,
+            'native_binding_matches': len(sys.argv) > 1 and
+                NATIVE_DENIAL_BINDINGS.get(sys.argv[1]) == ('S', 'command-launch'),
+            'catalog_sha256': __import__('hashlib').sha256(
+                json.dumps(sorted(OPERATIONS)).encode()).hexdigest()}), file=sys.stderr, flush=True)
+    require(arguments_admitted, 'ui:arguments')
     child = sys.argv[5] if len(sys.argv) == 6 else None
     require(child is None or (child in NAMED_CUSTOM_CHILDREN and
             sys.argv[1] in NAMED_CHILD_OPERATIONS), 'ui:custom-child-binding')

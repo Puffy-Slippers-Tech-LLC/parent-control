@@ -271,10 +271,11 @@ sub flatpak_temporary_access {
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ($kind eq 'flatpak' && ($route eq 'command' && $surface eq 'kiosk'
                                   || $route eq 'grid' && $surface eq 'overlay')
-            || $kind eq 'native' && $route eq 'grid' && ($surface eq 'overlay' || $surface eq 'kiosk'));
+            || $kind eq 'native' && ($route eq 'grid' && ($surface eq 'overlay' || $surface eq 'kiosk')
+                                    || $route eq 'command' && $surface eq 'kiosk'));
     my $seconds = $kind eq 'native' ? 30 : 300;
     my $journey = onpc_journey->new(exchange => $exchange,
-        prefix => $kind eq 'native' ? ($surface eq 'kiosk' ? 'native-grid-kiosk-temporary-access'
+        prefix => $kind eq 'native' ? ($surface eq 'kiosk' ? "native-$route-kiosk-temporary-access"
                                                                        : 'native-grid-temporary-access')
             : $route eq 'grid' ? 'flatpak-grid-temporary-access' : 'flatpak-temporary-access', review => 0);
     $journey->declare_invocations($declared);

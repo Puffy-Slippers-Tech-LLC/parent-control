@@ -33,6 +33,15 @@ def preparation_format(source, commands):
     capture = base.Capture(source, commands, None)
     capture.directory_identity = capture.private_directory()
     capture.state = capture.read_state()
+    if (capture.state['phase'] != 'finalized' or
+            capture.state['source']['layout']['uuid'] != source.uuid or
+            capture.state['script_digest'] != capture.script_digest):
+        print('appsnapshot-preparation: ' + json.dumps({
+            'phase': capture.state['phase'],
+            'vm_identity_matches': capture.state['source']['layout']['uuid'] == source.uuid,
+            'saved_source_sha256': capture.state['script_digest'],
+            'current_source_sha256': capture.script_digest}, sort_keys=True),
+            file=sys.stderr, flush=True)
     system.require(capture.state['phase'] == 'finalized' and
                    capture.state['source']['layout']['uuid'] == source.uuid and
                    capture.state['script_digest'] == capture.script_digest,

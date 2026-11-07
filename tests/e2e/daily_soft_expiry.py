@@ -1,4 +1,4 @@
-"""Case 164: original grant expiry alone keeps daily access and Soft use."""
+"""Cases 164/165: daily access after expiry, with no action or normal unlock."""
 from dataclasses import replace
 import time
 
@@ -6,8 +6,9 @@ from accessible_ui import countdown_seconds
 from countdown import CountdownSample
 from daily_soft_profile import PLAN as PROFILE_PLAN, SCREENS as PROFILE_SCREENS, DailySoftProfileJourney
 from installed_journey import record_installed_journey
-from journey_blocks import (fresh_desktop, native_activity_entry, native_activity_resume,
-                            native_usable_app, prefixed_stages,
+from journey_blocks import (fresh_desktop, lock_challenge, lock_recipient,
+                            native_activity_entry, native_activity_resume,
+                            native_blocked_app, native_usable_app, prefixed_stages,
                             retained_app_activities, retained_app_visit)
 from native_fixtures import fixture_actions
 from private_artifacts import require
@@ -65,6 +66,43 @@ PLAN = replace(PROFILE_PLAN,
 )
 
 
+# Expiry is witnessed on the original child desktop. Only the declared normal
+# lock/unlock restores policy; no other desktop visit intervenes in app results.
+UNLOCK = {
+    'expired-soft-opened': 'ui:overlay-native-policy-soft-activity',
+    'expired-soft-submit': 'ui:overlay-native-soft-resubmit',
+    'expired-soft-submitted': 'ui:overlay-native-soft-submitted',
+    'lock-ready': 'ui:fresh-child-desktop',
+    'lock': 'system:child-lock',
+    **lock_challenge(account='child'),
+    **lock_recipient(account='child'),
+    'unlock-desktop': 'ui:fresh-child-desktop',
+}
+UNLOCK_RESULTS = {
+    'restored-soft-closed': 'ui:overlay-native-policy-soft-closed',
+    **prefixed_stages('blocked-hard', native_blocked_app('H', child='child')),
+    **prefixed_stages('blocked-soft', native_blocked_app('S', child='child')),
+    **native_activity_resume('allowed-return', child='child'),
+    'final-child-countdown': 'ui:child-countdown-present',
+    **retained_app_visit('peer-return', account='other-child', source='desktop', source_account='child'),
+}
+UNLOCK_SCREENS = {**PEER, **PROFILE_SCREENS, **EXPIRY, **UNLOCK, **UNLOCK_RESULTS}
+# Use the saved Allowed A executable, rather than the trusted activity helper,
+# for this branch's original work. Its public capture/resume binding is shared.
+UNLOCK_SCREENS['allowed-command'] = 'ui:overlay-native-command-launch'
+UNLOCK_PLAN = replace(PLAN,
+    worker_mode='daily_soft_unlock', screen_tags=UNLOCK_SCREENS,
+    phases={**{stage: phase for stage, phase in PLAN.phases.items()
+               if stage in UNLOCK_SCREENS or stage in ('ready', 'setup-detached')},
+        **{stage: 'step-2' for stage in UNLOCK},
+        **{stage: 'step-3' for stage in UNLOCK_RESULTS}},
+    advance_after={'positive-child-witness': 'step-2', 'unlock-desktop': 'step-3'},
+    activity_checks={**PLAN.activity_checks,
+        'restored-soft-closed': ('soft-capture', 'closed')},
+    activity_entries={**PLAN.activity_entries, 'lock-ready': 'allowed-capture'},
+)
+
+
 class DailySoftExpiryJourney(DailySoftProfileJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan, actions=actions if actions is not None else {
@@ -106,11 +144,19 @@ class DailySoftExpiryJourney(DailySoftProfileJourney):
 
 
 def execute(recorder, context):
+    execute_branch(recorder, context, PLAN, 'none')
+
+
+def execute_unlock(recorder, context):
+    execute_branch(recorder, context, UNLOCK_PLAN, 'unlock')
+
+
+def execute_branch(recorder, context, plan, branch):
     from e2e_fixture_preparation import ACTIVITY_SUBSETS
     context.fixture_subsets = ACTIVITY_SUBSETS
-    context.fixture_caller = 'E2E-038/none'
-    record_installed_journey(recorder, context, PLAN, timeout=3000,
+    context.fixture_caller = 'E2E-038/' + branch
+    record_installed_journey(recorder, context, plan, timeout=3000,
                              journey_type=DailySoftExpiryJourney)
 
 
-E2E_CASES = {'none': execute}
+E2E_CASES = {'none': execute, 'unlock': execute_unlock}

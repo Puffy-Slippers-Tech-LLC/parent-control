@@ -498,10 +498,12 @@ sub prepare_daily_soft_profile {
 
 sub daily_soft_expiry {
     onpc_progress::operation('Keeping child access after extra time expires with daily time left');
-    my ($exchange, $declared, $challenges, $request) = @_;
-    die 'flow18:binding' unless @_ == 4 && ref($exchange) eq 'CODE'
+    my ($exchange, $declared, $challenges, $request, $restore) = @_;
+    $restore //= 'none';
+    die 'flow18:binding' unless (@_ == 4 || @_ == 5) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
-        && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,6,1';
+        && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,6,1'
+        && ($restore eq 'none' || $restore eq 'unlock');
     # Keep FLOW18's qualified approval scope and exact request binding.
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'daily-soft-profile', review => 0);
     $journey->declare_invocations($declared);
@@ -510,14 +512,29 @@ sub daily_soft_expiry {
     onpc_gdm::reattach_functional();
     retained_app_activities($journey, [['peer', 'other-child', 'fresh']]);
     prepare_daily_soft_profile($journey);
-    native_activity_entry($journey, 'allowed', 'command', 'child');
+    if ($restore eq 'unlock') {
+        my $allowed = $journey->scope('allowed');
+        native_usable_app($allowed, 'command', $allowed->seen('desktop'), 'child');
+        native_read_activity($journey, 'allowed-capture');
+    } else {
+        native_activity_entry($journey, 'allowed', 'command', 'child');
+    }
     $journey->seen($_) for qw(expiry-wait-first expiry-wait-last expired-countdown);
-    native_activity_resume($journey, 'allowed-return');
+    native_activity_resume($journey, 'allowed-return') if $restore eq 'none';
     my $soft = $journey->scope('expired-soft');
     native_use_app($soft, $soft->seen('opened'));
-    native_finish_app($soft);
-    my $fresh = $journey->scope('new-soft');
-    native_usable_app($fresh, 'command', $fresh->seen('desktop'), 'child', 'S');
+    if ($restore eq 'unlock') {
+        onpc_desktop_session::lock($journey, $journey->seen('lock-ready'), 'lock-ready');
+        onpc_desktop_session::unlock_success($journey);
+        native_read_activity($journey, 'restored-soft-closed');
+        native_blocked_app($journey->scope('blocked-hard'), 'H');
+        native_blocked_app($journey->scope('blocked-soft'), 'S');
+        native_activity_resume($journey, 'allowed-return');
+    } else {
+        native_finish_app($soft);
+        my $fresh = $journey->scope('new-soft');
+        native_usable_app($fresh, 'command', $fresh->seen('desktop'), 'child', 'S');
+    }
     $journey->seen('final-child-countdown');
     retained_app_visit($journey, 'peer-return', 'other-child', 'desktop', 'child');
     $journey->finish();

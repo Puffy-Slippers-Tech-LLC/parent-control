@@ -15,8 +15,8 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">116</span>/<span style="color: gray">80</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6566</span>/<span style="color: gray">80</span>/6646** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">117</span>/<span style="color: gray">79</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6567</span>/<span style="color: gray">79</span>/6646** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">115</span>/<span style="color: gray">80</span>/195 |
+| customer-journey | <span style="color: green">116</span>/<span style="color: gray">79</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -125,6 +125,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [159](#scenario-159) | Choose allowances and save edits (flow: save order) | `E2E-035/save-order` | ready |
 | [160](#scenario-160) | Revoke when there is no active grant (balance: daily positive) | `E2E-036/daily-positive` | ready |
 | [164](#scenario-164) | Keep daily access after a grant ends and restore soft-app blocks (restore: none) | `E2E-038/none` | ready |
+| [165](#scenario-165) | Keep daily access after a grant ends and restore soft-app blocks (restore: unlock) | `E2E-038/unlock` | ready |
 | [184](#scenario-184) | Search the app list and edit match rules (flow: search filters) | `E2E-041/search-filters` | ready |
 | [185](#scenario-185) | Search the app list and edit match rules (flow: match editor) | `E2E-041/match-editor` | ready |
 | [186](#scenario-186) | Search the app list and edit match rules (flow: match reopen) | `E2E-041/match-reopen` | ready |
@@ -189,7 +190,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[156](#scenario-156)</span> | <span style="color: gray">Send reviewed feedback and read service acceptance</span> | <span style="color: gray">`E2E-032/success`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[157](#scenario-157)</span> | <span style="color: gray">Recover feedback sending after reconnecting</span> | <span style="color: gray">`E2E-033/retry`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[161](#scenario-161)</span> | <span style="color: gray">Revoke when there is no active grant (balance: zero total)</span> | <span style="color: gray">`E2E-036/zero-total`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[165](#scenario-165)</span> | <span style="color: gray">Keep daily access after a grant ends and restore soft-app blocks (restore: unlock)</span> | <span style="color: gray">`E2E-038/unlock`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[166](#scenario-166)</span> | <span style="color: gray">Keep daily access after a grant ends and restore soft-app blocks (restore: fresh login)</span> | <span style="color: gray">`E2E-038/fresh-login`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[167](#scenario-167)</span> | <span style="color: gray">Keep daily access after a grant ends and restore soft-app blocks (restore: allowance edit)</span> | <span style="color: gray">`E2E-038/allowance-edit`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[168](#scenario-168)</span> | <span style="color: gray">Keep daily access after a grant ends and restore soft-app blocks (restore: toggle)</span> | <span style="color: gray">`E2E-038/toggle`</span> | <span style="color: gray">pending</span> |
@@ -1511,6 +1511,20 @@ Variant: restore: none
 - Return while the grant is active. Stay on that child desktop until the interval recorded from the earlier displayed grant has elapsed, while the countdown still shows usable daily time. Verify continuing soft-app use, then perform exactly the declared restoring action or continue normally for none. Do not switch to Parent merely to inspect expiry.
 - On the resulting child desktop, inspect existing apps and new launches before any further user switch. None retains soft launches; unlock/revoke closes matching apps; fresh-login denies new launches; allowance-edit, toggle and unchanged app-save restore launch blocks without closing earlier apps. Only after these checks revisit the other user's activity.
 
+### Scenario 165
+
+**Keep daily access after a grant ends and restore soft-app blocks (restore: unlock)**
+
+Case: `E2E-038/unlock` · Category: customer-journey · Status: **ready**
+
+Variant: restore: unlock
+
+**Steps:**
+
+- Prepare the recipe's daily-dominant balance through actual approval and time away, without reapplying app rules after soft-app approval. Open recognizable allowed and soft activities and another user's activity.
+- Return while the grant is active. Stay on that child desktop until the interval recorded from the earlier displayed grant has elapsed, while the countdown still shows usable daily time. Verify continuing soft-app use, then perform exactly the declared restoring action or continue normally for none. Do not switch to Parent merely to inspect expiry.
+- On the resulting child desktop, inspect existing apps and new launches before any further user switch. None retains soft launches; unlock/revoke closes matching apps; fresh-login denies new launches; allowance-edit, toggle and unchanged app-save restore launch blocks without closing earlier apps. Only after these checks revisit the other user's activity.
+
 ### Scenario 184
 
 **Search the app list and edit match rules (flow: search filters)**
@@ -2649,26 +2663,6 @@ Variant: balance: zero total
 - With daily time left, revisit the child: the earlier soft app closes, blocked launches fail and allowed work remains usable. Daily time stays unchanged.
 
 Pending: Excluded from E2E scheduling: local zero-balance Revoke availability is owned by tests/ui/test\_preview\_smoke.py::test\_parent\_zero\_balance\_keeps\_revoke\_unavailable\_with\_limits\_on\_and\_off, with executable UI coverage. No standalone customer journey or new E2E task is claimed; retain this stable ID and historical completion.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 165
-
-**Keep daily access after a grant ends and restore soft-app blocks (restore: unlock)**
-
-Case: `E2E-038/unlock` · Category: customer-journey · Status: **pending**
-
-Variant: restore: unlock
-
-**Steps:**
-
-- Prepare the recipe's daily-dominant balance through actual approval and time away, without reapplying app rules after soft-app approval. Open recognizable allowed and soft activities and another user's activity.
-- Return while the grant is active. Stay on that child desktop until the interval recorded from the earlier displayed grant has elapsed, while the countdown still shows usable daily time. Verify continuing soft-app use, then perform exactly the declared restoring action or continue normally for none. Do not switch to Parent merely to inspect expiry.
-- On the resulting child desktop, inspect existing apps and new launches before any further user switch. None retains soft launches; unlock/revoke closes matching apps; fresh-login denies new launches; allowance-edit, toggle and unchanged app-save restore launch blocks without closing earlier apps. Only after these checks revisit the other user's activity.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 

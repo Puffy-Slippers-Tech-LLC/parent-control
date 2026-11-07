@@ -1128,7 +1128,7 @@ def test_fresh_vm_queue_resets_queued_progress_even_when_host_fails(tmp_path, mo
     # boundary, with all competing VM coordinators excluded.
     import fcntl
     import test_activity
-    from test_checkpoint import recover_family_claims
+    from test_checkpoint import family_claims_pending, recover_family_claims
     from vm_case_queue import work_items, work_key
     pending = Checkpoint(tmp_path, selection, resume=True, binding=binding,
                          namespace='run-tests-family')
@@ -1137,6 +1137,29 @@ def test_fresh_vm_queue_resets_queued_progress_even_when_host_fails(tmp_path, mo
     pending.state.update(queue_claims={key: vm.name}, queue_items={key: work})
     pending.entry('e2e')['passed'] = ['old-pass']
     pending.save()
+    before = (pending.store.path / 'current.json').read_bytes()
+    assert family_claims_pending(tmp_path, vm.name) == 1
+    assert family_claims_pending(tmp_path, 'another-guest') == 0
+    assert (pending.store.path / 'current.json').read_bytes() == before
+    # Fresh-launch recovery must stop on a refused cleanup without resetting
+    # ownership or promoting the retained pass. Inspection/resume do no cleanup.
+    from contextlib import nullcontext
+    import regression_process
+    import test_launcher
+    from test_recovery import before_queue
+    control = Mock()
+    control.installed.return_value = nullcontext(control)
+    control.run.return_value = 2
+    with monkeypatch.context() as patch:
+        patch.setattr(regression_process, 'Control', lambda: control)
+        patch.setattr(test_launcher, 'environment', lambda root: {})
+        assert before_queue(tmp_path, ['--resume', 'vm']) == 0
+        assert before_queue(tmp_path, ['vm', '--list']) == 0
+        control.run.assert_not_called()
+        assert before_queue(tmp_path, ['vm']) == 2
+        assert control.run.call_args.args[0] == [str(tmp_path / 'tools/cleanup-e2e'),
+                                               '--vm', vm.name, '--vm-only']
+    assert (pending.store.path / 'current.json').read_bytes() == before
     with pytest.raises(ValueError, match='remain claimed'):
         Checkpoint(tmp_path, selection, binding=binding, namespace='run-tests-family')
     with test_activity.activity(tmp_path, named_vm=True):
@@ -1161,6 +1184,7 @@ def test_fresh_vm_queue_resets_queued_progress_even_when_host_fails(tmp_path, mo
                            namespace='run-tests-family')
     assert recovered.state['queue_claims'] == {} and recovered.passed('e2e') == set()
     assert not recovered.complete('e2e')
+    assert family_claims_pending(tmp_path, vm.name) == 0
     Checkpoint(tmp_path, selection, binding=binding, namespace='run-tests-family')
 
 

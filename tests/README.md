@@ -394,6 +394,12 @@ unit 'tests/unit/test_core.py' -q`. A new execution without `--resume` resets th
 checkpoint for the selected categories and starts that selection from the beginning;
 other categories in the same scope retain their progress. Attachment to a live
 owner keeps that owner's options; inspection never changes checkpoints.
+Before a fresh VM queue resets progress, it checks for retained claims owned by
+the selected VMs and runs maintained VM-only cleanup for those owners
+(`tools/cleanup-e2e --vm NAME --vm-only`). Recovery takes
+the VM reservation and excludes competing queue writers before returning claims
+to pending; a failed recovery preserves the claims and stops the launch.
+Resumed queues retain their ownership and recover through their original workers.
 Explicit resume parameters must match the saved request; omitted options are
 inherited. VM names and IDs are compatible when they resolve to the same VM set.
 Incompatible parameters fail before attachment or execution and report the previous

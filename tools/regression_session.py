@@ -341,6 +341,13 @@ def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
     sys.stdout = SessionOutput(run, original)
     try:
         from test_commands import _main, selections, host_only_selection
+        from test_recovery import before_queue
+        # Fresh family progress cannot reset retained claims until the original
+        # VMs have passed owned cleanup. Do this before holding the batch gate,
+        # which would otherwise exclude that same standalone recovery.
+        status = before_queue(root, argv)
+        if status:
+            return status
         from vm_pool import selected_reservation
         from test_commands import host_only_request, includes_host_request
         resources.enter_context(selected_reservation(enabled=not host_only_request(argv),

@@ -24,9 +24,7 @@ EXPIRY = {
 }
 RESULTS = {
     **native_activity_resume('allowed-return', child='child'),
-    'expired-soft-opened': 'ui:overlay-native-policy-soft-activity',
-    'expired-soft-submit': 'ui:overlay-native-soft-resubmit',
-    'expired-soft-submitted': 'ui:overlay-native-soft-submitted',
+    **native_activity_resume('expired-soft', child='child', binding='policy-soft'),
     # Close normally after proving the old window usable, so the next launch
     # independently establishes new execution rather than activating that window.
     'expired-soft-close': 'ui:overlay-native-soft-close',
@@ -69,9 +67,7 @@ PLAN = replace(PROFILE_PLAN,
 # Expiry is witnessed on the original child desktop. Only the declared normal
 # lock/unlock restores policy; no other desktop visit intervenes in app results.
 UNLOCK = {
-    'expired-soft-opened': 'ui:overlay-native-policy-soft-activity',
-    'expired-soft-submit': 'ui:overlay-native-soft-resubmit',
-    'expired-soft-submitted': 'ui:overlay-native-soft-submitted',
+    **native_activity_resume('expired-soft', child='child', binding='policy-soft'),
     'lock-ready': 'ui:fresh-child-desktop',
     'lock': 'system:child-lock',
     **lock_challenge(account='child'),
@@ -106,9 +102,7 @@ UNLOCK_PLAN = replace(PLAN,
 # Logout ends the original windows. Observe the same expiry before leaving,
 # then require fresh entry and new launch results without a retained-work claim.
 FRESH_LOGIN = {
-    'expired-soft-opened': 'ui:overlay-native-policy-soft-activity',
-    'expired-soft-submit': 'ui:overlay-native-soft-resubmit',
-    'expired-soft-submitted': 'ui:overlay-native-soft-submitted',
+    **native_activity_resume('expired-soft', child='child', binding='policy-soft'),
     **desktop_return('expired-child', account='child', action='logout'),
     **prefixed_stages('fresh-child', desktop_entry('child', source='gdm', entry='fresh')),
 }

@@ -8,7 +8,8 @@ from countdown import CountdownObservation, check_countdown_balance
 from grant_only_profile import GrantOnlyProfileJourney
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (custom_allowance, desktop_entry, desktop_return, fresh_desktop,
-                            grant_only_time_profile, native_usable_app, prefixed_stages)
+                            grant_only_time_profile, native_activity_resume,
+                            native_usable_app, prefixed_stages)
 from kiosk_approved_flow import obtain_time
 from named_app_set import APPS, named_app_set
 from native_fixtures import fixture_actions
@@ -159,9 +160,7 @@ RETAINED_INCLUDED_REPLACEMENT = {
                   duration_seconds=RECOVERY_SECONDS, allow_soft=True, exit='automatic'),
     **prefixed_stages('replacement-child', desktop_entry('child', source='gdm', entry='retained')),
     'replacement-countdown': 'ui:child-countdown-present',
-    'original-soft-return-opened': 'ui:overlay-native-policy-soft-activity',
-    'original-soft-return-submit': 'ui:overlay-native-soft-resubmit',
-    'original-soft-return-submitted': 'ui:overlay-native-soft-submitted',
+    **native_activity_resume('original-soft-return', child='child', binding='policy-soft'),
     'original-soft-return-close': 'ui:overlay-native-soft-close',
     'original-soft-return-closed': 'ui:overlay-native-soft-closed',
     'hard-denied': 'ui:overlay-native-hard-command-blocked',

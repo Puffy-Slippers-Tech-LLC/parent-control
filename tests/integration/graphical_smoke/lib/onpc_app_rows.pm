@@ -521,8 +521,7 @@ sub daily_soft_expiry {
     }
     $journey->seen($_) for qw(expiry-wait-first expiry-wait-last expired-countdown);
     native_activity_resume($journey, 'allowed-return') if $restore eq 'none';
-    my $soft = $journey->scope('expired-soft');
-    native_use_app($soft, $soft->seen('opened'));
+    native_activity_resume($journey, 'expired-soft');
     if ($restore eq 'unlock') {
         onpc_desktop_session::lock($journey, $journey->seen('lock-ready'), 'lock-ready');
         onpc_desktop_session::unlock_success($journey);
@@ -540,7 +539,7 @@ sub daily_soft_expiry {
         my $allowed = $journey->scope('new-allowed');
         native_usable_app($allowed, 'command', $allowed->seen('desktop'), 'child', 'A');
     } else {
-        native_finish_app($soft);
+        native_finish_app($journey->scope('expired-soft'));
         my $fresh = $journey->scope('new-soft');
         native_usable_app($fresh, 'command', $fresh->seen('desktop'), 'child', 'S');
     }

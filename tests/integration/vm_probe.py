@@ -1102,6 +1102,19 @@ def probe_overlay_activity(lease):
         ui_operation='overlay-native-activity')
 
 
+def reproduce_daily_soft_balance(lease, fixture_selection):
+    """Retain the daily-expiry Parent return before comparing its original grant."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from daily_soft_expiry import DailySoftExpiryJourney, PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, DailySoftExpiryJourney, PLAN,
+        'return-balance', 'daily-soft-balance', assets=assets,
+        boundary_operation='time-explanation-refresh-read', fixture_selection=selection, timeout=1800)
+
+
 def reproduce_native_denial(lease, fixture_selection):
     """Retain Jordan's first native command denial after the actual Parent saves."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1645,6 +1658,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if surface == 'native-temporary-access':
             from native_temporary_access import TemporaryAccessJourney as NativeTemporaryAccessJourney, COMMAND_KIOSK_PLAN
         from app_restart_expired import AppRestartExpiredJourney, SIGN_OUT_PLAN
+        from daily_soft_expiry import DailySoftExpiryJourney, PLAN as DAILY_SOFT_PLAN
         restoration = (surface == 'baseline-restoration'
             and journey_type is BaselineJourney and plan is PLAN
             and boundary == 'restore-saved' and boundary_operation == 'parent-save-disabled'
@@ -1711,7 +1725,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             and journey_type is AppRestartExpiredJourney and plan is SIGN_OUT_PLAN
             and boundary == 'boundary-child-gdm-logged-out'
             and boundary_operation == 'gdm-returned')
-        system.require(selected_setup and (restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or expired_sign_out)
+        daily_soft_balance = (surface == 'daily-soft-balance'
+            and journey_type is DailySoftExpiryJourney and plan is DAILY_SOFT_PLAN
+            and boundary == 'return-balance' and boundary_operation == 'time-explanation-refresh-read')
+        system.require(selected_setup and (restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or expired_sign_out or daily_soft_balance)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1770,6 +1787,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                                        'panel-request': 'E2E-012/excluded-first',
                                        'reboot-context': 'E2E-022/reboot-active',
                                        'expired-sign-out': 'E2E-022/sign-out-in-expired',
+                                       'daily-soft-balance': 'E2E-038/none',
                                        'overlay-return': 'check_e2e_compose_approval_and_return_to_the_child'
                                        }.get(surface, ACTIVITY_CALLER))
             context.installed_snapshot = lease.installed_name
@@ -1797,6 +1815,11 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             credentials.provision_online(lease, transport)
 
         class Reproduction(journey_type):
+            def check_settings(self, stage, observed):
+                if surface == 'daily-soft-balance' and stage == 'away-balance':
+                    observed['diagnostic_read_bounds'] = list(self.ui.read_bounds)
+                return super().check_settings(stage, observed)
+
             def _step(self, guard):
                 stage = self.plan.stages[len(self.steps)]
                 if (capture is not None and stage == 'retained-recipient-qualified'
@@ -1879,7 +1902,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                         else:
                             # This diagnostic must retain the already qualified
                             # prompt identity and normal fresh-proof deadline.
-                            observer = (journey.ui if surface in ('delayed-approval', 'suspend-active-grant', 'suspend-expired-grant', 'native-temporary-access')
+                            observer = (journey.ui if surface in ('delayed-approval', 'suspend-active-grant', 'suspend-expired-grant', 'native-temporary-access', 'daily-soft-balance')
                                         else UiObservations(transport))
                             if surface == 'native-temporary-access':
                                 import accessible_ui
@@ -1902,6 +1925,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                             observed = observer.observe(boundary_operation, **(
                                 {'child': plan.child_bindings[boundary]}
                                 if plan is not None and boundary in plan.child_bindings else {}))
+                            if surface == 'daily-soft-balance':
+                                observed['diagnostic_read_bounds'] = list(observer.read_bounds)
                     except Exception as error:
                         observed = {'outcome': 'refused', 'error_type': type(error).__name__}
                         # Capture before guard probes can replace the SSH status.

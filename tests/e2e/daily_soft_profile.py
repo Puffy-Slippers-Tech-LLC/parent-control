@@ -91,6 +91,7 @@ class DailySoftProfileJourney(AppPolicyJourney):
             'real-interval': self.wait_away})
         self.parent_window = None
         self.away_balance = None
+        self.away_read_bounds = None
         self.return_balance = None
         self.return_boot = None
         self.away_wait = None
@@ -119,25 +120,33 @@ class DailySoftProfileJourney(AppPolicyJourney):
                     'flow18:positive-balances')
             if stage == 'away-balance':
                 self.away_balance = deepcopy(balance)
+                self.away_read_bounds = tuple(self.ui.read_bounds)
                 # Target a broad gap, not a narrow near-expiry grant window.
                 # Leave 30 seconds beyond the required 180-second gap for reads.
                 self.away_wait = max(0, 210 - (daily - grant - 2 * precision))
                 require(self.away_wait <= 300 and grant - precision - self.away_wait >= 240,
                         'flow18:unreachable-return-margin')
             else:
-                require(self.away_balance is not None, 'flow18:missing-away-balance')
-                elapsed = (balance['observed_monotonic_ns']
-                           - self.away_balance['observed_monotonic_ns']) / 1e9
-                require(0 < elapsed <= 360, 'flow18:away-deadline')
+                require(self.away_balance is not None and self.away_read_bounds is not None,
+                        'flow18:missing-away-balance')
+                # Parent loads status during each refresh, before the guest
+                # stamps its final text read. Unequal navigation/read delays
+                # are observation uncertainty, not grant consumption.
+                start, end = self.ui.read_bounds
+                elapsed_low = (start - self.away_read_bounds[1]) / 1e9
+                elapsed_high = (end - self.away_read_bounds[0]) / 1e9
+                require(0 < elapsed_low <= elapsed_high <= 360, 'flow18:away-deadline')
                 previous = self.away_balance
                 require(abs(daily - previous['daily']['seconds']) <= 2 * precision
-                        and abs(grant - (previous['one_time']['seconds'] - elapsed)) <= 3 * precision,
+                        and previous['one_time']['seconds'] - elapsed_high - 3 * precision
+                            <= grant <= previous['one_time']['seconds'] - elapsed_low + 3 * precision,
                         'flow18:inactive-daily-original-grant')
                 require(grant - precision >= 180 and daily - grant - 2 * precision >= 180,
                         'flow18:parent-return-reserves')
                 self.return_balance = deepcopy(balance)
                 self.return_boot = observed['boot_sha256']
                 observed['comparison'] = {'daily_dominant': True,
+                    'elapsed_interval_seconds': [elapsed_low, elapsed_high],
                     'grant_reserve_seconds': grant - precision,
                     'dominance_reserve_seconds': daily - grant - 2 * precision}
         if stage == 'positive-child-witness':

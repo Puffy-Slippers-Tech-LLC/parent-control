@@ -276,6 +276,12 @@ class Output:
                 return False
             if state.get('pending_completion') or state.get('phase') == 'complete':
                 return True
+            # Reconciliation retains the accepted result outside
+            # pending_completion, including while waiting for the Git lock.
+            accepted = state.get('git_reconciliation', {}).get('accepted_result', {})
+            if (accepted.get('status') == 'task_complete'
+                    and accepted.get('task_id') == state.get('task_id')):
+                return True
             # The Session tab can become inactive before the controller saves
             # pending_completion, while it validates the finished task response.
             if session_inactive and state.get('in_flight'):

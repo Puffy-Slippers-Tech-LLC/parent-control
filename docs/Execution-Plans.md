@@ -541,7 +541,9 @@ Single-task E2E runs publish the same completed recap as multi-task runs.
 Watch shows `[branch] launcher (Closing Task)` during task close-out, with
 `Closing Task` in green. This includes the inactive, struck-through Session
 interval while the controller processes a completion response, validation and
-the commit skill's commit, push and propagation. It clears when the green
+the commit skill's commit, push and propagation. Retained accepted results in
+Git reconciliation also count, including repository synchronization lock waits.
+It clears when the green
 completed task recap appears in Status. Stop and reload notices take priority.
 
 The current task summary uses the plan's plain-language task title. Its separator

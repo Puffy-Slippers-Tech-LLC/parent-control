@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 import runpy
 import sys
+import tempfile
+import traceback
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -23,6 +25,33 @@ def allocate(factory, *args, **kwargs):
     if producer is not None:
         producer.start(Path(path))
     return path
+
+
+def run_qualification(label, qualify, *, preflight, **session_options):
+    """Run a fixture proof inside its existing retention and failure envelope.
+
+    Callers own admission checks, finite inputs, VM lifecycle and assertions.
+    Success is reported only after both the proof and retention session close.
+    """
+    import system_runner as system
+
+    directory = None
+    try:
+        preflight()
+        os.umask(0o077)
+        with session(**session_options):
+            directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-' + label + '-'))
+            result = qualify(directory)
+            (directory / 'result.json').write_bytes(system.baseline.encode(result))
+        print(label + ': passed; evidence=' + str(directory), flush=True)
+        return 0
+    except (Exception, KeyboardInterrupt) as error:
+        if directory is not None:
+            (directory / 'controller-error.txt').write_text(traceback.format_exc())
+        print(label + ': ' + system.error_category(error), file=sys.stderr, flush=True)
+        if directory is not None:
+            print(label + ': evidence=' + str(directory), file=sys.stderr, flush=True)
+        return 1
 
 
 class _Producer:

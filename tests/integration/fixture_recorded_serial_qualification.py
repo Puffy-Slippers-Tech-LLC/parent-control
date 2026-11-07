@@ -8,8 +8,6 @@ import json
 import os
 from pathlib import Path
 import sys
-import tempfile
-import traceback
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -20,7 +18,7 @@ import execution
 import inventory
 import serial_harness
 import fixture_transfer_qualification as transfer
-from qualification_storage import allocate, session
+from qualification_storage import run_qualification
 import system_runner as system
 from tools import fixture_execution, fixture_provision
 from tools.test_storage import authenticated_input
@@ -157,21 +155,10 @@ def qualify(directory, assets, selection):
 
 
 def main(*, assets, selection):
-    directory = None
-    try:
+    def preflight():
         system.require(os.geteuid() == 0, 'fixture-recorded-serial:root-required')
         selected_target()
-        os.umask(0o077)
-        with session(check='check_fixture_recorded_serial', inputs={'fixture_selection': selection}):
-            directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-fixture-recorded-serial-'))
-            result = qualify(directory, assets, selection)
-            (directory / 'result.json').write_bytes(system.baseline.encode(result))
-        print('fixture-recorded-serial: passed; evidence=' + str(directory), flush=True)
-        return 0
-    except (Exception, KeyboardInterrupt) as error:
-        if directory is not None:
-            (directory / 'controller-error.txt').write_text(traceback.format_exc())
-        print('fixture-recorded-serial: ' + system.error_category(error), file=sys.stderr, flush=True)
-        if directory is not None:
-            print('fixture-recorded-serial: evidence=' + str(directory), file=sys.stderr, flush=True)
-        return 1
+
+    return run_qualification('fixture-recorded-serial',
+        lambda directory: qualify(directory, assets, selection), preflight=preflight,
+        check='check_fixture_recorded_serial', inputs={'fixture_selection': selection})

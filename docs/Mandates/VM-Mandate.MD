@@ -322,6 +322,9 @@ rules.
   challenge and work as applicable. Increasing a failure timeout must add no
   normal-path delay; use bounded polling or the existing event observation and
   finish as soon as the result is established.
+  Session numbers can repeat after reboot: compare them only within a verified
+  boot. Across reboot, prove the changed boot and the required fresh usable
+  desktop or app instead of requiring a different session number.
 - **Budget the complete sequence.** Account for observation and transport
   costs, not just input time. Keep one monotonic deadline per bounded sequence;
   nested waits consume its remaining time and read-only retries cannot renew

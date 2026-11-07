@@ -4,8 +4,6 @@ import json
 import os
 from pathlib import Path
 import sys
-import tempfile
-import traceback
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -20,7 +18,7 @@ import fixture_provision_qualification as proof
 from execution import open_source
 from provenance import preflight_source
 from suite_lease import Suite
-from qualification_storage import allocate, session
+from qualification_storage import run_qualification
 import system_runner as system
 from tools import fixture_execution, fixture_provision
 from tools.test_storage import authenticated_input
@@ -191,22 +189,10 @@ def qualify(directory, assets, selection, *, serial=False):
 
 
 def main(*, assets, selection, serial=False):
-    directory = None
-    label = 'fixture-serial' if serial else 'fixture-transfer'
-    try:
+    def preflight():
         system.require(os.geteuid() == 0, 'fixture-transfer:root-required')
         selected_target(**({'serial': True} if serial else {}))
-        os.umask(0o077)
-        with session():
-            directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-' + label + '-'))
-            result = qualify(directory, assets, selection, **({'serial': True} if serial else {}))
-            (directory / 'result.json').write_bytes(system.baseline.encode(result))
-        print(label + ': passed; evidence=' + str(directory), flush=True)
-        return 0
-    except (Exception, KeyboardInterrupt) as error:
-        if directory is not None:
-            (directory / 'controller-error.txt').write_text(traceback.format_exc())
-        print(label + ': ' + system.error_category(error), file=sys.stderr, flush=True)
-        if directory is not None:
-            print(label + ': evidence=' + str(directory), file=sys.stderr, flush=True)
-        return 1
+
+    return run_qualification('fixture-serial' if serial else 'fixture-transfer',
+        lambda directory: qualify(directory, assets, selection, **({'serial': True} if serial else {})),
+        preflight=preflight)

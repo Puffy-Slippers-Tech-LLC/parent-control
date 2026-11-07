@@ -290,6 +290,13 @@ supplies snapshot infrastructure acceptance only.
 
 ## Host and guest boundaries
 
+Fixture qualifications share `qualification_storage.run_qualification` for
+private allocation, result writing and failure reporting. Each caller keeps its
+root/target preflight, finite input selection, proof and any named-session options.
+The helper reuses `session` and `allocate`; it adds no VM, process or cleanup
+owner and reports success only after the proof and retention session finish.
+Recovery diagnostics keep their separate `recovery_session` route.
+
 Inventory subprocesses must keep the checkout being documented after environment
 sanitization. `generate_test_coverage.capture` uses the launcher's existing
 `ONPC_LAUNCHER_CONTROLLER_ROOT` binding; a working directory alone does not

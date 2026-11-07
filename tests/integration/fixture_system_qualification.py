@@ -7,7 +7,6 @@ from copy import deepcopy
 import os
 from pathlib import Path
 import sys
-import tempfile
 import traceback
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -15,7 +14,7 @@ sys.path.insert(0, str(ROOT / 'tests/e2e'))
 sys.path.insert(0, str(ROOT))
 
 from execution import open_source
-from qualification_storage import allocate, session
+from qualification_storage import run_qualification
 from suite_lease import Suite
 import system_runner as system
 import system_snapshots
@@ -270,22 +269,11 @@ def qualify_pinned(directory, assets, selection, manifest, source_allocation, *,
 
 
 def main(*, assets, selection, source_selection, installed=False):
-    directory = None
-    try:
+    def preflight():
         system.require(os.geteuid() == 0, 'fixture-system:root-required')
         selected_target(**({'installed': True} if installed else {}))
-        os.umask(0o077)
-        with session():
-            directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-fixture-system-'))
-            result = qualify(directory, assets, selection, source_selection,
-                             **({'installed': True} if installed else {}))
-            (directory / 'result.json').write_bytes(system.baseline.encode(result))
-        print('fixture-system: passed; evidence=' + str(directory), flush=True)
-        return 0
-    except (Exception, KeyboardInterrupt) as error:
-        if directory is not None:
-            (directory / 'controller-error.txt').write_text(traceback.format_exc())
-        print('fixture-system: ' + system.error_category(error), file=sys.stderr, flush=True)
-        if directory is not None:
-            print('fixture-system: evidence=' + str(directory), file=sys.stderr, flush=True)
-        return 1
+
+    return run_qualification('fixture-system',
+        lambda directory: qualify(directory, assets, selection, source_selection,
+                                  **({'installed': True} if installed else {})),
+        preflight=preflight)

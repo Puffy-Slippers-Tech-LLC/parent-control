@@ -67,10 +67,11 @@ def check_countdown_balance(countdown, *, seconds, precision_seconds,
 
 @dataclass(frozen=True)
 class CountdownSample:
-    """One immutable public endpoint, bracketed on the controller's clock."""
+    """One immutable endpoint with separate controller and guest read brackets."""
     countdown: CountdownObservation
     read_bounds: tuple
     boot_sha256: str
+    guest_read_bounds: tuple
 
     def __post_init__(self):
         require(type(self.countdown) is CountdownObservation and self.countdown.present
@@ -79,17 +80,25 @@ class CountdownSample:
                 and self.read_bounds[0] <= self.read_bounds[1]
                 and type(self.boot_sha256) is str
                 and re.fullmatch(r'[0-9a-f]{64}', self.boot_sha256), 'countdown:sample-binding')
+        require(type(self.guest_read_bounds) is tuple
+                and len(self.guest_read_bounds) == 2
+                and all(type(item) is int and item > 0 for item in self.guest_read_bounds)
+                and self.guest_read_bounds[0] <= self.countdown.observed_monotonic_ns
+                    <= self.guest_read_bounds[1], 'countdown:guest-read-bounds')
 
     @classmethod
     def from_ui(cls, value, *, boot_sha256):
         countdown = CountdownObservation.from_value(value.get('countdown'), present=True)
         bounds = value.get('countdown_read_bounds')
+        guest_bounds = value.get('countdown_guest_read_bounds')
         require(type(bounds) in (list, tuple) and len(bounds) == 2
                 and all(type(item) is int and item > 0 for item in bounds)
                 and bounds[0] <= bounds[1]
                 and type(boot_sha256) is str and re.fullmatch(r'[0-9a-f]{64}', boot_sha256),
                 'countdown:sample-binding')
-        return cls(countdown, tuple(bounds), boot_sha256)
+        require(type(guest_bounds) in (list, tuple) and len(guest_bounds) == 2,
+                'countdown:guest-read-bounds')
+        return cls(countdown, tuple(bounds), boot_sha256, tuple(guest_bounds))
 
     @property
     def precision_seconds(self):

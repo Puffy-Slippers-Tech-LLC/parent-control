@@ -80,6 +80,7 @@ OPERATION_LABELS = {
     'gdm-station-session-chosen': 'Observing station entry after the public desktop choice',
     'gdm-station-full-desktop': 'Checking the station full desktop public controls',
     'child-natural-expiry-observe': 'Observing the active child app or its naturally owned lock',
+    'child-natural-expiry-wait-lock': 'Waiting for the child’s natural lock after submitted work',
     'child-natural-expiry-wrong-account-refused': 'Refusing natural-expiry work on the Parent account',
     'child-natural-expiry-activity': 'Using the owned child app while usable time remains',
     'child-natural-expiry-lock-ready': 'Checking the naturally locked input recipient',
@@ -1092,6 +1093,10 @@ class UiObservations:
             # Leave transport margin around the guest's 150-second verification
             # wait; the journey still owns one deadline for the whole challenge.
             timeout = 180 if operation.endswith(('lock-ready', 'lock-result')) else 15
+        if operation == 'child-natural-expiry-wait-lock':
+            # Up to ten real minutes, original lock allowance, three minutes
+            # for delayed reply delivery, then transport margin; worker: 900s.
+            timeout = 810
         event_trace = operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events',
                                     'feedback-collection-events')
         if (self.system_prompt is None and not form_diagnostics and not event_trace
@@ -1599,6 +1604,10 @@ class UiObservations:
             require(type(source) is str and re.fullmatch(r'[0-9a-f]{64}', source),
                     'ui:natural-expiry-source')
             binding = [self.boot_guard or '', source]
+        if operation == 'child-natural-expiry-wait-lock':
+            deadline = getattr(self, 'natural_expiry_deadline_ns', None)
+            require(type(deadline) is int and deadline > 0, 'ui:natural-expiry-deadline')
+            binding = [self.boot_guard or '', str(deadline)]
         if operation in accessible_ui.COUNTDOWN_SESSION_OPERATIONS - {'child-countdown-session-pin'}:
             source = getattr(self, 'countdown_session_source', None)
             require(type(source) is str and re.fullmatch(r'[0-9a-f]{64}', source),
@@ -1732,15 +1741,23 @@ class UiObservations:
             expected['natural_expiry_refused'] = True
         if operation in accessible_ui.NATURAL_EXPIRY_OPERATIONS:
             engineering = operation in accessible_ui.ENGINEERING_EXPIRY_OPERATIONS
+            waiting = operation == 'child-natural-expiry-wait-lock'
             value = result.get('natural_expiry')
-            require(type(value) is dict and set(value) == {
+            require(type(value) is dict and set(value) == ({
                 'state', 'session_sha256', 'source', 'activity', 'seconds', 'lock', 'acted'}
+                | ({'lock_read_bounds'} if waiting else set()))
                 and value['state'] in ('desktop', 'locked')
                 and type(value['session_sha256']) is str
                 and re.fullmatch(r'[0-9a-f]{64}', value['session_sha256'])
                 and type(value['acted']) is bool
                 and (operation.endswith('-activity') or not value['acted']),
                 'ui:natural-expiry-response')
+            if waiting:
+                bounds = value['lock_read_bounds']
+                require(value['state'] == 'locked' and type(bounds) is list and len(bounds) == 2
+                        and all(type(item) is int and item > 0 for item in bounds)
+                        and bounds[0] <= bounds[1] < self.natural_expiry_deadline_ns,
+                        'ui:natural-expiry-lock-time')
             previous_session = getattr(self, 'natural_expiry_session', value['session_sha256'])
             require(value['session_sha256'] == previous_session, 'ui:natural-expiry-session-changed')
             if value['state'] == 'desktop':
@@ -2101,7 +2118,8 @@ class UiObservations:
                         'ui:countdown-session-replaced')
             expected['session_countdown'] = value
         if operation in accessible_ui.COUNTDOWN_OPERATIONS:
-            require(type(result) is dict and set(result) == {*expected, 'countdown'}, 'ui:response')
+            require(type(result) is dict and set(result) == {
+                *expected, 'countdown', 'countdown_guest_read_bounds'}, 'ui:response')
             expected['countdown'] = accessible_ui.validate_countdown(
                 result['countdown'], operation == 'child-countdown-present',
                 child=accessible_ui.CHILD_IDENTITIES[accessible_ui.kiosk_request_values(
@@ -2109,6 +2127,12 @@ class UiObservations:
                     accessible_ui.CHILD_IDENTITIES[accessible_ui.overlay_request_values(
                     self.overlay_request)[0]] if self.overlay_request is not None else
                     accessible_ui.CHILD_IDENTITIES[accessible_ui.NAMED_CUSTOM_CHILDREN[child or 'child']])
+            bounds = result['countdown_guest_read_bounds']
+            require(type(bounds) is list and len(bounds) == 2
+                    and all(type(item) is int and item > 0 for item in bounds)
+                    and bounds[0] <= result['countdown']['observed_monotonic_ns'] <= bounds[1],
+                    'ui:countdown-read-bounds')
+            expected['countdown_guest_read_bounds'] = bounds
         if operation in accessible_ui.PANEL_ANIMATION_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'panel_animation'}, 'ui:response')
             value = accessible_ui.validate_panel_animation(result['panel_animation'],

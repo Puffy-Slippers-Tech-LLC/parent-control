@@ -328,6 +328,10 @@ Keep host transport imports out of staged guest readers: `guest_inputs.Bundle`
 follows function-local imports too. Moving host code into a local import does
 not remove it from the frozen guest dependency closure. Preserve the shared
 reader, private capture, archive guards and the lease's single-use callback.
+Preparation that directly shuts down a guest must first consume
+`Lease.collect_product_logs()` while its transport and ownership interval are
+live, as in offline app-snapshot capture. A recorded collection failure must
+still fail the final verdict after cleanup, even when product assertions pass.
 
 Native policy workers reuse `onpc_app_rows::fixture_app(role)` for the fixed
 Allowed/Hard/Soft fixture app IDs, matching the controller's `MATCH_APPS`.
@@ -417,6 +421,14 @@ opened window once, closes the worker and retains his desktop for guarded
 the greeter without replying to that checkpoint. Inspect that exact greeter's
 own session bus through guarded `exec`, then finish with `stop`; the diagnostic
 does not continue into expiry or replacement approval and grants no case credit.
+Attached reproductions can use `desktop_session.run_attached(stop_before=...)`
+to retain an exact completed prefix through `installed_journey.validate_boundary`.
+That route closes the worker without replying to the selected stage and returns
+`scene-retained`, never a passed journey. The system expiry reproduction uses it
+to retain the child's original submitted app before the short measured grant,
+then times the same shared observation/activity operations under setup headroom.
+Keep the owned guest for guarded probes and finish with `stop`; timing samples
+from this diagnostic supply no expiry or customer acceptance credit.
 
 Fixture provisioning qualifications reuse
 `system_fixture_preparation.register_staging`, as do system, standalone and E2E
@@ -424,6 +436,11 @@ preparation through `system_fixture_preparation.provision`. The shared writer
 validates the staging path and exclusively creates and flushes the attempt's
 intent before guest writes. Callers retain their finite subsets, failure
 experiments and assertions; the existing VM owner retains restoration and cleanup.
+After a caller-owned reboot and boot-readiness wait, reuse
+`system_fixture_preparation.renew_after_reboot(context)` to update that context's
+receipt and check readiness. System histories, maintenance reproductions and
+package-update cases share this binding; the provisioner's exact input, subset,
+attempt and changed-boot guards remain authoritative. This adds no resource owner.
 
 Parent entry declarations reuse `journey_blocks.parent_management(child=...)`:
 the default `child` selects Riley; `existing` selects Jordan and reads Screen
@@ -529,23 +546,34 @@ before the activity comparison and supplies no acceptance credit. Both routes
 reuse the existing maintenance lease, worker cleanup and evidence allocation.
 
 TIME04's `natural_expiry_observation.await_natural_expiry` receives an immutable
-`CountdownSample` and original `AppActivityObservation`. It readies the public
-child-session observer before normal native Submit actions, preserves the
-initial display's upper bound plus 15 seconds and the attempt deadline, and
-checks the same boot, session and native window before further input. It stops
-app input near zero and when the owned lock appears. Locked observations reuse
-the qualified Shell curtain/restriction reader and never inspect the app below
-the lock. `NaturalExpiryJourney` then obtains a fresh lock recipient proof,
+`CountdownSample` and original `AppActivityObservation`. The existing native
+Submit and independent activity capture prove ordinary usable work before the
+wait. `child-natural-expiry-wait-lock` then observes only the pinned native
+session and qualified Shell curtain/restriction; it reads neither the app nor
+the panel and releases no input. Both lock observations must complete within
+the initial display's upper bound plus 15 seconds, measured on that boot's guest
+monotonic clock. The controller permits three minutes for delayed reply delivery
+without extending the measured lock deadline or the attempt deadline. A timed-out
+read can be reacquired within the original deadline; ownership/session refusals
+remain terminal. This avoids repeated SSH steps and countdown reads in the final
+seconds. A whole-guest pause that prevents timely observation supplies no timing
+proof. `NaturalExpiryJourney` then obtains a fresh lock recipient proof,
 allows one harmless Shift and independently reads the same lock again.
+If natural locking crosses the observer's two native lock reads, it reobserves
+once with the original account and desktop identity pinned. Other session or
+ownership refusals and uncertain input remain terminal; no action is retried.
 Reuse `onpc_desktop_session::verify_locked_input` for that proof/input/result
 sequence in qualifications, complete cases and installed system histories.
 Callers supply their ready/result stage names and keep the lock identity,
 expiry and recovery assertions in their existing controller. The helper adds
 no wait, retry, resource or cleanup owner.
 `tools/test-vm --vm NAME reproduce-natural-expiry` reuses that journey through
-the natural lock, stopping before Shift for engineering probes and normal owned
-maintenance cleanup. It supplies no acceptance credit. Its fixture inputs use
-the maintained builder; no reusable prerequisite is installed during a run.
+the child's original activity capture, stopping before the measured expiry
+observer for engineering probes and normal owned maintenance cleanup. It uses
+the qualification's exact `ACTIVITY_SUBSETS` and caller through attempt-owned
+preparation, not fixtures embedded in a snapshot. It supplies no acceptance
+credit. Its fixture inputs use the maintained builder; no reusable prerequisite
+is installed during a run.
 System-282 reuses the same activity and lock readers through
 `natural_expiry.run_system_graphical_expiry` and the installed owner's attached
 desktop worker. Its engineering reads omit the panel. The shared
@@ -1266,6 +1294,22 @@ grant comparisons and final outcomes. Check the intended update profile against
 the [shipped activation manifests](../../docs/TestAutomation/E2E-Building-Blocks.md#no-action-package-update)
 before VM input; a source change or increasing package version alone does not
 establish which activation the update requires.
+Bind guest package readback to the verified profile's exact pair; the ordinary
+historical-release version is not the version of a finite activation profile.
+Preserve that historical check for its own inputs rather than relaxing it globally.
+For a child's saved preference after reboot, prove freshness with the changed
+boot and new public read, as in `ActivationRebootJourney`; guest monotonic values
+from different boots cannot establish observation order.
+
+The process and session update cases share `update_process_case` as one finite
+test family, with distinct `PLAN` / `SESSION_PLAN` and executable entries.
+Keep their saved-rule, original-grant and request assertions together rather
+than importing a runnable case from another case module. Their package, desktop,
+app, approval and fixture mechanics continue to use the shared owners above.
+Both journeys follow the
+[session-update preservation boundary](../../docs/TestAutomation/E2E-Building-Blocks.md#session-update).
+GNOME's dynamic greeter account can retire during sign-in; do not accommodate
+that transition by filtering package account inventories.
 
 `restart_notice.RestartNoticeJourney` adds the three fresh-install modal bindings
 over that package fragment and the shared fresh-desktop/station entries.

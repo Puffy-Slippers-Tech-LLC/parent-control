@@ -2,6 +2,7 @@
 from tests.support.vm_registry import vm_name
 
 import array
+import json
 import socket
 import stat
 import struct
@@ -263,7 +264,7 @@ def test_final_callback_refuses_changed_snapshot_before_restore(prepared):
     assert not lease.restored_by_callback
 
 
-def test_final_cleanup_audits_without_second_restore(lease_rig):
+def test_final_cleanup_audits_without_second_restore(lease_rig, tmp_path):
     lease, _ = lease_rig
     lease.view.graphics_type = 'vnc'
     lease.ledger = runner.RunLedger()
@@ -282,6 +283,14 @@ def test_final_cleanup_audits_without_second_restore(lease_rig):
     assert lease.source.domain.revertToSnapshot.call_count == restores + 1
     logs.assert_called_once_with()
     assert lease.ledger.outcomes['collection']['category'] == 'product-logs:capture-failed'
+    selection = runner.Selection(None, None, 'all', (), (), (), {})
+    passed, category = runner.evidence(tmp_path, None, lease, True,
+        'all-checks-passed', selection, None, lease.ledger)
+    assert not passed and category == 'product-logs:capture-failed'
+    result = json.loads((tmp_path / 'evidence/result.json').read_text())
+    assert result['outcome'] == 'failed' and result['category'] == category
+    assert ET.parse(tmp_path / 'evidence/results.xml').getroot().get('failures') == '1'
+    assert 'not ok 1' in (tmp_path / 'evidence/results.tap').read_text()
 
 
 def test_final_callback_restores_guest_that_is_already_off(prepared):

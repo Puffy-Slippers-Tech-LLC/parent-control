@@ -245,7 +245,7 @@ OPERATIONS |= COUNTDOWN_SESSION_OPERATIONS
 ENGINEERING_EXPIRY_OPERATIONS = frozenset('child-natural-expiry-engineering-' + action
     for action in ('observe', 'activity', 'lock-ready', 'lock-result'))
 NATURAL_EXPIRY_OPERATIONS = frozenset('child-natural-expiry-' + action for action in (
-    'observe', 'activity', 'lock-ready', 'lock-result')) | ENGINEERING_EXPIRY_OPERATIONS
+    'observe', 'activity', 'wait-lock', 'lock-ready', 'lock-result')) | ENGINEERING_EXPIRY_OPERATIONS
 OPERATIONS |= NATURAL_EXPIRY_OPERATIONS
 OPERATIONS |= {'child-natural-expiry-wrong-account-refused'}
 PANEL_ANIMATION_OPERATIONS = frozenset({'child-countdown-animation-read',
@@ -8424,14 +8424,23 @@ class AccessibleUI:
                 'ui:natural-expiry-account')
         current = session_control.sessions()
         source = session_control.source_identity(current, uid)
-        locked = session_control.screen_saver_active(uid)
-        confirmed = session_control.sessions()
-        identity = session_control.entry_identity(confirmed, uid, 'lock' if locked else 'same')
-        require(session_control.source_identity(confirmed, uid) == source
-                and all(current[source][key] == confirmed[source][key]
-                        for key in ('User', 'Remote', 'Class', 'Type', 'Seat')),
-                'ui:natural-expiry-session')
-        return identity, locked
+        for attempt in range(2):
+            locked = session_control.screen_saver_active(uid)
+            confirmed = session_control.sessions()
+            require(session_control.source_identity(confirmed, uid) == source
+                    and all(current[source][key] == confirmed[source][key]
+                            for key in ('User', 'Remote', 'Class', 'Type', 'Seat')),
+                    'ui:natural-expiry-session')
+            try:
+                identity = session_control.entry_identity(confirmed, uid, 'lock' if locked else 'same')
+            except session_control.SessionError as error:
+                # Lock can cross these two native reads without replacing the
+                # child desktop. Reobserve once with its original identity pinned;
+                # never retry another refusal or any input.
+                if attempt or str(error) not in ('session:source-locked', 'session:source-unlocked'):
+                    raise
+                continue
+            return identity, locked
 
     def natural_expiry(self, operation):
         """TIME04: observe before app input; never inspect the app below a lock."""
@@ -8439,6 +8448,15 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         engineering = operation in ENGINEERING_EXPIRY_OPERATIONS
         action = operation.removeprefix('child-natural-expiry-').removeprefix('engineering-')
+        waiting = action == 'wait-lock'
+        if waiting:
+            deadline = getattr(self, 'natural_expiry_deadline_ns', None)
+            require(type(deadline) is int and deadline > 0, 'ui:natural-expiry-deadline')
+            remaining = (deadline - time.monotonic_ns()) / 1e9
+            require(-180 <= remaining <= 615, 'ui:natural-expiry-deadline')
+            # Complete lock observation and later reply delivery are separate.
+            # No app or countdown read, and no input, occurs during this wait.
+            self.timeout = max(0, remaining) + 180
         if engineering:
             # Timed expiry sampling stays strict. Later input verification has
             # its own bounded controller clock and need not race that sample.
@@ -8448,24 +8466,57 @@ class AccessibleUI:
         if action == 'activity':
             require(type(expected) is str and re.fullmatch(r'[0-9a-f]{64}', expected),
                     'ui:natural-expiry-source')
-        session, locked = self.natural_expiry_session()
+        def read_session():
+            try:
+                return self.natural_expiry_session()
+            except subprocess.TimeoutExpired:
+                if not waiting:
+                    raise
+                # A load pause may outlast one native read. Reacquire only
+                # read-only state, keeping the original expiry deadline and
+                # every account/session refusal. Never retry input.
+                require(time.monotonic_ns() < deadline, 'ui:natural-expiry-late-lock')
+                return None
+
+        session, locked = (self.wait(read_session, 'natural-expiry-session', prompt_in_predicate=True)
+                           if waiting else read_session())
+        if waiting:
+            # Initial session readiness consumes this same original budget.
+            self.timeout = max(0, (deadline - time.monotonic_ns()) / 1e9) + 180
         locked_only = operation.endswith(('lock-ready', 'lock-result'))
         require(not locked_only or locked, 'ui:natural-expiry-unlocked')
         acted = False
 
         def observe():
-            identity, is_locked = self.natural_expiry_session()
+            before = time.monotonic_ns() if waiting else None
+            current = read_session()
+            if current is None:
+                return None
+            identity, is_locked = current
+            after = time.monotonic_ns() if waiting else None
             require(identity == session, 'ui:natural-expiry-session-changed')
             if is_locked:
+                if waiting:
+                    require(after < deadline, 'ui:natural-expiry-late-lock')
                 self.lock_role = 'child'
                 lock = (self._lock_surface('child-lock-time-denied')
                         or self._lock_surface('child-lock-curtain'))
                 if lock is None:
                     return None
-                require(self.natural_expiry_session() == (session, True),
+                confirmed = read_session()
+                if confirmed is None:
+                    return None
+                require(confirmed == (session, True),
                         'ui:natural-expiry-session-changed')
+                if waiting:
+                    after = time.monotonic_ns()
+                    require(after < deadline, 'ui:natural-expiry-late-lock')
                 return {'state': 'locked', 'session_sha256': session, 'source': None,
-                        'activity': None, 'seconds': None, 'lock': lock, 'acted': acted}
+                        'activity': None, 'seconds': None, 'lock': lock, 'acted': acted,
+                        **({'lock_read_bounds': [before, after]} if waiting else {})}
+            if waiting:
+                require(after < deadline, 'ui:natural-expiry-late-lock')
+                return None
             require(not locked_only, 'ui:natural-expiry-unlocked')
             activity = self.native_app_snapshot('ONPC fixture draft', with_window=True)
             source = hashlib.sha256(json.dumps([session, activity['pid'], activity['endpoint']],
@@ -8503,7 +8554,9 @@ class AccessibleUI:
         if (action != 'activity' or value['state'] == 'locked'
                 or not engineering and value['seconds'] <= 10):
             return value
-        self.invalidate_observation()
+        # Resolve Submit from the complete app observation just verified above.
+        # No input has intervened. _invoke_target expires that read before its
+        # single action, so the result still requires a fresh complete tree.
         root = self.snapshot_owned_target('onpc-fixture-native-primary',
                                          showing=False, check_prompt=True)
         activity = value['activity']
@@ -15836,6 +15889,11 @@ def main():
     natural_expiry_binding = sys.argv[1] in NATURAL_EXPIRY_OPERATIONS
     ui.expected_natural_expiry_source = (sys.argv[4] if len(sys.argv) == 5
                                          and natural_expiry_binding else None)
+    if sys.argv[1] == 'child-natural-expiry-wait-lock':
+        require(len(sys.argv) == 5 and re.fullmatch(r'[1-9][0-9]{0,19}', sys.argv[4]),
+                'ui:natural-expiry-deadline')
+        ui.natural_expiry_deadline_ns = int(sys.argv[4])
+        ui.expected_natural_expiry_source = None
     countdown_session_binding = sys.argv[1] in COUNTDOWN_SESSION_OPERATIONS
     ui.expected_countdown_source = (sys.argv[4] if len(sys.argv) == 5
                                    and countdown_session_binding else None)
@@ -15859,6 +15917,7 @@ def main():
         'denied-export-save-chooser-open', 'standard-parent-unavailable',
         'native-grid-refusals', 'overlay-native-grid-refusals',
         'feedback-collection-events', 'feedback-collection-open')
+    read_started = time.monotonic_ns()
     try:
         result = ui.run(sys.argv[1], sys.argv[2], child=child)
     except ui.query_errors as error:
@@ -15925,6 +15984,8 @@ def main():
         raise
     if boot is not None:
         result['boot_sha256'] = boot
+    if sys.argv[1] in COUNTDOWN_OPERATIONS:
+        result['countdown_guest_read_bounds'] = [read_started, time.monotonic_ns()]
     print(json.dumps(result, sort_keys=True), flush=True)
 
 

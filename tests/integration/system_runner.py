@@ -2438,9 +2438,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         vm.reboot()
         if fixture_context is not None and (already_installed or attached_login):
             vm.wait_boot_complete()
-            fixture_context['receipt'] = fixture_context['controller'].renew_after_reboot(
-                fixture_context['receipt'])
-            require_fixture_ready()
+            from system_fixture_preparation import renew_after_reboot
+            renew_after_reboot(fixture_context)
     run = lease.state['run']
     outcome = 'failed'
     qualification_pending = False
@@ -2768,6 +2767,11 @@ def evidence(directory, manifest, lease, passed, category, selection,
             if passed:
                 category = collection_category
             passed = False
+    # Collection can fail without raising so that owned cleanup still finishes.
+    # Its latched failure governs every result format and the caller's exit code.
+    if ledger.first_failure_category is not None:
+        passed = False
+        category = ledger.first_failure_category
     artifacts = manifest.get('artifacts', {}) if manifest else {}
     state = lease.state if lease is not None and lease.state else {}
     data = {'schema_version': 1, 'test': 'install-smoke', 'outcome': 'passed' if passed else 'failed',

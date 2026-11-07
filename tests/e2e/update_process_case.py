@@ -1,5 +1,6 @@
-"""Case 136: a real process update preserves the child's rules and grant."""
+"""Cases 136/137: real updates preserve the child's rules and original grant."""
 from copy import deepcopy
+from dataclasses import replace
 import time
 
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
@@ -16,6 +17,8 @@ from package_command import NOTICE
 from package_upgrade import (PackageUpgradeJourney, activated_entry,
                              install_previous_release, upgrade_current)
 from private_artifacts import require
+import session_control
+from system_fixture_preparation import renew_after_reboot
 
 
 CHOICES = dict(child='existing-fixture-child', approver='fixture-parent',
@@ -58,7 +61,7 @@ SETUP = {
 UPDATE = {stage: 'system:parent-command-context'
           for stage in ('upgrade-context', 'upgrade-submitted', 'upgrade-result')}
 RESULT = {
-    'upgrade-reread': 'ui:retained-parent-read',
+    'settings-after': 'ui:retained-parent-read',
     'saved-apps': 'ui:existing-apps', **saved_rows(APPS, 'saved'),
     'saved-screen': 'ui:discovery-ready',
     'final-balance': 'ui:time-explanation-refresh-read',
@@ -107,7 +110,7 @@ def verify_native_after_reboot(journey, guard):
     guard()
     require(journey.reboot_observed, 'update-process:reboot-required')
     prepared = journey.context.verified.fixture_prepared
-    prepared['receipt'] = prepared['controller'].renew_after_reboot(prepared['receipt'])
+    renew_after_reboot(prepared)
     guard()
     return NativeFixtures(journey.transport, journey.context.verified).verify()
 
@@ -122,24 +125,36 @@ class ProcessUpdateJourney(PackageUpgradeJourney):
                    'upgrade-entry': activated_entry, 'upgrade-current': upgrade_current}
         super().__init__(context, progress, plan, actions=actions, activation=activation)
         self.parent_before = self.grant_before = self.approval_started = None
+        self.parent_session_before = None
         self.saved_rules = {}
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
         if stage == 'package-result':
             require(observed['package']['notice'] == NOTICE, 'update-process:old-install-notice')
+        if stage == 'upgrade-result':
+            require(observed['package']['notice'] is None, 'update-process:unexpected-restart-notice')
         if stage == 'request-approval-open':
             self.approval_started = time.monotonic_ns()
-        if stage in ('settings-before', 'upgrade-reread'):
+        if stage in ('settings-before', 'settings-after'):
             value = observed['ui']['retained_parent']
             require(value['page'] == 'screen-limits' and value['settings'] == {
                 'child': CHOICES['child'], 'limit_enabled': True, 'allowance': ['0 minutes']},
                 'update-process:saved-allowance')
+            identity = session_control.observe(self.transport, 'parent-desktop-identity')
             if stage == 'settings-before':
                 self.parent_before = deepcopy(value)
+                self.parent_session_before = identity['session_sha256']
             else:
-                require(value == self.parent_before and observed['package']['notice'] is None,
+                require(value == self.parent_before,
                         'update-process:retained-parent-or-activation')
+                # Package/account preservation is proved at upgrade-result.
+                # After desktop transitions, prove the retained Parent directly,
+                # as in the session-activation qualification. GDM's temporary
+                # NSS greeter account can legitimately retire during sign-in.
+                require(observed['boot_sha256'] == self.activated_entry['boot']
+                        and identity['session_sha256'] == self.parent_session_before,
+                        'update-process:unrequested-restart')
                 observed['comparison'] = {'same_usable_parent': True, 'saved_allowance': True}
         for prefix in ('rules-saved', 'saved'):
             for role, rule, access in (('a', MATCH_RULES[0], 'allowed'),
@@ -200,4 +215,45 @@ def execute(recorder, context):
                              journey_type=ProcessUpdateJourney)
 
 
-E2E_CASES = {'process': execute}
+RENEWAL_ENTRIES = {'renew-child': ('other-child', 'retained'),
+                   'renewed-child': ('other-child', 'fresh'),
+                   'renewed-parent': ('parent', 'retained')}
+RENEWAL = {
+    **desktop_return('renewal-leave', account='parent'),
+    **prefixed_stages('renew-child', desktop_entry('other-child', source='gdm', entry='retained')),
+    'renewal-desktop': 'ui:standard-desktop',
+    'renewal-logout': 'system:standard-logout',
+    'renewal-greeter': 'ui:gdm-returned',
+    **prefixed_stages('renewed-child', desktop_entry('other-child', source='gdm', entry='fresh')),
+    **desktop_return('renewed-leave', account='other-child'),
+    **prefixed_stages('renewed-parent', desktop_entry('parent', source='gdm', entry='retained')),
+}
+SESSION_SCREENS = {**SETUP, **UPDATE, **RENEWAL, **RESULT}
+RENEWAL_LOGINS = {prefix + '-' + stage for prefix, (account, _) in RENEWAL_ENTRIES.items()
+                  for stage in fresh_desktop(account)}
+SESSION_PLAN = replace(PLAN, prefix='update-session-case', worker_mode='update_session_case',
+    screen_tags=SESSION_SCREENS,
+    phases={**PLAN.phases, **{stage: 'step-2' for stage in RENEWAL}},
+    advance_after={'settings-before': 'step-2', 'renewed-parent-desktop': 'step-3'},
+    invocations=tuple(stage for stage in SESSION_SCREENS
+                      if stage in PLAN.invocations or stage in RENEWAL_LOGINS),
+    challenges={**PLAN.challenges,
+        **{prefix: (account, prefix + '-' + recipient + 'qualified',
+                    prefix + '-' + recipient + 'rechecked')
+           for prefix, (account, _) in RENEWAL_ENTRIES.items()
+           for recipient in ('recipient-' if account == 'parent' else 'standard-recipient-',)}})
+
+
+class SessionUpdateJourney(ProcessUpdateJourney):
+    def __init__(self, context, progress, plan=SESSION_PLAN, *, actions=None):
+        super().__init__(context, progress, plan, actions=actions, activation='session-renewal')
+
+
+def execute_session(recorder, context):
+    # Only Jordan has enabled limits and a running affected child session.
+    # The initial install/reboot precedes issuance of the real twenty-minute grant.
+    record_installed_journey(recorder, context, SESSION_PLAN, timeout=2400,
+                             journey_type=SessionUpdateJourney)
+
+
+E2E_CASES = {'process': execute, 'session': execute_session}

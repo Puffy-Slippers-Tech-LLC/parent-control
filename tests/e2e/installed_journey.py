@@ -26,6 +26,17 @@ from ui_observations import (
 )
 
 
+def validate_boundary(journey, directory, boundary):
+    """Retain only a complete verified prefix, never a failed or advanced scene."""
+    system.require(not journey.failed and [s['stage'] for s in journey.steps]
+                   == list(journey.plan.stages[:journey.plan.stages.index(boundary)]),
+                   'diagnosis:incomplete-history')
+    request = directory / (boundary + '.request.json')
+    system.require(not request.is_symlink() and request.stat().st_size <= 1024
+        and json.loads(request.read_bytes()) ==
+        {'stage': boundary, 'screenshot': None}, 'diagnosis:boundary-request')
+
+
 def kiosk_journal_command(uid):
     """Bound service, manager, daemon and coredump evidence to one account."""
     require(type(uid) is str and re.fullmatch(r'[1-9][0-9]*', uid) is not None,
@@ -963,7 +974,7 @@ class InstalledJourney:
                     if plan.stage_actions[stage] == 'minute-progress'
                     else 'Awaiting displayed final-second countdown progression'
                     if plan.stage_actions[stage] in ('final-transition', 'second-progress')
-                    else 'Using the child app until its naturally owned lock'
+                    else 'Waiting for natural lock after the child’s submitted work'
                     if plan.stage_actions[stage] == 'natural-expiry'
                     else 'Preparing declared native application fixtures'
                     if plan.stage_actions[stage] in ('native-refuse', 'native-verify')

@@ -613,6 +613,23 @@ The complete current-production system-282 history passed on Ubuntu 26.04 and
 Fedora 44, including both protected-input challenges and original-work recovery.
 This qualifies the shared engineering observations, not extension-free locking
 or a complete customer scenario.
+System 304 (`session::test_expiry_during_pending_approval`) reuses that attached
+worker through `natural_expiry.APPROVAL_PLAN` / `PendingApprovalJourney` and the
+same installed guest owner. Each of its two histories issues a 300-second grant
+after agent readiness, then establishes a genuine selected-parent challenge at
+least 180 seconds before the original deadline. The owning synchronous SSH
+command retains the caller and authentication agent while its existing output
+callback runs the shared natural-lock or foreground-peer observer. A fixed
+attempt-local finish marker requests cancellation; context cleanup closes both
+pidfd-owned processes. No password, detached process or new grant is submitted.
+The guest independently verifies that the challenge stayed pending across expiry
+and that cancellation preserved the original grant. The caller's explicit
+15-minute D-Bus budget accommodates the deliberate wait; it changes no product
+authentication deadline. Worker reply waits cover both finite histories without
+extending the original natural-lock bound. Protected input, original-work
+recovery, unrelated foreground input, collection and baseline restoration passed
+on session-selected `onpc-Ubuntu26.04-1`; Fedora remains unqualified. This supplies
+no customer-case or entry-exposure credit.
 For startup diagnosis, `tools/test-vm --vm NAME reproduce-system-graphical-expiry`
 reuses system-282's one-second autologin seed, reboot and fixture renewal, then
 records the child session, foreground and read-only public surface before and

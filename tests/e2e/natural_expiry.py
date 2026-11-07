@@ -2,6 +2,7 @@
 
 import json
 import time
+from dataclasses import replace
 
 from countdown import CountdownSample, check_countdown_balance
 from installed_journey import InstalledJourney, JourneyPlan
@@ -171,7 +172,7 @@ def _system_history_command(transport, command):
         timeout=120)
     require(type(raw) is bytes and 0 < len(raw) < 1024, 'expiry:history-response')
     value = json.loads(raw)
-    if command in ('host-complete', 'revoke-complete'):
+    if command in ('host-complete', 'revoke-complete', 'approval-complete'):
         require(value == {'completed': True}, 'expiry:history-incomplete')
         return value
     if command in ('revoke-zero', 'revoke-positive'):
@@ -268,11 +269,12 @@ class SystemGraphicalExpiryJourney(InstalledJourney):
         return {'lock_observer_ready': True}
 
     @staticmethod
-    def peer_expiry(journey, guard):
+    def peer_expiry(journey, guard, *, expiry_at=None):
         guard()
         identity = session_control.observe(journey.transport, 'parent-entry-same')['session_sha256']
         previous = time.monotonic()
-        expiry_at = _system_history_command(journey.transport, 'peer-grant')
+        if expiry_at is None:
+            expiry_at = _system_history_command(journey.transport, 'peer-grant')
         # This history verifies foreground peer continuity and protected child
         # input after expiry. The natural-lock history owns the strict timing
         # measurement; do not charge peer input/navigation to its 15-second bound.
@@ -413,15 +415,103 @@ class ForegroundRevokeJourney(SystemGraphicalExpiryJourney):
             time.sleep(SAMPLE_INTERVAL_SECONDS)
 
 
+APPROVAL_PLAN = replace(SYSTEM_PLAN, stage_actions={**SYSTEM_PLAN.stage_actions,
+    'natural-expiry': 'approval-natural', 'peer-expiry': 'approval-peer'})
+
+
+class PendingApprovalJourney(SystemGraphicalExpiryJourney):
+    """The real authentication lifetime encloses the existing expiry observers."""
+
+    def __init__(self, context, progress, plan=APPROVAL_PLAN, *, actions=None, transport=None):
+        if actions is None:
+            actions = {'approval-natural': self.approval_natural,
+                       'natural-recovery': self.natural_recovery,
+                       'approval-peer': self.approval_peer,
+                       'peer-lock-entry': self.peer_lock_entry, 'peer-recovery': self.peer_recovery}
+        super().__init__(context, progress, plan, actions=actions, transport=transport)
+
+    @staticmethod
+    def crossing(journey, guard, command, observe):
+        import system_runner
+        started = time.monotonic()
+        pending = b''
+        result = None
+        ready = False
+
+        def output(data):
+            nonlocal pending, ready, result
+            pending += data
+            require(len(pending) < 4096, 'expiry:approval-response-size')
+            while b'\n' in pending:
+                line, pending = pending.split(b'\n', 1)
+                if not line.startswith(b'onpc-approval-ready:'):
+                    continue
+                require(not ready, 'expiry:approval-readiness-replayed')
+                ready = True
+                value = json.loads(line.split(b':', 1)[1])
+                require(set(value) == {'remaining_seconds', 'elapsed_seconds'}
+                        and 180 <= value['remaining_seconds'] <= 300
+                        and 0 <= value['elapsed_seconds'] < 120,
+                        'expiry:approval-readiness')
+                # Anchor before transport, including guest agent startup, rather
+                # than renewing the original grant when the marker arrives.
+                expiry_at = started + value['elapsed_seconds'] + value['remaining_seconds']
+                try:
+                    result = observe(expiry_at)
+                finally:
+                    # Nested synchronous calls keep the original SSH command,
+                    # caller and agent owned until cancellation has completed.
+                    journey.transport.call(['env', 'ONPC_EXPECTED_RUN=' + journey.transport.config['run'],
+                        'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-B',
+                        system_runner.PAYLOAD + '/system_graphical_expiry.py', 'approval-finish'],
+                        timeout=120)
+
+        guard()
+        raw = journey.transport.call(['env', 'ONPC_EXPECTED_RUN=' + journey.transport.config['run'],
+            'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-B',
+            system_runner.PAYLOAD + '/system_graphical_expiry.py', command],
+            timeout=720, on_output=output)
+        guard()
+        require(ready and result is not None and b'onpc-approval-complete\n' in raw,
+                'expiry:approval-crossing-incomplete')
+        return {**result, 'genuine_challenge_pending_across_expiry': True,
+                'cancelled_without_password_or_grant': True}
+
+    @staticmethod
+    def approval_natural(journey, guard):
+        def observe(expiry_at):
+            result = await_engineering_expiry(journey.ui, guard,
+                journey.activity_observations['activity-capture'],
+                expiry_at=expiry_at, boot_sha256=journey.boot)
+            require(result['activity_actions'] > 0, 'expiry:no-original-app-input')
+            journey.lock_deadline = engineering_deadline(
+                result['observed_monotonic'], LOCK_VERIFICATION_SECONDS)
+            return result
+        return journey.crossing(journey, guard, 'approval-natural', observe)
+
+    @staticmethod
+    def approval_peer(journey, guard):
+        return journey.crossing(journey, guard, 'approval-peer',
+            lambda expiry_at: SystemGraphicalExpiryJourney.peer_expiry(
+                journey, guard, expiry_at=expiry_at))
+
+
 def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected_inputs,
-                               progress, context, credentials=None, foreground_revoke=False):
+                               progress, context, credentials=None, foreground_revoke=False,
+                               pending_approval=False):
     """Compose engineering input checks before the installed PAM password tests."""
     from desktop_session import run_attached
-    _system_history_command(transport, 'revoke-ready' if foreground_revoke else 'host-ready')
+    require(not (foreground_revoke and pending_approval), 'expiry:ambiguous-history')
+    plan, journey_type, ready, complete = (
+        (APPROVAL_PLAN, PendingApprovalJourney, 'approval-ready', 'approval-complete')
+        if pending_approval else
+        (REVOKE_PLAN, ForegroundRevokeJourney, 'revoke-ready', 'revoke-complete')
+        if foreground_revoke else
+        (SYSTEM_PLAN, SystemGraphicalExpiryJourney, 'host-ready', 'host-complete'))
+    _system_history_command(transport, ready)
     result = run_attached(directory, lease, transport, ledger,
-        REVOKE_PLAN if foreground_revoke else SYSTEM_PLAN,
+        plan,
         expected_inputs=expected_inputs, progress=progress, context=context,
-        credentials=credentials, journey_type=(ForegroundRevokeJourney if foreground_revoke
-                                              else SystemGraphicalExpiryJourney), timeout=1800)
-    _system_history_command(transport, 'revoke-complete' if foreground_revoke else 'host-complete')
+        credentials=credentials, journey_type=journey_type, timeout=2400 if pending_approval else 1800)
+    _system_history_command(transport, complete)
     return result

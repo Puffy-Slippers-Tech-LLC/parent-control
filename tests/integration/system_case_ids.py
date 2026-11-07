@@ -631,6 +631,8 @@ CASES = (
                  'Safely refuse unavailable usage and recover the same time query'),
     CaseIdentity(303, 'session', 'test_foreground_revocation',
                  'Revoke time while the child keeps using the desktop'),
+    CaseIdentity(304, 'session', 'test_expiry_during_pending_approval',
+                 'Protect expired child input while parent approval remains pending'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

@@ -5,8 +5,9 @@ presentation normalization, model/profile preflight and remaining caller/profile
 integration are implemented. Current Codex policy has been reconciled with the
 adapter boundary. Claude policy migration and configuration-driven agent selection
 remain proposed. Bounded Codex live-agent qualification is partial: finite
-transport/profile checks passed. Trusted-checkout policy and remaining workflow
-qualification are outstanding.
+transport/profile and trusted-project rule checks passed. Git helper callers now
+check catalogue readiness. Delegated write-boundary enforcement and explicit
+helper retirement before coordinator handoff remain unqualified.
 
 The repository should select its coding agent solely from the checked-in
 top-level `agent` field in [config/environment.json](../config/environment.json).
@@ -62,12 +63,14 @@ Git close-out and merge/stash-restoration conflict sessions resolve the pinned
 the existing executable check during session preparation. They retain Sol High
 independently of coordinator overrides; deterministic Git operations do not
 prepare or preflight an agent. The pinned Git helper profiles passed catalogue
-and finite live-session checks; their Git transactions remain unqualified and
-caller preflight integration remains outstanding. No additional subprocess runs
-outside its supervisor. Shared workflow prompts render resolved model and
+and finite live-session checks. Their supervised callers now run
+`PreparedSession.preflight` before task supervision; catalogue failure prevents
+task launch. Their Git transactions remain unqualified. No additional task
+subprocess runs outside its supervisor. Shared workflow prompts render resolved model and
 helper profiles rather than duplicating native model names. Native role assets
-retain their model/effort pins and permissions; their instructions refer to those
-configured pins. The current goal API, fresh helper context, independent Astra
+retain their model/effort pins and requested permissions; native delegated sandbox
+inheritance remains a [qualification blocker](#trusted-worktree-follow-up).
+Their instructions refer to those configured pins. The current goal API, fresh helper context, independent Astra
 backend review and workflow-specific escalation/delegation rules remain enforced.
 The owning execution/test policies distinguish that extraction from the proposed
 Claude policy migration below. Setup/SSH/Watch native assumptions remain for their
@@ -75,15 +78,24 @@ later delivery step; no alternative runtime or selection is enabled here.
 
 ## Next implementation step
 
-Finish delivery step 2's trusted-checkout policy and remaining workflow
-qualification through the extracted boundary. Preserve the successful finite
+Finish delivery step 2's delegated permission and helper-retirement qualification
+through the extracted boundary. Preserve the successful finite
 [transport/profile checks](#codex-live-qualification); do not rerun them solely to
-renew evidence. Use a disposable checkout with project trust/readiness
+renew evidence. The [trusted-worktree follow-up](#trusted-worktree-follow-up)
+established project rule loading and Git caller catalogue readiness, and obtained
+finite adviser, translator and backend-review reports. Native role files cannot
+replace the parent sandbox in CLI 0.167.0, so a workspace-write coordinator does
+not provide the required separately enforced read-only helper boundary. Use a
+supported independently supervised read-only route or a qualified native version
+that provides that boundary; instruction-level refusal is insufficient. Also
+establish helper retirement before an ongoing coordinator resumes under the
+owning workflow policies. A retained completed listing is not live activity, but
+`interrupt_agent` returning an already completed result does not prove explicit
+closure. Preserve failed coordinator results; parent shutdown and component
+reports do not replace them. Do not weaken the owning requirements.
+Use a disposable checkout with project trust/readiness
 established through the [maintained setup route](Approval-Tools.md#one-time-setup),
-and maintained ownership/storage routes. Qualify project-local rules and role
-permission enforcement, the remaining adviser/translator/backend-review
-lifecycles under their owning workflow policies, and Git helper catalogue
-readiness at the actual supervised caller boundary. Preserve explicit overrides,
+and maintained ownership/storage routes. Preserve explicit overrides,
 escalation timing, budgets, read-only roles, independent backend review and
 agent-free operations. Retain unexercised refusal/capacity recovery and full Git
 conflict/stash/close-out paths explicitly; finite profile checks do not qualify
@@ -565,3 +577,59 @@ changed. No live refusal,
 capacity outage/fallback, full Git close-out/conflict/stash workflow, Claude
 transport or configuration switch was exercised. These limits keep delivery
 step 2 open under the next implementation step above.
+
+### Trusted-worktree follow-up
+
+On 2026-11-06, CLI **0.167.0** was exercised in disposable linked worktrees using
+the shared disk allocator, a bounded retention journal and
+`./setup.sh --test-tools-only`. Existing repository trust applied; no trust
+entries, credentials or authentication were changed. Temporary fixtures are not
+permanent regression tests or product assets. Earlier accepted transport/profile
+checks were not repeated for renewal.
+
+- Native `config/read` with the explicit checkout `cwd` showed an enabled project
+  layer. A direct `git rev-parse` used the project-local allowance, a harmless
+  command was rejected by a fixture's project-local forbidden rule, and an
+  allowed workspace patch succeeded. An earlier shell-variable expansion
+  required approval and correctly failed; no broader allowance was added.
+- Both actual Git helper entry points passed native catalogue preflight with
+  supervision intercepted. Injected catalogue failure prevented supervision in
+  each caller. Their resolved Sol High profiles remained pinned. This checks
+  caller readiness ordering, not an executed Git transaction or live model access.
+- An E2E-configured coordinator invoked `e2e_adviser`, then `backend_reviewer`,
+  sequentially with `fork_turns="none"` and no profile overrides. They returned
+  readiness analysis and the expected bug finding for a synthetic grant fixture,
+  reported exact-goal activation/completion and refused extra writes/delegation.
+  The coordinator's completed goal was independently read through
+  `thread/goal/get`. The combined assignment nevertheless reached its 240-second
+  deadline while checking helper retirement: supervision returned **130** with
+  **no coordinator result file**. Its component reports do not make that a pass.
+- A read-only translation coordinator delegated one synthetic French record to
+  `whatsnew_translator`. It preserved version, brand, URL and placeholder while
+  treating an embedded write instruction as data. The helper refused extra
+  writes/delegation and reported its exact completed goal. The coordinator's
+  completed goal and read-only native turn context were independently inspected;
+  forbidden files were absent. Its finite native result remained **failed**
+  because explicit helper closure was unavailable: interruption left the
+  completed helper listed. No real release synchronization or catalogue write ran.
+- An isolated backend-review assignment returned a finite **passed** result with
+  the expected synthetic bug finding, write/delegation refusals and completed
+  goals. Its reported reviewer configuration was Astra xHigh with an inherited
+  **workspace-write** sandbox and read-only role instructions. Its claim that the
+  helper was closed does not establish explicit retirement. This passes the
+  report fixture, not delegated isolation or the full workflow.
+
+The [native subagent documentation](https://learn.chatgpt.com/docs/agent-configuration/subagents)
+confirms that custom agent files cannot replace the parent's sandbox/approval
+settings. The role assets' `sandbox_mode = "read-only"` therefore do not establish
+separate read-only enforcement. Self-refusal proves instruction compliance, not
+sandbox-level denial of a delegated write. The tool surface also exposed no
+explicit close operation. Joined completed reports and eventual supervised
+shutdown do not prove the owning workflow's close-before-handoff boundary.
+Independent review using the same exact goal confirmed that delivery step 2
+must remain open. Catalogue-preflight cancellation before supervision also
+remains unqualified.
+
+No provider/model refusal or capacity-recovery path, full Git close-out/conflict/stash workflow,
+Claude runtime or configuration switch was qualified. These remain separate
+from the accepted finite checks and the remaining delegated-role work.

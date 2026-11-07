@@ -1184,7 +1184,10 @@ source/evidence paths, attempted corrections, applicable contracts and user
 decisions in a fresh context,
 waits for the answer, then closes the adviser before resuming work or consulting
 again. Codex V1 is configured with one concurrent child slot and one level of
-delegation. The adviser cannot delegate further and is configured read-only; its
+delegation. The adviser cannot delegate further and its profile requests read-only;
+native role files inherit the parent sandbox, so separate enforcement remains
+[unqualified](../docs/Agent_Adapter.md#trusted-worktree-follow-up). The required
+read-only boundary remains unchanged. Its
 instructions prohibit edits, tests/builds, VM control and task completion. It
 returns concise findings, evidence, a proposed correction, uncertainty and required
 regressions. The coordinator checks the advice and owns all implementation,

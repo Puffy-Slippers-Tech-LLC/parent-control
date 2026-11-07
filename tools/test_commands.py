@@ -78,6 +78,7 @@ INSTALLED_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_installed'} | {
     compose_observation_around_one_caller_input countdown countdown_minutes countdown_ticks countdown_session_availability cross_surface
     compose_approval_and_return_to_the_child
     compose_a_named_app_rule_set
+    prepare_a_daily_balance_that_outlasts_a_soft_exception
     custom_save_trace desktop_keyring desktop_session diagnostic_export document_open
     edit_and_save_an_open_synthetic_document eligible_kiosk_fixtures feedback_block_semantics
     feedback_collection feedback_formats feedback_length feedback_link_semantics feedback_privacy

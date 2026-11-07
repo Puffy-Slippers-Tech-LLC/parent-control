@@ -446,11 +446,13 @@ sub grant_only_time_profile {
     $daily_minutes = 0 if @_ < 10;
     die 'time-profile:grant-binding' unless (@_ == 8 || @_ == 9 || @_ == 10) && ref($journey) eq 'onpc_journey'
         && defined($balance_readback) && $balance_readback =~ /\A[01]\z/
-        && defined($daily_minutes) && $daily_minutes =~ /\A(?:0|4|30)\z/
+        && defined($daily_minutes) && $daily_minutes =~ /\A(?:0|4|10|30)\z/
         && ($daily_minutes != 30 || !$initial)
         && ($initial eq '0' || $initial eq '1') && ($revoke eq '0' || $revoke eq '1')
-        && $seconds =~ /\A(?:120|180|240|600|1200)\z/
-        && ($request_initial eq 'default' || $request_initial eq 'selected')
+        && $seconds =~ /\A(?:6|120|180|240|600|1200)\z/
+        && ($request_initial eq 'default' || $request_initial eq 'selected' || $request_initial eq 'observed')
+        && (($seconds == 6) == ($request_initial eq 'observed'))
+        && ($seconds != 6 || $daily_minutes == 10 && !$revoke)
         && (($source eq 'gdm' && $entry eq 'fresh' && $window eq 'new')
             || ($source eq 'desktop' && $entry eq 'same-user' && $window eq 'retained'));
     require onpc_request_flow;
@@ -472,7 +474,9 @@ sub grant_only_time_profile {
     }
     $journey->seen($daily_minutes ? 'profile-daily' : 'profile-zero');
     $journey->seen($_) for qw(profile-window profile-switch profile-gdm);
-    onpc_request_flow::obtain_time($journey->scope('profile-request'), $request_initial,
+    my $request = $journey->scope('profile-request');
+    $request->{kiosk_request} = $journey->{kiosk_request} if $request_initial eq 'observed';
+    onpc_request_flow::obtain_time($request, $request_initial,
         'fixture-child', 'fixture-parent', $seconds, 1, 'automatic');
     return unless $balance_readback;
     onpc_gdm::sign_in_challenge($journey, 'profile-return',

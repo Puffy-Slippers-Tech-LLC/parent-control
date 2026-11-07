@@ -94,6 +94,28 @@ def test_bound_prompt_refuses_changed_request_before_another_recipient_read():
     assert ui._observe.call_count == 1
 
 
+@pytest.mark.parametrize('prefix,scope,accepted', [
+    ('daily-soft-profile-profile-request', 'profile-request-', True),
+    ('daily-soft-profile-profile-request', 'request-', False),
+    ('kiosk-fresh-return', '', False),
+])
+def test_small_soft_approval_is_confined_to_its_declared_secret_scope(prefix, scope, accepted):
+    result = run_password_guard(r'''
+my ($prefix, $scope) = @ARGV;
+my $journey = bless {prefix => $prefix, stage_prefix => $scope, review => 0,
+    kiosk_request => ['child', 'parent', 6, 1]}, 'onpc_journey';
+my $ok = eval { onpc_password::enter_kiosk_mate_password($journey, 'bound-request'); 1 };
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+''', prefix, scope)
+    value = json.loads(result.stdout)
+    assert value['ok'] == accepted
+    assert value['events'] == ([
+        ['proof', 'profile-request-approval-qualified'],
+        ['proof', 'profile-request-approval-rechecked'],
+        ['delivery', 'parent', 'profile-request-kiosk-mate-approval'],
+    ] if accepted else [])
+
+
 @pytest.mark.parametrize('mode', ['sequence', 'wrong-scope', 'crossed-request', 'replay'])
 @pytest.mark.parametrize('surface', ['kiosk', 'overlay'])
 def test_temporary_access_secret_binds_each_parent_and_requires_fresh_proofs(mode, surface):

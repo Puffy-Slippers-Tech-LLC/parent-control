@@ -467,6 +467,15 @@ rules already allow `git status`. Run direct `git SUBCOMMAND` or
 tool's working directory. Setup maintains this allowance from
 [`config/codex-tests.rules`](../config/codex-tests.rules).
 
+Quote revision operands as literal shell arguments as well as paths, including
+ancestry and stash expressions: `git diff 'HEAD^1' 'HEAD' --stat` and
+`git rev-parse 'stash@{0}^2'`. Codex's shell parser treats unquoted `^` and `~`
+as possible expansion even for Bash, preventing the ordinary Git prefix match;
+see the [parser and its literal-operand tests](https://github.com/openai/codex/blob/rust-v0.167.0/codex-rs/shell-command/src/bash.rs).
+An argv-only policy check does not establish how the command tool parses a
+shell string. Keep the direct command shape; do not
+add duplicate Git grants or general shell grants to compensate for quoting.
+
 The Git grant includes `git write-tree` for recording the staged tree during
 commit recovery. It writes Git objects and may lock the index, so it needs the
 same host execution route as staging and committing. Linked worktrees keep

@@ -119,7 +119,8 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
 @pytest.mark.parametrize('mode,surface,kind', [
     (mode, surface, 'flatpak') for surface in ('kiosk', 'overlay')
     for mode in ('sequence', 'wrong-scope', 'crossed-request', 'replay')
-] + [('sequence', 'overlay', 'native'), ('wrong-duration', 'overlay', 'native')])
+] + [('sequence', 'overlay', 'native'), ('wrong-duration', 'overlay', 'native'),
+     ('sequence', 'kiosk', 'native'), ('wrong-duration', 'kiosk', 'native')])
 def test_temporary_access_secret_binds_each_parent_and_requires_fresh_proofs(mode, surface, kind):
     # Exercise the password guard with finite request inputs. Importing the
     # complete customer case makes this safety test depend on unrelated plans.
@@ -127,7 +128,8 @@ def test_temporary_access_secret_binds_each_parent_and_requires_fresh_proofs(mod
     requests = {'first': ('other-child', 'parent', seconds, False),
                 'included': ('other-child', 'other-parent', seconds, True),
                 'replacement': ('other-child', 'parent', seconds, False)}
-    prefix = kind + ('-temporary-access' if surface == 'kiosk' else '-grid-temporary-access')
+    prefix = ('native-grid-kiosk-temporary-access' if (kind, surface) == ('native', 'kiosk') else
+              kind + ('-temporary-access' if surface == 'kiosk' else '-grid-temporary-access'))
     result = run_password_guard(r'''
 my ($mode, $prefix, $encoded, $surface) = @ARGV;
 my $requests = decode_json($encoded);

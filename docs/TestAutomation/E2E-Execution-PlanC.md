@@ -13,7 +13,7 @@ Task queue: [Plan C ordered checklist](E2E-Task-QueueC.md).
 
 ## Next task
 
-Next task: **172 — [Preserve and qualify system obligation 143: usage read](E2E-Tasks/172-system-143.md)**.
+Next task: **172a — [Check revocation on the active desktop](E2E-Tasks/172a-foreground-revoke.md)**.
 
 This plan owns its queue, unchanged task briefs and next-task pointer.
 It can run independently of all unfinished work in

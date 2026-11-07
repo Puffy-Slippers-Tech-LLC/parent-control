@@ -3058,6 +3058,10 @@ broker concurrency and private-bus owners under the
 [allocation record](UI-and-E2E-Coverage.md#reuse-of-system-coverage),
 with no duplicate E2E implementation tasks. The remaining
 engineering briefs target only missing assertions under their existing owners.
+Obligation 143's real usage-service outage and identical-query recovery belong
+to `session::test_usage_reader_failure_recovery` (system 302), under the same
+[engineering owner](E2E-Building-Blocks.md#inventory-reconciliation). This has no
+customer countdown or scenario acceptance credit.
 Apply [system reuse](UI-and-E2E-Coverage.md#reuse-of-system-coverage)
 at case, step and acceptance level while keeping the complete public journeys.
 

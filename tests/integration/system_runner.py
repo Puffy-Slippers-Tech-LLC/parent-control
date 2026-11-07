@@ -138,6 +138,7 @@ COMMON_SELECTED_INPUTS = (
 )
 KIOSK_ACTIVATION_CASE = 'test_kiosk_account_classification_survives_reboot'
 EXTENSION_LOGIN_CASE = 'test_child_extension_login_unlock_recovery'
+GRAPHICAL_EXPIRY_CASE = 'test_kiosk_expiry_graphical_runtime'
 PACKAGE_READINESS_CASES = ('test_installed_package',)
 # Host entry/transport and the public observer's embedded source closure. Keep
 # these identities separate from guest imports; no host module runs in the VM.
@@ -209,7 +210,7 @@ PHASE_PREREQUISITES = {
        for index, phase in enumerate(history.phases) if index},
     'authorization': ('retained-app-snapshot', 'authorization-accounts'),
     'enforcement': ('retained-app-snapshot', 'native-enforcement-fixture'),
-    'session': ('retained-app-snapshot', 'one-shot-gdm-grant-fixture-and-second-reboot'),
+    'session': ('retained-app-snapshot',),
     'extension': ('retained-app-snapshot', 'gnome-monitor-fixture-and-second-reboot'),
     'extension-login': ('retained-app-snapshot', 'fresh-gdm-login-and-retained-unlock'),
     'startup': ('retained-app-snapshot', 'offline-startup-fault-and-real-reboot'),
@@ -566,6 +567,8 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
             if item not in prerequisites and not (fresh_install and item == 'retained-app-snapshot'):
                 prerequisites.append(item)
     available = {name: inventories[name] for name in chosen_areas}
+    if any(item.case_id == GRAPHICAL_EXPIRY_CASE for item in executions):
+        prerequisites.append('one-shot-gdm-grant-fixture-and-second-reboot')
     if any(item.area == 'authorization' for item in executions):
         prerequisites.extend(('fixture-passwords', 'remote-ldap-nss-fixtures'))
     return Selection(area, test, 'full' if area is None and recording_ids is None else 'partial', phases,
@@ -1772,7 +1775,8 @@ def stage_selected_inputs(selection, destination):
     if any(item.area == 'package' and item.case_id == KIOSK_ACTIVATION_CASE and not item.prerequisite
            for item in selection.executions):
         identity['host_files'] = kiosk_activation_host_inputs()
-    if 'session' in selection.phases or 'extension-login' in selection.phases or any(
+    if 'extension-login' in selection.phases or any(
+            item.case_id == GRAPHICAL_EXPIRY_CASE for item in selection.executions) or any(
             item.case_id == 'test_child_extension_monitor_native_recovery'
             for item in selection.executions):
         # The graphical input manifest also validates its worker's deferred
@@ -2352,6 +2356,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
     # Its observer runs under the caller's live lease for independent audits.
     guest = lease.capture.state['guest']
     clean = isinstance(guest, dict) and guest.get('fixture_boundary') == 'clean'
+    graphical_expiry = any(item.case_id == GRAPHICAL_EXPIRY_CASE
+                           for item in selection.executions)
     fixture_context = None
     if clean or preparation_only:
         from system_fixture_preparation import (SUBSETS, prepare, selection_record, qualified_guest,
@@ -2364,7 +2370,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         fixture_selection = (installed_selection(fixture_selection) if already_installed else
                              selection_record(fixture_selection))
         subsets = SUBSETS
-        if 'session' in selection.phases or 'extension-login' in selection.phases:
+        if graphical_expiry or 'extension-login' in selection.phases:
             from e2e_fixture_preparation import ACTIVITY_SUBSETS
             subsets += ACTIVITY_SUBSETS
         if any(item.case_id in (PREVIOUS_POLICY_CASE, TRUSTED_FIXTURES_CASE)
@@ -2584,7 +2590,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 log('stage:reboot-' + phase)
                 with ledger.measure('reboot'):
                     vm.reboot()
-            if phase == 'session':
+            if phase == 'session' and graphical_expiry:
                 if already_installed:
                     require_fixture_ready()
                 log('stage:graphical-expiry-fixture')
@@ -2660,14 +2666,14 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     if not qualification_pending:
                         ledger.fail_outcome(domain, 'pytest:failed:' + phase if domain == 'product'
                                             else error_category(error))
-                    if phase == 'session':
+                    if phase == 'session' and graphical_expiry:
                         try:
                             with ledger.measure('collection'):
                                 capture_session_screen(lease, directory / 'guest-results')
                         except Exception as capture_error:
                             ledger.fail_outcome('collection', error_category(capture_error))
                     raise
-            if phase == 'session':
+            if phase == 'session' and graphical_expiry:
                 with ledger.measure('collection'):
                     capture_session_screen(lease, directory / 'guest-results')
         outcome = 'passed'

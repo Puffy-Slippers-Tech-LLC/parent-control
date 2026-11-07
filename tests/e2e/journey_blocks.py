@@ -261,7 +261,7 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
     require(role is None or role == 'Alias' and route == 'grid' and child == 'other-child'
             or role == 'S' and child == 'other-child'
             or route == 'command' and
-            (role in ('A', 'S') and child == 'child' or role in ('N', 'unmatched-soft') and child == 'other-child'),
+            (role in ('A', 'S') and child == 'child' or role in ('N', 'unmatched-soft', 'SpaceCopy') and child == 'other-child'),
             'journey:native-role-binding')
     stages = {
         **({'desktop': 'ui:native-desktop'} if desktop_observation else {}),
@@ -281,7 +281,7 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
                 else tag for stage, tag in stages.items()}
     if role is not None:
         operation += {'A': 'allowed-', 'S': 'soft-', 'N': 'nonmatching-',
-                      'unmatched-soft': 'unmatched-soft-'}[role]
+                      'unmatched-soft': 'unmatched-soft-', 'SpaceCopy': 'space-copy-'}[role]
     return {stage: tag.replace('ui:native-', 'ui:' + operation)
             for stage, tag in stages.items()}
 

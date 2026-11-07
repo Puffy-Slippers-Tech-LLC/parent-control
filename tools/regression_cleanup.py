@@ -7,6 +7,10 @@ VM-control diagnostics use a unique abstract socket, joined owner thread and
 mocked guest transport; they share no live endpoint with another bucket.
 Unknown modules remain exclusive pending review.
 
+Native copy safety owns only private pytest files and real descriptors with
+local account/root doubles. It has no subprocess, shared cache, bus or VM;
+its cleanup guards can overlap the other private checks.
+
 Suspend safety checks use process-local domain/SSH/clock doubles only. They
 open no VM, socket, subprocess or shared path; existing compatible buckets apply.
 """
@@ -21,6 +25,7 @@ screen_preview
 execution_probe
 fixture
 fixture_provision
+native_copy
 package_purge
 probe_bus_client
 probe_channel

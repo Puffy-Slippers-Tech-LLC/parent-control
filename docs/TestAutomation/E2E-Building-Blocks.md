@@ -2205,7 +2205,7 @@ Await fresh public results within deadlines, accounting for observation latency.
 | FILE07 | C | Set a declared location only within an explicitly tested file-manager launch or product chooser handoff. Prefer direct directory launch or supported public location APIs, with minimal necessary shortcuts and independent destination readback. | Shared provider adapter with prepared exact-path/owner guards; no folder-browsing prerequisite. FILE03 owns real chooser Open/Save/Cancel; FILE04 opens Files directly at the target directory when its launch action is under test. | pending |
 | FILE03 | C | Supply declared files to the external chooser, save a named file, or cancel. Mode and files are explicit; observe closure and independently read the caller's result. No folder-browsing or per-row selection exercise. | Open: prepared FILE05/FIX04 fixtures → shared `AccessibleUI.chooser_operation` using public EditableText/Selection APIs and minimal Location/Enter shortcuts → Open → independent `feedback_snapshot`. `file_chooser.PLAN` / `onpc_feedback_read::run_file_chooser` implement the [qualified handoff](#attachment-chooser-handoff); `profile` adds the six [boundary batches](#attachment-rejection-boundaries) and [single-file draft](#formatted-one-file-draft-lifecycle). Save uses `save_chooser_operation`, shared `save_handoff` / `save_cancellation` and FILE05 exact output readback as described below. Exact-file/owner guards remain in the adapter. Cancel acts directly without candidate selection; unchanged caller attachments are required. | ready for Parent two-file Nautilus Open/Cancel, single-file Open, six declared boundary Open batches, named diagnostic Save/Cancel to `~/Downloads` and fixed `Unwritable` save-error/recovery; native GTK and other profiles pending |
 | FILE04 | C | Open the file manager directly at a declared directory only when the case explicitly tests that app launch route. | Shared fixed command/URI launch → FILE07/UI13. Supporting file preparation uses commands; product attachment/export handoffs use FILE03's actual chooser without a separate Files window. | pending |
-| FILE05 | C | Copy or rename a registered fixture file through a bounded shared SSH filesystem operation and verify its exact destination. | `SyntheticFiles.call` in [synthetic_files.py](../../tests/e2e/synthetic_files.py), fixed `synthetic-text` profile; [qualified scope](#synthetic-file-commands). `save_destination_actions` adds fixed `save` preparation, exact output readback and owned cleanup for the diagnostic Save binding below. Product catalogue/enforcement results remain independent UI observations. No Files copy/rename tour. | synthetic-text and diagnostic Save destination bindings ready; other profiles pending |
+| FILE05 | C | Copy or rename a registered fixture file through a bounded shared SSH filesystem operation and verify its exact destination. | `SyntheticFiles.call` in [synthetic_files.py](../../tests/e2e/synthetic_files.py), fixed `synthetic-text` profile; [qualified scope](#synthetic-file-commands). The `native-space` profile supplies the [child-owned executable copy](#space-bearing-executable-copy). `save_destination_actions` adds fixed `save` preparation, exact output readback and owned cleanup for the diagnostic Save binding below. Product catalogue/enforcement results remain independent UI observations. No Files copy/rename tour. | synthetic-text, diagnostic Save destination and Jordan's space-bearing executable copy on Ubuntu 26.04 ready; other profiles pending |
 | FILE08 | C | Inspect a declared synthetic or customer-exported text/ZIP artifact with bounded read-only filesystem/archive APIs over guarded SSH. Bind exact file identity and compare actual contents. For explicitly tested retained work, directly open its document in the registered work app and observe real activity instead. | `read_declared_text` / `read_declared_zip` in [synthetic_files.py](../../tests/e2e/synthetic_files.py) and fixed `open-text` / `open-zip` in [synthetic_files_guest.py](../../tests/e2e/synthetic_files_guest.py) qualify synthetic text/ZIP and the fixed `diagnostic-export` Save receipt binding; see [artifact-read boundary](#customer-artifact-read-boundary). Work uses APP01/03/04; file reads cannot prove usable or retained activity. No Files/editor/archive-viewer GUI for export inspection and no private product files. | synthetic text/ZIP and named Parent diagnostic-export bindings ready; retained-work and other exported artifacts pending |
 | FILE09 | C | Change a registered synthetic source file using the shared file helper and observe the product's attachment snapshot/re-add result. For declared retained-work assertions, edit/save in the existing work fixture and read its activity. | `change_attachment_source` / `SyntheticFiles.call('change-source')`; [qualified source binding](#synthetic-source-change) runs as Jamie for standard/single attachment inputs. It does not open/save a child document. Task [196a](E2E-Tasks/196a-child-saved-work.md) separately qualifies child-owned FILE08/09 Save/reopen and APP03/04 work observations before E2E-050/051. UI16/public Save/readback only for work observed by an enforcement/retention case. | standard/single synthetic source preparation ready; product snapshot/re-add belongs to the attachment UI matrix; retained-work binding planned in 196a |
 | APP01 | C | Attempt a launch once by the route explicitly tested by product enforcement. Default supporting launch uses a shared direct command. Hidden launcher and execution denial are distinct. | `onpc_app_rows::native_search/native_launch_grid/native_open_grid` qualify Jordan's and Riley's exact Allowed fixture grid routes under [native fixture preparation](#native-fixture-preparation), including Jordan's explicit A/Alias shared-target bindings and `other-child` / `child` identities. `native_open_command` / `AccessibleUI.native_launch_command` qualify the fixed native command as the bound active desktop user over guarded SSH, including Jamie/Parent through [distinct-user retention](#distinct-user-retained-app-qualification), with independent APP02 window readback. `native_blocked_app('A', route='grid')` adds the [case-64/66 bindings](#application-routes-and-complete-customer-journeys). Explicit app-grid, desktop-icon and file-manager cases retain their GUI route. Command cases use FILE01/02 without Terminal UI. Never substitute the tested route after failure. | Jordan/Riley native Allowed grid, Jordan A/Alias Allowed grid, stated Jamie/child command bindings and Jordan hard/soft-blocked A grid on Ubuntu 26.04 ready; other bindings pending |
@@ -2463,6 +2463,42 @@ complete owned receipt and independent absence. Uncertain transport permanently
 stops that controller without replay or guessed-ownership cleanup; outer VM
 ownership retains failure evidence/restoration. These are fixture capabilities;
 chooser, attachment, editing and enforcement outcomes remain separate.
+
+#### Space-bearing executable copy
+
+`SyntheticFiles(profile='native-space', expected=...)` binds FILE05 to Jordan
+before any write. It copies the FIX06-verified
+`/opt/onpc-test-fixtures/Applications/Whitespace/Path With Spaces.AppImage`
+to `Copied Path With Spaces.AppImage` in the same directory, retaining the
+existing adjacent GUI modules. `native_space_path.copy_actions` supplies the
+finite source/N digests and independent exact destination/content comparison.
+N remains the distinct `Applications/PrismLauncher.AppImage`; no baseline asset
+was added. The source and all unrelated files remain unchanged.
+
+The guest helper pins every directory ancestor, checks child ownership and
+executable mode, takes the directory lock and creates the destination exclusively.
+Reads and cleanup require the carried source/copy inode receipt and exact bytes;
+cleanup removes only the owned copy and independently verifies its absence.
+Existing/replaced objects, links, wrong account and uncertain transport refuse.
+Focused host coverage is
+[test_native_copy_cleanup_safety.py](../../tests/unit/test_native_copy_cleanup_safety.py),
+using private real files/descriptors without a VM or shared resource.
+
+APP01/02/03 and FLOW08 use `native_usable_app('command', role='SpaceCopy')`
+and the matching shared worker. `AccessibleUI.native_launch_command`,
+`native_app_snapshot`, `native_app_owner` and `native_app_submit` bind Jordan's
+secondary public window to this exact copied executable. Independent window
+and Submit/readback results establish usable Allowed access; a successful copy
+or command reply alone does not.
+
+`check_e2e_native_space_path` passed on Ubuntu 26.04 in
+`20261107T204119Z-bb638703`: two independent copy/use/normal-close/cleanup
+lifetimes, exact identical bytes, final logout, collection, worker shutdown and
+baseline restoration passed. Affected both-child grid/command case 62 passed
+in `scenario-965b812b88c544d1a3748f83a0ee8d03`, including collection and cleanup.
+The selector has no standalone system registration and supplies no complete
+case-188 credit. Comma inputs and original/copy Hard/Soft policy effects remain
+with their declared consumers; this qualifies only the finite Allowed copy.
 
 ### Time and ordinary lifecycle boundaries
 

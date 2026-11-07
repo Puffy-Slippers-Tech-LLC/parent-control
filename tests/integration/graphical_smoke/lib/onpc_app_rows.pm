@@ -660,7 +660,7 @@ sub native_usable_app {
             || $role eq 'S' && $child eq 'other-child'
             || $route eq 'command' &&
             ($role =~ /\A(?:A|S)\z/ && $child eq 'child'
-                || $role =~ /\A(?:N|unmatched-soft)\z/ && $child eq 'other-child')));
+                || $role =~ /\A(?:N|unmatched-soft|SpaceCopy)\z/ && $child eq 'other-child')));
     my $opened = $route eq 'command' ? native_open_command($journey, $desktop)
         : $kind ne 'native' ? native_launch_grid($journey,
             native_search($journey, $desktop, 'app-grid', $role, $kind), $gesture)
@@ -1137,6 +1137,22 @@ sub native_child_entry {
     onpc_gdm::sign_in_challenge($journey, 'native-child-login',
         'child-installed-greeter', 'child-standard-focused', 'child-desktop');
     return $journey;
+}
+
+sub native_space_path {
+    onpc_progress::operation('Checking the child can copy and use an app with spaces in its name');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'native:space-arguments' unless @_ == 3;
+    my $journey = native_child_entry($exchange, $declared, $challenges, 'native-space-path');
+    for my $entry ('first', 'independent') {
+        $journey->seen($entry . '-copy');
+        my $app = $journey->scope($entry . '-app');
+        native_usable_app($app, 'command', $app->seen('desktop'), 'other-child', 'SpaceCopy');
+        native_finish_app($app);
+        $journey->seen($entry . '-cleanup');
+    }
+    $journey->seen('child-logout');
+    $journey->finish();
 }
 
 sub native_app {

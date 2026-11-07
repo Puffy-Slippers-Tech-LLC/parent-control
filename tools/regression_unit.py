@@ -22,6 +22,10 @@ Kiosk approval safety uses process-local clocks/observation doubles and bounded,
 reaped Perl children with captured pipes. Credential-reader checks use tiny
 pytest-private canary files and process-local caller doubles, never real host
 configuration. No bus, display, VM or shared cache is opened; unit overlap is safe.
+
+Native copy safety uses real descriptor operations only in private pytest paths,
+with process-local account/root bindings. It owns no children, bus, display,
+shared cache or VM and is compatible with ordinary unit overlap.
 """
 
 from pathlib import PurePosixPath
@@ -93,6 +97,7 @@ pam_runtime_cap
 parent_client
 parent_main
 parent_native_surface
+native_copy_cleanup_safety
 preferences
 prepared_kiosk_pam
 privileged_test_runner

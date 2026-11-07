@@ -970,7 +970,7 @@ def test_backup_root_validation_is_shared_with_other_registry_consumers(tmp_path
 
 def test_optional_backup_root_allows_non_backup_registry_consumers(tmp_path, monkeypatch, capsys):
     from dataclasses import FrozenInstanceError
-    from agent_adapter import resolve_selection
+    from agent_adapter import report_readiness, resolve_selection, setup_agent
 
     # Keep the existing shared configuration guard in one place: malformed
     # selection must never authorize a different or unqualified agent process.
@@ -1008,6 +1008,11 @@ def test_optional_backup_root_allows_non_backup_registry_consumers(tmp_path, mon
     monkeypatch.setitem(sys.modules, 'claude_agent_sdk', None)
     with pytest.raises(ValueError, match='not qualified.*no agent was started or fallback selected'):
         claude.adapter()
+    setup_agent(root, headless=True)
+    report_readiness(root, {'PATH': ''})
+    messages = capsys.readouterr().out
+    assert messages.count('setup: action needed:') == 2
+    assert 'not qualified' in messages and str(root) in messages
     assert codex.name == 'codex' and codex.adapter().name == 'codex'
 
     # Agent-free inspection stays available with no CLI or optional SDK.

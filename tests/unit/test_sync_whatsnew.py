@@ -1,12 +1,13 @@
 """Latest-only source synchronization and read-only translation transport.
 
-Private pytest PO/TOML/output trees and bounded waited gettext children only;
-Codex, workflow ownership and model discovery use process-local doubles.
+Private pytest PO/TOML/output trees and bounded waited gettext/Bash children;
+Codex, NVM, workflow ownership and model discovery use private doubles.
 """
 
 import fcntl
 import json
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 
@@ -175,9 +176,33 @@ def test_symlink_catalogues_are_refused(repository, tmp_path):
 
 def test_transport_is_read_only_and_helpers_are_bounded(monkeypatch, tmp_path):
     import agent_codex
-    monkeypatch.setattr(agent_codex.shutil, 'which', lambda _name: '/installed/codex')
+    # Exercise the same native preparation used after SSH destination dispatch.
+    # The tiny NVM entry point is private; arbitrary shell startup is forbidden.
+    home = tmp_path / 'account'
+    nvm = home / '.nvm'
+    nvm.mkdir(parents=True)
+    monkeypatch.setenv('HOME', str(home))
+    monkeypatch.setenv('NVM_DIR', str(nvm))
+    monkeypatch.setenv('PATH', '')
+    with pytest.raises(ValueError, match='Codex CLI is missing'):
+        sync.agent_command(ROOT, tmp_path, 'gpt-6.1-sol', 'high', 2)
+    native = nvm / 'default bin'
+    native.mkdir()
+    for name in ('codex', 'node'):
+        executable = native / name
+        executable.write_text('#!/bin/sh\nexit 99\n')
+        executable.chmod(0o700)
+    (nvm / 'nvm.sh').write_text('export PATH=' + shlex.quote(str(native)) + '\n')
+    startup = home / 'unrelated-startup'
+    marker = home / 'must-not-exist'
+    startup.write_text(': > ' + shlex.quote(str(marker)) + '\n')
+    monkeypatch.setenv('BASH_ENV', str(startup))
     session = sync.agent_command(ROOT, tmp_path, 'gpt-6.1-sol', 'high', 2)
     command = session.argv
+    assert command[0] == str(native / 'codex')
+    assert session.environment['PATH'] == str(native)
+    assert session.environment['HOME'] == str(home)
+    assert session.cwd == ROOT and not marker.exists()
     assert command.count('--sandbox') == 1
     assert command[command.index('--sandbox') + 1] == 'read-only'
     assert '--ephemeral' not in command and '--json' in command

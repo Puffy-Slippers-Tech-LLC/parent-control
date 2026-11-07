@@ -218,8 +218,13 @@ configuration and unrelated clones are unchanged. It preserves signing
 configuration, remotes and credentials, reporting any remaining unusable identity
 or missing branch upstream as actions needed. It checks Git remote read access without
 prompting; push permissions must be configured separately before using committing launchers.
-Headless setup validates the tracked Codex command rules but does not install or
-authenticate the Codex CLI. It installs neither VS Code nor its Watch extension.
+Setup prepares the selected agent's user-owned policy through the fixed adapter
+boundary, preserving personal settings and trust. The fixed privileged
+`codex-rules` operation still manages only the machine-wide Codex read policy;
+it grants no other provider installation or policy writes. An unqualified agent
+selection reports action needed without preparing its native policy or falling
+back to Codex. Setup never installs or authenticates a coding CLI.
+Headless setup installs neither VS Code nor its Watch extension.
 Headless setup installs OpenSSH Server, validates the existing sshd configuration,
 and enables/starts `ssh.service`. It preserves host keys and authentication policy.
 If UFW is already active, setup allows TCP access to the ports reported by
@@ -227,10 +232,13 @@ If UFW is already active, setup allows TCP access to the ports reported by
 firewalls and network/router access remain administrator responsibilities.
 Setup prints the active SSH ports. Its checkout stage ends with a connection
 summary containing server host-key fingerprints, the account, current network
-addresses, checkout path and registered Git worktrees. It checks Codex login
-when the CLI is installed and performs a read-only Git remote probe. These
-checks have 15-second and 20-second limits respectively, never prompt for login,
-and report missing readiness without discarding successful setup. Resolve any
+addresses, checkout path and registered Git worktrees. Setup ends with readiness
+for the agent selected by that checkout, using the executing account's native
+environment. Codex discovery preserves Node/NVM support without loading
+interactive shell startup files; its login-status check has a 15-second limit.
+The checkout stage also performs a read-only Git remote probe with a 20-second
+limit. These checks never prompt for login and report missing readiness without
+discarding successful setup. Resolve any
 action-needed items before starting a launcher. The summary stays in terminal
 output, outside Git. Client onboarding below automatically records new host
 keys and uses `ssh-copy-id` to authorize the client's public key.

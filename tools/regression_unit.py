@@ -14,6 +14,10 @@ source is released within its case; no live bus, account or shared path is used.
 Version-check reload cases dispatch private GLib sources with a mocked child
 connection and settings commands; subscription and close ownership stay local.
 
+Translation's native admission check sources one pytest-private NVM stub in a
+bounded, waited Bash child. Its PATH and shell-startup canary stay private; no
+real coding CLI, account configuration, network or shared cache is accessed.
+
 Kiosk approval safety uses process-local clocks/observation doubles and bounded,
 reaped Perl children with captured pipes. Credential-reader checks use tiny
 pytest-private canary files and process-local caller doubles, never real host

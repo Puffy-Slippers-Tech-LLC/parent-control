@@ -107,15 +107,14 @@ bootstrap_tools() {
     fi
 }
 
-install_codex_rules() {
+install_agent_rules() {
     echo 'setup: [stage:codex-rules]'
     run_root codex-rules /usr/bin/python3 -IB "$script_dir/tools/install_codex_rules.py" --system
     if [[ $mode == --server ]]; then
-        /usr/bin/python3 -IB "$script_dir/tools/install_codex_rules.py" --headless
+        /usr/bin/python3 -IB "$script_dir/tools/agent_adapter.py" --setup --headless
     else
-        /usr/bin/python3 -IB "$script_dir/tools/install_codex_rules.py"
+        /usr/bin/python3 -IB "$script_dir/tools/agent_adapter.py" --setup
     fi
-    echo 'setup: Codex settings and rules installed; restart Codex with this checkout trusted'
 }
 
 install_test_tools() {
@@ -123,7 +122,7 @@ install_test_tools() {
     run_root test-tools /usr/bin/python3 -IB "$script_dir/tools/install_test_runner.py"
     echo 'setup: [stage:graphical-host-policies]'
     run_root graphical-policy /usr/bin/python3 -IB "$script_dir/tools/install_graphical_test_policy.py"
-    install_codex_rules
+    install_agent_rules
     install_watch_extension --if-available
 }
 
@@ -154,8 +153,8 @@ case "$mode" in
         echo 'setup: [stage:checkout]'
         /bin/bash "$script_dir/tools/setup_checkout.sh" --headless
         # Do not run the VM-host AppArmor policy installer or desktop extension.
-        install_codex_rules
-        echo 'setup: headless SSH environment installed; client keys, Git credentials, Codex CLI and VM hosting are managed separately'
+        install_agent_rules
+        echo 'setup: headless SSH environment installed; client keys, Git credentials, coding CLI and VM hosting are managed separately'
         ;;
     --watch) install_watch_extension ;;
     --ui-tests-only)
@@ -177,7 +176,7 @@ case "$mode" in
     --test-tools-only) install_test_tools ;;
     --bootstrap-tools)
         bootstrap_tools
-        install_codex_rules
+        install_agent_rules
         ;;
     --install-extension)
         make --no-print-directory _install-development-extension
@@ -210,6 +209,11 @@ case "$mode" in
         if [[ -z "$mode" ]]; then
             install_test_tools
         fi
+        ;;
+esac
+case "$mode" in
+    ''|--server|--dependencies-only|--vm-host-only|--test-tools-only|--bootstrap-tools)
+        /usr/bin/python3 -IB "$script_dir/tools/agent_adapter.py" --readiness
         ;;
 esac
 echo 'setup: selected setup completed successfully'

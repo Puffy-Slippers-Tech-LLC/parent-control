@@ -317,8 +317,8 @@ dependency and package payload maps.
 | Translation | [sync_whatsnew.py](../tools/sync_whatsnew.py) requests read-only sessions, bounded translator roles and model preflight through the adapter | Preserve launcher-owned catalogue writes when selection is enabled |
 | Git recovery | [launcher_git.py](../tools/launcher_git.py) and [launcher_worktrees.py](../tools/launcher_worktrees.py) resolve pinned profiles and prepare sessions through the adapter | Qualify catalogue readiness and inherit the parent's selection when enabled; keep deterministic Git transactions shared |
 | Policies and roles | Shared prompts render resolved profiles; [AGENTS.md](../AGENTS.md), [Execution-Plans.md](Execution-Plans.md), [tests/README.md](../tests/README.md) and native role TOMLs retain current Codex requirements | Qualify and revise the owning policies before Claude execution; render its native roles from shared requirements |
-| Setup | [setup.sh](../setup.sh), [install_codex_rules.py](../tools/install_codex_rules.py), [setup_checkout.sh](../tools/setup_checkout.sh), and `config/codex-*` manage Codex rules/readiness | Add the selected agent's setup/readiness path without changing the public setup entry point |
-| Remote and Watch | [launcher_controller.py](../tools/launcher_controller.py) and [extension.js](../vscode/onpc-watch/extension.js) check specifically for Codex on SSH startup | Resolve on the executing checkout, prepare its CLI environment and display the recorded agent |
+| Setup | [setup.sh](../setup.sh) routes user-owned policy preparation and account readiness through the fixed adapter; [install_codex_rules.py](../tools/install_codex_rules.py) retains Codex-only managed policy | Codex preparation is supported; unqualified providers report action needed without installation, authentication or fallback |
+| Remote and Watch | [launcher_controller.py](../tools/launcher_controller.py) dispatches without coding-CLI assumptions; the native adapter discovers Codex/Node only at agent admission. [extension.js](../vscode/onpc-watch/extension.js) still has Codex-specific SSH startup | Launcher dispatch resolves the executing checkout before native readiness; Watch changes remain task 016 |
 | Supporting assets | Existing test doubles, skills, ignore rules, source archives and launcher reload inventories contain Codex assumptions | Adapt affected consumers without introducing a second workflow or unrelated test matrix |
 
 ### Adapter boundary
@@ -620,8 +620,10 @@ an explicitly scoped installer and the existing setup/approval process.
 
 ### Remote execution, Watch and failure handling
 
-Replace Codex-specific SSH PATH checks in both launcher dispatch and Watch
-controls. Resolve the executing checkout and its configuration before checking
+Launcher dispatch leaves native PATH discovery to the selected adapter after
+destination checkout verification. Setup uses the same native environment
+capability. Watch's Codex-specific SSH startup remains for task 016.
+Resolve the executing checkout and its configuration before checking
 its selected CLI; prepare native user-local installation paths as needed without
 sourcing arbitrary interactive shell startup files. The selected agent's login
 must belong to the actual remote execution account. Client authentication and

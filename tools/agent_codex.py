@@ -70,6 +70,55 @@ ROLES = {
 class CodexAdapter:
     name = 'codex'
 
+    def setup(self, root, *, headless=False):
+        from install_codex_rules import prepare_checkout
+        prepare_checkout(root, headless=headless)
+
+    def prepare_environment(self, root, environment):
+        """Discover account-local Codex/Node without interactive rc files.
+
+        SSH and setup use the executing account's environment. Keep credentials
+        and personal configuration in place; carry only the discovered PATH
+        back from the maintained NVM entry point.
+        """
+        environment = dict(environment)
+        path = environment.get('PATH', '')
+        home = environment.get('HOME')
+        if home and not shutil.which('codex', path=path):
+            path = str(Path(home) / '.local/bin') + ':' + path
+            environment['PATH'] = path
+        if (shutil.which('codex', path=path) and shutil.which('node', path=path)):
+            return environment
+        nvm = environment.get('NVM_DIR') or (str(Path(home) / '.nvm') if home else None)
+        if nvm and (Path(nvm) / 'nvm.sh').is_file():
+            shell_environment = dict(environment, NVM_DIR=nvm)
+            # Noninteractive Bash otherwise sources BASH_ENV even with --norc.
+            shell_environment.pop('BASH_ENV', None)
+            shell_environment.pop('ENV', None)
+            try:
+                response = subprocess.run(['/bin/bash', '--noprofile', '--norc', '-c',
+                    '. "$NVM_DIR/nvm.sh" >/dev/null && printf "%s" "$PATH"'],
+                    cwd=root, env=shell_environment, capture_output=True, text=True,
+                    check=True, timeout=15)
+            except (OSError, subprocess.SubprocessError) as error:
+                raise ValueError('Codex environment preparation failed; check this account\'s '
+                                 'NVM default and Node installation separately') from error
+            environment['PATH'] = response.stdout
+        return environment
+
+    def readiness(self, root, environment):
+        environment = self.prepare_environment(root, environment)
+        executable = self.executable(environment)
+        try:
+            subprocess.run([executable, 'login', 'status'], cwd=root, env=environment,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           check=True, timeout=15)
+        except (OSError, subprocess.SubprocessError) as error:
+            raise ValueError(f'Codex login is not ready for executing checkout {root}; '
+                             'check the CLI and run codex login separately as this account, '
+                             'then rerun ./setup.sh') from error
+        return 'Codex login verified for this account; model access is checked before each workflow'
+
     def resolve_profile(self, role: ProfileRole, *, model=None, effort=None) -> ModelProfile:
         if role in ('implementation', 'repair', 'translator', 'commit_helper', 'conflict_resolver'):
             default = ModelProfile('gpt-6.1-sol', 'medium' if role == 'repair' else 'high')
@@ -90,8 +139,8 @@ class CodexAdapter:
     def capacity_fallback(self, model):
         return 'gpt-6-astra' if model == 'gpt-6.1-sol' else None
 
-    def executable(self):
-        executable = shutil.which('codex')
+    def executable(self, environment):
+        executable = shutil.which('codex', path=environment.get('PATH', ''))
         if executable is None:
             raise ValueError('Codex CLI is missing; install and authenticate it before running this launcher')
         return executable
@@ -102,7 +151,7 @@ class CodexAdapter:
         This checks advertised model/effort support, not live model access or
         transport compatibility. Native authentication failures stay blockers.
         """
-        executable = self.executable()
+        executable = self.executable(environment)
         try:
             response = subprocess.run([executable, 'debug', 'models'], env=environment,
                                       cwd=request.root, capture_output=True, text=True,
@@ -141,7 +190,8 @@ class CodexAdapter:
                                  'no fallback was selected')
 
     def prepare_session(self, request: SessionRequest, environment: dict[str, str]) -> PreparedSession:
-        executable = self.executable()
+        environment = self.prepare_environment(request.root, environment)
+        executable = self.executable(environment)
         if request.permissions not in ('workspace', 'read_only'):
             raise ValueError('unsupported agent write boundary')
         if request.run is not None and request.schema is None:

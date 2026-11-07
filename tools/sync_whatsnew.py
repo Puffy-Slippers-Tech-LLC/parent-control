@@ -15,7 +15,7 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import detached_launcher as launcher
-from agent_adapter import resolve_profile
+from agent_adapter import AgentSelection, resolve_profile, resolve_selection
 from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
 from test_storage import directory as storage_directory
 from tools import whats_new_catalogs as catalogs
@@ -27,13 +27,15 @@ DEFAULT_BATCH_SIZE = 24
 SCHEMA = Path(__file__).with_name('sync_whatsnew_response.schema.json')
 
 
-def available_model(model, effort, subagents=0):
-    agent_command(ROOT, None, model, effort, subagents).preflight()
+def available_model(model, effort, subagents=0, *, selection=None):
+    agent_command(ROOT, None, model, effort, subagents, selection=selection).preflight()
 
 
-def agent_command(root, run, model, effort, subagents):
+def agent_command(root, run, model, effort, subagents, *, selection=None):
+    selection = selection or resolve_selection(root)
+    model, effort = resolve_profile('translator', model=model, effort=effort, selection=selection)
     return launcher.agent_command(root, model, effort, run, schema=SCHEMA,
-        permissions='read_only', standard_speed=True,
+        permissions='read_only', standard_speed=True, selection=selection,
         delegation=launcher.Delegation(
             roles=('backend_reviewer', 'translator') if subagents else ('backend_reviewer',),
             enabled=bool(subagents), max_concurrent=subagents or 1,
@@ -233,6 +235,9 @@ def worker(root, run, owner, model, effort, subagents, batch_size):
             batch = {language: work[language] for language in languages[offset:offset + batch_size]}
             originals = {language: catalogs.fingerprint(catalogs.catalog_path(root, release, language))
                          for language in batch}
+            selection = resolve_selection(root)
+            selected_model, selected_effort = resolve_profile('translator', model=model, effort=effort,
+                                                              selection=selection)
             context = translation_context(root, batch)
             (run / 'prompt.txt').write_text(prompt(release, batch, subagents, context=context), encoding='utf-8')
             (run / 'agent-result.json').unlink(missing_ok=True)
@@ -242,7 +247,9 @@ def worker(root, run, owner, model, effort, subagents, batch_size):
             print(f'sync-whatsnew: {len(lanes)} translation lanes '
                   f'(coordinator + {len(lanes) - 1} helpers).', flush=True)
             started = time.monotonic()
-            response = execute(root, run, owner, model, effort, subagents)
+            saved['agent_selection'] = selection.record()
+            launcher.atomic(retained, saved)
+            response = execute(root, run, owner, selected_model, selected_effort, subagents)
             (run / 'agent-result.json').replace(run / f'batch-{number}.json')
             apply_response(root, release, batch, response, originals)
             saved.update(batches=number, completed=[*saved['completed'], *batch])
@@ -297,8 +304,12 @@ def main(argv=None):
             root, run, owner = Path(root), Path(run), int(owner)
             guarded_internal(root, run, owner)
             if mode == '--supervise':
+                state = json.loads((run / 'translation-state.json').read_text())
+                selection = (AgentSelection.from_record(state['agent_selection'], root=root)
+                             if 'agent_selection' in state else resolve_selection(root))
                 return launcher.supervise(root, run, owner, 'agent',
-                                          agent_command(root, run, model, effort, int(helpers)),
+                                          agent_command(root, run, model, effort, int(helpers),
+                                                        selection=selection),
                                           subagents_follow_model=True)
             return worker(root, run, owner, model, effort, int(helpers), int(extra[0]))
         parser = argparse.ArgumentParser(description=__doc__)
@@ -342,8 +353,9 @@ def main(argv=None):
             release = catalogs.latest(ROOT) if pending_pull is None else None
             work = catalogs.pending(ROOT, release) if release is not None else {}
             if work:
-                available_model(args.model, args.effort, args.subagents)
-                agent_command(ROOT, run, args.model, args.effort, args.subagents)
+                selection = resolve_selection(ROOT)
+                available_model(args.model, args.effort, args.subagents, selection=selection)
+                agent_command(ROOT, run, args.model, args.effort, args.subagents, selection=selection)
             return [sys.executable, '-IBu', str(Path(__file__).resolve()), '--worker', str(ROOT),
                     str(run), str(owner), args.model, args.effort, str(args.subagents), str(args.batch_size)]
 

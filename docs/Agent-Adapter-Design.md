@@ -23,11 +23,17 @@ configuration selection. Shared integration can proceed without paid Claude
 access; native Claude qualification, policy migration and activation remain
 outside the current scope and will be implemented in the future.
 
-The compatibility fix in [vm_config.py](../tests/integration/vm_config.py)
-accepts the additional field as unused metadata. It does not validate agent
-capabilities, select Claude, or change the existing Codex commands. Until the
-proposal is implemented, both field values leave execution on the existing
-Codex path.
+The shared reader in [vm_config.py](../tests/integration/vm_config.py) validates
+the field for live selection. Agent-free branch and VM registry reads ignore
+only its value, retaining structural and duplicate-key checks. Session callers
+now pin the executing checkout's selection; Claude fails explicitly as
+unqualified rather than starting Codex. Task 014 is complete with the available
+host checks: the existing read-only translation transport regression, source
+checks and Markdown links passed; read-only review found no actionable defects.
+The developer directed that checks requiring their intervention be skipped.
+The restricted disposable-session qualification did not run and remains
+unqualified, including live config edits, retry/helper/Git inheritance and legacy
+recovery histories. No live qualification credit is claimed.
 
 The first implementation slice adds `SessionRequest`, `Delegation` and
 `PreparedSession` in [agent_adapter.py](../tools/agent_adapter.py), with native
@@ -61,8 +67,9 @@ support; it does not establish authentication, live model access or transport
 compatibility. Workflow owners retain effort ladders, explicit override policy,
 promotion timing, budgets and capacity retry delays. The adapter maps the existing
 Sol-to-Astra capacity fallback, checked when needed without spending a new logical
-session. Native role assets join the controller reload inventory. Strict
-configuration selection remains a future step. No Claude runtime dependency is
+session. Native role assets join the controller reload inventory. Shared
+callers carry immutable selection through preparation, profiles, interactive
+turns and capacity attempts. No Claude runtime dependency is
 introduced.
 
 Git close-out and merge/stash-restoration conflict sessions resolve the pinned

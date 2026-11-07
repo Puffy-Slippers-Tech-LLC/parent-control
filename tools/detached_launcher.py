@@ -185,13 +185,14 @@ contract in docs/Execution-Plans.md#plan-format.
 
 def agent_command(root, model, effort, run=None, *, schema=None, permissions='workspace',
                   delegation=Delegation(), standard_speed=False, shell_environment=(),
-                  extra_directories=()):
+                  extra_directories=(), selection=None, logical_tier=None):
     """Prepare a typed session; callers never modify native command arguments."""
     return prepare_session(SessionRequest(root=root, model=model, effort=effort,
         run=run, schema=schema or Path(__file__).with_name('fix_tests_response.schema.json'),
         permissions=permissions, delegation=delegation, standard_speed=standard_speed,
         shell_environment=tuple(shell_environment), extra_directories=tuple(extra_directories),
-        instructions=SOURCE_DISCOVERY_INSTRUCTIONS + TASK_TITLE_INSTRUCTIONS), environment())
+        instructions=SOURCE_DISCOVERY_INSTRUCTIONS + TASK_TITLE_INSTRUCTIONS,
+        selection=selection, logical_tier=logical_tier), environment())
 
 
 def descriptive_output(run):
@@ -248,7 +249,8 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
                     interactive=interactive, task=task, session_state=session_state)
             except AgentCapacityUnavailable as error:
                 failures += 1
-                delay, fallback, exhausted = capacity_failure(configured_model, failures)
+                delay, fallback, exhausted = capacity_failure(configured_model, failures,
+                    selection=command.request.selection)
                 if exhausted:
                     raise AgentCapacityUnavailable('model capacity recovery exhausted: ' + str(error)) from error
                 requested = False
@@ -340,9 +342,14 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
     if kind == 'agent':
         from launcher_render import AgentRenderer, SessionTranscript
         from launcher_chat import task_message
+        provenance = dict(agent=command.adapter.name, model=command.request.model,
+                          effort=command.request.effort, logical_tier=command.request.logical_tier)
+        usage_callback = on_usage
+        if usage_callback is not None:
+            on_usage = lambda usage: usage_callback(dict(usage or {}, **provenance))
         session_view = dict(session=uuid.uuid4().hex, status='running',
             started_at=time.time(), interactive=interactive,
-            agent=command.adapter.name, model=command.request.model, effort=command.request.effort)
+            **provenance)
         if session_state is not None and 'repair_failure' in session_state:
             session_view.update(repair_failure=session_state['repair_failure'],
                                 task_session=session_state['task_sessions'])

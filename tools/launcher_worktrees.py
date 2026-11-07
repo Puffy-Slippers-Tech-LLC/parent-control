@@ -21,8 +21,8 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detached_launcher as launcher
-from agent_adapter import resolve_profile
-from launcher_git import git_for_run, git_output, worktree_fingerprint
+from agent_adapter import AgentSelection, resolve_profile, resolve_selection
+from launcher_git import _operation_selection, git_for_run, git_output, worktree_fingerprint
 
 
 _held = threading.local()
@@ -102,7 +102,7 @@ def configured_targets(root, *, git=git_output):
     if path.is_symlink() or not path.is_file():
         raise ValueError('worktree configuration must be a regular file')
     from vm_selection import vm_config
-    configured = vm_config.branch_registry(vm_config.read_document(path))
+    configured = vm_config.branch_registry(vm_config.read_document(path, validate_agent=False))
     current = _run(git, root, 'symbolic-ref', '--quiet', '--short', 'HEAD')
     source = configured.get(current)
     if not configured:
@@ -164,13 +164,14 @@ def pull_targets(root, *, git=git_output):
     configured_targets(root, git=git)
     if (root / 'config/environment.json').exists():
         from vm_selection import vm_config
-        if vm_config.branch_registry(vm_config.read_document(root / 'config/environment.json')):
+        if vm_config.branch_registry(vm_config.read_document(
+                root / 'config/environment.json', validate_agent=False)):
             targets.insert(0, dict(path=str(root.resolve()),
                                   branch=_run(git, root, 'symbolic-ref', '--short', 'HEAD')))
     return [dict(item, pull_only=True) for item in targets]
 
 
-def pull_at_boundary(root, run, state, *, git=git_output, checkpoint='checkpoint.json'):
+def pull_at_boundary(root, run, state, *, git=git_output, checkpoint='checkpoint.json', selection=None):
     """Refresh this controller's checkout before new work, never mid-closeout.
 
     Retain the transaction inside the workflow checkpoint for ordinary recovery.
@@ -184,16 +185,17 @@ def pull_at_boundary(root, run, state, *, git=git_output, checkpoint='checkpoint
         # The accepted completion was already committed. Resume its exact
         # close-out before callers parse metadata that its merge may conflict.
         from launcher_git import commit_push_propagate
-        commit_push_propagate(root, run, state, intent['paths'], intent['message'], git=git)
+        commit_push_propagate(root, run, state, intent['paths'], intent['message'], git=git,
+                              selection=selection)
         return
     if (state.get('commit_intent') or state.get('pull_intent')
             or state.get('pending_completion') or state.get('pending')
             or state.get('worktree_propagation')):
         return
-    _sync_current(root, run, state, git=git, checkpoint=checkpoint)
+    _sync_current(root, run, state, git=git, checkpoint=checkpoint, selection=selection)
 
 
-def push_source(root, run, state, commit, *, git=git_output):
+def push_source(root, run, state, commit, *, git=git_output, selection=None):
     """Retry a rejected source push without changing its immutable task commit."""
     if (state.get('commit_intent', {}).get('commit') != commit
             or git(root, 'merge-base', '--is-ancestor', commit, 'HEAD', check=False).returncode):
@@ -207,11 +209,11 @@ def push_source(root, run, state, commit, *, git=git_output):
     # The completion commit is already written and verified. A retained self
     # transaction can now merge/push its descendant, preserving the original
     # commit intent and any active edits outside that commit.
-    _sync_current(root, run, state, git=git, push=True)
+    _sync_current(root, run, state, git=git, push=True, selection=selection)
     return _head(git, root)
 
 
-def _sync_current(root, run, state, *, git, checkpoint='checkpoint.json', push=False):
+def _sync_current(root, run, state, *, git, checkpoint='checkpoint.json', push=False, selection=None):
     print(f'Git: synchronizing checkout {root.name} with its upstream.', flush=True)
     with transaction_lock(root, run, git=git):
         before = _head(git, root)
@@ -226,7 +228,7 @@ def _sync_current(root, run, state, *, git, checkpoint='checkpoint.json', push=F
             for target in targets:
                 target['push_after_pull'] = True
         propagate(root, run, pending, commit, git=git, targets=targets,
-                  checkpoint=checkpoint, save_state=save, pull=True)
+                  checkpoint=checkpoint, save_state=save, pull=True, selection=selection)
         state.pop('upstream_pull', None)
         save()
         if _head(git, root) != before:
@@ -588,19 +590,23 @@ def _merge(git, root, target, incoming, resolve):
 
 
 def propagate(root, run, state, commit, *, git=git_output, resolve=None,
-              targets=None, checkpoint='checkpoint.json', save_state=None, pull=False):
+              targets=None, checkpoint='checkpoint.json', save_state=None, pull=False,
+              selection=None):
     """Retry advancing checked-out destinations through the retained transaction."""
+    selection = _operation_selection(root, selection)
     for attempt in range(5):
         try:
             return _propagate_once(root, run, state, commit, git=git, resolve=resolve,
-                targets=targets, checkpoint=checkpoint, save_state=save_state, pull=pull)
+                targets=targets, checkpoint=checkpoint, save_state=save_state, pull=pull,
+                selection=selection)
         except _PushAdvanced:
             if attempt == 4:
                 raise ValueError('remote branch kept advancing during propagation; retained transaction preserved')
 
 
 def _propagate_once(root, run, state, commit, *, git=git_output, resolve=None,
-                    targets=None, checkpoint='checkpoint.json', save_state=None, pull=False):
+                    targets=None, checkpoint='checkpoint.json', save_state=None, pull=False,
+                    selection=None):
     """Finish every destination before caller grants completion; save each write intent."""
     root, run = Path(root), Path(run)
     transaction = state.get('worktree_propagation')
@@ -622,7 +628,7 @@ def _propagate_once(root, run, state, commit, *, git=git_output, resolve=None,
         raise ValueError('worktree propagation source commit changed')
     resolve = resolve or (lambda target, phase, details: resolve_conflicts(
         target, run, phase, dict(details, source_root=str(root.resolve()), checkpoint=checkpoint,
-                                pull=pull)))
+                                pull=pull), selection=selection))
     with transaction_lock(root, run, git=git):
         def save():
             if save_state is not None:
@@ -775,9 +781,10 @@ def _remove_remote(git, root, target):
         raise ValueError('remote propagation checkout disappeared before removal')
 
 
-def resolve_conflicts(root, run, phase, details, *, git=git_output):
+def resolve_conflicts(root, run, phase, details, *, git=git_output, selection=None):
     """Continue bounded unattended turns instead of asking a developer to merge."""
     details = dict(details)
+    selection = _operation_selection(Path(details['source_root']), selection)
     expected = details['merged_head'] if phase == 'restore' else _head(git, root)
     for attempt in range(1, 6):
         _identity(git, root, details)
@@ -785,7 +792,7 @@ def resolve_conflicts(root, run, phase, details, *, git=git_output):
             _idle(git, root)
         _expect_head(git, root, expected, f'{phase} conflict resolution')
         print(f'Automatically resolving {phase} conflicts in {root} (turn {attempt}/5).', flush=True)
-        result = _resolve_once(root, run, phase, details)
+        result = _resolve_once(root, run, phase, details, selection=selection)
         # Another owner may have advanced the destination during this turn.
         # Keep descendants; refuse a rewrite before starting another turn.
         _identity(git, root, details)
@@ -804,7 +811,7 @@ def resolve_conflicts(root, run, phase, details, *, git=git_output):
     raise ValueError('automatic worktree resolution exhausted its turns; retained stash and transaction preserved')
 
 
-def _resolve_once(root, run, phase, details):
+def _resolve_once(root, run, phase, details, *, selection=None):
     """Use the maintained supervised agent route without a developer question."""
     session = launcher.private_directory(run / 'worktree-resolution')
     # Inspect the previous owned test inventory before reusing this child on
@@ -823,11 +830,11 @@ def _resolve_once(root, run, phase, details):
     source_info = run.stat()
     workflow = launcher.propagation_source_run(Path(details['source_root']), run)
     owner_info = (workflow.parent / 'owner').stat()
-    launcher._publish_start(previous, dict(root=details['source_root'], run=str(run),
+    owner_record = dict(root=details['source_root'], run=str(run),
         destination=str(root.resolve()), identity=[source_info.st_dev, source_info.st_ino],
         checkpoint=details.get('checkpoint', 'checkpoint.json'),
         pull=details.get('pull', False),
-        owner_identity=[owner_info.st_dev, owner_info.st_ino]))
+        owner_identity=[owner_info.st_dev, owner_info.st_ino])
     schema = dict(type='object', additionalProperties=False,
         properties=dict(status=dict(type='string', enum=['resolved', 'continue']),
                         summary=dict(type='string'), cleanup_complete=dict(type='boolean')),
@@ -865,6 +872,8 @@ return continue with exact remaining work. No other task or launcher execution.
     (session / 'nested-closed').unlink(missing_ok=True)
     with launcher.lock(session / 'owner') as owner:
         fcntl.flock(owner, fcntl.LOCK_EX)
+        selected = _operation_selection(Path(details['source_root']), selection).get()
+        launcher._publish_start(previous, dict(owner_record, agent_selection=selected.record()))
         command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                    '--resolve', str(root), str(session), str(owner)]
         from fix_tests_queue import repair_descriptors
@@ -891,9 +900,13 @@ return continue with exact remaining work. No other task or launcher execution.
 if __name__ == '__main__':
     _, root, session, owner = sys.argv[1:]
     root, session, owner = Path(root), Path(session), int(owner)
-    model, effort = resolve_profile('conflict_resolver')
+    owner_record = launcher._start_record(session / 'propagation-owner.json')
+    source_root = Path(owner_record['root'])
+    selection = (AgentSelection.from_record(owner_record['agent_selection'], root=source_root)
+                 if 'agent_selection' in owner_record else resolve_selection(source_root))
+    model, effort = resolve_profile('conflict_resolver', selection=selection)
     command = launcher.agent_command(root, model, effort, session,
-        schema=session / 'response.schema.json',
+        schema=session / 'response.schema.json', selection=selection, logical_tier='conflict_resolver',
         shell_environment=(('ONPC_WORKFLOW_DIRECTORY', str(session)),))
     command.preflight()
     sys.exit(launcher.supervise(root, session, owner, 'agent', command, nested=True))

@@ -15,7 +15,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import detached_launcher as launcher
-from agent_adapter import resolve_profile
+from agent_adapter import AgentSelection, resolve_profile, resolve_selection
 from launcher_progress import (format_duration, plan_progress as task_progress,
                                plan_task_heading, publish_completion, session_lines)
 from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
@@ -309,24 +309,25 @@ def model_tier(state):
     return max(state.get('model_tier', 0), 1 if failed >= 2 else 0)
 
 
-def session_model(state):
-    if state.get('optimization_session'):
-        return MODEL_TIERS[0]
-    return MODEL_TIERS[model_tier(state)]
+def session_model(state, *, selection=None):
+    profile = MODEL_TIERS[0] if state.get('optimization_session') else MODEL_TIERS[model_tier(state)]
+    return resolve_profile('implementation', model=profile.model, effort=profile.effort,
+                           selection=selection)
 
 
-def session_command(root, state, run=None):
-    model, effort = session_model(state)
+def session_command(root, state, run=None, *, selection=None):
+    selection = selection or resolve_selection(root)
+    model, effort = session_model(state, selection=selection)
     delegation = launcher.Delegation()
     if effort == 'high' and not state.get('optimization_session'):
-        adviser = resolve_profile('adviser')
+        adviser = resolve_profile('adviser', selection=selection)
         delegation = launcher.Delegation(roles=('backend_reviewer', 'adviser', 'monitor', 'worker'),
             model=adviser.model, effort=adviser.effort)
     # Personal Fast settings must not silently spend more of the weekly budget.
     return launcher.agent_command(
         root, model, effort, run,
         schema=Path(__file__).with_name('write_e2e_response.schema.json'),
-        delegation=delegation, standard_speed=True)
+        delegation=delegation, standard_speed=True, selection=selection)
 
 
 def record_usage(run, metadata, usage):
@@ -335,6 +336,11 @@ def record_usage(run, metadata, usage):
     counters = {key: usage[key] for key in fields
                 if isinstance(usage, dict) and type(usage.get(key)) is int and usage[key] >= 0}
     record = dict(metadata, reported_scope='cli_turn', usage=counters or None)
+    if isinstance(usage, dict):
+        record.update({key: usage[key] for key in ('agent', 'model', 'effort', 'logical_tier')
+                       if key in usage})
+        if 'effort' in usage:
+            record['reasoning_effort'] = usage['effort']
     try:
         with launcher.lock(run / 'agent-usage.jsonl') as descriptor:
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -346,18 +352,18 @@ def record_usage(run, metadata, usage):
         print(f'write-e2e: could not retain token usage: {error}', file=sys.stderr, flush=True)
 
 
-def session_prompt(state):
+def session_prompt(state, *, selection=None):
     if state.get('optimization_session'):
-        return optimization_prompt(state)
+        return optimization_prompt(state, selection=selection)
     from vm_selection import execution_instructions
     vm_instructions = execution_instructions()
     task = state['task_id']
-    model, effort = session_model(state)
+    model, effort = session_model(state, selection=selection)
     label = f'{model} {effort}'
     high, extra_high, maximum = (f'{profile.model} {profile.effort}' for profile in MODEL_TIERS)
-    adviser = resolve_profile('adviser')
-    monitor = resolve_profile('monitor')
-    worker = resolve_profile('worker')
+    adviser = resolve_profile('adviser', selection=selection)
+    monitor = resolve_profile('monitor', selection=selection)
+    worker = resolve_profile('worker', selection=selection)
     model_policy = f"""You are the {label} coordinator and implementer for this session.
 Own implementation, mechanical repairs, test execution and close-out.
 The launcher uses {MODEL_TIERS[0].model} for implementation and advice. The shared mandatory
@@ -577,9 +583,9 @@ task_complete with live_result not_run after its host-only acceptance and close-
 """
 
 
-def optimization_prompt(state):
+def optimization_prompt(state, *, selection=None):
     batch = state['optimization']['pending']
-    model, effort = MODEL_TIERS[0]
+    model, effort = session_model(state, selection=selection)
     return f"""You are the {model} {effort} coordinator and implementer for this session.
 Follow AGENTS.md and the ownership map in docs/TestAutomation/README.md.
 Use {model} for implementation and advice. The shared mandatory backend_reviewer
@@ -959,12 +965,12 @@ def stage_completion(root, state, result):
                       require_closeout=not state.get('optimization_session'))
 
 
-def finish_completion(root, run, state, result, updated):
+def finish_completion(root, run, state, result, updated, *, selection=None):
     with closeout_lock(root, run, state):
-        return _finish_completion(root, run, state, result, updated)
+        return _finish_completion(root, run, state, result, updated, selection=selection)
 
 
-def _finish_completion(root, run, state, result, updated):
+def _finish_completion(root, run, state, result, updated, *, selection=None):
     validate_checks(state, result)
     if state.get('commit_intent'):
         paths = state['commit_intent']['paths']
@@ -974,7 +980,8 @@ def _finish_completion(root, run, state, result, updated):
         batch = state.get('optimization', {}).get('pending', [])
         message = (f'TA: Refactored task {batch[0]} to {batch[-1]}'
                    if state.get('optimization_session') else f"TA: Completed task {state['task_id']}")
-        commit = commit_push_propagate(root, run, state, paths, message, git=git_output)
+        commit = commit_push_propagate(root, run, state, paths, message, git=git_output,
+                                       selection=selection)
         if state.get('optimization_session'):
             updated['optimization'] = {'pending': [], 'last_checkpoint': {
                 'tasks': list(state['optimization']['pending']), 'commit': commit}}
@@ -1190,6 +1197,8 @@ def worker(root, run, owner, tasks, state_json):
     try:
         if (run / 'cancel').exists():
             raise launcher.Stopped()
+        if state.get('recovery_run'):
+            launcher.finish_nested(root, Path(state['recovery_run']))
         if state.get('upstream_pull'):
             from launcher_worktrees import pull_at_boundary
             pull_at_boundary(root, run, state)
@@ -1312,13 +1321,15 @@ def worker(root, run, owner, tasks, state_json):
                     break
             if task != state['task_id']:
                 raise ValueError('active task changed outside the workflow; inspect the checkpoint')
+            selection = resolve_selection(root)
+            session_model(state, selection=selection)
             count += 1
             total += 1
             state['total_sessions'] = total
             state.setdefault('started_at', time.time())
             state['task_sessions'] = state.get('task_sessions', 0) + 1
             state.setdefault('progress_keys', []).append(str(count))
-            prompt = session_prompt(state)
+            prompt = session_prompt(state, selection=selection)
             prompt += result_recovery_instructions(state.get('result_recovery'))
             prompt += task_info_instructions(run, state['task_id'])
             (run / 'prompt.txt').write_text(prompt, encoding='utf-8')
@@ -1329,6 +1340,7 @@ def worker(root, run, owner, tasks, state_json):
             state['worktree_before'] = worktree_snapshot(root)
             state['queue_before'] = before
             state['in_flight'] = True
+            state['agent_selection'] = selection.record()
             from vm_recording import workflow_records
             state['recordings'] = workflow_records(root, run, state.get('recordings', []))
             launcher.atomic(run / 'checkpoint.json', state)
@@ -1336,7 +1348,7 @@ def worker(root, run, owner, tasks, state_json):
                                                    'task_id': task, 'phase': state['phase']})
             progress_lines = session_progress(root, state, total)
             publish_progress(run, str(count), progress_lines)
-            model, effort = session_model(state)
+            model, effort = session_model(state, selection=selection)
             print(f"\nwrite-e2e: session {count}; "
                   f"task {task}; {model} {effort}", flush=True)
             try:
@@ -1367,7 +1379,7 @@ def worker(root, run, owner, tasks, state_json):
             if updated['phase'] == 'complete':
                 state.update(pending_completion=result, summary=result['summary'], handoff=result['handoff'])
                 launcher.atomic(run / 'checkpoint.json', state)
-                updated = finish_completion(root, run, state, result, updated)
+                updated = finish_completion(root, run, state, result, updated, selection=selection)
                 if not optimizing:
                     completed += 1
                     budget.complete()
@@ -1708,7 +1720,9 @@ def select(root, argv):
             initial_info.update(info)
         # Preflight advertised profiles/rendering; do not spend a model session here.
         from launcher_render import AgentRenderer
-        session_command(root, state).preflight(*MODEL_TIERS)
+        if not (state.get('pending_completion') or state.get('closeout_recovery_run')
+                or state.get('upstream_pull') or state.get('recovery_run')):
+            session_command(root, state).preflight(*MODEL_TIERS)
         initial_checkpoint.update(state)
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), '--worker',
                 str(root), str(run), str(owner), json.dumps(args.tasks), json.dumps(state)]
@@ -1800,11 +1814,15 @@ if __name__ == '__main__':
         phase = options[0] if options else 'recover'
         attempts = int(options[1]) if len(options) > 1 else state.get('live_attempts', 0)
         state = dict(state, phase=phase, live_attempts=attempts)
-        command = session_command(root, state, run)
-        model, effort = session_model(state)
+        selection = (AgentSelection.from_record(state['agent_selection'], root=root)
+                     if 'agent_selection' in state else resolve_selection(root))
+        command = session_command(root, state, run, selection=selection)
+        model, effort = session_model(state, selection=selection)
         metadata = {'session': state.get('total_sessions', state['task_sessions']),
                     'task_id': state['task_id'], 'phase': phase, 'model': model,
-                    'reasoning_effort': effort, 'service_tier': 'default'}
+                    'reasoning_effort': effort, 'service_tier': 'default',
+                    'agent': command.adapter.name, 'effort': effort,
+                    'logical_tier': command.request.logical_tier}
         shell_environment = [('ONPC_WORKFLOW_DIRECTORY', str(run))]
         from vm_selection import selected, BATCH
         vm = selected()

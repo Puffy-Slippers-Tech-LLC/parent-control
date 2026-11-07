@@ -28,7 +28,7 @@ from detached_launcher import (
     compact_log, TAIL_BYTES,
 )
 import detached_launcher
-from agent_adapter import resolve_profile
+from agent_adapter import AgentSelection, resolve_profile, resolve_selection
 from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
 from launcher_question import (BLOCKER_INSTRUCTIONS, allowance_blocker, developer_timeout,
                                validate_blocker, wait_for_answer, wait_for_intervention)
@@ -96,20 +96,23 @@ def repair_tiers(category=''):
     return UNIT_REPAIR_TIERS if category == 'unit' else REPAIR_TIERS
 
 
-def initial_model(model=None, effort=None, *, category=''):
-    return resolve_profile('repair', model=model, effort=effort or repair_tiers(category)[0][1])
+def initial_model(model=None, effort=None, *, category='', selection=None):
+    return resolve_profile('repair', model=model, effort=effort or repair_tiers(category)[0][1],
+                           selection=selection)
 
 
-def available_models(model=None, effort=None, *, categories=('',)):
-    model, initial_effort = initial_model(model, effort)
+def available_models(model=None, effort=None, *, categories=('',), root=None, selection=None):
+    root = root or Path(__file__).resolve().parents[1]
+    selection = selection or resolve_selection(root)
+    model, initial_effort = initial_model(model, effort, selection=selection)
     required = []
     for category in categories:
-        candidate = initial_model(model, effort, category=category)
+        candidate = initial_model(model, effort, category=category, selection=selection)
         required.extend([candidate, *repair_tiers(category)[1:]])
         while next_tier(*candidate, category=category) != candidate:
             candidate = next_tier(*candidate, category=category)
             required.append(candidate)
-    repair_command(Path(__file__).resolve().parents[1], model, initial_effort).preflight(*required)
+    repair_command(root, model, initial_effort, selection=selection).preflight(*required)
     return model, APP_MODEL
 
 
@@ -123,8 +126,8 @@ def next_tier(model, effort, *, category=''):
     return model, effort
 
 
-def repair_command(root, model, effort, run=None):
-    return agent_command(root, model, effort, run, standard_speed=True)
+def repair_command(root, model, effort, run=None, *, selection=None):
+    return agent_command(root, model, effort, run, standard_speed=True, selection=selection)
 
 
 def record_usage(run, metadata, usage=None, *, event='turn'):
@@ -133,6 +136,9 @@ def record_usage(run, metadata, usage=None, *, event='turn'):
     counters = {key: usage[key] for key in fields
                 if isinstance(usage, dict) and type(usage.get(key)) is int and usage[key] >= 0}
     record = dict(metadata, event=event)
+    if isinstance(usage, dict):
+        record.update({key: usage[key] for key in ('agent', 'model', 'effort', 'logical_tier')
+                       if key in usage})
     if event in ('turn', 'missing_usage'):
         record.update(reported_scope='cli_turn', usage=counters or None)
     try:
@@ -145,8 +151,10 @@ def record_usage(run, metadata, usage=None, *, event='turn'):
         print(f'fix-tests: could not retain usage: {error}', file=sys.stderr, flush=True)
 
 
-def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summary=None, category=''):
+def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summary=None, category='',
+                  selection=None):
     from vm_selection import execution_instructions
+    repair_model = resolve_profile('repair', selection=selection).model
     prompt += '\n' + execution_instructions()
     ladder = ('Low to Medium, then High, then xHigh' if category == 'unit'
               else 'Medium to High, then xHigh, then Max')
@@ -198,7 +206,7 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'contract sections and complete relevant functions with their callers/shared state; '
             'expand when evidence requires it. Reuse unchanged context within this session. '
             'Keep searches and diagnostic output scoped, without reducing required checks '
-            f'or understanding. All repair tiers use {DEFAULT_MODEL}. '
+            f'or understanding. All repair tiers use {repair_model}. '
             'When evidence is insufficient for a correction but a useful authorized experiment '
             'exists, you may add bounded, relevant instrumentation that preserves behavior, '
             'assertions, validation guards and privacy. Return status "diagnostic_ready", not '
@@ -209,7 +217,7 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'nested launchers or uncontrolled retries. Diagnostic edits are allowed before '
             'a proven corrective edit; uncertainty alone must not close this evidence-gathering path. '
             'Return "stalled" only when no useful authorized next step exists at this tier. '
-            f'Stalls and same-case failed repairs escalate {DEFAULT_MODEL} {ladder}; '
+            f'Stalls and same-case failed repairs escalate {repair_model} {ladder}; '
             'a final-tier stall stops early. Blockers are never '
             'bypassed by escalation. The script owns test execution: finish after classification, diagnostics or repair; '
             'do not launch tests, fix-tests, background jobs or other agent sessions, '
@@ -583,9 +591,13 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
         command = [str(root / 'tools/cleanup-e2e'), *options]
     else:
         from launcher_chat import read_state
-        command = repair_command(root, model, effort, run)
+        state = json.loads((run / 'checkpoint.json').read_text())
+        selection = (AgentSelection.from_record(state['agent_selection'], root=root)
+                     if 'agent_selection' in state else resolve_selection(root))
+        command = repair_command(root, model, effort, run, selection=selection)
         metadata = dict(json.loads(test_args), phase=category, model=model,
-                        effort=effort, speed='standard')
+                        effort=effort, speed='standard', agent=command.adapter.name,
+                        logical_tier=command.request.logical_tier)
         metadata.setdefault('session_id', uuid.uuid4().hex)
         reported = False
 
@@ -1457,6 +1469,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 sessions = case_sessions.get(failure_key, 0) + 1
                 session_limit = case_limit()
                 agent_model, agent_effort = case_tiers.setdefault(failure_key, initial)
+                selection = resolve_selection(root)
+                agent_model, agent_effort = initial_model(agent_model, agent_effort,
+                    category=category, selection=selection)
                 progress(category, 'fixing errors', model=agent_model, effort=agent_effort)
                 # Aggregate failures can enter a leaf repair before its own test.
                 task = active_task
@@ -1471,7 +1486,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                                   'A diagnostic execution after the last session can retain evidence, '
                                   'but cannot start another interpretation session in this run.\n',
                                   app_issue=classification, developer_answers=developer_answers,
-                                  blocker_summary=blocker_summary, category=category)
+                                  blocker_summary=blocker_summary, category=category,
+                                  selection=selection)
                     + task_info_instructions(run, task)
                     + '\nThe launcher owns verification and its testing statuses. Report your '
                       'investigation/fixing status through LAUNCHER_STATUS; finish with the required '
@@ -1485,12 +1501,13 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                                 session_id=uuid.uuid4().hex)
                 commits.state['session_counts'] = {
                     commits.key(key): value for key, value in case_sessions.items()}
+                commits.state['agent_selection'] = selection.record()
                 commits.save()
                 from launcher_git import worktree_snapshot
                 before = worktree_snapshot(root)
                 status = execute('agent', phase, metadata,
                                  agent_model=agent_model, agent_effort=agent_effort)
-                commits.capture_session(failure_key, before)
+                commits.capture_session(failure_key, before, selection=selection)
                 if status == 0:
                     from plan_evidence import _read
                     try:
@@ -1665,7 +1682,6 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             from launcher_chat import task_info, task_info_instructions, update_task_info
         except ImportError as error:
             raise ValueError('agent rendering requires the setup-provided python3-rich package') from error
-        repair_command(root, model, effort or DEFAULT_EFFORT)  # Fail before running expensive tests.
         listing = subprocess.run([str(root / 'tools/run-tests'), '--list'], cwd=root,
                                  env=environment(), capture_output=True, text=True, check=True)
         requested = [arg for arg in json.loads(requested) if arg != '--reverse']
@@ -1730,6 +1746,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         # continues its existing operation instead of accepting it here.
         if resuming and not reloading:
             close_verified()
+        repair_command(root, model, effort or DEFAULT_EFFORT)  # Fail before running expensive tests.
         if (loop_state.get('phase') == 'test' and loop_state.get('failure') is None
                 and not any(isinstance(value, dict) and value.get('status') == 'diagnostic_ready'
                             for _, value in loop_state.get('handoffs', []))):
@@ -1996,7 +2013,15 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
         listing = subprocess.run([str(root / 'tools/run-tests'), '--list'], cwd=root,
                                  env=environment(), capture_output=True, text=True, check=True)
         inventory = requested_inventory(root, categories, inventory=category_inventory(listing.stdout))
-        default_model, app_model = available_models(selected_model, effort, categories=inventory)
+        recovering = any(state and (state.get('repairs') or state.get('upstream_pull'))
+                         for state in (retained_git, *retained_pipelines.values()))
+        if recovering:
+            # Agent-free accepted Git recovery must remain available before a
+            # new repair session validates the current configuration.
+            default_model, app_model = selected_model, APP_MODEL
+        else:
+            default_model, app_model = available_models(selected_model, effort, categories=inventory,
+                                                       root=root)
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                 '--worker', str(root), str(run), str(owner), default_model,
                 effort or '', app_model, json.dumps(categories), str(rounds), *(['true'] if resume else [])]

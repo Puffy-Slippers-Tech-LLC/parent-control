@@ -1,7 +1,7 @@
 """Session preparation and protocol boundary; acceptance belongs to launchers.
 
-Existing callers remain pinned to Codex until their selection handoff is wired.
-The selection API prepares that boundary without enabling unqualified execution.
+Live sessions pin their executing checkout's selection. Unqualified transports
+are refused before task launch; agent-free policy defaults need no selection.
 """
 
 from dataclasses import dataclass, replace
@@ -20,6 +20,19 @@ class AgentSelection:
 
     name: Literal['codex', 'claude']
     root: Path
+
+    def record(self) -> dict:
+        """Private subprocess handoff, not a restart configuration source."""
+        return {'name': self.name, 'root': str(self.root)}
+
+    @classmethod
+    def from_record(cls, value: dict, *, root: Path) -> 'AgentSelection':
+        if (not isinstance(value, dict) or set(value) != {'name', 'root'}
+                or value['name'] not in ('codex', 'claude')
+                or not isinstance(value['root'], str)
+                or value['root'] != str(root.resolve())):
+            raise ValueError('invalid executing checkout agent selection handoff')
+        return cls(value['name'], root.resolve())
 
     @property
     def execution_qualified(self) -> bool:
@@ -82,6 +95,8 @@ class SessionRequest:
     extra_directories: tuple[Path, ...] = ()
     instructions: str = ''
     interactive: bool = False
+    selection: AgentSelection | None = None
+    logical_tier: str | None = None
 
 
 class AgentAdapter(Protocol):
@@ -172,17 +187,24 @@ class PreparedSession:
 
 
 def prepare_session(request: SessionRequest, environment: dict[str, str]) -> PreparedSession:
-    # Selection stays inactive until every transport and caller is qualified.
-    from agent_codex import CodexAdapter
-    return CodexAdapter().prepare_session(request, environment)
+    selection = request.selection or resolve_selection(request.root)
+    # Dependent Git recovery may execute in another owned checkout while
+    # retaining the originating session's selection authority.
+    return selection.adapter().prepare_session(replace(request, selection=selection,
+        logical_tier=request.logical_tier or f'{request.model} {request.effort}'), environment)
 
 
 def resolve_profile(role: ProfileRole, *, model: str | None = None,
-                    effort: str | None = None) -> ModelProfile:
+                    effort: str | None = None,
+                    selection: AgentSelection | None = None) -> ModelProfile:
+    if selection is not None:
+        return selection.adapter().resolve_profile(role, model=model, effort=effort)
     from agent_codex import CodexAdapter
     return CodexAdapter().resolve_profile(role, model=model, effort=effort)
 
 
-def capacity_fallback(model: str) -> str | None:
+def capacity_fallback(model: str, *, selection: AgentSelection | None = None) -> str | None:
+    if selection is not None:
+        return selection.adapter().capacity_fallback(model)
     from agent_codex import CodexAdapter
     return CodexAdapter().capacity_fallback(model)

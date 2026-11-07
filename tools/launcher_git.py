@@ -18,7 +18,23 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detached_launcher as launcher
-from agent_adapter import resolve_profile
+from agent_adapter import AgentSelection, resolve_profile, resolve_selection
+
+
+class _OperationSelection:
+    """Resolve lazily once, only if this Git operation needs an agent."""
+
+    def __init__(self, root, selection):
+        self.root, self.selection = root, selection
+
+    def get(self):
+        if self.selection is None:
+            self.selection = resolve_selection(self.root)
+        return self.selection
+
+
+def _operation_selection(root, selection):
+    return selection if isinstance(selection, _OperationSelection) else _OperationSelection(root, selection)
 
 
 class GitReconciliationRequired(ValueError):
@@ -424,17 +440,18 @@ def closeout_lock(root, run, state):
     return transaction_lock(root, run)
 
 
-def _propagate_worktrees(root, run, state, commit, *, git=None):
+def _propagate_worktrees(root, run, state, commit, *, git=None, selection=None):
     """Shared post-push boundary for ordinary plans, E2E and verified repairs."""
     if not (root / 'config/environment.json').exists() and not state.get('worktree_propagation'):
         return
     from launcher_worktrees import propagate
-    propagate(root, run, state, commit, git=git or git_output)
+    propagate(root, run, state, commit, git=git or git_output, selection=selection)
 
 
-def commit_push_propagate(root, run, state, paths, message, *, git=None):
+def commit_push_propagate(root, run, state, paths, message, *, git=None, selection=None):
     """Use $commit for new close-outs; resume existing mechanical transactions."""
     git = git or git_output
+    selection = _operation_selection(root, selection)
     try:
         with closeout_lock(root, run, state):
             intent = state.get('commit_intent')
@@ -442,10 +459,11 @@ def commit_push_propagate(root, run, state, paths, message, *, git=None):
                 raise ValueError('pending propagation has no commit intent; retain it for Git reconciliation')
             if intent is None or intent.get('engine') == 'skill':
                 return retry_git_transport(lambda deadline: _commit_with_skill(
-                    root, run, state, paths, message, git=git, retry_deadline=deadline),
+                    root, run, state, paths, message, git=git, retry_deadline=deadline,
+                    selection=selection),
                     cancelled=lambda: (run / 'cancel').exists())
             return _legacy_commit_push_propagate(root, run, state, paths, message,
-                                                 git=git_for_run(git, run))
+                                                 git=git_for_run(git, run), selection=selection)
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         if state.get('task_id'):
             from launcher_chat import update_task_info
@@ -458,7 +476,7 @@ def commit_push_propagate(root, run, state, paths, message, *, git=None):
         raise
 
 
-def _commit_with_skill(root, run, state, paths, message, *, git, retry_deadline=None):
+def _commit_with_skill(root, run, state, paths, message, *, git, retry_deadline=None, selection=None):
     """Keep acceptance in the controller and Git ownership in the commit skill."""
     from launcher_worktrees import commit_skill_targets
     git = git_for_run(git, run, deadline=retry_deadline)
@@ -491,7 +509,6 @@ def _commit_with_skill(root, run, state, paths, message, *, git, retry_deadline=
         properties=dict(status=dict(type='string', enum=['complete', 'blocked']),
                         summary=dict(type='string')),
         required=['status', 'summary'])
-    launcher.atomic(session / 'intent.json', intent)
     (session / 'response.schema.json').write_text(json.dumps(schema))
     (session / 'prompt.txt').write_text(f"""Use $commit, reading {skill}, to close out this accepted launcher task.
 The user authorized the full skill workflow. Do not start another launcher.
@@ -558,6 +575,8 @@ blocker and completed destinations. Do not modify the controller checkpoint.
     result_path.unlink(missing_ok=True)
     with launcher.lock(session / 'owner') as owner:
         fcntl.flock(owner, fcntl.LOCK_EX)
+        selected = _operation_selection(root, selection).get()
+        launcher.atomic(session / 'intent.json', dict(intent, agent_selection=selected.record()))
         command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                    '--commit-skill', str(root), str(session), str(owner)]
         from fix_tests_queue import repair_descriptors
@@ -633,7 +652,7 @@ def _verify_skill_completion(root, run, state, intent, targets, progress, previo
     return commit
 
 
-def _legacy_commit_push_propagate(root, run, state, paths, message, *, git=None):
+def _legacy_commit_push_propagate(root, run, state, paths, message, *, git=None, selection=None):
     """Finish launcher Git close-out; return only after every destination is pushed.
 
     Callers stage accepted task paths. Shared close-out includes the existing
@@ -659,10 +678,10 @@ def _legacy_commit_push_propagate(root, run, state, paths, message, *, git=None)
         pushed_head = intent.get('pushed_head') or state.get('worktree_propagation', {}).get('commit')
         if pushed_head is None:
             from launcher_worktrees import push_source
-            pushed_head = push_source(root, run, state, commit, git=git)
+            pushed_head = push_source(root, run, state, commit, git=git, selection=selection)
             intent['pushed_head'] = pushed_head
             launcher.atomic(run / 'checkpoint.json', state)
-        _propagate_worktrees(root, run, state, pushed_head, git=git)
+        _propagate_worktrees(root, run, state, pushed_head, git=git, selection=selection)
         return commit
 
 
@@ -742,9 +761,11 @@ if __name__ == '__main__':
         raise SystemExit('private commit skill supervisor entry point')
     root, session, owner = Path(root), Path(session), int(owner)
     intent = json.loads((session / 'intent.json').read_text())
-    model, effort = resolve_profile('commit_helper')
+    selection = (AgentSelection.from_record(intent['agent_selection'], root=root)
+                 if 'agent_selection' in intent else resolve_selection(root))
+    model, effort = resolve_profile('commit_helper', selection=selection)
     command = launcher.agent_command(root, model, effort, session,
-        schema=session / 'response.schema.json',
+        schema=session / 'response.schema.json', selection=selection, logical_tier='commit_helper',
         extra_directories=tuple(Path(target['path']) for target in intent['targets'] if target.get('path')))
     command.preflight()
     sys.exit(launcher.supervise(root, session, owner, 'agent', command))

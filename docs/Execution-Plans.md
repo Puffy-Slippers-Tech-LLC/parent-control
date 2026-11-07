@@ -91,12 +91,8 @@ new launchers and session prompts must follow this same completion policy.
 
 ## Execution and delegation
 
-The requirements below remain the enforced Codex policy. Native model/effort
-profiles are resolved through [the agent adapter](../tools/agent_adapter.py),
-with Codex role assets owning helper profiles. Workflows still own escalation
-timing, overrides, budgets and acceptance. The
-[Claude policy migration](Agent_Adapter.md#models-roles-and-repository-policy)
-is proposed; profile extraction does not authorize it or replace native goals.
+The requirements below remain the enforced Codex policy. Codex role assets own
+helper profiles. Workflows own escalation timing, overrides, budgets and acceptance.
 
 At the start of every agentic session, including coordinators, workers, monitors,
 advisers and reviewers, activate this goal using Codex's `/goal` command:
@@ -183,7 +179,7 @@ across **all launchers**, including repair, recovery and optimization. The share
 read-only `backend_reviewer` role, so a new launcher inherits the mandate while
 choosing its own coordinator model and effort. Native role files currently
 inherit the parent sandbox; separately enforced helper isolation and explicit
-retirement remain [unqualified](Agent_Adapter.md#trusted-worktree-follow-up).
+retirement remain unqualified.
 The required read-only and join/close boundaries remain unchanged.
 Resolve actionable findings and
 revalidate material revisions before completion. No review is required by this

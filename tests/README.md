@@ -653,10 +653,8 @@ waiting for owned cleanup. Categories or `--vm` narrow cancellation, for example
 Without `--stop`, no categories select the VM namespace.
 
 The launcher itself is Python scripting. The following model ladders remain the
-enforced Codex policy; [adapter extraction](../docs/Agent_Adapter.md#models-roles-and-repository-policy)
-does not enable Claude or change goal/review requirements. Native profiles and
-catalogue checks belong to the adapter; escalation timing, explicit overrides,
-case budgets and acceptance remain here. New runs validate the selected model
+enforced Codex policy, including goal/review requirements. Escalation timing,
+explicit overrides, case budgets and acceptance remain here. New runs validate the selected model
 and effort against the Codex CLI catalog before testing. Classification and
 proven mechanical test repairs use **GPT-6.1 Sol Medium** in one session,
 or **GPT-6.1 Sol Low** for unit failures.
@@ -1192,7 +1190,7 @@ waits for the answer, then closes the adviser before resuming work or consulting
 again. Codex V1 is configured with one concurrent child slot and one level of
 delegation. The adviser cannot delegate further and its profile requests read-only;
 native role files inherit the parent sandbox, so separate enforcement remains
-[unqualified](../docs/Agent_Adapter.md#trusted-worktree-follow-up). The required
+unqualified. The required
 read-only boundary remains unchanged. Its
 instructions prohibit edits, tests/builds, VM control and task completion. It
 returns concise findings, evidence, a proposed correction, uncertainty and required

@@ -2528,6 +2528,15 @@
     ],
     "expected": "Each authentication owns extension recovery; native time remains positive, the original desktop and work survive, and grants, recorded usage, policies and other extension choices are preserved."
   },
+  "302": {
+    "summary": "Recover a child's time query after the usage service becomes unavailable",
+    "steps": [
+      "Read the child's remaining time through the installed broker and its child-owned usage helper.",
+      "Stop and prevent activation of the real usage service, then repeat the same query.",
+      "Restore the service and repeat that query successfully."
+    ],
+    "expected": "The unavailable read returns an error rather than a balance, recovery succeeds without policy or clock injection, both children's account state stays unchanged, and the owned service mask is removed."
+  },
   "299": {
     "summary": "Restore the extension from Parent controls",
     "steps": [

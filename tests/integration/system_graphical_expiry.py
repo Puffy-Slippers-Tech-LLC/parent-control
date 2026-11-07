@@ -19,7 +19,7 @@ import time
 import system_guest as guest
 from system_assertions import accepted, account_property, account_state, call
 from system_session_expiry import (
-    REQUEST_EXTENSION_SECONDS, identities, installed_manager, grant, verify_zero_time_pam,
+    LIMITS, REQUEST_EXTENSION_SECONDS, identities, installed_manager, grant, verify_zero_time_pam,
     verify_request_extension, verify_runtime_rollback, request_global_extension_disable,
     wait_for_extension_recovery, isolated_broker_for_extension_faults,
 )
@@ -300,7 +300,7 @@ def graphical_history(command):
     accounts = identities()
     child = accounts['child']
     path = FIXTURE / 'graphical-history.json'
-    if command == 'host-ready':
+    if command in ('host-ready', 'revoke-ready'):
         guest.require(not path.exists(), 'expiry:graphical-history-replayed')
         wait_for(lambda: (FIXTURE / 'seeded.json').is_file(), 'expiry:gdm-seed-not-observed')
         seeded = json.loads((FIXTURE / 'seeded.json').read_text())
@@ -314,6 +314,7 @@ def graphical_history(command):
         guest.require(manager._runtime_state(account) == (True, True), 'expiry:extension-inactive')
         history = {'run': marker['run'], 'boot': boot, 'session': session,
                    'scope': props['Scope'], 'grants': 0,
+                   'foreground_revoke': command == 'revoke-ready',
                    'other_state': hashlib.sha256(repr(account_state(accounts['other'])).encode()).hexdigest()}
         with path.open('x') as stream:
             json.dump(history, stream)
@@ -331,6 +332,40 @@ def graphical_history(command):
                       and guest.run(['systemctl', 'is-active', history['scope']]) == 'active'
                       and hashlib.sha256(repr(account_state(accounts['other'])).encode()).hexdigest()
                           == history['other_state'], 'expiry:graphical-history-continuity')
+        if history.get('foreground_revoke'):
+            sequence = ('revoke-zero', 'revoke-positive-setup', 'revoke-positive',
+                        'revoke-complete')
+            index = history['grants']
+            guest.require(index < len(sequence) and command == sequence[index],
+                          'expiry:foreground-revoke-order')
+            if command == 'revoke-positive-setup':
+                accepted(call(accounts['parent'], 'SetParentControl', '(ubu)', (child, True, 15)))
+                seconds = 1200
+            elif command == 'revoke-complete':
+                history['complete'] = True
+                history['grants'] += 1
+                path.write_text(json.dumps(history))
+                return {'completed': True}
+            else:
+                before = account_property(child, LIMITS, 'ActiveExtension')
+                guest.require(before[1] == 1200 and before[0] + before[1] > time.time() + 300,
+                              'expiry:foreground-revoke-live-grant')
+                # Anchor in the guest clock before the public management call,
+                # never at reply receipt or the start of lock polling.
+                triggered_ns = time.monotonic_ns()
+                accepted(call(accounts['parent'], 'RevokeOneTimeGrant', '(u)', (child,)))
+                guest.require(account_property(child, LIMITS, 'ActiveExtension')[1] == 0
+                              and account_property(child, LIMITS, 'DailyLimit')
+                                  == (0 if command == 'revoke-zero' else 900),
+                              'expiry:foreground-revoke-authority')
+                history['grants'] += 1
+                history[command] = triggered_ns
+                path.write_text(json.dumps(history))
+                return {'revoked_monotonic_ns': triggered_ns}
+            history['grants'] += 1
+            path.write_text(json.dumps(history))
+            deadline = grant(child, seconds)
+            return {'remaining_seconds': deadline - time.time()}
         if command == 'host-complete':
             guest.require(history['grants'] == 4 and not history.get('complete'),
                           'expiry:graphical-history-incomplete')
@@ -350,10 +385,22 @@ def graphical_history(command):
     return {'remaining_seconds': remaining}
 
 
+def verify_foreground_revoke(record):
+    """The host owns protection, retained work and positive-input observations."""
+    guest.guard()
+    history = json.loads((FIXTURE / 'graphical-history.json').read_text())
+    guest.require(history.get('foreground_revoke') is True
+                  and history.get('complete') is True and history['grants'] == 4,
+                  'expiry:foreground-revoke-incomplete')
+    record('onpc.expiry.foreground-revoke',
+           'zero-daily-bounded-protected-lock; original-work-recovered; positive-daily-usable')
+
+
 def verify(record):
     guest.guard()
     history = json.loads((FIXTURE / 'graphical-history.json').read_text())
-    guest.require(history.get('complete') is True, 'expiry:graphical-history-incomplete')
+    guest.require(history.get('complete') is True and not history.get('foreground_revoke'),
+                  'expiry:graphical-history-incomplete')
     # Retain completed observations even if a native dependency later stalls
     # and pytest cannot finish its JUnit document. The outer collector already
     # preserves this private results directory on both success and failure.
@@ -448,7 +495,8 @@ def verify(record):
 if __name__ == '__main__':
     guest.guard()
     commands = ('host-ready', 'natural-grant', 'natural-recovery',
-                'peer-grant', 'peer-recovery', 'host-complete')
+                'peer-grant', 'peer-recovery', 'host-complete', 'revoke-ready',
+                'revoke-zero', 'revoke-positive-setup', 'revoke-positive', 'revoke-complete')
     guest.require(len(sys.argv) == 2 and sys.argv[1] in (
         'prepare', 'broker-ready', 'host-observe', *commands),
                   'expiry:graphical-arguments')

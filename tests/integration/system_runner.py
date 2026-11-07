@@ -139,6 +139,8 @@ COMMON_SELECTED_INPUTS = (
 KIOSK_ACTIVATION_CASE = 'test_kiosk_account_classification_survives_reboot'
 EXTENSION_LOGIN_CASE = 'test_child_extension_login_unlock_recovery'
 GRAPHICAL_EXPIRY_CASE = 'test_kiosk_expiry_graphical_runtime'
+FOREGROUND_REVOKE_CASE = 'test_foreground_revocation'
+GRAPHICAL_EXPIRY_CASES = (GRAPHICAL_EXPIRY_CASE, FOREGROUND_REVOKE_CASE)
 PACKAGE_READINESS_CASES = ('test_installed_package',)
 # Host entry/transport and the public observer's embedded source closure. Keep
 # these identities separate from guest imports; no host module runs in the VM.
@@ -567,7 +569,7 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
             if item not in prerequisites and not (fresh_install and item == 'retained-app-snapshot'):
                 prerequisites.append(item)
     available = {name: inventories[name] for name in chosen_areas}
-    if any(item.case_id == GRAPHICAL_EXPIRY_CASE for item in executions):
+    if any(item.case_id in GRAPHICAL_EXPIRY_CASES for item in executions):
         prerequisites.append('one-shot-gdm-grant-fixture-and-second-reboot')
     if any(item.area == 'authorization' for item in executions):
         prerequisites.extend(('fixture-passwords', 'remote-ldap-nss-fixtures'))
@@ -1776,7 +1778,7 @@ def stage_selected_inputs(selection, destination):
            for item in selection.executions):
         identity['host_files'] = kiosk_activation_host_inputs()
     if 'extension-login' in selection.phases or any(
-            item.case_id == GRAPHICAL_EXPIRY_CASE for item in selection.executions) or any(
+            item.case_id in GRAPHICAL_EXPIRY_CASES for item in selection.executions) or any(
             item.case_id == 'test_child_extension_monitor_native_recovery'
             for item in selection.executions):
         # The graphical input manifest also validates its worker's deferred
@@ -2253,7 +2255,8 @@ def run_pytest(vm, run, phase, selection):
         vm.commands.progress = previous
 
 
-def observe_graphical_expiry(vm, lease, directory, ledger, fixture_context, fixture_selection):
+def observe_graphical_expiry(vm, lease, directory, ledger, fixture_context, fixture_selection,
+                             *, foreground_revoke=False):
     """Extend system-282 under its existing lease, before PAM changes passwords."""
     sys.path.insert(0, str(ROOT / 'tests/e2e'))
     from types import SimpleNamespace
@@ -2279,7 +2282,8 @@ def observe_graphical_expiry(vm, lease, directory, ledger, fixture_context, fixt
     def progress(stage, observed):
         log('stage:graphical-expiry-' + stage)
     result = run_system_graphical_expiry(output, lease, vm, ledger,
-        expected_inputs=verified.source_files, progress=progress, context=context)
+        expected_inputs=verified.source_files, progress=progress, context=context,
+        foreground_revoke=foreground_revoke)
     require(graphical_inputs() == recorded, 'expiry:host-inputs-changed')
     (output / 'result.json').write_bytes(baseline.encode(result))
 
@@ -2356,8 +2360,13 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
     # Its observer runs under the caller's live lease for independent audits.
     guest = lease.capture.state['guest']
     clean = isinstance(guest, dict) and guest.get('fixture_boundary') == 'clean'
-    graphical_expiry = any(item.case_id == GRAPHICAL_EXPIRY_CASE
+    graphical_expiry = any(item.case_id in GRAPHICAL_EXPIRY_CASES
                            for item in selection.executions)
+    # These histories have different entitlement/order witnesses. The public
+    # runner queues each case separately; never credit one history to the other.
+    require(sum(item.case_id in GRAPHICAL_EXPIRY_CASES
+                for item in selection.executions) <= 1,
+            'selection:separate-graphical-expiry-histories')
     fixture_context = None
     if clean or preparation_only:
         from system_fixture_preparation import (SUBSETS, prepare, selection_record, qualified_guest,
@@ -2603,7 +2612,9 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     reboot()
                 with ledger.measure('test'):
                     observe_graphical_expiry(vm, lease, directory, ledger,
-                                             fixture_context, fixture_selection)
+                                             fixture_context, fixture_selection,
+                        foreground_revoke=any(item.case_id == FOREGROUND_REVOKE_CASE
+                                              for item in selection.executions))
             if phase == 'extension':
                 if already_installed:
                     require_fixture_ready()

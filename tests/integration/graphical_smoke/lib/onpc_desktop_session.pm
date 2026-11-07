@@ -469,6 +469,30 @@ sub system_graphical_expiry {
     $journey->finish();
 }
 
+sub foreground_revoke {
+    onpc_progress::operation('Checking child access after a parent revokes time');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'desk:foreground-revoke-plan' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => 'system-foreground-revoke', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->seen('return-greeter');
+    enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'initial');
+    onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
+    $journey->invoke('revoke-zero');
+    verify_locked_input($journey, 'lock-input-ready', 'lock-result');
+    $journey->seen('recovery-greeter');
+    enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'recovered');
+    onpc_app_rows::native_activity_resume($journey, 'recovery-activity');
+    $journey->invoke('recovery-work');
+    $journey->invoke('revoke-positive');
+    onpc_app_rows::native_activity_resume($journey, 'positive-activity');
+    $journey->invoke('positive-work');
+    $journey->finish();
+}
+
 sub run {
     onpc_progress::operation('Checking shared desktop session commands');
     my ($exchange, $action) = @_;

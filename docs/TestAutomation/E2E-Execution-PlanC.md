@@ -13,7 +13,7 @@ Task queue: [Plan C ordered checklist](E2E-Task-QueueC.md).
 
 ## Next task
 
-Next task: **172a — [Check revocation on the active desktop](E2E-Tasks/172a-foreground-revoke.md)**.
+Next task: **172b — [Keep expiry moving during approval](E2E-Tasks/172b-approval-expiry.md)**.
 
 This plan owns its queue, unchanged task briefs and next-task pointer.
 It can run independently of all unfinished work in

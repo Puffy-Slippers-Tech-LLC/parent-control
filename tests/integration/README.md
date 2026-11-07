@@ -1207,6 +1207,21 @@ diagnostics, the owning controller wakes the display with a fixed non-text
 Shift modifier and retains a private screen capture, checking ownership around
 both operations. Capture failure preserves the original test failure.
 
+The same fixture and guarded worker supply system 303,
+`session::test_foreground_revocation`. This separate engineering binding does
+not replay system 282's natural-expiry or peer histories. With the child still
+foreground, the real administrator management call revokes a live 20-minute
+setup grant. Zero daily time requires public lock protection within 15 seconds
+of the guest-monotonic call boundary, a fresh harmless-input challenge and
+original-work recovery. A second revoke with 15 minutes of daily allowance
+requires continued original-app input through the response window and a
+positive daily-only countdown. The original boot/session/work and the other
+child's account state remain pinned. The normal runner owns collection and
+restoration. This exact history passed on the session-selected
+`onpc-Ubuntu26.04-1` in `onpc-system-k2b8_dt6`, including worker/callback shutdown,
+collection and baseline restoration. Fedora and customer scenarios receive no
+acceptance from this result.
+
 The `extension` area (system ID 295) owns the standalone native GNOME monitor
 history in `system_extension_monitor.verify`. It uses a fresh autologin desktop
 with saved controls initially off, then stages saved-enabled policy through the

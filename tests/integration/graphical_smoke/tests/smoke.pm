@@ -1543,12 +1543,12 @@ sub run {
         onpc_time_explanation::run(\&exchange);
         return;
     }
-    if ($ready->{revocation_case} || $ready->{revocation_remaining_case}) {
+    if ($ready->{revocation_case} || $ready->{revocation_remaining_case} || $ready->{revocation_no_grant_case}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_revocation_case::run(\&exchange, $ready->{invocations},
             $ready->{challenge_bindings}, $ready->{kiosk_request},
-            $ready->{revocation_remaining_case} ? 30 : 0);
+            $ready->{revocation_no_grant_case} ? 15 : $ready->{revocation_remaining_case} ? 30 : 0);
         return;
     }
     if ($ready->{grant_access_case} || $ready->{grant_retained_access_case}

@@ -1,4 +1,4 @@
-"""Cases 17/19: Cancel keeps work; Confirm revokes only the selected child's grant."""
+"""Cases 17/19/160: Cancel keeps work; Confirm restores the child's app blocks."""
 from copy import deepcopy
 from dataclasses import replace
 
@@ -152,11 +152,49 @@ REMAINING_PLAN = replace(PLAN, worker_mode='revocation_remaining_case',
                            'other-child': 'standard-recipient-'}[account],)},
 )
 
+# Case 160 clears the real grant with an off/on transition before Revoke.
+# Keep the captured A/S activities, without adding another child's history.
+NO_GRANT_PREPARATION = {
+    ('granted-before' if stage == 'before' else stage):
+        ('ui:native-policy-soft-activity' if stage == 'soft-capture' else tag)
+    for stage, tag in PREPARATION.items() if not stage.startswith('riley-')
+}
+NO_GRANT_PREPARATION.update({
+    'daily-off': 'ui:time-explanation-off-read',
+    'daily-enable': 'ui:parent-toggle-enabled',
+    'before': 'ui:revoke-cleared-balances',
+})
+NO_GRANT_CONFIRM = {stage: tag for stage, tag in REMAINING_CONFIRM.items()
+                    if not stage.startswith('riley-')}
+NO_GRANT_SCREENS = {**NO_GRANT_PREPARATION, **REMAINING_CANCEL, **NO_GRANT_CONFIRM}
+NO_GRANT_LOGINS = {prefix: account for prefix, account in REMAINING_LOGINS.items()
+                   if prefix not in ('riley-', 'riley-return-')}
+NO_GRANT_LOGIN_STAGES = {prefix + stage for prefix, account in NO_GRANT_LOGINS.items()
+                         for stage in fresh_desktop(account)}
+NO_GRANT_PLAN = replace(REMAINING_PLAN, worker_mode='revocation_no_grant_case',
+    screen_tags=NO_GRANT_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' for stage in NO_GRANT_PREPARATION}, 'installed-greeter': 'start',
+            **{stage: 'step-2' for stage in REMAINING_CANCEL},
+            **{stage: 'step-3' for stage in NO_GRANT_CONFIRM}},
+    child_bindings={stage: 'existing' for stage, tag in NO_GRANT_SCREENS.items()
+                    if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
+    activity_checks={stage: check for stage, check in REMAINING_PLAN.activity_checks.items()
+                     if stage in NO_GRANT_SCREENS},
+    activity_entries={stage: capture for stage, capture in REMAINING_PLAN.activity_entries.items()
+                      if stage in NO_GRANT_SCREENS},
+    invocations=tuple(stage for stage in NO_GRANT_SCREENS if stage in NO_GRANT_LOGIN_STAGES),
+    challenges={name: binding for name, binding in REMAINING_PLAN.challenges.items()
+                if name not in ('riley', 'riley-return')},
+    assertions_after={'denied-soft-command': 'visible-result'},
+)
+
 
 class RevocationCaseJourney(RetainedDesktopJourney, AppPolicyJourney, KioskRequestJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        self.daily_minutes = 30 if plan.worker_mode == 'revocation_remaining_case' else 0
-        allowance = [str(self.daily_minutes) + ' minutes']
+        self.no_grant = plan.worker_mode == 'revocation_no_grant_case'
+        self.daily_minutes = 15 if self.no_grant else (30 if plan.worker_mode == 'revocation_remaining_case' else 0)
+        allowance = [str(0 if self.no_grant else self.daily_minutes) + ' minutes']
         super().__init__(context, progress, plan,
             actions=fixture_actions(include_refusal=False) if actions is None else actions,
             parent_expected={'rules-before': {'page': 'app-limits', 'settings': {
@@ -165,7 +203,8 @@ class RevocationCaseJourney(RetainedDesktopJourney, AppPolicyJourney, KioskReque
             session_checks={'cancel-child-entry-guard': 'jordan-desktop-identity',
                             ('confirmed-child-entry-guard' if self.daily_minutes else
                              'denied-child-entry-guard'): 'jordan-desktop-identity',
-                            'riley-return-entry-guard': 'riley-desktop-identity'})
+                            **({} if self.no_grant else {
+                                'riley-return-entry-guard': 'riley-desktop-identity'})})
         self.reads = {}
         self.grant_estimate = None
 
@@ -184,21 +223,23 @@ class RevocationCaseJourney(RetainedDesktopJourney, AppPolicyJourney, KioskReque
                 require(balances['daily']['seconds'] >= 1500,
                         'revocation-case:daily-preparation-margin')
                 self.balance = deepcopy(balances)
-        if stage not in ('before', 'cancel-balance', 'confirm-before', 'confirmed-balance'):
+        if stage not in ('granted-before', 'before', 'cancel-balance', 'confirm-before', 'confirmed-balance'):
             return
         value = observed['ui']['revoke_cancel']
+        minutes = 0 if stage == 'granted-before' else self.daily_minutes
         require(value['settings'] == {'child': CHOICES['child'], 'limit_enabled': True,
-                                      'allowance': [str(self.daily_minutes) + ' minutes']},
+                                      'allowance': [str(minutes) + ' minutes']},
                 'revocation-case:saved-settings')
         balances = value['balances']
         daily, grant, total = (balances[key]['seconds'] for key in ('daily', 'one_time', 'total'))
-        require((daily >= 900 if self.daily_minutes else daily == 0)
+        require((daily >= (600 if self.no_grant else 900) if minutes else daily == 0)
                 and abs(total - max(daily, grant)) < balances['total']['precision_seconds'],
                 'revocation-case:daily-and-total')
-        require(grant == 0 if stage == 'confirmed-balance' else grant > 300,
+        cleared = stage == 'confirmed-balance' or self.no_grant and stage != 'granted-before'
+        require(grant == 0 if cleared else grant > 300,
                 'revocation-case:cleared-grant' if stage == 'confirmed-balance' else
                 'revocation-case:active-grant-margin')
-        if stage == 'before':
+        if stage == ('granted-before' if self.no_grant else 'before'):
             require(self.grant_estimate is not None, 'revocation-case:missing-approval')
             elapsed = (balances['observed_monotonic_ns']
                        - self.grant_estimate['observed_monotonic_ns']) / 1e9
@@ -229,8 +270,8 @@ class RevocationCaseJourney(RetainedDesktopJourney, AppPolicyJourney, KioskReque
                         <= max(0, old['seconds'] - minimum) + tolerance,
                         'revocation-case:cancel-changed-grant')
         self.reads[stage] = deepcopy(value)
-        observed.setdefault('comparison', {}).update(zero_daily=not self.daily_minutes,
-            grant_cleared=stage == 'confirmed-balance', saved_policy_preserved=bool(earlier_stage))
+        observed.setdefault('comparison', {}).update(zero_daily=not minutes,
+            grant_cleared=cleared, saved_policy_preserved=bool(earlier_stage))
 
 
 def execute(recorder, context):
@@ -248,4 +289,13 @@ def execute_remaining(recorder, context):
                              journey_type=RevocationCaseJourney)
 
 
-E2E_CASES = {'zero-single': execute, 'remaining-single': execute_remaining}
+def execute_no_grant(recorder, context):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    context.fixture_subsets = ACTIVITY_SUBSETS
+    context.fixture_caller = 'E2E-036/daily-positive'
+    record_installed_journey(recorder, context, NO_GRANT_PLAN, timeout=2400,
+                             journey_type=RevocationCaseJourney)
+
+
+E2E_CASES = {'zero-single': execute, 'remaining-single': execute_remaining,
+             'daily-positive': execute_no_grant}

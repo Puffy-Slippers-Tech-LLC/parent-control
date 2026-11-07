@@ -1128,6 +1128,16 @@ can still return a cached displayed balance. Reuse the guarded reload inside the
 read bracket for this binding. Selector navigation changes neither grant nor
 saved policy; elapsed limits and mutation/refusal assertions remain unchanged.
 The grant-access cases use `time-explanation-refresh-read` for the same reason.
+Retain `UiObservations.read_bounds` for both refreshed endpoints when comparing
+grant countdowns. The guest's `observed_monotonic_ns` is stamped after reading
+the display, rather than when Parent loaded its status; unequal read delays
+must not become grant consumption. Compare against the complete elapsed
+interval, retaining the case's precision, daily-balance and original-grant checks.
+`tools/test-vm --vm NAME reproduce-daily-soft-balance` reuses
+`DailySoftExpiryJourney` and its activity fixtures through Parent's away wait,
+then retains the return-balance scene and both controller read brackets before
+the comparison. It supplies no acceptance credit; finish with
+`tools/test-vm --vm NAME stop`.
 For no-grant revocation after an actual soft-app approval, establish G=0 before
 opening Revoke and keep that observation separate from Confirm's result. Case
 160 uses the qualified limits off/on transition and then reads positive daily
@@ -1442,6 +1452,11 @@ reread and close. Invocation prefixes determine both controller checkpoints and
 actual worker titles. The helpers add no process, storage or cleanup owner and
 never relaunch during resume. Keep the existing complete-order/failure-stop
 checks alongside an independent caller with renamed prefixes.
+The resume declaration's `binding='policy-soft'` selects Riley's existing Soft
+window and its guarded Submit/readback, using the same worker operation as the
+ordinary activity binding. Daily-expiry cases 164–166 and retained replacement
+case 135 share it; captures, original-window comparisons and any close stay
+with each case.
 The default command activity explicitly selects the root-owned trusted activity
 fixture. The same entry helper's `binding='policy'` and `binding='unmatched-soft'`
 select Jordan's existing A primary and S secondary command activities, including

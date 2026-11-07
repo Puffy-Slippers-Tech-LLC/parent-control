@@ -466,7 +466,7 @@ def main(argv=None):
                                           'reproduce-overlay-return', 'reproduce-panel-request', 'probe-panel-request',
                                           'reproduce-system-graphical-expiry',
                                           'reproduce-app-restart-choices', 'probe-app-restart-choices',
-                                          'reproduce-reboot-context', 'reproduce-expired-sign-out',
+                                          'reproduce-reboot-context', 'reproduce-expired-sign-out', 'reproduce-daily-soft-balance',
                                           'reproduce-remembered-return', 'probe-remembered-return',
                                           'repeat-remembered-return', 'enter-remembered-return'))
     parser.add_argument('keys', nargs='*', type=int)
@@ -503,7 +503,7 @@ def main(argv=None):
                                        'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
                                        'reproduce-panel-request', 'reproduce-app-restart-choices',
                                        'reproduce-reboot-context', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access',
-                                       'reproduce-expired-sign-out'))
+                                       'reproduce-expired-sign-out', 'reproduce-daily-soft-balance'))
                        == (args.fixture_selection is not None),
                        'vm-control:arguments')
         if args.new_name is not None:
@@ -558,13 +558,15 @@ def main(argv=None):
                              'reproduce-system-graphical-expiry', 'reproduce-grant-logout',
                              'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-panel-request',
                              'reproduce-app-restart-choices', 'reproduce-reboot-context',
-                             'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-expired-sign-out'):
+                             'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-expired-sign-out',
+                             'reproduce-daily-soft-balance'):
             from vm_probe import (reproduce_baseline_restoration, reproduce_natural_access, reproduce_natural_expiry,
                                   reproduce_countdown_grant, reproduce_suspend_active_grant, reproduce_suspend_expired_grant, reproduce_overlay_activity, reproduce_overlay_return,
                                   reproduce_system_graphical_expiry, reproduce_grant_logout,
                                   reproduce_app_rule_return, reproduce_revocation_return, reproduce_panel_request,
                                   reproduce_app_restart_choices, reproduce_reboot_context,
-                                  reproduce_flatpak_grid, reproduce_flatpak_temporary_access, reproduce_native_temporary_access, reproduce_expired_sign_out)
+                                  reproduce_flatpak_grid, reproduce_flatpak_temporary_access, reproduce_native_temporary_access, reproduce_expired_sign_out,
+                                  reproduce_daily_soft_balance)
             resume(lease)
             try:
                 reproduce = {'reproduce-natural-access': reproduce_natural_access,
@@ -585,7 +587,8 @@ def main(argv=None):
                              'reproduce-flatpak-grid': reproduce_flatpak_grid,
                              'reproduce-flatpak-temporary-access': reproduce_flatpak_temporary_access,
                              'reproduce-native-temporary-access': reproduce_native_temporary_access,
-                             'reproduce-expired-sign-out': reproduce_expired_sign_out}[args.action]
+                             'reproduce-expired-sign-out': reproduce_expired_sign_out,
+                             'reproduce-daily-soft-balance': reproduce_daily_soft_balance}[args.action]
                 reproduce(lease, fixture_selection)
             except BaseException:
                 if getattr(lease, 'maintenance_rebind_pending', False):

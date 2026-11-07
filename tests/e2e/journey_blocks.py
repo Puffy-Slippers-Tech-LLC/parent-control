@@ -352,12 +352,16 @@ def native_activity_entry(prefix, *, route='command', child='child', desktop_obs
     return {**prefixed_stages(prefix, stages), f'{prefix}-capture': 'ui:' + operation}
 
 
-def native_activity_resume(prefix, *, child):
+def native_activity_resume(prefix, *, child, binding='activity'):
     """APP04 existing-window input/readback; callers compare their own captures."""
     require(child in ('parent', 'child', 'other-child'), 'journey:native-child-binding')
+    require(binding == 'activity' or binding == 'policy-soft' and child == 'child',
+            'journey:native-activity-binding')
     operation = {'child': 'overlay-native-', 'parent': 'parent-native-', 'other-child': 'native-'}[child]
-    return prefixed_stages(prefix, {stage: 'ui:' + operation + action for stage, action in (
-        ('opened', 'activity'), ('submit', 'resubmit'), ('submitted', 'submitted'))})
+    actions = (('activity', 'resubmit', 'submitted') if binding == 'activity'
+               else ('policy-soft-activity', 'soft-resubmit', 'soft-submitted'))
+    return prefixed_stages(prefix, {stage: 'ui:' + operation + action
+        for stage, action in zip(('opened', 'submit', 'submitted'), actions)})
 
 
 def filter_screens(kind, mask, prefix):

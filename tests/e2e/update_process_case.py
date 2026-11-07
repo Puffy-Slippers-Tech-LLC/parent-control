@@ -1,4 +1,4 @@
-"""Cases 136/137: real updates preserve the child's rules and original grant."""
+"""Cases 136–138: real updates preserve rules, choices and the original grant."""
 from copy import deepcopy
 from dataclasses import replace
 import time
@@ -9,7 +9,8 @@ from countdown import CountdownObservation, check_countdown_balance
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (desktop_entry, desktop_return, fresh_desktop,
                             native_blocked_app, native_usable_app, package_installation,
-                            parent_management, prefixed_stages, reboot_desktop, station_entry)
+                            parent_management, parent_selection, prefixed_stages,
+                            reboot_desktop, station_entry)
 from kiosk_approved_flow import obtain_time
 from named_app_set import APPS, named_app_set, saved_rows
 from native_fixtures import NativeFixtures
@@ -19,6 +20,7 @@ from package_upgrade import (PackageUpgradeJourney, activated_entry,
 from private_artifacts import require
 import session_control
 from system_fixture_preparation import renew_after_reboot
+from ui_observations import RequestObservation
 
 
 CHOICES = dict(child='existing-fixture-child', approver='fixture-parent',
@@ -127,13 +129,15 @@ class ProcessUpdateJourney(PackageUpgradeJourney):
         self.parent_before = self.grant_before = self.approval_started = None
         self.parent_session_before = None
         self.saved_rules = {}
+        self.activation = activation
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
         if stage == 'package-result':
             require(observed['package']['notice'] == NOTICE, 'update-process:old-install-notice')
         if stage == 'upgrade-result':
-            require(observed['package']['notice'] is None, 'update-process:unexpected-restart-notice')
+            require(observed['package']['notice'] == (NOTICE if self.activation == 'reboot' else None),
+                    'update-process:unexpected-restart-notice')
         if stage == 'request-approval-open':
             self.approval_started = time.monotonic_ns()
         if stage in ('settings-before', 'settings-after'):
@@ -146,6 +150,16 @@ class ProcessUpdateJourney(PackageUpgradeJourney):
                 self.parent_before = deepcopy(value)
                 self.parent_session_before = identity['session_sha256']
             else:
+                require(value['settings'] == self.parent_before['settings'],
+                        'update-process:saved-allowance-changed')
+                if self.activation == 'reboot':
+                    # Session numbers can repeat after boot. The verified boot
+                    # change and freshly opened usable Parent prove renewal.
+                    require(self.additional_reboots_observed == {1}
+                            and observed['boot_sha256'] != self.activated_entry['boot'],
+                            'update-reboot:fresh-parent-required')
+                    observed['comparison'] = {'fresh_usable_parent': True, 'saved_allowance': True}
+                    return
                 require(value == self.parent_before,
                         'update-process:retained-parent-or-activation')
                 # Package/account preservation is proved at upgrade-result.
@@ -256,4 +270,141 @@ def execute_session(recorder, context):
                              journey_type=SessionUpdateJourney)
 
 
-E2E_CASES = {'process': execute, 'session': execute_session}
+def remembered_overlay(prefix, child, *, prepare=False):
+    return {prefix + '-' + action: f'ui:remembered-overlay-{child}-{action}'
+            for action in ('launch', *(('approver', 'custom', 'text', 'apps') if prepare else ()),
+                           'read', 'cancel', 'returned')}
+
+
+# Prepare Riley before issuing Jordan's measured grant. Approval changes the
+# shared request choices, so restore Jordan's intended values before capture.
+REBOOT_SETUP = {}
+for stage, tag in SETUP.items():
+    REBOOT_SETUP[stage] = tag
+    if stage == 'rules-gdm-switched':
+        REBOOT_SETUP.update({
+            **enter('seed-parent', 'parent', 'retained'),
+            **prefixed_stages('riley-setup', parent_selection(screen_limits=True)),
+            'riley-time': 'ui:time-explanation-setup-thirty-read',
+            'riley-before': 'ui:retained-parent-read',
+            **prefixed_stages('jordan-setup', parent_selection(child='existing', screen_limits=True)),
+            **desktop_return('seed-leave', account='parent'),
+            **prefixed_stages('seed-station', station_entry()),
+            'seed-riley-select': 'ui:remembered-kiosk-riley-select-default',
+            'seed-riley-parent': 'ui:remembered-kiosk-riley-approver',
+            'seed-cancel': 'ui:kiosk-request-cancel', 'seed-returned': 'ui:gdm-station-returned',
+            **enter('seed-riley', 'child', 'fresh'),
+            **remembered_overlay('seed-riley-form', 'riley', prepare=True),
+            **desktop_return('seed-riley-leave', account='child'),
+        })
+    elif stage == 'before-soft-command':
+        REBOOT_SETUP.update({name: operation for name, operation in
+            remembered_overlay('seed-jordan-form', 'jordan', prepare=True).items()
+            if name != 'seed-jordan-form-approver'})
+    elif stage == 'child-leave-gdm-switched':
+        REBOOT_SETUP.update({
+            **prefixed_stages('capture-station', station_entry()),
+            'capture-jordan': 'ui:remembered-kiosk-jordan-read',
+            'capture-riley-select': 'ui:remembered-kiosk-riley-select',
+            'capture-riley': 'ui:remembered-kiosk-riley-read',
+            'capture-cancel': 'ui:kiosk-request-cancel',
+            'capture-returned': 'ui:gdm-station-returned',
+        })
+
+REBOOT_ACTIVATION = {
+    **UPDATE, 'updated-reboot-requested': 'system:parent-command-context',
+    **prefixed_stages('updated', reboot_desktop()),
+    **prefixed_stages('updated', parent_management(child='existing')),
+}
+REBOOT_RESULT = {}
+for stage, tag in RESULT.items():
+    if stage in ('overlay-ready', 'kiosk-ready'):
+        tag = ('ui:remembered-overlay-jordan-read' if stage == 'overlay-ready'
+               else 'ui:remembered-kiosk-riley-read')
+    if stage.startswith('after-child-') and tag.endswith('-entry-retained'):
+        tag = tag.removesuffix('retained') + 'fresh'
+    REBOOT_RESULT[stage] = tag
+    if stage == 'settings-after':
+        REBOOT_RESULT.update({
+            **prefixed_stages('riley-return', parent_selection(screen_limits=True)),
+            'riley-after': 'ui:retained-parent-read',
+            **prefixed_stages('jordan-return', parent_selection(child='existing', screen_limits=True)),
+        })
+    elif stage == 'kiosk-ready':
+        REBOOT_RESULT.update({
+            'returned-jordan-select': 'ui:remembered-kiosk-jordan-select',
+            'returned-jordan': 'ui:remembered-kiosk-jordan-read',
+        })
+REBOOT_RESULT.update({
+    **enter('after-riley', 'child', 'fresh'),
+    **remembered_overlay('returned-riley-form', 'riley'),
+})
+REBOOT_SCREENS = {**REBOOT_SETUP, **REBOOT_ACTIVATION, **REBOOT_RESULT}
+REBOOT_LOGINS = set(reboot_desktop()) | set(prefixed_stages('updated', reboot_desktop())) | {
+    prefix + '-' + stage for prefix, account in LOGINS.items() for stage in fresh_desktop(account)}
+REBOOT_PLAN = replace(PLAN, prefix='update-reboot-case', worker_mode='update_reboot_case',
+    screen_tags=REBOOT_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' for stage in REBOOT_SETUP}, 'installed-greeter': 'start',
+            **{stage: 'step-2' for stage in REBOOT_ACTIVATION},
+            **{stage: 'step-3' for stage in REBOOT_RESULT}},
+    advance_after={'settings-before': 'step-2', 'updated-parent-selected': 'step-3'},
+    stage_actions={**PLAN.stage_actions, 'updated-reboot-desktop': 'native-verify'},
+    child_bindings={stage: ('child' if stage.startswith(('riley-', 'seed-riley-')) else 'existing')
+                    for stage, tag in REBOOT_SCREENS.items()
+                    if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
+    invocations=tuple(stage for stage in REBOOT_SCREENS if stage in REBOOT_LOGINS),
+    challenges={'after-reboot': PLAN.challenges['after-reboot'],
+        'after-update': ('parent', 'updated-reboot-recipient-qualified', 'updated-reboot-recipient-rechecked'),
+        **{prefix: (account, prefix + '-' + recipient + 'qualified', prefix + '-' + recipient + 'rechecked')
+           for prefix, account in LOGINS.items() if prefix + '-entry-guard' in REBOOT_SCREENS
+           for recipient in ('recipient-' if account == 'parent' else
+                             'child-recipient-' if account == 'child' else 'standard-recipient-',)}},
+    additional_reboot_transitions=(('updated-reboot-requested', 'updated-reboot-installed-greeter'),),
+    assertions_after={'returned-riley-form-returned': 'visible-result'},
+)
+FORM_COMPARISONS = {'overlay-ready': 'seed-jordan-form-read',
+                    'kiosk-ready': 'capture-riley', 'returned-jordan': 'capture-jordan',
+                    'returned-riley-form-read': 'seed-riley-form-read'}
+
+
+class RebootUpdateJourney(ProcessUpdateJourney):
+    def __init__(self, context, progress, plan=REBOOT_PLAN, *, actions=None):
+        super().__init__(context, progress, plan, activation='reboot')
+        self.forms = {}
+        self.riley_settings = None
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage in ('riley-before', 'riley-after'):
+            value = observed['ui']['retained_parent']['settings']
+            require(value == {'child': 'fixture-child', 'limit_enabled': True,
+                              'allowance': ['30 minutes']}, 'update-reboot:riley-allowance')
+            if stage == 'riley-before':
+                self.riley_settings = deepcopy(value)
+            else:
+                require(value == self.riley_settings, 'update-reboot:riley-allowance-changed')
+        if stage in FORM_COMPARISONS or stage in FORM_COMPARISONS.values():
+            value = RequestObservation.from_request(observed['ui']['request'],
+                operation=self.plan.screen_tags[stage][3:])
+            require(stage not in self.forms, 'update-reboot:form-replay')
+            if stage in FORM_COMPARISONS:
+                require(value == self.forms.get(FORM_COMPARISONS[stage]),
+                        'update-reboot:remembered-choices-changed')
+                observed.setdefault('comparison', {})['complete_remembered_choices'] = True
+            self.forms[stage] = value
+        if stage == 'settings-before':
+            value, earlier = self.grant_before
+            require(value['one_time']['seconds'] - (time.monotonic_ns() - earlier[0]) / 1e9 >= 300,
+                    'update-reboot:insufficient-update-margin')
+        if stage == 'final-balance':
+            require(self.final_balance['one_time']['seconds'] >= 300,
+                    'update-reboot:insufficient-tour-margin')
+
+
+def execute_reboot(recorder, context):
+    record_installed_journey(recorder, context, REBOOT_PLAN, timeout=3600,
+                             journey_type=RebootUpdateJourney)
+
+
+E2E_CASES = {'process': execute, 'session': execute_session, 'reboot': execute_reboot}

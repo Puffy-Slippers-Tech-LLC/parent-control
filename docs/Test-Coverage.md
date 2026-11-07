@@ -6,17 +6,17 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5836</span>/<span style="color: gray">0</span>/5836 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5837</span>/<span style="color: gray">0</span>/5837 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">224</span>/<span style="color: gray">0</span>/224 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">295</span>/<span style="color: gray">0</span>/295 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">50</span>/<span style="color: gray">0</span>/50 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
+| Installed system | <span style="color: green">51</span>/<span style="color: gray">0</span>/51 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">108</span>/<span style="color: gray">88</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6527</span>/<span style="color: gray">88</span>/6615** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">109</span>/<span style="color: gray">87</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6530</span>/<span style="color: gray">87</span>/6617** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">107</span>/<span style="color: gray">88</span>/195 |
+| customer-journey | <span style="color: green">108</span>/<span style="color: gray">87</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -113,6 +113,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [135](#scenario-135) | Replace an expired grant before returning with daily time left (entry: retained unlock; soft apps: included) | `E2E-025/included-retained-unlock` | ready |
 | [136](#scenario-136) | Customer package update and activation (activation: process) | `E2E-026/process` | ready |
 | [137](#scenario-137) | Customer package update and activation (activation: session) | `E2E-026/session` | ready |
+| [138](#scenario-138) | Customer package update and activation (activation: reboot) | `E2E-026/reboot` | ready |
 | [139](#scenario-139) | Install through remove, reinstall and purge | `E2E-027/continuous` | ready |
 | [151](#scenario-151) | Identify the installed product and return to management | `E2E-030/parent` | ready |
 | [152](#scenario-152) | Feedback drafts, validation and attachment review (flow: draft reopen) | `E2E-031/draft-reopen` | ready |
@@ -179,7 +180,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[127](#scenario-127)</span> | <span style="color: gray">Zero allowance to kiosk approval, real gameplay and expiry (gameplay: fullscreen)</span> | <span style="color: gray">`E2E-023/fullscreen`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[128](#scenario-128)</span> | <span style="color: gray">Additional time accumulates during gameplay (gameplay: windowed; time: daily dominant)</span> | <span style="color: gray">`E2E-024/daily-dominant-windowed`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[131](#scenario-131)</span> | <span style="color: gray">Additional time accumulates during gameplay (gameplay: fullscreen; time: grant dominant)</span> | <span style="color: gray">`E2E-024/grant-dominant-fullscreen`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[138](#scenario-138)</span> | <span style="color: gray">Customer package update and activation (activation: reboot)</span> | <span style="color: gray">`E2E-026/reboot`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[153](#scenario-153)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: validation)</span> | <span style="color: gray">`E2E-031/validation`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[156](#scenario-156)</span> | <span style="color: gray">Send reviewed feedback and read service acceptance</span> | <span style="color: gray">`E2E-032/success`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[157](#scenario-157)</span> | <span style="color: gray">Recover feedback sending after reconnecting</span> | <span style="color: gray">`E2E-033/retry`</span> | <span style="color: gray">pending</span> |
@@ -1344,6 +1344,20 @@ Variant: activation: session
 - Install the declared update with the normal package command and follow its process, session or reboot notice for every named affected surface.
 - Independently prove every affected user's apps usable again after the actual activation instructions. Read saved allowance/app rules before editing, installed version and positive reduced grant balance at the original deadline; verify allowed work and denied soft/hard launches. Reboot case 138 compares complete remembered choices on both forms; process/session cases 136/137 open affected forms and read readiness and intended target without repeating the full preference tour.
 
+### Scenario 138
+
+**Customer package update and activation (activation: reboot)**
+
+Case: `E2E-026/reboot` · Category: customer-journey · Status: **ready**
+
+Variant: activation: reboot
+
+**Steps:**
+
+- Install this case's declared earlier release and follow its notice. Save distinct allowance/app rules through Parent, approve a grant long enough for the update, capture its original deadline and use the child desktop. Reboot case 138 also prepares and captures complete saved request choices on both forms.
+- Install the declared update with the normal package command and follow its process, session or reboot notice for every named affected surface.
+- Independently prove every affected user's apps usable again after the actual activation instructions. Read saved allowance/app rules before editing, installed version and positive reduced grant balance at the original deadline; verify allowed work and denied soft/hard launches. Reboot case 138 compares complete remembered choices on both forms; process/session cases 136/137 open affected forms and read readiness and intended target without repeating the full preference tour.
+
 ### Scenario 139
 
 **Install through remove, reinstall and purge**
@@ -2494,26 +2508,6 @@ Variant: gameplay: fullscreen; time: grant dominant
 - Use Parent and real approval to establish and read the declared dominant balance. Sign in as the child and play the real game in the declared mode.
 - While time remains, request additional time and approve. Windowed variants launch the overlay through the direct child app command. Fullscreen variants explicitly test graphical launch: reveal the normal Shell panel entry and open the overlay through it. Read the new countdown against the earlier larger balance and elapsed navigation time.
 - Return to the same game and continue beyond the earlier remaining interval until the extended time runs out and the desktop locks.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 138
-
-**Customer package update and activation (activation: reboot)**
-
-Case: `E2E-026/reboot` · Category: customer-journey · Status: **pending**
-
-Variant: activation: reboot
-
-**Steps:**
-
-- Install this case's declared earlier release and follow its notice. Save distinct allowance/app rules through Parent, approve a grant long enough for the update, capture its original deadline and use the child desktop. Reboot case 138 also prepares and captures complete saved request choices on both forms.
-- Install the declared update with the normal package command and follow its process, session or reboot notice for every named affected surface.
-- Independently prove every affected user's apps usable again after the actual activation instructions. Read saved allowance/app rules before editing, installed version and positive reduced grant balance at the original deadline; verify allowed work and denied soft/hard launches. Reboot case 138 compares complete remembered choices on both forms; process/session cases 136/137 open affected forms and read readiness and intended target without repeating the full preference tour.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 

@@ -18,7 +18,7 @@ Task queue: [Plan B ordered checklist](E2E-Task-QueueB.md).
 
 ## Next task
 
-Next task: **140 — [E2E-026: reboot](E2E-Tasks/140-case-138.md)**.
+Next task: **142 — [E2E-027: continuous](E2E-Tasks/142-case-139.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

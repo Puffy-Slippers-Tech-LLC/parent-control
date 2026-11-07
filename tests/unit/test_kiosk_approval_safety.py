@@ -190,6 +190,34 @@ def test_shell_cancel_proof_requires_the_bound_request_and_a_new_challenge():
     assert wrong.call.call_count == calls
 
 
+@pytest.mark.parametrize('mode', ['sequence', 'wrong-scope', 'replay'])
+def test_cross_surface_approval_keeps_separate_single_use_credentials(mode):
+    # The mixed-surface owner is new; both providers must consume their own
+    # fresh proofs. Exercise the real guard with no password or customer plan.
+    result = run_password_guard(r'''
+my $mode = shift @ARGV;
+my $overlay = bless {prefix => 'offline-approvals-overlay', stage_prefix => 'overlay-',
+    overlay_request => ['child', 'parent', 180, 1], review => 0}, 'onpc_journey';
+my $station = bless {prefix => 'offline-approvals-station', stage_prefix => 'station-',
+    kiosk_request => ['child', 'parent', 180, 1], review => 0}, 'onpc_journey';
+$overlay->{stage_prefix} = 'station-' if $mode eq 'wrong-scope';
+my $ok = eval {
+    onpc_password::enter_overlay_shell_password($overlay);
+    onpc_password::enter_overlay_shell_password($overlay) if $mode eq 'replay';
+    onpc_password::enter_kiosk_mate_password($station, 'bound-request');
+    1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+''', mode)
+    value = json.loads(result.stdout)
+    assert value['ok'] == (mode == 'sequence')
+    scopes = [('overlay', 'overlay-shell')] if mode == 'replay' else (
+        [('overlay', 'overlay-shell'), ('station', 'kiosk-mate')] if mode == 'sequence' else [])
+    assert value['events'] == [event for scope, provider in scopes for event in (
+        ['proof', scope + '-approval-qualified'], ['proof', scope + '-approval-rechecked'],
+        ['delivery', 'parent', scope + '-' + provider + '-approval'])]
+
+
 @pytest.mark.parametrize('mode,role', [
     ('excluded', 'parent'), ('included', 'other-parent'),
     ('wrong-choice', None), ('wrong-scope', None),

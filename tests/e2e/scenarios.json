@@ -2463,7 +2463,7 @@
         "rationale": "One continuous offline journey covers both approval surfaces and each intermediate time/app result with one preparation and revocation. Case 195 is absorbed and must not be reused; network settings are an input to product acceptance, not a networking test."
       },
       "variants": [
-        {"coverage_id": 194, "id": "both-surfaces", "owner": "continuous-journeys", "parameters": {"surface": "both"}, "status": "pending", "pending_reason": "Combined offline desktop/station recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 194, "id": "both-surfaces", "owner": "continuous-journeys", "parameters": {"surface": "both"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/offline_approvals.py", "test_id": "both-surfaces"}}
       ]
     },
     {

@@ -1919,13 +1919,16 @@ results, never raw command text. The complete consumer is `command_help::execute
 
 ### E2E-043
 
-Implementation status: All cases pending.
+Implementation: case 194 uses `offline_approvals.PLAN` /
+`OfflineApprovalsJourney` and `onpc_offline_approvals::run`. The complete
+both-screen journey passed on the selected Ubuntu 26.04 family in
+`20261107T075255Z-5ed3a9da`, including collection, owned cleanup and baseline
+restoration. No Fedora acceptance is claimed.
 
 **Use local controls and approvals while offline.** Case 194.
 
 Binding: surface = both. Case 195 is absorbed into this continuous
-journey; case ID 195 must not be reused. Complete installed acceptance remains
-pending.
+journey; case ID 195 must not be reused.
 
 1. P → LIFE06(disconnect) → FLOW16 → FLOW03(hard/soft/allowed).
 2. request-entry(child-overlay) → FLOW04(entry=open, including estimate read) → FLOW05(soft included) → FLOW08(allowed/soft usable,hard denied) → TIME02.

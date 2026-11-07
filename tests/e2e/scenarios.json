@@ -2131,7 +2131,7 @@
         "rationale": "Case 160 owns no-grant revocation restoring restrictions while daily access remains. Stable case 161 is excluded from E2E scheduling and allocated to actual Parent UI coverage; active-grant revocation stays in E2E-007."
       },
       "variants": [
-        {"coverage_id": 160, "id": "daily-positive", "owner": "continuous-journeys", "parameters": {"balance": "daily-positive"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 160, "id": "daily-positive", "owner": "continuous-journeys", "parameters": {"balance": "daily-positive"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/revocation_case.py", "test_id": "daily-positive"}},
         {"coverage_id": 161, "id": "zero-total", "owner": "continuous-journeys", "parameters": {"balance": "zero-total"}, "status": "pending", "pending_reason": "Excluded from E2E scheduling: local zero-balance Revoke availability is owned by tests/ui/test_preview_smoke.py::test_parent_zero_balance_keeps_revoke_unavailable_with_limits_on_and_off, with executable UI coverage. No standalone customer journey or new E2E task is claimed; retain this stable ID and historical completion.", "executable": null}
       ]
     },

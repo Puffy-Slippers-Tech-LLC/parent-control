@@ -302,24 +302,29 @@ sub expired_daily_replacement {
 }
 
 sub app_restart_expired {
-    my ($exchange, $declared, $challenges, $request, $sign_out, $reboot) = @_;
+    my ($exchange, $declared, $challenges, $request, $sign_out, $reboot, $suspend) = @_;
     $sign_out //= 0;
     $reboot //= 0;
-    onpc_progress::operation($reboot
+    $suspend //= 0;
+    onpc_progress::operation($suspend
+        ? 'Letting child time expire during sleep and approving recovery of the same work'
+        : $reboot
         ? 'Rebooting, letting child time expire and approving a fresh session'
         : $sign_out
         ? 'Signing the child out, letting time expire and approving a fresh session'
         : 'Reopening the apps, letting child time expire and approving recovery');
-    die 'app-restart-expired:binding' unless (@_ == 4 || @_ == 5 || @_ == 6)
+    die 'app-restart-expired:binding' unless (@_ >= 4 && @_ <= 7)
         && ($sign_out == 0 || $sign_out == 1) && ($reboot == 0 || $reboot == 1)
         && (!$reboot || $sign_out)
+        && ($suspend == 0 || $suspend == 1) && (!$suspend || (!$sign_out && !$reboot))
         && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,1200,0';
     require onpc_app_rows;
     require onpc_desktop_session;
     my $journey = onpc_journey->new(exchange => $exchange,
-        prefix => $reboot ? 'reboot-expired' : $sign_out ? 'sign-out-in-expired' : 'app-restart-expired', review => 0);
+        prefix => $suspend ? 'suspend-wake-expired' : $reboot ? 'reboot-expired'
+            : $sign_out ? 'sign-out-in-expired' : 'app-restart-expired', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -341,7 +346,7 @@ sub app_restart_expired {
     $enter->('original-entry', 'child', 'fresh');
     $journey->seen('original-countdown');
     onpc_app_rows::native_activity_entry($journey, 'original', 'command', 'child');
-    for my $prefix ($sign_out ? () : ('first-overlay', 'reopened-overlay')) {
+    for my $prefix ($sign_out || $suspend ? () : ('first-overlay', 'reopened-overlay')) {
         onpc_request_flow::overlay_entry($journey, $prefix, 'command');
         $journey->seen("$prefix-cancel");
         $journey->seen("$prefix-returned");
@@ -349,7 +354,13 @@ sub app_restart_expired {
     $leave->('original-leave');
     $enter->('before-parent', 'parent', 'retained');
     $journey->seen('before-policy');
-    if ($reboot) {
+    if ($suspend) {
+        $leave->('boundary-parent-leave');
+        $enter->('boundary-child', 'child', 'retained');
+        $journey->seen($_) for qw(boundary-countdown expiry-wait suspend-countdown suspend wake-session);
+        $journey->consume_observation('denial-ready', $journey->seen('denial-ready'));
+        $journey->seen($_) for qw(time-denied return-greeter denied-returned retained-after);
+    } elsif ($reboot) {
         $journey->seen($_) for qw(reboot-requested reboot-greeter);
         $enter->('returned-parent', 'parent', 'fresh');
         my $parent = $journey->scope('returned-parent-launch');
@@ -364,25 +375,29 @@ sub app_restart_expired {
         my $restart = $journey->scope('reopen');
         reopen($restart, 'parent', $restart->seen('prior-window'), 'management');
     }
-    if (!$sign_out || $reboot) {
-        my $selected = $journey->scope('returned-child');
-        $selected->consume_observation('parent-selected', onpc_parent::select_child($selected, 'child',
-            $selected->seen('child-picker-opened'), 'child-picker-opened',
-            'child-choice-highlighted', 'parent-selected'));
+    unless ($suspend) {
+        if (!$sign_out || $reboot) {
+            my $selected = $journey->scope('returned-child');
+            $selected->consume_observation('parent-selected', onpc_parent::select_child($selected, 'child',
+                $selected->seen('child-picker-opened'), 'child-picker-opened',
+                'child-choice-highlighted', 'parent-selected'));
+        }
+        $journey->seen('returned-policy');
+        $leave->('returned-parent-leave');
+        unless ($sign_out) {
+            onpc_gdm::enter_station($journey->scope('reopened-station'), '');
+            $journey->seen($_) for qw(reopened-station-cancel reopened-station-returned);
+        }
+        $journey->seen($_) for qw(expiry-wait-first expiry-wait-last);
     }
-    $journey->seen('returned-policy');
-    $leave->('returned-parent-leave');
-    unless ($sign_out) {
-        onpc_gdm::enter_station($journey->scope('reopened-station'), '');
-        $journey->seen($_) for qw(reopened-station-cancel reopened-station-returned);
-    }
-    $journey->seen($_) for qw(expiry-wait-first expiry-wait-last);
     $enter->('expired-parent', 'parent', 'retained');
     $journey->seen('expired-policy');
     $leave->('expired-parent-leave');
-    $enter->('denied-child', 'child', $sign_out ? 'fresh' : 'retained', 'time-denied');
-    onpc_gdm::return_from_time_denial($journey,
-        'denied-return-ready', 'denied-return-state', 'denied-returned');
+    unless ($suspend) {
+        $enter->('denied-child', 'child', $sign_out ? 'fresh' : 'retained', 'time-denied');
+        onpc_gdm::return_from_time_denial($journey,
+            'denied-return-ready', 'denied-return-state', 'denied-returned');
+    }
     $journey->{kiosk_request} = [@$request];
     onpc_request_flow::prepare($journey, 'new', 'new', 'observed',
         'fixture-child', 'fixture-parent', 1200, 0, 'kiosk');

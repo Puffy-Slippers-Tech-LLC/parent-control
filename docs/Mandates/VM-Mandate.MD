@@ -306,6 +306,14 @@ rules.
   or substitute an internal state injection in customer acceptance. If the
   available route cannot establish the required order reliably, report that
   concrete gap rather than accepting a lucky pass.
+- **Allow long load pauses.** A heavily loaded VM can stop responding for one
+  or two minutes. Finish ordinary app input and recipient preparation with
+  enough headroom for that pause; do not make successful input in a countdown's
+  final seconds a prerequisite for observing expiry. Arm read-only observation
+  early and leave transport/reply margin around the complete wait. When timing
+  matters, retain same-boot guest observation times so a delayed reply does not
+  become product latency. An unobserved interval cannot prove timely enforcement;
+  preserve that uncertainty rather than infer a timely lock from a later state.
 - **Wait for state and return promptly.** Replace arbitrary settling sleeps,
   repeated full discovery and unrelated checks with the required scoped
   observation. Retain every fresh input-recipient guard and independently

@@ -2503,9 +2503,16 @@ the earlier Parent balance, retaining its actual display interval and original
 upper bound plus 15 seconds. The current four-minute fixture passed on Ubuntu
 26.04 in `20261031T011829Z-582da384`, including natural lock, same-lock input
 ownership, worker/collection completion, owned cleanup and baseline restoration.
-Fedora retains its historical two-minute scope.
-Ordinary Submit actions demonstrate activity until
-near zero; independently observe the owned curtain within elapsed bounds.
+The refactored read-only wait passed the four-minute Fedora 44 binding in
+`b87d63a860c14c7b8d95a0d2fa27b3e2`, including the original submitted work,
+natural enforced lock and same-lock input ownership. Collection, worker cleanup
+and baseline restoration completed. Its Shell provider was `0:50.6-1.fc44`,
+`en_US.UTF-8`, `xkb/us`; other bindings retain their listed qualification scopes.
+The native Submit and independent captured result demonstrate usable work
+before the read-only natural-lock wait. Arm that wait without further app input
+or countdown reads near zero. Its same-boot guest observation bounds preserve
+the original lock deadline across delayed controller replies; see the
+[shared observer](../../tests/support/README.md#host-and-guest-boundaries).
 Fresh lock-ready and post-Shift reads must prove the same session/surface with
 desktop input unavailable, without inspecting the app underneath.
 
@@ -5294,7 +5301,7 @@ passed; the VM was observed off. That focused slice does not establish the
 complete case's broader rule/grant/request history below.
 
 Complete case 137 now composes the Jordan-only session renewal through
-[`update_session_case.PLAN` / `SessionUpdateJourney`](../../tests/e2e/update_session_case.py)
+[`update_process_case.SESSION_PLAN` / `SessionUpdateJourney`](../../tests/e2e/update_process_case.py)
 and `onpc_customer_reboot::run_session_case`. Its selected Fedora 44 pass includes
 the genuine earlier installation/reboot, A/H/S saved rules, real 20-minute
 Soft-excluded approval, update completion without a restart notice, Jordan's

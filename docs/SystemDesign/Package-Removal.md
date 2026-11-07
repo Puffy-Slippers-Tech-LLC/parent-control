@@ -206,6 +206,9 @@ reinstall replays all removal-cleared AccountsService values: broker startup
 reconciles live filters and extension enablement, not every saved restriction.
 One-time grants are not retained by removal. Reapply screen-time/app settings
 through the Parent App when restoring those restrictions.
+The managed child's account-wide `disable-extension-version-validation`
+preference remains enabled after successful activation and package removal.
+
 Purge does not remove selector defaults or the countdown-animation GSettings
 preference from ordinary users' home directories. Extension removal clears the
 product's enabled/disabled extension-list entries, not that personal setting.

@@ -508,8 +508,8 @@ def verify_runtime_rollback(record):
                 return True
             return value
 
-        def _set_live(self, *args):
-            super()._set_live(*args)
+        def _set_live(self, *args, **kwargs):
+            super()._set_live(*args, **kwargs)
             self.fail_activation()
 
         def _set_offline(self, *args):
@@ -523,6 +523,18 @@ def verify_runtime_rollback(record):
 
     before = {uid: account_state(uid) for uid in (accounts['child'], accounts['other'])}
     with isolated_broker_for_extension_faults():
+        if live:
+            manager._set_version_check(account, False, live=True)
+            guest.require(not manager._boolean(account, 'disable-extension-version-validation'),
+                          'expiry:version-validation-reset-unverified')
+            active_after_reset = manager._runtime_state(account) == (True, True)
+            manager.set_enabled(accounts['child'], True, recover_global_switch=True)
+            guest.require(manager._boolean(account, 'disable-extension-version-validation')
+                          and manager._runtime_state(account) == (True, True),
+                          'expiry:version-validation-reload-unverified')
+            record('onpc.expiry.version-validation-reload',
+                   'already-active; reload-verified' if active_after_reset else
+                   'inactive-after-reset; reload-verified')
         for fault in ('write-response', 'readback', 'activation'):
             manager._set_boolean(account, 'disable-user-extensions', True)
             if live:

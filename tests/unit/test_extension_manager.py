@@ -13,7 +13,8 @@ from unittest import mock
 from common.oh_no_parent_control_ui.diagnostic_events import decode
 
 from oh_no_parent_control.extension_manager import (
-    DISABLE_ALL_KEY, DISABLED_KEY, ENABLED_KEY, UUID, ChildExtensionFailed, ChildExtensionUnavailable,
+    DISABLE_ALL_KEY, DISABLE_VERSION_CHECK_KEY, DISABLED_KEY, ENABLED_KEY, UUID,
+    ChildExtensionFailed, ChildExtensionUnavailable,
     ExtensionManager, _load_error_fields,
 )
 from oh_no_parent_control import child_bus, extension_monitor
@@ -365,6 +366,7 @@ class GnomeRecoveryState:
             ENABLED_KEY: ["other-enabled@example.com"],
             DISABLED_KEY: [UUID, "other-disabled@example.com"],
             DISABLE_ALL_KEY: True,
+            DISABLE_VERSION_CHECK_KEY: True,
         }
         self.inactive = inactive
         self.ignore_switch = ignore_switch
@@ -380,7 +382,9 @@ class GnomeRecoveryState:
             stdout = str(value).lower() if type(value) is bool else repr(value)
         elif arguments[:2] == ("gsettings", "set"):
             key, value = arguments[3:]
-            if key == DISABLE_ALL_KEY:
+            if key == DISABLE_VERSION_CHECK_KEY:
+                self.values[key] = value == "true"
+            elif key == DISABLE_ALL_KEY:
                 if value == "true" and self.rollback_failure:
                     raise RuntimeError("private-command-canary")
                 if not self.ignore_switch:
@@ -417,7 +421,7 @@ class ExtensionManagerTests(unittest.TestCase):
     def test_loading_error_sentinel_is_not_a_confirmed_failure(self):
         from gi.repository import GLib
 
-        for state, errors, failed in ((3, [], False), (3, [""], True), (4, [], True)):
+        for state, errors, failed in ((3, [], False), (3, [""], True), (4, [], False)):
             with self.subTest(state=state, errors=errors):
                 info = GLib.Variant("(a{sv})", ({
                     "state": GLib.Variant("d", state),
@@ -768,7 +772,8 @@ class ExtensionManagerTests(unittest.TestCase):
                         ["disabled@example.com"],
                     ],
                 ),
-                mock.patch.object(manager, "_boolean", return_value=False),
+                mock.patch.object(manager, "_boolean", side_effect=lambda _account, key:
+                                  key == DISABLE_VERSION_CHECK_KEY),
                 mock.patch.object(manager, "_set_list") as set_list,
             ):
                 manager.set_enabled(account.pw_uid, True)
@@ -795,7 +800,8 @@ class ExtensionManagerTests(unittest.TestCase):
                 mock.patch.object(
                     manager, "_list", side_effect=[[], [UUID], [UUID], []]
                 ),
-                mock.patch.object(manager, "_boolean", return_value=False),
+                mock.patch.object(manager, "_boolean", side_effect=lambda _account, key:
+                                  key == DISABLE_VERSION_CHECK_KEY),
                 mock.patch.object(manager, "_shell_is_available", return_value=True),
                 mock.patch.object(manager, "_failed_live_extension", return_value=False),
                 mock.patch.object(
@@ -966,7 +972,8 @@ class ExtensionManagerTests(unittest.TestCase):
                 mock.patch.object(
                     manager, "_list", side_effect=[[], [], [], []]
                 ),
-                mock.patch.object(manager, "_boolean", return_value=False),
+                mock.patch.object(manager, "_boolean", side_effect=lambda _account, key:
+                                  key == DISABLE_VERSION_CHECK_KEY),
                 mock.patch.object(manager, "_shell_is_available", return_value=True),
                 mock.patch.object(
                     manager, "_runtime_state",
@@ -1007,6 +1014,212 @@ class ExtensionManagerTests(unittest.TestCase):
         self.assertEqual(run.call_args_list[1].args[0], [
             "gnome-extensions", "list", "--active", "--quiet",
         ])
+
+    def test_version_validation_change_is_verified_and_transactionally_reversible(self):
+        for live in (False, True):
+            with self.subTest(live=live):
+                state = GnomeRecoveryState()
+                state.values[DISABLE_ALL_KEY] = False
+                state.values[DISABLE_VERSION_CHECK_KEY] = False
+                before = {key: value[:] if isinstance(value, list) else value
+                          for key, value in state.values.items()}
+
+                def transaction(manager):
+                    with mock.patch.object(manager, '_set_version_check',
+                            side_effect=lambda account, value, **_kwargs:
+                                manager._set_boolean(account, DISABLE_VERSION_CHECK_KEY, value)):
+                        undo = manager.set_enabled(1001, True)
+                        self.assertTrue(state.values[DISABLE_VERSION_CHECK_KEY])
+                        self.assertIn(UUID, state.values[ENABLED_KEY])
+                        self.assertIsNotNone(undo)
+                        undo()
+                    self.assertEqual(state.values, before)
+
+                self._recover(state, live=live, transaction=transaction)
+
+    def test_version_setting_readback_failure_preserves_original_settings(self):
+        state = GnomeRecoveryState()
+        state.values[DISABLE_VERSION_CHECK_KEY] = False
+        before = {key: value[:] if isinstance(value, list) else value
+                  for key, value in state.values.items()}
+        original_run = state.run
+
+        def run(account, arguments, **kwargs):
+            result = original_run(account, arguments, **kwargs)
+            if arguments == ('gsettings', 'get', 'org.gnome.shell', DISABLE_VERSION_CHECK_KEY):
+                result.stdout = 'false'
+            return result
+
+        state.run = run
+        with self.assertRaisesRegex(RuntimeError, 'switch verification failed'):
+            self._recover(state, live=False)
+        self.assertEqual(state.values, before)
+
+    def test_version_setting_rollback_failure_still_restores_global_disable(self):
+        state = GnomeRecoveryState()
+        state.values[DISABLE_VERSION_CHECK_KEY] = False
+        original_run = state.run
+
+        def run(account, arguments, **kwargs):
+            if arguments == ('gsettings', 'set', 'org.gnome.shell',
+                             DISABLE_VERSION_CHECK_KEY, 'false'):
+                raise RuntimeError('injected rollback failure')
+            return original_run(account, arguments, **kwargs)
+
+        state.run = run
+
+        def transaction(manager):
+            with mock.patch.object(manager, '_set_offline', side_effect=RuntimeError('write failure')):
+                manager.set_enabled(1001, True, recover_global_switch=True)
+
+        with self.assertRaisesRegex(RuntimeError, 'rollback could not be verified'):
+            self._recover(state, live=False, transaction=transaction)
+        self.assertTrue(state.values[DISABLE_ALL_KEY])
+        self.assertNotIn(UUID, state.values[ENABLED_KEY])
+        self.assertIn(UUID, state.values[DISABLED_KEY])
+
+    def test_version_validation_reload_waits_without_replaying_enable(self):
+        with (mock.patch.object(self.manager, '_run_command') as run,
+              mock.patch.object(self.manager, '_runtime_state', side_effect=[
+                  (False, False), (True, False), (True, True)]),
+              mock.patch.object(self.manager, '_failed_live_extension', return_value=False),
+              mock.patch.object(self.manager, '_list', side_effect=[[UUID], []]),
+              mock.patch('oh_no_parent_control.extension_manager.time.sleep') as sleep):
+            self.manager._set_live(self.account, True, version_check_changed=True)
+        run.assert_called_once_with(self.account, ('gnome-extensions', 'enable', '--quiet', UUID),
+                                    require_live=True)
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_already_active_extension_waits_for_reload_success_or_failure(self):
+        from gi.repository import GLib
+
+        for fails in (False, True):
+            with self.subTest(fails=fails):
+                state = GnomeRecoveryState()
+                state.values[DISABLE_ALL_KEY] = False
+                state.values[DISABLE_VERSION_CHECK_KEY] = False
+                state.values[ENABLED_KEY].append(UUID)
+                state.values[DISABLED_KEY].remove(UUID)
+                before = {key: value[:] if isinstance(value, list) else value
+                          for key, value in state.values.items()}
+                connection = mock.Mock()
+                connection.call_sync.return_value = GLib.Variant('(s)', (':1.50',))
+                connection.signal_subscribe.return_value = 42
+                events = []
+
+                def connect(account, address, context, callback, **kwargs):
+                    callback(connection, None)
+                    return SimpleNamespace(pending=False, cancel=mock.Mock())
+
+                def transaction(manager):
+                    original_run = state.run
+                    source = None
+
+                    def run(account, arguments, **kwargs):
+                        nonlocal source
+                        result = original_run(account, arguments, **kwargs)
+                        if arguments[:4] == ('gsettings', 'set', 'org.gnome.shell',
+                                              DISABLE_VERSION_CHECK_KEY):
+                            restoring = arguments[4] == 'false'
+                            sequence = [1, 99, 2, 3 if fails and not restoring else 1]
+                            callback = connection.signal_subscribe.call_args.args[-1]
+                            source = GLib.timeout_source_new(1)
+
+                            def emit(*_args):
+                                status = sequence.pop(0)
+                                events.append(('restore' if restoring else 'activate', status))
+                                if status == 99:
+                                    state.inactive = True
+                                elif status == 1:
+                                    state.inactive = False
+                                callback(connection, ':1.50', '/org/gnome/Shell',
+                                    'org.gnome.Shell.Extensions', 'ExtensionStateChanged',
+                                    GLib.Variant('(sa{sv})', (UUID,
+                                        {'state': GLib.Variant('d', status)})))
+                                return bool(sequence)
+
+                            source.set_callback(emit)
+                            source.attach(GLib.MainContext.get_thread_default())
+                        return result
+
+                    with (mock.patch.object(manager, 'session_bus_address', return_value='unix:path=/safe/bus'),
+                          mock.patch('oh_no_parent_control.extension_manager.connect_child_bus', side_effect=connect),
+                          mock.patch.object(manager, '_run_command', side_effect=run),
+                          mock.patch.object(manager, '_failed_live_extension', side_effect=lambda _account: fails and state.inactive),
+                          mock.patch.object(manager, 'collect_diagnostics')):
+                        try:
+                            if fails:
+                                with self.assertRaises(ChildExtensionFailed):
+                                    manager.set_enabled(1001, True)
+                                self.assertEqual(state.values, before)
+                                self.assertEqual(events[4:], [('restore', item) for item in (1, 99, 2, 1)])
+                            else:
+                                manager.set_enabled(1001, True)
+                                self.assertTrue(state.values[DISABLE_VERSION_CHECK_KEY])
+                            self.assertEqual(events[:4], [('activate', item) for item in
+                                                         (1, 99, 2, 3 if fails else 1)])
+                        finally:
+                            if source is not None:
+                                source.destroy()
+                    connection.signal_unsubscribe.assert_called_with(42)
+                    self.assertEqual(connection.close_sync.call_count, 2 if fails else 1)
+
+                self._recover(state, live=True, transaction=transaction)
+
+    def test_oversized_reload_messages_are_not_unpacked_and_observer_is_closed(self):
+        from gi.repository import GLib
+
+        for kind in ('signal', 'reply'):
+            with self.subTest(kind=kind):
+                cancelled = threading.Event()
+                connection = mock.Mock()
+                owner = GLib.Variant('(s)', (':1.50',))
+                connection.call_sync.return_value = owner
+                connection.signal_subscribe.return_value = 42
+                attempt = SimpleNamespace(pending=False, cancel=mock.Mock())
+                oversized = mock.Mock()
+                oversized.get_size.return_value = 65537
+                oversized.get_type_string.return_value = '(sa{sv})'
+                oversized.unpack.side_effect = AssertionError('oversized message unpacked')
+                if kind == 'reply':
+                    connection.call_sync.side_effect = [owner, oversized]
+
+                def connect(_account, _address, _context, callback, **_kwargs):
+                    callback(connection, None)
+                    return attempt
+
+                def write(*_args):
+                    changed = connection.signal_subscribe.call_args.args[-1]
+                    changed(connection, ':1.50', '/org/gnome/Shell',
+                            'org.gnome.Shell.Extensions', 'ExtensionStateChanged', oversized)
+                    oversized.unpack.assert_not_called()
+                    cancelled.set()
+
+                with (mock.patch.object(self.manager, '_boolean', return_value=False),
+                      mock.patch.object(self.manager, 'session_bus_address', return_value='unix:path=/safe/bus'),
+                      mock.patch('oh_no_parent_control.extension_manager.connect_child_bus', side_effect=connect),
+                      mock.patch.object(self.manager, '_set_boolean', side_effect=write) as setting,
+                      self.manager.command_budget(4, cancelled)):
+                    error = TimeoutError if kind == 'signal' else ValueError
+                    reason = 'reload was interrupted' if kind == 'signal' else 'oversized child session reply'
+                    with self.assertRaisesRegex(error, reason):
+                        self.manager._set_version_check(self.account, True, live=True)
+                if kind == 'reply':
+                    setting.assert_not_called()
+                oversized.unpack.assert_not_called()
+                attempt.cancel.assert_called_once()
+                connection.signal_unsubscribe.assert_called_once_with(42)
+                connection.close_sync.assert_called_once_with(None)
+
+    def test_monitor_recovers_version_refusal_without_reporting_a_load_error(self):
+        with mock.patch.object(extension_monitor.threading.Thread, 'start'):
+            manager = mock.Mock()
+            monitor = extension_monitor.ExtensionMonitor(mock.Mock(), manager, mock.Mock())
+            watch = extension_monitor._Watch(1001)
+            monitor._reconcile(watch, {'state': 4, 'enabled': False}, True)
+        manager.set_enabled.assert_called_once_with(1001, True, recover_global_switch=True)
+        manager.report_failure.assert_not_called()
+        self.assertFalse(watch.failed)
 
     def _recover(self, state, *, live, recover_global_switch=True, transaction=None):
         account = SimpleNamespace(
@@ -1205,6 +1418,7 @@ class ExtensionManagerTests(unittest.TestCase):
                     ENABLED_KEY: ["other-enabled@example.com", UUID],
                     DISABLED_KEY: ["other-disabled@example.com"],
                     DISABLE_ALL_KEY: False,
+                    DISABLE_VERSION_CHECK_KEY: True,
                 })
                 self.assertTrue(any("recovery outcome=accepted" in row for row in logs.output))
 
@@ -1362,7 +1576,8 @@ class ExtensionManagerTests(unittest.TestCase):
                 mock.patch.object(
                     manager, "_list", side_effect=[[], [], [], [], []]
                 ),
-                mock.patch.object(manager, "_boolean", return_value=False),
+                mock.patch.object(manager, "_boolean", side_effect=lambda _account, key:
+                                  key == DISABLE_VERSION_CHECK_KEY),
                 mock.patch.object(manager, "_set_list") as set_list,
             ):
                 with self.assertRaisesRegex(

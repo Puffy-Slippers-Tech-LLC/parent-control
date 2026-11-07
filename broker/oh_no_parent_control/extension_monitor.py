@@ -407,7 +407,7 @@ class ExtensionMonitor:
             except Exception:
                 pass
             watch.observed_state = observed
-        if state in {3, 4}:
+        if state == 3:
             fields = _load_error_fields(info)
             LOG.error("extension-manager.load-state", state=fields["state"],
                       asset=fields["asset"], reason=fields["reason"])

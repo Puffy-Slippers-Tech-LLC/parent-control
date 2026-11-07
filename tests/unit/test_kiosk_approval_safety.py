@@ -200,6 +200,7 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
                                  'work-recovery', 'expired-recovery', 'kiosk-recovery', 'kiosk-recovery-wrong-scope',
                                  'app-restart-request', 'sign-out-request', 'reboot-request',
                                  'process-update-request', 'process-update-wrong-soft', 'session-update-request',
+                                 'reboot-update-request',
                                  'sign-out-expired-recovery', 'reboot-expired-recovery',
                                  'daily-expired-recovery', 'daily-expired-wrong-scope',
                                  'daily-expired-included', 'daily-expired-included-wrong-scope',
@@ -261,7 +262,7 @@ if ($mode eq 'app-restart-request' || $mode eq 'sign-out-request' || $mode eq 'r
     $first = bless {prefix => $restart->[0] . '-request', stage_prefix => 'request-',
         kiosk_request => $restart->[1], review => 0}, 'onpc_journey';
 }
-if ($mode =~ /^(?:process|session)-update-/) {
+if ($mode =~ /^(?:process|session|reboot)-update-/) {
     $process_update->[1][3] = 1 if $mode eq 'process-update-wrong-soft';
     $first = bless {prefix => $process_update->[0] . '-request', stage_prefix => 'request-',
         kiosk_request => $process_update->[1], review => 0}, 'onpc_journey';
@@ -311,7 +312,8 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
 ''', mode, json.dumps(transition), json.dumps(revocation), json.dumps(recovery),
         'panel-request-case', 'baseline-journey',
         json.dumps([restart, ['other-child', 'parent', 1200, True]]),
-        json.dumps(['update-session-case' if mode == 'session-update-request' else 'update-process-case',
+        json.dumps(['update-reboot-case' if mode == 'reboot-update-request' else
+                    'update-session-case' if mode == 'session-update-request' else 'update-process-case',
                     ['other-child', 'parent', 1200, False]]),
         json.dumps({'request': ['other-child', 'parent', 600, True],
                     'recovery': ['other-child', 'parent', 1200, True]}))
@@ -352,7 +354,8 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
             ['proof', request + '-approval-' + proof]
             for request in ('first', 'second') for proof in ('qualified', 'rechecked')]
     elif mode in ('grant-request', 'transition-request', 'revocation-request', 'app-restart-request',
-                  'sign-out-request', 'reboot-request', 'process-update-request', 'session-update-request'):
+                  'sign-out-request', 'reboot-request', 'process-update-request', 'session-update-request',
+                  'reboot-update-request'):
         assert value['ok'] == 1
         scope = 'soft-opening' if mode == 'transition-request' else 'request'
         assert deliveries == [['delivery', 'parent', scope + '-kiosk-mate-approval']]

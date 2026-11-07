@@ -778,6 +778,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          fresh_thirty_child='child', time_profiles_daily=None,
          grant_only_profile=False, grant_only_revoke=False, time_profiles_grant=False,
          suspend_active_grant=False,
+         daily_soft_profile=False,
          feedback_privacy=False, feedback_states=False, format_qualification=False,
          trace_stable_state=False, trace_transition=False, compose_observation=False,
          accessibility_input_trace=False, parent_save_trace=False, custom_save_trace=False,
@@ -853,6 +854,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         and not any(value for name, value in locals().items()
             if name not in ('assets', 'provision_credentials', 'grant_only_profile', 'grant_only_revoke')
             and isinstance(value, bool)))), 'smoke:grant-only-profile-prerequisites')
+    require(type(daily_soft_profile) is bool and (not daily_soft_profile or (
+        assets is not None and provision_credentials and time_profiles_daily is None
+        and fresh_desktop is None and lock_surface is None and parent_entry is None
+        and approval_flow is None and active_grant_disable is None
+        and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'daily_soft_profile')
+            and isinstance(value, bool)))), 'smoke:daily-soft-profile-prerequisites')
     require(type(time_profiles_grant) is bool and (not time_profiles_grant or (
         assets is not None and provision_credentials and time_profiles_daily is None
         and fresh_desktop is None and lock_surface is None and parent_entry is None
@@ -1193,7 +1201,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             (fresh_thirty_allowance or fresh_thirty_child == 'child'),
             'smoke:fresh-thirty-child-prerequisites')
     set_allowance = (set_allowance or fresh_thirty_allowance or time_profiles_daily is not None
-                     or grant_only_profile or time_profiles_grant or suspend_active_grant)
+                     or grant_only_profile or time_profiles_grant or suspend_active_grant
+                     or daily_soft_profile)
     require(type(restricted_station_about) is bool and not (restricted_station_about and (
         kiosk_ineligible or kiosk_multiple or kiosk_valid_duration or request_duration
         or request_flow or mate_prompt or kiosk_approval or kiosk_rejection or auth_result
@@ -1978,6 +1987,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-suspend-active-grant-qualification'
         if time_profiles_grant:
             result['scope'] = 'installed-time-profiles-grant-qualification'
+        if daily_soft_profile:
+            result['scope'] = 'installed-daily-soft-profile-qualification'
         if app_restart:
             result['scope'] = 'installed-app-restart-qualification'
         if real_interval:
@@ -2641,6 +2652,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if time_profiles_grant:
                     from parent_setup_qualification import CombinedTimeProfileQualification
                     qualification_class = CombinedTimeProfileQualification
+                if daily_soft_profile:
+                    from parent_setup_qualification import DailySoftProfileQualification
+                    qualification_class = DailySoftProfileQualification
                 if real_interval:
                     from parent_setup_qualification import RealIntervalQualification
                     qualification_class = RealIntervalQualification

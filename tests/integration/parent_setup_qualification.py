@@ -1942,6 +1942,19 @@ class CombinedTimeProfileQualification(GrantOnlyProfileQualification):
     daily_minutes = 4
 
 
+class DailySoftProfileQualification(KioskEntryQualification):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets
+    fixture_caller = 'check_e2e_prepare_a_daily_balance_that_outlasts_a_soft_exception'
+
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from daily_soft_profile import DailySoftProfileJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return DailySoftProfileJourney(context, progress)
+
+
 class RealIntervalQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

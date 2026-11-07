@@ -765,7 +765,7 @@ sub prepare {
             && ref($journey->{kiosk_request}) eq 'ARRAY'
             && ($child eq 'fixture-child' || $child eq 'existing-fixture-child')
             && ($approver eq 'fixture-parent' || $approver eq 'other-fixture-parent')
-            && $seconds =~ /\A(?:30|60|75|120|150|180|240|300|600|900|1200|7200)\z/
+            && $seconds =~ /\A(?:6|30|60|75|120|150|180|240|300|600|900|1200|7200)\z/
             && ($soft == 0 || $soft == 1)
             && join(',', @{$journey->{kiosk_request}}) eq join(',',
                 $child eq 'fixture-child' ? 'child' : 'other-child',

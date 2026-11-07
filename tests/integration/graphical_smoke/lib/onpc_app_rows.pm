@@ -451,6 +451,45 @@ sub saved_rows {
     }
 }
 
+sub daily_soft_profile {
+    onpc_progress::operation('Preparing daily time that outlasts the child Soft-app exception');
+    my ($exchange, $declared, $challenges, $request) = @_;
+    die 'flow18:binding' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,6,1';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'daily-soft-profile', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    $journey->{kiosk_request} = $request;
+    onpc_gdm::reattach_functional();
+    named_app_set($journey, 'gdm', 'fresh', 'new', 'child', [
+        ['A', 'match-precise', 'allowed'], ['H', 'match-hard-precise', 'permanent'],
+        ['S', 'match-soft-wildcard', 'conditional']], 'apps');
+    onpc_desktop_session::enter_desktop(
+        $journey, 'gdm', 'parent', 'retained', 'success', 'setup-return');
+    onpc_parent::grant_only_time_profile(
+        $journey, 'desktop', 'same-user', 'retained', 0, 0, 6, 'observed', 0, 10);
+    onpc_desktop_session::enter_desktop(
+        $journey, 'gdm', 'child', 'fresh', 'success', 'first-child');
+    my $soft = $journey->scope('soft');
+    native_usable_app($soft, 'command', $soft->seen('desktop'), 'child', 'S');
+    native_read_activity($journey, 'soft-capture');
+    onpc_desktop_session::enter_desktop(
+        $journey, 'desktop', 'parent', 'retained', 'success', 'away-parent', 'child');
+    $journey->consume_observation('away-parent-retained',
+        onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'child', 'away', 0));
+    # The first read's controller action owns the bounded TIME03 wait. There
+    # are no edits or form/settings tours between this read and the return.
+    $journey->seen($_) for qw(away-balance return-balance);
+    my $leaving = $journey->scope('leave-parent');
+    onpc_desktop_session::switch_user($leaving, $leaving->seen('desktop'));
+    onpc_desktop_session::enter_desktop(
+        $journey, 'gdm', 'child', 'retained', 'success', 'returned-child');
+    native_read_activity($journey, 'soft-preserved');
+    $journey->seen('positive-child-witness');
+    $journey->finish();
+}
+
 sub qualify_named_app_set {
     onpc_progress::operation('Checking saved child app rules after Parent returns');
     my ($exchange, $declared, $challenges) = @_;

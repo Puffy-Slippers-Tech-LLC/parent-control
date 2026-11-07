@@ -1463,6 +1463,13 @@ sub run {
         onpc_challenges::suspend_active_grant(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{daily_soft_profile}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::daily_soft_profile(\&exchange, $ready->{invocations},
+            $ready->{challenge_bindings}, $ready->{kiosk_request});
+        return;
+    }
     if ($ready->{grant_only_profile} || $ready->{grant_only_revoke} || $ready->{time_profiles_grant}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

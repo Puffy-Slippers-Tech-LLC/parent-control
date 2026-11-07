@@ -153,13 +153,17 @@ sub enter_kiosk_mate_password {
             my $expired_daily = ($journey->{prefix} // '') eq 'expired-daily-replacement'
                 && ($journey->{stage_prefix} // '') eq ''
                 && ref($request) eq 'ARRAY' && join(',', @$request) =~ /\Achild,parent,1200,[01]\z/;
-            die 'secret:challenge' unless ($temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily ||
+            my $daily_soft = ($journey->{prefix} // '') eq 'daily-soft-profile-profile-request'
+                && ($journey->{stage_prefix} // '') eq 'profile-request-'
+                && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,6,1';
+            die 'secret:challenge' unless ($temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily || $daily_soft ||
                     ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
                     && ($journey->{stage_prefix} // '') eq '')
                 && ref($request) eq 'ARRAY' && @$request == 4
                 && $request->[0] =~ /\A(?:child|other-child)\z/
                 && $request->[1] =~ /\A(?:parent|other-parent)\z/
-                && $request->[2] =~ /\A(?:30|60|75|120|150|180|240|300|600|900|1200|7200)\z/
+                && ($request->[2] =~ /\A(?:30|60|75|120|150|180|240|300|600|900|1200|7200)\z/
+                    || $daily_soft && $request->[2] == 6)
                 && ($request->[3] == 0 || $request->[3] == 1);
             $role = $request->[1];
         }

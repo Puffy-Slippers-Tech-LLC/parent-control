@@ -194,7 +194,7 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
 
 
 @pytest.mark.parametrize('mode', ['two-requests', 'replay', 'wrong-scope', 'wrong-child',
-                                 'profile-setup', 'profile-wrong-scope',
+                                 'profile-setup', 'profile-wrong-scope', 'suspend-profile',
                                  'grant-request', 'grant-wrong-scope', 'grant-wrong-child',
                                  'transition-request', 'transition-wrong-duration', 'revocation-request',
                                  'work-recovery', 'expired-recovery', 'kiosk-recovery', 'kiosk-recovery-wrong-scope',
@@ -309,8 +309,9 @@ my $ok = eval {
     1;
 };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
-''', mode, json.dumps(transition), json.dumps(revocation), json.dumps(recovery),
-        'panel-request-case', 'baseline-journey',
+''', 'profile-setup' if mode == 'suspend-profile' else mode,
+        json.dumps(transition), json.dumps(revocation), json.dumps(recovery),
+        'suspend-active-grant' if mode == 'suspend-profile' else 'panel-request-case', 'baseline-journey',
         json.dumps([restart, ['other-child', 'parent', 1200, True]]),
         json.dumps(['update-reboot-case' if mode == 'reboot-update-request' else
                     'update-session-case' if mode == 'session-update-request' else 'update-process-case',
@@ -361,7 +362,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
         assert deliveries == [['delivery', 'parent', scope + '-kiosk-mate-approval']]
         assert [event for event in value['events'] if event[0] == 'proof'] == [
             ['proof', scope + '-approval-' + proof] for proof in ('qualified', 'rechecked')]
-    elif mode == 'profile-setup':
+    elif mode in ('profile-setup', 'suspend-profile'):
         assert value['ok'] == 1
         assert deliveries == [['delivery', 'parent', 'profile-request-kiosk-mate-request-1200']]
         assert [event for event in value['events'] if event[0] == 'proof'] == [

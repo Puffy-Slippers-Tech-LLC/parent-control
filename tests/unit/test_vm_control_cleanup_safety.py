@@ -20,6 +20,102 @@ import vm_control as control
 VM_ARGS = ['--vm', vm_name()]
 
 
+@pytest.mark.parametrize('fault', ['owner', 'attempt', 'deadline', 'nonfinite', 'entry', 'replay'])
+def test_suspend_refuses_before_boot_discovery_or_input(fault):
+    from installed_journey import InstalledJourney
+    from private_artifacts import EvidenceError
+    journey = object.__new__(InstalledJourney)
+    lease = SimpleNamespace(fd=3, state={'run': 'one', 'domain_id': 7},
+                            source=SimpleNamespace(uuid=UUID))
+    journey.context = SimpleNamespace(lease=lease)
+    journey.plan = SimpleNamespace(prefix='sleep', stages=('suspend',),
+                                   stage_actions={'suspend': 'suspend-wake'})
+    journey.steps, journey.failed, journey.suspend_submitted = [], False, False
+    journey.boot = 'a' * 64
+    journey.vm = Mock()
+    journey.transport = SimpleNamespace(lease=lease, config={
+        'run': 'one', 'domain_uuid': UUID, 'domain_id': 7}, suspend_wake=Mock())
+    deadline = time.monotonic() + 120
+    if fault == 'owner': journey.transport.lease = object()
+    if fault == 'attempt': journey.transport.config['run'] = 'other'
+    if fault == 'deadline': deadline = time.monotonic()
+    if fault == 'nonfinite': deadline = float('inf')
+    if fault == 'entry': journey.plan.stage_actions = {}
+    if fault == 'replay': journey.suspend_submitted = True
+    with pytest.raises(EvidenceError, match='sleep:suspend-'):
+        journey.submit_suspend(Mock(), duration=5, deadline=deadline)
+    journey.vm.read.assert_not_called()
+    journey.transport.suspend_wake.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'owner', 'attempt', 'deadline', 'replaced-before-wake'])
+def test_suspend_wakes_only_owned_sleep_and_before_ssh_reply(monkeypatch, tmp_path, fault):
+    import sys
+    import real_interval
+    import vm_transport
+    clock = [100.0]
+    monkeypatch.setattr(vm_transport, 'time', SimpleNamespace(
+        monotonic=lambda: clock[0], sleep=lambda seconds: None))
+    api = SimpleNamespace(VIR_DOMAIN_RUNNING=1, VIR_DOMAIN_SHUTDOWN=4,
+                          VIR_DOMAIN_SHUTOFF=5, VIR_DOMAIN_PMSUSPENDED=7,
+                          VIR_DOMAIN_XML_INACTIVE=2)
+    monkeypatch.setitem(sys.modules, 'libvirt', api)
+    state = [1]
+    domain = SimpleNamespace(ID=Mock(return_value=7), state=lambda: (state[0], 0),
+                              pMWakeup=Mock(side_effect=lambda flags: state.__setitem__(0, 1)))
+    # Traverse the real shared state guard: S3 is active, never offline.
+    from tests.support.vm_baseline import xml
+    source = object.__new__(runner.baseline.LibvirtSource)
+    source.api, source.uuid = api, UUID
+    domain.UUIDString = lambda: UUID
+    domain.isPersistent = lambda: True
+    domain.hasManagedSaveImage = lambda flags: False
+    domain.XMLDesc = lambda flags: xml(tmp_path / 'guest.qcow2')
+    domain.blockJobInfo = Mock(return_value={})
+    source.connection = SimpleNamespace(getURI=lambda: runner.baseline.URI,
+                                       lookupByName=lambda name: domain)
+    def active_guard(config):
+        assert source.snapshot()[1] is False
+    lease = SimpleNamespace(fd=3, state={'phase': 'running', 'run': 'one', 'domain_id': 7},
+                            source=SimpleNamespace(uuid=UUID, domain=domain), close_probe=Mock(),
+                            set_probe_transport=Mock())
+    transport = object.__new__(vm_transport.Transport)
+    transport.config = {'run': 'one', 'domain_uuid': UUID, 'domain_id': 7}
+    transport.lease, transport.guard = lease, active_guard
+    transport.commands = SimpleNamespace(last_returncode=0)
+    transport.probe_ready = Mock()
+    def interval(duration, *, deadline, guard, progress):
+        guard()
+        clock[0] += duration
+        if fault == 'replaced-before-wake': domain.ID.return_value = 8
+        guard()
+    monkeypatch.setattr(real_interval, 'wait_real_interval', interval)
+    def submit(argv, **kwargs):
+        assert argv[-1] == 'a' * 64
+        assert '"suspend"' in argv[2]
+        state[0] = 7
+        kwargs['on_stream'](b'', 'stdout')
+        domain.pMWakeup.assert_called_once_with(0)  # SSH has not returned yet.
+        return b''
+    transport.call = Mock(side_effect=submit)
+    deadline = 220.0
+    if fault == 'owner': lease.fd = None
+    if fault == 'attempt': transport.config['run'] = 'other'
+    if fault == 'deadline': deadline = 100.0
+    if fault is not None:
+        with pytest.raises(RuntimeError, match='transport:'):
+            transport.suspend_wake('a' * 64, duration=5, deadline=deadline, guard=Mock())
+        domain.pMWakeup.assert_not_called()
+        transport.probe_ready.assert_not_called()
+        lease.set_probe_transport.assert_not_called()
+        if fault != 'replaced-before-wake': transport.call.assert_not_called()
+    else:
+        result = transport.suspend_wake('a' * 64, duration=5, deadline=deadline, guard=Mock())
+        assert result['suspended'] and result['suspended_seconds'] == 5
+        transport.probe_ready.assert_called_once_with(timeout=180)
+        lease.set_probe_transport.assert_called_once_with(transport)
+
+
 @pytest.mark.parametrize(('target', 'authenticated'),
                          [('ubuntu', True), ('fedora', True), ('fedora', False)])
 def test_fixture_sync_dispatch_authenticates_before_resuming_owned_maintenance(

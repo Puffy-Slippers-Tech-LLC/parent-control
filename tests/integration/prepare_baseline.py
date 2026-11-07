@@ -395,10 +395,11 @@ class LibvirtSource:
         require(domain.UUIDString() == self.uuid and domain.isPersistent(), "guard:domain-identity")
         require(not domain.hasManagedSaveImage(0), "guard:managed-save")
         state = domain.state()[0]
-        # Guest shutdown passes through SHUTDOWN before SHUTOFF. It is still
-        # active storage and must never be mistaken for offline readiness.
+        # Shutdown and S3 sleep both retain active storage. Only SHUTOFF
+        # authorizes offline operations; sleep retains all identity checks.
         require(state in (self.api.VIR_DOMAIN_RUNNING, self.api.VIR_DOMAIN_SHUTDOWN,
-                          self.api.VIR_DOMAIN_SHUTOFF), "guard:domain-state")
+                          self.api.VIR_DOMAIN_SHUTOFF, self.api.VIR_DOMAIN_PMSUSPENDED),
+                "guard:domain-state")
         layout = domain_layout(domain.XMLDesc(0), self.uuid)
         inactive = domain_layout(domain.XMLDesc(self.api.VIR_DOMAIN_XML_INACTIVE), self.uuid)
         require(inactive == recorded_layout(layout), "guard:pending-disk-change")

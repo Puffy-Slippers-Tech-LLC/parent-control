@@ -6,6 +6,9 @@ cache is acquired. Deleting tests adds no resource owner or overlap requirement.
 VM-control diagnostics use a unique abstract socket, joined owner thread and
 mocked guest transport; they share no live endpoint with another bucket.
 Unknown modules remain exclusive pending review.
+
+Suspend safety checks use process-local domain/SSH/clock doubles only. They
+open no VM, socket, subprocess or shared path; existing compatible buckets apply.
 """
 
 from pathlib import PurePosixPath

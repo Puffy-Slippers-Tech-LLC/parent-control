@@ -6,6 +6,7 @@ module owns transport/setup mechanics and boot continuity, never product probes.
 
 from dataclasses import dataclass, field
 import json
+import math
 import os
 import re
 import sys
@@ -516,6 +517,7 @@ class InstalledJourney:
         self.boot = None
         self.reboot_submitted = False
         self.reboot_observed = False
+        self.suspend_submitted = False
         self.additional_reboots_submitted = set()
         self.additional_reboots_observed = set()
         self.failed = False
@@ -733,6 +735,39 @@ class InstalledJourney:
             submission = self.ui.submit_restart(surface)
         guard()
         return {'submitted': True, 'previous_boot_sha256': self.boot, **submission}
+
+    def submit_suspend(self, guard, *, duration, deadline):
+        """One declared LIFE03 action, bound to this attempt and original boot."""
+        stage = self.plan.stages[len(self.steps)] if len(self.steps) < len(self.plan.stages) else None
+        require(not self.failed and self.plan.stage_actions.get(stage) == 'suspend-wake'
+                and not self.suspend_submitted and self.boot is not None,
+                self.plan.prefix + ':suspend-entry')
+        lease = self.context.lease
+        require(self.transport is not None and self.transport.lease is lease
+                and lease.fd is not None
+                and self.transport.config['run'] == lease.state['run']
+                and self.transport.config['domain_uuid'] == lease.source.uuid
+                and self.transport.config['domain_id'] == lease.state['domain_id'],
+                self.plan.prefix + ':suspend-owner')
+        require(type(deadline) in (int, float) and math.isfinite(deadline)
+                and type(duration) in (int, float) and math.isfinite(duration)
+                and 0 < duration <= 300 and time.monotonic() + duration + 30 < deadline,
+                self.plan.prefix + ':suspend-deadline')
+        guard()
+        require(self.vm.read('boot')['boot_sha256'] == self.boot,
+                self.plan.prefix + ':boot-changed')
+        self.suspend_submitted = True
+        with (self.context.directory / 'customer-suspend-intent.json').open('x') as stream:
+            json.dump({'stage': stage, 'boot_sha256': self.boot,
+                       'wake_deadline_monotonic': deadline, 'duration_seconds': duration}, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        result = self.transport.suspend_wake(self.boot, duration=duration,
+                                            deadline=deadline, guard=guard)
+        require(self.vm.read('boot')['boot_sha256'] == self.boot,
+                self.plan.prefix + ':suspend-boot-changed')
+        guard()
+        return result
 
     def _step(self, guard):
         plan, context = self.plan, self.context
@@ -970,6 +1005,8 @@ class InstalledJourney:
                     if plan.stage_actions[stage] == 'source-change'
                     else 'Waiting the declared real interval under the attempt guard'
                     if plan.stage_actions[stage] == 'real-interval'
+                    else 'Suspending and waking the child computer before extra time expires'
+                    if plan.stage_actions[stage] == 'suspend-wake'
                     else 'Awaiting displayed minute countdown progression'
                     if plan.stage_actions[stage] == 'minute-progress'
                     else 'Awaiting displayed final-second countdown progression'

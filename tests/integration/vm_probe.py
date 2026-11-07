@@ -768,6 +768,20 @@ def reproduce_countdown_grant(lease, fixture_selection):
         boundary_operation='child-countdown-present', fixture_selection=selection, timeout=1800)
 
 
+def reproduce_suspend_active_grant(lease, fixture_selection):
+    """Read the desktop after legitimate wake/unlock and retain the child scene."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from suspend_active_grant import SuspendActiveGrantJourney, PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, SuspendActiveGrantJourney, PLAN,
+        'unlock-desktop', 'suspend-active-grant', assets=assets,
+        boundary_operation='fresh-child-desktop',
+        fixture_selection=selection, timeout=1800)
+
+
 def reproduce_countdown_resume(lease):
     """Inspect countdown use/pause/return through the qualified lock journey."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1562,6 +1576,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from natural_access import NaturalAccessJourney, PLAN as NATURAL_ACCESS_PLAN
         from countdown_grant import CountdownGrantJourney, PLAN as COUNTDOWN_GRANT_PLAN
         from natural_expiry import NaturalExpiryJourney, PLAN as NATURAL_EXPIRY_PLAN
+        from suspend_active_grant import SuspendActiveGrantJourney, PLAN as SUSPEND_ACTIVE_GRANT_PLAN
         from overlay_approved_exit import OverlayApprovedExitJourney, TRANSLATED_PLAN
         from approval_return import ApprovalReturnJourney, NEW_PLAN
         from native_denial import NativeDenialJourney, PLAN as NATIVE_DENIAL_PLAN
@@ -1591,6 +1606,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         natural_expiry = (surface == 'natural-expiry'
             and journey_type is NaturalExpiryJourney and plan is NATURAL_EXPIRY_PLAN
             and boundary == 'natural-expiry' and boundary_operation is None)
+        suspend_active_grant = (surface == 'suspend-active-grant'
+            and journey_type is SuspendActiveGrantJourney and plan is SUSPEND_ACTIVE_GRANT_PLAN
+            and boundary == 'unlock-desktop' and boundary_operation == 'fresh-child-desktop')
         overlay_activity = (surface == 'overlay-activity'
             and journey_type is OverlayApprovedExitJourney and plan is TRANSLATED_PLAN
             and boundary == 'activity-capture' and boundary_operation == 'overlay-native-activity')
@@ -1635,7 +1653,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             and journey_type is AppRestartExpiredJourney and plan is SIGN_OUT_PLAN
             and boundary == 'boundary-child-gdm-logged-out'
             and boundary_operation == 'gdm-returned')
-        system.require(selected_setup and (restoration or natural_access or natural_expiry or countdown_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or expired_sign_out)
+        system.require(selected_setup and (restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or expired_sign_out)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1687,6 +1705,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                                        'natural-access': 'E2E-008/fresh-login',
                                        'natural-expiry': 'check_e2e_natural_expiry',
                                        'countdown-grant': 'E2E-011/grant-only',
+                                       'suspend-active-grant': 'check_e2e_suspend_active_grant',
                                        'overlay-activity': 'check_e2e_overlay_translated_approval',
                                        'panel-request': 'E2E-012/excluded-first',
                                        'reboot-context': 'E2E-022/reboot-active',
@@ -1800,7 +1819,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                         else:
                             # This diagnostic must retain the already qualified
                             # prompt identity and normal fresh-proof deadline.
-                            observer = (journey.ui if surface == 'delayed-approval'
+                            observer = (journey.ui if surface in ('delayed-approval', 'suspend-active-grant')
                                         else UiObservations(transport))
                             observed = observer.observe(boundary_operation, **(
                                 {'child': plan.child_bindings[boundary]}

@@ -566,6 +566,31 @@ def configure_snapshot_memory(root):
         balloon.set('freePageReporting', 'on')
 
 
+def configure_suspend(root):
+    """Expose ACPI S3 for normal guest sleep and the owned libvirt wake route."""
+    power = root.find('pm')
+    if power is None:
+        power = ET.SubElement(root, 'pm')
+    memory = power.find('suspend-to-mem')
+    if memory is None:
+        memory = ET.SubElement(power, 'suspend-to-mem')
+    memory.set('enabled', 'yes')
+    # The software virtio GPU can strand Shell in an uninterruptible queue
+    # wait after S3 resume. Use QEMU's standard VGA device for this baseline;
+    # its DRM path avoids that queue while retaining the same public desktop.
+    video = root.find('devices/video/model')
+    if video is not None and video.get('type') == 'virtio':
+        acceleration = video.find('acceleration')
+        require(acceleration is None or acceleration.get('accel3d', 'no') == 'no',
+                'baseline:suspend-accelerated-video')
+        video.set('type', 'vga')
+        video.set('vram', '16384')
+        for attribute in ('blob', 'device'):
+            video.attrib.pop(attribute, None)
+        if acceleration is not None:
+            video.remove(acceleration)
+
+
 def boot_and_wait(capture):
     capture.revalidate(off=True)
     source = capture.source
@@ -578,6 +603,7 @@ def boot_and_wait(capture):
     configure_snapshot_memory(root)
     configure_clipboard(root)
     display_endpoint(root)
+    configure_suspend(root)
     source.connection.defineXML(ET.tostring(root, encoding='unicode'))
     capture.revalidate(off=True)
     source.domain.create()

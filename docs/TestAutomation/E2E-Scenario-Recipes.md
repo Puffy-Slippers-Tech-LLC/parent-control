@@ -1476,8 +1476,11 @@ Bindings: soft-apps = excluded / included; entry = new-login / retained-unlock.
 
 ### E2E-026
 
-Implementation status: Process case 136 and session case 137 are implemented;
-reboot case 138 remains pending. Session case 137 uses
+Implementation status: Cases 136, 137 and 138 are implemented. Reboot case 138
+uses [`update_process_case.REBOOT_PLAN`](../../tests/e2e/update_process_case.py)
+and `onpc_customer_reboot::run_reboot_case`, adding fresh post-update desktops
+and complete remembered-choice comparisons for both children on both forms.
+Session case 137 uses
 [`update_process_case.SESSION_PLAN`](../../tests/e2e/update_process_case.py) and
 `onpc_customer_reboot::run_session_case`, sharing the process case's saved-rule,
 original-grant-deadline, native app and request-readiness checks. Only Jordan

@@ -4,7 +4,9 @@ Status: Codex session preparation, interactive protocol extraction, batch
 presentation normalization, model/profile preflight and remaining caller/profile
 integration are implemented. Current Codex policy has been reconciled with the
 adapter boundary. Claude policy migration and configuration-driven agent selection
-remain proposed. Live-agent qualification is outstanding.
+remain proposed. Bounded Codex live-agent qualification is partial: finite
+transport/profile checks passed, but interruption cleanup failed.
+Trusted-checkout policy and remaining workflow qualification are outstanding.
 
 The repository should select its coding agent solely from the checked-in
 top-level `agent` field in [config/environment.json](../config/environment.json).
@@ -59,8 +61,10 @@ Git close-out and merge/stash-restoration conflict sessions resolve the pinned
 `commit_helper` and `conflict_resolver` profiles through the adapter, retaining
 the existing executable check during session preparation. They retain Sol High
 independently of coordinator overrides; deterministic Git operations do not
-prepare or preflight an agent. Git catalogue qualification remains outstanding;
-no additional subprocess runs outside its supervisor. Shared workflow prompts render resolved model and
+prepare or preflight an agent. The pinned Git helper profiles passed catalogue
+and finite live-session checks; their Git transactions remain unqualified and
+caller preflight integration remains outstanding. No additional subprocess runs
+outside its supervisor. Shared workflow prompts render resolved model and
 helper profiles rather than duplicating native model names. Native role assets
 retain their model/effort pins and permissions; their instructions refer to those
 configured pins. The current goal API, fresh helper context, independent Astra
@@ -71,14 +75,27 @@ later delivery step; no alternative runtime or selection is enabled here.
 
 ## Next implementation step
 
-Complete delivery step 2 with **bounded Codex live-agent qualification** through
-the extracted shared boundary. Use a disposable checkout and maintained
-ownership/storage routes. Exercise batch and interactive finite passing/failing
-results, native goal activation, fresh delegated roles, coordinator result
-ownership, pending input at completion, interruption/cleanup and Git helper
-profiles/catalogue readiness. Preserve explicit overrides, escalation timing, budgets, read-only
-roles, independent backend review and agent-free operations. Report actual
-CLI/model readiness limits and retain unresolved qualification explicitly;
+Resolve delivery step 2's **interrupted-command cleanup blocker** before claiming
+Codex live qualification complete. The [bounded checks below](#codex-live-qualification)
+found that CLI 0.167.0 can publish a completed interruption and acknowledge native
+terminal termination while the recorded OS command still lives. A supported
+native route/version or reviewed owner-preserving supervisor solution must prove
+that owned commands stop before waiting or continuation, including input arriving
+after terminal completion but before result acceptance. A delay or an empty native
+terminal inventory alone is insufficient. Preserve the successful finite
+transport/profile checks; do not rerun them solely to renew evidence.
+
+Then finish trusted-checkout policy and remaining workflow qualification through
+the extracted boundary. Use a disposable checkout with project trust/readiness
+established through the [maintained setup route](Approval-Tools.md#one-time-setup),
+and maintained ownership/storage routes. Qualify project-local rules and role
+permission enforcement, the remaining adviser/translator/backend-review
+lifecycles under their owning workflow policies, and Git helper catalogue
+readiness at the actual supervised caller boundary. Preserve explicit overrides,
+escalation timing, budgets, read-only roles, independent backend review and
+agent-free operations. Retain unexercised refusal/capacity recovery and full Git
+conflict/stash/close-out paths explicitly; finite profile checks do not qualify
+those workflows. Report actual CLI/model readiness limits;
 source/unit checks and launcher help do not establish native compatibility.
 Do not enable Claude/configuration selection or redo delivered extraction. The
 remaining Claude policy migrations are still proposed, as described in
@@ -517,3 +534,59 @@ for every repository-owned agent session, with no new launcher parameters,
 hidden provider fallback, acceptance changes, or lost recovery state. This
 proposal itself neither activates selection nor changes the current model,
 goal, review or approval contracts.
+
+### Codex live qualification
+
+On 2026-11-06, Codex CLI **0.167.0** was exercised through
+`agent_command`, `PreparedSession.preflight`, the shared supervisor and
+`AppSession`. A temporary harness used disposable local clones, shared disk
+scratch and a bounded retention journal; each native assignment had a
+180-second deadline. No permanent test harness or regression tests were added.
+
+- Batch and interactive sessions returned finite schema-conforming passing and
+  deliberately failing results; the returned failed status was retained despite
+  a zero CLI exit. These transport fixtures did not run workflow acceptance
+  engines.
+- Native `thread/goal/updated` notifications showed the exact objective active
+  and complete without a token budget. `thread/goal/get` independently confirmed
+  the preceding batch session's persisted completed goal and a fresh interactive
+  thread's initially absent goal.
+- Input queued at a real terminal-turn event withheld acceptance and changed a
+  passing candidate to the requested failing result. Native `turn/steer`
+  acknowledged active-turn input, reflected exactly once in the final response.
+- Initial mailbox interruption exchanged a continuation, but stricter process
+  observation **failed** cleanup before waiting. Successful after-shutdown
+  survivor checks do not qualify cleanup before continuation.
+- Sequential fresh monitor and worker sessions used the native Sol Low and
+  Medium role pins. Native notifications and goal reads confirmed their exact
+  completed goals. Helpers' deliberately failing results, including decoys with
+  the coordinator's task ID, did not replace the coordinator's passing result.
+- Catalogue preflight accepted all configured role profiles. Finite live sessions
+  using the pinned `commit_helper` and `conflict_resolver` Sol High pair passed;
+  an explicit Astra xHigh coordinator also passed. Agent-free launcher help,
+  granular test listing and deterministic Git inspection remained available.
+
+The interruption fixture expected its owned `sleep 30` to stop before the chat
+published waiting or delivered another turn. Instead, the same recorded PID and
+start time remained live at waiting. An experimental adapter cleanup gate waited
+for the [native terminal APIs](https://learn.chatgpt.com/docs/app-server#clean-background-terminals),
+but `thread/backgroundTerminals/clean` acknowledged success while the terminal
+remained listed and its OS command lived for the full five-second observation.
+A separate direct `terminate` attempt returned `terminated: true` and a subsequent
+empty inventory; the recorded OS command still lived for five seconds at waiting.
+No continuation was sent in these failing checks. The unverified runtime patch
+was removed; this is an observed native cleanup-readiness limit, not a qualified
+fix or a proven source-regression diagnosis. The supervisor was cancelled and
+joined, and recorded process identities were observed through final cleanup.
+
+The clones were not trusted projects: the CLI explicitly disabled project-local
+configuration, hooks and execution rules. Explicit adapter settings and native
+role assets loaded, but this run does **not** qualify the disabled policy layer,
+role permission enforcement, helper-thread interruption or all workflow/role
+combinations. Global trust, authentication, setup and permissions were not
+changed. No live refusal,
+capacity outage/fallback, full Git close-out/conflict/stash workflow, Claude
+transport or configuration switch was exercised. These limits keep delivery
+step 2 open under the next implementation step above. Two independent reviewers
+using the same native goal confirmed the cleanup limitation and the decision not
+to retain an unverified runtime fix.

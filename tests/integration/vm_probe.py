@@ -701,18 +701,20 @@ def reproduce_panel_language(lease):
                             boundary_operation='child-countdown-present')
 
 
-def reproduce_natural_expiry(lease):
-    """Retain the naturally owned child lock before any harmless lock input."""
+def reproduce_natural_expiry(lease, fixture_selection):
+    """Retain the child's original app before the measured expiry observer."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from natural_expiry import NaturalExpiryJourney, PLAN
     from tools.test_storage import named_input
-    assets = named_input(vm_source=True, fixture_source=True)
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
     if not assets.is_dir():
         print('natural-expiry-diagnosis: prepare fixture inputs with '
               'tools/run-tests artifacts prepare --for-vm --vm NAME --output ' + str(assets),
               flush=True)
     return reproduce_denial(lease, NaturalExpiryJourney, PLAN,
-                            'lock-input-ready', 'natural-expiry', assets=assets)
+                            'natural-expiry', 'natural-expiry', assets=assets,
+                            fixture_selection=selection, timeout=1800)
 
 
 def reproduce_retained_unlock(lease):
@@ -921,13 +923,16 @@ def probe_panel_request(lease):
 
 
 def reproduce_system_graphical_expiry(lease, fixture_selection):
-    """Retain system-282's boot history immediately after its host-ready grant."""
+    """Retain system-282's original child work before its measured expiry."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from e2e_fixture_preparation import ACTIVITY_SUBSETS
-    from natural_expiry import _system_history_command
+    from natural_expiry import _system_history_command, SYSTEM_PLAN, SystemGraphicalExpiryJourney
+    from desktop_session import run_attached
+    from provenance import VerifiedInputs
     from online_snapshot import rebind_maintenance
     from qualification_storage import recovery_session, allocate
-    from system_fixture_preparation import SUBSETS, guest_target, validate_input, provision
+    from system_fixture_preparation import (SUBSETS, guest_target, validate_input,
+                                            provision, renew_after_reboot)
     from tools.test_storage import named_input
     from ui_observations import UiObservations
     import time
@@ -941,7 +946,7 @@ def reproduce_system_graphical_expiry(lease, fixture_selection):
     assets = named_input(vm_source=True, package_source=True, fixture_source=True)
     system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
 
-    with operation('Reproducing system-282 through its host-ready boundary'), recovery_session(
+    with operation('Reproducing the child’s original app before natural expiry'), recovery_session(
             check='reproduce_system_graphical_expiry', lease=lease, live=True):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-system-graphical-expiry-diagnosis-'))
         private = directory / 'private'
@@ -950,7 +955,7 @@ def reproduce_system_graphical_expiry(lease, fixture_selection):
         print('system-graphical-expiry-diagnosis: evidence=' + str(directory), flush=True)
         transport = connect(lease)
         # Use the installed runner's frozen source closure and package checks,
-        # without collecting or executing pytest or attaching a desktop worker.
+        # without collecting or executing pytest.
         manifest = system.stage_assets(system.artifact_source(assets), directory / 'input',
                                        lease.commands, package_only=True)
         case = 'test_kiosk_expiry_graphical_runtime'
@@ -981,11 +986,10 @@ def reproduce_system_graphical_expiry(lease, fixture_selection):
         leaf('prepare', 300)
         transport.reboot()
         transport.wait_boot_complete()
-        context['receipt'] = controller.renew_after_reboot(context['receipt'])
-        controller.require_ready(context['receipt'])
+        renew_after_reboot(context)
 
         def bounded_public_call(*arguments, **options):
-            # Diagnostic reads must leave time to probe the retained 300-second
+            # Diagnostic reads must leave time to probe the retained setup
             # grant, even when a provider's ordinary readiness wait is longer.
             options['timeout'] = min(options.get('timeout', 20), 20)
             return transport.call(*arguments, **options)
@@ -1024,8 +1028,42 @@ def reproduce_system_graphical_expiry(lease, fixture_selection):
             observations[stage] = value
             (directory / 'observations.json').write_bytes(system.baseline.encode(observations))
             print('system-graphical-expiry-diagnosis: ' + stage + ' ' + json.dumps(value), flush=True)
+        verified = VerifiedInputs(lease=lease, root=system.ROOT)
+        verified.fixture_selection = fixture_selection
+        verified.fixture_prepared = {**context, 'subsets': ACTIVITY_SUBSETS,
+                                     'caller': 'system-282'}
+        attached_context = SimpleNamespace(lease=lease, verified=verified,
+            fixture_selection=fixture_selection, fixture_subsets=ACTIVITY_SUBSETS,
+            fixture_caller='system-282')
+        output = directory / 'graphical-expiry'
+        output.mkdir(mode=0o700)
+
+        def progress(stage, observed):
+            with (output / 'observations.jsonl').open('a') as stream:
+                stream.write(json.dumps({'stage': stage, 'observed': observed}) + '\n')
+            print('system-graphical-expiry-diagnosis: ' + stage, flush=True)
+
+        result = run_attached(output, lease, transport, system.RunLedger(), SYSTEM_PLAN,
+            expected_inputs=verified.source_files, progress=progress, context=attached_context,
+            journey_type=SystemGraphicalExpiryJourney, timeout=1800, stop_before='natural-expiry')
+        (output / 'result.json').write_bytes(system.baseline.encode(result))
+        # The setup grant remains unchanged. Time the same adapter in the
+        # non-admin child desktop without starting its short measured interval.
+        observer = UiObservations(transport)
+        observer.boot_guard = result['controller_observations'][-1]['boot_sha256']
+        timings = []
+        for action in ('observe', 'activity', 'observe'):
+            lease.guard()
+            started = time.monotonic()
+            value = observer.observe('child-natural-expiry-engineering-' + action)
+            elapsed = time.monotonic() - started
+            lease.guard()
+            timings.append({'action': action, 'seconds': elapsed, 'result': value})
+            (output / 'timings.json').write_bytes(system.baseline.encode(timings))
+            print('system-graphical-expiry-diagnosis: timing ' + action + ' ' +
+                  str(round(elapsed, 3)), flush=True)
         lease.guard()
-        print('system-graphical-expiry-diagnosis: host-ready scene retained; evidence=' +
+        print('system-graphical-expiry-diagnosis: original child work retained; evidence=' +
               str(directory), flush=True)
 
 
@@ -1513,6 +1551,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                      fixture_selection=None, timeout=900):
     """Shared maintenance envelope; fixed callers own the finite history/boundary."""
     from fixture_credentials import FixtureCredentials
+    from installed_journey import validate_boundary
     from observation_transport import ReadOnlyObservations
     import e2e_worker
     from qualification_storage import recovery_session, allocate
@@ -1522,6 +1561,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from baseline_journey import BaselineJourney, PLAN
         from natural_access import NaturalAccessJourney, PLAN as NATURAL_ACCESS_PLAN
         from countdown_grant import CountdownGrantJourney, PLAN as COUNTDOWN_GRANT_PLAN
+        from natural_expiry import NaturalExpiryJourney, PLAN as NATURAL_EXPIRY_PLAN
         from overlay_approved_exit import OverlayApprovedExitJourney, TRANSLATED_PLAN
         from approval_return import ApprovalReturnJourney, NEW_PLAN
         from native_denial import NativeDenialJourney, PLAN as NATIVE_DENIAL_PLAN
@@ -1548,6 +1588,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         countdown_grant = (surface == 'countdown-grant'
             and journey_type is CountdownGrantJourney and plan is COUNTDOWN_GRANT_PLAN
             and boundary == 'natural-expiry' and boundary_operation == 'child-countdown-present')
+        natural_expiry = (surface == 'natural-expiry'
+            and journey_type is NaturalExpiryJourney and plan is NATURAL_EXPIRY_PLAN
+            and boundary == 'natural-expiry' and boundary_operation is None)
         overlay_activity = (surface == 'overlay-activity'
             and journey_type is OverlayApprovedExitJourney and plan is TRANSLATED_PLAN
             and boundary == 'activity-capture' and boundary_operation == 'overlay-native-activity')
@@ -1592,7 +1635,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             and journey_type is AppRestartExpiredJourney and plan is SIGN_OUT_PLAN
             and boundary == 'boundary-child-gdm-logged-out'
             and boundary_operation == 'gdm-returned')
-        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or expired_sign_out)
+        system.require(selected_setup and (restoration or natural_access or natural_expiry or countdown_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or expired_sign_out)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1642,6 +1685,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                                        'match-editor': None,
                                        'grant-logout': 'E2E-005/grant-only-new',
                                        'natural-access': 'E2E-008/fresh-login',
+                                       'natural-expiry': 'check_e2e_natural_expiry',
                                        'countdown-grant': 'E2E-011/grant-only',
                                        'overlay-activity': 'check_e2e_overlay_translated_approval',
                                        'panel-request': 'E2E-012/excluded-first',
@@ -1795,17 +1839,6 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                     if original is None:
                         raise
         print(surface + '-diagnosis: scene retained; evidence=' + str(directory), flush=True)
-
-
-def validate_boundary(journey, directory, boundary):
-    """Retain only a complete verified prefix, never a failed or advanced scene."""
-    system.require(not journey.failed and [s['stage'] for s in journey.steps]
-                   == list(journey.plan.stages[:journey.plan.stages.index(boundary)]),
-                   'diagnosis:incomplete-history')
-    request = directory / (boundary + '.request.json')
-    system.require(not request.is_symlink() and request.stat().st_size <= 1024
-        and json.loads(request.read_bytes()) ==
-        {'stage': boundary, 'screenshot': None}, 'diagnosis:boundary-request')
 
 
 def probe_vt6_input(lease, *, reboot=False, authenticate=False):

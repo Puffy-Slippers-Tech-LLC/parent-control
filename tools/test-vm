@@ -15,7 +15,7 @@ MAX_INPUT_BYTES = 64 * 1024 * 1024
 
 def baseline_restoration(args, configured):
     """Freeze the diagnostic's selected fixtures for its exact VM and lifetime."""
-    actions = ('reproduce-baseline-restoration', 'reproduce-natural-access',
+    actions = ('reproduce-baseline-restoration', 'reproduce-natural-access', 'reproduce-natural-expiry',
                'reproduce-countdown-grant', 'reproduce-overlay-activity', 'reproduce-overlay-return',
                'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
                'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
@@ -36,7 +36,7 @@ def baseline_restoration(args, configured):
     with reservation(configured.name):
         store = Store(directory('state') / ('retention-baseline-restoration-' + configured.name))
         with store.session():
-            if args[0] in ('reproduce-overlay-return', 'reproduce-system-graphical-expiry',
+            if args[0] in ('reproduce-overlay-return', 'reproduce-system-graphical-expiry', 'reproduce-natural-expiry',
                            'reproduce-native-denial', 'reproduce-grant-logout', 'reproduce-match-editor',
                            'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-panel-request',
                            'reproduce-app-restart-choices', 'reproduce-reboot-context',

@@ -235,7 +235,7 @@ sub run_update_case {
         $leave->('renewed-leave');
         onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'renewed-parent');
     }
-    $journey->seen($_) for qw(upgrade-reread saved-apps);
+    $journey->seen($_) for qw(settings-after saved-apps);
     onpc_app_rows::saved_rows($journey, $apps, 'saved');
     $journey->seen($_) for qw(saved-screen final-balance about-information about-returned);
     $leave->('updated-leave');

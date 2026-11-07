@@ -243,6 +243,10 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
     transport.call(system.guest_command(lease.state['run'], 'verify-snapshot'), timeout=660)
     lease.guard()
     verified.recheck()
+    if mode == 'offline':
+        # Consume this boot's live reader before shutdown. Suite cleanup must
+        # not try to collect through a transport for a powered-off snapshot.
+        lease.collect_product_logs()
     lease.capture.retire_vm_ownership()
     if mode == 'offline':
         lease.source.shutdown(lease.guard, requested=False, request=transport.poweroff)

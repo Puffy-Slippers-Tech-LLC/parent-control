@@ -493,7 +493,7 @@ def main(argv=None):
         runner.require(args.action != 'exec' or probe is not None, 'vm-control:arguments')
         runner.require(not args.fixture_maintenance or args.action == 'start', 'vm-control:arguments')
         runner.require((args.action in ('sync-fixtures', 'reproduce-baseline-restoration',
-                                       'reproduce-natural-access', 'reproduce-countdown-grant',
+                                       'reproduce-natural-access', 'reproduce-natural-expiry', 'reproduce-countdown-grant',
                                        'reproduce-overlay-activity', 'reproduce-overlay-return',
                                        'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
                                        'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
@@ -549,13 +549,13 @@ def main(argv=None):
         elif args.action == 'rename-disk':
             from vm_disk_rename import rename_disk
             rename_disk(lease)
-        elif args.action in ('reproduce-baseline-restoration', 'reproduce-natural-access',
+        elif args.action in ('reproduce-baseline-restoration', 'reproduce-natural-access', 'reproduce-natural-expiry',
                              'reproduce-countdown-grant', 'reproduce-overlay-activity', 'reproduce-overlay-return',
                              'reproduce-system-graphical-expiry', 'reproduce-grant-logout',
                              'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-panel-request',
                              'reproduce-app-restart-choices', 'reproduce-reboot-context',
                              'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-expired-sign-out'):
-            from vm_probe import (reproduce_baseline_restoration, reproduce_natural_access,
+            from vm_probe import (reproduce_baseline_restoration, reproduce_natural_access, reproduce_natural_expiry,
                                   reproduce_countdown_grant, reproduce_overlay_activity, reproduce_overlay_return,
                                   reproduce_system_graphical_expiry, reproduce_grant_logout,
                                   reproduce_app_rule_return, reproduce_revocation_return, reproduce_panel_request,
@@ -564,6 +564,7 @@ def main(argv=None):
             resume(lease)
             try:
                 reproduce = {'reproduce-natural-access': reproduce_natural_access,
+                             'reproduce-natural-expiry': reproduce_natural_expiry,
                              'reproduce-baseline-restoration': reproduce_baseline_restoration,
                              'reproduce-countdown-grant': reproduce_countdown_grant,
                              'reproduce-overlay-activity': reproduce_overlay_activity,
@@ -608,7 +609,6 @@ def main(argv=None):
                              'reproduce-delayed-approval',
                              'reproduce-countdown-minutes',
                              'reproduce-jordan-daily-access',
-                             'reproduce-natural-expiry',
                              'reproduce-countdown-resume',
                              'reproduce-panel-language',
                              'reproduce-retained-unlock',
@@ -629,7 +629,6 @@ def main(argv=None):
             from vm_probe import reproduce_jordan_daily_access
             from vm_probe import reproduce_panel_language
             from vm_probe import reproduce_retained_unlock
-            from vm_probe import reproduce_natural_expiry
             from vm_probe import reproduce_kiosk_entry, reproduce_kiosk_approval, reproduce_kiosk_preferences
             from vm_probe import reproduce_kiosk_refusal
             from vm_probe import reproduce_station_shortcuts
@@ -650,7 +649,6 @@ def main(argv=None):
              'reproduce-delayed-approval': reproduce_delayed_approval,
              'reproduce-countdown-minutes': reproduce_countdown_minutes,
              'reproduce-jordan-daily-access': reproduce_jordan_daily_access,
-             'reproduce-natural-expiry': reproduce_natural_expiry,
              'reproduce-countdown-resume': reproduce_countdown_resume,
              'reproduce-panel-language': reproduce_panel_language,
              'reproduce-retained-unlock': reproduce_retained_unlock,

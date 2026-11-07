@@ -125,3 +125,15 @@ def provision(vm, lease, directory, selection, *, subsets):
     controller.require_ready(receipt)
     return {'vm': vm, 'lease': lease, 'directory': directory,
             'controller': controller, 'receipt': receipt}
+
+
+def renew_after_reboot(context):
+    """Rebind the caller's existing fixture receipt and check fresh readiness.
+
+    The caller owns reboot and boot readiness. The provisioner retains its
+    exact input, subset, attempt and terminal-refusal guards; this never repairs
+    fixture mutations or acquires another VM/cleanup owner.
+    """
+    controller = context['controller']
+    context['receipt'] = controller.renew_after_reboot(context['receipt'])
+    controller.require_ready(context['receipt'])

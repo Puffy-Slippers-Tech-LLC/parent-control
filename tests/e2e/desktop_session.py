@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from installed_journey import InstalledJourney, JourneyPlan
+from installed_journey import InstalledJourney, JourneyPlan, validate_boundary
 from journey_blocks import (fresh_desktop, lock_challenge, lock_recipient,
                             parent_management, native_activity_entry, rejected_gdm_return)
 from journey_checks import AllowanceJourney, RetainedSessionJourney
@@ -193,12 +193,14 @@ class DesktopSessionJourney(InstalledJourney):
 
 def run_attached(directory, lease, transport, ledger, plan, *, expected_inputs,
                  progress, actions=None, journey_type=InstalledJourney,
-                 credentials=None, context=None, verified=None, timeout=600):
+                 credentials=None, context=None, verified=None, timeout=600,
+                 stop_before=None):
     """Use shared guarded input while the installed owner keeps its live guest.
 
     This completes controller stages and closes its worker. The caller retains
     the session, transport, VM watch and restoration authority; no completed
-    worker module or customer acceptance result is claimed.
+    worker module or customer acceptance result is claimed. A diagnostic may
+    stop before a declared stage, retaining only its verified completed prefix.
     """
     from private_artifacts import require
     from fixture_credentials import FixtureCredentials
@@ -206,6 +208,10 @@ def run_attached(directory, lease, transport, ledger, plan, *, expected_inputs,
     import e2e_worker
 
     directory = Path(directory)
+    require(stop_before is None or stop_before in plan.stages[2:],
+            plan.prefix + ':attached-stop-stage')
+    stages = (plan.stages if stop_before is None else
+              plan.stages[:plan.stages.index(stop_before)])
     require(context is None or context.lease is lease, plan.prefix + ':attached-context')
     values = {} if context is None else vars(context).copy()
     values.update(directory=directory, lease=lease, commands=transport.commands)
@@ -239,14 +245,18 @@ def run_attached(directory, lease, transport, ledger, plan, *, expected_inputs,
             guard(**options)
             check_sources()
             return guard()
+        if stop_before is not None and (directory / (stop_before + '.request.json')).exists():
+            guarded()
+            validate_boundary(journey, directory, stop_before)
+            return True
         journey.step(guarded)
-        return len(journey.steps) == len(plan.stages)
+        return stop_before is None and len(journey.steps) == len(stages)
 
     def validate():
         check_sources()
         require(not journey.failed and journey.trace_token is None,
                 plan.prefix + ':attached-incomplete')
-        require([item['stage'] for item in journey.steps] == list(plan.stages)
+        require([item['stage'] for item in journey.steps] == list(stages)
                 and all(item.get('outcome') == 'passed' for item in journey.steps),
                 plan.prefix + ':missing-stages')
         for observed in journey.steps[2:]:
@@ -262,9 +272,13 @@ def run_attached(directory, lease, transport, ledger, plan, *, expected_inputs,
     worker = e2e_worker.run_distribution(
         directory, lease, ledger, expected_inputs=expected_inputs,
         observe=lambda: None, guarded_observe=step, validate=validate,
-        credentials=credentials, attached=True, timeout=timeout)
-    require(worker['outcome'] == 'passed' and worker['scene_retained'] is True
+        credentials=credentials, attached=stop_before is None,
+        maintenance=stop_before is not None, timeout=timeout)
+    require(worker['outcome'] == ('passed' if stop_before is None else 'scene-retained')
+            and worker['scene_retained'] is True
             and worker['worker_stopped'] is True and worker['callback_closed'] is True,
             plan.prefix + ':attached-cleanup')
     worker['controller_observations'] = list(journey.steps)
+    if stop_before is not None:
+        worker['stop_before'] = stop_before
     return worker

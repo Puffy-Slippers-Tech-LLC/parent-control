@@ -946,7 +946,6 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri(monkeypatch):
                    'reproduce-retained-app-visits',
                    'reproduce-revoke-cancel', 'probe-revoke-balances',
                    'reproduce-countdown-minutes',
-                   'reproduce-natural-expiry',
                    'reproduce-countdown-resume',
                    'reproduce-retained-unlock',
                    'probe-retained-app-launch',
@@ -958,6 +957,9 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri(monkeypatch):
         assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, action]
         with pytest.raises(ValueError):
             select(root, ['vm', action, '1', *VM_ARGS])
+
+    with pytest.raises(ValueError, match='fixture-sync-requires-selection'):
+        select(root, ['vm', 'reproduce-natural-expiry', *VM_ARGS])
 
     for action in ('probe-kiosk-latency', 'probe-kiosk-prompt-latency'):
         for counts in ([], ['1'], ['10'], ['10', '0'], ['10', '1']):
@@ -1607,7 +1609,7 @@ def test_root_guest_dispatch_keeps_arbitrary_command_inside_the_fixed_controller
                                  'countdown-minutes', 'countdown-resume', 'kiosk-entry',
                                  'kiosk-approval', 'kiosk-preferences', 'baseline-app-effects']])
 def test_reproduction_retains_only_complete_declared_history(tmp_path, fault, scene):
-    from vm_probe import validate_boundary
+    from installed_journey import validate_boundary
     from desktop_session import CHILD_DENIAL_PLAN, CHILD_UNLOCK_PLAN
     from retained_entry import PLAN
     from choices_overlay_to_kiosk import PLAN as TRANSFER_PLAN
@@ -1659,6 +1661,60 @@ def test_reproduction_retains_only_complete_declared_history(tmp_path, fault, sc
             validate_boundary(journey, tmp_path, boundary)
     else:
         validate_boundary(journey, tmp_path, boundary)
+
+
+@pytest.mark.parametrize('stop_before', [None, 'boundary'])
+def test_attached_diagnostic_prefix_cannot_claim_a_complete_journey(tmp_path, monkeypatch, stop_before):
+    import desktop_session
+    import e2e_worker
+    import fixture_credentials
+    import check_graphical_smoke
+
+    plan = SimpleNamespace(prefix='attached-test', stages=('ready', 'setup-detached', 'boundary'),
+                           screen_tags={'boundary': 'ui:result'}, challenge_at=lambda stage: None)
+    lease = object()
+    transport = SimpleNamespace(commands=object())
+
+    class Credentials:
+        def provision_online(self, actual_lease, actual_transport):
+            assert actual_lease is lease and actual_transport is transport
+
+    class Journey:
+        def __init__(self, context, progress, actual_plan, **options):
+            assert actual_plan is plan and options['transport'] is transport
+            self.plan = actual_plan
+            self.steps, self.failed, self.trace_token = [], False, None
+
+        def step(self, guard):
+            guard()
+            stage = plan.stages[len(self.steps)]
+            self.steps.append({'stage': stage, 'outcome': 'passed',
+                               'ui': {'operation': 'result', 'outcome': 'passed'}})
+
+    def run(directory, actual_lease, ledger, **options):
+        assert actual_lease is lease
+        assert options['maintenance'] is (stop_before is not None)
+        assert options['attached'] is (stop_before is None)
+        for index in range(3):
+            if stop_before is not None and index == 2:
+                (directory / 'boundary.request.json').write_text(json.dumps(
+                    {'stage': 'boundary', 'screenshot': None}))
+            if options['guarded_observe'](lambda **kw: None):
+                break
+        else:
+            pytest.fail('attachment did not reach its declared boundary')
+        options['validate']()
+        return {'outcome': 'passed' if options['attached'] else 'scene-retained',
+                'scene_retained': True, 'worker_stopped': True, 'callback_closed': True}
+
+    monkeypatch.setattr(fixture_credentials, 'FixtureCredentials', Credentials)
+    monkeypatch.setattr(check_graphical_smoke, 'inputs', lambda: {})
+    monkeypatch.setattr(e2e_worker, 'run_distribution', run)
+    result = desktop_session.run_attached(tmp_path, lease, transport, object(), plan,
+        expected_inputs={}, progress=lambda *args: None, journey_type=Journey, stop_before=stop_before)
+    assert [item['stage'] for item in result['controller_observations']] == list(
+        plan.stages if stop_before is None else plan.stages[:2])
+    assert result['outcome'] == ('passed' if stop_before is None else 'scene-retained')
 
 
 def test_public_probe_launcher_keeps_host_selector_before_guest_arguments(monkeypatch):

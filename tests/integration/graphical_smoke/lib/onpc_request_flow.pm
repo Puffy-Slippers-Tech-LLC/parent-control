@@ -282,16 +282,8 @@ sub flatpak_temporary_access {
     my $allowed = $journey->scope('allowed');
     onpc_app_rows::native_usable_app($allowed, $route, $allowed->seen('desktop'), 'other-child', 'A', 'flatpak');
     $journey->seen('allowed-capture');
-    my $denied = sub {
-        my ($owner, $name, $role) = @_;
-        if ($route eq 'grid') {
-            my $app = $owner->scope($name);
-            onpc_app_rows::native_search($app, $app->seen('desktop'), 'app-grid', $role, 'flatpak');
-        }
-        $owner->seen($name . '-denied');
-    };
-    $denied->($journey, 'initial-hard', 'H');
-    $denied->($journey, 'initial-soft', 'S');
+    onpc_app_rows::flatpak_blocked_app($journey->scope('initial-hard'), 'H', $route);
+    onpc_app_rows::flatpak_blocked_app($journey->scope('initial-soft'), 'S', $route);
     for my $row (['first', 'parent', 0], ['included', 'other-parent', 1], ['replacement', 'parent', 0]) {
         my ($name, $approver, $soft) = @$row;
         my $request = $journey->scope($name);
@@ -315,14 +307,14 @@ sub flatpak_temporary_access {
         $request->seen('countdown');
         $request->seen('soft-closed') if $name eq 'replacement';
         $request->seen($_) for qw(allowed-preserved allowed-submit allowed-submitted allowed-original);
-        $denied->($request, 'hard', 'H');
+        onpc_app_rows::flatpak_blocked_app($request->scope('hard'), 'H', $route);
         if ($soft) {
             my $activity = $request->scope('soft');
             onpc_app_rows::native_usable_app($activity, $route, $activity->seen('desktop'),
                                            'other-child', 'S', 'flatpak');
             $request->seen('soft-capture');
         } else {
-            $denied->($request, 'soft', 'S');
+            onpc_app_rows::flatpak_blocked_app($request->scope('soft'), 'S', $route);
         }
     }
     onpc_desktop_session::enter_desktop($journey, 'desktop', 'parent', 'retained',

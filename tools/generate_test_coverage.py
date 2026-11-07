@@ -18,7 +18,11 @@ import test_launcher
 
 
 def capture(root, command):
-    result = subprocess.run(command, cwd=root, env=test_launcher.environment(root),
+    environment = test_launcher.environment(root)
+    # Inventory belongs to the checkout being documented, even when the public
+    # run-tests launcher has a different configured default branch.
+    environment['ONPC_LAUNCHER_CONTROLLER_ROOT'] = str(root)
+    result = subprocess.run(command, cwd=root, env=environment,
                             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, text=True, check=False)
     if result.returncode:

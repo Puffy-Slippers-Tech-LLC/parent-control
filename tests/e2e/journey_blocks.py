@@ -282,6 +282,22 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
             for stage, tag in stages.items()}
 
 
+def flatpak_blocked_app(prefix, role, route, *, command_stage='denied'):
+    """Jordan's hidden launcher plus independent command-policy denial."""
+    require(role in ('A', 'H', 'S') and route in ('command', 'grid'),
+            'journey:flatpak-denial-binding')
+    require(command_stage in ('denied', 'command'), 'journey:flatpak-denial-stage')
+    name = {'A': 'allowed', 'H': 'hard', 'S': 'soft'}[role]
+    stages = {}
+    if route == 'grid':
+        stages = {stage: tag for stage, tag in native_usable_app(
+            'grid', role=role, kind='flatpak').items()
+            if stage in ('desktop', 'search-ready', 'search-focused', 'search-entered')}
+        stages['app-grid'] = 'ui:flatpak-' + name + '-grid-hidden'
+    stages[command_stage] = 'ui:flatpak-' + name + '-command-blocked'
+    return prefixed_stages(prefix, stages)
+
+
 def native_blocked_app(role, *, route='command'):
     """FLOW08: Jordan's native denial, without a launcher-visibility assertion."""
     if route == 'grid':

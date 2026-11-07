@@ -3,7 +3,7 @@ from accessible_ui import FLATPAK_POLICY_APPS, NAMED_CHILD_OPERATIONS
 from flatpak_fixtures import fixture_actions
 from installed_journey import JourneyPlan
 from journey_blocks import (app_policy_entry, desktop_entry, desktop_return,
-                            native_usable_app, prefixed_stages)
+                            flatpak_blocked_app, native_usable_app, prefixed_stages)
 from policy_edits import AppPolicyJourney
 from private_artifacts import require
 from ui_observations import SettingsObservation, compare_app_activity
@@ -34,11 +34,7 @@ SCREENS.update({
     'block-save': 'ui:access-flatpak-soft-conditional',
     'block-row': 'ui:access-flatpak-soft-row',
     **ENTRIES['blocked-child'],
-    **prefixed_stages('blocked', {
-        stage: tag for stage, tag in native_usable_app('grid', role='S', kind='flatpak').items()
-        if stage in ('desktop', 'search-ready', 'search-focused', 'search-entered')}),
-    'blocked-app-grid': 'ui:flatpak-soft-grid-hidden',
-    'blocked-denied': 'ui:flatpak-soft-command-blocked',
+    **flatpak_blocked_app('blocked', 'S', 'grid'),
     'allowed-after-block': 'ui:flatpak-allowed-policy-activity',
     **ENTRIES['restore-parent'], 'restore-apps': 'ui:existing-apps',
     'restore-save': 'ui:access-flatpak-soft-allowed',

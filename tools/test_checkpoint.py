@@ -29,12 +29,21 @@ SAVE_INTERVAL = 5
 RESUME_SELECTION_MISMATCH = 'resume selection differs from checkpoint; start without --resume to reset it'
 
 
+def family_claims_pending(root, vm_name):
+    """Inspect retained ownership without changing queue progress or VM state."""
+    return _family_claims(root, vm_name, recover=False)
+
+
 def recover_family_claims(root, vm_name):
     """Return interrupted work to pending after maintained VM cleanup.
 
     The caller holds that VM's reservation and has verified its cleanup. No
     case gains completion credit; unresolved work can run again safely.
     """
+    return _family_claims(root, vm_name, recover=True)
+
+
+def _family_claims(root, vm_name, *, recover):
     import test_activity
     from vm_case_queue import work_key
     def read(store, fd):
@@ -82,8 +91,8 @@ def recover_family_claims(root, vm_name):
             state = read(store, fd)
             if state is not None and vm_name in state.get('queue_claims', {}).values():
                 candidates.append(path)
-    if not candidates:
-        return 0
+    if not recover or not candidates:
+        return len(candidates)
     recovered = 0
     with test_activity.exclusive_vm_progress():
         for path in candidates:

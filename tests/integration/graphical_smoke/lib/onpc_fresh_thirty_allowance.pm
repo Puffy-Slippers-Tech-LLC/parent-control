@@ -80,12 +80,23 @@ sub match_editor_case {
     $journey->finish();
 }
 
+sub catalogue_refresh {
+    my ($journey, $prefix) = @_;
+    my $reopen = $journey->scope($prefix . 'reopen');
+    onpc_lifecycle::reopen($reopen, 'parent', $reopen->seen('prior-window'), 'management');
+    my $selection = $journey->scope($prefix . 'jordan');
+    onpc_parent::select_child($selection, 'existing', $selection->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+}
+
 sub catalogue_update_case {
-    onpc_progress::operation('Keeping the parent draft open while the app updates');
-    my ($exchange, $declared, $challenges) = @_;
-    die 'catalogue-update:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
-        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'catalogue-update', review => 0);
+    onpc_progress::operation('Keeping the parent draft open while the app package changes');
+    my ($exchange, $declared, $challenges, $change) = @_;
+    $change //= 'update';
+    die 'catalogue-update:arguments' unless (@_ == 3 || @_ == 4) && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && ($change eq 'update' || $change eq 'remove');
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'catalogue-' . $change, review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -95,11 +106,11 @@ sub catalogue_update_case {
     onpc_app_rows::match_editor($journey, 'editor-open', 'opened-rule');
     onpc_text::replace_text($journey, 'match-update-wildcard', 'draft');
     $journey->seen($_) for qw(draft-before-update draft-after-update save);
-    my $reopen = $journey->scope('reopen');
-    onpc_lifecycle::reopen($reopen, 'parent', $reopen->seen('prior-window'), 'management');
-    my $selection = $journey->scope('jordan');
-    onpc_parent::select_child($selection, 'existing', $selection->seen('child-picker-opened'),
-        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    if ($change eq 'remove') {
+        catalogue_refresh($journey, 'removed-');
+        $journey->seen($_) for qw(removed-loaded-apps removed-row-absent);
+    }
+    catalogue_refresh($journey, '');
     $journey->seen($_) for qw(loaded-apps loaded-rule loaded-access parent-logout);
     onpc_desktop_session::enter_desktop(
         $journey, 'gdm', 'other-child', 'fresh', 'success', 'child-entry');

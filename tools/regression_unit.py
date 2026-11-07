@@ -72,6 +72,7 @@ localization
 logs
 package_activation
 package_configuration
+package_command_safety
 package_content
 package_inputs
 package_os_gate

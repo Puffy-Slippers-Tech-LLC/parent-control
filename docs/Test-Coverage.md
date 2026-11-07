@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5821</span>/<span style="color: gray">0</span>/5821 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5826</span>/<span style="color: gray">0</span>/5826 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">224</span>/<span style="color: gray">0</span>/224 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">295</span>/<span style="color: gray">0</span>/295 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -15,8 +15,8 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">103</span>/<span style="color: gray">93</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6507</span>/<span style="color: gray">93</span>/6600** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">104</span>/<span style="color: gray">92</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6513</span>/<span style="color: gray">92</span>/6605** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">102</span>/<span style="color: gray">93</span>/195 |
+| customer-journey | <span style="color: green">103</span>/<span style="color: gray">92</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -98,6 +98,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [107](#scenario-107) | Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: flatpak command) | `E2E-019/flatpak-command-hard-blocked-disabled` | ready |
 | [108](#scenario-108) | Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: flatpak command) | `E2E-019/flatpak-command-soft-blocked-enabled` | ready |
 | [109](#scenario-109) | Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: flatpak command) | `E2E-019/flatpak-command-soft-blocked-disabled` | ready |
+| [110](#scenario-110) | Catalog update/disappearance between display and save (change: update) | `E2E-020/update` | ready |
 | [116](#scenario-116) | Customer lifecycle persistence and resume (boundary: app restart; grant: active) | `E2E-022/app-restart-active` | ready |
 | [117](#scenario-117) | Customer lifecycle persistence and resume (boundary: app restart; grant: expired) | `E2E-022/app-restart-expired` | ready |
 | [118](#scenario-118) | Customer lifecycle persistence and resume (boundary: sign out in; grant: active) | `E2E-022/sign-out-in-active` | ready |
@@ -164,7 +165,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[95](#scenario-95)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[96](#scenario-96)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[97](#scenario-97)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: soft blocked; route: snap command)</span> | <span style="color: gray">`E2E-019/snap-command-soft-blocked-disabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[110](#scenario-110)</span> | <span style="color: gray">Catalog update/disappearance between display and save (change: update)</span> | <span style="color: gray">`E2E-020/update`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[111](#scenario-111)</span> | <span style="color: gray">Catalog update/disappearance between display and save (change: remove)</span> | <span style="color: gray">`E2E-020/remove`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[112](#scenario-112)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: save)</span> | <span style="color: gray">`E2E-021/save`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[113](#scenario-113)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: approve without soft)</span> | <span style="color: gray">`E2E-021/approve-without-soft`</span> | <span style="color: gray">pending</span> |
@@ -1126,6 +1126,20 @@ Variant: control: disabled; policy: soft blocked; route: flatpak command
 - Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
 - Sign in as the child and try the declared route. Use the app when allowed. Case 62 independently uses grid then command, closing the first app normally and observing absence before the second launch. For active native/Flatpak blocked cases, observe execution denial. Snap blocked cases 88/90/94/95/96/97 are deferred under docs/Snap\_Limitation.md, not current acceptance. Flatpak grid launchers must also be hidden, with a separately declared command attempt proving denied use. Do not validate native or Snap launcher visibility.
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
+
+### Scenario 110
+
+**Catalog update/disappearance between display and save (change: update)**
+
+Case: `E2E-020/update` · Category: customer-journey · Status: **ready**
+
+Variant: change: update
+
+**Steps:**
+
+- Give the child usable time. In Parent set the app to Hard Blocked, open its Edit Match Rule dialog and enter the declared rule covering its updated target without saving.
+- Update or remove that app using its registered package command through the shared administrator SSH helper, leaving the editor open.
+- Return and Save, then reopen Parent to refresh the list. For update, inspect the row and try the updated app as the child. For removal, observe the missing row, reinstall, refresh, read its retained rule before editing and try launching.
 
 ### Scenario 116
 
@@ -2218,26 +2232,6 @@ Variant: control: disabled; policy: soft blocked; route: snap command
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Case 62 repeats both grid and command with normal app closure between launches.
 
 Pending: Deferred from active E2E scheduling by developer decision on 2026-11-05: known Snap admission/closure limitations in docs/Snap\_Limitation.md. Separate remediation and explicit reactivation required; no acceptance credit or executable.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 110
-
-**Catalog update/disappearance between display and save (change: update)**
-
-Case: `E2E-020/update` · Category: customer-journey · Status: **pending**
-
-Variant: change: update
-
-**Steps:**
-
-- Give the child usable time. In Parent set the app to Hard Blocked, open its Edit Match Rule dialog and enter the declared rule covering its updated target without saving.
-- Update or remove that app using its registered package command through the shared administrator SSH helper, leaving the editor open.
-- Return and Save, then reopen Parent to refresh the list. For update, inspect the row and try the updated app as the child. For removal, observe the missing row, reinstall, refresh, read its retained rule before editing and try launching.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 

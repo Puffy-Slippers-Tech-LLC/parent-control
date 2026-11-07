@@ -80,6 +80,33 @@ sub match_editor_case {
     $journey->finish();
 }
 
+sub catalogue_update_case {
+    onpc_progress::operation('Keeping the parent draft open while the app updates');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'catalogue-update:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'catalogue-update', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen($_) for qw(saved-settings apps-page block-save);
+    onpc_app_rows::match_editor($journey, 'editor-open', 'opened-rule');
+    onpc_text::replace_text($journey, 'match-update-wildcard', 'draft');
+    $journey->seen($_) for qw(draft-before-update draft-after-update save);
+    my $reopen = $journey->scope('reopen');
+    onpc_lifecycle::reopen($reopen, 'parent', $reopen->seen('prior-window'), 'management');
+    my $selection = $journey->scope('jordan');
+    onpc_parent::select_child($selection, 'existing', $selection->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->seen($_) for qw(loaded-apps loaded-rule loaded-access parent-logout);
+    onpc_desktop_session::enter_desktop(
+        $journey, 'gdm', 'other-child', 'fresh', 'success', 'child-entry');
+    $journey->seen('updated-launch');
+    $journey->finish();
+}
+
 # Case 186 keeps lifecycle and child selection explicit; no implicit rule repair.
 sub match_reopen_case {
     onpc_progress::operation('Checking remembered app rules and child access after reopening Parent');

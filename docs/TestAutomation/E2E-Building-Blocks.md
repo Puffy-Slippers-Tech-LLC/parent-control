@@ -4224,6 +4224,22 @@ qualification; their wrappers are absent. Use current consumer cases for affecte
 regressions rather than recreating old wrappers. The current denial selector
 retains its focused route without standalone system registration.
 
+Case 110 uses `catalogue_update_case.PLAN` / `CatalogueUpdateJourney` and
+`onpc_fresh_thirty_allowance::catalogue_update_case`. The fixture builder's
+verified `onpc-catalogue-fixture` DEB pair moves the executable from
+`Catalogue-old.AppImage` (1.0) to `Catalogue-new.AppImage` (2.0), retaining its
+desktop ID. `PackageCommand.submit_fixture` binds each single-use transaction
+to its digest and expected installed version. Parent keeps the nondefault
+`Catalogue-*.AppImage` draft open through the update, saves it, then reopens to
+read the updated target and saved Hard rule. Fresh Jordan entry must deny the
+updated command with complete owned-window absence. The shared journal reader
+admits this exact updated executable while retaining its unique-unit, EXEC-step
+and permission-error checks; exit status alone cannot establish denial.
+The complete case passed on Ubuntu 26.04 in
+`scenario-f3bcfa5077a242c1a43bdb6955d22e38`, with collection, worker shutdown,
+owned cleanup and baseline restoration passed. Remove/reinstall remains in
+case 111.
+
 #### Captured native activity closure
 
 Task 079a implements `native_policy_closure.PLAN` /

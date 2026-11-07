@@ -43,12 +43,11 @@ Requires:       accountsservice
 Requires:       authselect
 Requires:       dbus
 Requires:       fapolicyd
-Requires:       gdm >= 50
+Requires:       gdm
 Requires:       gjs
-Requires:       gnome-kiosk >= 50
+Requires:       gnome-kiosk
 Requires:       gnome-session
-Requires:       gnome-shell >= 50
-Requires:       gnome-shell < 51
+Requires:       gnome-shell
 Requires:       gstreamer1
 Requires:       gstreamer1-plugins-base
 Requires:       gstreamer1-plugins-good

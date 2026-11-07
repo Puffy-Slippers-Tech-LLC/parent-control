@@ -2102,9 +2102,12 @@ those station cases.
 
 The Flatpak command/station binding uses `flatpak_temporary_access.PLAN` /
 `TemporaryAccessJourney` and `onpc_request_flow::flatpak_temporary_access`.
+The Flatpak grid/child-overlay binding uses the same module's `GRID_PLAN` and
+the same worker with `route=grid`. Its per-stage overlay bindings keep each
+request's selected approver, duration and Soft choice fixed through authentication.
 It composes the shared allowance, app, station and approval operations below.
 `JourneyPlan.kiosk_requests` binds each request's stages to its declared parent,
-30-second duration and Soft choice while retaining the same child. The shared
+five-minute duration and Soft choice while retaining the same child. The shared
 observer refuses a changed request during authentication; the password owner
 admits only the exact scoped request and consumes two fresh recipient proofs.
 Runtime readiness and executable bindings remain in the inventory.
@@ -2142,7 +2145,13 @@ their stable case IDs must not be reused.
  returns retain this desktop; S supports a separate new-window launch.
 2. Run three rows, each as request-entry(surface) → FLOW20(entry=open) →
  APP02/APP04(existing activities) → FLOW08(S via declared route). Requests
- add 0.5 minutes: **Jamie/exclude → Sam/include → Jamie/exclude**.
+ add five minutes for the Flatpak bindings and 0.5 minutes for the other
+ bindings: **Jamie/exclude → Sam/include → Jamie/exclude**.
+ The Flatpak countdown comparison allows a two-minute difference from the
+ estimate, accounting for elapsed time. This tolerance requires an added
+ request of at least five minutes and adds no further sampling or rounding
+ allowance. The developer explicitly selected this coarser comparison on
+ 2026-11-06; the app effects and authentication results remain required.
  Every row requires fresh authentication in a real prompt identifying the
  selected approver, including Jamie's later repeat. Initial exclusion keeps
  S unavailable; inclusion opens S and records a new activity; replacement

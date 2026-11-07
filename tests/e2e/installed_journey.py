@@ -94,6 +94,7 @@ class JourneyPlan:
     activity_checks: dict = field(default_factory=dict)
     activity_entries: dict = field(default_factory=dict)
     overlay_request: tuple | None = None
+    overlay_requests: dict = field(default_factory=dict)
     kiosk_request: tuple | None = None
     kiosk_requests: dict = field(default_factory=dict)
 
@@ -114,6 +115,13 @@ class JourneyPlan:
                 or self.kiosk_request is not None, self.prefix + ':kiosk-request-required')
         if self.overlay_request is not None:
             accessible_ui.validate_overlay_request(self.overlay_request)
+        require(type(self.overlay_requests) is dict and all(
+                    stage in self.screen_tags
+                    and self.screen_tags[stage].removeprefix('ui:') in accessible_ui.OVERLAY_BOUND_OPERATIONS
+                    and self.overlay_request is not None
+                    and accessible_ui.validate_overlay_request(binding)[0] == self.overlay_request[0]
+                    for stage, binding in self.overlay_requests.items()),
+                self.prefix + ':overlay-stage-bindings')
         require(not any(tag in ('ui:overlay-request-select', 'ui:overlay-request-estimate')
                         for tag in self.screen_tags.values()) or self.overlay_request is not None,
                 self.prefix + ':overlay-request-required')
@@ -852,7 +860,7 @@ class InstalledJourney:
                 # Check the boot before UI input on the same guarded SSH call;
                 # a separate observer process added a round trip to every step.
                 self.ui.boot_guard = self.boot or ''
-                self.ui.overlay_request = plan.overlay_request
+                self.ui.overlay_request = plan.overlay_requests.get(stage, plan.overlay_request)
                 self.ui.kiosk_request = plan.kiosk_requests.get(stage, plan.kiosk_request)
                 challenge = plan.challenge_at(stage)
                 if tag.removeprefix('ui:') in accessible_ui.SHELL_SUCCESS_OPERATIONS:

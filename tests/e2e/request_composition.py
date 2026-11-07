@@ -30,6 +30,8 @@ def _estimate_read_bounds(choice, error='grant-effects:negative-read-bounds'):
 
 
 class KioskRequestJourney(InstalledJourney):
+    countdown_tolerance_seconds = 0
+
     def __init__(self, context, progress, plan, *, actions=None):
         super().__init__(context, progress, plan, actions=actions)
         self.balance = None
@@ -58,6 +60,9 @@ class KioskRequestJourney(InstalledJourney):
             choice = observed.get('ui', {}).get('valid_choice')
             require(isinstance(choice, dict) and choice['estimate']['kind'] == 'fixed',
                     'countdown:missing-estimate')
+            require(not self.countdown_tolerance_seconds
+                    or choice['request']['duration_seconds'] >= 300,
+                    'countdown:tolerance-request-margin')
             self.countdown_baselines[stage] = (choice['estimate']['seconds'],
                                              choice['observed_monotonic_ns'])
         if stage in checks:
@@ -71,7 +76,8 @@ class KioskRequestJourney(InstalledJourney):
                     or ('child',))[0] == 'other-child' else 'fixture-child')
             comparison = check_countdown_balance(current,
                 seconds=estimated, precision_seconds=precision,
-                observed_monotonic_ns=timestamp, max_elapsed_seconds=elapsed)
+                observed_monotonic_ns=timestamp, max_elapsed_seconds=elapsed,
+                tolerance_seconds=self.countdown_tolerance_seconds)
             observed.setdefault('comparison', {}).update(comparison)
             self.countdowns[stage] = current
 

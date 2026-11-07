@@ -1168,10 +1168,10 @@ SHELL_REQUEST_LANGUAGES = frozenset({'en', 'he'})
 # FLOW20 callers own these finite choices. The same binding follows the form,
 # native Shell recipient, original activity and public countdown.
 OVERLAY_REQUEST_MINUTES = {30: '0.5', 60: '1', 75: '1.25', 120: '2',
-                           150: '2.5', 180: '3', 900: '15'}
+                           150: '2.5', 180: '3', 300: '5', 900: '15'}
 OVERLAY_REQUEST_DURATIONS = {30: '30 seconds', 60: '1 minute', 75: '1 minute, 15 seconds',
                             120: '2 minutes', 150: '2 minutes, 30 seconds',
-                            180: '3 minutes', 900: '15 minutes'}
+                            180: '3 minutes', 300: '5 minutes', 900: '15 minutes'}
 OVERLAY_BOUND_OPERATIONS = frozenset({*SHELL_APPROVAL_ORDER, *OVERLAY_NATIVE_OPERATIONS,
     *SHELL_PROMPT_OPERATIONS, 'overlay-shell-dismissed',
     'child-command-launch', 'overlay-request-select', 'overlay-request-estimate',
@@ -13962,10 +13962,14 @@ class AccessibleUI:
                         or identities[node] in provider_application_ids]
         candidates = []
         for application in applications:
+            # Product windows cannot be external authentication prompts. Their
+            # complete inventory was read above, but deferred title reads can
+            # race the request overlay's normal automatic exit after success.
+            if identities[application] in (
+                    PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION):
+                continue
             application_nodes = self.snapshot_scope(nodes, snapshot, application)
             application_kind = self._prompt_application_kind(facts[application]['name'])
-            owned = bool(identities[application] in (
-                PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION))
             for surface in application_nodes:
                 if surface is application or not facts[surface]['showing']:
                     continue
@@ -13991,32 +13995,31 @@ class AccessibleUI:
                 # external modal is itself an unknown surface and must block.
                 if kind is not None and not (password or prompt_title):
                     continue
-                if not owned:
-                    candidates.append(kind or 'unknown')
-                    if diagnostics is not None:
-                        # Fixed categories only; never retain application names,
-                        # dialog text, account names or password content. These
-                        # facts come from this same complete refusal snapshot.
-                        diagnostics.append({
-                            'kind': kind or 'unknown',
-                            'source': PROMPT_DIAGNOSTIC_SOURCES.get(
-                                facts[application]['name'].casefold(), 'other'),
-                            'application_id': prompt_diagnostic_id(
-                                identities[application], PROMPT_DIAGNOSTIC_APPLICATION_IDS),
-                            'surface_id': prompt_diagnostic_id(
-                                identities[surface], PROMPT_DIAGNOSTIC_SURFACE_IDS),
-                            'role': (facts[surface]['role'] if facts[surface]['role']
-                                     in ('alert', 'dialog') else 'other-modal'),
-                            'password_control': password, 'authentication_title': prompt_title,
-                            'surface_showing': facts[surface]['showing'],
-                            'surface_modal': facts[surface]['modal'],
-                            'password_showing': any(facts[node]['role'] == 'password text'
-                                                    and facts[node]['showing'] for node in descendants),
-                            'lock_marker_showing': any(facts[node]['showing']
-                                and facts[node]['role'] == 'label' and facts[node]['name'] in (
-                                    'Click or press a key to unlock', 'Screen Time Limit Reached')
-                                for node in application_nodes),
-                        })
+                candidates.append(kind or 'unknown')
+                if diagnostics is not None:
+                    # Fixed categories only; never retain application names,
+                    # dialog text, account names or password content. These
+                    # facts come from this same complete refusal snapshot.
+                    diagnostics.append({
+                        'kind': kind or 'unknown',
+                        'source': PROMPT_DIAGNOSTIC_SOURCES.get(
+                            facts[application]['name'].casefold(), 'other'),
+                        'application_id': prompt_diagnostic_id(
+                            identities[application], PROMPT_DIAGNOSTIC_APPLICATION_IDS),
+                        'surface_id': prompt_diagnostic_id(
+                            identities[surface], PROMPT_DIAGNOSTIC_SURFACE_IDS),
+                        'role': (facts[surface]['role'] if facts[surface]['role']
+                                 in ('alert', 'dialog') else 'other-modal'),
+                        'password_control': password, 'authentication_title': prompt_title,
+                        'surface_showing': facts[surface]['showing'],
+                        'surface_modal': facts[surface]['modal'],
+                        'password_showing': any(facts[node]['role'] == 'password text'
+                                                and facts[node]['showing'] for node in descendants),
+                        'lock_marker_showing': any(facts[node]['showing']
+                            and facts[node]['role'] == 'label' and facts[node]['name'] in (
+                                'Click or press a key to unlock', 'Screen Time Limit Reached')
+                            for node in application_nodes),
+                    })
         if len(candidates) > 1:
             error = UiError('ui:ambiguous-system-prompt')
             error.system_prompts = diagnostics

@@ -126,6 +126,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [224](#scenario-224) | Approve after the displayed estimate has aged (balance: daily only; surface: kiosk) | `E2E-048/daily-only-kiosk` | ready |
 | [225](#scenario-225) | Approve after the displayed estimate has aged (balance: grant only; surface: child overlay) | `E2E-048/grant-only-child-overlay` | ready |
 | [230](#scenario-230) | Approve after the displayed estimate has aged (balance: grant dominant; surface: kiosk) | `E2E-048/grant-dominant-kiosk` | ready |
+| [243](#scenario-243) | Change temporary app permission on every supported launch route (route: flatpak grid; surface: child overlay) | `E2E-049/flatpak-grid-child-overlay` | ready |
 | [246](#scenario-246) | Change temporary app permission on every supported launch route (route: flatpak command; surface: kiosk) | `E2E-049/flatpak-command-kiosk` | ready |
 | [254](#scenario-254) | Chinese latest-install kiosk lifecycle | `E2E-053/latest-install` | ready |
 | [255](#scenario-255) | Personal languages persist across accounts and offline use | `E2E-054/account-offline` | ready |
@@ -226,7 +227,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[238](#scenario-238)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: native command; surface: kiosk)</span> | <span style="color: gray">`E2E-049/native-command-kiosk`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[239](#scenario-239)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: snap grid; surface: child overlay)</span> | <span style="color: gray">`E2E-049/snap-grid-child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[242](#scenario-242)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: snap command; surface: kiosk)</span> | <span style="color: gray">`E2E-049/snap-command-kiosk`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[243](#scenario-243)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: flatpak grid; surface: child overlay)</span> | <span style="color: gray">`E2E-049/flatpak-grid-child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[247](#scenario-247)</span> | <span style="color: gray">Alternate homework, games and time sources over repeated sessions (departure: retained; surface order: overlay first)</span> | <span style="color: gray">`E2E-050/overlay-first-retained`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[248](#scenario-248)</span> | <span style="color: gray">Alternate homework, games and time sources over repeated sessions (departure: fresh; surface order: overlay first)</span> | <span style="color: gray">`E2E-050/overlay-first-fresh`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[251](#scenario-251)</span> | <span style="color: gray">Alternate two children's work and game routines without mixing their choices</span> | <span style="color: gray">`E2E-051/jordan`</span> | <span style="color: gray">pending</span> |
@@ -1523,6 +1523,20 @@ Variant: balance: grant dominant; surface: kiosk
 - Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
 - Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
 
+### Scenario 243
+
+**Change temporary app permission on every supported launch route (route: flatpak grid; surface: child overlay)**
+
+Case: `E2E-049/flatpak-grid-child-overlay` · Category: customer-journey · Status: **ready**
+
+Variant: route: flatpak grid; surface: child overlay
+
+**Steps:**
+
+- For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
+- For active native/Flatpak cases, on the declared request surface approve three additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Flatpak requests add five minutes and allow a two-minute countdown difference from the estimate, accounting for elapsed time; that tolerance requires an addition of at least five minutes and adds no further rounding or sampling allowance. Other routes retain 0.5-minute additions. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
 ### Scenario 246
 
 **Change temporary app permission on every supported launch route (route: flatpak command; surface: kiosk)**
@@ -1534,7 +1548,7 @@ Variant: route: flatpak command; surface: kiosk
 **Steps:**
 
 - For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
-- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
+- For active native/Flatpak cases, on the declared request surface approve three additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Flatpak requests add five minutes and allow a two-minute countdown difference from the estimate, accounting for elapsed time; that tolerance requires an addition of at least five minutes and adds no further rounding or sampling allowance. Other routes retain 0.5-minute additions. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 ### Scenario 254
@@ -3355,7 +3369,7 @@ Variant: route: native grid; surface: child overlay
 **Steps:**
 
 - For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
-- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
+- For active native/Flatpak cases, on the declared request surface approve three additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Flatpak requests add five minutes and allow a two-minute countdown difference from the estimate, accounting for elapsed time; that tolerance requires an addition of at least five minutes and adds no further rounding or sampling allowance. Other routes retain 0.5-minute additions. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
@@ -3375,7 +3389,7 @@ Variant: route: native grid; surface: kiosk
 **Steps:**
 
 - For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
-- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
+- For active native/Flatpak cases, on the declared request surface approve three additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Flatpak requests add five minutes and allow a two-minute countdown difference from the estimate, accounting for elapsed time; that tolerance requires an addition of at least five minutes and adds no further rounding or sampling allowance. Other routes retain 0.5-minute additions. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
@@ -3395,7 +3409,7 @@ Variant: route: native desktop; surface: child overlay
 **Steps:**
 
 - For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
-- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
+- For active native/Flatpak cases, on the declared request surface approve three additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Flatpak requests add five minutes and allow a two-minute countdown difference from the estimate, accounting for elapsed time; that tolerance requires an addition of at least five minutes and adds no further rounding or sampling allowance. Other routes retain 0.5-minute additions. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
@@ -3415,7 +3429,7 @@ Variant: route: native file manager; surface: kiosk
 **Steps:**
 
 - For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
-- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
+- For active native/Flatpak cases, on the declared request surface approve three additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Flatpak requests add five minutes and allow a two-minute countdown difference from the estimate, accounting for elapsed time; that tolerance requires an addition of at least five minutes and adds no further rounding or sampling allowance. Other routes retain 0.5-minute additions. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
@@ -3435,7 +3449,7 @@ Variant: route: native command; surface: kiosk
 **Steps:**
 
 - For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
-- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
+- For active native/Flatpak cases, on the declared request surface approve three additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Flatpak requests add five minutes and allow a two-minute countdown difference from the estimate, accounting for elapsed time; that tolerance requires an addition of at least five minutes and adds no further rounding or sampling allowance. Other routes retain 0.5-minute additions. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
@@ -3455,7 +3469,7 @@ Variant: route: snap grid; surface: child overlay
 **Steps:**
 
 - For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
-- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
+- For active native/Flatpak cases, on the declared request surface approve three additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Flatpak requests add five minutes and allow a two-minute countdown difference from the estimate, accounting for elapsed time; that tolerance requires an addition of at least five minutes and adds no further rounding or sampling allowance. Other routes retain 0.5-minute additions. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 Pending: Deferred from active E2E scheduling by developer decision on 2026-11-05: known Snap admission/closure limitations in docs/Snap\_Limitation.md. Separate remediation and explicit reactivation required; no acceptance credit or executable.
@@ -3475,30 +3489,10 @@ Variant: route: snap command; surface: kiosk
 **Steps:**
 
 - For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
-- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
+- For active native/Flatpak cases, on the declared request surface approve three additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Flatpak requests add five minutes and allow a two-minute countdown difference from the estimate, accounting for elapsed time; that tolerance requires an addition of at least five minutes and adds no further rounding or sampling allowance. Other routes retain 0.5-minute additions. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 Pending: Deferred from active E2E scheduling by developer decision on 2026-11-05: known Snap admission/closure limitations in docs/Snap\_Limitation.md. Separate remediation and explicit reactivation required; no acceptance credit or executable.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 243
-
-**Change temporary app permission on every supported launch route (route: flatpak grid; surface: child overlay)**
-
-Case: `E2E-049/flatpak-grid-child-overlay` · Category: customer-journey · Status: **pending**
-
-Variant: route: flatpak grid; surface: child overlay
-
-**Steps:**
-
-- For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
-- For active native/Flatpak cases, on the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
-- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
-
-Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
 
 </div>
 

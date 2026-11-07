@@ -1434,7 +1434,7 @@
         "rationale": "Both changes use a real unsaved match draft, not suspended autosave or private saved-rule reads."
       },
       "variants": [
-        {"coverage_id": 110, "id": "update", "owner": "app-launch", "parameters": {"change": "update"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 110, "id": "update", "owner": "app-launch", "parameters": {"change": "update"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/catalogue_update_case.py", "test_id": "update"}},
         {"coverage_id": 111, "id": "remove", "owner": "app-launch", "parameters": {"change": "remove"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },

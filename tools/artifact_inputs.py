@@ -40,7 +40,7 @@ NATIVE_RUNTIME_SOURCES = (
 )
 PACKAGE_TOOLS = ('make', 'cc', 'dpkg-buildpackage', 'dpkg-deb', 'dpkg-architecture',
                  'glib-compile-schemas', 'git')
-FIXTURE_TOOLS = ('cc', 'flatpak', 'snap', 'mksquashfs', 'ldd')
+FIXTURE_TOOLS = ('cc', 'flatpak', 'snap', 'mksquashfs', 'ldd', 'dpkg-deb')
 
 
 def dependency_names(value):

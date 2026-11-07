@@ -378,8 +378,35 @@ def _build_snap(output: Path, runtime: Path, triplet: str, loader: Path) -> None
               '-mkfs-time', '0', '-all-time', '0'], environment=squashfs_environment)
 
 
+def _build_catalogue_packages(output: Path) -> None:
+    """One finite DEB pair for a real catalogue change during an open draft."""
+    packages = output / 'catalogue-packages'
+    packages.mkdir()
+    tree = output / 'catalogue-package-build'
+    for label, version in (('old', '1.0'), ('new', '2.0')):
+        root = tree / label
+        runtime = root / INSTALL_PREFIX / 'Applications/Catalogue'
+        runtime.mkdir(parents=True)
+        binary = _compile_native(output, identity='catalogue-' + label)
+        shutil.copyfile(binary, runtime / ('Catalogue-' + label + '.AppImage'))
+        (runtime / ('Catalogue-' + label + '.AppImage')).chmod(0o755)
+        _copy_gui_runtime(runtime)
+        _write_text(root / 'usr/share/applications/com.puffyslippers.ONPCTest.Update.desktop',
+            _desktop_entry('ONPC Catalogue Fixture ' + version,
+                INSTALL_PREFIX / ('Applications/Catalogue/Catalogue-' + label + '.AppImage')))
+        _write_text(root / 'DEBIAN/control',
+            'Package: onpc-catalogue-fixture\nVersion: ' + version + '\nArchitecture: amd64\n'
+            'Maintainer: ONPC Tests <dev@tech.puffyslippers.com>\n'
+            'Description: Disposable catalogue update fixture\n')
+        _set_reproducible_times(root)
+        _run(['dpkg-deb', '--build', '--root-owner-group', str(root),
+              str(packages / (label + '.deb'))],
+             environment=dict(os.environ, SOURCE_DATE_EPOCH='0'))
+    shutil.rmtree(tree)
+
+
 def build(output: Path) -> None:
-    required = ('cc', 'flatpak', 'snap', 'mksquashfs', 'ldd')
+    required = ('cc', 'flatpak', 'snap', 'mksquashfs', 'ldd', 'dpkg-deb')
     missing = [name for name in required if shutil.which(name) is None]
     if missing:
         raise FixtureError('missing GUI fixture prerequisites: ' + ', '.join(missing)
@@ -392,6 +419,7 @@ def build(output: Path) -> None:
         _compile_native(output, headless=True, identity=identity)
     _compile_native(output, identity='trusted-activity')
     _build_native_layout(output, native)
+    _build_catalogue_packages(output)
     game = _compile_native(output, kind='game')
     target = output / 'image-root' / INSTALL_PREFIX / 'Applications/onpc-test-game'
     shutil.copyfile(game, target)

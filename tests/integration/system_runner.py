@@ -1463,13 +1463,16 @@ def stage_asset_inventory(destination, manifest, *, package_only=False):
             path.chmod(0o700 if path.is_dir() else 0o600)
 
 
-def stage_assets(source, destination, commands, *, package_only=False, fixture_files=()):
+def stage_assets(source, destination, commands, *, package_only=False, fixture_files=(),
+                 catalogue_update=False):
     """Freeze user-built artifacts in root-private storage, then recheck all bytes."""
     sys.path.insert(0, str(ROOT / 'tools'))
     sys.path.insert(0, str(ROOT / 'tests/fixtures'))
     from build_test_artifacts import verify
     from build_test_applications import verify as verify_fixtures
     check_tree(source)
+    require(type(catalogue_update) is bool and (not catalogue_update or package_only),
+            'assets:catalogue-selection')
     if package_only:
         # Authenticate the original bundle, retaining package metadata and only
         # explicit scenario comparison inputs. Never retain the full collection.
@@ -1482,6 +1485,15 @@ def stage_assets(source, destination, commands, *, package_only=False, fixture_f
         shutil.copyfile(package, destination / ('package' + package.suffix))
         require(baseline.digest(destination / ('package' + package.suffix)) ==
                 manifest['artifacts']['package']['sha256'], 'assets:package-changed')
+        if catalogue_update:
+            require(package.suffix == '.deb', 'assets:catalogue-platform')
+            expected = json.loads((fixtures / 'SHA256SUMS.json').read_bytes())['files']
+            for label in ('old', 'new'):
+                relative = 'catalogue-packages/' + label + '.deb'
+                require(relative in expected, 'assets:catalogue-input-required')
+                target = destination / ('catalogue-' + label + '.deb')
+                shutil.copyfile(fixtures / relative, target)
+                require(baseline.digest(target) == expected[relative], 'assets:fixture-changed')
         if fixture_files:
             fixture_inventory = json.loads((fixtures / 'SHA256SUMS.json').read_bytes())
             expected = fixture_inventory['files']

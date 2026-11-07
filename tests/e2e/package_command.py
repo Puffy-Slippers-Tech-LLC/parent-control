@@ -35,6 +35,63 @@ REMOVAL_NOTICE = '*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent C
 PURGE_COMPLETE = 'oh-no-parent-control: saved-state purge outcome=accepted'
 UNRELATED = 'reconfigure-unrelated-libc6'
 BINDINGS = (BINDING, OLD_INSTALL, UPGRADE, *LIFECYCLE, UNRELATED)
+CATALOGUE = {'install-catalogue-old': ('old', '1.0', None),
+             'update-catalogue-new': ('new', '2.0', '1.0')}
+
+
+def guest_catalogue(binding, expected):
+    """The finite fixture transaction; retain administrator and replay guards."""
+    import hashlib
+    import stat
+    import subprocess
+    label, version, previous = CATALOGUE[binding]
+    session_control.require(os.geteuid() == 0 and session_control.package_format() == 'deb',
+                            'catalogue-package-target')
+    account = pwd.getpwnam(session_control.ACCOUNTS['parent'])
+    session_control.require(account.pw_uid >= 1000 and grp.getgrnam(session_control.administrator_group()).gr_gid
+        in os.getgrouplist(account.pw_name, account.pw_gid), 'administrator-authority')
+    source = session_control.source_session(session_control.sessions(), account.pw_uid)
+    path = Path('/var/lib/onpc-e2e-assets/catalogue-' + label + '.deb')
+    for item in (path, *path.parents):
+        info = item.lstat()
+        session_control.require(item.resolve() == item and info.st_uid == info.st_gid == 0
+            and not info.st_mode & 0o022 and (stat.S_ISDIR(info.st_mode) if item != path else
+                stat.S_ISREG(info.st_mode) and info.st_nlink == 1), 'catalogue-package-file')
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, 'rb') as stream:
+        before = os.fstat(stream.fileno())
+        digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+        def identity(info):
+            return tuple(getattr(info, field) for field in (
+                'st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink',
+                'st_size', 'st_mtime_ns', 'st_ctime_ns'))
+        session_control.require(identity(before) == identity(os.fstat(stream.fileno()))
+            == identity(path.lstat()) and digest == expected, 'catalogue-package-digest')
+    if previous is None:
+        session_control.require(not any(os.path.lexists(item) for item in (
+            '/opt/onpc-test-fixtures/Applications/Catalogue',
+            '/usr/share/applications/com.puffyslippers.ONPCTest.Update.desktop')),
+            'catalogue-package-collision')
+    header = subprocess.run(['/usr/bin/dpkg-deb', '-f', str(path), 'Package', 'Version', 'Architecture'],
+                            check=True, capture_output=True, timeout=30).stdout.decode().splitlines()
+    session_control.require(header == ['Package: onpc-catalogue-fixture', 'Version: ' + version,
+                                       'Architecture: amd64'], 'catalogue-package-header')
+    query = subprocess.run(['/usr/bin/dpkg-query', '-W', '-f=${Status}\\n${Version}\\n',
+                            'onpc-catalogue-fixture'], capture_output=True, timeout=30)
+    session_control.require(query.returncode == 1 and not query.stdout if previous is None else
+        query.returncode == 0 and query.stdout.decode().splitlines() == ['install ok installed', previous],
+        'catalogue-package-phase')
+    session_control.require(session_control.source_session(session_control.sessions(), account.pw_uid) == source,
+                            'source-changed')
+    descriptor = os.open('/var/lib/onpc-e2e-assets/.' + binding + '-used',
+                         os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    os.close(descriptor)
+    os.environ.clear()
+    os.environ.update(PATH='/usr/sbin:/usr/bin:/sbin:/bin', LANG='C.UTF-8',
+                      DEBIAN_FRONTEND='noninteractive', TERM='dumb')
+    os.dup2(1, 2)
+    argv = (*ARGV[:-1], str(path))
+    os.execv(argv[0], argv)
 
 
 def rpm_scriptlet_output(lines, package, binding):
@@ -207,6 +264,8 @@ def guest_submit(binding, expected, packages=None):
     import os
     import grp
     import pwd
+    if binding in CATALOGUE:
+        return guest_catalogue(binding, expected)
     session_control.require(binding in BINDINGS and os.geteuid() == 0, 'package-binding')
     account = pwd.getpwnam(session_control.ACCOUNTS['parent'])
     session_control.require(account.pw_uid >= 1000 and grp.getgrnam(session_control.administrator_group()).gr_gid
@@ -279,6 +338,7 @@ def guest_source(*, read=False):
             'BINDING = ' + repr(BINDING) + '\nARGV = ' + repr(ARGV) + '\n' +
             'OLD_INSTALL = ' + repr(OLD_INSTALL) + '\nUPGRADE = ' + repr(UPGRADE) + '\n' +
             'BINDINGS = ' + repr(BINDINGS) + '\n' +
+            'CATALOGUE = ' + repr(CATALOGUE) + '\nfrom pathlib import Path\n' +
             'LIFECYCLE = ' + repr(LIFECYCLE) + '\nREMOVE = ' + repr(REMOVE) + '\n' +
             'PURGE = ' + repr(PURGE) + '\nREINSTALL = ' + repr(REINSTALL) + '\n' +
             'FRESH_INSTALL = ' + repr(FRESH_INSTALL) + '\n' +
@@ -288,7 +348,7 @@ def guest_source(*, read=False):
             'UNRELATED_ARGV = ' + repr(UNRELATED_ARGV) + '\n' +
             inspect.getsource(unrelated_observation) +
             inspect.getsource(guest_phase) + inspect.getsource(guest_read) + inspect.getsource(guest_lifecycle_phase) +
-            inspect.getsource(guest_submit) +
+            inspect.getsource(guest_catalogue) + inspect.getsource(guest_submit) +
             '\nimport sys, json\n' + (
                 'print(json.dumps(guest_read(json.loads(sys.argv[1])), sort_keys=True))\n' if read else
                 'guest_submit(sys.argv[1], sys.argv[2], json.loads(sys.argv[3]) if len(sys.argv) == 4 else None)\n')).encode()
@@ -306,6 +366,58 @@ class PackageCommand:
         # an uncertain submission before it reaches the exclusive guest marker.
         if not hasattr(transport, 'package_attempts'):
             transport.package_attempts = set()
+
+    def validate_fixture(self, binding):
+        require(binding in CATALOGUE, 'package:unregistered-command')
+        require(self.transport.config == self.identity, 'package:wrong-attempt')
+        require(not self.attempted and binding not in self.transport.package_attempts, 'package:replay')
+        self.verified.recheck()
+        label, version, _previous = CATALOGUE[binding]
+        key = 'catalogue-' + label + '.deb'
+        require('package.deb' in self.verified.asset_files and key in self.verified.asset_files,
+                'package:catalogue-input-required')
+        from build_test_artifacts import package_identity
+        expected = {'name': 'onpc-catalogue-fixture', 'version': version, 'architecture': 'amd64',
+                    'sha256': self.verified.asset_files[key]}
+        require(package_identity(self.verified.assets / key) == expected, 'package:wrong-artifact')
+        return expected
+
+    def submit_fixture(self, binding):
+        item = self.validate_fixture(binding)
+        with operation('Changing the catalogue fixture while preserving the parent editor'):
+            context = session_control.observe(self.transport, 'parent-command-context')
+            require(context['package_sha256'] == self.verified.inputs['package_sha256'],
+                    'package:wrong-artifact')
+            self.validate_fixture(binding)
+            self.attempted, self.binding = True, binding
+            self.transport.package_attempts.add(binding)
+            received = 0
+            def bound(chunk):
+                nonlocal received
+                received += len(chunk)
+                require(received <= LIMIT, 'package:output-bound')
+            with package_operation(self.transport, 'Guest catalogue package transaction: ' + binding,
+                                   lease=getattr(self.verified, 'lease', None)):
+                self.transport.guard(self.identity)
+                raw = self.transport.call(['/usr/bin/python3', '-I', '-', binding, item['sha256']],
+                    input=guest_source(), timeout=660, check=False, on_output=bound)
+            self.receipt = (raw, self.transport.commands.last_returncode)
+        return {'submitted': True}
+
+    def read_fixture_result(self):
+        require(self.transport.config == self.identity and self.receipt is not None
+                and self.binding in CATALOGUE, 'package:missing-result')
+        self.transport.guard(self.identity)
+        self.verified.recheck()
+        raw, status = self.receipt
+        require(type(raw) is bytes and 0 < len(raw) <= LIMIT, 'package:output-bound')
+        require(type(status) is int and status == 0, 'package:command-failed')
+        version = CATALOGUE[self.binding][1]
+        result = self.transport.call(['/usr/bin/dpkg-query', '-W', '-f=${Status}\\n${Version}\\n',
+                                      'onpc-catalogue-fixture'], timeout=30)
+        require(result.decode().splitlines() == ['install ok installed', version],
+                'package:installed-version')
+        return {'operation': self.binding, 'outcome': 'passed', 'version': version}
 
     def validate_input(self, binding, digest, identity):
         require(binding in BINDINGS, 'package:unregistered-command')

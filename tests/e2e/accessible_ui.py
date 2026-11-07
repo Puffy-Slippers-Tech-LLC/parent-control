@@ -277,6 +277,7 @@ NATIVE_DENIAL_BINDINGS = {
     for name, role, actions in (
         ('hard', 'H', ('command-blocked',)),
         ('soft', 'S', ('command-blocked',)),
+        ('updated', 'Update', ('command-blocked',)),
         ('nonmatching', 'N', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed')))
     for action in actions
 }
@@ -421,6 +422,7 @@ TEXT_VALUES = {
     'match-hard-precise': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Whitespace/Path With Spaces.AppImage'),
     'match-soft-wildcard': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-*.AppImage'),
     'match-soft-precise': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage'),
+    'match-update-wildcard': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Catalogue/Catalogue-*.AppImage'),
     'catalogue-absent': ('parent-app-search', 'ONPC Absent Catalogue Fixture 077b'),
     'catalogue-clear': ('parent-app-search', ''),
     **{f'body-ascii-{units}': ('feedback-editor-input', 'x' * units)
@@ -676,7 +678,7 @@ OPERATIONS |= APP_ROW_OPERATIONS
 MATCH_APP = 'parent-app-' + hashlib.sha256(b'com.puffyslippers.ONPCTest.A.desktop').hexdigest()[:16]
 MATCH_APPS = {role: 'parent-app-' + hashlib.sha256(
     ('com.puffyslippers.ONPCTest.' + role + '.desktop').encode()).hexdigest()[:16]
-    for role in ('A', 'H', 'S', 'Alias')}
+    for role in ('A', 'H', 'S', 'Alias', 'Update')}
 MATCH_OTHER_APP = 'parent-app-' + hashlib.sha256(b'com.puffyslippers.ONPCTest.N.desktop').hexdigest()[:16]
 SNAP_POLICY_APP = 'parent-app-' + hashlib.sha256(
     b'onpc-fixture-allowed_onpc-fixture-allowed.desktop').hexdigest()[:16]
@@ -690,13 +692,17 @@ MATCH_RULES = ('/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
                '/opt/onpc-test-fixtures/Applications/*.AppImage',
                '/opt/onpc-test-fixtures/Applications/Whitespace/Path With Spaces.AppImage',
                '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-*.AppImage',
-               '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage')
+               '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage',
+               '/opt/onpc-test-fixtures/Applications/Catalogue/Catalogue-old.AppImage',
+               '/opt/onpc-test-fixtures/Applications/Catalogue/Catalogue-new.AppImage',
+               '/opt/onpc-test-fixtures/Applications/Catalogue/Catalogue-*.AppImage')
 BASELINE_POLICY_DRAFTS = {'match-hard-precise': MATCH_APPS['H'],
                           'match-alias-precise': MATCH_APPS['Alias'],
                           'match-soft-wildcard': MATCH_APPS['S'],
-                          'match-soft-precise': MATCH_APPS['S']}
+                          'match-soft-precise': MATCH_APPS['S'],
+                          'match-update-wildcard': MATCH_APPS['Update']}
 BASELINE_MATCH_OPERATIONS = {f'match-{name}-{action}': (MATCH_APPS[role], action)
-    for name, role in (('hard', 'H'), ('soft', 'S'), ('alias', 'Alias'))
+    for name, role in (('hard', 'H'), ('soft', 'S'), ('alias', 'Alias'), ('update', 'Update'))
     for action in ('open', 'read', 'row', 'save', 'cancel', 'reset')}
 MATCH_OPERATIONS = frozenset('match-' + action for action in
     ('open', 'read', 'row', 'save', 'cancel', 'reset', 'rejected', 'wrong-app', 'ambiguous'))
@@ -716,7 +722,7 @@ ACCESS_CHOICES = ('allowed', 'permanent', 'conditional')
 ACCESS_OPERATIONS = frozenset('access-' + action for action in
     (*ACCESS_CHOICES, 'row', 'screen', 'wrong-row', 'disabled'))
 BASELINE_ACCESS_OPERATIONS = {f'access-{name}-{action}': (MATCH_APPS[role], action)
-    for name, role in (('hard', 'H'), ('soft', 'S'), ('alias', 'Alias'))
+    for name, role in (('hard', 'H'), ('soft', 'S'), ('alias', 'Alias'), ('update', 'Update'))
     for action in (*ACCESS_CHOICES, 'row')}
 BASELINE_ACCESS_OPERATIONS.update({f'access-snap-{action}': (SNAP_POLICY_APP, action)
                                    for action in ('allowed', 'row')})
@@ -7524,6 +7530,9 @@ class AccessibleUI:
                 require(0 < count <= 128, 'ui:match-text-bound')
                 rule = self.api.Text.get_text(text, 0, count)
             else:
+                if app == MATCH_APPS['Update']:
+                    require(self.id_target(app).get_name() == 'ONPC Catalogue Fixture 2.0',
+                            'ui:updated-catalogue-target')
                 description = value.get_description()
                 require(description.startswith('Current match rule: '), 'ui:match-description')
                 rule = description.removeprefix('Current match rule: ')
@@ -12964,8 +12973,9 @@ class AccessibleUI:
         require(not snap or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
                 or child == CHILD and role == 'A' and instance == 'primary')
                 and not blocked and not locked and fixture == 'policy', 'ui:snap-binding')
-        require(snap or flatpak or role is None or role in ('A', 'H', 'S', 'N') and child in (CHILD, EXISTING_CHILD)
+        require(snap or flatpak or role is None or role in ('A', 'H', 'S', 'N', 'Update') and child in (CHILD, EXISTING_CHILD)
                 and fixture == 'policy' and (role != 'H' or blocked)
+                and (role != 'Update' or child == EXISTING_CHILD and blocked)
                 and (role != 'N' or child == EXISTING_CHILD and not blocked), 'ui:native-binding')
         require((instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'))
                 if snap or flatpak else instance == ('secondary' if role in ('H', 'S') else 'primary'), 'ui:native-binding')
@@ -13024,7 +13034,8 @@ class AccessibleUI:
             '/opt/onpc-test-fixtures-activity/native-fixture' if fixture == 'activity' else
             '/opt/onpc-test-fixtures/Applications/' + {
                 'A': 'Exact Fixture.AppImage', 'H': 'Whitespace/Path With Spaces.AppImage',
-                'S': 'Versioned/Lunar Client-3.7.17.AppImage', 'N': 'PrismLauncher.AppImage'}[role or 'A'])
+                'S': 'Versioned/Lunar Client-3.7.17.AppImage', 'N': 'PrismLauncher.AppImage',
+                'Update': 'Catalogue/Catalogue-new.AppImage'}[role or 'A'])
         result = subprocess.run([
             '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
             *(['--wait', '--pipe'] if blocked else []),
@@ -15168,7 +15179,8 @@ def native_execution_journal_diagnostic(unit, *, executable='/opt/onpc-test-fixt
     if executable not in (
             '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
             '/opt/onpc-test-fixtures/Applications/Whitespace/Path With Spaces.AppImage',
-            '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage'):
+            '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage',
+            '/opt/onpc-test-fixtures/Applications/Catalogue/Catalogue-new.AppImage'):
         return diagnostic
     if type(unit) is not str or re.fullmatch(r'onpc-test-native-[0-9a-f]{32}\.service', unit) is None:
         return diagnostic

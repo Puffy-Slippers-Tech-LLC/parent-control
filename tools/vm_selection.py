@@ -14,6 +14,7 @@ arguments = vm_config.arguments
 select = vm_config.select
 selected = vm_config.selected
 registry = vm_config.registry
+read_document = vm_config.read_document
 VARIABLE = vm_config.VARIABLE
 BATCH = 'ONPC_TEST_VM_BATCH'
 WORKER = 'ONPC_TEST_VM_WORKER'

@@ -301,8 +301,13 @@ def flatpak_blocked_app(prefix, role, route, *, command_stage='denied'):
     return prefixed_stages(prefix, stages)
 
 
-def native_blocked_app(role, *, route='command'):
-    """FLOW08: Jordan's native denial, without a launcher-visibility assertion."""
+def native_blocked_app(role, *, route='command', child='other-child'):
+    """FLOW08: native denial, without a launcher-visibility assertion."""
+    require(child == 'other-child' or child == 'child' and route == 'command'
+            and role in ('H', 'S'), 'journey:native-denial-child')
+    if child == 'child':
+        name = 'hard' if role == 'H' else 'soft'
+        return {'command': 'ui:overlay-native-' + name + '-command-blocked'}
     if route == 'grid':
         require(role in ('A', 'Alias', 'H', 'S'), 'journey:native-denial-binding')
         if role in ('H', 'S'):

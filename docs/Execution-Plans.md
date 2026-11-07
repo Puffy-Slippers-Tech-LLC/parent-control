@@ -234,11 +234,11 @@ to that controller's root, including inventory discovery before a repair
 invocation exists. Explicit `--branch` still overrides this internal default.
 
 ```sh
-tools/execute-plan --plan 'docs/Example.md' --check
-tools/execute-plan --plan 'docs/Example.md' --tasks 2
-tools/execute-plan --plan 'docs/Example.md' --tasks 0
-tools/execute-plan --plan 'docs/Example.md' --reload
-tools/execute-plan --plan 'docs/Example.md' --stop
+tools/execute-plan 'docs/Example.md' --check
+tools/execute-plan 'docs/Example.md' --tasks 2
+tools/execute-plan 'docs/Example.md'
+tools/execute-plan 'docs/Example.md' --reload
+tools/execute-plan 'docs/Example.md' --stop
 ```
 
 `--tasks N` limits completed tasks in this run. Zero and negative values mean
@@ -246,9 +246,9 @@ all remaining tasks. A larger positive limit warns and finishes successfully
 when the queue is exhausted; the launcher never invents tasks to fill the limit.
 On attachment, an explicit `--tasks` **replaces** the active run's total limit;
 omitting it keeps that limit. Lowering a limit never interrupts accepted ongoing
-work. Plan launchers and `write-e2e` default to one task; `fix-tests` defaults to
-its complete selected repair/verification queue. In `fix-tests`, one task is a
-category pass; an unfiltered verification `all` pass is one composite task.
+work. All shared launchers default to `0`, running all remaining tasks in their
+selected queue. In `fix-tests`, one task is a category pass; an unfiltered
+verification `all` pass is one composite task.
 Repair sessions and retries do not complete additional tasks. Its existing
 `--resume` preserves passed categories and original selectors.
 
@@ -293,7 +293,7 @@ Older checkpoints retain their original charges; an absent repair counter starts
 at zero without guessing or refunding historical turn classifications.
 For an explicitly requested manual replan, first commit the reviewed master,
 queue and unfinished briefs, preserving unrelated work. Use
-`tools/execute-plan --plan 'docs/Example.md' --reconcile RUN --check` to inspect
+`tools/execute-plan 'docs/Example.md' --reconcile RUN --check` to inspect
 the exact inactive retained run, then omit `--check` to adopt that queue.
 Dedicated ordinary-plan wrappers expose the same option. This route preserves
 the original checkpoint in its existing retained allocation and carries forward
@@ -1024,7 +1024,7 @@ validates without adoption; omit it only after review and committed planning inp
 Retrying the identical operation verifies the retained receipt and resume guards.
 
 ```sh
-tools/execute-plan --plan 'docs/Source-Plan.md' --reconcile RUN --split-plan 'docs/New-Plan.md' --reconcile-base FULL_COMMIT --revise-task ID --check
+tools/execute-plan 'docs/Source-Plan.md' --reconcile RUN --split-plan 'docs/New-Plan.md' --reconcile-base FULL_COMMIT --revise-task ID --check
 ```
 
 ## Extension boundary
@@ -1079,7 +1079,7 @@ The maintained E2E [host consistency checks](TestAutomation/E2E-Execution-Contra
 validate its master, queue, briefs and scenario bindings.
 
 A new ordinary plan needs Markdown and a thin wrapper constructing `PlanWorkflow`,
-or the generic `execute-plan --plan` command. Specialized state machines such as
+or the generic `execute-plan PATH` command. Specialized state machines such as
 E2E acceptance and test repair compose the same ownership, budgets, Git and
 presentation pieces while retaining their purpose-specific rules. New adapters
 must preserve identity, cancellation, retention and current-task result guards and cover

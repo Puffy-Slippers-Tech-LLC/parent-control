@@ -126,8 +126,10 @@ def task_limit(value):
 
 
 def add_options(parser, *, stop_help='stop at the next safe task/session boundary'):
+    # None distinguishes omission on attachment; fresh budgets treat it as 0.
     parser.add_argument('--tasks', type=int,
-                        help='maximum completed tasks; 0 or negative: all remaining; replaces an active limit')
+                        help='maximum completed tasks; default: 0 (all remaining); '
+                             'negative: all remaining; explicit value replaces an active limit')
     actions = parser.add_mutually_exclusive_group()
     actions.add_argument('--stop', action='store_true', help=stop_help)
     actions.add_argument('--cancel-stop', action='store_true',

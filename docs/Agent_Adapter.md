@@ -27,13 +27,13 @@ task validation and close-out. Every task owns its scoped checks and cleanup.
 Validate the active queue without execution:
 
 ```sh
-tools/execute-plan --plan 'docs/Agent_Adapter.md' --check
+tools/execute-plan 'docs/Agent_Adapter.md' --check
 ```
 
 Run all remaining active tasks:
 
 ```sh
-tools/execute-plan --plan 'docs/Agent_Adapter.md' --tasks 0
+tools/execute-plan 'docs/Agent_Adapter.md'
 ```
 
 The launcher starts task 013 and follows its active dependency chain through

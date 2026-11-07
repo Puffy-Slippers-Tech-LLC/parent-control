@@ -3,9 +3,7 @@ from copy import deepcopy
 import os
 from pathlib import Path
 import sys
-import tempfile
 import time
-import traceback
 from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -24,7 +22,7 @@ from suite_lease import Suite
 from vm_transport import Transport
 from asset_transfer import AssetTransfer
 from observation_transport import ReadOnlyObservations
-from qualification_storage import allocate, session
+from qualification_storage import run_qualification
 import system_runner as system
 from tools import fixture_execution, fixture_provision
 from tools.test_storage import authenticated_input
@@ -390,22 +388,11 @@ def qualify(directory, assets, selection, source_selection, *, baseline_activity
 
 
 def main(*, assets, selection, source_selection, baseline_activity=False):
-    directory = None
-    try:
+    def preflight():
         system.require(os.geteuid() == 0, 'fixture-e2e:root-required')
         selected_target()
-        os.umask(0o077)
-        with session():
-            directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-fixture-e2e-'))
-            result = qualify(directory, assets, selection, source_selection,
-                             baseline_activity=baseline_activity)
-            (directory / 'result.json').write_bytes(system.baseline.encode(result))
-        print('fixture-e2e: passed; evidence=' + str(directory), flush=True)
-        return 0
-    except (Exception, KeyboardInterrupt) as error:
-        if directory is not None:
-            (directory / 'controller-error.txt').write_text(traceback.format_exc())
-        print('fixture-e2e: ' + system.error_category(error), file=sys.stderr, flush=True)
-        if directory is not None:
-            print('fixture-e2e: evidence=' + str(directory), file=sys.stderr, flush=True)
-        return 1
+
+    return run_qualification('fixture-e2e',
+        lambda directory: qualify(directory, assets, selection, source_selection,
+                                  baseline_activity=baseline_activity),
+        preflight=preflight)

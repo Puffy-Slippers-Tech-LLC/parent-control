@@ -12,7 +12,6 @@ from pathlib import Path
 import re
 import shutil
 import sys
-import tempfile
 import traceback
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -24,7 +23,7 @@ from execution import open_source
 import online_snapshot
 import prepare_vm
 from provenance import preflight_source
-from qualification_storage import allocate, session
+from qualification_storage import run_qualification
 from suite_lease import Suite
 from system_fixture_preparation import register_staging
 import system_runner as system
@@ -723,21 +722,9 @@ def _qualify_pinned(directory, assets, selection):
 
 
 def main(*, assets, selection):
-    directory = None
-    try:
+    def preflight():
         system.require(os.geteuid() == 0, 'fixture-provisioning:root-required')
         selected_target()
-        os.umask(0o077)
-        with session():
-            directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-fixture-provisioning-'))
-            result = qualify(directory, assets, selection)
-            (directory / 'result.json').write_bytes(system.baseline.encode(result))
-        print('fixture-provisioning: passed; evidence=' + str(directory), flush=True)
-        return 0
-    except (Exception, KeyboardInterrupt) as error:
-        if directory is not None:
-            (directory / 'controller-error.txt').write_text(traceback.format_exc())
-        print('fixture-provisioning: ' + system.error_category(error), file=sys.stderr, flush=True)
-        if directory is not None:
-            print('fixture-provisioning: evidence=' + str(directory), file=sys.stderr, flush=True)
-        return 1
+
+    return run_qualification('fixture-provisioning',
+        lambda directory: qualify(directory, assets, selection), preflight=preflight)

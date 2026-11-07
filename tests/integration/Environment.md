@@ -279,6 +279,15 @@ fixture check. Both files and their staging paths must be absent. This permits
 owned cleanup and refresh; new attempts still require current preparation.
 The guest dependency inventory declares the distribution's `fapolicyd` package
 on both platforms, so its native trust tools are available on clean baselines.
+After Fedora updates, preparation reconciles the exact incompatible pair
+`fapolicyd-2.0.1-1.fc44` / `file-libs-5.48-2.fc44`: the former ships a version-20
+magic database, while the latter accepts only version 21. Only for that pair,
+the ordinary package manager selects the distribution's signed `5.46-9.fc44`
+`file`, `file-libs` and `python3-file-magic` packages. Preparation then verifies
+package consistency and reads the unchanged vendor database with that reader;
+the fresh-boot service/status/trust checks still govern capture. Other package
+versions and unrelated updates retain their normal path. No vendor database,
+trust receipt or product policy is rewritten.
 Native vendor trust sources are inspected without adopting or rewriting them;
 their root-owned, nonwritable service-group metadata is valid. [Native tmpfiles](https://raw.githubusercontent.com/linux-application-whitelisting/fapolicyd/main/init/fapolicyd-tmpfiles.conf)
 recursively sets `/etc/fapolicyd` to the fixed `fapolicyd` group while preserving

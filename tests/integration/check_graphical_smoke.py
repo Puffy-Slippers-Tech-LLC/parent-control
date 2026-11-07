@@ -839,7 +839,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         and time_profiles_daily is None and not any(value for name, value in locals().items()
             if name not in ('assets', 'provision_credentials', 'kiosk_preferences_confinement')
             and isinstance(value, bool)))), 'smoke:kiosk-preferences-confinement-prerequisites')
-    require(type(suspend_active_grant) is bool and (not suspend_active_grant or (
+    require((type(suspend_active_grant) is bool or suspend_active_grant == 'expired') and (not suspend_active_grant or (
         assets is not None and provision_credentials and time_profiles_daily is None
         and fresh_desktop is None and lock_surface is None and parent_entry is None
         and approval_flow is None and active_grant_disable is None
@@ -1201,7 +1201,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             (fresh_thirty_allowance or fresh_thirty_child == 'child'),
             'smoke:fresh-thirty-child-prerequisites')
     set_allowance = (set_allowance or fresh_thirty_allowance or time_profiles_daily is not None
-                     or grant_only_profile or time_profiles_grant or suspend_active_grant
+                     or grant_only_profile or time_profiles_grant or bool(suspend_active_grant)
                      or daily_soft_profile)
     require(type(restricted_station_about) is bool and not (restricted_station_about and (
         kiosk_ineligible or kiosk_multiple or kiosk_valid_duration or request_duration
@@ -1984,7 +1984,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         if grant_only_profile:
             result['scope'] = 'installed-grant-only-' + ('revoke' if grant_only_revoke else 'profile') + '-qualification'
         if suspend_active_grant:
-            result['scope'] = 'installed-suspend-active-grant-qualification'
+            result['scope'] = ('installed-suspend-expired-grant-qualification'
+                               if suspend_active_grant == 'expired' else
+                               'installed-suspend-active-grant-qualification')
         if time_profiles_grant:
             result['scope'] = 'installed-time-profiles-grant-qualification'
         if daily_soft_profile:
@@ -2647,8 +2649,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     from parent_setup_qualification import GrantOnlyProfileQualification, GrantOnlyRevokeQualification
                     qualification_class = GrantOnlyRevokeQualification if grant_only_revoke else GrantOnlyProfileQualification
                 if suspend_active_grant:
-                    from parent_setup_qualification import SuspendActiveGrantQualification
-                    qualification_class = SuspendActiveGrantQualification
+                    from parent_setup_qualification import SuspendActiveGrantQualification, SuspendExpiredGrantQualification
+                    qualification_class = (SuspendExpiredGrantQualification if suspend_active_grant == 'expired'
+                                           else SuspendActiveGrantQualification)
                 if time_profiles_grant:
                     from parent_setup_qualification import CombinedTimeProfileQualification
                     qualification_class = CombinedTimeProfileQualification

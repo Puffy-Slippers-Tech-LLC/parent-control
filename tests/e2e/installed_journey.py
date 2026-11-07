@@ -1008,7 +1008,7 @@ class InstalledJourney:
                     if plan.stage_actions[stage] == 'source-change'
                     else 'Waiting the declared real interval under the attempt guard'
                     if plan.stage_actions[stage] == 'real-interval'
-                    else 'Suspending and waking the child computer before extra time expires'
+                    else 'Suspending and waking the child computer'
                     if plan.stage_actions[stage] == 'suspend-wake'
                     else 'Awaiting displayed minute countdown progression'
                     if plan.stage_actions[stage] == 'minute-progress'

@@ -258,7 +258,7 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
             'journey:native-desktop-binding')
     require(child in ('parent', 'child', 'other-child') and
             (child != 'parent' or route == 'command'), 'journey:native-child-binding')
-    require(role is None or role == 'Alias' and route == 'grid' and child == 'other-child'
+    require(role is None or role in ('Alias', 'S') and route == 'grid' and child == 'other-child'
             or route == 'command' and
             (role in ('A', 'S') and child == 'child' or role in ('N', 'unmatched-soft') and child == 'other-child'),
             'journey:native-role-binding')
@@ -304,7 +304,13 @@ def flatpak_blocked_app(prefix, role, route, *, command_stage='denied'):
 def native_blocked_app(role, *, route='command'):
     """FLOW08: Jordan's native denial, without a launcher-visibility assertion."""
     if route == 'grid':
-        require(role in ('A', 'Alias'), 'journey:native-denial-binding')
+        require(role in ('A', 'Alias', 'H', 'S'), 'journey:native-denial-binding')
+        if role in ('H', 'S'):
+            name = 'hard' if role == 'H' else 'soft'
+            return {stage: 'ui:native-' + name + '-' + action for stage, action in (
+                ('desktop', 'desktop'), ('search-ready', 'search-ready'),
+                ('search-focused', 'search-focused'), ('search-entered', 'search-entered'),
+                ('app-grid', 'grid-blocked'), ('denied', 'grid-denied'))}
         stages = native_usable_app('grid', child='other-child',
                                    role='Alias' if role == 'Alias' else None)
         operation = 'ui:native-alias-' if role == 'Alias' else 'ui:native-'

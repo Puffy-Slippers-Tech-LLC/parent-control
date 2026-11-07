@@ -116,15 +116,18 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
     ] if accepted else [])
 
 
-@pytest.mark.parametrize('mode', ['sequence', 'wrong-scope', 'crossed-request', 'replay'])
-@pytest.mark.parametrize('surface', ['kiosk', 'overlay'])
-def test_temporary_access_secret_binds_each_parent_and_requires_fresh_proofs(mode, surface):
+@pytest.mark.parametrize('mode,surface,kind', [
+    (mode, surface, 'flatpak') for surface in ('kiosk', 'overlay')
+    for mode in ('sequence', 'wrong-scope', 'crossed-request', 'replay')
+] + [('sequence', 'overlay', 'native'), ('wrong-duration', 'overlay', 'native')])
+def test_temporary_access_secret_binds_each_parent_and_requires_fresh_proofs(mode, surface, kind):
     # Exercise the password guard with finite request inputs. Importing the
     # complete customer case makes this safety test depend on unrelated plans.
-    requests = {'first': ('other-child', 'parent', 300, False),
-                'included': ('other-child', 'other-parent', 300, True),
-                'replacement': ('other-child', 'parent', 300, False)}
-    prefix = 'flatpak-temporary-access' if surface == 'kiosk' else 'flatpak-grid-temporary-access'
+    seconds = 30 if kind == 'native' else 300
+    requests = {'first': ('other-child', 'parent', seconds, False),
+                'included': ('other-child', 'other-parent', seconds, True),
+                'replacement': ('other-child', 'parent', seconds, False)}
+    prefix = kind + ('-temporary-access' if surface == 'kiosk' else '-grid-temporary-access')
     result = run_password_guard(r'''
 my ($mode, $prefix, $encoded, $surface) = @ARGV;
 my $requests = decode_json($encoded);
@@ -139,6 +142,7 @@ my $ok = eval {
             $binding_key => [@{$requests->{$name}}], review => 0}, 'onpc_journey';
         $request->{stage_prefix} = 'included-' if $mode eq 'wrong-scope';
         $request->{$binding_key} = $requests->{included} if $mode eq 'crossed-request';
+        $request->{$binding_key}[2] = 300 if $mode eq 'wrong-duration';
         $enter->($request);
         $enter->($request) if $mode eq 'replay';
     }

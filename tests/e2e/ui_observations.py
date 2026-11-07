@@ -564,7 +564,7 @@ class AppActivityObservation:
         fields = {'binding', 'pid', 'endpoint', 'state'}
         require(type(closed) is bool and type(value) is dict and set(value) in (fields, fields | {'owner'})
                 and binding in ('native-primary', 'native-secondary', 'snap-primary', 'snap-secondary',
-                                'flatpak-primary', 'flatpak-secondary')
+                                'flatpak-primary', 'flatpak-secondary', 'flatpak-hard', 'flatpak-soft')
                 and value['binding'] == binding, 'ui:app-activity')
         owner = value.get('owner')
         require('owner' not in value or type(owner) is list and len(owner) == 2
@@ -1529,7 +1529,8 @@ class UiObservations:
             raise
 
     def _observe(self, operation, *, child=None):
-        if operation in ('native-grid-denied', 'native-alias-grid-denied'):
+        if operation in ('native-grid-denied', 'native-alias-grid-denied',
+                         'native-hard-grid-denied', 'native-soft-grid-denied'):
             require(self.last_operation == operation.removesuffix('denied') + 'blocked',
                     'ui:native-grid-order')
         if operation in accessible_ui.RESTART_OPERATIONS and operation.endswith('-reboot'):
@@ -2095,9 +2096,10 @@ class UiObservations:
             if operation.removeprefix('overlay-').startswith('native-policy-'):
                 require(activity.owner is not None, 'ui:app-activity-owner')
             expected['activity'] = result['activity']
-        if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals', 'native-alias-grid'):
+        if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals', 'native-alias-grid', 'native-soft-grid'):
             expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
-        if operation in ('native-grid-blocked', 'native-alias-grid-blocked'):
+        if operation in ('native-grid-blocked', 'native-alias-grid-blocked',
+                         'native-hard-grid-blocked', 'native-soft-grid-blocked'):
             require(type(result.get('grid_launch_required')) is bool, 'ui:native-grid-response')
             expected['grid_launch_required'] = result['grid_launch_required']
         if operation in accessible_ui.COUNTDOWN_SESSION_OPERATIONS:

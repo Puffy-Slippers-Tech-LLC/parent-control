@@ -561,13 +561,13 @@ sub native_search {
     $kind //= 'native';
     die 'native:search-binding' unless (@_ >= 2 && @_ <= 5)
         && ref($journey) eq 'onpc_journey'
-        && ($kind eq 'native' && ($role eq 'A' || $role eq 'Alias')
+        && ($kind eq 'native' && $role =~ /\A(?:A|Alias|H|S)\z/
             || ($kind eq 'snap' || $kind eq 'flatpak') && $role =~ /\A(?:A|H|S)\z/)
         && ($result_stage eq 'app-grid' || $result_stage eq 'refusals');
     my %snap = (A => 'Allowed', H => 'Hard', S => 'Soft');
     return onpc_parent::search_whole_query(
         $journey, $desktop, $kind ne 'native' ? 'ONPC ' . ($kind eq 'flatpak' ? 'Flatpak' : 'Snap') . ' ' . $snap{$role} . ' Fixture'
-            : $role eq 'Alias' ? 'ONPC Shared Target Fixture' : 'ONPC Allowed Fixture', $result_stage);
+            : $role eq 'Alias' ? 'ONPC Shared Target Fixture' : 'ONPC ' . $snap{$role} . ' Fixture', $result_stage);
 }
 
 sub native_launch_grid {
@@ -630,7 +630,7 @@ sub native_usable_app {
             || $kind eq 'snap' && defined($role)
             && ($child eq 'other-child' && $role =~ /\A(?:A|H|S)\z/
                 || $child eq 'child' && $role eq 'A' && $gesture eq 'ret')
-            || $kind eq 'native' && (!defined($role) || $role eq 'Alias' && $route eq 'grid' && $child eq 'other-child'
+            || $kind eq 'native' && (!defined($role) || $role =~ /\A(?:Alias|S)\z/ && $route eq 'grid' && $child eq 'other-child'
             || $route eq 'command' &&
             ($role =~ /\A(?:A|S)\z/ && $child eq 'child'
                 || $role =~ /\A(?:N|unmatched-soft)\z/ && $child eq 'other-child')));
@@ -664,7 +664,7 @@ sub native_blocked_app {
     $route //= 'command';
     die 'native:denial-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
         && ($route eq 'command' && ($role eq 'A' || $role eq 'H' || $role eq 'S' || $role eq 'Alias')
-            || $route eq 'grid' && ($role eq 'A' || $role eq 'Alias'));
+            || $route eq 'grid' && $role =~ /\A(?:A|Alias|H|S)\z/);
     if ($route eq 'grid') {
         my $entry = native_search($journey, $journey->seen('desktop'), 'app-grid', $role);
         $journey->consume_observation('app-grid', $entry);

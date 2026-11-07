@@ -46,7 +46,9 @@ main(int argc, char **argv)
         if (strcmp(argv[index], "--stay-alive") == 0) {
             stay_alive = 1;
         } else if (strcmp(argv[index], "--instance") == 0 && index + 1 < argc &&
-                   (strcmp(argv[index + 1], "primary") == 0 || strcmp(argv[index + 1], "secondary") == 0)) {
+                   (strcmp(argv[index + 1], "primary") == 0 || strcmp(argv[index + 1], "secondary") == 0 ||
+                    (strcmp(FIXTURE_KIND, "flatpak") == 0 &&
+                     (strcmp(argv[index + 1], "hard") == 0 || strcmp(argv[index + 1], "soft") == 0)))) {
             instance = argv[++index];
         } else {
             fprintf(stderr, "onpc-test-application: unsupported fixture option\n");

@@ -263,13 +263,17 @@ sub panel_request_case {
 
 sub flatpak_temporary_access {
     onpc_progress::operation('Changing Jordan\'s temporary app access through three parent approvals');
-    my ($exchange, $declared, $challenges, $route) = @_;
+    my ($exchange, $declared, $challenges, $route, $kind) = @_;
     $route //= 'command';
-    die 'temporary-access:arguments' unless (@_ == 3 || @_ == 4) && ref($exchange) eq 'CODE'
+    $kind //= 'flatpak';
+    die 'temporary-access:arguments' unless (@_ >= 3 && @_ <= 5) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
-        && ($route eq 'command' || $route eq 'grid');
+        && ($kind eq 'flatpak' && ($route eq 'command' || $route eq 'grid')
+            || $kind eq 'native' && $route eq 'grid');
+    my $seconds = $kind eq 'native' ? 30 : 300;
     my $journey = onpc_journey->new(exchange => $exchange,
-        prefix => $route eq 'grid' ? 'flatpak-grid-temporary-access' : 'flatpak-temporary-access', review => 0);
+        prefix => $kind eq 'native' ? 'native-grid-temporary-access'
+            : $route eq 'grid' ? 'flatpak-grid-temporary-access' : 'flatpak-temporary-access', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -280,18 +284,20 @@ sub flatpak_temporary_access {
     onpc_desktop_session::switch_user($leaving, $leaving->seen('desktop'));
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'initial');
     my $allowed = $journey->scope('allowed');
-    onpc_app_rows::native_usable_app($allowed, $route, $allowed->seen('desktop'), 'other-child', 'A', 'flatpak');
+    onpc_app_rows::native_usable_app($allowed, $route, $allowed->seen('desktop'), 'other-child',
+                                   $kind eq 'native' ? undef : 'A', $kind);
     $journey->seen('allowed-capture');
-    onpc_app_rows::flatpak_blocked_app($journey->scope('initial-hard'), 'H', $route);
-    onpc_app_rows::flatpak_blocked_app($journey->scope('initial-soft'), 'S', $route);
+    my $blocked = $kind eq 'native' ? \&onpc_app_rows::native_blocked_app : \&onpc_app_rows::flatpak_blocked_app;
+    $blocked->($journey->scope('initial-hard'), 'H', $route);
+    $blocked->($journey->scope('initial-soft'), 'S', $route);
     for my $row (['first', 'parent', 0], ['included', 'other-parent', 1], ['replacement', 'parent', 0]) {
         my ($name, $approver, $soft) = @$row;
         my $request = $journey->scope($name);
         my $parent = $approver eq 'parent' ? 'fixture-parent' : 'other-fixture-parent';
         if ($route eq 'grid') {
-            $request->{overlay_request} = ['other-child', $approver, 300, $soft];
+            $request->{overlay_request} = ['other-child', $approver, $seconds, $soft];
             $request->seen('independent-launch');
-            prepare($request, 'open', 'open', 'observed', 'existing-fixture-child', $parent, 300, $soft, 'overlay');
+            prepare($request, 'open', 'open', 'observed', 'existing-fixture-child', $parent, $seconds, $soft, 'overlay');
             overlay_approve($request, 'automatic');
         } else {
             $request->{kiosk_request} = ['other-child', $approver, 300, $soft];
@@ -307,14 +313,14 @@ sub flatpak_temporary_access {
         $request->seen('countdown');
         $request->seen('soft-closed') if $name eq 'replacement';
         $request->seen($_) for qw(allowed-preserved allowed-submit allowed-submitted allowed-original);
-        onpc_app_rows::flatpak_blocked_app($request->scope('hard'), 'H', $route);
+        $blocked->($request->scope('hard'), 'H', $route);
         if ($soft) {
             my $activity = $request->scope('soft');
             onpc_app_rows::native_usable_app($activity, $route, $activity->seen('desktop'),
-                                           'other-child', 'S', 'flatpak');
+                                           'other-child', 'S', $kind);
             $request->seen('soft-capture');
         } else {
-            onpc_app_rows::flatpak_blocked_app($request->scope('soft'), 'S', $route);
+            $blocked->($request->scope('soft'), 'S', $route);
         }
     }
     onpc_desktop_session::enter_desktop($journey, 'desktop', 'parent', 'retained',
@@ -523,7 +529,7 @@ sub shell_approve {
                 && $exit eq 'automatic'
             || ($journey->{prefix} // '') =~ /\Adelayed-approval-(?:first|second)\z/
                 && ref($journey->{overlay_request}) eq 'ARRAY' && $exit eq 'automatic'
-            || ($journey->{prefix} // '') =~ /\Aflatpak-grid-temporary-access-(?:first|included|replacement)\z/
+            || ($journey->{prefix} // '') =~ /\A(?:flatpak|native)-grid-temporary-access-(?:first|included|replacement)\z/
                 && ref($journey->{overlay_request}) eq 'ARRAY' && $exit eq 'automatic'
             || ($journey->{prefix} // '') eq 'baseline-journey-overlay-approval'
                 && $exit eq 'immediate')

@@ -3877,6 +3877,16 @@ All three fresh parent approvals, child app effects, preserved work and final
 saved choices remained required. Recording, collection, coverage generation and
 owned cleanup passed; the VM was independently observed off.
 
+The shared Flatpak observer binds A/H/S to the launchers' distinct
+`primary`/`hard`/`soft` instances; S's independent second window retains
+`secondary`. The fixture executable, GUI, public-ID scopes and activity decoder
+admit that same finite set. Allowed policy capture and resubmission preserve its
+original window and child-session identity through each approval. Case 243
+passed this binding on Ubuntu 26.04 in `20261107T101144Z-3ef8397c`; the affected
+command/station case 246 passed in `20261107T103120Z-e60aa1fe`. All product,
+infrastructure, collection and cleanup outcomes, baseline restoration and
+coverage refreshes passed; the VM was observed off.
+
 ### Flatpak grid use
 
 `flatpak_grid.PLAN` / `FlatpakGridJourney` and
@@ -4133,6 +4143,18 @@ A's exact query is `ONPC Allowed Fixture`, its window
 `onpc-fixture-native-primary`; Submit must independently show
 `ONPC fixture draft`, unchanged draft and `Moves: 0; token: 0`.
 Normal close requires complete owned-window absence and the recognized desktop.
+Case 231's `native_temporary_access.PLAN` qualifies Jordan's native H/S grid
+bindings on Ubuntu 26.04 through three real overlay approvals: Jamie/exclude,
+Sam/include and Jamie/exclude. It reuses `native_usable_app` / `native_blocked_app`
+and the native binding of `onpc_request_flow::flatpak_temporary_access`.
+Native H/S launchers use `--instance secondary`, preserving A's original primary
+window. A blocked entry uses the shared visible-grid attempt or attributed
+command-denial witness without asserting launcher visibility. Each approval
+keeps A usable and H denied; inclusion opens S and replacement exclusion closes
+that captured S activity. Final Parent reads preserve the saved A/H/S choices.
+Collection, owned cleanup and baseline restoration passed, as did the affected
+case 62 regression. Kiosk and other platform bindings retain their own scope.
+
 The historical `native_grid_usable.PLAN` / `check_e2e_native_grid_usable` qualification covers Jordan
 grid use on Shell `50.1-0ubuntu1.2`, `en_US.UTF-8`, `xkb/us`.
 The historical `riley_native_grid.PLAN` / `check_e2e_riley_native_grid` qualification covers Riley's

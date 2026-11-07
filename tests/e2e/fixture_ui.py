@@ -12,7 +12,8 @@ class FixtureUI:
             from tests.e2e.accessible_ui import require
         self.require = require
         self.require(kind in ('native', 'flatpak', 'snap', 'game')
-                and instance in ('primary', 'secondary'), 'ui:fixture-binding')
+                and (instance in ('primary', 'secondary')
+                     or kind == 'flatpak' and instance in ('hard', 'soft')), 'ui:fixture-binding')
         self.ui = ui
         self.scope = f'onpc-fixture-{kind}-{instance}'
 

@@ -57,8 +57,11 @@ def desktop_id(role):
 
 def desktop_entry(asset):
     role, filename, name, description, match = asset
+    # Policy journeys keep Allowed work open while launching/denying H or S.
+    # Match the command route's distinct public secondary-window identity.
+    instance = ' --instance secondary' if role in ('H', 'S') else ''
     return ('[Desktop Entry]\nType=Application\n' + f'Name={name}\nComment={description}\n'
-            'Icon=applications-system\n' + f'Exec="{PREFIX}/{filename}"\nTerminal=false\n')
+            'Icon=applications-system\n' + f'Exec="{PREFIX}/{filename}"{instance}\nTerminal=false\n')
 
 
 def executable_path(role, *, prefix=None):

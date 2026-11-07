@@ -930,11 +930,13 @@ sub run {
         onpc_app_rows::native_denial(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
-    if ($ready->{flatpak_temporary_access} || $ready->{flatpak_grid_temporary_access}) {
+    if ($ready->{flatpak_temporary_access} || $ready->{flatpak_grid_temporary_access}
+            || $ready->{native_grid_temporary_access}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_request_flow::flatpak_temporary_access(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
-            $ready->{flatpak_grid_temporary_access} ? 'grid' : 'command');
+            $ready->{flatpak_grid_temporary_access} || $ready->{native_grid_temporary_access} ? 'grid' : 'command',
+            $ready->{native_grid_temporary_access} ? 'native' : 'flatpak');
         return;
     }
     if ($ready->{flatpak_policy_closure}) {

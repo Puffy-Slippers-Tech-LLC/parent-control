@@ -208,7 +208,11 @@ function html(webview, context) {
         </div></div>
         <main id="grid"><p class="empty" role="status">Connecting to watch…</p></main></section></div>
         <footer><button id="watch-error-indicator" type="button" hidden title="Show Watch error details" aria-label="Show Watch error details">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button>
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+        <defs><linearGradient id="watch-alert-red" x2="0" y2="1"><stop stop-color="#ff3025"/><stop offset="1" stop-color="#df0905"/></linearGradient></defs>
+        <circle cx="10" cy="10" r="9" fill="url(#watch-alert-red)"/>
+        <path fill="#fff" d="M8.7 10.8 8.1 5.9C8 4.9 8.7 4.5 10 4.5s2 .4 1.9 1.4l-.6 4.9c-.1.7-2.5.7-2.6 0Z"/>
+        <circle cx="10" cy="14" r="1.3" fill="#fff"/></svg></button>
         <button id="restart" title="Reconnect to the watch backend">Reconnect</button>
         <span id="servers" aria-label="Server connection status"></span>
         <span id="resources"></span></footer>

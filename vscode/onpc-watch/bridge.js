@@ -237,7 +237,9 @@ class Source {
         this.backoff = Math.min(15000, this.backoff * 2);
         this.failureDetail = detail;
         this.staleFrames = new Set(this.frames.keys());
-        this.reportError(`Watch connection failed: ${this.config.label}`, detail);
+        // Remote connection diagnostics remain on the server cloud and in Output.
+        // An unavailable server must not flash the shared infrastructure alert.
+        if (this.config.transport !== 'ssh') this.reportError(`Watch connection failed: ${this.config.label}`, detail);
         this.changed();
     }
 

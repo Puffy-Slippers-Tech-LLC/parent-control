@@ -288,7 +288,7 @@ footer { display: flex; flex-shrink: 0; gap: 8px; align-items: center; padding: 
 #restart { border: 0; padding: 4px 8px; background: var(--vscode-button-secondaryBackground); }
 #watch-error-indicator { display: inline-flex; flex-shrink: 0; padding: 3px; border: 0; border-radius: 3px; background: transparent; color: #f14c4c; cursor: pointer; }
 #watch-error-indicator[hidden] { display: none; }
-#watch-error-indicator svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.5; }
+#watch-error-indicator svg { width: 20px; height: 20px; }
 #watch-error-indicator:hover { background: var(--vscode-toolbar-hoverBackground); box-shadow: 0 0 0 1px currentColor; }
 #watch-error-indicator:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
 #watch-error-indicator.unread svg { animation: watch-error-flash 1s ease-in-out infinite; }

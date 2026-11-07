@@ -31,7 +31,12 @@ def case_inventory(root, category, options, *, vm=None, pass_fds=()):
                 continue
             command = [str(root / 'tools/run-tests'), 'system', *arguments,
                        '--vm', name, '--list']
-            result = subprocess.run(command, cwd=root, env=test_launcher.environment(root),
+            environment = test_launcher.environment(root)
+            # This inventory belongs to the active controller's checkout.
+            # The sanitized test environment drops its admission marker; without
+            # restoring it, the public launcher can route to its default branch.
+            environment['ONPC_LAUNCHER_CONTROLLER_ROOT'] = str(root)
+            result = subprocess.run(command, cwd=root, env=environment,
                                     capture_output=True, text=True, check=True,
                                     pass_fds=tuple(dict.fromkeys((*scratch_descriptors(), *pass_fds))))
             cases.extend(match[1] for line in result.stdout.splitlines()

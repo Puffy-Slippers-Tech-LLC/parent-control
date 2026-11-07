@@ -134,6 +134,10 @@ sub enter_kiosk_mate_password {
             my $app_restart = ($journey->{prefix} // '') =~ /\A(?:app-restart-active|sign-out-in-active|reboot-active)-request\z/
                 && ($journey->{stage_prefix} // '') eq 'request-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
+            my $idle = ($journey->{prefix} // '') =~ /\Aidle-active-expired-(request|recovery)\z/
+                && ($journey->{stage_prefix} // '') eq $1 . '-'
+                && ref($request) eq 'ARRAY' && join(',', @$request) eq
+                    ($1 eq 'request' ? 'other-child,parent,600,1' : 'other-child,parent,1200,1');
             my $app_transition = ($journey->{prefix} // '') eq 'app-rule-changes-soft-opening'
                 && ($journey->{stage_prefix} // '') eq 'soft-opening-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,75,1';
@@ -146,7 +150,7 @@ sub enter_kiosk_mate_password {
             my $expired_restart = ($journey->{prefix} // '') =~ /\A(?:app-restart|sign-out-in|reboot)-expired\z/
                 && ($journey->{stage_prefix} // '') eq ''
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,1200,0';
-            die 'secret:challenge' unless ($temporary_access || $delayed || $grant_access || $app_restart || $app_transition || $process_update || $work_recovery || $expired_restart ||
+            die 'secret:challenge' unless ($temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart ||
                     ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
                     && ($journey->{stage_prefix} // '') eq '')
                 && ref($request) eq 'ARRAY' && @$request == 4

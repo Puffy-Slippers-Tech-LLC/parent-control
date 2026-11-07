@@ -96,7 +96,8 @@ sub exchange {
     my $deadline = time + ($stage =~ /\Apublic-/ ? 120 : $stage eq 'setup-detached' ? 1500
         # Natural expiry can consume the complete real ten-minute grant, plus
         # observation/transport time. Its controller keeps the product deadline.
-        : $stage eq 'minute-progression' || $stage eq 'natural-expiry' ? 900
+        : $stage eq 'minute-progression' || $stage eq 'natural-expiry'
+            || $stage eq 'expiry-wait' ? 900
         : $stage eq 'package-submitted' || $stage eq 'upgrade-submitted' ? 780
         : $stage eq 'reboot-installed-greeter' || $stage eq 'second-reboot-greeter'
             || $stage eq 'reboot-greeter' ? 780 : 420);
@@ -1471,12 +1472,13 @@ sub run {
             $ready->{reboot_expired} ? 1 : 0);
         return;
     }
-    if ($ready->{app_restart_active}) {
+    if ($ready->{app_restart_active} || $ready->{idle_active_expired}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
         require onpc_lifecycle;
         onpc_lifecycle::app_restart_active(\&exchange, $ready->{invocations},
-            $ready->{challenge_bindings}, $ready->{kiosk_request});
+            $ready->{challenge_bindings}, $ready->{kiosk_request}, 0, 0,
+            $ready->{idle_active_expired} ? 1 : 0);
         return;
     }
     if ($ready->{sign_out_in_active} || $ready->{reboot_active}) {

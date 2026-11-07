@@ -236,7 +236,7 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
                                  'app-restart-request', 'sign-out-request', 'reboot-request',
                                  'process-update-request', 'process-update-wrong-soft', 'session-update-request',
                                  'sign-out-expired-recovery', 'reboot-expired-recovery',
-                                 'expired-recovery-wrong-scope'])
+                                 'expired-recovery-wrong-scope', 'idle-requests', 'idle-crossed-duration'])
 def test_composed_kiosk_secret_scope_and_single_use(mode):
     # Execute the real password guard; replace only the secret delivery sink.
     # No password is supplied, and each isolated Perl process owns its latch.
@@ -250,6 +250,7 @@ def test_composed_kiosk_secret_scope_and_single_use(mode):
     from app_restart_expired import REBOOT_PLAN as EXPIRED_REBOOT_PLAN
     from update_process_case import PLAN as UPDATE_PLAN
     from update_session_case import PLAN as SESSION_PLAN
+    from idle_active_expired import PLAN as IDLE_PLAN
     transition = [PLAN.prefix + '-soft-opening', 'soft-opening-', list(PLAN.kiosk_request)]
     revocation = [REVOCATION_PLAN.prefix + '-request', 'request-', list(REVOCATION_PLAN.kiosk_request)]
     recovery = [RECOVERY_PLAN.prefix, list(RECOVERY_PLAN.kiosk_request)]
@@ -290,6 +291,7 @@ my $panel_prefix = shift @ARGV;
 my $kiosk_prefix = shift @ARGV;
 my $restart = decode_json(shift @ARGV);
 my $process_update = decode_json(shift @ARGV);
+my $idle_bindings = decode_json(shift @ARGV);
 my $first = bless {prefix => 'kiosk-delayed-approval-first', stage_prefix => 'first-',
     kiosk_request => ['child', 'parent', 30, 0], review => 0}, 'onpc_journey';
 my $second = bless {%$first, prefix => 'kiosk-delayed-approval-second', stage_prefix => 'second-'}, 'onpc_journey';
@@ -331,7 +333,15 @@ if ($mode =~ /^kiosk-recovery/) {
         review => 0}, 'onpc_journey';
 }
 my $ok = eval {
-    if ($mode =~ /^kiosk-recovery/) {
+    if ($mode =~ /^idle-/) {
+        for my $scope ('request', 'recovery') {
+            my $idle = bless {prefix => 'idle-active-expired-' . $scope,
+                stage_prefix => $scope . '-', review => 0,
+                kiosk_request => $idle_bindings->{$scope}}, 'onpc_journey';
+            $idle->{kiosk_request} = $idle_bindings->{recovery} if $mode eq 'idle-crossed-duration';
+            onpc_password::enter_kiosk_mate_password($idle, 'bound-request');
+        }
+    } elsif ($mode =~ /^kiosk-recovery/) {
         onpc_password::enter_kiosk_mate_password($first, 'request-1200');
         onpc_password::enter_kiosk_mate_password($first, 'request-1200');
     } elsif ($mode eq 'work-recovery' || $mode eq 'expired-recovery'
@@ -359,10 +369,19 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
         PANEL_PLAN.prefix, KIOSK_PLAN.prefix,
         json.dumps([restart.prefix, list(restart.kiosk_request)]),
         json.dumps([(SESSION_PLAN if mode == 'session-update-request' else UPDATE_PLAN).prefix,
-                    list(UPDATE_PLAN.kiosk_request)]))
+                    list(UPDATE_PLAN.kiosk_request)]),
+        json.dumps({'request': list(IDLE_PLAN.kiosk_requests['request-approval-open']),
+                    'recovery': list(IDLE_PLAN.kiosk_request)}))
     value = json.loads(result.stdout)
     deliveries = [event for event in value['events'] if event[0] == 'delivery']
-    if mode == 'kiosk-recovery':
+    if mode.startswith('idle-'):
+        assert value['ok'] == (mode == 'idle-requests')
+        scopes = ('request', 'recovery') if mode == 'idle-requests' else ()
+        assert deliveries == [['delivery', 'parent', scope + '-kiosk-mate-approval'] for scope in scopes]
+        assert [event for event in value['events'] if event[0] == 'proof'] == [
+            ['proof', scope + '-approval-' + proof]
+            for scope in scopes for proof in ('qualified', 'rechecked')]
+    elif mode == 'kiosk-recovery':
         assert value['ok'] == 0  # The second delivery is refused.
         assert deliveries == [['delivery', 'parent', 'kiosk-final-kiosk-mate-request-1200']]
         assert [event for event in value['events'] if event[0] == 'proof'] == [

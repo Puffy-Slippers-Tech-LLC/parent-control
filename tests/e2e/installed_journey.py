@@ -159,32 +159,32 @@ class JourneyPlan:
                 self.prefix + ':assertion-plan')
         used = set()
         stages = list(self.screen_tags)
-        require(all(stage in stages and (self.screen_tags[stage] in (
-                    'ui:native-activity', 'ui:overlay-native-activity', 'ui:parent-native-activity',
-                    'ui:native-policy-activity', 'ui:native-policy-closed', 'ui:native-unmatched-soft-activity',
-                    'ui:native-policy-soft-activity', 'ui:native-policy-soft-closed',
-                    'ui:overlay-native-policy-soft-activity', 'ui:overlay-native-policy-soft-closed')
-                    or self.screen_tags[stage].removeprefix('ui:') in accessible_ui.PACKAGED_APP_BINDINGS
-                    and accessible_ui.PACKAGED_APP_BINDINGS[self.screen_tags[stage][3:]][2]
-                        in ('activity', 'policy-activity', 'policy-closed'))
+        activity_tags = {
+            'ui:native-activity', 'ui:overlay-native-activity', 'ui:parent-native-activity',
+            'ui:native-policy-activity', 'ui:native-unmatched-soft-activity',
+            'ui:native-policy-soft-activity', 'ui:overlay-native-policy-soft-activity',
+        } | {'ui:' + operation for operation, binding in accessible_ui.PACKAGED_APP_BINDINGS.items()
+             if binding[2] in ('activity', 'policy-activity')}
+        activity_closures = {
+            'ui:native-policy-closed': 'ui:native-policy-activity',
+            'ui:native-policy-soft-closed': 'ui:native-policy-soft-activity',
+            'ui:overlay-native-policy-soft-closed': 'ui:overlay-native-policy-soft-activity',
+            'ui:flatpak-hard-policy-closed': 'ui:flatpak-hard-policy-activity',
+            'ui:flatpak-soft-policy-closed': 'ui:flatpak-soft-policy-activity',
+        }
+        require(all(stage in stages
                     and type(binding) is tuple and len(binding) == 2
                     and binding[0] in stages and stages.index(binding[0]) < stages.index(stage)
+                    and self.screen_tags[binding[0]] in activity_tags
                     and ((binding[1] in ('same', 'replaced')
-                          and self.screen_tags[binding[0]] == self.screen_tags[stage]
-                          and not self.screen_tags[stage].endswith('-closed'))
+                          and self.screen_tags[binding[0]] == self.screen_tags[stage])
+                         or binding[1] == 'separate' and self.screen_tags[stage] in activity_tags
                          or binding[1] == 'closed'
-                         and (self.screen_tags[stage], self.screen_tags[binding[0]]) in (
-                             ('ui:native-policy-closed', 'ui:native-policy-activity'),
-                             ('ui:native-policy-soft-closed', 'ui:native-policy-soft-activity'),
-                             ('ui:overlay-native-policy-soft-closed', 'ui:overlay-native-policy-soft-activity'),
-                             ('ui:flatpak-hard-policy-closed', 'ui:flatpak-hard-policy-activity'),
-                             ('ui:flatpak-soft-policy-closed', 'ui:flatpak-soft-policy-activity')))
+                         and activity_closures.get(self.screen_tags[stage]) == self.screen_tags[binding[0]])
                     for stage, binding in self.activity_checks.items()),
                 self.prefix + ':activity-plan')
         require(all(stage in self.activity_checks for stage, tag in self.screen_tags.items()
-                    if tag in ('ui:native-policy-closed', 'ui:native-policy-soft-closed',
-                               'ui:overlay-native-policy-soft-closed', 'ui:flatpak-hard-policy-closed',
-                               'ui:flatpak-soft-policy-closed')),
+                    if tag in activity_closures),
                 self.prefix + ':activity-closure-plan')
         require(all(stage in stages and capture in stages and stages.index(capture) < stages.index(stage)
                     and self.screen_tags[capture] in ('ui:native-activity', 'ui:overlay-native-activity',

@@ -13539,7 +13539,8 @@ class AccessibleUI:
         """APP02: bind public presence/complete absence to the same child session."""
         require(type(closed) is bool and (kind == 'native' and role in ('A', 'S')
                 and (child == EXISTING_CHILD or child == CHILD and role == 'S')
-                or kind == 'flatpak' and role in ('A', 'H', 'S') and child == EXISTING_CHILD),
+                or kind == 'flatpak' and role in ('A', 'H', 'S') and child == EXISTING_CHILD
+                and (not closed or role != 'A')),
                 'ui:native-binding')
         instance = ({'A': 'primary', 'H': 'hard', 'S': 'soft'}[role] if kind == 'flatpak'
                     else 'secondary' if role == 'S' else 'primary')

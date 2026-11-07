@@ -813,6 +813,44 @@ sub native_policy_closure {
 }
 
 # FLOW08: public policy saves followed by original closure and command denial.
+sub flatpak_retained_work {
+    onpc_progress::operation('Checking that Jordan keeps allowed work while Parent blocks another app');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'flatpak:retained-arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'flatpak-retained-work', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen($_) for qw(saved-settings apps-page allowed-save allowed-row hard-save hard-row soft-save soft-row);
+    my $leaving = $journey->scope('leave-parent');
+    onpc_desktop_session::switch_user($leaving, $leaving->seen('desktop'));
+    onpc_desktop_session::enter_desktop(
+        $journey, 'gdm', 'other-child', 'fresh', 'success', 'fresh');
+    for my $name ('allowed', 'soft') {
+        my $activity = $journey->scope($name);
+        native_usable_app($activity, 'command', $activity->seen('desktop'), 'other-child',
+                          $name eq 'allowed' ? 'A' : 'S', 'flatpak');
+        native_read_activity($journey, $name . '-capture');
+    }
+    $journey->seen('hard-denied');
+    native_read_activity($journey, $_) for qw(allowed-after-denial soft-after-denial);
+    onpc_desktop_session::enter_desktop(
+        $journey, 'desktop', 'parent', 'retained', 'success', 'parent-return', 'other-child');
+    $journey->seen($_) for qw(return-apps soft-block-save soft-block-row);
+    onpc_desktop_session::enter_desktop(
+        $journey, 'desktop', 'other-child', 'retained', 'success', 'child-return', 'parent');
+    native_read_activity($journey, 'soft-closed');
+    $journey->seen('soft-denied');
+    native_read_activity($journey, 'allowed-preserved');
+    $journey->seen($_) for qw(allowed-resubmit allowed-submitted-again);
+    native_read_activity($journey, 'allowed-still-original');
+    native_finish_app($journey->scope('allowed'));
+    $journey->finish();
+}
+
 sub flatpak_policy_closure {
     onpc_progress::operation('Checking that Parent blocks close the child apps and preserve allowed use');
     my ($exchange, $declared, $challenges) = @_;

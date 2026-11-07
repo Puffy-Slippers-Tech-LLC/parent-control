@@ -1,5 +1,6 @@
-"""Replace an away-expired grant with daily time left, then sign in afresh."""
+"""Replace an away-expired grant with daily time left, then return to the child."""
 from copy import deepcopy
+from dataclasses import replace
 import time
 
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS, countdown_seconds
@@ -98,6 +99,43 @@ PLAN = JourneyPlan(
     assertions_after={'allowed-submitted': 'visible-result'},
 )
 
+RETAINED_EXPIRY = {
+    **desktop_return('daily-parent-leave', account='parent'),
+    'original-session': 'system:child-retained-locked',
+    'expiry-wait-first': 'ui:gdm-returned',
+    'expiry-wait-last': 'ui:gdm-returned',
+    **enter('expired-parent'),
+    'expired-balances': 'ui:revoke-saved-balances',
+    **desktop_return('expired-parent-leave', account='parent'),
+}
+RETAINED_REPLACEMENT = {
+    **obtain_time(initial='observed', child='fixture-child', approver='fixture-parent',
+                  duration_seconds=RECOVERY_SECONDS, allow_soft=False, exit='automatic'),
+    **prefixed_stages('replacement-child', desktop_entry('child', source='gdm', entry='retained')),
+    'replacement-countdown': 'ui:child-countdown-present',
+    'original-soft-closed': 'ui:overlay-native-policy-soft-closed',
+    'hard-denied': 'ui:overlay-native-hard-command-blocked',
+    'soft-denied': 'ui:overlay-native-soft-command-blocked',
+    **prefixed_stages('allowed', native_usable_app('command', child='child', role='A')),
+}
+RETAINED_SCREENS = {
+    **PREPARATION,
+    **RETAINED_EXPIRY, **RETAINED_REPLACEMENT,
+}
+RETAINED_PLAN = replace(PLAN,
+    worker_mode='expired_daily_replacement_retained', screen_tags=RETAINED_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: phase for phase, screens in (
+                ('step-1', PREPARATION), ('step-2', RETAINED_EXPIRY),
+                ('step-3', RETAINED_REPLACEMENT)) for stage in screens},
+            'installed-greeter': 'start'},
+    invocations=tuple(stage for stage in RETAINED_SCREENS if stage in LOGIN_STAGES),
+    challenges={prefix: binding for prefix, binding in PLAN.challenges.items()
+                if prefix != 'departure-child'},
+    activity_entries={'replacement-child-entry-guard': 'original-capture'},
+    activity_checks={'original-soft-closed': ('original-capture', 'closed')},
+)
+
 
 class ExpiredDailyReplacementJourney(GrantOnlyProfileJourney, AppPolicyJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
@@ -108,6 +146,7 @@ class ExpiredDailyReplacementJourney(GrantOnlyProfileJourney, AppPolicyJourney):
         self.expired_balance = None
         self.replacement_started = None
         self.replacement_estimate = None
+        self.original_session = None
         super().__init__(context, progress, plan, grant_seconds=GRANT_SECONDS,
             actions=actions if actions is not None else {
                 **fixture_actions(include_refusal=False, profile='activity'),
@@ -150,7 +189,15 @@ class ExpiredDailyReplacementJourney(GrantOnlyProfileJourney, AppPolicyJourney):
                 self.expired_balance = deepcopy(balance)
                 observed['comparison'] = {'daily_positive_original_grant_expired': True,
                                           'saved_policy_unchanged': True}
-        if stage == 'departure-desktop':
+        if stage == 'original-session':
+            self.original_session = observed['system']['session_sha256']
+        if stage == 'replacement-child-entry-guard' and self.plan is RETAINED_PLAN:
+            require(self.original_session is not None
+                    and observed['system']['session_sha256'] == self.original_session,
+                    'expired-daily:retained-session-replaced')
+            observed['comparison'] = {'same_retained_child_session': True}
+        if stage == 'departure-desktop' or (stage == 'daily-parent-leave-desktop'
+                                            and self.plan is RETAINED_PLAN):
             # Refuse the departure if navigation consumed the original grant.
             require(self.original_sample is not None, 'expired-daily:missing-original-sample')
             balance, bounds = self.original_sample
@@ -194,4 +241,12 @@ def execute(recorder, context):
                              journey_type=ExpiredDailyReplacementJourney)
 
 
-E2E_CASES = {'excluded-new-login': execute}
+def execute_retained(recorder, context):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    context.fixture_subsets = ACTIVITY_SUBSETS
+    context.fixture_caller = 'E2E-025/excluded-retained-unlock'
+    record_installed_journey(recorder, context, RETAINED_PLAN, timeout=3000,
+                             journey_type=ExpiredDailyReplacementJourney)
+
+
+E2E_CASES = {'excluded-new-login': execute, 'excluded-retained-unlock': execute_retained}

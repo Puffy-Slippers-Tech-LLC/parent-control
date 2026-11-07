@@ -30,7 +30,7 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Maintainer-script machines | [package_scripts.py](package_scripts.py), [shell.py](shell.py) | `package_machine` and `Machine` execute real scripts against temporary files and explicit command doubles. `use_real_state_migration` replaces only the migration double with the production state pass under the fixture UID and private paths. `prepared_lifecycle_machine` supplies finite historical PAM/state inputs to the selected lifecycle migration with private ownership, account and policy-tool doubles; it imports no retired confinement implementation. `Machine` binds Ubuntu/Fedora OS, hook, service and account adapters; `run_rpm` executes embedded erase callbacks and the installed abort-remove callback in an isolated shell. Removal/purge cases own their distro/action matrix; Debian package notices and PAM-selection cases stay Ubuntu-only. Path relocation alone is not a sandbox. |
 | Trust database concurrency | [trust_database.py](trust_database.py) | `replace_records` commits empty/refilled generations in a pytest-private LMDB database. Its optional `after_refresh` callback runs between committed generations while the writer environment stays open. `live_database` keeps a separate writer process alive through reader assertions, as with the daemon, and bounds startup/cleanup waits. Tests own records and interleavings; bounded, waited reader/writer children exercise production read snapshots without accessing the host trust database. Requires the distribution's liblmdb runtime. |
 | Terminal and pipe capture | [terminal.py](terminal.py) | `capture` drains output while the child runs, bounds execution and signals only its owned Popen handle. Return codes and terminal color behavior are retained. |
-| Graphical Perl helper probes | [perl.py](perl.py) | `run_perl` supplies the maintained library path, captured streams and a deadline. Tests declare their public testapi doubles and assert secret exclusion. |
+| Graphical Perl helper probes | [perl.py](perl.py) | `run_perl` supplies the maintained library path, captured streams and a deadline. `run_password_guard` shares scoped proof recording and a secret-free delivery sink around the real credential guard in a fresh process. Tests keep finite bindings, order and assertions locally; do not import runnable customer plans merely to obtain guard inputs. Other probes declare their public testapi doubles and assert secret exclusion. |
 | Real needle pixel matching | [needle_matcher.py](needle_matcher.py) | `match_image` reuses the installed os-autoinst matcher for GDM and VT6 regressions. Synthetic mutations test refusals; they do not establish live input qualification. VT6 also requires its [exact pixel gate](../e2e/README.md#visible-vt6-installation-terminal). |
 | Simulated VM baseline and lease | [vm_baseline.py](vm_baseline.py), [vm_runner.py](vm_runner.py) | Real temporary files and mocked VM operations. Import both `rig` and `lease_rig` when using the latter. Direct simulated `Lease` constructors instead request the explicitly imported `local_preparation_source` fixture, so they hash archived sources without reading the development checkout. JUnit builders retain selected identities and intentional faults. |
 | Explicit extension-free engineering setup | [disable_extension.py](../../tools/disable_extension.py) | `apply(transport)` uses the test's existing guarded VM transport and lease, restarts the broker with the unshipped recovery bypass and disables eligible children's extensions. No restore or nested maintenance owner; ordinary attempt cleanup owns removal. See [development gate limits](#development-only-extension-isolation). |
@@ -387,6 +387,15 @@ retained-work comparison and normally close that original window. A retained
 Allowed window can coexist with distinct Hard/Soft denial probes, but cannot
 satisfy a fresh Allowed launch. Preserve the launch's prior-window absence guard.
 
+Choose activity comparisons from the session boundary. App reopening and idle
+return can compare the original window and work; logout and reboot end that
+session, so verify new usable apps after fresh sign-in instead. Keep saved-policy
+and original-grant comparisons across either boundary. The expired persistence
+cases in [app_restart_expired.py](../e2e/app_restart_expired.py) share preparation
+and recovery while retaining this distinction; do not copy retained-window
+assertions into a fresh-session history or replace a retained-work result with
+a new launch.
+
 Maintenance reproductions share `vm_probe.installed_reproduction_selection`
 for clean-input validation and attested running-snapshot binding. Keep each
 caller's package/fixture input declaration, journey and stopping point local;
@@ -468,6 +477,17 @@ When those reads differ, compare the guest's timezone, current time and native
 deadline before changing elapsed-time tolerances or diagnosing an accounting
 defect. Preserve the comparison and use an eligible natural calendar window;
 clock changes belong only in disposable maintenance experiments.
+
+When daily time outlasts a grant, a positive child countdown cannot establish
+whether that grant survived or expired. Capture Parent's separate daily and
+one-time balances before leaving, retain the original grant's controller-clock
+expiry bound, then independently read the balances after the wait. An allowance
+edit while limits remain enabled must preserve the running grant; it does not
+start a new expiry clock. [expired_daily_replacement.py](../e2e/expired_daily_replacement.py)
+keeps that history, its departure-before-expiry guard and replacement arithmetic
+in the case, using shared allowance, approval, countdown and TIME03 operations.
+Do not infer grant expiry from total time or renew the grant to repair navigation
+that consumed the case's preparation margin.
 
 The daily, grant-only and combined retained-work cases compose
 `journey_blocks.countdown_activity` and `journey_checks.CountdownActivityJourney`.

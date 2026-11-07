@@ -47,3 +47,35 @@ def run_perl(program, *arguments, timeout=10):
         ["/usr/bin/perl", "-I", str(LIB), "-", *arguments],
         input=program, text=True, capture_output=True, timeout=timeout, check=True,
     )
+
+
+def run_password_guard(program, *arguments):
+    """Run the real credential guard with recorded proofs and no secret input.
+
+    Each invocation owns a fresh Perl process and guard latch. Callers supply
+    finite journey bindings, order and assertions; only the delivery sink and
+    public testapi observations are replaced.
+    """
+    return run_perl(r'''
+use strict;
+use warnings;
+use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub current_console { 'sut' }
+sub get_var { '1' }
+package onpc_journey;
+sub seen {
+    my ($self, $stage) = @_;
+    push @main::events, ['proof', $self->{stage_prefix} . $stage];
+    return {observed => $self->{stage_prefix} . $stage};
+}
+package main;
+require onpc_password;
+{
+    no warnings 'redefine';
+    *onpc_password::type_fixture_secret = sub { push @events, ['delivery', $_[0], $_[3]]; };
+}
+''' + program, *arguments)

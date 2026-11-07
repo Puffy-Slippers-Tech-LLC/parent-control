@@ -68,6 +68,34 @@ def enable_diagnostics():
         commands.directory = Path(tempfile.mkdtemp(prefix='stage-', dir=directory))
 
 
+def runtime_service_mask(unit, *, category, identity=None):
+    """Create or verify an attempt-owned runtime mask, never adopt another one.
+
+    Callers keep their service invocation, stop/start order and recovery policy.
+    Supplying the recorded identity only verifies; it never changes the mask.
+    """
+    guard()
+    require(re.fullmatch(r'[A-Za-z0-9_.@:-]+\.service', unit) is not None,
+            category + ':mask-unit')
+    path = Path('/run/systemd/system') / unit
+    if identity is None:
+        require(not path.exists() and not path.is_symlink(), category + ':foreign-mask')
+        run(['systemctl', 'mask', '--runtime', unit], timeout=30)
+    current = path.lstat()
+    require(stat.S_ISLNK(current.st_mode) and current.st_uid == current.st_gid == 0
+            and os.readlink(path) == '/dev/null', category + ':mask-owner')
+    observed = (current.st_dev, current.st_ino)
+    require(identity is None or observed == identity, category + ':mask-replaced')
+    return observed
+
+
+def remove_runtime_service_mask(unit, identity, *, category):
+    """Remove only the unchanged mask created by this attempt."""
+    require(identity is not None, category + ':missing-mask-identity')
+    runtime_service_mask(unit, category=category, identity=identity)
+    run(['systemctl', 'unmask', '--runtime', unit], timeout=30)
+
+
 def sha(path):
     with path.open('rb') as stream:
         return hashlib.file_digest(stream, 'sha256').hexdigest()

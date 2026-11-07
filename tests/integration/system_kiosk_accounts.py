@@ -116,21 +116,14 @@ def stopped_fixture_daemon():
     # Each engineered group owns a bounded set of rapid starts. Reset only a
     # healthy daemon's synthetic restart budget, never a failed service result.
     guest.run(['systemctl', 'reset-failed', DAEMON], timeout=30)
-    guest.run(['systemctl', 'mask', '--runtime', DAEMON], timeout=30)
-    identity = MASK.lstat()
-    guest.require(MASK.is_symlink() and os.readlink(MASK) == '/dev/null',
-                  'kiosk-accounts:fixture-mask')
+    identity = guest.runtime_service_mask(DAEMON, category='kiosk-accounts')
     try:
         guest.run(['systemctl', 'stop', DAEMON], timeout=30)
         guest.require(unit_property('ActiveState') == 'inactive',
                       'kiosk-accounts:daemon-not-stopped')
         yield
     finally:
-        current = MASK.lstat()
-        guest.require((current.st_dev, current.st_ino) == (identity.st_dev, identity.st_ino) and
-                      MASK.is_symlink() and os.readlink(MASK) == '/dev/null',
-                      'kiosk-accounts:fixture-mask-replaced')
-        guest.run(['systemctl', 'unmask', '--runtime', DAEMON], timeout=30)
+        guest.remove_runtime_service_mask(DAEMON, identity, category='kiosk-accounts')
         guest.run(['systemctl', 'start', DAEMON], timeout=45)
         guest.require(unit_property('ActiveState') == 'active',
                       'kiosk-accounts:daemon-not-active')

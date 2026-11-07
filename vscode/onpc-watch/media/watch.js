@@ -118,11 +118,11 @@
             element('span', '', labels);
         title.classList.add('run-launcher-label');
         title.textContent = entry.label;
-        if (['Stop Requested', 'Stopping', 'Reload Requested'].includes(entry.status)) {
+        if (['Stop Requested', 'Stopping', 'Reload Requested', 'Closing Task'].includes(entry.status)) {
             const suffix = ` (${entry.status})`;
             if (entry.label.endsWith(suffix)) {
                 title.textContent = entry.label.slice(0, -suffix.length) + ' (';
-                element('span', 'stop-requested', title).textContent = entry.status;
+                element('span', entry.status === 'Closing Task' ? 'closing-task' : 'stop-requested', title).textContent = entry.status;
                 title.append(')');
             }
         }

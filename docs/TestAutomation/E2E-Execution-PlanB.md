@@ -18,7 +18,7 @@ Task queue: [Plan B ordered checklist](E2E-Task-QueueB.md).
 
 ## Next task
 
-Next task: **208 — [E2E-038: fresh-login](E2E-Tasks/208-case-166.md)**.
+Next task: **209 — [E2E-038: allowance-edit](E2E-Tasks/209-case-167.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

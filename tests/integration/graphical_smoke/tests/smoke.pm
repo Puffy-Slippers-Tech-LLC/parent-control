@@ -1483,13 +1483,16 @@ sub run {
             $ready->{kiosk_request});
         return;
     }
-    if ($ready->{daily_soft_profile} || $ready->{daily_soft_expiry} || $ready->{daily_soft_unlock}) {
+    if ($ready->{daily_soft_profile} || $ready->{daily_soft_expiry} || $ready->{daily_soft_unlock}
+            || $ready->{daily_soft_fresh_login}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
-        my $run = $ready->{daily_soft_expiry} || $ready->{daily_soft_unlock} ? \&onpc_app_rows::daily_soft_expiry
+        my $run = $ready->{daily_soft_expiry} || $ready->{daily_soft_unlock}
+                || $ready->{daily_soft_fresh_login} ? \&onpc_app_rows::daily_soft_expiry
                                             : \&onpc_app_rows::daily_soft_profile;
         $run->(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, $ready->{kiosk_request},
-            $ready->{daily_soft_unlock} ? ('unlock') : ());
+            $ready->{daily_soft_unlock} ? ('unlock')
+                : $ready->{daily_soft_fresh_login} ? ('fresh-login') : ());
         return;
     }
     if ($ready->{grant_only_profile} || $ready->{grant_only_revoke} || $ready->{time_profiles_grant}) {

@@ -503,7 +503,7 @@ sub daily_soft_expiry {
     die 'flow18:binding' unless (@_ == 4 || @_ == 5) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,6,1'
-        && ($restore eq 'none' || $restore eq 'unlock');
+        && ($restore eq 'none' || $restore eq 'unlock' || $restore eq 'fresh-login');
     # Keep FLOW18's qualified approval scope and exact request binding.
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'daily-soft-profile', review => 0);
     $journey->declare_invocations($declared);
@@ -530,6 +530,15 @@ sub daily_soft_expiry {
         native_blocked_app($journey->scope('blocked-hard'), 'H');
         native_blocked_app($journey->scope('blocked-soft'), 'S');
         native_activity_resume($journey, 'allowed-return');
+    } elsif ($restore eq 'fresh-login') {
+        my $leaving = $journey->scope('expired-child');
+        onpc_desktop_session::log_out($leaving, $leaving->seen('desktop'));
+        onpc_desktop_session::enter_desktop(
+            $journey, 'gdm', 'child', 'fresh', 'success', 'fresh-child');
+        native_blocked_app($journey->scope('blocked-hard'), 'H');
+        native_blocked_app($journey->scope('blocked-soft'), 'S');
+        my $allowed = $journey->scope('new-allowed');
+        native_usable_app($allowed, 'command', $allowed->seen('desktop'), 'child', 'A');
     } else {
         native_finish_app($soft);
         my $fresh = $journey->scope('new-soft');

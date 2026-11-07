@@ -1,4 +1,4 @@
-"""Cases 164/165: daily access after expiry, with no action or normal unlock."""
+"""Daily access after expiry, with no action, unlock or fresh sign-in."""
 from dataclasses import replace
 import time
 
@@ -6,7 +6,7 @@ from accessible_ui import countdown_seconds
 from countdown import CountdownSample
 from daily_soft_profile import PLAN as PROFILE_PLAN, SCREENS as PROFILE_SCREENS, DailySoftProfileJourney
 from installed_journey import record_installed_journey
-from journey_blocks import (fresh_desktop, lock_challenge, lock_recipient,
+from journey_blocks import (desktop_entry, desktop_return, fresh_desktop, lock_challenge, lock_recipient,
                             native_activity_entry, native_activity_resume,
                             native_blocked_app, native_usable_app, prefixed_stages,
                             retained_app_activities, retained_app_visit)
@@ -103,6 +103,41 @@ UNLOCK_PLAN = replace(PLAN,
 )
 
 
+# Logout ends the original windows. Observe the same expiry before leaving,
+# then require fresh entry and new launch results without a retained-work claim.
+FRESH_LOGIN = {
+    'expired-soft-opened': 'ui:overlay-native-policy-soft-activity',
+    'expired-soft-submit': 'ui:overlay-native-soft-resubmit',
+    'expired-soft-submitted': 'ui:overlay-native-soft-submitted',
+    **desktop_return('expired-child', account='child', action='logout'),
+    **prefixed_stages('fresh-child', desktop_entry('child', source='gdm', entry='fresh')),
+}
+FRESH_LOGIN_RESULTS = {
+    **prefixed_stages('blocked-hard', native_blocked_app('H', child='child')),
+    **prefixed_stages('blocked-soft', native_blocked_app('S', child='child')),
+    **prefixed_stages('new-allowed', native_usable_app('command', child='child', role='A')),
+    'final-child-countdown': 'ui:child-countdown-present',
+    **retained_app_visit('peer-return', account='other-child', source='desktop', source_account='child'),
+}
+FRESH_LOGIN_SCREENS = {**PEER, **PROFILE_SCREENS, **EXPIRY, **FRESH_LOGIN, **FRESH_LOGIN_RESULTS}
+FRESH_LOGIN_PLAN = replace(PLAN,
+    worker_mode='daily_soft_fresh_login', screen_tags=FRESH_LOGIN_SCREENS,
+    phases={**{stage: phase for stage, phase in PLAN.phases.items()
+               if stage in FRESH_LOGIN_SCREENS or stage in ('ready', 'setup-detached')},
+        **{stage: 'step-2' for stage in FRESH_LOGIN},
+        **{stage: 'step-3' for stage in FRESH_LOGIN_RESULTS}},
+    advance_after={'positive-child-witness': 'step-2', 'fresh-child-desktop': 'step-3'},
+    invocations=tuple(stage for stage in FRESH_LOGIN_SCREENS
+        if stage in PLAN.invocations or stage in {
+            'fresh-child-' + leaf for leaf in fresh_desktop('child')}),
+    challenges={**PLAN.challenges,
+        'fresh-child': ('child', 'fresh-child-child-recipient-qualified',
+                        'fresh-child-child-recipient-rechecked')},
+    activity_checks={stage: binding for stage, binding in PLAN.activity_checks.items()
+                     if stage in FRESH_LOGIN_SCREENS},
+)
+
+
 class DailySoftExpiryJourney(DailySoftProfileJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan, actions=actions if actions is not None else {
@@ -151,6 +186,10 @@ def execute_unlock(recorder, context):
     execute_branch(recorder, context, UNLOCK_PLAN, 'unlock')
 
 
+def execute_fresh_login(recorder, context):
+    execute_branch(recorder, context, FRESH_LOGIN_PLAN, 'fresh-login')
+
+
 def execute_branch(recorder, context, plan, branch):
     from e2e_fixture_preparation import ACTIVITY_SUBSETS
     context.fixture_subsets = ACTIVITY_SUBSETS
@@ -159,4 +198,4 @@ def execute_branch(recorder, context, plan, branch):
                              journey_type=DailySoftExpiryJourney)
 
 
-E2E_CASES = {'none': execute, 'unlock': execute_unlock}
+E2E_CASES = {'none': execute, 'unlock': execute_unlock, 'fresh-login': execute_fresh_login}

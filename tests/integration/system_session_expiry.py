@@ -9,11 +9,9 @@ import ctypes
 import configparser
 from contextlib import contextmanager
 import json
-import os
 from pathlib import Path
 import pwd
 import re
-import stat
 import sys
 import tempfile
 import time
@@ -114,12 +112,8 @@ def verify_usage_reader_recovery(record):
     unit = activation.get('D-BUS Service', 'SystemdService')
     guest.require(unit == 'malcontent-timerd.service', 'usage-read:activation-unit')
     mask = Path('/run/systemd/system') / unit
-    guest.require(not mask.exists() and not mask.is_symlink(), 'usage-read:foreign-mask')
-    guest.run(['systemctl', 'mask', '--runtime', unit], timeout=30)
-    identity = mask.lstat()
+    identity = guest.runtime_service_mask(unit, category='usage-read')
     try:
-        guest.require(stat.S_ISLNK(identity.st_mode) and identity.st_uid == identity.st_gid == 0
-                      and os.readlink(mask) == '/dev/null', 'usage-read:mask-owner')
         # The daemon can finish at its 30-second inactivity boundary. Allow
         # systemd's native 90-second stop budget plus transport headroom rather
         # than racing that normal exit with a 30-second command deadline.
@@ -133,11 +127,7 @@ def verify_usage_reader_recovery(record):
                       'usage-read:outage-account-writes')
         record('onpc.usage-read.refused', 'backend-unavailable; no-balance; accounts-unchanged')
     finally:
-        current = mask.lstat()
-        guest.require(stat.S_ISLNK(current.st_mode) and current.st_uid == current.st_gid == 0
-                      and (current.st_dev, current.st_ino) == (identity.st_dev, identity.st_ino)
-                      and os.readlink(mask) == '/dev/null', 'usage-read:mask-replaced')
-        guest.run(['systemctl', 'unmask', '--runtime', unit], timeout=30)
+        guest.remove_runtime_service_mask(unit, identity, category='usage-read')
         guest.run(['systemctl', 'start', unit], timeout=30)
 
     recovered = accepted(call(parent, *operation), category='usage-read:retry-query')
@@ -310,10 +300,7 @@ def isolated_broker_for_extension_faults():
     guest.require(guest.run(['systemctl', 'is-active', guest.BROKER]) == 'active'
                   and re.fullmatch(r'[0-9a-f]{32}', invocation) is not None
                   and invocation != '0' * 32, 'expiry:fault-broker-not-active')
-    guest.run(['systemctl', 'mask', '--runtime', guest.BROKER], timeout=30)
-    identity = mask.lstat()
-    guest.require(stat.S_ISLNK(identity.st_mode) and identity.st_uid == identity.st_gid == 0
-                  and os.readlink(mask) == '/dev/null', 'expiry:fault-broker-mask-owner')
+    identity = guest.runtime_service_mask(guest.BROKER, category='expiry:fault-broker')
     try:
         guest.require(guest.run(['systemctl', 'show', guest.BROKER,
                                  '--property=InvocationID', '--value']) == invocation,
@@ -324,11 +311,7 @@ def isolated_broker_for_extension_faults():
                       'expiry:fault-broker-not-stopped')
         yield
     finally:
-        current = mask.lstat()
-        guest.require(stat.S_ISLNK(current.st_mode) and current.st_uid == current.st_gid == 0
-                      and (current.st_dev, current.st_ino) == (identity.st_dev, identity.st_ino)
-                      and os.readlink(mask) == '/dev/null', 'expiry:fault-broker-mask-replaced')
-        guest.run(['systemctl', 'unmask', '--runtime', guest.BROKER], timeout=30)
+        guest.remove_runtime_service_mask(guest.BROKER, identity, category='expiry:fault-broker')
         # We already stopped this invocation under the mask. A second stop
         # after unmasking can cancel a live client's newly queued activation.
         guest.activate_broker(restart=False)

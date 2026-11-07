@@ -346,6 +346,16 @@ Preparation that directly shuts down a guest must first consume
 live, as in offline app-snapshot capture. A recorded collection failure must
 still fail the final verdict after cleanup, even when product assertions pass.
 
+Installed service-outage fixtures reuse `system_guest.runtime_service_mask` and
+`remove_runtime_service_mask` for creation and unchanged root-owned symlink
+verification before unmasking. Keep invocation checks, stop/start order and
+recovery assertions in each test; reboot-spanning or separately journaled faults
+retain their own lifetime records. Resolve a D-Bus dependency's actual
+`SystemdService` from its activation file and require the declared unit before
+masking it. Budget its native stop timeout plus transport headroom: the usage
+reader uses `system_guest.run`'s 120-second default rather than racing the
+daemon's normal inactivity exit with a 30-second deadline.
+
 Native policy workers reuse `onpc_app_rows::fixture_app(role)` for the fixed
 Allowed/Hard/Soft fixture app IDs, matching the controller's `MATCH_APPS`.
 Do not copy the desktop-ID hashing into another worker. Each consumer retains

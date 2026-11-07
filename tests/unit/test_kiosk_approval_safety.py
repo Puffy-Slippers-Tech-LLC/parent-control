@@ -7,7 +7,7 @@ import pytest
 
 import ui_observations
 from private_artifacts import EvidenceError
-from tests.support.perl import run_perl
+from tests.support.perl import run_password_guard
 
 
 def test_privileged_fixture_password_uses_authenticated_callers_private_file(tmp_path, monkeypatch):
@@ -103,28 +103,7 @@ def test_temporary_access_secret_binds_each_parent_and_requires_fresh_proofs(mod
                 'included': ('other-child', 'other-parent', 300, True),
                 'replacement': ('other-child', 'parent', 300, False)}
     prefix = 'flatpak-temporary-access' if surface == 'kiosk' else 'flatpak-grid-temporary-access'
-    result = run_perl(r'''
-use strict;
-use warnings;
-use JSON::PP;
-our @events;
-BEGIN { $INC{'testapi.pm'} = 1; }
-package testapi;
-sub record_info { }
-sub current_console { 'sut' }
-sub get_var { '1' }
-package onpc_journey;
-sub seen {
-    my ($self, $stage) = @_;
-    push @main::events, ['proof', $self->{stage_prefix} . $stage];
-    return {observed => $self->{stage_prefix} . $stage};
-}
-package main;
-require onpc_password;
-{
-    no warnings 'redefine';
-    *onpc_password::type_fixture_secret = sub { push @events, ['delivery', $_[0], $_[3]]; };
-}
+    result = run_password_guard(r'''
 my ($mode, $prefix, $encoded, $surface) = @ARGV;
 my $requests = decode_json($encoded);
 my $binding_key = $surface eq 'kiosk' ? 'kiosk_request' : 'overlay_request';
@@ -194,40 +173,18 @@ def test_shell_cancel_proof_requires_the_bound_request_and_a_new_challenge():
     ('wrong-choice', None), ('wrong-scope', None),
 ])
 def test_panel_approval_secret_requires_fresh_proofs_and_cannot_be_replayed(mode, role):
-    from panel_request_case import PLAN, INCLUDED_PLAN
-    plan = PLAN if mode == 'excluded' else INCLUDED_PLAN
-    binding = list(plan.overlay_request)
+    binding = ['child', 'parent', 30, False] if mode == 'excluded' else [
+        'child', 'other-parent', 30, True]
     if mode == 'wrong-choice':
         binding[3] = False
-    result = run_perl(r'''
-use strict;
-use warnings;
-use JSON::PP;
-our @events;
-BEGIN { $INC{'testapi.pm'} = 1; }
-package testapi;
-sub record_info { }
-sub current_console { 'sut' }
-sub get_var { '1' }
-package onpc_journey;
-sub seen {
-    my ($self, $stage) = @_;
-    push @main::events, ['proof', $stage];
-    return {observed => $stage};
-}
-package main;
-require onpc_password;
-{
-    no warnings 'redefine';
-    *onpc_password::type_fixture_secret = sub { push @events, ['delivery', $_[0], $_[3]]; };
-}
+    result = run_password_guard(r'''
 my $journey = bless {prefix => shift @ARGV, stage_prefix => '',
     overlay_request => decode_json(shift @ARGV), review => 0}, 'onpc_journey';
 $journey->{stage_prefix} = 'later-' if shift(@ARGV) eq 'wrong-scope';
 my $first = eval { onpc_password::enter_overlay_shell_password($journey); 1; };
 my $replay = eval { onpc_password::enter_overlay_shell_password($journey); 1; };
 print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events => \@events});
-''', plan.prefix, json.dumps(binding), mode)
+''', 'panel-request-case', json.dumps(binding), mode)
     if role is None:
         assert json.loads(result.stdout) == {'first': 0, 'replay': 0, 'events': []}
         return
@@ -249,52 +206,21 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
 def test_composed_kiosk_secret_scope_and_single_use(mode):
     # Execute the real password guard; replace only the secret delivery sink.
     # No password is supplied, and each isolated Perl process owns its latch.
-    from app_rule_changes_case import PLAN
-    from revocation_case import PLAN as REVOCATION_PLAN
-    from grant_work_recovery import INCLUDED_PLAN as RECOVERY_PLAN
-    from panel_request_case import PLAN as PANEL_PLAN
-    from kiosk_recovery import PLAN as KIOSK_PLAN
-    from app_restart_active import PLAN as RESTART_PLAN, SIGN_OUT_PLAN, REBOOT_PLAN
-    from app_restart_expired import PLAN as EXPIRED_PLAN, SIGN_OUT_PLAN as EXPIRED_SIGN_OUT_PLAN
-    from app_restart_expired import REBOOT_PLAN as EXPIRED_REBOOT_PLAN
-    from expired_daily_replacement import PLAN as DAILY_EXPIRED_PLAN
-    from update_process_case import PLAN as UPDATE_PLAN
-    from update_session_case import PLAN as SESSION_PLAN
-    from idle_active_expired import PLAN as IDLE_PLAN
-    transition = [PLAN.prefix + '-soft-opening', 'soft-opening-', list(PLAN.kiosk_request)]
-    revocation = [REVOCATION_PLAN.prefix + '-request', 'request-', list(REVOCATION_PLAN.kiosk_request)]
-    recovery = [RECOVERY_PLAN.prefix, list(RECOVERY_PLAN.kiosk_request)]
+    # These are independent guard inputs, not runnable customer plans. Loading
+    # every journey here couples a focused refusal check to unrelated setup.
+    transition = ['app-rule-changes-soft-opening', 'soft-opening-', ['other-child', 'parent', 75, True]]
+    revocation = ['revocation-case-request', 'request-', ['other-child', 'parent', 1200, True]]
+    recovery = ['grant-work-recovery', ['child', 'parent', 1200, True]]
     if mode in ('expired-recovery', 'sign-out-expired-recovery', 'reboot-expired-recovery',
                 'expired-recovery-wrong-scope'):
-        expired = (EXPIRED_PLAN if mode == 'expired-recovery' else
-                   EXPIRED_REBOOT_PLAN if mode == 'reboot-expired-recovery' else EXPIRED_SIGN_OUT_PLAN)
-        recovery = [expired.prefix, list(expired.kiosk_request)]
+        expired = ('app-restart-expired' if mode == 'expired-recovery' else
+                   'reboot-expired' if mode == 'reboot-expired-recovery' else 'sign-out-in-expired')
+        recovery = [expired, ['child', 'parent', 1200, False]]
     if mode in ('daily-expired-recovery', 'daily-expired-wrong-scope'):
-        recovery = [DAILY_EXPIRED_PLAN.prefix, list(DAILY_EXPIRED_PLAN.kiosk_request)]
-    restart = (REBOOT_PLAN if mode == 'reboot-request' else
-               SIGN_OUT_PLAN if mode == 'sign-out-request' else RESTART_PLAN)
-    result = run_perl(r'''
-use strict;
-use warnings;
-use JSON::PP;
-our @events;
-BEGIN { $INC{'testapi.pm'} = 1; }
-package testapi;
-sub record_info { }
-sub current_console { 'sut' }
-sub get_var { '1' }
-package onpc_journey;
-sub seen {
-    my ($self, $stage) = @_;
-    push @main::events, ['proof', $self->{stage_prefix} . $stage];
-    return {observed => $self->{stage_prefix} . $stage};
-}
-package main;
-require onpc_password;
-{
-    no warnings 'redefine';
-    *onpc_password::type_fixture_secret = sub { push @events, ['delivery', $_[0], $_[3]]; };
-}
+        recovery = ['expired-daily-replacement', ['child', 'parent', 1200, False]]
+    restart = ('reboot-active' if mode == 'reboot-request' else
+               'sign-out-in-active' if mode == 'sign-out-request' else 'app-restart-active')
+    result = run_password_guard(r'''
 my $mode = shift @ARGV;
 my $transition = decode_json(shift @ARGV);
 my $revocation = decode_json(shift @ARGV);
@@ -380,12 +306,12 @@ my $ok = eval {
 };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
 ''', mode, json.dumps(transition), json.dumps(revocation), json.dumps(recovery),
-        PANEL_PLAN.prefix, KIOSK_PLAN.prefix,
-        json.dumps([restart.prefix, list(restart.kiosk_request)]),
-        json.dumps([(SESSION_PLAN if mode == 'session-update-request' else UPDATE_PLAN).prefix,
-                    list(UPDATE_PLAN.kiosk_request)]),
-        json.dumps({'request': list(IDLE_PLAN.kiosk_requests['request-approval-open']),
-                    'recovery': list(IDLE_PLAN.kiosk_request)}))
+        'panel-request-case', 'baseline-journey',
+        json.dumps([restart, ['other-child', 'parent', 1200, True]]),
+        json.dumps(['update-session-case' if mode == 'session-update-request' else 'update-process-case',
+                    ['other-child', 'parent', 1200, False]]),
+        json.dumps({'request': ['other-child', 'parent', 600, True],
+                    'recovery': ['other-child', 'parent', 1200, True]}))
     value = json.loads(result.stdout)
     deliveries = [event for event in value['events'] if event[0] == 'delivery']
     if mode.startswith('idle-'):

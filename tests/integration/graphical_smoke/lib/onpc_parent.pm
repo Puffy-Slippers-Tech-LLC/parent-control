@@ -21,6 +21,14 @@ sub sign_in {
     die 'parent:entry-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
         && ($account eq 'parent' || $account eq 'other-child')
         && $expected eq 'success';
+    # A composed history may authenticate another account first. Use its
+    # declared single-use Parent challenge instead of the one-shot legacy route.
+    if ($account eq 'parent' && ref($journey->{challenges}) eq 'HASH'
+            && exists($journey->{challenges}{'parent-login'})) {
+        die 'parent:entry-binding' unless $journey->{challenges}{'parent-login'}[0] eq $account;
+        return onpc_gdm::sign_in_challenge($journey, 'parent-login',
+            'installed-greeter', 'parent-focused', 'desktop');
+    }
     my $list = $journey->seen('installed-greeter');
     my $prefix = $account eq 'parent' ? 'parent' : 'standard';
     onpc_gdm::choose_account($journey, $account, $list, 'installed-greeter', "$prefix-focused");

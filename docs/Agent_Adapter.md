@@ -4,10 +4,12 @@ Status: Codex session preparation, interactive protocol extraction, batch
 presentation normalization, model/profile preflight and remaining caller/profile
 integration are implemented. Current Codex policy has been reconciled with the
 adapter boundary. Claude policy migration and configuration-driven agent selection
-remain proposed. Bounded Codex live-agent qualification is partial: finite
+remain proposed. Delivery step 2's Codex extraction is complete within the agreed
+bounded scope. Codex live-agent qualification is partial: finite
 transport/profile and trusted-project rule checks passed. Git helper callers now
 check catalogue readiness. Delegated write-boundary enforcement and explicit
-helper retirement before coordinator handoff remain unqualified.
+helper retirement before coordinator handoff remain unqualified and are deferred
+from step 2 by the user's scope decision.
 
 The repository should select its coding agent solely from the checked-in
 top-level `agent` field in [config/environment.json](../config/environment.json).
@@ -69,7 +71,7 @@ task launch. Their Git transactions remain unqualified. No additional task
 subprocess runs outside its supervisor. Shared workflow prompts render resolved model and
 helper profiles rather than duplicating native model names. Native role assets
 retain their model/effort pins and requested permissions; native delegated sandbox
-inheritance remains a [qualification blocker](#trusted-worktree-follow-up).
+inheritance remains an [unqualified native limitation](#trusted-worktree-follow-up).
 Their instructions refer to those configured pins. The current goal API, fresh helper context, independent Astra
 backend review and workflow-specific escalation/delegation rules remain enforced.
 The owning execution/test policies distinguish that extraction from the proposed
@@ -78,32 +80,20 @@ later delivery step; no alternative runtime or selection is enabled here.
 
 ## Next implementation step
 
-Finish delivery step 2's delegated permission and helper-retirement qualification
-through the extracted boundary. Preserve the successful finite
-[transport/profile checks](#codex-live-qualification); do not rerun them solely to
-renew evidence. The [trusted-worktree follow-up](#trusted-worktree-follow-up)
-established project rule loading and Git caller catalogue readiness, and obtained
-finite adviser, translator and backend-review reports. Native role files cannot
-replace the parent sandbox in CLI 0.167.0, so a workspace-write coordinator does
-not provide the required separately enforced read-only helper boundary. Use a
-supported independently supervised read-only route or a qualified native version
-that provides that boundary; instruction-level refusal is insufficient. Also
-establish helper retirement before an ongoing coordinator resumes under the
-owning workflow policies. A retained completed listing is not live activity, but
-`interrupt_agent` returning an already completed result does not prove explicit
-closure. Preserve failed coordinator results; parent shutdown and component
-reports do not replace them. Do not weaken the owning requirements.
-Use a disposable checkout with project trust/readiness
-established through the [maintained setup route](Approval-Tools.md#one-time-setup),
-and maintained ownership/storage routes. Preserve explicit overrides,
-escalation timing, budgets, read-only roles, independent backend review and
-agent-free operations. Retain unexercised refusal/capacity recovery and full Git
-conflict/stash/close-out paths explicitly; finite profile checks do not qualify
-those workflows. Report actual CLI/model readiness limits;
-source/unit checks and launcher help do not establish native compatibility.
-Do not enable Claude/configuration selection or redo delivered extraction. The
-remaining Claude policy migrations are still proposed, as described in
-[Models, roles and repository policy](#models-roles-and-repository-policy).
+The current Codex-only session is closed out. Preserve the accepted
+[transport/profile checks](#codex-live-qualification) and
+[trusted-worktree results](#trusted-worktree-follow-up); do not repeat them solely
+to renew evidence. The user deferred native delegated permission enforcement and
+explicit helper retirement from delivery step 2. They remain unqualified;
+deferral supplies no passing result or change to owning workflow requirements.
+Do not add hooks, helper orchestration or native-runtime workarounds to this
+extraction step. Unexercised refusal/capacity recovery and full Git
+conflict/stash/close-out paths remain explicitly unqualified.
+
+The next planned implementation is delivery step 3, under a separately scoped
+Claude integration session and the proposed
+[policy migrations](#models-roles-and-repository-policy). This close-out does not
+start that work, enable Claude/configuration selection or redo delivered extraction.
 
 ## Configuration and scope
 
@@ -626,10 +616,11 @@ separate read-only enforcement. Self-refusal proves instruction compliance, not
 sandbox-level denial of a delegated write. The tool surface also exposed no
 explicit close operation. Joined completed reports and eventual supervised
 shutdown do not prove the owning workflow's close-before-handoff boundary.
-Independent review using the same exact goal confirmed that delivery step 2
-must remain open. Catalogue-preflight cancellation before supervision also
-remains unqualified.
+Independent review using the same exact goal confirmed these native qualification
+limits. The user subsequently deferred their remediation from delivery step 2's
+bounded close-out; the failed and incomplete results above remain unchanged.
+Catalogue-preflight cancellation before supervision also remains unqualified.
 
 No provider/model refusal or capacity-recovery path, full Git close-out/conflict/stash workflow,
 Claude runtime or configuration switch was qualified. These remain separate
-from the accepted finite checks and the remaining delegated-role work.
+from the accepted finite checks and the deferred delegated-role work.

@@ -538,6 +538,11 @@ Observers normalize completed rows retained by older backends to this green
 checkmark format and remove the old `— complete` suffix. When an old row has
 no recorded elapsed time, show `(duration unavailable)`; never fabricate timing.
 Single-task E2E runs publish the same completed recap as multi-task runs.
+Watch shows `[branch] launcher (Closing Task)` during task close-out, with
+`Closing Task` in green. This includes the inactive, struck-through Session
+interval while the controller processes a completion response, validation and
+the commit skill's commit, push and propagation. It clears when the green
+completed task recap appears in Status. Stop and reload notices take priority.
 
 The current task summary uses the plan's plain-language task title. Its separator
 is followed by bold `Last Error:` and `Status:` labels, with a blank line between

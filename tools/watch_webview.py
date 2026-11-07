@@ -394,6 +394,8 @@ class Viewer:
             if output.run is not None:
                 try:
                     steps, details = output.status(active)
+                    if active and not status and output.closing_task(steps, session_inactive=not session.active):
+                        status = 'Closing Task'
                     error_lines = output.error_status(steps)
                     summary = output.task_summary(active)
                     lines = [*summary, *(['─'] if summary else [])]

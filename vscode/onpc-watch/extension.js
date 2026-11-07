@@ -439,15 +439,16 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c
                     JSON.stringify({ root: command.root, run: command.run, launcher: command.launcher, argv: command.argv })];
                 const remote = command.source.transport === 'ssh';
                 const quote = value => "'" + value.replace(/'/g, "'\\''") + "'";
-                // Match public SSH launcher startup when Codex comes from NVM.
-                const remoteArgv = ['/bin/bash', '-c', `if ! command -v codex >/dev/null 2>&1; then
+                // GUI and SSH environments can both omit NVM from PATH.
+                // Match public SSH launcher startup without sourcing interactive rc files.
+                const actionArgv = ['/bin/bash', '-c', `if ! command -v codex >/dev/null 2>&1; then
     export NVM_DIR="\${NVM_DIR:-$HOME/.nvm}"
     if [ -s "$NVM_DIR/nvm.sh" ]; then . "$NVM_DIR/nvm.sh"; fi
 fi
 exec "$@"`, 'onpc-watch', ...argv];
-                const shellPath = remote ? 'ssh' : argv[0];
+                const shellPath = remote ? 'ssh' : actionArgv[0];
                 const shellArgs = remote ? ['-t', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
-                    '-o', 'ConnectTimeout=5', '--', command.source.host, remoteArgv.map(quote).join(' ')] : argv.slice(1);
+                    '-o', 'ConnectTimeout=5', '--', command.source.host, actionArgv.map(quote).join(' ')] : actionArgv.slice(1);
                 actionTerminal({
                     name: `${command.launcher}: ${message.kind} (${command.source.label})`,
                     shellPath, shellArgs,

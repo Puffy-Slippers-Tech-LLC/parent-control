@@ -8,7 +8,7 @@ Status: Codex session preparation, interactive protocol extraction, batch
 presentation normalization, model/profile preflight and remaining caller/profile
 integration are implemented. Current Codex policy has been reconciled with the
 adapter boundary. Shared configuration, session lifetime, setup/SSH and Watch
-integration remain active in the [execution plan](Agent_Adapter.md). Claude work
+integration are complete in the [execution plan](Agent_Adapter.md). Claude work
 requiring live access remains future work under [Out of scope](#out-of-scope).
 Delivery step 2's Codex extraction is complete within the agreed
 bounded scope. Codex live-agent qualification is partial: finite
@@ -87,8 +87,8 @@ inheritance remains an [unqualified native limitation](#trusted-worktree-follow-
 Their instructions refer to those configured pins. The current goal API, fresh helper context, independent Astra
 backend review and workflow-specific escalation/delegation rules remain enforced.
 The owning execution/test policies distinguish that extraction from the proposed
-Claude policy migration below. Setup/SSH/Watch native assumptions remain for the
-active shared integration tasks; no alternative runtime or selection is enabled here.
+Claude policy migration below. Setup/SSH/Watch use the shared admission boundary;
+no alternative runtime or selection is enabled here.
 
 ## Current scope
 
@@ -102,10 +102,10 @@ Do not add hooks, helper orchestration or native-runtime workarounds to this
 extraction step. Unexercised refusal/capacity recovery and full Git
 conflict/stash/close-out paths remain explicitly unqualified.
 
-Active tasks 013–016 in the [plan queue](Agent-Adapter-Task-Queue.md) cover shared
+Completed tasks 013–016 in the [plan queue](Agent-Adapter-Task-Queue.md) cover shared
 configuration validation, pinned session selection, caller integration,
 setup/SSH readiness and Watch/provenance/assets. They do not require paid Claude
-access and must preserve existing Codex workflows. Requested Claude execution
+access and preserve existing Codex workflows. Requested Claude execution
 must fail explicitly while unqualified; no silent Codex substitution is allowed.
 Live Claude qualification and its dependent native integration remain
 [out of scope](#out-of-scope). Preserve accepted Codex checks and the explicit
@@ -318,8 +318,8 @@ dependency and package payload maps.
 | Git recovery | [launcher_git.py](../tools/launcher_git.py) and [launcher_worktrees.py](../tools/launcher_worktrees.py) resolve pinned profiles and prepare sessions through the adapter | Qualify catalogue readiness and inherit the parent's selection when enabled; keep deterministic Git transactions shared |
 | Policies and roles | Shared prompts render resolved profiles; [AGENTS.md](../AGENTS.md), [Execution-Plans.md](Execution-Plans.md), [tests/README.md](../tests/README.md) and native role TOMLs retain current Codex requirements | Qualify and revise the owning policies before Claude execution; render its native roles from shared requirements |
 | Setup | [setup.sh](../setup.sh) routes user-owned policy preparation and account readiness through the fixed adapter; [install_codex_rules.py](../tools/install_codex_rules.py) retains Codex-only managed policy | Codex preparation is supported; unqualified providers report action needed without installation, authentication or fallback |
-| Remote and Watch | [launcher_controller.py](../tools/launcher_controller.py) dispatches without coding-CLI assumptions; the native adapter discovers Codex/Node only at agent admission. [extension.js](../vscode/onpc-watch/extension.js) still has Codex-specific SSH startup | Launcher dispatch resolves the executing checkout before native readiness; Watch changes remain task 016 |
-| Supporting assets | Existing test doubles, skills, ignore rules, source archives and launcher reload inventories contain Codex assumptions | Adapt affected consumers without introducing a second workflow or unrelated test matrix |
+| Remote and Watch | [launcher_controller.py](../tools/launcher_controller.py) and [extension.js](../vscode/onpc-watch/extension.js) dispatch without coding-CLI assumptions; the native adapter discovers Codex/Node only at agent admission | Watch uses the destination launcher's shared environment route and displays recorded agent/model/effort, with unknown provenance for legacy records |
+| Supporting assets | Controller dependency inventories hash shared and optional adapter/bridge sources without importing optional SDKs; private `.claude` state is ignored | Existing Codex instructions/skills remain intact; native Claude assets stay deferred, and development assets stay outside product payload and source allowlists |
 
 ### Adapter boundary
 
@@ -622,7 +622,8 @@ an explicitly scoped installer and the existing setup/approval process.
 
 Launcher dispatch leaves native PATH discovery to the selected adapter after
 destination checkout verification. Setup uses the same native environment
-capability. Watch's Codex-specific SSH startup remains for task 016.
+capability. Watch actions use the same destination launcher route without a
+separate Codex PATH or NVM wrapper.
 Resolve the executing checkout and its configuration before checking
 its selected CLI; prepare native user-local installation paths as needed without
 sourcing arbitrary interactive shell startup files. The selected agent's login
@@ -630,8 +631,9 @@ must belong to the actual remote execution account. Client authentication and
 plugin connections are not transferred to the server.
 
 Watch continues to observe the same bounded transcripts, run identities and
-mailboxes. Add the recorded agent to session metadata alongside native model
-and effort. Keep start/resume/reload commands unchanged; restarting from Watch
+mailboxes. Session surfaces display the recorded agent alongside native model
+and effort; legacy records show `Unknown agent` without inferring provenance
+from current configuration or model names. Start/resume/reload commands remain unchanged; restarting from Watch
 reads the executing checkout's configuration at the same safe boundary as
 terminal execution. Observation and stop actions do not require a coding CLI.
 

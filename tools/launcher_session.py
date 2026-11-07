@@ -263,6 +263,12 @@ class SessionPanel(LauncherDisplay):
                 row.append(char)
         return rows, caret_row, caret_column
 
+    def model_label(self):
+        # Retained records are provenance, never a reason to read live config
+        # or infer a provider from a native model name.
+        return ' '.join(filter(None, (self.chat_state.get('agent') or 'Unknown agent',
+                                     self.chat_state.get('model'), self.chat_state.get('effort'))))
+
     def layout(self, width, height, logs, *, scroll=None, output_width=None,
                input_mode='chat', question=None, working='', session_logs=None):
         """Return the same transcript/composer at any size and screen location."""
@@ -302,8 +308,7 @@ class SessionPanel(LauncherDisplay):
         self.editor_height = len(editor_rows)
         self.simplified_bounds = None
         if input_mode == 'chat':
-            hint = Text(self.editor.error or ' '.join(filter(None, (
-                self.chat_state.get('model'), self.chat_state.get('effort')))),
+            hint = Text(self.editor.error or self.model_label(),
                 style='red' if self.editor.error else 'dim')
             toggle = Text('Simplified ', style='#808080')
             state_label = '[on]' if self.simplified else '[off]'
@@ -357,8 +362,7 @@ class SessionPanel(LauncherDisplay):
         if logs is None:
             logs = self.text_output or []
         return dict(lines=[*logs, *self.details, *self.streaming_lines], working=self.working(),
-                    model=' '.join(filter(None, (self.chat_state.get('model'),
-                                                self.chat_state.get('effort')))),
+                    model=self.model_label(),
                     simplified=simplified)
 
     def working(self):

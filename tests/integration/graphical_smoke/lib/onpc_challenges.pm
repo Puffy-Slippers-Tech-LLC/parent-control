@@ -207,6 +207,27 @@ sub natural_expiry {
     $journey->finish();
 }
 
+sub suspend_active_grant {
+    onpc_progress::operation('Waking and unlocking the same child work before extra time expires');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'suspend-active-grant:plan' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'suspend-active-grant', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 1200, 'default', 1);
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
+    $journey->seen($_) for qw(initial-countdown suspend wake-session);
+    onpc_desktop_session::observe_lock($journey, 'challenge');
+    onpc_desktop_session::unlock_success($journey);
+    $journey->seen($_) for qw(returned-session returned-countdown);
+    onpc_app_rows::native_activity_resume($journey, 'resume');
+    $journey->seen('usable-activity');
+    $journey->finish();
+}
+
 sub countdown_daily {
     onpc_progress::operation('Following daily time and original child work through unlock and natural lock');
     my ($exchange, $declared, $challenges) = @_;

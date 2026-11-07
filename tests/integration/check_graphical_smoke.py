@@ -777,6 +777,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          kiosk_ineligible=False, restricted_station_about=False, fresh_thirty_allowance=False,
          fresh_thirty_child='child', time_profiles_daily=None,
          grant_only_profile=False, grant_only_revoke=False, time_profiles_grant=False,
+         suspend_active_grant=False,
          feedback_privacy=False, feedback_states=False, format_qualification=False,
          trace_stable_state=False, trace_transition=False, compose_observation=False,
          accessibility_input_trace=False, parent_save_trace=False, custom_save_trace=False,
@@ -837,6 +838,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         and time_profiles_daily is None and not any(value for name, value in locals().items()
             if name not in ('assets', 'provision_credentials', 'kiosk_preferences_confinement')
             and isinstance(value, bool)))), 'smoke:kiosk-preferences-confinement-prerequisites')
+    require(type(suspend_active_grant) is bool and (not suspend_active_grant or (
+        assets is not None and provision_credentials and time_profiles_daily is None
+        and fresh_desktop is None and lock_surface is None and parent_entry is None
+        and approval_flow is None and active_grant_disable is None
+        and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'suspend_active_grant')
+            and isinstance(value, bool)))), 'smoke:suspend-active-grant-prerequisites')
     require(type(grant_only_profile) is bool and type(grant_only_revoke) is bool
         and (not grant_only_revoke or grant_only_profile) and (not grant_only_profile or (
         assets is not None and provision_credentials and time_profiles_daily is None
@@ -1185,7 +1193,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             (fresh_thirty_allowance or fresh_thirty_child == 'child'),
             'smoke:fresh-thirty-child-prerequisites')
     set_allowance = (set_allowance or fresh_thirty_allowance or time_profiles_daily is not None
-                     or grant_only_profile or time_profiles_grant)
+                     or grant_only_profile or time_profiles_grant or suspend_active_grant)
     require(type(restricted_station_about) is bool and not (restricted_station_about and (
         kiosk_ineligible or kiosk_multiple or kiosk_valid_duration or request_duration
         or request_flow or mate_prompt or kiosk_approval or kiosk_rejection or auth_result
@@ -1966,6 +1974,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-time-profiles-' + time_profiles_daily + '-qualification'
         if grant_only_profile:
             result['scope'] = 'installed-grant-only-' + ('revoke' if grant_only_revoke else 'profile') + '-qualification'
+        if suspend_active_grant:
+            result['scope'] = 'installed-suspend-active-grant-qualification'
         if time_profiles_grant:
             result['scope'] = 'installed-time-profiles-grant-qualification'
         if app_restart:
@@ -2625,6 +2635,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if grant_only_profile:
                     from parent_setup_qualification import GrantOnlyProfileQualification, GrantOnlyRevokeQualification
                     qualification_class = GrantOnlyRevokeQualification if grant_only_revoke else GrantOnlyProfileQualification
+                if suspend_active_grant:
+                    from parent_setup_qualification import SuspendActiveGrantQualification
+                    qualification_class = SuspendActiveGrantQualification
                 if time_profiles_grant:
                     from parent_setup_qualification import CombinedTimeProfileQualification
                     qualification_class = CombinedTimeProfileQualification

@@ -163,6 +163,10 @@ The shared watch display uses CPU frame copies; preparation disables SPICE
 OpenGL and guest 3D acceleration to keep that display compatible with QEMU.
 Preparation also enables migration for a host-passthrough CPU and disables
 `invtsc` so later app snapshots can save memory.
+For normal ACPI S3 suspend/wake, preparation enables suspend-to-memory and
+replaces software Virtio video with QEMU's standard VGA device. This avoids the
+post-resume Virtio graphics queue wait that blocked the child Shell during
+unlock; the shared copied display, VNC input and desktop assertions are unchanged.
 The virtio balloon also enables
 [`freePageReporting`](https://www.libvirt.org/formatdomain.html#memory-balloon-device),
 allowing unused guest pages to return to the host instead of preserving stale

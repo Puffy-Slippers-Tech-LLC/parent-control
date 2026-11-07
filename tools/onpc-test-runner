@@ -201,6 +201,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reproduce-natural-expiry',
                                       'reproduce-natural-access',
                                       'reproduce-countdown-grant',
+                                      'reproduce-suspend-active-grant',
                                       'reproduce-countdown-resume',
                                       'reproduce-panel-language',
                                       'reproduce-retained-unlock',
@@ -246,6 +247,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             raise ValueError('test-runner:fixture-maintenance-requires-start')
         if (args.action in ('sync-fixtures', 'reproduce-baseline-restoration',
                            'reproduce-natural-access', 'reproduce-natural-expiry', 'reproduce-countdown-grant',
+                           'reproduce-suspend-active-grant',
                            'reproduce-overlay-activity', 'reproduce-overlay-return',
                            'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
                            'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
@@ -256,6 +258,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         fixture_options = []
         if args.fixture_maintenance or args.action in ('sync-fixtures', 'reproduce-baseline-restoration',
                                                       'reproduce-natural-access', 'reproduce-natural-expiry', 'reproduce-countdown-grant',
+                                                      'reproduce-suspend-active-grant',
                                                       'reproduce-overlay-activity', 'reproduce-overlay-return',
                                                       'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
                                                       'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',

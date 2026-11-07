@@ -204,6 +204,9 @@ sub enter_kiosk_mate_password {
                 && defined($wrong) && $wrong eq 'request-1200'
                 || ($journey->{prefix} // '') eq 'panel-request-case-profile-request'
                 && ($journey->{stage_prefix} // '') eq 'profile-request-'
+                && defined($wrong) && $wrong eq 'request-1200'
+                || ($journey->{prefix} // '') eq 'suspend-active-grant-profile-request'
+                && ($journey->{stage_prefix} // '') eq 'profile-request-'
                 && defined($wrong) && $wrong eq 'request-1200');
         my $id = ($baseline || $isolation || $profile || $composed ? ($journey->{stage_prefix} // '') : '')
             . 'kiosk-mate-' . ($chinese || $long_request || $profile_request ? $wrong : $binding);

@@ -3,6 +3,7 @@
 
 import io
 import hashlib
+import math
 from contextlib import contextmanager, nullcontext
 import os
 from pathlib import Path
@@ -517,6 +518,103 @@ class Transport:
         self.call(['/usr/bin/python3', '-c', program, previous_boot_sha256],
                   timeout=180, check=False)
         require(self.commands.last_returncode in (0, 255), 'transport:reboot-command-failed')
+
+    @observed('Suspending and waking the same owned child computer')
+    def suspend_wake(self, previous_boot_sha256, *, duration, deadline, guard):
+        """Observe actual guest sleep before one wake; never wait for SSH to wake.
+
+        Commands' stream callback also runs on empty polling ticks. It services
+        the host-side wake while the single SSH submission may still be pending.
+        The controller's monotonic clock keeps running during guest suspension.
+        """
+        require(type(previous_boot_sha256) is str
+                and re.fullmatch(r'[0-9a-f]{64}', previous_boot_sha256),
+                'transport:invalid-previous-boot')
+        require(type(duration) in (int, float) and math.isfinite(duration)
+                and 0 < duration <= 300 and type(deadline) in (int, float)
+                and math.isfinite(deadline) and callable(guard)
+                and time.monotonic() + duration + 30 < deadline,
+                'transport:suspend-deadline')
+        lease, config = self.lease, dict(self.config)
+        require(lease is not None and lease.fd is not None
+                and lease.state['phase'] == 'running'
+                and config['run'] == lease.state['run']
+                and config['domain_uuid'] == lease.source.uuid
+                and config['domain_id'] == lease.state['domain_id']
+                and not getattr(self, 'suspend_submitted', False),
+                'transport:suspend-owner')
+        guard()
+        self.guard(config)
+        import libvirt
+        from real_interval import wait_real_interval
+        from watch_activity import event
+        domain = lease.source.domain
+        require(domain.ID() == config['domain_id'] and domain.state()[0] == libvirt.VIR_DOMAIN_RUNNING,
+                'transport:suspend-entry')
+        lease.close_probe()
+        self.suspend_submitted = True  # An uncertain submission is never replayed.
+        suspended_at = None
+        woke_at = None
+
+        def owned_state():
+            require(self.config == config, 'transport:configuration-changed')
+            self.guard(config)
+            require(domain.ID() == config['domain_id'], 'transport:domain-replaced-or-shared')
+            return domain.state()[0]
+
+        def tick(*_):
+            nonlocal suspended_at, woke_at
+            if woke_at is not None:
+                return
+            guard()
+            require(time.monotonic() < deadline, 'transport:suspend-timeout')
+            state = owned_state()
+            require(state in (libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PMSUSPENDED),
+                    'transport:suspend-state')
+            if state != libvirt.VIR_DOMAIN_PMSUSPENDED:
+                return
+            suspended_at = time.monotonic()
+            event('Observed the same child computer asleep')
+            def asleep():
+                guard()
+                require(owned_state() == libvirt.VIR_DOMAIN_PMSUSPENDED,
+                        'transport:suspend-ended-before-wake')
+            wait_real_interval(duration, deadline=deadline, guard=asleep,
+                               progress=lambda checkpoint, elapsed: event(
+                                   f'Guest sleep interval checkpoint {checkpoint}/4'))
+            asleep()
+            require(time.monotonic() < deadline, 'transport:suspend-timeout')
+            woke_at = time.monotonic()  # Consume before input, including an uncertain reply.
+            event('Waking the same child computer once')
+            domain.pMWakeup(0)
+
+        program = ('import hashlib,os,pathlib,sys; '
+            'assert hashlib.sha256(pathlib.Path("/proc/sys/kernel/random/boot_id").read_bytes())'
+            '.hexdigest()==sys.argv[1]; '
+            'assert "[deep]" in pathlib.Path("/sys/power/mem_sleep").read_text().split(); '
+            'os.execv("/usr/bin/systemctl", ["systemctl", "--no-ask-password", "--no-block", "suspend"])')
+        try:
+            self.call(['/usr/bin/python3', '-c', program, previous_boot_sha256],
+                      timeout=max(1, deadline - time.monotonic()), check=False, on_stream=tick)
+            status = self.commands.last_returncode
+            require(status in (0, 255), 'transport:suspend-command-failed')
+            while woke_at is None:
+                tick()
+                if woke_at is None:
+                    time.sleep(0.1)
+            require(owned_state() == libvirt.VIR_DOMAIN_RUNNING, 'transport:wake-state')
+        finally:
+            # Cleanup must not strand a sleeping guest whose SSH cannot stop it.
+            # Only the still-owned suspended instance may receive this one wake.
+            if woke_at is None and owned_state() == libvirt.VIR_DOMAIN_PMSUSPENDED:
+                woke_at = time.monotonic()
+                event('Waking the owned sleeping computer for cleanup')
+                domain.pMWakeup(0)
+        self.probe_ready(timeout=180)
+        lease.set_probe_transport(self)
+        return {'suspended': True, 'wake_submitted': True,
+                'suspended_monotonic': suspended_at, 'wake_monotonic': woke_at,
+                'suspended_seconds': woke_at - suspended_at}
 
     @observed('Transferring VM files')
     def copy(self, up, source, destination):

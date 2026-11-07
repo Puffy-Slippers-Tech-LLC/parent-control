@@ -1925,6 +1925,19 @@ class GrantOnlyRevokeQualification(GrantOnlyProfileQualification):
     revoke_first = True
 
 
+class SuspendActiveGrantQualification(GrantOnlyProfileQualification):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets
+    fixture_caller = 'check_e2e_suspend_active_grant'
+
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from suspend_active_grant import SuspendActiveGrantJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return SuspendActiveGrantJourney(context, progress)
+
+
 class CombinedTimeProfileQualification(GrantOnlyProfileQualification):
     daily_minutes = 4
 

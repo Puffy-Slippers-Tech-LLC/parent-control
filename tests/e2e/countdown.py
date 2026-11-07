@@ -27,13 +27,16 @@ class CountdownObservation:
 
 def check_countdown_balance(countdown, *, seconds, precision_seconds,
                             observed_monotonic_ns, max_elapsed_seconds=180,
-                            sampling_seconds=30):
+                            sampling_seconds=30, tolerance_seconds=0):
     """Compare public balances, allowing only declared rounding and real elapsed time.
 
     Time spent outside the child's active session may consume none of its daily
     allowance. It cannot consume more than the real interval between these reads.
     Horizontal minutes are floored; final seconds are exact. This is not a tick test.
     Callers may declare up to thirty seconds for estimate refresh and read latency.
+    A two-minute comparison uses the public remaining-time value directly, with
+    no additional rounding or sampling allowance. Request journeys admit that
+    tolerance only for additions of at least five minutes.
     """
     require(isinstance(countdown, CountdownObservation) and countdown.present,
             'countdown:presence-required')
@@ -41,16 +44,25 @@ def check_countdown_balance(countdown, *, seconds, precision_seconds,
             and type(precision_seconds) is int and 1 <= precision_seconds <= 60
             and type(observed_monotonic_ns) is int and observed_monotonic_ns > 0
             and type(max_elapsed_seconds) is int and 0 < max_elapsed_seconds <= 300
-            and type(sampling_seconds) is int and 0 <= sampling_seconds <= 30,
+            and type(sampling_seconds) is int and 0 <= sampling_seconds <= 30
+            and type(tolerance_seconds) is int and tolerance_seconds in (0, 120),
             'countdown:balance-binding')
     elapsed = (countdown.observed_monotonic_ns - observed_monotonic_ns) / 1_000_000_000
     require(0 < elapsed <= max_elapsed_seconds, 'countdown:elapsed-bound')
-    low, high = countdown_seconds(countdown.text)
-    require(low <= seconds + precision_seconds - 1 + sampling_seconds
-            and high >= seconds - precision_seconds + 1 - elapsed - sampling_seconds,
+    if tolerance_seconds:
+        require(type(countdown.seconds) is int, 'countdown:balance-binding')
+        low = high = countdown.seconds
+        sampling_seconds = 0
+        margin = tolerance_seconds
+    else:
+        low, high = countdown_seconds(countdown.text)
+        margin = precision_seconds - 1 + sampling_seconds
+    require(low <= seconds + margin
+            and high >= seconds - elapsed - margin,
             'countdown:balance-mismatch')
     return {'elapsed_seconds': elapsed, 'rounding_seconds': precision_seconds,
-            'sampling_seconds': sampling_seconds, 'display_interval_seconds': [low, high]}
+            'sampling_seconds': sampling_seconds, 'display_interval_seconds': [low, high],
+            **({'tolerance_seconds': tolerance_seconds} if tolerance_seconds else {})}
 
 
 @dataclass(frozen=True)

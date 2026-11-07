@@ -3839,6 +3839,14 @@ unchanged saved A/H/S choices. The case uses the qualified shared operations;
 per-stage kiosk bindings keep each prompt's declared request immutable during
 authentication. This adds no grid, other-user or Snap enforcement qualification.
 
+The affected case 246 regression passed again on Ubuntu 26.04 in
+`20261106T232036Z-fb6e6829` with five-minute requests and the developer's
+two-minute countdown tolerance. That tolerance requires a request of at least
+five minutes, accounts for elapsed time and adds no sampling or rounding margin.
+All three fresh parent approvals, child app effects, preserved work and final
+saved choices remained required. Recording, collection, coverage generation and
+owned cleanup passed; the VM was independently observed off.
+
 ### Flatpak grid use
 
 `flatpak_grid.PLAN` / `FlatpakGridJourney` and
@@ -3862,6 +3870,21 @@ safety checks and source checks passed. Both runs completed collection,
 worker/callback shutdown, owned cleanup and baseline restoration; the VM was
 independently observed off. This qualifies the named grid slice, with no
 complete-scenario or deferred Snap enforcement credit.
+
+Case 243 (`flatpak_temporary_access.GRID_PLAN` / `execute_grid` and
+`onpc_request_flow::flatpak_temporary_access` with `route=grid`) passed its
+complete Ubuntu 26.04 journey in `20261106T225011Z-4c835af6`. Jordan requests
+five extra minutes from the child overlay in the ordered Jamie/exclude,
+Sam/include and Jamie/exclude rows. Each real prompt independently identifies
+the selected parent. The countdown uses the developer's two-minute tolerance
+only for additions of at least five minutes, accounting for elapsed time with
+no further sampling or rounding allowance. Original A remains usable, H stays
+denied, S is initially denied, becomes usable when included, and its captured
+activity closes with relaunch denied after replacement exclusion. Final saved
+A/H/S choices remain unchanged. Recording, collection, coverage generation and
+owned cleanup passed, as did affected kiosk case 246. This qualifies the complete
+grid/child-overlay case; the precision change does not establish a timer
+root-cause repair or add other-user or Snap coverage.
 
 Case 100 (`flatpak_app_launch.HARD_GRID_PLAN` / `onpc_app_launch::run`) passed
 on Ubuntu 26.04 in `scenario-f5acc41af764408f9c4bad644af2d5ce`. Parent saved and

@@ -95,12 +95,14 @@ def test_bound_prompt_refuses_changed_request_before_another_recipient_read():
 
 
 @pytest.mark.parametrize('mode', ['sequence', 'wrong-scope', 'crossed-request', 'replay'])
-def test_temporary_access_secret_binds_each_parent_and_requires_fresh_proofs(mode):
+@pytest.mark.parametrize('surface', ['kiosk', 'overlay'])
+def test_temporary_access_secret_binds_each_parent_and_requires_fresh_proofs(mode, surface):
     # Exercise the password guard with finite request inputs. Importing the
     # complete customer case makes this safety test depend on unrelated plans.
-    requests = {'first': ('other-child', 'parent', 30, False),
-                'included': ('other-child', 'other-parent', 30, True),
-                'replacement': ('other-child', 'parent', 30, False)}
+    requests = {'first': ('other-child', 'parent', 300, False),
+                'included': ('other-child', 'other-parent', 300, True),
+                'replacement': ('other-child', 'parent', 300, False)}
+    prefix = 'flatpak-temporary-access' if surface == 'kiosk' else 'flatpak-grid-temporary-access'
     result = run_perl(r'''
 use strict;
 use warnings;
@@ -123,28 +125,34 @@ require onpc_password;
     no warnings 'redefine';
     *onpc_password::type_fixture_secret = sub { push @events, ['delivery', $_[0], $_[3]]; };
 }
-my ($mode, $prefix, $encoded) = @ARGV;
+my ($mode, $prefix, $encoded, $surface) = @ARGV;
 my $requests = decode_json($encoded);
+my $binding_key = $surface eq 'kiosk' ? 'kiosk_request' : 'overlay_request';
+my $enter = sub {
+    $surface eq 'kiosk' ? onpc_password::enter_kiosk_mate_password($_[0], 'bound-request')
+                       : onpc_password::enter_overlay_shell_password($_[0]);
+};
 my $ok = eval {
     for my $name ('first', 'included', 'replacement') {
         my $request = bless {prefix => "$prefix-$name", stage_prefix => "$name-",
-            kiosk_request => [@{$requests->{$name}}], review => 0}, 'onpc_journey';
+            $binding_key => [@{$requests->{$name}}], review => 0}, 'onpc_journey';
         $request->{stage_prefix} = 'included-' if $mode eq 'wrong-scope';
-        $request->{kiosk_request} = $requests->{included} if $mode eq 'crossed-request';
-        onpc_password::enter_kiosk_mate_password($request, 'bound-request');
-        onpc_password::enter_kiosk_mate_password($request, 'bound-request') if $mode eq 'replay';
+        $request->{$binding_key} = $requests->{included} if $mode eq 'crossed-request';
+        $enter->($request);
+        $enter->($request) if $mode eq 'replay';
     }
     1;
 };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
-''', mode, 'flatpak-temporary-access', json.dumps({name: [*binding[:3], int(binding[3])]
-                                               for name, binding in requests.items()}))
+''', mode, prefix, json.dumps({name: [*binding[:3], int(binding[3])]
+                             for name, binding in requests.items()}), surface)
     value = json.loads(result.stdout)
     names = list(requests) if mode == 'sequence' else ['first'] if mode == 'replay' else []
     assert value['ok'] == (mode == 'sequence')
     assert value['events'] == [event for name in names for event in (
         ['proof', name + '-approval-qualified'], ['proof', name + '-approval-rechecked'],
-        ['delivery', requests[name][1], name + '-kiosk-mate-approval'])]
+        ['delivery', requests[name][1], name + ('-kiosk-mate-approval' if surface == 'kiosk'
+                                               else '-overlay-shell-approval')])]
 
 
 def test_shell_cancel_proof_requires_the_bound_request_and_a_new_challenge():

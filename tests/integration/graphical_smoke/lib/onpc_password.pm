@@ -127,7 +127,7 @@ sub enter_kiosk_mate_password {
             my $temporary_access = ($journey->{prefix} // '') =~ /\Aflatpak-temporary-access-(first|included|replacement)\z/
                 && ($journey->{stage_prefix} // '') eq $1 . '-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq
-                    ($1 eq 'included' ? 'other-child,other-parent,30,1' : 'other-child,parent,30,0');
+                    ($1 eq 'included' ? 'other-child,other-parent,300,1' : 'other-child,parent,300,0');
             my $grant_access = ($journey->{prefix} // '') =~ /\A(?:grant-access|revocation)-case-request\z/
                 && ($journey->{stage_prefix} // '') eq 'request-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,1200,1';
@@ -156,7 +156,7 @@ sub enter_kiosk_mate_password {
                 && ref($request) eq 'ARRAY' && @$request == 4
                 && $request->[0] =~ /\A(?:child|other-child)\z/
                 && $request->[1] =~ /\A(?:parent|other-parent)\z/
-                && $request->[2] =~ /\A(?:30|60|75|120|150|180|240|600|900|1200|7200)\z/
+                && $request->[2] =~ /\A(?:30|60|75|120|150|180|240|300|600|900|1200|7200)\z/
                 && ($request->[3] == 0 || $request->[3] == 1);
             $role = $request->[1];
         }
@@ -268,20 +268,29 @@ sub enter_overlay_shell_password {
             && ($journey->{stage_prefix} // '') eq ''
             && ref($journey->{overlay_request}) eq 'ARRAY'
             && join(',', @{$journey->{overlay_request}}) =~ /\Achild,(?:parent,30,0|other-parent,30,1)\z/;
-        my $composed = (($journey->{prefix} // '') eq 'overlay-approval-return' || $delayed || $panel) && !$reject;
+        my $temporary_access = ($journey->{prefix} // '') =~ /\Aflatpak-grid-temporary-access-(first|included|replacement)\z/;
+        if ($temporary_access) {
+            my $row = $1;
+            die 'secret:challenge' unless ($journey->{stage_prefix} // '') eq "$row-"
+                && ref($journey->{overlay_request}) eq 'ARRAY'
+                && join(',', @{$journey->{overlay_request}}) eq
+                    ($row eq 'included' ? 'other-child,other-parent,300,1' : 'other-child,parent,300,0');
+        }
+        my $composed = (($journey->{prefix} // '') eq 'overlay-approval-return'
+            || $delayed || $panel || $temporary_access) && !$reject;
         my $role = 'parent';
         if ($composed) {
             my $binding = $journey->{overlay_request};
             die 'secret:challenge' unless ref($binding) eq 'ARRAY' && @$binding == 4
                 && $binding->[0] =~ /\A(?:child|other-child)\z/
                 && $binding->[1] =~ /\A(?:parent|other-parent)\z/
-                && $binding->[2] =~ /\A(?:30|60|75|120|150|180|900)\z/
+                && $binding->[2] =~ /\A(?:30|60|75|120|150|180|300|900)\z/
                 && ($binding->[3] == 0 || $binding->[3] == 1);
             $role = $binding->[1];
         }
         die 'secret:challenge' if $baseline && (($journey->{stage_prefix} // '') ne
             'overlay-' . ($reject ? 'rejection' : 'approval') . '-');
-        my $id = ($baseline || $delayed ? $journey->{stage_prefix} : '')
+        my $id = ($baseline || $delayed || $temporary_access ? $journey->{stage_prefix} : '')
             . 'overlay-shell-' . ($reject ? 'rejection' : 'approval');
         die 'secret:challenge' unless (@_ == 1 || $reject) && ref($journey) eq 'onpc_journey'
             && $prefix =~ /\A[a-z][a-z0-9-]*\z/

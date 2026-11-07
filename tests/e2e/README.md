@@ -1701,6 +1701,17 @@ artifact-preparation command before fixture construction. Inspect the same child
 session through guarded `exec`, then finish with `tools/test-vm stop`; this route
 supplies diagnostic evidence only.
 
+`tools/test-vm --vm NAME reproduce-flatpak-temporary-access` reuses case 243's
+shared grid/overlay history through Sam's successful approval and Jordan's
+desktop return. It stops before the `included-countdown` comparison, retaining
+the verified prefix and public countdown in `boundary-observation.json`.
+The same VM-bound fixtures, input guards and maintenance envelope apply.
+Its bounded passive timer-bus capture records usage calls, estimate reads and
+their replies in `timer-trace.json`. The maintenance owner stops and joins the
+reader before returning; the capture does not delay fresh credential proofs.
+Inspect Jordan's actual session with guarded `exec`, then finish with
+`tools/test-vm --vm NAME stop`; this supplies diagnostic evidence only.
+
 `tools/test-vm --vm NAME reproduce-panel-request` reuses case 30's saved rules,
 real combined-time preparation, Riley entry and usable soft activity. It stops
 at `panel-ready`, records the original panel preflight in

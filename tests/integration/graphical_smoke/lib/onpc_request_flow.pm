@@ -186,7 +186,7 @@ sub approval_return {
         && @$binding == 4 && ($entry eq 'new' || $entry eq 'open')
         && $binding->[0] =~ /\A(?:child|other-child)\z/
         && $binding->[1] =~ /\A(?:parent|other-parent)\z/
-        && $binding->[2] =~ /\A(?:30|60|75|120|150|180|900)\z/
+        && $binding->[2] =~ /\A(?:30|60|75|120|150|180|300|900)\z/
         && ($binding->[3] == 0 || $binding->[3] == 1);
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'overlay-approval-return', review => 0);
     $journey->{overlay_request} = $binding;
@@ -263,10 +263,13 @@ sub panel_request_case {
 
 sub flatpak_temporary_access {
     onpc_progress::operation('Changing Jordan\'s temporary app access through three parent approvals');
-    my ($exchange, $declared, $challenges) = @_;
-    die 'temporary-access:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
-        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'flatpak-temporary-access', review => 0);
+    my ($exchange, $declared, $challenges, $route) = @_;
+    $route //= 'command';
+    die 'temporary-access:arguments' unless (@_ == 3 || @_ == 4) && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && ($route eq 'command' || $route eq 'grid');
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => $route eq 'grid' ? 'flatpak-grid-temporary-access' : 'flatpak-temporary-access', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -277,32 +280,49 @@ sub flatpak_temporary_access {
     onpc_desktop_session::switch_user($leaving, $leaving->seen('desktop'));
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'initial');
     my $allowed = $journey->scope('allowed');
-    onpc_app_rows::native_usable_app($allowed, 'command', $allowed->seen('desktop'), 'other-child', 'A', 'flatpak');
-    $journey->seen($_) for qw(allowed-capture initial-hard-denied initial-soft-denied);
+    onpc_app_rows::native_usable_app($allowed, $route, $allowed->seen('desktop'), 'other-child', 'A', 'flatpak');
+    $journey->seen('allowed-capture');
+    my $denied = sub {
+        my ($owner, $name, $role) = @_;
+        if ($route eq 'grid') {
+            my $app = $owner->scope($name);
+            onpc_app_rows::native_search($app, $app->seen('desktop'), 'app-grid', $role, 'flatpak');
+        }
+        $owner->seen($name . '-denied');
+    };
+    $denied->($journey, 'initial-hard', 'H');
+    $denied->($journey, 'initial-soft', 'S');
     for my $row (['first', 'parent', 0], ['included', 'other-parent', 1], ['replacement', 'parent', 0]) {
         my ($name, $approver, $soft) = @$row;
         my $request = $journey->scope($name);
-        $request->{kiosk_request} = ['other-child', $approver, 30, $soft];
-        my $leave = $request->scope('leave-child');
-        onpc_desktop_session::switch_user($leave, $leave->seen('desktop'));
-        onpc_gdm::enter_station($request, '');
         my $parent = $approver eq 'parent' ? 'fixture-parent' : 'other-fixture-parent';
-        prepare($request, 'open', 'open', 'observed', 'existing-fixture-child', $parent, 30, $soft, 'kiosk');
-        approve($request, 'existing-fixture-child', $parent, 30, $soft, 'automatic');
-        # The enclosing journey owns the child's entry challenge, independently
-        # of the request scope that owns the approval password proofs.
-        onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained',
-                                           'success', $name . '-retained');
+        if ($route eq 'grid') {
+            $request->{overlay_request} = ['other-child', $approver, 300, $soft];
+            $request->seen('independent-launch');
+            prepare($request, 'open', 'open', 'observed', 'existing-fixture-child', $parent, 300, $soft, 'overlay');
+            overlay_approve($request, 'automatic');
+        } else {
+            $request->{kiosk_request} = ['other-child', $approver, 300, $soft];
+            my $leave = $request->scope('leave-child');
+            onpc_desktop_session::switch_user($leave, $leave->seen('desktop'));
+            onpc_gdm::enter_station($request, '');
+            prepare($request, 'open', 'open', 'observed', 'existing-fixture-child', $parent, 300, $soft, 'kiosk');
+            approve($request, 'existing-fixture-child', $parent, 300, $soft, 'automatic');
+            # Desktop challenges belong to the enclosing journey, not this request.
+            onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained',
+                                               'success', $name . '-retained');
+        }
         $request->seen('countdown');
         $request->seen('soft-closed') if $name eq 'replacement';
-        $request->seen($_) for qw(allowed-preserved allowed-submit allowed-submitted allowed-original hard-denied);
+        $request->seen($_) for qw(allowed-preserved allowed-submit allowed-submitted allowed-original);
+        $denied->($request, 'hard', 'H');
         if ($soft) {
             my $activity = $request->scope('soft');
-            onpc_app_rows::native_usable_app($activity, 'command', $activity->seen('desktop'),
+            onpc_app_rows::native_usable_app($activity, $route, $activity->seen('desktop'),
                                            'other-child', 'S', 'flatpak');
             $request->seen('soft-capture');
         } else {
-            $request->seen('soft-denied');
+            $denied->($request, 'soft', 'S');
         }
     }
     onpc_desktop_session::enter_desktop($journey, 'desktop', 'parent', 'retained',
@@ -320,7 +340,7 @@ sub kiosk_fresh_return {
         && ($child_entry eq 'fresh' || $child_entry eq 'retained')
         && $binding->[0] =~ /\A(?:child|other-child)\z/
         && $binding->[1] =~ /\A(?:parent|other-parent)\z/
-        && $binding->[2] =~ /\A(?:30|60|75|120|150|180|240|600|900|1200|7200)\z/
+        && $binding->[2] =~ /\A(?:30|60|75|120|150|180|240|300|600|900|1200|7200)\z/
         && ($binding->[3] == 0 || $binding->[3] == 1);
     my $journey = onpc_journey->new(exchange => $exchange, prefix => "kiosk-$child_entry-return", review => 0);
     $journey->{kiosk_request} = $binding;
@@ -505,6 +525,8 @@ sub shell_approve {
                 && join(',', @{$journey->{overlay_request}}) =~ /\Achild,(?:parent,30,0|other-parent,30,1)\z/
                 && $exit eq 'automatic'
             || ($journey->{prefix} // '') =~ /\Adelayed-approval-(?:first|second)\z/
+                && ref($journey->{overlay_request}) eq 'ARRAY' && $exit eq 'automatic'
+            || ($journey->{prefix} // '') =~ /\Aflatpak-grid-temporary-access-(?:first|included|replacement)\z/
                 && ref($journey->{overlay_request}) eq 'ARRAY' && $exit eq 'automatic'
             || ($journey->{prefix} // '') eq 'baseline-journey-overlay-approval'
                 && $exit eq 'immediate')
@@ -751,7 +773,7 @@ sub prepare {
             && ref($journey->{kiosk_request}) eq 'ARRAY'
             && ($child eq 'fixture-child' || $child eq 'existing-fixture-child')
             && ($approver eq 'fixture-parent' || $approver eq 'other-fixture-parent')
-            && $seconds =~ /\A(?:30|60|75|120|150|180|240|600|900|1200|7200)\z/
+            && $seconds =~ /\A(?:30|60|75|120|150|180|240|300|600|900|1200|7200)\z/
             && ($soft == 0 || $soft == 1)
             && join(',', @{$journey->{kiosk_request}}) eq join(',',
                 $child eq 'fixture-child' ? 'child' : 'other-child',
@@ -765,7 +787,7 @@ sub prepare {
             && ($prefix eq 'open' || $prefix eq 'new') && ($entry eq 'open' || $entry eq 'new')
             && ($child eq 'fixture-child' || $child eq 'existing-fixture-child')
             && ($approver eq 'fixture-parent' || $approver eq 'other-fixture-parent')
-            && $seconds =~ /\A(?:30|60|75|120|150|180|900)\z/ && ($soft == 0 || $soft == 1)
+            && $seconds =~ /\A(?:30|60|75|120|150|180|300|900)\z/ && ($soft == 0 || $soft == 1)
             && ref($journey->{overlay_request}) eq 'ARRAY'
             && $journey->{overlay_request}[0] eq ($child eq 'fixture-child' ? 'child' : 'other-child')
             && $journey->{overlay_request}[1] eq ($approver eq 'fixture-parent' ? 'parent' : 'other-parent')

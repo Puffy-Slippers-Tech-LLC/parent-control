@@ -1258,6 +1258,146 @@ def reproduce_flatpak_grid(lease, fixture_selection):
         boundary_operation='flatpak-soft-opened', fixture_selection=selection, timeout=1800)
 
 
+def reproduce_flatpak_temporary_access(lease, fixture_selection):
+    """Retain Sam's approval in Jordan's actual desktop before its comparison."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from flatpak_temporary_access import TemporaryAccessJourney, GRID_PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, TemporaryAccessJourney, GRID_PLAN,
+        'included-countdown', 'flatpak-temporary-access', assets=assets,
+        boundary_operation='child-countdown-present', fixture_selection=selection, timeout=1800)
+
+
+TIMER_TRACE = '''import hashlib,json,os,pathlib,signal,time
+from gi.repository import Gio,GLib
+boot=lambda:hashlib.sha256(pathlib.Path('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest()
+started=time.monotonic()
+count=0
+def emit(event,**fields):
+    global count
+    count+=1
+    assert count<=4096
+    print(json.dumps(dict(event=event,monotonic_ns=time.monotonic_ns(),
+                          realtime_ns=time.time_ns(),**fields)),flush=True)
+bus=Gio.DBusConnection.new_for_address_sync(Gio.dbus_address_get_for_bus_sync(
+    Gio.BusType.SYSTEM,None),Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT |
+    Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION,None,None)
+def receive(connection,message,incoming,data):
+    if incoming:
+        emit('message',kind=int(message.get_message_type()),sender=message.get_sender(),
+             destination=message.get_destination(),serial=message.get_serial(),
+             reply_serial=message.get_reply_serial(),interface=message.get_interface(),
+             member=message.get_member(),error_name=message.get_error_name(),body=message.get_body().print_(True)
+             if message.get_body() is not None else '')
+    # Consume copied traffic so GDBus cannot answer another client's call.
+    return message if not incoming or message.get_destination()==connection.get_unique_name() else None
+bus.add_filter(receive,None)
+rules=["interface='org.freedesktop.MalcontentTimer1.Child'",
+       "interface='org.freedesktop.MalcontentTimer1.Parent'",
+       "sender='org.freedesktop.MalcontentTimer1'"]
+bus.call_sync('org.freedesktop.DBus','/org/freedesktop/DBus',
+    'org.freedesktop.DBus.Monitoring','BecomeMonitor',GLib.Variant('(asu)',(rules,0)),
+    None,Gio.DBusCallFlags.NONE,5000,None)
+loop=GLib.MainLoop()
+bus.connect('closed',lambda *_args: loop.quit())
+GLib.unix_signal_add(GLib.PRIORITY_DEFAULT,signal.SIGUSR1,lambda: (loop.quit(),False)[1])
+GLib.timeout_add_seconds(1800,lambda: (loop.quit(),False)[1])
+emit('ready',pid=os.getpid(),birth=pathlib.Path('/proc/self/stat').read_text().rpartition(') ')[2].split()[19],
+     boot_sha256=boot())
+loop.run()
+assert not bus.is_closed(), 'timer-trace:connection-closed'
+bus.close_sync(None)
+emit('finished',duration_seconds=time.monotonic()-started)
+'''
+
+
+@contextmanager
+def timer_trace(lease, transport, directory):
+    """Observe only timer traffic; stop and join the explicitly owned reader."""
+    import threading
+    from owned_commands import Commands
+    from vm_transport import Transport
+
+    private = directory / 'timer-trace'
+    private.mkdir(mode=0o700)
+    commands = Commands()
+    commands.directory = private
+    commands.lock_fd = transport.commands.lock_fd
+    reader = Transport(dict(transport.config), commands, guard=transport.guard)
+    ready, done = threading.Event(), threading.Event()
+    rows, errors = [], []
+    pending = bytearray()
+
+    def receive(data, stream):
+        if stream != 'stdout':
+            return
+        pending.extend(data)
+        system.require(len(pending) <= 262144, 'timer-trace:output-bound')
+        while b'\n' in pending:
+            line, _, rest = pending.partition(b'\n')
+            pending[:] = rest
+            system.require(len(rows) < 4096, 'timer-trace:record-bound')
+            row = json.loads(line)
+            rows.append(row)
+            if row.get('event') == 'ready':
+                system.require(not ready.is_set() and type(row.get('pid')) is int
+                    and row['pid'] > 1 and str(row.get('birth', '')).isdigit()
+                    and re.fullmatch('[0-9a-f]{64}', row.get('boot_sha256', '')),
+                    'timer-trace:identity')
+                ready.set()
+
+    def run():
+        try:
+            reader.call(['/usr/bin/python3', '-I', '-'], input=TIMER_TRACE.encode(),
+                        timeout=1830, on_stream=receive)
+            system.require(not pending and rows[-1]['event'] == 'finished',
+                           'timer-trace:incomplete')
+        except BaseException as error:
+            errors.append(type(error).__name__)
+        finally:
+            done.set()
+            ready.set()
+
+    thread = threading.Thread(target=run, name='timer-trace')
+    thread.start()
+    try:
+        system.require(ready.wait(20) and not done.is_set() and not errors,
+                       'timer-trace:not-ready')
+        lease.guard()
+        yield
+    finally:
+        original = sys.exc_info()[1]
+        try:
+            identities = [row for row in rows if row.get('event') == 'ready']
+            if not done.is_set() and len(identities) == 1:
+                identity = identities[0]
+                program = '''import hashlib,json,os,pathlib,signal,sys
+identity=json.loads(sys.argv[1]); pid=identity['pid']
+fd=os.pidfd_open(pid)
+try:
+    assert hashlib.sha256(pathlib.Path('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest()==identity['boot_sha256']
+    path=pathlib.Path('/proc')/str(pid)
+    assert path.stat().st_uid==0 and (path/'stat').read_text().rpartition(') ')[2].split()[19]==identity['birth']
+    signal.pidfd_send_signal(fd,signal.SIGUSR1)
+finally:
+    os.close(fd)
+'''
+                transport.call(['/usr/bin/python3', '-I', '-c', program,
+                                json.dumps(identity)], timeout=20)
+        except Exception as error:
+            errors.append(type(error).__name__)
+        finally:
+            thread.join()
+            (directory / 'timer-trace.json').write_text(json.dumps(rows))
+            (directory / 'timer-trace-result.json').write_text(json.dumps({'errors': errors,
+                'records': len(rows), 'outcome': 'failed' if errors else 'captured'}))
+        if errors and original is None:
+            raise RuntimeError('timer-trace:failed:' + errors[0])
+
+
 def probe_flatpak_command(lease):
     """Read the first Flatpak window again without repeating its launch."""
     observe_maintenance(lease, check='probe_flatpak_command', label='flatpak-command-probe',
@@ -1395,6 +1535,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                                         REBOOT_PLAN)
         if surface == 'flatpak-grid':
             from flatpak_grid import FlatpakGridJourney, PLAN as FLATPAK_GRID_PLAN
+        if surface == 'flatpak-temporary-access':
+            from flatpak_temporary_access import TemporaryAccessJourney, GRID_PLAN
         from app_restart_expired import AppRestartExpiredJourney, SIGN_OUT_PLAN
         restoration = (surface == 'baseline-restoration'
             and journey_type is BaselineJourney and plan is PLAN
@@ -1443,11 +1585,14 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         flatpak_grid = (surface == 'flatpak-grid'
             and journey_type is FlatpakGridJourney and plan is FLATPAK_GRID_PLAN
             and boundary == 'restored-opened' and boundary_operation == 'flatpak-soft-opened')
+        flatpak_temporary_access = (surface == 'flatpak-temporary-access'
+            and journey_type is TemporaryAccessJourney and plan is GRID_PLAN
+            and boundary == 'included-countdown' and boundary_operation == 'child-countdown-present')
         expired_sign_out = (surface == 'expired-sign-out'
             and journey_type is AppRestartExpiredJourney and plan is SIGN_OUT_PLAN
             and boundary == 'boundary-child-gdm-logged-out'
             and boundary_operation == 'gdm-returned')
-        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or expired_sign_out)
+        system.require(selected_setup and (restoration or natural_access or countdown_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or expired_sign_out)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1489,8 +1634,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if selected_setup:
             from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS
             context.fixture_selection = fixture_selection
-            context.fixture_subsets = ('native',) if surface in ('native-denial', 'grant-logout', 'match-editor', 'flatpak-grid') else ACTIVITY_SUBSETS
+            context.fixture_subsets = ('native',) if surface in ('native-denial', 'grant-logout', 'match-editor', 'flatpak-grid', 'flatpak-temporary-access') else ACTIVITY_SUBSETS
             context.fixture_caller = ({'native-denial': None, 'flatpak-grid': None,
+                                       'flatpak-temporary-access': None,
                                        'app-rule-return': 'E2E-006/disabled-pattern',
                                        'revocation-return': 'E2E-007/zero-single',
                                        'match-editor': None,
@@ -1575,6 +1721,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                 stream.write(json.dumps({'stage': stage, 'observed': observed}) + '\n')
             print(surface + '-diagnosis: ' + stage, file=sys.stderr, flush=True)
 
+        if surface == 'flatpak-temporary-access':
+            from flatpak_fixtures import fixture_actions
+            actions = fixture_actions(include_refusal=False)
         if surface in ('match-editor', 'panel-request', 'app-restart-choices', 'reboot-context'):
             from native_fixtures import fixture_actions
             actions = fixture_actions(include_refusal=False)
@@ -1627,7 +1776,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
 
         try:
             with (kiosk_native_evidence(lease, transport, directory) if native_log else nullcontext()), (
-                    memory_samples(lease, transport, directory) if surface == 'grant-logout' else nullcontext()):
+                    memory_samples(lease, transport, directory) if surface == 'grant-logout' else nullcontext()), (
+                    timer_trace(lease, transport, directory)
+                    if surface == 'flatpak-temporary-access' else nullcontext()):
                 result = e2e_worker.run_distribution(directory, lease, system.RunLedger(),
                     expected_inputs=expected_inputs, observe=lambda: None, validate=validate,
                     guarded_observe=observe, credentials=credentials, maintenance=True, timeout=timeout)

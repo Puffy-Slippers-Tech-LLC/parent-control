@@ -455,7 +455,7 @@ def main(argv=None):
                                           'probe-retained-app-launch',
                                           'reproduce-transfer-refusal', 'probe-transfer-refusal',
                                           'reproduce-riley-native-grid', 'probe-riley-native-grid',
-                                          'reproduce-snap-grid', 'reproduce-flatpak-grid', 'reproduce-flatpak-command', 'probe-flatpak-command',
+                                          'reproduce-snap-grid', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-flatpak-command', 'probe-flatpak-command',
                                           'reproduce-update-no-action',
                                           'reproduce-native-denial', 'reproduce-grant-logout', 'reproduce-match-editor',
                                           'reproduce-app-rule-return', 'reproduce-revocation-return',
@@ -498,7 +498,7 @@ def main(argv=None):
                                        'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
                                        'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
                                        'reproduce-panel-request', 'reproduce-app-restart-choices',
-                                       'reproduce-reboot-context', 'reproduce-flatpak-grid',
+                                       'reproduce-reboot-context', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access',
                                        'reproduce-expired-sign-out'))
                        == (args.fixture_selection is not None),
                        'vm-control:arguments')
@@ -554,13 +554,13 @@ def main(argv=None):
                              'reproduce-system-graphical-expiry', 'reproduce-grant-logout',
                              'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-panel-request',
                              'reproduce-app-restart-choices', 'reproduce-reboot-context',
-                             'reproduce-flatpak-grid', 'reproduce-expired-sign-out'):
+                             'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-expired-sign-out'):
             from vm_probe import (reproduce_baseline_restoration, reproduce_natural_access,
                                   reproduce_countdown_grant, reproduce_overlay_activity, reproduce_overlay_return,
                                   reproduce_system_graphical_expiry, reproduce_grant_logout,
                                   reproduce_app_rule_return, reproduce_revocation_return, reproduce_panel_request,
                                   reproduce_app_restart_choices, reproduce_reboot_context,
-                                  reproduce_flatpak_grid, reproduce_expired_sign_out)
+                                  reproduce_flatpak_grid, reproduce_flatpak_temporary_access, reproduce_expired_sign_out)
             resume(lease)
             try:
                 reproduce = {'reproduce-natural-access': reproduce_natural_access,
@@ -576,6 +576,7 @@ def main(argv=None):
                              'reproduce-app-restart-choices': reproduce_app_restart_choices,
                              'reproduce-reboot-context': reproduce_reboot_context,
                              'reproduce-flatpak-grid': reproduce_flatpak_grid,
+                             'reproduce-flatpak-temporary-access': reproduce_flatpak_temporary_access,
                              'reproduce-expired-sign-out': reproduce_expired_sign_out}[args.action]
                 reproduce(lease, fixture_selection)
             except BaseException:

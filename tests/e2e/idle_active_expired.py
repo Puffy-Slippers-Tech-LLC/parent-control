@@ -14,7 +14,7 @@ from journey_blocks import (desktop_entry, desktop_return, fresh_desktop, native
 from kiosk_approved_flow import approved_request
 from native_fixtures import fixture_actions
 from private_artifacts import require
-from real_interval import interval_action
+from real_interval import interval_action, wait_until
 from request_flow import prepared_request
 
 
@@ -213,8 +213,7 @@ class IdleJourney(AppRestartActiveJourney):
     @staticmethod
     def idle_to_expiry(journey, guard):
         require(journey.original_deadline_ns is not None, 'idle:missing-deadline')
-        while (remaining := (journey.original_deadline_ns - time.monotonic_ns()) / 1e9) > 0:
-            interval_action(min(300, remaining))(journey, guard)
+        wait_until(journey, guard, journey.original_deadline_ns / 1e9)
 
 
 def execute(recorder, context):

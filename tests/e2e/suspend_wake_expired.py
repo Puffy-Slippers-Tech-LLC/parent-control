@@ -7,7 +7,7 @@ from journey_blocks import desktop_entry, desktop_return, fresh_desktop, prefixe
 from installed_journey import record_installed_journey
 from native_fixtures import fixture_actions
 from private_artifacts import require
-from real_interval import interval_action
+from real_interval import wait_until
 
 
 BOUNDARY = {
@@ -98,8 +98,7 @@ class SuspendWakeExpiredJourney(AppRestartExpiredJourney):
     @staticmethod
     def wait_for_sleep(journey, guard):
         require(journey.original_deadline_ns is not None, 'suspend-wake-expired:missing-deadline')
-        while (remaining := journey.original_deadline_ns / 1e9 - 240 - time.monotonic()) > 0:
-            interval_action(min(300, remaining))(journey, guard)
+        wait_until(journey, guard, journey.original_deadline_ns / 1e9 - 240)
         return {'original_deadline_monotonic_ns': journey.original_deadline_ns}
 
     @staticmethod

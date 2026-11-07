@@ -790,7 +790,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          feedback_formats=False, feedback_link_semantics=False, real_interval=False,
          independent_network=False, public_connectivity_controls=False, native_grid_usable=False,
          riley_native_grid=False, native_denial=False, native_space_path=False, native_policy_closure=False, shared_target_launchers=False,
-         native_app=False, app_activity=False, retained_app_visits=False, chinese_language_assets=False, desktop_language=False,
+         native_app=False, flatpak_retained_work=False, app_activity=False, retained_app_visits=False, chinese_language_assets=False, desktop_language=False,
          chinese_native_auth=False, parent_language=False, kiosk_language=False, overlay_language=False,
          panel_language_refresh=False,
          kiosk_language_restoration=False, overlay_reminder_editing=False, kiosk_reminder_binding=False,
@@ -1041,6 +1041,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         and approval_flow is None and not any(value for name, value in locals().items()
             if name not in ('assets', 'provision_credentials', 'native_policy_closure')
             and isinstance(value, bool)))), 'smoke:native-policy-closure-prerequisites')
+    require(type(flatpak_retained_work) is bool and (not flatpak_retained_work or (
+        assets is not None and provision_credentials and fixture_profile == 'flatpak'
+        and fresh_desktop is None and approval_flow is None
+        and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'flatpak_retained_work')
+            and isinstance(value, bool)))), 'smoke:flatpak-retained-work-prerequisites')
     require(type(native_app) is bool and (not native_app or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1093,8 +1099,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                                     'native_fixtures', 'catalogue_search', 'catalogue_filters', 'policy_legend', 'match_save_cancel', 'match_editor', 'access_choices', 'policy_edit', 'named_app_set', 'rejected_parent_rule') and isinstance(value, bool)))),
         'smoke:native-fixtures-prerequisites')
     require(fixture_profile in ('native', 'snap', 'flatpak') and
-            (fixture_profile != 'flatpak' or native_fixtures or native_app or native_grid_usable or native_policy_closure) and
-            (fixture_profile == 'native' or (native_fixtures or native_app or native_grid_usable
+            (fixture_profile != 'flatpak' or native_fixtures or native_app or native_grid_usable or native_policy_closure or flatpak_retained_work) and
+            (fixture_profile == 'native' or (native_fixtures or native_app or native_grid_usable or flatpak_retained_work
              or native_policy_closure and fixture_profile == 'flatpak') and not any((catalogue_search,
              catalogue_filters, policy_legend, match_save_cancel, match_editor, access_choices,
              policy_edit, named_app_set, rejected_parent_rule))), 'smoke:fixture-profile')
@@ -1848,6 +1854,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-native-space-path-qualification'
         if native_policy_closure:
             result['scope'] = 'installed-' + fixture_profile + '-policy-closure-qualification'
+        if flatpak_retained_work:
+            result['scope'] = 'installed-flatpak-retained-work-qualification'
         if shared_target_launchers:
             result['scope'] = 'installed-shared-target-launchers-qualification'
         if app_activity:
@@ -2094,7 +2102,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if (product_free_entry or parent_entry is not None or lock_surface is not None or parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or kiosk_preferences_confinement or baseline_app_effects or baseline_auth_pause or baseline_journey or active_grant_disable or confinement_usability
-                        or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or panel_language_refresh or overlay_reminder_editing or kiosk_reminder_binding or reminder_fullscreen_preference or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or native_denial or native_space_path or native_policy_closure or shared_target_launchers or app_activity or retained_app_visits
+                        or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or panel_language_refresh or overlay_reminder_editing or kiosk_reminder_binding or reminder_fullscreen_preference or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or native_denial or native_space_path or native_policy_closure or flatpak_retained_work or shared_target_launchers or app_activity or retained_app_visits
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or revoke_cancel or revocation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
@@ -2439,6 +2447,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     if fixture_profile == 'flatpak':
                         from parent_setup_qualification import FlatpakPolicyClosureQualification
                         qualification_class = FlatpakPolicyClosureQualification
+                if flatpak_retained_work:
+                    from parent_setup_qualification import FlatpakRetainedWorkQualification
+                    qualification_class = FlatpakRetainedWorkQualification
                 if shared_target_launchers:
                     from parent_setup_qualification import SharedTargetLaunchersQualification
                     qualification_class = SharedTargetLaunchersQualification

@@ -3871,7 +3871,9 @@ Jordan's fixed A/H/S commands through `check_e2e_flatpak_command_usable`.
 `x86_64/stable` and the active Jordan desktop. `flatpak_app_owner` binds the
 public window's connection owner to unchanged per-instance application/runtime
 metadata and exact system deployment paths; unique public application/window
-IDs distinguish primary and secondary instances. UID, PID/start-time and
+IDs distinguish A/H/S as `primary`/`hard`/`soft`, with S's second window using
+`secondary`. The C launcher and GUI accept those same finite names; Hard/Soft
+instance names are restricted to Flatpak fixtures. UID, PID/start-time and
 non-zombie checks remain required because Flatpak may proxy the D-Bus connection.
 
 The Ubuntu 26.04 qualification passed in `20261106T023224Z-4734977e`: each
@@ -3928,6 +3930,29 @@ Source checks, 36 existing credential/recipient safety checks, collection,
 worker/callback shutdown, owned cleanup and baseline restoration passed;
 the VM was independently observed off. Other-user denial independence, grid
 launches, temporary Soft permission and complete customer cases remain separate.
+
+#### Retained Flatpak work
+
+`flatpak_retained_work.PLAN` / `FlatpakRetainedWorkJourney` and
+`onpc_app_rows::flatpak_retained_work` qualify Jordan's concurrent A/S activities
+through `check_e2e_flatpak_retained_work`. Public Parent setup saves 30 daily
+minutes, A Allowed, H Hard Blocked and S Allowed. Fresh Jordan opens and submits
+both A and S, independently captures their distinct processes/endpoints, and is
+denied a new H command while both original activities remain unchanged.
+Parent then saves S Soft Blocked without an exception. Returning to the same
+Jordan desktop requires complete captured S-window absence, exact administrator
+policy denial of a new S command, and unchanged original A work with another
+successful Submit and independent original-window readback.
+
+This scope passed on Ubuntu 26.04 (`onpc-Ubuntu26.04-1`) in
+`20261106T124729Z-73e4a08b`; the affected A/H/S command and separate S-window
+regression passed in `20261106T125758Z-08286798`. Ambiguous/wrong-owner targets,
+prelaunch absence, single-use input and uncertain replies retain their shared
+guards. Focused safety/source checks, collection, worker/callback shutdown,
+owned cleanup and baseline restoration passed; the VM was observed off.
+This supplies the coexistence boundary for case 246, with no complete-case
+registration or acceptance credit. Alternating temporary approvals remain in
+that independent scenario.
 
 Case 246 separately composes that capability in
 `flatpak_temporary_access.PLAN` / `TemporaryAccessJourney` and
@@ -3997,6 +4022,19 @@ owned cleanup passed, as did affected kiosk case 246. This qualifies the complet
 grid/child-overlay case; the precision change does not establish a timer
 root-cause repair or add other-user or Snap coverage.
 
+Case 98 (`flatpak_app_launch.GRID_PLAN` / `onpc_app_launch::run`) passed on
+Ubuntu 26.04 in `scenario-5ed92cfda3ba49ee91e49347619fac66`. Parent saved
+Jordan's 30-minute daily allowance with zero grant and independently read A's
+Allowed row. Fresh Jordan and Riley each opened the same system Flatpak A from
+the grid and submitted the normal draft, with independent owned-window and
+submitted-result reads. This adds Riley's A/primary grid binding through
+`native_usable_app('grid', kind='flatpak', role='A', child='child')`, preserving
+the shared account, exact-launcher, recipient and uncertain-input guards.
+The affected command case 104 passed in
+`scenario-195d328b275f4bf0bec33b68f619f643`. Both runs passed collection,
+worker shutdown, owned cleanup and baseline restoration; coverage was refreshed
+after each case and the VM was observed off. Other grid rules remain separate.
+
 Case 100 (`flatpak_app_launch.HARD_GRID_PLAN` / `onpc_app_launch::run`) passed
 on Ubuntu 26.04 in `scenario-f5acc41af764408f9c4bad644af2d5ce`. Parent saved and
 independently read Jordan's 30-minute daily allowance, zero grant and Hard Blocked
@@ -4036,19 +4074,6 @@ through `native_usable_app('command', kind='snap', role='A', child='child')`.
 Its `snap_app_launch.PLAN` / `onpc_app_launch::run(..., 'enabled', 'command',
 'allowed', 'snap')` composition independently reads Jordan's saved Allowed Snap
 row before both children's fresh entry and use. Collection, worker shutdown,
-Case 98 (`flatpak_app_launch.GRID_PLAN` / `onpc_app_launch::run`) passed on
-Ubuntu 26.04 in `scenario-5ed92cfda3ba49ee91e49347619fac66`. Parent saved
-Jordan's 30-minute daily allowance with zero grant and independently read A's
-Allowed row. Fresh Jordan and Riley each opened the same system Flatpak A from
-the grid and submitted the normal draft, with independent owned-window and
-submitted-result reads. This adds Riley's A/primary grid binding through
-`native_usable_app('grid', kind='flatpak', role='A', child='child')`, preserving
-the shared account, exact-launcher, recipient and uncertain-input guards.
-The affected command case 104 passed in
-`scenario-195d328b275f4bf0bec33b68f619f643`. Both runs passed collection,
-worker shutdown, owned cleanup and baseline restoration; coverage was refreshed
-after each case and the VM was observed off. Other grid rules remain separate.
-
 owned cleanup and baseline restoration passed. Affected native-command case 81
 passed separately on the same target; coverage was refreshed after each case.
 Case 93 qualified the limits-off composition through

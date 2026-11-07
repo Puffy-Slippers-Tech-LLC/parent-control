@@ -949,6 +949,12 @@ sub run {
             $ready->{native_grid_temporary_access} || $ready->{flatpak_grid_temporary_access} ? 'overlay' : 'kiosk');
         return;
     }
+    if ($ready->{flatpak_retained_work}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::flatpak_retained_work(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{flatpak_policy_closure}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

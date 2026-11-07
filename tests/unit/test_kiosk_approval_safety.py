@@ -1,4 +1,4 @@
-"""Direct credential guards: human decision time never authorizes stale input."""
+"""Direct input guards for credentials and the bound child's applications."""
 import json
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -8,6 +8,21 @@ import pytest
 import ui_observations
 from private_artifacts import EvidenceError
 from tests.support.perl import run_password_guard
+
+
+@pytest.mark.parametrize('role,instance', [('H', 'primary'), ('A', 'hard')])
+def test_flatpak_cross_app_instance_refuses_before_session_or_launch(monkeypatch, role, instance):
+    module = ui_observations.accessible_ui
+    ui = object.__new__(module.AccessibleUI)
+    ui.input_uncertain = False
+    session = Mock(side_effect=AssertionError('session read after conclusive binding refusal'))
+    launch = Mock(side_effect=AssertionError('command released for another app identity'))
+    monkeypatch.setattr(module, 'require_active_launch_session', session)
+    monkeypatch.setattr(module.subprocess, 'run', launch)
+    with pytest.raises(module.UiError, match='ui:native-binding'):
+        ui.native_launch_command(instance, role=role, child=module.EXISTING_CHILD, kind='flatpak')
+    session.assert_not_called()
+    launch.assert_not_called()
 
 
 def test_privileged_fixture_password_uses_authenticated_callers_private_file(tmp_path, monkeypatch):

@@ -33,6 +33,11 @@ selected tab. Inactive launchers (finished, failed or stopped) collapse by defau
 including when a running launcher exits. A new active run expands by default.
 Manual expansion, collapse and resizing survive live refreshes until the next
 run or activity transition. Sizes last while Watch is open.
+Click anywhere in a launcher tile to select it. Clicking empty space in its
+title bar toggles selection instead.
+The selected tile has a highlighted border and tinted background. Selecting
+another tile clears the previous selection. Title-bar links and buttons select
+their tile without unselecting it, while performing their usual action.
 Dividers remain active beside collapsed sections; resizing expands them and
 restores their selected tabs.
 When a launcher exits for any reason, its

@@ -704,6 +704,13 @@
                     preview, latestLabel, latest, launcher, errorStatus,
                     view: 'status', weight: 1, followStatus: true });
                 const panel = section;
+                body.addEventListener('click', event => {
+                    const selected = !heading.contains(event.target) || Boolean(event.target.closest('a, button')) ||
+                        !body.classList.contains('selected');
+                    for (const other of sections.values()) {
+                        other.body.classList.toggle('selected', other === panel && selected);
+                    }
+                }, true);
                 history.addEventListener('scroll', () => {
                     if (history.clientHeight) panel.followStatus =
                         history.scrollHeight - history.clientHeight - history.scrollTop < 24;

@@ -40,6 +40,14 @@ nav button[aria-pressed="true"] {
 }
 /* Only the heading sets the panel's minimum width, not transcript/body content. */
 .run > :not(.run-heading) { min-width: 0; contain: inline-size; }
+.run.selected {
+    border-color: var(--vscode-focusBorder, #0088ff);
+    background: color-mix(in srgb, var(--vscode-focusBorder, #0088ff) 8%, var(--vscode-editor-background));
+    box-shadow: 0 0 0 1px var(--vscode-focusBorder, #0088ff),
+        0 3px 5px rgb(0 0 0 / 35%),
+        inset 0 1px 0 rgb(255 255 255 / 50%),
+        inset 0 -1px 0 rgb(0 0 0 / 18%);
+}
 .run.collapsed { flex: 0 0 auto !important; min-height: 0; }
 .run.collapsed > :not(.run-heading) { display: none !important; }
 #divider, .run-divider {

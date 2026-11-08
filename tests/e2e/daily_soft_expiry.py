@@ -217,6 +217,34 @@ TOGGLE_PLAN = replace(ALLOWANCE_PLAN,
 )
 
 
+# An unchanged Save leaves existing work alone and retains the expired grant.
+# The child's later unlock reconciles that grant and closes blocked apps.
+APP_SAVE = {
+    **native_activity_resume('expired-soft', child='child', binding='policy-soft'),
+    **ALLOWANCE_ENTRIES['edit-parent'],
+    **prefixed_stages('edit', retained_parent_entry(source='same-user', desktop_observation=False)),
+    'app-save-apps': 'ui:parent-apps-page',
+    'app-save-open': 'ui:match-soft-open',
+    'app-save-read': 'ui:match-soft-read',
+    'app-save-save': 'ui:match-soft-save',
+    'app-save-row': 'ui:match-soft-row',
+    **ALLOWANCE_ENTRIES['restored-child'],
+}
+APP_SAVE_SCREENS = {**PEER, **PROFILE_SCREENS, **EXPIRY, **APP_SAVE, **ALLOWANCE_RESULTS}
+APP_SAVE_PLAN = replace(ALLOWANCE_PLAN,
+    worker_mode='daily_soft_app_save', screen_tags=APP_SAVE_SCREENS,
+    phases={**{stage: phase for stage, phase in PLAN.phases.items()
+               if stage in APP_SAVE_SCREENS or stage in ('ready', 'setup-detached')},
+        **{stage: 'step-2' for stage in APP_SAVE},
+        **{stage: 'step-3' for stage in ALLOWANCE_RESULTS}},
+    child_bindings={stage: 'child' for stage, tag in APP_SAVE_SCREENS.items()
+                    if tag.removeprefix('ui:') in NAMED_CHILD_OPERATIONS},
+    match_checks={**PLAN.match_checks,
+        **{stage: 'apps-saved-s-match' for stage in
+           ('app-save-open', 'app-save-read', 'app-save-row')}},
+)
+
+
 class DailySoftExpiryJourney(DailySoftProfileJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan, actions=actions if actions is not None else {
@@ -289,6 +317,10 @@ def execute_toggle(recorder, context):
     execute_branch(recorder, context, TOGGLE_PLAN, 'toggle')
 
 
+def execute_app_save(recorder, context):
+    execute_branch(recorder, context, APP_SAVE_PLAN, 'app-save')
+
+
 def execute_branch(recorder, context, plan, branch):
     from e2e_fixture_preparation import ACTIVITY_SUBSETS
     context.fixture_subsets = ACTIVITY_SUBSETS
@@ -298,4 +330,5 @@ def execute_branch(recorder, context, plan, branch):
 
 
 E2E_CASES = {'none': execute, 'unlock': execute_unlock, 'fresh-login': execute_fresh_login,
-             'allowance-edit': execute_allowance_edit, 'toggle': execute_toggle}
+             'allowance-edit': execute_allowance_edit, 'toggle': execute_toggle,
+             'app-save': execute_app_save}

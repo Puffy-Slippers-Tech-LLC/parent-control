@@ -127,10 +127,15 @@ def blocked_plan(rule, access, *, route='grid', control='enabled'):
     jordan = {
         'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
         **prefixed_stages('jordan-denied', native_blocked_app('A', route=route)),
+        **({'jordan-denied-dismiss': 'ui:native-files-allowed-dismiss'}
+           if route == 'files' else {}),
     }
     riley = {
         'jordan-logout': 'system:standard-logout', **RILEY_ENTRY,
+        **({'riley-use-desktop': 'ui:overlay-native-desktop'} if route == 'files' else {}),
         **prefixed_stages('riley-use', native_usable_app(route, child='child')),
+        **({'riley-use-dismiss': 'ui:overlay-native-files-allowed-dismiss'}
+           if route == 'files' else {}),
     }
     return replace(
         base, prefix=f'native-{route}-{rule}-blocked',
@@ -141,7 +146,8 @@ def blocked_plan(rule, access, *, route='grid', control='enabled'):
                 **{stage: 'step-2' for stage in jordan},
                 **{stage: 'step-3' for stage in riley}},
         advance_after={'installed-greeter': 'step-1', f'{rule}-final-match': 'step-2',
-                       'jordan-denied-' + ('denied' if route == 'grid' else 'command'): 'step-3'},
+                       'jordan-denied-' + ('dismiss' if route == 'files' else
+                                           'denied' if route == 'grid' else 'command'): 'step-3'},
         child_bindings={**({'allowance-configured': 'existing'} if control == 'enabled' else {}), **{
             stage: 'existing' for stage in policy if stage != f'{rule}-found'}},
         match_checks={f'{rule}-{suffix}': MATCH_RULES[0] for suffix in
@@ -153,6 +159,7 @@ def blocked_plan(rule, access, *, route='grid', control='enabled'):
 
 
 HARD_GRID_PLAN = blocked_plan('hard', 'permanent')
+HARD_FILES_PLAN = blocked_plan('hard', 'permanent', route='files')
 SOFT_GRID_PLAN = blocked_plan('soft', 'conditional')
 HARD_COMMAND_PLAN = blocked_plan('hard', 'permanent', route='command')
 HARD_COMMAND_DISABLED_PLAN = blocked_plan('hard', 'permanent', route='command', control='disabled')
@@ -184,6 +191,8 @@ E2E_CASES = {'native-command-allowed-enabled': execute,
              'native-grid-allowed-enabled': execute_grid,
              'native-file-manager-allowed-enabled': partial(execute_grid,
                  plan=FILES_PLAN, case_id='native-file-manager-allowed-enabled'),
+             'native-file-manager-hard-blocked-enabled': partial(execute_grid,
+                 plan=HARD_FILES_PLAN, case_id='native-file-manager-hard-blocked-enabled'),
              'native-grid-hard-blocked-enabled': partial(execute_grid,
                  plan=HARD_GRID_PLAN, case_id='native-grid-hard-blocked-enabled'),
              'native-grid-soft-blocked-enabled': partial(execute_grid,

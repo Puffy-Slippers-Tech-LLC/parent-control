@@ -443,9 +443,9 @@ def verify_zero_time_pam(record):
     finally:
         accepted(call(parent, 'RevokeOneTimeGrant', '(u)', (child,)))
 
-    # Daily allowance admits a child without a kiosk grant. Recovery can now
-    # precede PAM through the broker's monitor; retain the real authentication,
-    # final enforcement and unchanged-policy assertions without sole-cause claims.
+    # Daily allowance admits a child without a kiosk grant. Observe automatic
+    # recovery before testing admission so this setup does not race the broker's
+    # transaction lock. System 301 isolates authentication-triggered recovery.
     accepted(call(parent, 'SetParentControl', '(ubu)', (child, True, 1440)))
     manager = installed_manager()
     account, _ = manager._account(child)
@@ -456,9 +456,10 @@ def verify_zero_time_pam(record):
                            '--property=InvocationID', '--value'])
     try:
         request_global_extension_disable(manager, account)
-        status = pam_password_status(child, password)
-        guest.require(status == 0, 'expiry:daily-time-pam-denied')
         wait_for_extension_recovery(manager, account, 'expiry:daily-extension-not-recovered')
+        status = pam_password_status(child, password)
+        record('onpc.expiry.daily-pam-status', str(status))
+        guest.require(status == 0, 'expiry:daily-time-pam-denied')
         guest.require(not manager._boolean(account, 'disable-user-extensions')
                       and manager._runtime_state(account) == (True, True)
                       and manager._list(account, 'enabled-extensions') == previous[0]
@@ -470,7 +471,7 @@ def verify_zero_time_pam(record):
                                      '--property=InvocationID', '--value']) == invocation,
                       'expiry:daily-recovery-changed-policy-or-restarted-broker')
         record('onpc.expiry.daily-pam-recovery',
-               'authenticated; no-grant; monitor-or-pam-recovery; configured-and-active; policy-and-selections-preserved')
+               'authenticated; no-grant; automatic-recovery-before-pam; configured-and-active; policy-and-selections-preserved')
     finally:
         accepted(call(parent, 'SetParentControl', '(ubu)', (child, True, 0)))
 

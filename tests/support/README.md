@@ -657,10 +657,21 @@ race their expiry; the measured 45-second and peer 15-second grants stay short.
 These implement the [VM timing contract](../../docs/Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience)
 through the existing worker and observers. TIME04 keeps its initial sample upper end
 plus 15 seconds; foreground-revocation and lock-retry bounds remain 15 seconds.
+`SystemGraphicalExpiryJourney.observe_expiry` shares the timed observation and
+subsequent input-verification budget across natural, policy-change, broker-crash
+and pending-approval histories. Each caller keeps its original deadline, fault
+or policy sequence and real-input assertion; the worker uses
+`onpc_desktop_session::verify_locked_input` for the actual input challenge.
 The complete current-production system-282 history passed on Ubuntu 26.04 and
 Fedora 44, including both protected-input challenges and original-work recovery.
 This qualifies the shared engineering observations, not extension-free locking
 or a complete customer scenario.
+System 282 observes automatic extension recovery before its separate daily-only
+PAM admission check. Starting authentication during that recovery can produce the
+broker's valid Busy refusal despite positive remaining time. Reuse
+`wait_for_extension_recovery` for this ordering, without a settling sleep or an
+authentication retry. System 301 separately isolates authentication-triggered
+recovery; keep its attribution and refusal guards intact.
 System 304 (`session::test_expiry_during_pending_approval`) reuses that attached
 worker through `natural_expiry.APPROVAL_PLAN` / `PendingApprovalJourney` and the
 same installed guest owner. Each of its two histories issues a 300-second grant
@@ -692,6 +703,15 @@ independent input/readback. Returning to the greeter never relocks that surface.
 The natural-expiry host modules use private pytest records, fake clocks,
 in-memory UI/transport doubles and bounded waited Perl children. Their reviewed
 unit/cleanup classifications add no shared path, process, bus or display owner.
+
+For a pending-timer/session-replacement history, follow
+`SessionReplacementJourney.arm_original`: changing displayed countdown text
+witnesses a scheduled tick; API seconds derived from the current clock alone
+do not. A fresh-entry guard proves the old session is absent, so capture the new
+session identity after sign-in before comparing later retained entries. Keep
+the original deadline and replacement entitlement separate, as in
+`SessionReplacementJourney`; do not reset the clock being tested to gain setup
+time. These are engineering witnesses, not extra steps for ordinary child entry.
 
 FLOW13 daily-only composes `journey_blocks.daily_time_profile` and
 `onpc_parent::daily_time_profile`; `DailyTimeProfileJourney` owns the exact

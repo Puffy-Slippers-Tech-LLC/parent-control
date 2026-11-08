@@ -1743,7 +1743,7 @@ outside acceptance.
 ### E2E-038
 
 The [shared expiry composition](../../tests/e2e/daily_soft_expiry.py) implements
-the no-action, unlock, fresh-login and allowance-edit branches. The inventory owns registration status.
+the no-action, unlock, fresh-login, allowance-edit and toggle branches. The inventory owns registration status.
 
 **Keep daily access after a grant ends and restore soft-app blocks.** Cases 164, 165, 166, 167, 168, 169, 170.
 
@@ -2461,7 +2461,7 @@ pre-expiry state or reset the original deadline.
 | 165 unlock | DESK05 → DESK08(success) → APP02 → FLOW08 | Existing matching soft activity closes; new hard/soft launches denied; A remains usable. |
 | 166 fresh-login | DESK04 → C(fresh) → FLOW08 | New hard/soft launches denied. Logout ends prior activities; no retention claim. |
 | 167 allowance-edit | P → PARENT06(10→15 minutes,still on) → PARENT08 → C(retained) | The allowance edit preserves the expired grant; returning unlocks the child desktop, closes the original S and denies new hard/soft launches. Original Allowed work remains usable. |
-| 168 toggle | P → UI17(off) → PARENT08 → UI17(on) → PARENT08 → C(retained) | Old S remains open; grant is cleared and full launch blocks apply. |
+| 168 toggle | P → UI17(off) → PARENT08 → UI17(on) → PARENT08 → C(retained) | Old S remains open and usable; grant is cleared and full launch blocks apply. After proving original Soft work, close it normally before the independent new Soft launch-denial check. |
 | 169 app-save | P → PARENT13(unchanged S rule) → PARENT15(Save) → C(retained) | Unchanged saved block restores launch denial without closing the already-open S. |
 | 170 revoke | P → PARENT17 → PARENT18(confirm) → C(retained) | G stays zero, D stays available, S closes and new hard/soft launches fail. Unlike 160, an expired grant existed before Revoke. |
 

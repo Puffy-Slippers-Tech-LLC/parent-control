@@ -1,4 +1,4 @@
-# 172k — Check lock-provider recovery
+# 172k — Check locking after a temporary interruption
 
 Required tasks: 172c, 172j.
 Estimate: 30–60 minutes.
@@ -13,7 +13,12 @@ callers, state and cleanup; discover actual selectors in area `session`.
 
 ## Scope and acceptance
 
-Use separate finite attempts for unavailable native lock action and replacement of org.gnome.ScreenSaver on an otherwise live child bus. Observe actual protected input, retained work, peer continuity and bounded supported recovery. Confirm owner/availability and legitimate renewal commit directly; entitled state must prevent a stale retry. Reuse 172j’s observations without repeating its acknowledgement matrix; task 172i alone owns bus-process replacement. Missing retry behavior remains explicit.
+Exercise a temporarily unavailable native lock action within the original live
+desktop. Observe actual protected input, retained work, peer continuity and
+bounded supported recovery. Confirm availability and legitimate renewal commit
+directly; entitled state must prevent a stale retry. Reuse 172j's observations
+without repeating its acknowledgement matrix. Missing retry behavior remains
+explicit.
 
 This is installed system qualification, with no customer-case acceptance credit.
 Extend the existing system-282 owner only for these missing assertions; reuse

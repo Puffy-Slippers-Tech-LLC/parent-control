@@ -1583,9 +1583,14 @@ def reconcile_queue(root, identity, *, check=False):
                 fcntl.flock(nested, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 raise ValueError('finish nested operations before reconciliation') from None
-            if (not (run / 'nested-closed').is_file()
-                    or json.loads((run / 'nested.json').read_text()) != []):
+            if not (run / 'nested-closed').is_file():
                 raise ValueError('finish owned cleanup before queue reconciliation')
+            # Shutdown retains the child registry even after all owners exit.
+            # Validate those identities and locks rather than requiring its erasure.
+            for child in launcher.nested_runs(root, run):
+                with launcher.lock(child / 'owner') as child_owner:
+                    if launcher.busy(child_owner):
+                        raise ValueError('finish owned cleanup before queue reconciliation')
             checkpoint = run / 'checkpoint.json'
             if checkpoint.is_symlink() or not checkpoint.is_file():
                 raise ValueError('retained checkpoint must be a regular file')
@@ -1593,18 +1598,25 @@ def reconcile_queue(root, identity, *, check=False):
             state = json.loads(raw)
             saved = dict(state.get('suspended_tasks', {}))
             saved[state['task_id']] = state
+            tasks = Plan(root, PLAN, QUEUE).tasks()
+            current, after = queue_state(root)
             transactions = ('pending_completion', 'commit_intent', 'worktree_propagation', 'upstream_pull',
-                            'result_recovery', 'source_changed_result', 'optimization_session',
+                            'source_changed_result', 'optimization_session',
                             'completion_recovery', 'closeout_recovery_run')
             if any(value.get(key) is not None and value.get(key) is not False
                    for value in saved.values() for key in transactions):
+                raise ValueError('finish retained acceptance, Git or result recovery before reconciliation')
+            # A rejected response for a deleted task has no remaining consumer.
+            # Preserve it in the original checkpoint instead of requiring another
+            # agent session for work removed by this reviewed queue revision.
+            if any(value.get('in_flight') or (
+                    value.get('result_recovery') and task in after)
+                   for task, value in saved.items()):
                 raise ValueError('finish retained acceptance, Git or result recovery before reconciliation')
             if any(value.get('phase') == 'blocked' for value in saved.values()):
                 raise ValueError('resolve the retained developer question before reconciliation')
             if optimization_due(state):
                 raise ValueError('finish the due optimization batch before reconciliation')
-            tasks = Plan(root, PLAN, QUEUE).tasks()
-            current, after = queue_state(root)
             before = state.get('queue_before')
             if not isinstance(before, dict) or not before:
                 raise ValueError('retained checkpoint has no queue baseline')

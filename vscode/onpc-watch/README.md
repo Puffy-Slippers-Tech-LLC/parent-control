@@ -330,16 +330,23 @@ occur on the extension host's desktop.
 It excludes the viewer's headings, command text and footers. Long titles truncate before
 the buttons, keeping them visible. The camera is disabled without a frame.
 
-Immediately after the camera, **Maximize tile** fills the right tab body with that
-viewer. The button becomes **Restore tile layout**, which returns to the grid
-with its saved layout. A maximized viewer stays open while waiting for its next
-run. The tab row contains only **VM Viewer** and **Run Time**; clicking **VM Viewer** also
-restores the grid.
+Immediately after the camera, **Minimize tile** (a short line) moves the viewer
+to a title-only bar at the bottom of the right canvas. Click that title to
+maximize the viewer. When those titles cannot fit, **>>** opens a flyout of all
+tile titles; selecting one maximizes it.
+
+After Minimize, **Maximize tile** fills the remaining right tab body with that
+viewer and minimizes the other tiles into the footer. The button becomes
+**Restore tile layout**, which restores all tiles in the last selected layout.
+A maximized tile can also be minimized, leaving all titles in the footer.
+A maximized viewer stays open while waiting for its next run. The tab row contains
+only **VM Viewer** and **Run Time**; clicking **VM Viewer** also restores the grid.
 
 Three icon buttons at the right end of the viewer tab row select the tile layout:
 **Auto** (the default grid), **Vertical** (one column), or **Horizontal** (one row).
-The tab remembers the selection. Overflowing tiles scroll in the chosen direction;
-the layout buttons stay pinned.
+The tab remembers the selection. Maximizing or minimizing a tile unselects all
+three buttons. Choosing any layout restores all tiles using that layout.
+Overflowing tiles scroll in the chosen direction; the layout buttons stay pinned.
 
 Immediately after **Reconnect**, the footer lists configured SSH hosts and any
 additional SSH Watch source hosts, separated by `|`; local sources are omitted

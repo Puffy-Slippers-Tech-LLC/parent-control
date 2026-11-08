@@ -76,6 +76,7 @@ nav button[aria-pressed="true"] {
     margin: 0; padding: 8px; flex-shrink: 0; min-width: 0; font-size: 1em;
     border-bottom: 1px solid var(--watch-rule); background: var(--watch-header);
 }
+.tile-titlebar { min-height: 45px; }
 .run-heading { flex-wrap: wrap; }
 .run-titlebar { display: flex; flex: 1 1 0; min-width: min-content; align-items: flex-end; gap: 8px; }
 .run-label, .run-tab { font-size: var(--vscode-font-size); }
@@ -232,6 +233,28 @@ nav button[aria-pressed="true"] {
     color: var(--vscode-inputOption-activeForeground);
 }
 #tile-layout svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+#minimized-tiles {
+    position: relative; display: flex; flex: 0 0 auto; min-width: 0; padding: 4px;
+    border-top: 1px solid var(--vscode-panel-border);
+}
+#minimized-titles { display: flex; flex: 1; min-width: 0; overflow: hidden; }
+#minimized-titles button, #tile-list button {
+    flex: 0 0 auto; max-width: 220px; padding: 0; text-align: left;
+}
+.minimized-tile .watch-tile-heading { width: 100%; }
+#tile-overflow summary:hover {
+    background: var(--vscode-toolbar-hoverBackground);
+}
+#tile-overflow { flex: 0 0 auto; }
+#tile-overflow summary { list-style: none; cursor: pointer; padding: 4px 8px; line-height: 20px; }
+#tile-overflow summary::-webkit-details-marker { display: none; }
+#tile-list {
+    position: absolute; z-index: 5; right: 4px; bottom: 100%; display: flex; flex-direction: column;
+    max-width: calc(100% - 8px); max-height: min(320px, 60vh); overflow: auto; padding: 4px;
+    border: 1px solid var(--watch-border); border-radius: 5px;
+    background: var(--vscode-editor-background); box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+}
+#tile-list button { max-width: none; width: 100%; }
 #grid {
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-auto-rows: minmax(350px, 1fr); flex: 1; min-height: 0; overflow: auto; gap: 6px; padding: 6px;

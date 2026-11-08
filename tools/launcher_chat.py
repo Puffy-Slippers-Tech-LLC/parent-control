@@ -5,7 +5,6 @@ module owns input/completion gates; adapters own native conversation protocols.
 Observers never signal agent PIDs.
 """
 
-import codecs
 import fcntl
 import json
 import time
@@ -426,93 +425,3 @@ class AppSession:
             # renderer so its prose reaches both transcript panes.
             self.renderer.event(SessionEvent('text', {
                 'text': STATUS_PREFIX + text, 'complete': True}))
-
-
-class ChatEditor:
-    """Multiline Unicode editor; Enter sends, Alt+Enter/Ctrl+J inserts a line."""
-    def __init__(self, send):
-        self.send = send
-        self.text = ''
-        self.cursor = 0
-        self.pending = b''
-        self.paste = False
-        self.paste_cr = False
-        self.decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
-        self.error = ''
-
-    def insert(self, text):
-        if len((self.text + text).encode('utf-8')) > MAX_INPUT:
-            self.error = 'Message is too long.'
-            return
-        self.text = self.text[:self.cursor] + text + self.text[self.cursor:]
-        self.cursor += len(text)
-
-    def feed(self, data):
-        self.pending += data
-        keys = (b'\x1b[200~', b'\x1b[201~', b'\x1b[13;2u', b'\x1b[27;2;13~',
-                b'\x1b\r', b'\x1b[A', b'\x1b[B', b'\x1b[C', b'\x1b[D',
-                b'\x1b[H', b'\x1b[F', b'\x1bOH', b'\x1bOF', b'\x1b[3~')
-        while self.pending:
-            key = next((key for key in keys if self.pending.startswith(key)), None)
-            if key is None and any(key.startswith(self.pending) for key in keys):
-                break
-            if key:
-                self.pending = self.pending[len(key):]
-                if key in (b'\x1b[200~', b'\x1b[201~'):
-                    self.paste = key == b'\x1b[200~'
-                    self.paste_cr = False
-                elif self.paste:
-                    continue
-                elif key in (b'\x1b\r', b'\x1b[13;2u', b'\x1b[27;2;13~'):
-                    self.insert('\n')
-                elif key == b'\x1b[D':
-                    self.cursor = max(0, self.cursor - 1)
-                elif key == b'\x1b[C':
-                    self.cursor = min(len(self.text), self.cursor + 1)
-                elif key in (b'\x1b[H', b'\x1bOH'):
-                    self.cursor = self.text.rfind('\n', 0, self.cursor) + 1
-                elif key in (b'\x1b[F', b'\x1bOF'):
-                    end = self.text.find('\n', self.cursor)
-                    self.cursor = len(self.text) if end < 0 else end
-                elif key == b'\x1b[3~':
-                    self.text = self.text[:self.cursor] + self.text[self.cursor + 1:]
-                elif key in (b'\x1b[A', b'\x1b[B'):
-                    lines = self.text.split('\n')
-                    line = self.text[:self.cursor].count('\n')
-                    column = self.cursor - (self.text.rfind('\n', 0, self.cursor) + 1)
-                    line = max(0, line - 1) if key == b'\x1b[A' else min(len(lines) - 1, line + 1)
-                    self.cursor = sum(len(v) + 1 for v in lines[:line]) + min(column, len(lines[line]))
-                continue
-            byte, self.pending = self.pending[:1], self.pending[1:]
-            if self.paste:
-                if byte != b'\n' or not self.paste_cr:
-                    self.insert('\n' if byte == b'\r' else '    ' if byte == b'\t' else clean(self.decoder.decode(byte)))
-                self.paste_cr = byte == b'\r'
-            elif byte in (b'\r', b'\n'):
-                if byte == b'\n':
-                    self.insert('\n')
-                elif self.text.strip():
-                    try:
-                        self.send(self.text)
-                    except (OSError, ValueError) as error:
-                        self.error = str(error)
-                    else:
-                        self.text, self.cursor, self.error = '', 0, ''
-            elif byte in (b'\x7f', b'\x08') and self.cursor:
-                self.text = self.text[:self.cursor - 1] + self.text[self.cursor:]
-                self.cursor -= 1
-            elif byte == b'\x15':
-                start = self.text.rfind('\n', 0, self.cursor) + 1
-                self.text = self.text[:start] + self.text[self.cursor:]
-                self.cursor = start
-            elif byte == b'\x0b':
-                end = self.text.find('\n', self.cursor)
-                end = len(self.text) if end < 0 else end + (end == self.cursor)
-                self.text = self.text[:self.cursor] + self.text[end:]
-            elif byte == b'\x01':
-                self.cursor = self.text.rfind('\n', 0, self.cursor) + 1
-            elif byte == b'\x05':
-                end = self.text.find('\n', self.cursor)
-                self.cursor = len(self.text) if end < 0 else end
-            elif byte >= b' ':
-                self.insert(clean(self.decoder.decode(byte)))

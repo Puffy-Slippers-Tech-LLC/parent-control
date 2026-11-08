@@ -372,10 +372,10 @@ def main(argv=None):
             return 0
         if args.cancel_stop:
             return 0
-        print(f'sync-whatsnew: retained session: {run}', flush=True)
-        return launcher.follow(run, label='sync-whatsnew')
+        return launcher.report_start(run, label='sync-whatsnew', started=_started,
+                                     stop=args.stop, reload=args.reload)
     except KeyboardInterrupt:
-        print('sync-whatsnew: detached; reattach with tools/sync-whatsnew, cancel with --stop', file=sys.stderr)
+        print('sync-whatsnew: interrupted; inspect ONPC: Watch, cancel with --stop', file=sys.stderr)
         return 130
     except (ValueError, OSError, subprocess.SubprocessError) as error:
         print('sync-whatsnew: ' + str(error), file=sys.stderr)

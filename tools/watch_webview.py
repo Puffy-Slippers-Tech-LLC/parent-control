@@ -334,7 +334,7 @@ class Viewer:
             if owner is not None:
                 root, run = workflow_roots[owner], owner
             if run.parent not in self.outputs:
-                self.outputs[run.parent] = Output(root, show_log=False, launcher_base=run.parent)
+                self.outputs[run.parent] = Output(root, launcher_base=run.parent)
 
         for checkout_root in self.roots:
             # Child runners can be dispatched into another worktree. Their
@@ -359,7 +359,7 @@ class Viewer:
                 observe(output.root, output.run)
         for root, output in self.outputs.items():
             branch = self.roots[output.root]
-            label, active, reset, data = output.poll(progress=False)
+            label, active, reset, data = output.poll()
             if reset or root not in self.launcher_logs:
                 self.launcher_logs[root] = ''
                 self.launcher_controls[root] = TerminalControls()
@@ -367,7 +367,7 @@ class Viewer:
                 text = output.decoder.decode(self.launcher_controls[root].feed(data))
                 self.launcher_logs[root] = (self.launcher_logs[root] + text)[-TAIL_BYTES:]
             if root not in self.sessions:
-                self.sessions[root] = SessionOutput(output, None, embedded=True)
+                self.sessions[root] = SessionOutput(output)
             session = self.sessions[root]
             session.poll()
             if supervisor(output.run) is not None:
@@ -475,7 +475,7 @@ class Viewer:
                         if current_vm == vm and re.match(
                                 r'^\[[^]]+\] Check: ' + re.escape(case) + r' - ', plain):
                             lines[index] = line + f' | Session {session_number}: {elapsed}'
-            question = session.panel.question.question if session.panel and session.panel.question else None
+            question = session.panel.question if session.panel and session.panel.question else None
             waiting = bool(session.active and (question or session.panel.chat_state.get('status') in ('waiting', 'blocked')))
             deadline = question.get('deadline') if question else None
             if waiting and not any(re.fullmatch(r'Paused\s*[—-]\s*waiting for your answer',
@@ -589,7 +589,7 @@ class Viewer:
                     raise ValueError('Session changed; review the current session before sending.')
                 question = session.panel.question
                 if (action['kind'] != 'simplified' and action['question'] !=
-                        (question.question['id'] if question else '')):
+                        (question['id'] if question else '')):
                     raise ValueError('Question changed; review the current session before sending.')
                 if action['kind'] == 'simplified':
                     # This changes only the observer's presentation, including

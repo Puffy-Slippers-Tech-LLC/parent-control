@@ -745,7 +745,7 @@ RESPONSE_VALIDATOR_SOURCES = (
     'backend_reviewer.toml', 'plan_monitor.toml', 'plan_worker.toml',
     'write_e2e_adviser.toml', 'sync_whatsnew_translator.toml',
     'launcher_reload.py',
-    'launcher_observer.py', 'launcher_view.py', 'launcher_display.py', 'launcher_progress.py',
+    'launcher_view.py', 'launcher_display.py', 'launcher_progress.py',
     'launcher_session.py', 'launcher_chat.py', 'launcher_render.py', 'watch_output.py',
     # Shared storage retirement still protects owned resources and any older
     # required captures. These guards do not collect task archives.
@@ -1200,40 +1200,23 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             if initial_info:
                 launcher.atomic(selected / 'task-info.json', initial_info)
             save_binding(selected, binding)
-        from launcher_view import WorkflowView, plan_view
-        view = plan_view(root, path)
-        with ExitStack() as observer:
-            display = None
-            def prepare(selected):
-                nonlocal display
-                # Paint before startup validation; keep Ctrl+C available.
-                display = observer.enter_context(WorkflowView().display(sys.stdout, selected))
-                display.update([{'key': 'startup', 'lines': [
-                    f'{spec.name}: resuming task queue…']}], [])
-            run, started = launcher.select(root, 'plans', command, stop=args.stop, stop_marker='stop',
-                                           cancel_stop=args.cancel_stop,
-                                           on_attach=attach, on_start=start, on_prepare=prepare,
-                                           namespace=plan_namespace(path), resumable_start=True,
-                                           launcher_name=spec.name,
-                                           **({'reload': True} if args.reload else {}))
-            if run is None:
-                print(f'{spec.name}: no active launcher.')
-                return 0
-            if args.cancel_stop:
-                return 0
-            if interrupted:
-                cancel()
-            message = (f"{spec.name}: {'started' if started else 'attached to'} {run.name}; log: {run / 'output'}\n"
-                       'Closing the terminal detaches. --stop waits for a session boundary. '
-                       'Chat Ctrl+C interrupts; again while waiting exits.\n')
-            if display is not None:
-                display.attach(run, input_mode=view.input_mode)
-                display.totals = view.totals
-                display.write(message, saved=False)
-            else:
-                print(message, end='', flush=True)
-            return launcher.follow(run, label=spec.name, view=view, **(
-                {'display': display} if display is not None else {}))
+        from launcher_view import publish_plan_view
+        run, started = launcher.select(root, 'plans', command, stop=args.stop, stop_marker='stop',
+                                       cancel_stop=args.cancel_stop,
+                                       on_attach=attach, on_start=start,
+                                       namespace=plan_namespace(path), resumable_start=True,
+                                       launcher_name=spec.name,
+                                       **({'reload': True} if args.reload else {}))
+        if run is None:
+            print(f'{spec.name}: no active launcher.')
+            return 0
+        if args.cancel_stop:
+            return 0
+        if interrupted:
+            cancel()
+        publish_plan_view(run, path)
+        return launcher.report_start(run, label=spec.name, started=started,
+                                     stop=args.stop, reload=args.reload)
     except BrokenPipeError:
         return 0
     except (OSError, ValueError, KeyError, ImportError, subprocess.SubprocessError) as error:

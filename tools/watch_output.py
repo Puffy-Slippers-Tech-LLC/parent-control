@@ -3,7 +3,6 @@
 import fcntl
 import codecs
 import copy
-import io
 import json
 import os
 from pathlib import Path
@@ -146,18 +145,14 @@ def cancel_run(root, run):
 
 
 class Output:
-    def __init__(self, root=None, *, terminal_size=None, show_log=True, launcher_base=None):
+    def __init__(self, root=None, *, launcher_base=None):
         self.root = root or Path(__file__).resolve().parents[1]
         self.launcher_base = launcher_base
-        self.terminal_size = terminal_size
-        self.show_log = show_log
         self.decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
         self.run = None
         self.label = ''
         self.identity = None
         self.offset = 0
-        self.display = None
-        self.line_start = True
         self.reader = JsonReader()
         self.error_clock = None
         self.summary_run = None
@@ -308,39 +303,6 @@ class Output:
             pass
         return False
 
-    def progress(self, active, data=b''):
-        from launcher_render import LauncherDisplay
-        if self.display is None:
-            # The embedded terminal supplies its own dimensions and needs the
-            # same in-place dashboard as an attached launcher, not log snapshots.
-            self.display = LauncherDisplay(io.StringIO(), terminal_size=self.terminal_size)
-        if self.show_log and self.terminal_size is not None and data:
-            self.display.write(self.decoder.decode(data))
-        try:
-            steps, details = self.status(active)
-            self.display.update(steps, details)
-        except (OSError, ValueError, KeyError, TypeError):
-            # A rejected progress publication must not swallow fresh log bytes.
-            self.display.draw()
-        stream = self.display.stream
-        data = stream.getvalue().encode('utf-8')
-        stream.seek(0)
-        stream.truncate()
-        return data
-
-    def scroll(self, rows):
-        if self.display is not None:
-            self.display.offsets['bottom'] = max(0, self.display.offsets['bottom'] + rows)
-
-    def scroll_state(self):
-        """Top row, total rows and visible rows of the embedded dashboard log."""
-        display = self.display
-        if display is None or display.size is None or 'bottom' not in display.row_cache:
-            return 0, 0, 0
-        total = len(display.row_cache['bottom'][1])
-        visible = max(0, display.size.lines - display.top_height - 1)
-        return max(0, total - visible - display.offsets['bottom']), total, visible
-
     def cancel(self):
         """Request the displayed owner's cooperative Ctrl+C shutdown."""
         run, _label = self.discover()
@@ -378,7 +340,7 @@ class Output:
         return next(((run, name) for run, name in active_launchers(self.root, self.reader)
                      if self.launcher_base is None or run.parent == self.launcher_base), (None, ''))
 
-    def poll(self, *, progress=True):
+    def poll(self):
         run, label = self.discover()
         active = run is not None
         # Drain the final bytes after owner exit and keep the last transcript.
@@ -405,9 +367,7 @@ class Output:
                     identity = (run, info.st_dev, info.st_ino)
                     reset = identity != self.identity or info.st_size < self.offset
                     if reset:
-                        self.display = None
                         self.decoder.reset()
-                        self.line_start = True
                         self.offset = max(0, info.st_size - TAIL_BYTES)
                         stream.seek(self.offset)
                         if self.offset:
@@ -419,28 +379,16 @@ class Output:
                     self.identity, self.run, self.label = identity, run, label
             except (OSError, ValueError):
                 pass
-        if data:
-            self.line_start = data.endswith(b'\n')
-        if not progress:
-            return label, active, reset, data
-        if self.terminal_size is not None and self.run == run and run is not None:
-            data = self.progress(active, data)
-        elif self.run == run and run is not None and self.line_start:
-            # Never insert dashboard text into a partial UTF-8/ANSI/log line.
-            data += self.progress(active)
         return label, active, reset, data
-
 
 
 
 class SessionOutput:
     """Follow the displayed workflow's session, with owner-checked input routing."""
 
-    def __init__(self, output, terminal_size, *, owner_run=None, embedded=False):
+    def __init__(self, output, *, owner_run=None):
         self.output = output
-        self.terminal_size = terminal_size
         self.owner_run = owner_run
-        self.embedded = embedded
         self.run = self.owner = self.identity = None
         self.offset = 0
         self.panel = None
@@ -502,7 +450,7 @@ class SessionOutput:
             question = self.reader.read(run / 'question.json')
             return (self.panel.question is not None and question.get('answer') is None
                     and not question.get('expired')
-                    and question.get('id') == self.panel.question.question['id'])
+                    and question.get('id') == self.panel.question['id'])
         except (OSError, ValueError, TypeError, AttributeError):
             return False
 
@@ -512,7 +460,7 @@ class SessionOutput:
         if not self.current():
             raise ValueError('Session changed; review the current session before sending.')
         if self.panel.question:
-            question = self.panel.question.question
+            question = self.panel.question
             options = question['options']
             choice = int(text.strip()) - 1 if text.strip() in ('1', '2', '3') else len(options)
             submit(self.run, question['id'], min(choice, len(options)), text)
@@ -528,48 +476,20 @@ class SessionOutput:
             raise ValueError('Session changed; review the current session before adding time.')
         extend_deadline(self.run, identity)
 
-    def feed(self, data):
-        from launcher_chat import send_input
-        if self.panel is None:
-            return
-        if data in (b'\x1b[5~', b'\x1b[6~'):
-            self.scroll(self.panel.output_height * (1 if data == b'\x1b[5~' else -1))
-            return
-        if not self.input_enabled or not self.current():
-            return
-        if data in (b'\x03', b'\x1b') and not self.panel.editor.paste:
-            if self.panel.input_mode == 'chat':
-                try:
-                    send_input(self.run, 'interrupt', cancel_waiting=data == b'\x03',
-                               expected_session=self.panel.chat_state.get('session'))
-                except (OSError, ValueError) as error:
-                    self.panel.editor.error = str(error)
-        elif self.panel.input_mode == 'chat':
-            self.panel.editor.feed(data)
-        elif self.panel.question:
-            self.panel.question.feed(data)
-
-    def scroll(self, rows):
-        if self.panel:
-            self.panel.offsets['bottom'] = max(0, self.panel.offsets['bottom'] + rows)
-
     def poll(self):
         from launcher_session import SessionPanel
-        from launcher_question import QuestionInput, submit
         owner, run, state, source = self.discover()
         if run is None:
             self.owner = self.run = self.identity = self.panel = None
             self.offset = 0
             self.decoder.reset()
             self.active = self.input_enabled = False
-            return False, False, b''
+            return False, False
         reset = (run, state['session']) != (self.run, self.identity)
         if reset:
             self.owner, self.run, self.identity = owner, run, state['session']
             simplified = self.panel.simplified if self.panel else True
-            self.panel = SessionPanel(io.StringIO(), send=self.send,
-                terminal_size=self.terminal_size, embedded=self.embedded,
-                hide_tool_results=True)
+            self.panel = SessionPanel(hide_tool_results=True)
             self.panel.simplified = simplified
             self.panel.update_text_output({})
             self.offset = 0
@@ -601,12 +521,7 @@ class SessionOutput:
         self.active = owner is not None and (state['status'] == 'running' or question is not None)
         self.input_enabled = self.active and (state['interactive'] or question is not None)
         panel.input_mode = 'chat' if self.active and state['interactive'] and question is None else 'question'
-        previous = panel.question.question['id'] if panel.question else None
-        if (question['id'] if question else None) != previous:
-            panel.question = QuestionInput(question, lambda identity, choice, text:
-                submit(run, identity, choice, text) if self.current() else False) if question else None
-        elif question is not None:
-            panel.question.question = question
+        panel.question = question
         # The launcher writes the full question and choices to session-output.log.
         # Keep question state for input routing without appending a second prompt.
         try:
@@ -644,11 +559,7 @@ class SessionOutput:
             panel.update_text_output(description)
         if owner is None or panel.chat_state.get('status') != 'running':
             panel.streaming_lines = []
-        panel.draw()
-        data = panel.stream.getvalue().encode('utf-8')
-        panel.stream.seek(0)
-        panel.stream.truncate()
-        return True, reset, data
+        return True, reset
 
 
 def terminal(identity, description):

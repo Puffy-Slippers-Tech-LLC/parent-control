@@ -1,15 +1,15 @@
-"""Daily access after expiry, with no action, unlock or fresh sign-in."""
+"""Daily access after expiry and the declared app-policy restoring action."""
 from dataclasses import replace
 import time
 
-from accessible_ui import countdown_seconds
+from accessible_ui import NAMED_CHILD_OPERATIONS, countdown_seconds
 from countdown import CountdownSample
 from daily_soft_profile import PLAN as PROFILE_PLAN, SCREENS as PROFILE_SCREENS, DailySoftProfileJourney
 from installed_journey import record_installed_journey
-from journey_blocks import (desktop_entry, desktop_return, fresh_desktop, lock_challenge, lock_recipient,
+from journey_blocks import (allowance_selection, desktop_entry, desktop_return, fresh_desktop, lock_challenge, lock_recipient,
                             native_activity_entry, native_activity_resume,
                             native_blocked_app, native_usable_app, prefixed_stages,
-                            retained_app_activities, retained_app_visit)
+                            retained_app_activities, retained_app_visit, retained_parent_entry)
 from native_fixtures import fixture_actions
 from private_artifacts import require
 from real_interval import interval_action
@@ -132,6 +132,54 @@ FRESH_LOGIN_PLAN = replace(PLAN,
 )
 
 
+# Raising the allowance preserves the expired grant. The retained child's
+# authenticated return reconciles that grant and closes matching blocked apps.
+# Finish every child result before the final other-child continuity visit.
+ALLOWANCE_ENTRIES = {
+    'edit-parent': prefixed_stages('edit-parent', desktop_entry(
+        'parent', source='desktop', entry='retained', source_account='child')),
+    'restored-child': prefixed_stages('restored-child', desktop_entry(
+        'child', source='desktop', entry='retained', source_account='parent')),
+}
+ALLOWANCE_EDIT = {
+    **native_activity_resume('expired-soft', child='child', binding='policy-soft'),
+    **ALLOWANCE_ENTRIES['edit-parent'],
+    **prefixed_stages('edit', retained_parent_entry(source='same-user', desktop_observation=False)),
+    **allowance_selection('raised', (15,)),
+    **ALLOWANCE_ENTRIES['restored-child'],
+}
+ALLOWANCE_RESULTS = {
+    'restored-soft-closed': 'ui:overlay-native-policy-soft-closed',
+    **prefixed_stages('blocked-hard', native_blocked_app('H', child='child')),
+    **prefixed_stages('blocked-soft', native_blocked_app('S', child='child')),
+    **native_activity_resume('allowed-return', child='child'),
+    'final-child-countdown': 'ui:child-countdown-present',
+    **retained_app_visit('peer-return', account='other-child', source='desktop', source_account='child'),
+}
+ALLOWANCE_SCREENS = {**PEER, **PROFILE_SCREENS, **EXPIRY, **ALLOWANCE_EDIT, **ALLOWANCE_RESULTS}
+ALLOWANCE_PLAN = replace(PLAN,
+    worker_mode='daily_soft_allowance_edit', screen_tags=ALLOWANCE_SCREENS,
+    phases={**{stage: phase for stage, phase in PLAN.phases.items()
+               if stage in ALLOWANCE_SCREENS or stage in ('ready', 'setup-detached')},
+        **{stage: 'step-2' for stage in ALLOWANCE_EDIT},
+        **{stage: 'step-3' for stage in ALLOWANCE_RESULTS}},
+    advance_after={'positive-child-witness': 'step-2', 'restored-child-desktop': 'step-3'},
+    invocations=tuple(stage for stage in ALLOWANCE_SCREENS
+        if stage in PLAN.invocations or stage in {
+            prefix + '-' + leaf for prefix, account in
+            (('edit-parent', 'parent'), ('restored-child', 'child'))
+            for leaf in fresh_desktop(account)}),
+    challenges={**PLAN.challenges,
+        'edit-parent': ('parent', 'edit-parent-recipient-qualified', 'edit-parent-recipient-rechecked'),
+        'restored-child': ('child', 'restored-child-child-recipient-qualified',
+                           'restored-child-child-recipient-rechecked')},
+    child_bindings={stage: 'child' for stage, tag in ALLOWANCE_SCREENS.items()
+                    if tag.removeprefix('ui:') in NAMED_CHILD_OPERATIONS},
+    activity_checks={**PLAN.activity_checks, 'restored-soft-closed': ('soft-capture', 'closed')},
+    activity_entries={**PLAN.activity_entries, 'restored-child-source-desktop': 'soft-capture'},
+)
+
+
 class DailySoftExpiryJourney(DailySoftProfileJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan, actions=actions if actions is not None else {
@@ -156,6 +204,13 @@ class DailySoftExpiryJourney(DailySoftProfileJourney):
             # The controller bracket ends after the guest read. Starting the
             # same interval there is conservative even if its reply was delayed.
             self.expiry_controller_ns = self.ui.read_bounds[1] + upper * 1_000_000_000
+        if stage == 'edit-parent-retained':
+            # The intervening public balance refresh navigates to Screen Limits.
+            # Preserve the captured window/settings, with that explicit page change.
+            require(self.parent_window is not None
+                    and observed['ui']['retained_parent'] == {
+                        **self.parent_window, 'page': 'screen-limits'},
+                    'daily-soft-expiry:retained-parent-before-allowance-edit')
         if stage in ('expired-countdown', 'final-child-countdown'):
             sample = CountdownSample.from_ui(observed['ui'], boot_sha256=observed['boot_sha256'])
             require(sample.boot_sha256 == self.return_boot
@@ -184,6 +239,10 @@ def execute_fresh_login(recorder, context):
     execute_branch(recorder, context, FRESH_LOGIN_PLAN, 'fresh-login')
 
 
+def execute_allowance_edit(recorder, context):
+    execute_branch(recorder, context, ALLOWANCE_PLAN, 'allowance-edit')
+
+
 def execute_branch(recorder, context, plan, branch):
     from e2e_fixture_preparation import ACTIVITY_SUBSETS
     context.fixture_subsets = ACTIVITY_SUBSETS
@@ -192,4 +251,5 @@ def execute_branch(recorder, context, plan, branch):
                              journey_type=DailySoftExpiryJourney)
 
 
-E2E_CASES = {'none': execute, 'unlock': execute_unlock, 'fresh-login': execute_fresh_login}
+E2E_CASES = {'none': execute, 'unlock': execute_unlock, 'fresh-login': execute_fresh_login,
+             'allowance-edit': execute_allowance_edit}

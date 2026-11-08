@@ -151,18 +151,26 @@ def _compiled_retirement_record(g, identities):
     base = set(movable) | {TRUST_RECORD, TRUST_FILE}
     generated = {NATIVE_RULES_COMPILED, NATIVE_RULES_BACKUP}
     # Completed clean captures retain historical retirement receipts. These
-    # predate the Alias launcher and the move of H into Whitespace (tasks
-    # 229a and 227); changing movable fixtures must not invalidate clean stock
-    # compiler witnesses. Recognize only those exact earlier inventories.
+    # predate C, the Alias launcher and the move of H into Whitespace (tasks
+    # 035a, 229a and 227). Reconstruct those exact earlier inventories in
+    # reverse order; new movable fixtures cannot invalidate clean witnesses.
+    comma = assets.PREFIX + '/Comma/'
+    before_comma = base - {
+        comma + 'Path,With,Commas.AppImage',
+        *(comma + name for name in assets.GUI_FILES),
+        *(identities[role].pw_dir + '/.local/share/applications/'
+          + assets.desktop_id('C') for role in ('child', 'other')),
+    }
     alias = (identities['other'].pw_dir + '/.local/share/applications/'
              + assets.desktop_id('Alias'))
     whitespace = assets.PREFIX + '/Whitespace/'
     old_h = assets.PREFIX + '/Path With Spaces.AppImage'
-    before_alias = base - {alias}
+    before_alias = before_comma - {alias}
     before_whitespace = (before_alias - {
         whitespace + 'Path With Spaces.AppImage',
         *(whitespace + name for name in assets.GUI_FILES)}) | {old_h}
-    historical = (before_alias, before_whitespace,
+    historical = (before_comma, before_alias, before_whitespace,
+                  before_comma - set(native_assets.NATIVE_POLICY_PATHS),
                   before_alias - set(native_assets.NATIVE_POLICY_PATHS),
                   before_whitespace - set(native_assets.NATIVE_POLICY_PATHS))
     recorded = set(record['files']) - generated

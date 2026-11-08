@@ -70,11 +70,11 @@ nav button { flex-shrink: 0; }
     border-bottom: 1px solid var(--watch-rule); background: var(--watch-header);
 }
 .tile-titlebar { min-height: 45px; }
-.run-heading { position: relative; flex-direction: column; align-items: stretch; }
+.run-heading { position: relative; flex-direction: column; align-items: stretch; row-gap: 2px; }
 .run-titlebar { display: flex; min-width: min-content; align-items: center; gap: 8px; }
 .run-label, .run-tab, #viewers button { font-size: var(--vscode-font-size); }
 .run-titlebar .run-label {
-    flex: 1 1 8ch; width: 0; min-width: calc(8ch + 32px);
+    flex: 0 1 auto; width: auto; min-width: 0;
     padding: 0; border: 0; background: transparent; color: inherit; font-weight: bold;
 }
 .title svg {

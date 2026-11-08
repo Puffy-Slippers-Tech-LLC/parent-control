@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from tests.fixtures.native_assets import (ASSETS as NATIVE_ASSETS, LAUNCHERS, TRUSTED_NATIVE, GUI_DIRECTORIES,
-    LEGACY_S, VERSION_NONMATCH, desktop_id, desktop_entry, executable_path, version_pattern)
+    LEGACY_S, NEXT_VERSION, VERSION_NONMATCH, desktop_id, desktop_entry, executable_path, version_pattern)
 from tests.fixtures import snap_assets, flatpak_assets
 SOURCE = Path(__file__).with_name("onpc_test_application.c")
 GUI_SOURCE = Path(__file__).with_name("gui_application.py")
@@ -44,7 +44,7 @@ NATIVE_NAMES = (
     "Exact Fixture.AppImage",
     "Whitespace/Path With Spaces.AppImage",
     "Lunar Client-3.7.17.AppImage",
-    "Lunar Client-3.8.0.AppImage",
+    NEXT_VERSION,
     "PrismLauncher.AppImage",
 )
 VOLATILE_FILES = frozenset({

@@ -77,25 +77,28 @@ NATIVE_COMMA_SOURCE = 'Path,With,Commas.AppImage'
 NATIVE_COMMA_COPY = 'Copied,Path,With,Commas.AppImage'
 NATIVE_PROFILES = ('native-space', 'native-comma', 'native-version-next', 'native-version-nonmatch')
 NATIVE_VERSION_PARENT = Path('/opt/onpc-test-fixtures/Applications/Versioned')
+NATIVE_VERSION_SOURCE = 'LunarClient-3.8.0.AppImage'
 NATIVE_VERSION_NEXT = 'Lunar Client-3.8.0.AppImage'
 NATIVE_VERSION_NONMATCH = 'NewPrismLauncher.AppImage'
 
 
-def native_space_operate(home, operation, request, profile='native-space'):
+def native_space_operate(home, operation, request, profile='native-space', *, administrative=False):
     """FILE05: one Jordan-owned executable copy, never arbitrary file input."""
     import pwd
     require(profile in NATIVE_PROFILES)
+    require(type(administrative) is bool and (not administrative or profile in (
+        'native-version-next', 'native-version-nonmatch')))
     parent_path, source_name, copy_name = {
         'native-space': (NATIVE_SPACE_PARENT, NATIVE_SPACE_SOURCE, NATIVE_SPACE_COPY),
         'native-comma': (NATIVE_COMMA_PARENT, NATIVE_COMMA_SOURCE, NATIVE_COMMA_COPY),
-        'native-version-next': (NATIVE_VERSION_PARENT, NATIVE_VERSION_NEXT, NATIVE_VERSION_NEXT),
+        'native-version-next': (NATIVE_VERSION_PARENT, NATIVE_VERSION_SOURCE, NATIVE_VERSION_NEXT),
         'native-version-nonmatch': (NATIVE_VERSION_PARENT, 'PrismLauncher.AppImage', NATIVE_VERSION_NONMATCH),
     }[profile]
     versioned = profile in ('native-version-next', 'native-version-nonmatch')
     next_version = profile == 'native-version-next'
     source_key = '../' + source_name if next_version else source_name
     child = pwd.getpwnam('onpc-child-jordan')
-    require(os.getuid() == os.geteuid() == child.pw_uid
+    require(os.getuid() == os.geteuid() == (0 if administrative else child.pw_uid)
             and home == Path(child.pw_dir) == Path('/home/onpc-child-jordan'))
     require(operation in ('stage', 'copy', 'read', 'cleanup', 'absent')
             and type(request) is dict and set(request) == {'expected', 'previous'})
@@ -793,16 +796,24 @@ def diagnostic_zip_refusal(error):
 
 def main():
     import pwd
-    require(len(sys.argv) in (3, 4))
-    user = ('onpc-child-jordan' if len(sys.argv) == 4 and sys.argv[3] in NATIVE_PROFILES
+    require(len(sys.argv) in (3, 4, 5))
+    administrative = len(sys.argv) == 5
+    require(not administrative or sys.argv[4] == 'administrative' and sys.argv[3] in (
+        'native-version-next', 'native-version-nonmatch'))
+    user = ('onpc-child-jordan' if len(sys.argv) >= 4 and sys.argv[3] in NATIVE_PROFILES
             else 'onpc-parent-jamie')
     account = pwd.getpwnam(user)
-    require(os.getuid() == os.geteuid() == account.pw_uid and account.pw_dir == '/home/' + user)
+    require(os.getuid() == os.geteuid() == (0 if administrative else account.pw_uid)
+            and account.pw_dir == '/home/' + user)
     require(len(sys.argv[2]) <= 4096)
     previous = json.loads(sys.argv[2])
     try:
-        result = operate(Path(account.pw_dir), sys.argv[1], previous,
-                         sys.argv[3] if len(sys.argv) == 4 else 'standard')
+        if administrative:
+            result = native_space_operate(Path(account.pw_dir), sys.argv[1], previous,
+                                          sys.argv[3], administrative=True)
+        else:
+            result = operate(Path(account.pw_dir), sys.argv[1], previous,
+                             sys.argv[3] if len(sys.argv) == 4 else 'standard')
     except (ValueError, OSError) as error:
         if (sys.argv[1] == 'open-zip' and len(sys.argv) == 4 and sys.argv[3] == 'save'
                 and type(previous) is dict and previous.get('artifact') == 'diagnostic-export'):

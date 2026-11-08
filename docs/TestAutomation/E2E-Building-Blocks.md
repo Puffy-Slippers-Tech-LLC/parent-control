@@ -4236,11 +4236,18 @@ supplies no Fedora qualification.
 The future-version/new-nonmatch binding is implemented in
 [versioned_appimage_assets.py](../../tests/e2e/versioned_appimage_assets.py),
 qualified on Ubuntu 26.04 by `check_e2e_qualify_versioned_appimage_pattern_assets`
-in `20261108T012124Z-15220b79`. FIX06 declares the distinct root-level
-`Lunar Client-3.8.0.AppImage` source and `Versioned/PrismLauncher.AppImage`.
+in `20261108T044143Z-95de3786`. FIX06 declares the distinct root-level
+`LunarClient-3.8.0.AppImage` source and `Versioned/PrismLauncher.AppImage`.
+The source has no space so A's separate `Exact*.AppImage` wildcard can preserve
+it as an unrelated executable; the versioned copy retains its space-bearing name.
 `versioned_copy_actions` reuses FILE05's `native-version-next` and
 `native-version-nonmatch` profiles to add `Versioned/Lunar Client-3.8.0.AppImage`
 and `Versioned/NewPrismLauncher.AppImage` at separate caller-owned checkpoints.
+Its explicit `administrative=True` binding uses the same finite paths and
+child-owned receipts through guarded root placement/readback, so a blocked child
+need not read an arriving file. Default child execution remains unchanged; the
+versioned-assets qualification exercises independent child and administrative
+copy/use/cleanup lifetimes. Case 189 owns the active-policy composition.
 `VersionNext`, `VersionExisting` and `VersionNonmatch` command bindings use the existing secondary
 window's public Submit/readback/closure with exact Jordan/executable owner checks.
 `check_e2e_qualify_versioned_appimage_pattern_assets` is the focused readiness/use

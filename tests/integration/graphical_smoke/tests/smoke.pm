@@ -1332,6 +1332,13 @@ sub run {
         onpc_fresh_thirty_allowance::search_filters(\&exchange);
         return;
     }
+    if ($ready->{pattern_files_case}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_fresh_thirty_allowance::pattern_files_case(
+            \&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{match_editor_case}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

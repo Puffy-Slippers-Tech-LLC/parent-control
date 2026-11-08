@@ -11,7 +11,9 @@ NATIVE_PROFILES = ('native-space', 'native-comma', 'native-version-next', 'nativ
 
 
 class SyntheticFiles:
-    def __init__(self, transport, profile='standard', *, expected=None):
+    def __init__(self, transport, profile='standard', *, expected=None, administrative=False):
+        require(type(administrative) is bool and (not administrative or profile in (
+            'native-version-next', 'native-version-nonmatch')), 'files:administrative-profile')
         require(profile in ('standard', 'single', 'count', 'sixth', 'maximum', 'oversized', 'total', 'overflow',
                             'name180', 'name181', 'hidden', 'mixed', 'zip', 'save', *NATIVE_PROFILES),
                 'files:profile')
@@ -25,6 +27,7 @@ class SyntheticFiles:
         self.transport = transport
         self.profile = profile
         self.expected = dict(expected) if expected is not None else None
+        self.administrative = administrative
         self.previous = None
         self.failed = False
         self.attempted = set()
@@ -81,11 +84,12 @@ class SyntheticFiles:
         if self.profile in NATIVE_PROFILES:
             previous = {'expected': self.expected, 'previous': previous}
         raw = self.transport.call([
-            '/usr/sbin/runuser', '--user',
-            'onpc-child-jordan' if self.profile in NATIVE_PROFILES else 'onpc-parent-jamie', '--',
+            *([] if self.administrative else ['/usr/sbin/runuser', '--user',
+                'onpc-child-jordan' if self.profile in NATIVE_PROFILES else 'onpc-parent-jamie', '--']),
             '/usr/bin/python3', '-I', '-', name,
             json.dumps(previous, sort_keys=True),
-            *([] if self.profile == 'standard' else [self.profile])], input=program, timeout=30)
+            *([] if self.profile == 'standard' else [self.profile]),
+            *(['administrative'] if self.administrative else [])], input=program, timeout=30)
         require(type(raw) is bytes and 0 < len(raw) <= 4096, 'files:output-bound')
         value = json.loads(raw)
         require(type(value) is dict and raw == (json.dumps(value, sort_keys=True) + '\n').encode(),

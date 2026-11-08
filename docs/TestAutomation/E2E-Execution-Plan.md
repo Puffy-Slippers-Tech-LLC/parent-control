@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **231 — [E2E-041: pattern-files](E2E-Tasks/231-case-189.md)**.
+Next task: **036f — [Launch separate usable native windows from Files](E2E-Tasks/036f-native-files-usable.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

@@ -503,7 +503,8 @@ sub daily_soft_expiry {
     die 'flow18:binding' unless (@_ == 4 || @_ == 5) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,6,1'
-        && ($restore eq 'none' || $restore eq 'unlock' || $restore eq 'fresh-login');
+        && ($restore eq 'none' || $restore eq 'unlock' || $restore eq 'fresh-login'
+            || $restore eq 'allowance-edit');
     # Keep FLOW18's qualified approval scope and exact request binding.
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'daily-soft-profile', review => 0);
     $journey->declare_invocations($declared);
@@ -538,6 +539,19 @@ sub daily_soft_expiry {
         native_blocked_app($journey->scope('blocked-soft'), 'S');
         my $allowed = $journey->scope('new-allowed');
         native_usable_app($allowed, 'command', $allowed->seen('desktop'), 'child', 'A');
+    } elsif ($restore eq 'allowance-edit') {
+        onpc_desktop_session::enter_desktop(
+            $journey, 'desktop', 'parent', 'retained', 'success', 'edit-parent', 'child');
+        $journey->consume_observation('edit-parent-retained',
+            onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'child', 'edit', 0));
+        require onpc_allowance_selection;
+        onpc_allowance_selection::select($journey, 'raised', [15], 'confirm');
+        onpc_desktop_session::enter_desktop(
+            $journey, 'desktop', 'child', 'retained', 'success', 'restored-child', 'parent');
+        native_read_activity($journey, 'restored-soft-closed');
+        native_blocked_app($journey->scope('blocked-hard'), 'H');
+        native_blocked_app($journey->scope('blocked-soft'), 'S');
+        native_activity_resume($journey, 'allowed-return');
     } else {
         native_finish_app($journey->scope('expired-soft'));
         my $fresh = $journey->scope('new-soft');

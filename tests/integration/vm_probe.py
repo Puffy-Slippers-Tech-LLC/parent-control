@@ -1128,6 +1128,44 @@ def reproduce_versioned_appimage_assets(lease, fixture_selection):
         boundary_operation='system:parent-logout', fixture_selection=selection, timeout=1800)
 
 
+def probe_native_desktop_new_window(lease):
+    """Recheck the same guarded icon boundary in the retained child desktop."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from ui_observations import UiObservations, AppActivityObservation, compare_app_activity
+    from qualification_storage import recovery_session, allocate
+    with operation('Checking the exact desktop icon while the child keeps original work'), recovery_session(
+            check='probe_native_desktop_new_window', lease=lease, live=True):
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-native-desktop-new-window-probe-'))
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
+        print('native-desktop-new-window-probe: evidence=' + str(directory), flush=True)
+        ui = UiObservations(connect(lease))
+        before = ui.observe('native-soft-primary-activity')
+        icon = ui.observe('native-soft-desktop-icon')
+        after = ui.observe('native-soft-primary-activity')
+        compare_app_activity(AppActivityObservation.from_value(after['activity']),
+                             AppActivityObservation.from_value(before['activity']))
+        (directory / 'observed.json').write_text(json.dumps(
+            {'before': before, 'icon': icon, 'after': after}))
+        lease.guard()
+        print('native-desktop-new-window-probe: observation passed', flush=True)
+
+
+def reproduce_native_desktop_new_window(lease, fixture_selection):
+    """Retain 036h's original S work at the exact second-window icon boundary."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from installed_journey import InstalledJourney
+    from native_desktop_new_window import PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, InstalledJourney, PLAN,
+        'first-second-icon', 'native-desktop-new-window', assets=assets,
+        boundary_operation='native-soft-desktop-icon', fixture_selection=selection, timeout=1800)
+
+
 def reproduce_native_desktop(lease, fixture_selection):
     """Retain case 68's Jordan selection after the actual Parent policy saves."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1762,6 +1800,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from native_files_usable import NativeFilesJourney
         if surface == 'native-desktop':
             from app_launch import DESKTOP_PLAN
+        if surface == 'native-desktop-new-window':
+            from native_desktop_new_window import PLAN as NATIVE_DESKTOP_NEW_WINDOW_PLAN
         from grant_access_case import GrantAccessJourney, PLAN as GRANT_ACCESS_PLAN
         from match_editor_case import PLAN as MATCH_EDITOR_PLAN
         from policy_edits import AppPolicyJourney
@@ -1826,6 +1866,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         native_desktop = (surface == 'native-desktop'
             and journey_type is AppPolicyJourney and plan is DESKTOP_PLAN
             and boundary == 'jordan-use-selected' and boundary_operation == 'native-desktop-selected')
+        native_desktop_new_window = (surface == 'native-desktop-new-window'
+            and journey_type is InstalledJourney and plan is NATIVE_DESKTOP_NEW_WINDOW_PLAN
+            and boundary == 'first-second-icon' and boundary_operation == 'native-soft-desktop-icon')
         grant_logout = (surface == 'grant-logout'
             and journey_type is GrantAccessJourney and plan is GRANT_ACCESS_PLAN
             and boundary == 'grant-logout-logout' and boundary_operation == 'system:standard-logout')
@@ -1867,7 +1910,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         versioned_assets = (surface == 'versioned-appimage-assets'
             and journey_type is VersionedAppImageAssetsJourney and plan is VERSIONED_ASSETS_PLAN
             and boundary == 'logout' and boundary_operation == 'system:parent-logout')
-        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or expired_sign_out or daily_soft_balance or versioned_assets)
+        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or expired_sign_out or daily_soft_balance or versioned_assets)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1910,10 +1953,11 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if selected_setup:
             from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS
             context.fixture_selection = fixture_selection
-            context.fixture_subsets = ('native',) if surface in ('ineligible-approver', 'remove-selected', 'remove-last-child', 'native-denial', 'native-files', 'versioned-appimage-assets', 'grant-logout', 'match-editor', 'flatpak-grid', 'flatpak-temporary-access', 'native-temporary-access') else ACTIVITY_SUBSETS
+            context.fixture_subsets = ('native',) if surface in ('ineligible-approver', 'remove-selected', 'remove-last-child', 'native-denial', 'native-files', 'native-desktop-new-window', 'versioned-appimage-assets', 'grant-logout', 'match-editor', 'flatpak-grid', 'flatpak-temporary-access', 'native-temporary-access') else ACTIVITY_SUBSETS
             context.fixture_caller = ({'ineligible-approver': None, 'remove-selected': None, 'remove-last-child': None, 'native-denial': None, 'flatpak-grid': None,
                                        'native-files': None,
                                        'native-desktop': 'E2E-019/native-desktop-allowed-enabled',
+                                       'native-desktop-new-window': None,
                                        'versioned-appimage-assets': None,
                                        'flatpak-temporary-access': None,
                                        'native-temporary-access': None,
@@ -2024,6 +2068,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             for name, child in (('jordan', 'other-child'), ('riley', 'child')):
                 actions.update({name + '-' + key: action
                                 for key, action in desktop_entry_actions(child=child).items()})
+        if surface == 'native-desktop-new-window':
+            from native_fixtures import fixture_actions
+            from synthetic_files import desktop_entry_actions
+            actions = {**fixture_actions(include_refusal=False), **desktop_entry_actions(role='S')}
         if surface in ('match-editor', 'panel-request', 'app-restart-choices', 'reboot-context', 'native-temporary-access'):
             from native_fixtures import fixture_actions
             actions = fixture_actions(include_refusal=False)

@@ -1842,6 +1842,15 @@ The case's qualified fixture profile, owned maintenance envelope and input guard
 active. It supplies no acceptance credit; finish with
 `tools/test-vm --vm NAME stop` before clean qualification.
 
+`tools/test-vm --vm NAME reproduce-native-desktop-new-window` reuses 036h's
+`native_desktop_new_window.PLAN` through its trusted S placement and original
+submitted draft. It stops at `first-second-icon`, records the actual guarded
+icon observation and retains Jordan's original S window for `exec` probes.
+`probe-native-desktop-new-window` rechecks that same icon operation in the
+retained scene, including the original-work and absent-secondary guards. These
+diagnostics use the same maintenance envelope and supply no acceptance credit;
+finish with `tools/test-vm --vm NAME stop` before clean qualification.
+
 Snap enforcement diagnosis is deferred by developer decision on 2026-11-05.
 The [shared Snap boundary](../../docs/TestAutomation/E2E-Execution-Instructions.md#snap-acceptance-boundary)
 excludes this reproduction from ordinary E2E tasks and regression gates. Consult

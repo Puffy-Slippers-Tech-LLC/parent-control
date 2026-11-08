@@ -411,6 +411,8 @@ OPERATION_LABELS.update({operation: 'Checking native app launch and ordinary dra
                          for operation in accessible_ui.NATIVE_APP_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Selecting the child\'s exact desktop app icon'
                          for operation in accessible_ui.NATIVE_DESKTOP_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Reading or using the child\'s distinct S window'
+                         for operation in accessible_ui.NATIVE_WINDOW_BINDINGS})
 OPERATION_LABELS.update({operation: 'Checking the declared Snap app and its public activity: ' + operation
                          for operation in accessible_ui.SNAP_APP_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Checking the child can use the declared Flatpak app: ' + operation
@@ -2129,6 +2131,15 @@ class UiObservations:
             expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
             require(type(result.get('selected')) is bool, 'ui:native-desktop-selection-response')
             expected['selected'] = result['selected']
+        if operation in accessible_ui.NATIVE_WINDOW_BINDINGS:
+            instance, action = accessible_ui.NATIVE_WINDOW_BINDINGS[operation]
+            if action in ('opened', 'submitted'):
+                expected['activity'] = {'draft': 'ONPC fixture draft',
+                    'submitted': 'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
+                    'score': 'Moves: 0; token: 0'}
+            elif action == 'activity':
+                AppActivityObservation.from_value(result.get('activity'), binding='native-' + instance)
+                expected['activity'] = result['activity']
         if operation in accessible_ui.NATIVE_FILES_BINDINGS:
             _role, action = accessible_ui.NATIVE_FILES_BINDINGS[operation]
             if action in ('launch', 'launch-refusals'):

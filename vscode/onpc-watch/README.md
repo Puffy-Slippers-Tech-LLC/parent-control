@@ -249,15 +249,14 @@ Artifact transfer does not create local test-output copies.
 Repair case totals show green completed, red failed and total counts. The failed
 count is underlined; click it to open the cumulative `errors.md` in the editor.
 
-The right panel contains the shared All grid across checkouts, UI worker and VM tabs,
+The right panel contains the shared VM Viewer grid across checkouts, UI worker and VM tiles,
 VM progress, filtered command output and host resource usage. Screens are view
-only. Clicking a viewer title toggles tile selection; use its viewer tab to open
-that viewer on its own. Tiles and viewer tabs group by worktree in the left
+only. Clicking a viewer title toggles tile selection. Tiles group by worktree in the left
 panel's current order, following changes on each refresh. Worktrees without a displayed run follow those
-shown on the left. Start tests through the usual launchers. Select an idle VM tab to wait for
-its next run. The Reconnect button restarts this tab's source connections.
+shown on the left. Start tests through the usual launchers.
+The Reconnect button restarts this tab's source connections.
 
-The fixed **Run Time** tab follows **All**. It loads logged VM case durations only
+The fixed **Run Time** tab follows **VM Viewer**. It loads logged VM case durations only
 while selected, refreshes the data once per minute, and unloads its body when
 another tab is selected. Selecting it again loads fresh data immediately. The selectable,
 full-width table keeps one latest duration and recording per case/VM pair, folded
@@ -307,7 +306,7 @@ records live in the shared `state` directory under gitignored `output/test-runs/
 
 Each VM footer has an **SSH** toggle at the right, off by default. Turn it on
 to show the filtered command output above the footer. The choice is retained
-when switching viewer tabs until Watch is reopened. Long blue operation messages
+when maximizing or restoring tiles until Watch is reopened. Long blue operation messages
 truncate before the toggle, whose space stays reserved.
 
 Immediately before **SSH**, **Memory: x.x GB** shows the VM process's resident
@@ -319,7 +318,7 @@ readings show **—**; gaps remain disconnected. History stays in memory and res
 when the VM instance changes or Watch reconnects. Existing VM collectors need
 their next normal restart to publish this additional reading.
 
-The camera icon at the right end of each tile's title bar saves that tile's UI frame
+The camera icon near the right end of each tile's title bar saves that tile's UI frame
 at its original resolution to the XDG Pictures directory's Screenshots folder,
 without a Save dialog. Names follow `Screenshot From 2026-10-30 10-04-15.png`
 in local time; repeated captures in one second add a numeric suffix.
@@ -329,12 +328,18 @@ the standard desktop notification and FileManager1 APIs. This requires the
 system Python's PyGObject/Gio bindings. With Remote SSH, saving and notifications
 occur on the extension host's desktop.
 It excludes the viewer's headings, command text and footers. Long titles truncate before
-the camera, keeping it visible. The camera is disabled without a frame.
+the buttons, keeping them visible. The camera is disabled without a frame.
+
+Immediately after the camera, **Maximize tile** fills the right tab body with that
+viewer. The button becomes **Restore tile layout**, which returns to the grid
+with its saved layout. A maximized viewer stays open while waiting for its next
+run. The tab row contains only **VM Viewer** and **Run Time**; clicking **VM Viewer** also
+restores the grid.
 
 Three icon buttons at the right end of the viewer tab row select the tile layout:
 **Auto** (the default grid), **Vertical** (one column), or **Horizontal** (one row).
 The tab remembers the selection. Overflowing tiles scroll in the chosen direction;
-overflowing tab headers scroll independently while the layout buttons stay pinned.
+the layout buttons stay pinned.
 
 Immediately after **Reconnect**, the footer lists configured SSH hosts and any
 additional SSH Watch source hosts, separated by `|`; local sources are omitted

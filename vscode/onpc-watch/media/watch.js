@@ -471,7 +471,7 @@
         const titlebar = element('div', 'watch-tile-heading tile-titlebar', body);
         tileSelection(body, titlebar);
         const title = element('span', 'title', titlebar);
-        const screenshot = element('button', 'tile-screenshot', titlebar);
+        const screenshot = element('button', 'tile-action tile-screenshot', titlebar);
         screenshot.type = 'button';
         screenshot.title = 'Take UI screenshot';
         screenshot.setAttribute('aria-label', `Take UI screenshot: ${entry.label}`);
@@ -483,6 +483,15 @@
         shape.setAttribute('d', 'M2 6h4l2-3h4l2 3h4v11H2z M13 11a3 3 0 1 1-6 0 3 3 0 1 1 6 0');
         icon.append(shape);
         screenshot.append(icon);
+        const maximize = element('button', 'tile-action tile-maximize', titlebar);
+        maximize.type = 'button';
+        const maximizeIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        maximizeIcon.setAttribute('viewBox', '0 0 20 20');
+        maximizeIcon.setAttribute('aria-hidden', 'true');
+        const maximizeShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        maximizeIcon.append(maximizeShape);
+        maximize.append(maximizeIcon);
+        maximize.addEventListener('click', () => select(state.scope, state.selected === entry.id ? 'all' : entry.id));
         const heading = element('div', 'heading', body);
         const step = element('div', 'step', body);
         const display = element('div', 'display', body);
@@ -531,7 +540,7 @@
                 }
             });
         }
-        return { body, title, heading, step, canvas, waiting, activity, status, memory, screenshot };
+        return { body, title, heading, step, canvas, waiting, activity, status, memory, screenshot, maximize, maximizeShape };
     }
 
     function image(url) {
@@ -1200,10 +1209,9 @@
         state = { scope: snapshot.scope, selected: snapshot.selected };
         persist();
         runStatus(snapshot.runs);
-        tabs(viewers, [{ id: 'all', label: 'All', active: true },
-            { id: 'run-time', label: 'Run Time', active: true }, ...snapshot.entries.map(entry =>
-            ({ id: entry.id, label: entry.label, active: entry.locked }))],
-            state.selected, selected => select(state.scope, selected));
+        tabs(viewers, [{ id: 'all', label: 'VM Viewer', active: true },
+            { id: 'run-time', label: 'Run Time', active: true }],
+            state.selected === 'run-time' ? 'run-time' : 'all', selected => select(state.scope, selected));
         resourceCharts(snapshot);
         serverStatus(snapshot.servers || []);
         const shown = snapshot.entries.filter(entry => state.selected === 'all' ? entry.active : entry.id === state.selected);
@@ -1222,7 +1230,7 @@
         grid.querySelector('.run-times')?.remove();
         grid.classList.remove('runtime-body');
         if (!shown.length) {
-            message('Waiting for UI tests or VM activity. Select a VM tab to keep its viewer open.');
+            message('Waiting for UI tests or VM activity.');
             return;
         }
         grid.querySelector('.empty')?.remove();
@@ -1237,6 +1245,13 @@
             }
             if (grid.children[index] !== view.body) grid.insertBefore(view.body, grid.children[index] || null);
             if (view.title.textContent !== entry.label) view.title.textContent = entry.label;
+            const maximized = state.selected === entry.id;
+            view.maximize.title = maximized ? 'Restore tile layout' : 'Maximize tile';
+            view.maximize.setAttribute('aria-label', `${view.maximize.title}: ${entry.label}`);
+            view.maximize.setAttribute('aria-pressed', String(maximized));
+            view.maximizeShape.setAttribute('d', maximized ?
+                'M8 7V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3 M4 7h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z' :
+                'M12 3h5v5 M17 3l-6 6 M8 17H3v-5 M3 17l6-6');
             if (view.heading.textContent !== entry.heading) view.heading.textContent = entry.heading;
             if (view.step.textContent !== entry.step) view.step.textContent = entry.step;
             if (view.memory && view.memorySample !== entry.memory?.sample) {

@@ -1,4 +1,4 @@
-# 152 — Observe feedback retry and recovery
+# 152 — Check feedback recovers after reconnecting
 
 Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
@@ -36,7 +36,8 @@ new composition; reuse unchanged LIFE06 online/offline/ownership/cleanup evidenc
 ## Live VM acceptance
 
 In the authorized live retry attempt, remove Internet access through LIFE06,
-submit once, observe retry, restore Internet access before its deadline and
+submit once (including Parent's Send Anonymously confirmation if the reviewed
+reply address is empty), observe retry, restore Internet access before its deadline and
 observe automatic success for that same submission. Run both supporting
 operations from the existing test-control channel while keeping the current
 app/session surface. If the qualified helper loses control or observation,

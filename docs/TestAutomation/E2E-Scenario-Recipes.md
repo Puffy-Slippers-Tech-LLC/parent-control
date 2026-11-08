@@ -1743,15 +1743,15 @@ outside acceptance.
 ### E2E-038
 
 The [shared expiry composition](../../tests/e2e/daily_soft_expiry.py) implements
-the no-action, unlock, fresh-login, allowance-edit and toggle branches. The inventory owns registration status.
+the no-action, unlock, fresh-login, allowance-edit, toggle and app-save branches. The inventory owns registration status.
 
 **Keep daily access after a grant ends and restore soft-app blocks.** Cases 164, 165, 166, 167, 168, 169, 170.
 
 Bindings: restore = none / unlock / fresh-login / allowance-edit / toggle / app-save / revoke.
 
-1. FLOW18(daily-dominant,soft exception) → FLOW08(allowed) → APP04; prepare Riley's activity with FLOW14 before FLOW18.
+1. FLOW18(daily-dominant,soft exception) → FLOW08(allowed) → APP04; prepare Jordan's other-child activity with FLOW14 before FLOW18 for Riley.
 2. Use the last public grant interval and TIME03 elapsed time to cross its latest possible expiry while the child remains active and TIME01 still shows positive daily access. APP03(soft); then perform exactly the restoration table's block sequence. Do not visit Parent to learn that G reached zero.
-3. On the resulting child desktop, APP02(expected existing apps) → FLOW08(new hard/soft launches), **then** FLOW09(Riley). A Parent read is permitted inside a restoring action that already calls P, or after all child-result checks. There is no implicit extra unlock before those checks.
+3. On the resulting child desktop, APP02(expected existing apps) → FLOW08(new hard/soft launches), **then** FLOW09(Jordan,other-child). A Parent read is permitted inside a restoring action that already calls P, or after all child-result checks. There is no implicit extra unlock before those checks.
 
 ### E2E-039
 
@@ -2462,7 +2462,7 @@ pre-expiry state or reset the original deadline.
 | 166 fresh-login | DESK04 → C(fresh) → FLOW08 | New hard/soft launches denied. Logout ends prior activities; no retention claim. |
 | 167 allowance-edit | P → PARENT06(10→15 minutes,still on) → PARENT08 → C(retained) | The allowance edit preserves the expired grant; returning unlocks the child desktop, closes the original S and denies new hard/soft launches. Original Allowed work remains usable. |
 | 168 toggle | P → UI17(off) → PARENT08 → UI17(on) → PARENT08 → C(retained) | Old S remains open and usable; grant is cleared and full launch blocks apply. After proving original Soft work, close it normally before the independent new Soft launch-denial check. |
-| 169 app-save | P → PARENT13(unchanged S rule) → PARENT15(Save) → C(retained) | Unchanged saved block restores launch denial without closing the already-open S. |
+| 169 app-save | P → PARENT13(unchanged S rule) → PARENT15(Save) → C(retained) | Save restores launch blocks without closing S or replacing the expired grant. The child's subsequent unlock closes S because no new grant was issued; new hard/soft launches are denied and original Allowed work remains usable. |
 | 170 revoke | P → PARENT17 → PARENT18(confirm) → C(retained) | G stays zero, D stays available, S closes and new hard/soft launches fail. Unlike 160, an expired grant existed before Revoke. |
 
 The already-open hard-blocked-app preservation branch of approval has no
@@ -2603,6 +2603,14 @@ The customer accepts the app's actual service confirmation; mailbox delivery,
 transport idempotency and payload equality remain separate integration work.
 One action is issued once; uncertain input is never replayed.
 
+For Parent feedback or a Parent error report with an empty reply address,
+FEED11 first opens the anonymous-send confirmation. Explicitly choose Send
+Anonymously once before expecting sending, retry or service acceptance. The
+initial Send alone creates no submission; Add Email Address returns without
+sending. A nonempty valid reply address, child-overlay report or kiosk report
+uses direct Send. This required confirmation is part of the same authorized
+submission, not a second Send or permission to repeat one.
+
 Read the owned confirmation and explicitly dismiss it; no fixed inspection
 wait is required. Preserve the original report exit as pending before dismissal
 and independently observe its destination afterwards. Exact confirmation wording
@@ -2620,18 +2628,19 @@ scope, or another case's send result.
 Before Send, ready the retry/status observer, any required warning/response
 bindings and the same LIFE06 restoration route. The original submission's retry
 deadline must cover the declared Close, stay/Stop or reconnection sequence with
-margin. Keep the required stay-open result before Stop and independently
-observe the same submission's acceptance or stopped destination; a terminal
+margin. Leave a report open when testing retry/reconnection; when testing Stop,
+independently observe its retry state before activating Stop sending and close
+once and observing its destination. A terminal
 send failure or lost report cannot stand in for that result. These functional
 observations use the VM timing mandate without extending the product retry
 window or issuing another Send.
 
 | Case | Exact branch after preparation and one Send |
 | --- | --- |
-| 156 ordinary success | Leave the optional reply address empty. FEED09(success and owned confirmation without reply follow-up) → FEED14(manual dismissal) → FEED01 → FEED03(cleared). |
+| 156 ordinary success | Leave the optional reply address empty and explicitly confirm Send Anonymously. FEED09(success and owned confirmation without reply follow-up) → FEED14(manual dismissal) → FEED01 → FEED03(cleared). |
 | 157 retry/background | Start offline, FEED09(retry) → UI18(ordinary feedback only) → UI11(feedback) → LIFE06(reconnect before retry deadline). Keep the same Parent running and require no unsolicited feedback/thanks window. Reopen within the bounded completion interval and FEED03(cleared). If sending remains active, read FEED09 until explicit acceptance, dismiss any resulting thanks and reopen to verify the empty draft. No second Send and no inference from elapsed time alone. |
 | 216 app-exit | Offline FEED09(retry) → UI18(feedback) → UI18(Parent) → LIFE06(reconnect) → PARENT01 → FEED01 → FEED03(reset, no resumed outbox). Do not claim an earlier request could not have reached the service. |
-| 218 overlay-stop / 219 kiosk-stop | Offline FEED09(retry) → FEED17 → UI03(stop warning) → FEED18(stay) → FEED17 → FEED18(stop) → UI11(report) → DESK01 or GDM01. Restore Internet access through the same LIFE06 VM helper from that surface; no Parent visit/login. A stop cannot recall a request already accepted. |
+| 218 overlay-stop / 219 kiosk-stop | Offline FEED09(retry) → FEED17(read explicit Stop action) → FEED18(Stop once and independent report closure/destination) → DESK01 or GDM01. Stop acts directly, with no warning or stay response. Restore Internet access through the same LIFE06 VM helper from that surface; no Parent visit/login. A stop cannot recall a request already accepted. |
 | 220 overlay-success / 221 kiosk-success | Case 220 includes the reviewed synthetic reply address and observes the reply follow-up note. FEED09(acceptance and owned confirmation; original report exit still pending) → FEED14(manual dismissal) → UI11(report) → DESK01 or GDM01. |
 
 Collection recovery cases 208 and 213 each require a real publicly observed
@@ -2651,12 +2660,13 @@ failure → one Retry → ready
 with the unchanged draft. Keep the public-trigger gate; no trace qualification
 or internal fault substitutes for the failed result.
 
-FEED17/18's planned warning and stay-open branch is absent from the current
-`FeedbackDialog._hide_draft`: busy request reports stop directly. Preserve the
-declared cases 218/219 pending until their public branch and the
-[documented Stop action](../SystemDesign/Logging-and-Feedback.md#feedback-and-diagnostic-export)
-are reconciled. Do not create an extra confirmation solely to satisfy stale
-choreography or treat direct stopping as acceptance of staying open.
+The [documented Stop action](../SystemDesign/Logging-and-Feedback.md#feedback-and-diagnostic-export)
+matches `FeedbackDialog._hide_draft`: closing a busy error report directly stops
+pending retries and ends that report. Cases 218/219 test that action. They do not
+require an additional warning or a stay-open choice. Ordinary Parent feedback
+has a different Close lifetime: case 157 requires its retry to continue while
+Parent stays running. Public failure-trigger and sending-authorization gates
+remain prerequisites; this reconciliation qualifies no pending operation.
 
 ### Natural calendar windows
 

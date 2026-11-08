@@ -1,4 +1,4 @@
-# 150 — Submit one authorized synthetic report and read success
+# 150 — Send approved sample feedback and check success
 
 Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
@@ -23,7 +23,8 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 Reuse the concrete reviewed profile and submission authorization from task 150a.
 Use an empty optional reply address for this Parent ordinary-feedback binding.
 Read the current report through FEED03 and reuse 150a's reviewed Privacy evidence.
-Compose one Send, FEED09 sending/success and FEED14 dismissal without reopening
+Compose one Send, the owned anonymous confirmation with one Send Anonymously
+action, FEED09 sending/success and FEED14 dismissal without reopening
 the unchanged disclosure. Qualify these result projections through the supported
 real service and dedicated recipient. Do not expand content, recipient or
 submission counts.
@@ -32,16 +33,20 @@ Source gap: `AccessibleUI.feedback_snapshot` / `feedback_state_operation` read
 editable, idle drafts and do not implement sending, retry or success-dialog
 projections. Add the finite public submission/readback operations to the shared
 facade and observation registration; do not reuse an idle snapshot as success.
-Bind `feedback-send` once, `feedback-status`, and the owned
+Bind `feedback-send` once, `feedback-anonymous-dialog`,
+`feedback-send-anonymously` once, `feedback-status`, and the owned
 `feedback-success-dialog`, `feedback-success-text` and `feedback-success-close`.
 The actual `_send` → `feedback_transport.submit` → `_submission_done` /
 `_success_closed` handlers in `common/oh_no_parent_control_ui/feedback.py` own
-submission, clearing and exit. Runtime authorization and uncertain-input guards
+submission, clearing and exit. `_anonymous_response` revalidates the current
+draft before creating the submission; opening the confirmation is not sending.
+Runtime authorization and uncertain-input guards
 remain in the shared operation; unchanged draft/chooser qualifications are reused.
 
 ## Live VM acceptance
 
-With authorized service configuration, submit once on the VM, observe the actual
+With authorized service configuration, select Send and explicitly confirm Send
+Anonymously once on the VM, then observe the actual
 app response and owned confirmation, then dismiss it normally. Qualify the shared
 authorization, single-input and success-result binding; case 156 owns reopening
 and the complete cleared-draft result. Reuse existing draft/chooser checks and

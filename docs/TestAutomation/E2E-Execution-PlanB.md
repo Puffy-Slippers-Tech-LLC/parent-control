@@ -18,7 +18,7 @@ Task queue: [Plan B ordered checklist](E2E-Task-QueueB.md).
 
 ## Next task
 
-Next task: **211 — [E2E-038: app-save](E2E-Tasks/211-case-169.md)**.
+Next task: **212 — [Check app closure after an expired permission is revoked](E2E-Tasks/212-case-170.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

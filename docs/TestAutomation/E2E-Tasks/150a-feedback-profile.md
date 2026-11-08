@@ -1,4 +1,4 @@
-# 150a — Prepare the reviewed feedback submission profile
+# 150a — Prepare sample feedback for approved sending
 
 Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
@@ -22,7 +22,8 @@ synthetic drafts/attachments and redacted Privacy projections required by the
 [feedback recipes](../E2E-Scenario-Recipes.md#sending-background-completion-and-report-exits).
 Enumerate the exact capability qualifications and numeric scenario submissions
 that the authorization will cover, with bounded counts and the stop/retry cases.
-Use an empty optional reply address for task 150 and case 156, and a reviewed
+Use an empty optional reply address for task 150 and case 156, including their
+explicit Parent Send Anonymously confirmation, and a reviewed
 synthetic reply address for case 220. Former task 256 / case 214
 adds no submission to the profile; exact confirmation wording stays in local
 dialog checks.

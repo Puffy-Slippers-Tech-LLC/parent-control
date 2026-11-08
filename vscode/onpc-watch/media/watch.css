@@ -42,8 +42,9 @@ nav button { flex-shrink: 0; }
         inset 0 1px 0 rgb(255 255 255 / 50%),
         inset 0 -1px 0 rgb(0 0 0 / 18%);
 }
-.run.collapsed { flex: 0 0 auto !important; min-height: 0; }
+.run.collapsed { flex: 0 0 auto !important; min-height: 0 !important; }
 .run.collapsed > :not(.run-heading) { display: none !important; }
+.run.collapsed .run-links { display: none; }
 #divider, .run-divider {
     position: relative; border-radius: 3px; touch-action: none;
     background: color-mix(in srgb, var(--watch-accent) 35%, var(--vscode-editor-background));
@@ -89,6 +90,7 @@ nav button { flex-shrink: 0; }
     overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
 }
 .run-controls { display: flex; flex-shrink: 0; margin-left: auto; }
+.run-controls-divider { align-self: stretch; width: 1px; margin: 3px 6px; background: var(--watch-rule); }
 .command-copied::after {
     content: 'Launcher command copied'; position: absolute; z-index: 5;
     top: 36px; left: 8px; padding: 4px 8px; border-radius: 4px;

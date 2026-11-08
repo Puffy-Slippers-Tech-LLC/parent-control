@@ -1947,8 +1947,8 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Open Parent feedback, enter authorized synthetic text with the optional reply address empty, add reviewed files, inspect Privacy and select Send once with the authorized service profile."},
-          {"id": "step-2", "operation": "ui", "description": "Read service acceptance without a reply-follow-up note; keep thanks visible for five seconds, then manually dismiss it. Reopen feedback and read the cleared body, reply address and customer files. Exact confirmation wordings, pending-control guards and duplicate-send widgets are shared UI coverage."}
+          {"id": "step-1", "operation": "ui", "description": "Open Parent feedback, enter authorized synthetic text with the optional reply address empty, add reviewed files, inspect Privacy, select Send once and explicitly confirm Send Anonymously with the authorized service profile."},
+          {"id": "step-2", "operation": "ui", "description": "Read service acceptance and the owned thanks without a reply-follow-up note, then manually dismiss it. Reopen feedback and read the cleared body, reply address and customer files. Exact confirmation wordings, pending-control guards and duplicate-send widgets are shared UI coverage."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1999,7 +1999,7 @@
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Compose authorized synthetic feedback and files in Parent and review Privacy and submission contents."},
           {"id": "step-2", "operation": "ui", "description": "Remove Internet access using the shared distro-independent LIFE06 VM helper, preserving existing test control and public observations."},
-          {"id": "step-3", "operation": "ui", "description": "Return to feedback, select Send once and read that the intended report is awaiting retry."},
+          {"id": "step-3", "operation": "ui", "description": "Return to feedback and select Send once; if the reviewed reply address is empty, explicitly confirm Send Anonymously. Read that the intended report is awaiting retry."},
           {"id": "step-4", "operation": "ui", "description": "Close only ordinary feedback, keep the same Parent app running and reconnect through the same shared system-network helper within the retry period. Require no unsolicited feedback or thank-you window during the bounded background completion interval."},
           {"id": "step-5", "operation": "ui", "description": "Reopen feedback within the bounded completion interval and verify automatic completion and an empty draft without another Send. If sending remains active, observe explicit acceptance, dismiss any resulting visible confirmation and reopen to verify the cleared draft; elapsed time alone is not proof of success."}
         ],
@@ -2156,7 +2156,7 @@
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Prepare the recipe's daily-dominant balance through actual approval and time away, without reapplying app rules after soft-app approval. Open recognizable allowed and soft activities and another user's activity."},
           {"id": "step-2", "operation": "ui", "description": "Return while the grant is active. Stay on that child desktop until the interval recorded from the earlier displayed grant has elapsed, while the countdown still shows usable daily time. Verify continuing soft-app use, then perform exactly the declared restoring action or continue normally for none. Do not switch to Parent merely to inspect expiry."},
-          {"id": "step-3", "operation": "ui", "description": "On the resulting child desktop, inspect existing apps and new launches before any further user switch. None retains soft launches; unlock/revoke closes matching apps; fresh-login denies new launches. An allowance edit preserves the expired grant, so the subsequent unlock closes matching apps and new hard/soft launches are denied. Toggle and app-save follow their declared running-app effects. Only after these checks revisit the other user's activity."}
+          {"id": "step-3", "operation": "ui", "description": "On the resulting child desktop, inspect existing apps and new launches before any further user switch. None retains soft launches; unlock/revoke closes matching apps; fresh-login denies new launches. An allowance edit or unchanged app save preserves the expired grant, so the subsequent unlock closes matching apps and new hard/soft launches are denied. Toggle clears the grant and preserves running apps while restoring launch blocks. Only after these checks revisit the other user's activity."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -2188,7 +2188,7 @@
         {"coverage_id": 166, "id": "fresh-login", "owner": "continuous-journeys", "parameters": {"restore": "fresh-login"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/daily_soft_expiry.py", "test_id": "fresh-login"}},
         {"coverage_id": 167, "id": "allowance-edit", "owner": "continuous-journeys", "parameters": {"restore": "allowance-edit"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/daily_soft_expiry.py", "test_id": "allowance-edit"}},
         {"coverage_id": 168, "id": "toggle", "owner": "continuous-journeys", "parameters": {"restore": "toggle"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/daily_soft_expiry.py", "test_id": "toggle"}},
-        {"coverage_id": 169, "id": "app-save", "owner": "continuous-journeys", "parameters": {"restore": "app-save"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 169, "id": "app-save", "owner": "continuous-journeys", "parameters": {"restore": "app-save"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/daily_soft_expiry.py", "test_id": "app-save"}},
         {"coverage_id": 170, "id": "revoke", "owner": "continuous-journeys", "parameters": {"restore": "revoke"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },
@@ -2645,9 +2645,9 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. Overlay-success includes a reviewed synthetic reply address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send."},
+          {"id": "step-1", "operation": "ui", "description": "Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. Overlay-success includes a reviewed synthetic reply address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send. Parent with an empty reply address additionally confirms Send Anonymously before sending begins."},
           {"id": "step-2", "operation": "ui", "description": "Perform the declared action: keep feedback open, exit the app, or choose Stop sending and close. Success branches require actual service acceptance."},
-          {"id": "step-3", "operation": "ui", "description": "Check no outbox after relaunch or the original error-flow exit after manual thanks dismissal. Overlay-success observes the reply-follow-up note and thanks still visible after five seconds before returning to the child desktop. Restore connectivity where needed. Background reconnection is combined into E2E-033 case 157."}
+          {"id": "step-3", "operation": "ui", "description": "Check no outbox after relaunch or the original error-flow exit after manual thanks dismissal. Overlay-success observes the reply-follow-up note and manually dismisses the owned thanks before returning to the child desktop. Restore connectivity where needed. Background reconnection is combined into E2E-033 case 157."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}

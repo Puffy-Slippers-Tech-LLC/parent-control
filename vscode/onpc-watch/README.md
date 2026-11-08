@@ -26,13 +26,16 @@ worktrees. Independent runners keep their own sections. Older child runs without
 that publication remain visible until their next normal start.
 The horizontal dividers can be
 dragged to resize adjacent sections, or focused
-and adjusted with Up/Down. The icon immediately after each copy button toggles
-**Collapse** / **Expand**. Collapsing leaves only that launcher's title bar, tabs
-and buttons; expanded sections fill the remaining height. Expanding restores the
-selected tab. Inactive launchers (finished, failed or stopped) collapse by default,
+and adjusted with Up/Down. A vertical divider separates each copy button from
+**Minimize** and **Maximize** / **Restore**, using the same controls as viewer tiles.
+Minimize leaves only the first title row and its buttons, hiding tabs and content.
+Maximize expands the selected launcher and minimizes every other launcher.
+Restore expands all launchers into their stacked layout, retaining resized proportions
+and selected tabs. Inactive launchers (finished, failed or stopped) minimize by default,
 including when a running launcher exits. A new active run expands by default.
-Manual expansion, collapse and resizing survive live refreshes until the next
-run or activity transition. Sizes last while Watch is open.
+Manual minimization and resizing survive live refreshes until the next
+run or activity transition. Maximization survives those transitions until a tile
+control or divider changes the layout. Sizes last while Watch is open.
 Launcher and viewer tiles share their rounded borders, title-bar styling and
 selection highlight. Click anywhere in a tile to select it. Clicking empty space
 in its title bar toggles selection instead.

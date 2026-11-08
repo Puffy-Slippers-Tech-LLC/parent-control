@@ -24,6 +24,7 @@
     const cards = new Map();
     const sshVisible = new Set();
     const sections = new Map();
+    let maximizedRun;
     const saved = vscode.getState();
     let state = { scope: 'all', selected: saved?.selected || 'all' };
     let tileLayout = ['auto', 'vertical', 'horizontal'].includes(saved?.tileLayout) ? saved.tileLayout : 'auto';
@@ -93,7 +94,7 @@
     function sessionHeading(section) {
         const entry = section.entry;
         const signature = JSON.stringify([entry.run, entry.server, entry.transport, entry.label, entry.status, entry.session, entry.session_active,
-            entry.session_number, entry.session_inactive, entry.launcher_controls, entry.launcher_command, entry.launcher_action_command, entry.launcher_reload_command, entry.active, section.view, section.collapsed]);
+            entry.session_number, entry.session_inactive, entry.launcher_controls, entry.launcher_command, entry.launcher_action_command, entry.launcher_reload_command, entry.active, section.view, section.collapsed, maximizedRun === entry.id]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
         section.tabObserver?.disconnect();
@@ -155,24 +156,7 @@
         }
         if (entry.launcher_command) labels.title = entry.launcher_command;
         labels.classList.toggle('finished', entry.status === 'finished');
-        const collapse = element('button', 'run-copy', controls);
-        collapse.type = 'button';
-        const collapseIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        collapseIcon.setAttribute('viewBox', '0 0 20 20');
-        collapseIcon.setAttribute('aria-hidden', 'true');
-        const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        collapseIcon.append(chevron);
-        collapse.append(collapseIcon);
         section.body.classList.toggle('collapsed', Boolean(section.collapsed));
-        collapse.title = section.collapsed ? 'Expand' : 'Collapse';
-        collapse.setAttribute('aria-label', collapse.title);
-        collapse.setAttribute('aria-expanded', String(!section.collapsed));
-        chevron.setAttribute('d', section.collapsed ? 'M5 7l5 5 5-5' : 'M5 12l5-5 5 5');
-        collapse.addEventListener('click', () => {
-            section.collapsed = !section.collapsed;
-            sessionHeading(section);
-            runDividers();
-        });
         const copy = element('button', 'run-copy', controls);
         copy.type = 'button';
         copy.title = 'Copy current tab content';
@@ -191,7 +175,21 @@
                 `\n${section.activity.innerText}` : '';
             vscode.postMessage({ type: 'copy', root: entry.id, text: body.innerText + activity });
         });
-        controls.append(copy, collapse);
+        element('span', 'run-controls-divider', controls).setAttribute('aria-hidden', 'true');
+        const resizing = tileResizeControls(controls, entry.label, () => {
+            if (maximizedRun === entry.id) maximizedRun = undefined;
+            section.collapsed = true;
+            sessionHeading(section);
+            runDividers();
+        }, () => {
+            maximizedRun = maximizedRun === entry.id ? undefined : entry.id;
+            for (const panel of sections.values()) {
+                panel.collapsed = Boolean(maximizedRun && panel.entry.id !== maximizedRun);
+                sessionHeading(panel);
+            }
+            runDividers();
+        });
+        tileMaximizeState(resizing, maximizedRun === entry.id, entry.label);
         const links = element('span', 'run-links', section.heading);
         for (const [view, label] of [['status', 'Status'], ['launcher', 'Launcher'], ['error', 'Error'], ['session', 'Session']]) {
             const text = ['session', 'launcher'].includes(view) ? tabLabel(entry, view) : label;
@@ -580,6 +578,40 @@
         }, true);
     }
 
+    function tileResizeControls(titlebar, label, onMinimize, onMaximize) {
+        const minimize = element('button', 'tile-action tile-minimize', titlebar);
+        minimize.type = 'button';
+        minimize.title = 'Minimize tile';
+        minimize.setAttribute('aria-label', `Minimize tile: ${label}`);
+        const minimizeIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        minimizeIcon.setAttribute('viewBox', '0 0 20 20');
+        minimizeIcon.setAttribute('aria-hidden', 'true');
+        const minimizeShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        minimizeShape.setAttribute('d', 'M5 10h10');
+        minimizeIcon.append(minimizeShape);
+        minimize.append(minimizeIcon);
+        minimize.addEventListener('click', onMinimize);
+        const maximize = element('button', 'tile-action tile-maximize', titlebar);
+        maximize.type = 'button';
+        const maximizeIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        maximizeIcon.setAttribute('viewBox', '0 0 20 20');
+        maximizeIcon.setAttribute('aria-hidden', 'true');
+        const maximizeShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        maximizeIcon.append(maximizeShape);
+        maximize.append(maximizeIcon);
+        maximize.addEventListener('click', onMaximize);
+        return { maximize, maximizeShape };
+    }
+
+    function tileMaximizeState(view, maximized, label) {
+        view.maximize.title = maximized ? 'Restore tile layout' : 'Maximize tile';
+        view.maximize.setAttribute('aria-label', `${view.maximize.title}: ${label}`);
+        view.maximize.setAttribute('aria-pressed', String(maximized));
+        view.maximizeShape.setAttribute('d', maximized ?
+            'M8 7V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3 M4 7h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z' :
+            'M12 3h5v5 M17 3l-6 6 M8 17H3v-5 M3 17l6-6');
+    }
+
     function card(entry) {
         const body = document.createElement('article');
         body.className = `watch-tile card ${entry.kind}`;
@@ -598,27 +630,8 @@
         shape.setAttribute('d', 'M2 6h4l2-3h4l2 3h4v11H2z M13 11a3 3 0 1 1-6 0 3 3 0 1 1 6 0');
         icon.append(shape);
         screenshot.append(icon);
-        const minimize = element('button', 'tile-action tile-minimize', titlebar);
-        minimize.type = 'button';
-        minimize.title = 'Minimize tile';
-        minimize.setAttribute('aria-label', `Minimize tile: ${entry.label}`);
-        const minimizeIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        minimizeIcon.setAttribute('viewBox', '0 0 20 20');
-        minimizeIcon.setAttribute('aria-hidden', 'true');
-        const minimizeShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        minimizeShape.setAttribute('d', 'M5 10h10');
-        minimizeIcon.append(minimizeShape);
-        minimize.append(minimizeIcon);
-        minimize.addEventListener('click', () => minimizeTile(entry.id));
-        const maximize = element('button', 'tile-action tile-maximize', titlebar);
-        maximize.type = 'button';
-        const maximizeIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        maximizeIcon.setAttribute('viewBox', '0 0 20 20');
-        maximizeIcon.setAttribute('aria-hidden', 'true');
-        const maximizeShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        maximizeIcon.append(maximizeShape);
-        maximize.append(maximizeIcon);
-        maximize.addEventListener('click', () => {
+        const { maximize, maximizeShape } = tileResizeControls(titlebar, entry.label,
+            () => minimizeTile(entry.id), () => {
             if (state.selected === entry.id) {
                 arrangeTiles(tileLayout);
                 select(state.scope, 'all');
@@ -771,6 +784,10 @@
         let drag;
         const resizePair = (previous, top, delta) => {
             if (!delta) return;
+            if (maximizedRun) {
+                maximizedRun = undefined;
+                for (const panel of sections.values()) sessionHeading(panel);
+            }
             for (const panel of [previous, section]) {
                 if (!panel.collapsed) continue;
                 panel.collapsed = false;
@@ -819,6 +836,10 @@
 
     function runStatus(entries) {
         const ids = new Set(entries.map(entry => entry.id));
+        if (maximizedRun && !ids.has(maximizedRun)) {
+            maximizedRun = undefined;
+            for (const panel of sections.values()) panel.collapsed = false;
+        }
         for (const [id, section] of sections) {
             if (!ids.has(id)) {
                 section.inputObserver.disconnect();
@@ -884,6 +905,7 @@
                     || Boolean(section.entry.active) !== Boolean(entry.active)) {
                 section.collapsed = !entry.active;
             }
+            if (maximizedRun) section.collapsed = entry.id !== maximizedRun;
             section.entry = entry;
             if (!previous || previous.run !== entry.run) section.followStatus = true;
             if (!entry.connected) {
@@ -1384,13 +1406,7 @@
             }
             if (grid.children[index] !== view.body) grid.insertBefore(view.body, grid.children[index] || null);
             tileTitle(view.title, entry);
-            const maximized = state.selected === entry.id;
-            view.maximize.title = maximized ? 'Restore tile layout' : 'Maximize tile';
-            view.maximize.setAttribute('aria-label', `${view.maximize.title}: ${entry.label}`);
-            view.maximize.setAttribute('aria-pressed', String(maximized));
-            view.maximizeShape.setAttribute('d', maximized ?
-                'M8 7V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3 M4 7h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z' :
-                'M12 3h5v5 M17 3l-6 6 M8 17H3v-5 M3 17l6-6');
+            tileMaximizeState(view, state.selected === entry.id, entry.label);
             if (view.heading.textContent !== entry.heading) view.heading.textContent = entry.heading;
             if (view.step.textContent !== entry.step) view.step.textContent = entry.step;
             if (view.memory && view.memorySample !== entry.memory?.sample) {

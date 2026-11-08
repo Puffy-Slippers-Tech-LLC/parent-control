@@ -794,6 +794,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          chinese_native_auth=False, parent_language=False, kiosk_language=False, overlay_language=False,
          panel_language_refresh=False,
          kiosk_language_restoration=False, overlay_reminder_editing=False, kiosk_reminder_binding=False,
+         reminder_child_station_binding=False,
          reminder_fullscreen_preference=False,
          chinese_current_install=False, parent_language_isolation=False,
          parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False,
@@ -944,6 +945,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         and not any(value for name, value in locals().items()
             if name not in ('assets', 'provision_credentials', 'reminder_fullscreen_preference')
             and isinstance(value, bool)))), 'smoke:reminder-fullscreen-preference-prerequisites')
+    require(type(reminder_child_station_binding) is bool and (not reminder_child_station_binding or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and lock_surface is None and parent_entry is None and approval_flow is None
+        and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'reminder_child_station_binding')
+            and isinstance(value, bool)))), 'smoke:reminder-child-station-binding-prerequisites')
     require(type(panel_language_refresh) is bool and (not panel_language_refresh or (
         assets is not None and provision_credentials and fresh_desktop is None
         and lock_surface is None and parent_entry is None and approval_flow is None
@@ -1865,6 +1872,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-overlay-reminder-editing-qualification'
         if kiosk_reminder_binding:
             result['scope'] = 'installed-kiosk-reminder-binding-qualification'
+        if reminder_child_station_binding:
+            result['scope'] = 'installed-reminder-child-station-binding-qualification'
         if reminder_fullscreen_preference:
             result['scope'] = 'installed-reminder-fullscreen-preference-qualification'
         if public_connectivity_controls:
@@ -2155,7 +2164,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if (product_free_entry or parent_entry is not None or lock_surface is not None or parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or kiosk_preferences_confinement or baseline_app_effects or baseline_auth_pause or baseline_journey or active_grant_disable or confinement_usability
-                        or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or panel_language_refresh or overlay_reminder_editing or kiosk_reminder_binding or reminder_fullscreen_preference or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or native_desktop_route or native_desktop_new_window or native_desktop_usable or native_files_usable or native_files_routes or native_denial or native_space_path or native_comma_path or versioned_appimage_assets or native_policy_closure or flatpak_retained_work or shared_target_launchers or app_activity or retained_app_visits
+                        or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or panel_language_refresh or overlay_reminder_editing or kiosk_reminder_binding or reminder_child_station_binding or reminder_fullscreen_preference or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or native_desktop_route or native_desktop_new_window or native_desktop_usable or native_files_usable or native_files_routes or native_denial or native_space_path or native_comma_path or versioned_appimage_assets or native_policy_closure or flatpak_retained_work or shared_target_launchers or app_activity or retained_app_visits
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or revoke_cancel or revocation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
@@ -2452,6 +2461,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if kiosk_reminder_binding:
                     from parent_setup_qualification import KioskReminderBindingQualification
                     qualification_class = KioskReminderBindingQualification
+                if reminder_child_station_binding:
+                    from parent_setup_qualification import ReminderChildStationBindingQualification
+                    qualification_class = ReminderChildStationBindingQualification
                 if reminder_fullscreen_preference:
                     from parent_setup_qualification import ReminderFullscreenPreferenceQualification
                     qualification_class = ReminderFullscreenPreferenceQualification

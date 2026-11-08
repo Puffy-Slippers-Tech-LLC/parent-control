@@ -180,6 +180,18 @@ sub run {
         onpc_kiosk_reminders::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{reminder_child_station_binding}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_reminders::child_station(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{reminder_persistence}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_reminders::persistence(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{reminder_fullscreen_preference}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

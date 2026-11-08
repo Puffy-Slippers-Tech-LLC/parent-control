@@ -8,6 +8,48 @@
   },
   "scenarios": [
     {
+      "id": "E2E-062",
+      "title": "Each child's saved reminders survive a restart",
+      "category": "customer-journey",
+      "owners": ["child-preferences"],
+      "requirements": ["ONPC-COMP-CHILD-008"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/Specification.md", "docs/SystemDesign/Frontends.md#child-reminder-preferences", "docs/TestAutomation/E2E-Scenario-Recipes.md#saved-child-reminders-after-reboot"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": ["ubuntu26.04", "fedora44"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
+      "phases": {
+        "setup": [{"id": "setup", "operation": "provision", "description": "Restore the verified installed snapshot and provision fixture credentials under the owned attempt."}],
+        "start": [{"id": "start", "operation": "begin", "description": "Begin at the installed greeter with no saved reminder edits or grants."}],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Jamie gives both children a 30-minute daily allowance. At the station read both untouched four-reminder defaults and Jordan's English language."},
+          {"id": "step-2", "operation": "ui", "description": "In Riley's overlay add a 75-second reminder with literal Save <work>!, edit the same ID to 90 seconds and Save <work> & games!, then save main Preferences."},
+          {"id": "step-3", "operation": "ui", "description": "At the station independently read Riley's saved ID, exact text and trigger. Delete that row in a draft, Cancel, and reopen to prove preservation. Delete every row, Save and independently reopen the saved empty list."},
+          {"id": "step-4", "operation": "ui", "description": "Reboot normally and independently observe a changed boot. Read both children at the station and each own overlay before edits: Riley remains empty and Jordan retains the original reminders and language. Compare both saved policies, request choices and zero grants."}
+        ],
+        "end": [{"id": "end", "operation": "collect", "description": "Reconcile public observations, changed-boot continuity, collection and worker shutdown."}],
+        "cleanup": [{"id": "cleanup", "operation": "outer-reset", "description": "Finish attempt-owned cleanup and restore the powered-off baseline without changing unrelated inputs."}]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "both-defaults", "step_id": "step-1", "description": "Both children begin with the four untouched defaults; Jordan's reminder language is English."},
+          {"id": "saved-edited-record", "step_id": "step-3", "description": "Station readback contains Riley's same created ID with the exact edited literal text and 90-second trigger."},
+          {"id": "cancel-preserved", "step_id": "step-3", "description": "Reopening after main Cancel retains the entire saved list, including that ID."},
+          {"id": "saved-empty", "step_id": "step-3", "description": "Reopening after Save returns Riley's empty reminder list."},
+          {"id": "changed-boot", "step_id": "step-4", "description": "One normal reboot produces an independently verified different boot and usable greeter."},
+          {"id": "empty-on-both-surfaces", "step_id": "step-4", "description": "Riley's list stays empty at the station and her own overlay after reboot."},
+          {"id": "other-child-preserved", "step_id": "step-4", "description": "Jordan's original reminders and language remain identical at the station and his own overlay."},
+          {"id": "policy-preserved", "step_id": "step-4", "description": "Both children's saved policy and request choices remain unchanged, with no time granted and daily time bounded by elapsed use."}
+        ],
+        "backend": [], "other_user": []
+      },
+      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
+      "duration_seconds": 3600,
+      "matrix": {"dimensions": {"history": ["saved-empty-reboot"]}, "full_combinations": [], "rationale": "One continuous saved-reminder history across both request surfaces and one real reboot; local editing matrices and notification delivery remain separate."},
+      "variants": [{"coverage_id": 263, "id": "saved-empty-reboot", "owner": "child-preferences", "parameters": {"history": "saved-empty-reboot"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/reminder_persistence.py", "test_id": "saved-empty-reboot"}}]
+    },
+    {
       "id": "E2E-061",
       "title": "Language changes preserve countdown and natural expiry",
       "category": "customer-journey",

@@ -10,6 +10,44 @@ from private_artifacts import EvidenceError
 from tests.support.perl import run_password_guard
 
 
+def test_reminder_overlay_wrong_account_refuses_before_discovery(monkeypatch):
+    module = ui_observations.accessible_ui
+    ui = object.__new__(module.AccessibleUI)
+    ui.input_uncertain = False
+    ui.read_snapshot = Mock(side_effect=AssertionError('UI read on another child account'))
+    monkeypatch.setattr(module.pwd, 'getpwnam', lambda name: SimpleNamespace(pw_uid=1002))
+    monkeypatch.setattr(module.os, 'getuid', lambda: 1001)
+    monkeypatch.setattr(module.os, 'geteuid', lambda: 1001)
+    with pytest.raises(module.UiError, match='ui:overlay-account'):
+        ui.overlay_reminder_open(child=module.EXISTING_CHILD)
+    ui.read_snapshot.assert_not_called()
+
+
+def test_reminder_uncertain_deletion_cannot_release_another_input():
+    module = ui_observations.accessible_ui
+    ui = module.AccessibleUI(SimpleNamespace())
+    ui._overlay_reminder_state = Mock(side_effect=module.UiError('ui:reminder-stale-draft'))
+    ui._invoke_target = Mock(side_effect=AssertionError('input released after failed draft proof'))
+    with pytest.raises(module.UiError, match='ui:reminder-stale-draft'):
+        ui.overlay_reminder_delete('saved-record', expected_source='a' * 64, surface='kiosk')
+    assert ui.input_uncertain is True
+    with pytest.raises(module.UiError, match='ui:uncertain-input'):
+        ui.overlay_reminder_commit(save=True, surface='kiosk')
+    ui._overlay_reminder_state.assert_called_once_with(
+        source='a' * 64, surface='kiosk', child=module.CHILD)
+    ui._invoke_target.assert_not_called()
+
+
+def test_reminder_mutation_requires_a_prior_draft_and_stops_after_refusal():
+    ui = ui_observations.UiObservations(None)
+    ui.call = Mock(side_effect=AssertionError('guest input without prior draft receipt'))
+    with pytest.raises(EvidenceError, match='ui:reminder-source-required'):
+        ui.observe('binding-reminder-riley-delete')
+    with pytest.raises(EvidenceError, match='ui:language-previous-failure'):
+        ui.observe('binding-reminder-riley-open')
+    ui.call.assert_not_called()
+
+
 @pytest.mark.parametrize('role,instance', [('H', 'primary'), ('A', 'hard')])
 def test_flatpak_cross_app_instance_refuses_before_session_or_launch(monkeypatch, role, instance):
     module = ui_observations.accessible_ui

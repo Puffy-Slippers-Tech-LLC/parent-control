@@ -26,7 +26,7 @@ integration work and must not become a queue prerequisite.
 
 ## Next task
 
-Next task: **312 — [Child reminder preferences persist across request surfaces](E2E-Tasks/312-child-reminder-preferences.md)**.
+Next task: **150a — [Prepare network-free feedback checks](E2E-Tasks/150a-feedback-profile.md)**.
 
 Task 150a's first host-only launcher repair is bootstrapped by a normal coding
 session with `Implement task 150a in docs/TestAutomation/E2E-Execution-PlanB.md`,

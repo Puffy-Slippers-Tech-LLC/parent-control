@@ -81,6 +81,7 @@ NATIVE_VERSION_SOURCE = 'LunarClient-3.8.0.AppImage'
 NATIVE_VERSION_NEXT = 'Lunar Client-3.8.0.AppImage'
 NATIVE_VERSION_NONMATCH = 'NewPrismLauncher.AppImage'
 DESKTOP_PROFILES = {'native-desktop': 'onpc-child-jordan',
+                    'native-desktop-soft': 'onpc-child-jordan',
                     'native-desktop-riley': 'onpc-child-riley'}
 DESKTOP_ENTRY = 'com.puffyslippers.ONPCTest.A.desktop'
 
@@ -110,10 +111,11 @@ def desktop_trusted(path, value=None):
     return info.get_attribute_string('metadata::trusted') == 'true'
 
 
-def native_desktop_operate(home, operation, request, *, user='onpc-child-jordan'):
+def native_desktop_operate(home, operation, request, *, user='onpc-child-jordan', role='A'):
     """One exact child-owned desktop entry; never adopt or overwrite a collision."""
     import pwd
-    require(user in DESKTOP_PROFILES.values())
+    require(user in DESKTOP_PROFILES.values() and (role == 'A'
+            or role == 'S' and user == 'onpc-child-jordan'))
     child = pwd.getpwnam(user)
     require(os.getuid() == os.geteuid() == child.pw_uid
             and home == Path(child.pw_dir) == Path('/home') / user)
@@ -123,8 +125,9 @@ def native_desktop_operate(home, operation, request, *, user='onpc-child-jordan'
     require(type(expected) is dict and set(expected) == {'source'}
             and type(expected['source']) is str and len(expected['source']) == 64
             and all(c in '0123456789abcdef' for c in expected['source']))
-    destination = desktop_directory(home) / DESKTOP_ENTRY
-    source = home / '.local/share/applications' / DESKTOP_ENTRY
+    entry = DESKTOP_ENTRY if role == 'A' else 'com.puffyslippers.ONPCTest.S.desktop'
+    destination = desktop_directory(home) / entry
+    source = home / '.local/share/applications' / entry
     with ExitStack() as stack:
         chain = []
 
@@ -787,7 +790,8 @@ def save_operate(home, operation, previous):
 def operate(home, operation, previous, profile='standard'):
     """Validate everything before the first mutation; failures never clean up."""
     if profile in DESKTOP_PROFILES:
-        return native_desktop_operate(home, operation, previous, user=DESKTOP_PROFILES[profile])
+        return native_desktop_operate(home, operation, previous, user=DESKTOP_PROFILES[profile],
+                                      role='S' if profile == 'native-desktop-soft' else 'A')
     if profile in NATIVE_PROFILES:
         return native_space_operate(home, operation, previous, profile)
     require(operation in ('stage', 'read', 'copy', 'rename', 'cleanup', 'absent', 'open-text', 'probe-text', 'open-zip', 'probe-zip', 'change-source', 'probe-source', 'saved'))

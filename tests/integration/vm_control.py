@@ -459,7 +459,7 @@ def main(argv=None):
                                           'reproduce-riley-native-grid', 'probe-riley-native-grid',
                                           'reproduce-snap-grid', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'probe-native-temporary-access', 'reproduce-flatpak-command', 'probe-flatpak-command',
                                           'reproduce-update-no-action',
-                                          'reproduce-native-denial', 'reproduce-native-files', 'reproduce-native-desktop', 'reproduce-versioned-appimage-assets', 'reproduce-grant-logout', 'reproduce-match-editor',
+                                          'reproduce-native-denial', 'reproduce-native-files', 'reproduce-native-desktop', 'reproduce-native-desktop-new-window', 'probe-native-desktop-new-window', 'reproduce-versioned-appimage-assets', 'reproduce-grant-logout', 'reproduce-match-editor',
                                           'reproduce-app-rule-return', 'reproduce-revocation-return',
                                           'probe-app-rule-return',
                                           'reproduce-overlay-activity', 'probe-overlay-activity',
@@ -499,7 +499,7 @@ def main(argv=None):
                                        'reproduce-suspend-active-grant',
                                        'reproduce-suspend-expired-grant',
                                        'reproduce-overlay-activity', 'reproduce-overlay-return',
-                                       'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-native-files', 'reproduce-native-desktop', 'reproduce-versioned-appimage-assets', 'reproduce-grant-logout',
+                                       'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-native-files', 'reproduce-native-desktop', 'reproduce-native-desktop-new-window', 'reproduce-versioned-appimage-assets', 'reproduce-grant-logout',
                                        'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
                                        'reproduce-panel-request', 'reproduce-app-restart-choices',
                                        'reproduce-reboot-context', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access',
@@ -606,12 +606,17 @@ def main(argv=None):
                               type(cleanup_error).__name__ + '); preserve controller state',
                               file=sys.stderr, flush=True)
                 raise
-        elif args.action in ('reproduce-native-denial', 'reproduce-native-files', 'reproduce-native-desktop', 'reproduce-match-editor', 'reproduce-versioned-appimage-assets'):
-            from vm_probe import reproduce_native_denial, reproduce_native_files, reproduce_native_desktop, reproduce_match_editor, reproduce_versioned_appimage_assets
+        elif args.action == 'probe-native-desktop-new-window':
+            from vm_probe import probe_native_desktop_new_window
+            resume(lease)
+            probe_native_desktop_new_window(lease)
+        elif args.action in ('reproduce-native-denial', 'reproduce-native-files', 'reproduce-native-desktop', 'reproduce-native-desktop-new-window', 'reproduce-match-editor', 'reproduce-versioned-appimage-assets'):
+            from vm_probe import reproduce_native_denial, reproduce_native_files, reproduce_native_desktop, reproduce_native_desktop_new_window, reproduce_match_editor, reproduce_versioned_appimage_assets
             resume(lease)
             reproduce = {'reproduce-native-denial': reproduce_native_denial,
                          'reproduce-native-files': reproduce_native_files,
                          'reproduce-native-desktop': reproduce_native_desktop,
+                         'reproduce-native-desktop-new-window': reproduce_native_desktop_new_window,
                          'reproduce-match-editor': reproduce_match_editor,
                          'reproduce-versioned-appimage-assets': reproduce_versioned_appimage_assets}[args.action]
             reproduce(lease, fixture_selection)

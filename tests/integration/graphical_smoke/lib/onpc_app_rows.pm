@@ -699,15 +699,7 @@ sub native_usable_app {
         die 'native:desktop-binding' unless $kind eq 'native'
             && ($child eq 'other-child' || $child eq 'child') && !defined($role);
         $journey->consume_observation('desktop', $desktop);
-        my $icon = $journey->consume_observation('icon', $journey->seen('icon'));
-        die 'native:desktop-selection' unless exists($icon->{desktop_icon_selected});
-        # Accessibility focus does not set DING's internal keyboard selection,
-        # which Ctrl+Space requires. The icon proof admits one ordinary entry;
-        # independently verify its sole selection before sending Enter.
-        testapi::send_key('ctrl-a') unless $icon->{desktop_icon_selected};
-        $journey->consume_observation('selected', $journey->seen('selected'));
-        testapi::send_key('ret');
-        $opened = $journey->seen('opened');
+        $opened = native_open_desktop($journey);
     } elsif ($route eq 'files') {
         $journey->consume_observation('desktop', $desktop);
         $journey->consume_observation('files', $journey->seen('files'));
@@ -1425,6 +1417,49 @@ sub snap_grid {
         native_finish_app($flow);
     }
     native_finish_app(_native_activity_scope($journey, 'earlier'));
+    $journey->finish();
+}
+
+# DING's normal Enter path launches the selected desktop file's declared Exec.
+# It opens our NON_UNIQUE fixture's secondary process even with primary work open.
+sub native_open_desktop {
+    onpc_progress::operation('Opening the child\'s app through its exact desktop icon');
+    my ($journey) = @_;
+    die 'native:desktop-arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    my $icon = $journey->consume_observation('icon', $journey->seen('icon'));
+    die 'native:desktop-selection' unless exists($icon->{desktop_icon_selected});
+    testapi::send_key('ctrl-a') unless $icon->{desktop_icon_selected};
+    $journey->consume_observation('selected', $journey->seen('selected'));
+    testapi::send_key('ret');
+    return $journey->seen('opened');
+}
+
+sub native_desktop_new_window {
+    onpc_progress::operation('Checking the child keeps original work when opening a second desktop window');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'native:arguments' unless @_ == 3;
+    my $journey = native_child_entry($exchange, $declared, $challenges, 'native-desktop-new-window');
+    $journey->seen('place');
+    for my $entry ('first', 'independent') {
+        my $flow = $journey->scope($entry);
+        my $earlier = $flow->scope('earlier');
+        native_use_app($earlier, native_open_command($earlier, undef));
+        native_read_activity($earlier, 'capture');
+        # GNOME's normal panel-cycle shortcut gives DING keyboard focus while
+        # leaving the original window mapped. Icon grab_focus alone cannot
+        # transfer compositor focus from that active application to the desktop.
+        # The next shared observation still proves the exact icon recipient
+        # before selection/Enter; no alternate app launch is involved.
+        testapi::send_key('ctrl-alt-esc');
+        my $second = $flow->scope('second');
+        native_use_app($second, native_open_desktop($second));
+        native_read_activity($second, 'capture');
+        native_read_activity($earlier, 'reread');
+        native_finish_app($second);
+        native_finish_app($earlier);
+    }
+    $journey->seen('cleanup');
+    $journey->seen('child-logout');
     $journey->finish();
 }
 

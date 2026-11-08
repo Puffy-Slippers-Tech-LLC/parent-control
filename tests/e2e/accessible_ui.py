@@ -205,6 +205,18 @@ RILEY_NATIVE_DESKTOP_OPERATIONS = frozenset('overlay-' + operation
     for operation in NATIVE_DESKTOP_OPERATIONS if operation != 'native-desktop-icon-refusals')
 NATIVE_DESKTOP_OPERATIONS |= RILEY_NATIVE_DESKTOP_OPERATIONS
 OPERATIONS |= RILEY_NATIVE_DESKTOP_OPERATIONS
+NATIVE_DESKTOP_SOFT_OPERATIONS = frozenset(('native-soft-desktop-icon', 'native-soft-desktop-selected'))
+NATIVE_DESKTOP_OPERATIONS |= NATIVE_DESKTOP_SOFT_OPERATIONS
+OPERATIONS |= NATIVE_DESKTOP_SOFT_OPERATIONS
+STANDARD_OPERATIONS |= NATIVE_DESKTOP_SOFT_OPERATIONS
+NATIVE_WINDOW_BINDINGS = {
+    'native-soft-' + instance + '-' + action: (instance, action)
+    for instance in ('primary', 'secondary')
+    for action in ('command-launch', 'opened', 'submit', 'submitted', 'activity', 'close', 'closed')
+    if instance == 'primary' or action != 'command-launch'
+}
+OPERATIONS |= NATIVE_WINDOW_BINDINGS.keys()
+STANDARD_OPERATIONS |= NATIVE_WINDOW_BINDINGS.keys()
 SNAP_APP_BINDINGS = {
     'snap-' + name + '-' + action: (role, instance, action)
     for name, role, instance in (('allowed', 'A', 'primary'), ('hard', 'H', 'primary'),
@@ -13240,7 +13252,9 @@ class AccessibleUI:
         No geometry, file-manager preparation or alternate launch route.
         """
         from gi.repository import Gio, GLib
-        require(child in (EXISTING_CHILD, CHILD), 'ui:native-desktop-binding')
+        require(child in (EXISTING_CHILD, CHILD) and (product == NATIVE_PRODUCT
+                or child == EXISTING_CHILD and product in (NATIVE_SOFT_PRODUCT, 'ONPC Nonmatching Fixture')),
+                'ui:native-desktop-binding')
         require_active_launch_session(unlocked=True)
         require(os.getuid() == os.geteuid() == pwd.getpwnam(
             CHILD_ACCOUNTS[child]).pw_uid, 'ui:native-desktop-account')
@@ -13271,7 +13285,7 @@ class AccessibleUI:
                  and facts[node]['showing'] and node.get_component_iface() is not None]
         require(len(icons) <= 1, 'ui:native-desktop-ambiguous-icon')
         if not icons:
-            require(product == NATIVE_PRODUCT, 'ui:native-desktop-wrong-icon')
+            require(product in (NATIVE_PRODUCT, NATIVE_SOFT_PRODUCT), 'ui:native-desktop-wrong-icon')
             return None
         target = icons[0]
         # Ctrl+A selects ordinary files, excluding DING's Home/Trash shortcuts.
@@ -13294,19 +13308,25 @@ class AccessibleUI:
     def native_desktop_operation(self, operation):
         require(operation in NATIVE_DESKTOP_OPERATIONS, 'ui:native-desktop-operation')
         child = CHILD if operation in RILEY_NATIVE_DESKTOP_OPERATIONS else EXISTING_CHILD
+        separate = operation in NATIVE_DESKTOP_SOFT_OPERATIONS
         operation = operation.removeprefix('overlay-')
         def snapshot(**arguments):
-            return self.native_desktop_snapshot(child=child, **arguments)
+            return self.native_desktop_snapshot(child=child,
+                **({'product': NATIVE_SOFT_PRODUCT} if separate else {}), **arguments)
         require(not self.input_uncertain, 'ui:uncertain-input')
         def closed():
             # Unrelated providers can exit between enumeration and GetItems.
             # Reacquire the complete read, preserving a real window's refusal;
             # focus and keyboard input remain outside this read-only wait.
-            require(self.native_app_closed(desktop=False, complete_absence=True),
+            require(self.native_app_closed('secondary' if separate else 'primary',
+                    desktop=False, complete_absence=True),
                     'ui:native-window-exists')
+            if separate:
+                self.native_app_snapshot('ONPC fixture draft', instance='primary',
+                                         role='S', child=EXISTING_CHILD)
             return True
         self.wait(closed, 'native-desktop-preflight', prompt_in_predicate=True)
-        if operation == 'native-desktop-selected':
+        if operation.endswith('-selected'):
             def selected():
                 current = snapshot()
                 return current and current[2] and self.has_state(current[0], self.api.StateType.FOCUSED)
@@ -13579,7 +13599,9 @@ class AccessibleUI:
         require((instance == {'A': 'primary', 'H': 'hard', 'S': 'soft'}[role]
                  or role == 'S' and instance == 'secondary') if flatpak else
                 (instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'))
-                if snap else instance == ('secondary' if role in ('H', 'S', 'SpaceCopy', 'CommaCopy', 'C', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary'), 'ui:native-binding')
+                if snap else instance == ('secondary' if role in ('H', 'S', 'SpaceCopy', 'CommaCopy', 'C', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary')
+                or role == 'S' and instance == 'primary' and child == EXISTING_CHILD
+                and not blocked and not locked, 'ui:native-binding')
         require(type(locked) is bool and (not locked or role == 'S' and blocked),
                 'ui:native-binding')
         require(type(blocked) is bool, 'ui:native-binding')
@@ -13730,7 +13752,8 @@ class AccessibleUI:
                 'ui:snap-binding')
         require(snap or flatpak or role is None and instance == 'primary' or role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting')
                 and (instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary')
-                     or role == 'S' and instance == 'soft' and implicit_instance), 'ui:native-binding')
+                     or role == 'S' and instance == 'soft' and implicit_instance
+                     or role == 'S' and instance == 'primary' and child == EXISTING_CHILD), 'ui:native-binding')
         require(type(implicit_instance) is bool and (not implicit_instance
                 or instance == {'A': 'primary', 'S': 'soft'}.get(role)),
                 'ui:native-binding')
@@ -13995,7 +14018,8 @@ class AccessibleUI:
     def native_app_owner(self, root, role, instance, *, implicit_instance=False):
         """Bind the GUI child to its live native policy executable and account."""
         require(role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') and (instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary')
-                or role == 'S' and instance == 'soft' and implicit_instance),
+                or role == 'S' and instance in ('primary', 'soft')
+                and (instance == 'primary' or implicit_instance)),
                 'ui:native-binding')
         require(type(implicit_instance) is bool and (not implicit_instance
                 or instance == {'A': 'primary', 'S': 'soft'}.get(role)),
@@ -14027,7 +14051,8 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(kind in ('snap', 'flatpak') or role is None and instance == 'primary' or role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting')
                 and (instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary')
-                     or role == 'S' and instance == 'soft' and implicit_instance), 'ui:native-binding')
+                     or role == 'S' and instance == 'soft' and implicit_instance
+                     or role == 'S' and instance == 'primary' and child == EXISTING_CHILD), 'ui:native-binding')
         if role is not None and child == CHILD:
             self.require_child_overlay_session()
         # A provider can exit after desktop enumeration but before GetItems.
@@ -14038,6 +14063,28 @@ class AccessibleUI:
                   if role is not None else self.native_app_snapshot(submitted), 'native-submit-ready',
                   prompt_in_predicate=True)
         self.activate_id('onpc-fixture-' + kind + '-' + instance + '-submit')
+
+    def native_window_operation(self, operation):
+        """Same S executable, distinct public windows; no replacement can prove retention."""
+        require(os.getuid() == os.geteuid() == pwd.getpwnam(
+            CHILD_ACCOUNTS[EXISTING_CHILD]).pw_uid, 'ui:native-window-account')
+        instance, action = NATIVE_WINDOW_BINDINGS[operation]
+        arguments = {'instance': instance, 'role': 'S', 'child': EXISTING_CHILD}
+        if action == 'command-launch':
+            return self.native_launch_command(**arguments)
+        if action == 'closed':
+            self.wait(lambda: self.native_app_closed(instance, complete_absence=True), 'native-window-closed')
+            return None
+        if action == 'submit':
+            return self.native_app_submit(**arguments)
+        if action in ('opened', 'submitted', 'activity'):
+            return self.wait(lambda: self.native_app_snapshot(
+                'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
+                pending=True, with_window=action == 'activity', **arguments),
+                'native-window-' + action, prompt_in_predicate=True)
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        self.native_app_snapshot('ONPC fixture draft', **arguments)
+        self.activate_id('onpc-fixture-native-' + instance + '-close')
 
     def native_app_closed(self, instance='primary', *, desktop=True, complete_absence=False, kind='native'):
         """Complete owned absence; closure also recognizes the stable desktop."""
@@ -14752,6 +14799,10 @@ class AccessibleUI:
             value = self.native_desktop_operation(operation)
             if value is not None:
                 result.update(value)
+        elif operation in NATIVE_WINDOW_BINDINGS:
+            value = self.native_window_operation(operation)
+            if value is not None:
+                result['activity'] = value
         elif operation in NATIVE_FILES_BINDINGS:
             value = self.native_files_operation(operation)
             if value is not None:

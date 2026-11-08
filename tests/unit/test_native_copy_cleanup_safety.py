@@ -15,7 +15,8 @@ import synthetic_files_guest as files
 
 @pytest.fixture
 def desktop_boundary(tmp_path, monkeypatch, request):
-    user = getattr(request, 'param', 'onpc-child-jordan')
+    user, role = getattr(request, 'param', ('onpc-child-jordan', 'A'))
+    entry = files.DESKTOP_ENTRY if role == 'A' else 'com.puffyslippers.ONPCTest.S.desktop'
     home = tmp_path / 'home' / user
     source = home / '.local/share/applications'
     source.mkdir(parents=True, mode=0o755)
@@ -24,8 +25,8 @@ def desktop_boundary(tmp_path, monkeypatch, request):
     for directory in (home.parent, home, home / '.local', home / '.local/share', source, desktop):
         directory.chmod(0o755)
     content = b'[Desktop Entry]\nType=Application\nExec=/fixed/fixture\n'
-    (source / files.DESKTOP_ENTRY).write_bytes(content)
-    (source / files.DESKTOP_ENTRY).chmod(0o644)
+    (source / entry).write_bytes(content)
+    (source / entry).chmod(0o644)
     real_open = os.open
     monkeypatch.setattr(os, 'open', lambda path, flags, *args, **kwargs:
                         real_open(tmp_path if path == '/' else path, flags, *args, **kwargs))
@@ -41,11 +42,12 @@ def desktop_boundary(tmp_path, monkeypatch, request):
     def call(operation, previous=None):
         return files.native_desktop_operate(Path('/home') / user, operation,
             {'expected': {'source': hashlib.sha256(content).hexdigest()}, 'previous': previous},
-            user=user)
+            user=user, role=role)
     return source, desktop, call
 
 
-@pytest.mark.parametrize('desktop_boundary', ['onpc-child-jordan', 'onpc-child-riley'], indirect=True)
+@pytest.mark.parametrize('desktop_boundary', [('onpc-child-jordan', 'A'), ('onpc-child-riley', 'A'),
+                                            ('onpc-child-jordan', 'S')], indirect=True)
 def test_desktop_copy_cleans_only_its_owned_entry(desktop_boundary):
     source, desktop, call = desktop_boundary
     unrelated = desktop / 'preserved.txt'
@@ -56,7 +58,9 @@ def test_desktop_copy_cleans_only_its_owned_entry(desktop_boundary):
     assert call('read', copied) == copied
     assert call('cleanup', copied) == call('absent', {'absent': True}) == {'absent': True}
     assert unrelated.read_bytes() == b'child work'
-    assert (source / files.DESKTOP_ENTRY).is_file()
+    assert len(list(source.iterdir())) == 1
+    assert (source / files.DESKTOP_ENTRY).is_file() or (
+        source / 'com.puffyslippers.ONPCTest.S.desktop').is_file()
 
 
 def test_desktop_profile_refuses_another_childs_home_before_files(monkeypatch):

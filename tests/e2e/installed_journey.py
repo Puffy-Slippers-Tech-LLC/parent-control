@@ -30,6 +30,9 @@ from ui_observations import (
 # Declaration validation and runtime capture must recognize the same endpoints.
 # Cases retain their capture order and expected same/separate/closed result.
 ACTIVITY_BINDINGS = {
+    **{operation: ('native-' + instance, False)
+       for operation, (instance, action) in accessible_ui.NATIVE_WINDOW_BINDINGS.items()
+       if action == 'activity'},
     **{operation: ('native-primary', False) for operation in (
         'native-activity', 'overlay-native-activity', 'parent-native-activity',
         'native-policy-activity', 'native-files-allowed-activity')},
@@ -962,7 +965,7 @@ class InstalledJourney:
                     self.transport, 'parent-continuous-activity')
             reply = {'observed': stage}
             if tag in ('ui:native-desktop-icon', 'ui:native-desktop-icon-refusals',
-                       'ui:overlay-native-desktop-icon'):
+                       'ui:overlay-native-desktop-icon', 'ui:native-soft-desktop-icon'):
                 reply['desktop_icon_selected'] = observed['ui']['selected']
             if tag in ('ui:native-grid-blocked', 'ui:native-alias-grid-blocked',
                        'ui:native-hard-grid-blocked', 'ui:native-soft-grid-blocked'):

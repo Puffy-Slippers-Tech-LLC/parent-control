@@ -318,19 +318,37 @@
         });
         controls.prepend(copy);
         element('span', 'run-controls-divider', controls).setAttribute('aria-hidden', 'true');
+        const restore = () => {
+            maximizedRun = undefined;
+            for (const panel of sections.values()) {
+                panel.collapsed = false;
+                sessionHeading(panel);
+            }
+            runDividers();
+        };
         const resizing = tileResizeControls(controls, entry.label, () => {
+            if (section.collapsed) {
+                restore();
+                return;
+            }
             if (maximizedRun === entry.id) maximizedRun = undefined;
             section.collapsed = true;
             sessionHeading(section);
             runDividers();
         }, () => {
-            maximizedRun = maximizedRun === entry.id ? undefined : entry.id;
+            if (maximizedRun === entry.id) {
+                restore();
+                return;
+            }
+            maximizedRun = entry.id;
             for (const panel of sections.values()) {
                 panel.collapsed = Boolean(maximizedRun && panel.entry.id !== maximizedRun);
                 sessionHeading(panel);
             }
             runDividers();
         });
+        tileActionState(resizing.minimize, resizing.minimizeShape, Boolean(section.collapsed),
+            'Minimize tile', 'M5 10h10', entry.label);
         tileMaximizeState(resizing, maximizedRun === entry.id, entry.label);
     }
 
@@ -722,16 +740,21 @@
         maximizeIcon.append(maximizeShape);
         maximize.append(maximizeIcon);
         maximize.addEventListener('click', onMaximize);
-        return { maximize, maximizeShape };
+        return { minimize, minimizeShape, maximize, maximizeShape };
     }
 
     function tileMaximizeState(view, maximized, label) {
-        view.maximize.title = maximized ? 'Restore tile layout' : 'Maximize tile';
-        view.maximize.setAttribute('aria-label', `${view.maximize.title}: ${label}`);
-        view.maximize.setAttribute('aria-pressed', String(maximized));
-        view.maximizeShape.setAttribute('d', maximized ?
+        tileActionState(view.maximize, view.maximizeShape, maximized, 'Maximize tile',
+            'M12 3h5v5 M17 3l-6 6 M8 17H3v-5 M3 17l6-6', label);
+    }
+
+    function tileActionState(button, shape, restore, title, path, label) {
+        button.title = restore ? 'Restore tile layout' : title;
+        button.setAttribute('aria-label', `${button.title}: ${label}`);
+        button.setAttribute('aria-pressed', String(restore));
+        shape.setAttribute('d', restore ?
             'M8 7V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3 M4 7h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z' :
-            'M12 3h5v5 M17 3l-6 6 M8 17H3v-5 M3 17l6-6');
+            path);
     }
 
     function card(entry) {

@@ -681,12 +681,16 @@ through the existing worker and observers. TIME04 keeps its initial sample upper
 plus 15 seconds; foreground-revocation and lock-retry bounds remain 15 seconds.
 `SystemGraphicalExpiryJourney.observe_expiry` shares the timed observation and
 subsequent input-verification budget across natural, policy-change, broker-crash,
-broker-stop and pending-approval histories. Each caller keeps its original deadline, fault
+broker-stop, broker-stall and pending-approval histories. Each caller keeps its original deadline, fault
 or policy sequence and real-input assertion; the worker uses
 `onpc_desktop_session::verify_locked_input` for the actual input challenge.
 The broker-stop history uses one grant and anchors complete child-work recovery
 to original expiry plus 300 seconds, including the outage and lock-input check;
 service activation and the explicit recovery grant cannot restart that clock.
+The broker-stall history reuses both crash histories and applies the same
+outage-inclusive recovery clock to each. Only the identity-recorded stopped
+process can receive SIGCONT, including the worker's failure cleanup; a recovered
+zero-balance reply and original-work readback remain independent assertions.
 The complete current-production system-282 history passed on Ubuntu 26.04 and
 Fedora 44, including both protected-input challenges and original-work recovery.
 This qualifies the shared engineering observations, not extension-free locking

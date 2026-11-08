@@ -1298,6 +1298,25 @@ collection, owned cleanup and baseline restoration; the VM ended powered off.
 Fedora remains unqualified. No service supervision or customer-case credit is
 introduced.
 
+System 309, `session::test_broker_stall_before_expiry`, extends the system-282
+worker through `natural_expiry.BrokerStallJourney` and
+`system_graphical_expiry.stall_history`. Two 180-second histories pause the real
+broker with SIGSTOP at least 120 seconds before original expiry. The recorded
+service invocation, pidfd, process start, root credentials and cgroup guard both
+the fault and SIGCONT restoration. The process must remain stopped through the
+foreground natural-lock observation and each independent protected-input
+challenge. Recovery resumes that same process and requires a useful zero-balance
+reply with unchanged expired grant/account state before explicit recovery time;
+process liveness alone cannot pass. Complete child-work recovery shares original
+expiry plus 300 seconds, including outage and lock-input verification. The second
+history preserves foreground peer input/work. Worker closure precedes an owned
+restoration transition on failure; outer collection and baseline restoration
+retain their existing ownership. The first live run passed on session-selected
+`onpc-Ubuntu26.04-1` in `20261108T065535Z-ee8c3c20`, including both protected-input
+challenges, both original-work recoveries, foreground parent input/work,
+collection, worker/callback closure and baseline restoration; the VM ended
+powered off. Fedora remains unqualified; no customer-case credit is supplied.
+
 The `extension` area (system ID 295) owns the standalone native GNOME monitor
 history in `system_extension_monitor.verify`. It uses a fresh autologin desktop
 with saved controls initially off, then stages saved-enabled policy through the

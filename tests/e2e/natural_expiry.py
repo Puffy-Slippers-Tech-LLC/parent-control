@@ -173,7 +173,8 @@ def _system_history_command(transport, command):
     require(type(raw) is bytes and 0 < len(raw) < 1024, 'expiry:history-response')
     value = json.loads(raw)
     if command in ('host-complete', 'revoke-complete', 'approval-complete', 'policy-complete',
-                   'replacement-complete', 'crash-complete', 'stop-complete'):
+                   'replacement-complete', 'crash-complete', 'stop-complete',
+                   'stall-complete', 'stall-cleanup'):
         require(value == {'completed': True}, 'expiry:history-incomplete')
         return value
     if command in ('policy-renew', 'policy-allowance', 'policy-disable'):
@@ -368,6 +369,41 @@ class BrokerCrashJourney(SystemGraphicalExpiryJourney):
     @staticmethod
     def peer_recovery(journey, guard):
         return journey._recover(journey, guard, 'crash-peer-recovery')
+
+
+class BrokerStallJourney(BrokerCrashJourney):
+    """Reuse both crash histories with a live stopped broker and fixed recovery clock."""
+
+    @staticmethod
+    def natural_lock(journey, guard):
+        result = BrokerCrashJourney.natural_lock(journey, guard,
+            arm='stall-natural-arm', inject='stall-inject')
+        journey.stall_expiry = result['expiry_at']
+        return result
+
+    @staticmethod
+    def _stall_recover(journey, guard, command):
+        result = journey._recover(journey, guard, command)
+        journey.recovery_deadline = min(journey.recovery_deadline,
+            engineering_deadline(journey.stall_expiry, RECOVERY_SECONDS))
+        require(time.monotonic() < journey.recovery_deadline, 'expiry:recovery-deadline')
+        return result
+
+    @staticmethod
+    def natural_recovery(journey, guard):
+        return journey._stall_recover(journey, guard, 'stall-natural-recovery')
+
+    @staticmethod
+    def peer_expiry(journey, guard):
+        guard()
+        journey.stall_expiry = _system_history_command(journey.transport, 'stall-peer-arm')
+        _system_history_command(journey.transport, 'stall-inject')
+        return SystemGraphicalExpiryJourney.peer_expiry(journey, guard,
+                                                        expiry_at=journey.stall_expiry)
+
+    @staticmethod
+    def peer_recovery(journey, guard):
+        return journey._stall_recover(journey, guard, 'stall-peer-recovery')
 
 
 STOP_SCREENS = {
@@ -874,13 +910,15 @@ class PendingApprovalJourney(SystemGraphicalExpiryJourney):
 def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected_inputs,
                                progress, context, credentials=None, foreground_revoke=False,
                                pending_approval=False, policy_order=False, session_replacement=False,
-                               broker_crash=False, broker_stop=False):
+                               broker_crash=False, broker_stop=False, broker_stall=False):
     """Compose engineering input checks before the installed PAM password tests."""
     from desktop_session import run_attached
     require(sum((foreground_revoke, pending_approval, policy_order, session_replacement,
-                 broker_crash, broker_stop)) <= 1,
+                 broker_crash, broker_stop, broker_stall)) <= 1,
             'expiry:ambiguous-history')
     plan, journey_type, ready, complete = (
+        (SYSTEM_PLAN, BrokerStallJourney, 'stall-ready', 'stall-complete')
+        if broker_stall else
         (STOP_PLAN, BrokerStopJourney, 'stop-ready', 'stop-complete')
         if broker_stop else
         (SYSTEM_PLAN, BrokerCrashJourney, 'crash-ready', 'crash-complete')
@@ -895,9 +933,15 @@ def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected
         if foreground_revoke else
         (SYSTEM_PLAN, SystemGraphicalExpiryJourney, 'host-ready', 'host-complete'))
     _system_history_command(transport, ready)
-    result = run_attached(directory, lease, transport, ledger,
-        plan,
-        expected_inputs=expected_inputs, progress=progress, context=context,
-        credentials=credentials, journey_type=journey_type, timeout=2400 if pending_approval else 1800)
+    try:
+        result = run_attached(directory, lease, transport, ledger,
+            plan,
+            expected_inputs=expected_inputs, progress=progress, context=context,
+            credentials=credentials, journey_type=journey_type, timeout=2400 if pending_approval else 1800)
+    finally:
+        if broker_stall:
+            # The attached worker has closed. Resume only our recorded process
+            # before outer collection/shutdown, including an interrupted history.
+            _system_history_command(transport, 'stall-cleanup')
     _system_history_command(transport, complete)
     return result

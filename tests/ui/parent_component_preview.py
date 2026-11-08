@@ -222,6 +222,9 @@ feedback_attempts = 0
 def feedback_post(_url, **kwargs):
     global feedback_attempts
     feedback_attempts += 1
+    # A payload-free receipt lets component tests distinguish confirmation from
+    # an actual request through the real encoder and submission worker.
+    print("component-feedback-post", flush=True)
     part_names = [name for name, _part in kwargs["files"]]
     assert "body" in part_names
     assert "bodyHtml" in part_names

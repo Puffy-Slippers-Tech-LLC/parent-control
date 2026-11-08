@@ -26,7 +26,7 @@ integration work and must not become a queue prerequisite.
 
 ## Next task
 
-Next task: **150 — [Check feedback success with the fake sender](E2E-Tasks/150-feedback-send.md)**.
+Next task: **151 — [Check that sent feedback clears after success](E2E-Tasks/151-case-156.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

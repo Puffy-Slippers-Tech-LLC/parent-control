@@ -6,7 +6,6 @@ processes, transcript retention and cancellation use one implementation.
 
 from contextlib import contextmanager
 from dataclasses import replace
-import codecs
 import fcntl
 import hashlib
 import json
@@ -24,7 +23,6 @@ from agent_adapter import Delegation, SessionRequest, prepare_session
 
 FRAME_DIRECTORY = 'ONPC_TEST_FRAME_DIRECTORY'
 WORKFLOW_DIRECTORY = 'ONPC_WORKFLOW_DIRECTORY'
-TAIL_BYTES = 128 * 1024
 MAX_LOG_BYTES = 32 * 1024 * 1024
 AGENT_GRACE = 3.0
 
@@ -695,7 +693,7 @@ def _audit_start(store, directory, pending):
 
 
 def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='cancel',
-           on_attach=None, on_start=None, on_prepare=None, namespace=None, resumable_start=False,
+           on_attach=None, on_start=None, namespace=None, resumable_start=False,
            reload=False, existing_only=False, launcher_name=None, public_argv=None, stop_argv=None):
     """Attach before evaluating new options; only the lock grants ownership."""
     from test_storage import directory as storage_directory
@@ -755,8 +753,6 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
                 return run, False  # Never spawn a possibly already published worker twice.
         else:
             run = directory / uuid.uuid4().hex
-        if on_prepare is not None:
-            on_prepare(run)
         # Validate and resolve prerequisites before allocating a new run.
         argv = command(run, owner)
         private_directory(run)
@@ -1008,106 +1004,10 @@ def finish_shutdown(root, run, *, restore_vms=True):
                              'preserve recovery records and resume cleanup')
 
 
-def follow(run, stream=None, *, label='launcher', view=None, display=None):
-    from launcher_view import view_for
-    stream = stream or sys.stdout
-    view = view or view_for(label)
-    if display is not None:
-        return follow_output(run, stream, display, label=label, view=view)
-    display = view.display(stream, run)
-    with display:
-        return follow_output(run, stream, display, label=label, view=view)
-
-
-def follow_output(run, stream, display, *, label='launcher', test_session=False,
-                  destination=None, owner_busy=None, view=None):
-    import launcher_bootstrap
-    from launcher_observer import reload_if_requested
-    from launcher_reload import ReloadRequest
-    from launcher_view import view_for
-    from launcher_render import clean
-    from watch_output import JsonReader, snapshot
-    reader = JsonReader()
-    view = view or view_for(label)
-    view.publish(run)
-    decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
-    forwarded = None
-    # Internal test-output forwarding remains in its owning process. Public
-    # observers can unwind through the stable bootstrap and resume directly.
-    reload = ReloadRequest(run) if launcher_bootstrap.enabled and destination is None else None
-    with lock((run if test_session else run.parent) / 'owner') as owner, (run / 'output').open('rb') as output:
-        offset = 0 if test_session else max(0, output.seek(0, os.SEEK_END) - TAIL_BYTES)
-        output.seek(offset)
-        if offset:
-            output.readline()  # Reattach at a full line, not midway through UTF-8/ANSI.
-        while True:
-            if hasattr(display, 'refresh_chat'):
-                display.refresh_chat()
-            if view.questions:
-                from launcher_question import pending, submit
-                display.update_question(pending(run), lambda identity, choice, text:
-                                        submit(run, identity, choice, text))
-            display.poll_input()
-            active = (owner_busy or busy)(owner)
-            # A new invocation may already own a newer run after this one ends.
-            active = active and (test_session or current_run(run.parent) == run)
-            if output.tell() > os.fstat(output.fileno()).st_size:
-                output.seek(0)
-                decoder.reset()
-                display.pending = ''
-            try:
-                steps = snapshot(run / 'controller.json', steps=True, reader=reader)
-                lines = snapshot(run / 'frame.json', reader=reader)
-                if destination is None and steps is not None:
-                    steps = view.progress(run, steps,
-                        snapshot(run / 'test-controller.json', steps=True, reader=reader))
-            except (OSError, ValueError, KeyError, TypeError):
-                # Refused metadata must not prevent draining the complete log
-                # or delivering the owner's final result. Never forward it.
-                steps = lines = None
-            if steps is None:
-                if destination is None:
-                    display.draw()
-            elif destination is not None:
-                if (steps, lines) != forwarded:
-                    atomic(destination / 'frame.json', lines)
-                    if lines:
-                        # Keep the last test tree available while repair runs;
-                        # the live frame is cleared when the child exits.
-                        atomic(destination / 'test-frame.json', lines)
-                    atomic(destination / 'test-controller.json', steps)
-                    forwarded = (steps, lines)
-            else:
-                # Overall progress belongs to the controller pane, not the
-                # rapidly refreshed detailed test tree. Legacy frames still work.
-                if steps:
-                    lines = [line for line in lines if not clean(line).startswith('Overall - ')]
-                if not active:
-                    lines = []
-                display.update(steps, lines)
-            if active and reload is not None:
-                reload_if_requested(reload, run, label, view, display, test_session=test_session)
-            data = output.read(65536)
-            if data:
-                display.write(decoder.decode(data))
-                continue
-            if not active:
-                display.write(decoder.decode(b'', final=True), final=True)
-                if test_session:
-                    result = run / 'result'
-                    status = int(result.read_text()) if result.exists() else 1
-                    if not result.exists():
-                        display.write('\nTest owner stopped without a final result; run is incomplete.\n', saved=False)
-                    (run / 'delivered').touch(mode=0o600)
-                    if status == 130 and destination is None:
-                        display.write('\n\033[32mLauncher has stopped.\033[0m\n', saved=False)
-                    return status
-                result = run / 'result.json'
-                if not result.exists():
-                    display.write(f'\n{label}: worker ended without a result; inspect the saved handoff before restarting.\n', saved=False)
-                    return 1
-                status = json.loads(result.read_text())['status']
-                if status == 130 and destination is None:
-                    display.write('\n\033[32mLauncher has stopped.\033[0m\n', saved=False)
-                return status
-            time.sleep(.1)
+def report_start(run, *, label='launcher', started=False, stop=False, reload=False, stream=None):
+    """Report controller admission, never the eventual workflow verdict."""
+    action = ('stop requested for' if stop else 'reload requested for' if reload
+              else 'started' if started else 'already running')
+    print(f'\033[32m{label}: controller {action}: {run.name}.\033[0m '
+          'Open ONPC: Watch to attach at any time.', file=stream or sys.stdout, flush=True)
+    return 0

@@ -14,6 +14,7 @@ nav button { flex-shrink: 0; }
     --watch-accent: #9b83bc;
     --watch-border: color-mix(in srgb, var(--watch-accent) 80%, var(--vscode-editor-background));
     --watch-rule: color-mix(in srgb, var(--watch-accent) 25%, var(--vscode-editor-background));
+    --watch-title-divider: color-mix(in srgb, var(--vscode-foreground) 55%, var(--vscode-editor-background));
     --watch-well: color-mix(in srgb, var(--watch-accent) 14%, var(--vscode-editor-background));
     --watch-header: linear-gradient(
         color-mix(in srgb, var(--watch-accent) 8%, var(--vscode-editor-background)),
@@ -44,7 +45,6 @@ nav button { flex-shrink: 0; }
 }
 .run.collapsed { flex: 0 0 auto !important; min-height: 0 !important; }
 .run.collapsed > :not(.run-heading) { display: none !important; }
-.run.collapsed .run-links { display: none; }
 #divider, .run-divider {
     position: relative; border-radius: 3px; touch-action: none;
     background: color-mix(in srgb, var(--watch-accent) 35%, var(--vscode-editor-background));
@@ -71,9 +71,12 @@ nav button { flex-shrink: 0; }
     border-bottom: 1px solid var(--watch-rule); background: var(--watch-header);
 }
 .tile-titlebar { min-height: 45px; }
-.run-heading { position: relative; flex-direction: column; align-items: stretch; row-gap: 2px; }
-.run-titlebar { display: flex; min-width: min-content; align-items: center; gap: 8px; }
-.run-label, .run-tab, #viewers button { font-size: var(--vscode-font-size); }
+.run-heading { position: relative; }
+.run-titlebar {
+    display: grid; grid-template-columns: minmax(80px, 1fr) auto minmax(max-content, 1fr);
+    width: 100%; min-width: min-content; align-items: center; gap: 8px;
+}
+.run-label, .run-view-select, #viewers button { font-size: var(--vscode-font-size); }
 .run-titlebar .run-label {
     flex: 0 1 auto; width: auto; min-width: 0;
     padding: 0; border: 0; background: transparent; color: inherit; font-weight: bold;
@@ -90,7 +93,7 @@ nav button { flex-shrink: 0; }
     overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
 }
 .run-controls { display: flex; flex-shrink: 0; margin-left: auto; }
-.run-controls-divider { align-self: stretch; width: 1px; margin: 3px 6px; background: var(--watch-rule); }
+.run-controls-divider { align-self: stretch; width: 1px; margin: 3px 6px; background: var(--watch-title-divider); }
 .command-copied::after {
     content: 'Launcher command copied'; position: absolute; z-index: 5;
     top: 36px; left: 8px; padding: 4px 8px; border-radius: 4px;
@@ -103,10 +106,18 @@ nav button { flex-shrink: 0; }
 .run-label.finished .run-launcher-label { color: inherit; }
 .run-label .stop-requested { color: #ffa500; }
 .run-label .closing-task { color: #008000; }
-.run-links {
-    display: flex; flex: 0 1 auto; flex-wrap: wrap;
-    justify-content: flex-start; align-items: baseline; gap: 4px;
+.run-view-control {
+    display: flex; align-items: center; padding: 0 12px;
+    border-inline: 1px solid var(--watch-title-divider);
 }
+.run-view-select {
+    padding: 4px 8px; border: 1px solid var(--watch-border); border-radius: 7px;
+    color: var(--vscode-foreground); background: var(--vscode-editor-background);
+    font-family: inherit; font-weight: bold; cursor: pointer;
+}
+.run-view-select:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.run-view-select option { font-weight: normal; }
+.run-view-select.session-inactive, .run-view-select .session-inactive { text-decoration: line-through; }
 .run-copy {
     display: inline-flex; vertical-align: middle; align-items: center; justify-content: center;
     width: 28px; height: 28px; padding: 4px; border: 1px solid transparent;
@@ -117,7 +128,7 @@ nav button { flex-shrink: 0; }
 .run-heading.failed { color: var(--vscode-errorForeground, #f14c4c); }
 .run-heading.failed .run-launcher-label { color: inherit; }
 .session-link { color: #0066ff; text-decoration: underline; cursor: pointer; }
-.run-tab, #viewers button {
+#viewers button {
     display: inline-block; padding: 4px 10px;
     border: 1px solid color-mix(in srgb, var(--watch-accent) 45%, var(--vscode-editor-background));
     border-radius: 7px;
@@ -126,16 +137,14 @@ nav button { flex-shrink: 0; }
     box-shadow: 0 1px 2px color-mix(in srgb, var(--watch-accent) 25%, transparent);
     text-decoration: none; font-weight: normal;
 }
-.run-tab:hover, #viewers button:hover { background: var(--watch-well); }
-.run-links.wrapped .run-tab { width: var(--run-tab-width); text-align: center; }
-.run-tab.session-inactive { text-decoration: line-through; }
-.run-tab[aria-current="page"], #viewers button[aria-pressed="true"] {
+#viewers button:hover { background: var(--watch-well); }
+#viewers button[aria-pressed="true"] {
     color: var(--vscode-tab-activeForeground); background: var(--vscode-tab-activeBackground);
     border-bottom-color: var(--vscode-focusBorder); font-weight: bold;
     box-shadow: inset 0 -2px var(--vscode-focusBorder),
         0 1px 2px color-mix(in srgb, var(--watch-accent) 25%, transparent);
 }
-.run-tab:focus-visible, #viewers button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -2px; }
+#viewers button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -2px; }
 .waiting-input { animation: waiting-input 1.2s ease-in-out infinite; }
 @keyframes waiting-input { 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .waiting-input { animation: none; } }
@@ -225,7 +234,7 @@ nav button { flex-shrink: 0; }
 #viewers { flex: 1; min-width: 0; align-items: center; gap: 4px; padding: 8px; }
 #tile-layout {
     display: flex; flex: 0 0 auto; align-items: center; gap: 2px; padding: 0 4px;
-    border-left: 1px solid var(--vscode-panel-border); background: var(--vscode-editor-background);
+    border-left: 1px solid var(--watch-title-divider); background: var(--vscode-editor-background);
 }
 #tile-layout button {
     display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;

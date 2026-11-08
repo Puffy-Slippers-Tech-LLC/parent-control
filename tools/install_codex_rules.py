@@ -11,6 +11,9 @@ import tomllib
 
 
 SYSTEM_RULES = Path('/etc/codex/rules/onpc-read-only.rules')
+REQUIRED_TOOLS = ('run-unit-tests', 'run-ui-tests', 'run-tests', 'diagnose', 'test-vm',
+                  'cleanup-screenshots', 'read-only')
+TOOL_PLACEHOLDER = '"@PROJECT_TOOL_PATHS@"'
 
 
 def install_system_rules(root, destination=SYSTEM_RULES):
@@ -71,19 +74,46 @@ def project_tool_paths(root):
 
 
 def render(root):
-    for name in ('run-unit-tests', 'run-ui-tests', 'run-tests', 'diagnose', 'test-vm',
-                 'cleanup-screenshots', 'read-only'):
+    for name in REQUIRED_TOOLS:
         path = root / 'tools' / name
         if not path.is_file() or path.is_symlink() or not os.access(path, os.X_OK):
             raise ValueError('missing or nonexecutable launcher; restore checkout executable modes')
     source = (root / 'config/codex-tests.rules').read_text()
-    placeholder = '"@PROJECT_TOOL_PATHS@"'
+    placeholder = TOOL_PLACEHOLDER
     if source.count(placeholder) != 1:
         raise ValueError('project tool paths placeholder must occur exactly once')
     # JSON quoting produces literal Starlark tokens even for spaces and quotes.
     paths = '[\n        ' + ',\n        '.join(
         json.dumps(path) for path in project_tool_paths(root)) + '\n    ]'
     return source.replace(placeholder, paths)
+
+
+def missing_optional_grants(root, saved):
+    """Accept only an unchanged policy with an older, canonical tool subset."""
+    template = (root / 'config/codex-tests.rules').read_text()
+    before, _, after = template.partition(TOOL_PLACEHOLDER)
+    if not saved.startswith(before) or not saved.endswith(after):
+        return None
+    inventory = saved[len(before):len(saved) - len(after)] if after else saved[len(before):]
+    try:
+        paths = json.loads(inventory)
+    except ValueError:
+        return None
+    if (not isinstance(paths, list) or not paths
+            or any(not isinstance(path, str) for path in paths)):
+        return None
+    current = project_tool_paths(root)
+    retained = set(paths)
+    required = {prefix + name for name in REQUIRED_TOOLS for prefix in ('tools/', './tools/')}
+    # Reject removed tools, missing required grants, unpaired aliases, duplicates,
+    # reordering and all other policy drift. This never creates or loads a grant.
+    if (not required <= retained or not retained < set(current)
+            or paths != [path for path in current if path.removeprefix('./') in retained]):
+        return None
+    canonical = '[\n        ' + ',\n        '.join(json.dumps(path) for path in paths) + '\n    ]'
+    if inventory != canonical:
+        return None
+    return [path for path in current if path not in retained]
 
 
 def main():
@@ -104,8 +134,16 @@ def prepare_checkout(root, *, headless=False, check=False):
     """Prepare only Codex-owned files; preserve personal settings and trust."""
     source = render(root)
     destination = root / '.codex/rules/tests.rules'
-    if destination.read_text() != source:
-        raise ValueError('tracked rules are stale; regenerate with python3 -IB tools/install_codex_rules.py --write-rules and commit them')
+    saved = destination.read_text()
+    if saved != source:
+        missing = None if check else missing_optional_grants(root, saved)
+        if missing is None:
+            raise ValueError('tracked rules are stale; regenerate with python3 -IB tools/install_codex_rules.py --write-rules and commit them')
+        print('codex-rules-install: warning: new tools lack saved command grants: '
+              + ', '.join(missing))
+        print('codex-rules-install: existing grants remain unchanged; regenerate with '
+              'python3 -IB tools/install_codex_rules.py --write-rules and restart Codex '
+              'before using the new tools unattended')
     tomllib.loads((root / '.codex/config.toml').read_text())
     if check:
         print('codex-rules-install: tracked settings and tool inventory valid')

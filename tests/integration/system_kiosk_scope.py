@@ -1,6 +1,5 @@
 """Bounded ordinary-account collateral checks for kiosk PAM and policy."""
 
-from contextlib import contextmanager
 import json
 from pathlib import Path
 import pwd
@@ -10,7 +9,7 @@ import shlex
 import system_guest as guest
 from system_kiosk_accounts import ORDINARY_ACCOUNTS
 from system_kiosk_confinement import process_identity, user_command
-from system_wellbeing_qualification import manager, valid_invocation
+from system_wellbeing_qualification import owned_manager
 
 
 PAYLOAD = Path('/usr/share/oh-no-parent-control/confinement')
@@ -55,34 +54,6 @@ def verify_vendor_pam(record):
     distribution = 'fedora' if backend() == 'selinux' else 'ubuntu'
     integration['runtime_ready'](distribution)
     record('onpc.kiosk.collateral.pam.owned-distro-blocks-ready', True)
-
-
-@contextmanager
-def owned_manager(account):
-    """Stop only the invocation created here, including a failed startup."""
-    unit = f'user@{account.pw_uid}.service'
-    before = manager(unit)
-    guest.require(before['ActiveState'] == 'inactive', 'kiosk-collateral:manager-already-active')
-    identity = None
-    try:
-        try:
-            guest.run(['systemctl', 'start', unit], timeout=75)
-        finally:
-            current = manager(unit)
-            if (valid_invocation(current['InvocationID']) and
-                    current['InvocationID'] != before['InvocationID']):
-                identity = current
-        guest.require(identity is not None and identity['ActiveState'] == 'active' and
-                      identity['MainPID'].isdecimal() and int(identity['MainPID']) > 1,
-                      'kiosk-collateral:manager-startup')
-        yield PROC / identity['MainPID']
-    finally:
-        if identity is not None:
-            guest.require(manager(unit)['InvocationID'] == identity['InvocationID'],
-                          'kiosk-collateral:manager-replaced')
-            guest.run(['systemctl', 'stop', unit], timeout=75)
-            guest.require(manager(unit)['ActiveState'] == 'inactive',
-                          'kiosk-collateral:manager-not-stopped')
 
 
 def ordinary_process(process, account, backend, *, domain='unconfined_t'):
@@ -175,7 +146,8 @@ def verify(record):
     selected_backend = backend()
     verify_vendor_pam(record)
     for role, account in accounts.items():
-        with owned_manager(account) as process:
+        with owned_manager(account, category='kiosk-collateral', timeout=75,
+                           startup_category='manager-startup') as process:
             identity = process_identity(process)
             ordinary_process(process, account, selected_backend)
             verify_units(account, selected_backend)

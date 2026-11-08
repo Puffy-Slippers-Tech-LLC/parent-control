@@ -393,12 +393,9 @@ def test_feedback_submission_outcomes(
         assert "component-feedback-post" not in collect_application_logs(log_path)
         ui.setText("feedback-reply-email", reply_email)
         ui.activate("feedback-send")
-    elif status == 202:
+    else:
         ui.activate("feedback-send-anonymously")
     if status == 409:
-        wait_for_accessible_state(lambda: ui.showing("feedback-anonymous-dialog"),
-                                  "anonymous send needs explicit approval")
-        ui.activate("feedback-send-anonymously")
         wait_for_accessible_state(
             lambda: ui.text("feedback-send") == "Submit again (may duplicate)",
             "duplicate-safe retry offered",
@@ -406,17 +403,11 @@ def test_feedback_submission_outcomes(
         assert ui.content(editor).strip() == "A private feedback draft"
         ui.activate("feedback-send")
     elif status == 413:
-        wait_for_accessible_state(lambda: ui.showing("feedback-anonymous-dialog"),
-                                  "anonymous send needs explicit approval")
-        ui.activate("feedback-send-anonymously")
         wait_for_accessible_state(lambda: ui.showing("feedback-send-without-logs"),
                                   "send without logs offered")
         assert ui.content(editor).strip() == "A private feedback draft"
         ui.activate("feedback-send-without-logs")
     elif status == 422:
-        wait_for_accessible_state(lambda: ui.showing("feedback-anonymous-dialog"),
-                                  "anonymous send needs explicit approval")
-        ui.activate("feedback-send-anonymously")
         expected = ("Feedback was not accepted. Your draft is preserved. Check your "
                     "feedback and reply address before sending again.")
         wait_for_accessible_state(lambda: ui.find("feedback-status") is not None

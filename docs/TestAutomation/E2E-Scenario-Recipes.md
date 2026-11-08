@@ -1268,6 +1268,17 @@ then closes that app normally and removes only the owned desktop entry.
 Riley's policy and disabled limits remain untouched. No approval, alternate route,
 separate-window or launcher-visibility assertion is used.
 
+Case 70 uses `app_launch.HARD_DESKTOP_PLAN` and the same worker's enabled,
+hard-blocked desktop binding. Parent saves Jordan's 30-minute daily allowance,
+zero grant and fixture A's precise permanent block with independent readback.
+Fresh Jordan receives the trusted desktop entry and activates its exact sole
+icon once. The shared denial operation requires continuous complete app-window
+absence for 15 seconds and a recognized prompt-free desktop. Remove Jordan's
+owned entry before logout. Fresh Riley receives the same target's trusted entry,
+opens it from the desktop, submits the normal draft and independently reads the
+result, then closes the app and removes the owned entry. Riley's policy and
+disabled limits remain untouched. No approval or alternate route is used.
+
 Case 74 uses `app_launch.FILES_PLAN` / `onpc_app_launch::run` with the enabled,
 Allowed native Files binding. Parent gives Jordan 30 daily minutes with zero
 grant, saves fixture A's precise Allowed rule and independently reads it back.

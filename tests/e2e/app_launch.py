@@ -153,11 +153,13 @@ def blocked_plan(rule, access, *, route='grid', control='enabled'):
     setup.update(policy)
     jordan = {
         'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
+        **({'jordan-denied-place': 'ui:native-desktop'} if route == 'desktop' else {}),
         **prefixed_stages('jordan-denied', native_blocked_app('A', route=route)),
         **({'jordan-denied-dismiss': 'ui:native-files-allowed-dismiss'}
            if route == 'files' else {}),
+        **({'jordan-denied-cleanup': 'ui:standard-desktop'} if route == 'desktop' else {}),
     }
-    riley = {
+    riley = DESKTOP_RILEY if route == 'desktop' else {
         'jordan-logout': 'system:standard-logout', **RILEY_ENTRY,
         **prefixed_stages('riley-use', native_usable_app(route, child='child')),
         **({'riley-use-dismiss': 'ui:overlay-native-files-allowed-dismiss'}
@@ -173,7 +175,14 @@ def blocked_plan(rule, access, *, route='grid', control='enabled'):
                 **{stage: 'step-3' for stage in riley}},
         advance_after={'installed-greeter': 'step-1', f'{rule}-final-match': 'step-2',
                        'jordan-denied-' + ('dismiss' if route == 'files' else
+                                           'cleanup' if route == 'desktop' else
                                            'denied' if route == 'grid' else 'command'): 'step-3'},
+        stage_actions={**base.stage_actions, **({
+            'jordan-denied-place': 'jordan-desktop-place',
+            'jordan-denied-cleanup': 'jordan-desktop-cleanup',
+            'riley-use-place': 'riley-desktop-place',
+            'riley-use-cleanup': 'riley-desktop-cleanup',
+        } if route == 'desktop' else {})},
         child_bindings={**({'allowance-configured': 'existing'} if control == 'enabled' else {}), **{
             stage: 'existing' for stage in policy if stage != f'{rule}-found'}},
         match_checks={f'{rule}-{suffix}': MATCH_RULES[0] for suffix in
@@ -185,6 +194,7 @@ def blocked_plan(rule, access, *, route='grid', control='enabled'):
 
 
 HARD_GRID_PLAN = blocked_plan('hard', 'permanent')
+HARD_DESKTOP_PLAN = blocked_plan('hard', 'permanent', route='desktop')
 HARD_FILES_PLAN = blocked_plan('hard', 'permanent', route='files')
 SOFT_FILES_PLAN = blocked_plan('soft', 'conditional', route='files')
 SOFT_GRID_PLAN = blocked_plan('soft', 'conditional')
@@ -213,15 +223,16 @@ def execute_grid(recorder, context, *, plan=GRID_PLAN, case_id='native-grid-allo
     execute(recorder, context, plan=plan)
 
 
-def execute_desktop(recorder, context):
+def execute_desktop(recorder, context, *, plan=DESKTOP_PLAN,
+                    case_id='native-desktop-allowed-enabled'):
     from e2e_fixture_preparation import ACTIVITY_SUBSETS
     context.fixture_subsets = ACTIVITY_SUBSETS
-    context.fixture_caller = 'E2E-019/native-desktop-allowed-enabled'
+    context.fixture_caller = 'E2E-019/' + case_id
     actions = fixture_actions(include_refusal=False)
     for name, child in (('jordan', 'other-child'), ('riley', 'child')):
         actions.update({name + '-' + key: action
                         for key, action in desktop_entry_actions(child=child).items()})
-    record_installed_journey(recorder, context, DESKTOP_PLAN, timeout=1800,
+    record_installed_journey(recorder, context, plan, timeout=1800,
                              actions=actions, journey_type=AppPolicyJourney)
 
 
@@ -229,6 +240,8 @@ E2E_CASES = {'native-command-allowed-enabled': execute,
              'native-command-allowed-disabled': execute_disabled,
              'native-grid-allowed-enabled': execute_grid,
              'native-desktop-allowed-enabled': execute_desktop,
+             'native-desktop-hard-blocked-enabled': partial(execute_desktop,
+                 plan=HARD_DESKTOP_PLAN, case_id='native-desktop-hard-blocked-enabled'),
              'native-file-manager-allowed-enabled': partial(execute_grid,
                  plan=FILES_PLAN, case_id='native-file-manager-allowed-enabled'),
              'native-file-manager-hard-blocked-enabled': partial(execute_grid,

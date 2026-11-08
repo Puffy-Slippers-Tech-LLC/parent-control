@@ -4577,6 +4577,17 @@ for the shared native/activity/baseline-child fixture closure. The affected
 `20261108T133854Z-d115f839`, including both independent placements, refusals,
 collection, worker shutdown and baseline restoration; the VM was observed off.
 
+Case 70 (`app_launch.HARD_DESKTOP_PLAN` / `onpc_app_launch::run`) passed on
+Ubuntu 26.04 in `scenario-d85ba01415704d05804e8e10a5fdf0b8`: Parent saved
+Jordan's precise permanent block and enabled 30-minute daily allowance with
+zero grant. Fresh Jordan's exact desktop activation remained denied for the
+15-second observation; fresh Riley opened and submitted the same app through
+the desktop with independent readback and unchanged policy. Both owned entries
+were removed and Riley's app closed. The affected Allowed desktop case 68 passed
+separately in `scenario-7453b958f6c7490cb3b6a6dc6fec43c3`. Collection,
+worker/callback shutdown and baseline restoration passed for both attempts;
+the VM was observed off. Other policy bindings remain separate.
+
 The maintained `reproduce-native-desktop` route composes case 68's Parent saves
 and stops at `jordan-use-selected`, retaining Jordan's scene for guarded maintenance probes;
 see the [diagnostic interface](../../tests/e2e/README.md#shared-guarded-worker).

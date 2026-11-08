@@ -846,6 +846,13 @@ sub run {
                             'enabled', 'grid', 'hard-blocked');
         return;
     }
+    if ($ready->{native_desktop_hard_blocked}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
+                            'enabled', 'desktop', 'hard-blocked');
+        return;
+    }
     if ($ready->{native_desktop_allowed}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

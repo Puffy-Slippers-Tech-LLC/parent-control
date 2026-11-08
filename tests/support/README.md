@@ -1670,6 +1670,17 @@ The standalone command and grid qualifications in `native_app` and
 independent-entry/refusal order and normal close checks remain local. Reuse this
 same declaration instead of copying its launch/use stage map into a qualifier.
 
+Files consumers use that same block with `route='files'`; it includes the bound
+child's empty-app desktop read before the guarded Files selection and launch.
+When retaining another fixture window, declare the appropriate desktop read
+locally and pass `desktop_observation=False`, as in `native_files_usable`'s
+separate-window history. Keep Files dismissal distinct from fixture-window
+closure and preserve each caller's capture/comparison order. Fixture role A
+uses `role=None` regardless of its saved Allowed, Hard or Soft policy; denied
+Files access uses `native_blocked_app('A', route='files')`. Reuse the
+[qualified Files bindings](../../docs/TestAutomation/E2E-Building-Blocks.md#native-files-launch-and-separate-windows)
+instead of substituting a command launch to establish a Files result.
+
 For the clean disabled binding, compose `onpc_parent::open_for_child` and check
 the selected child's untouched limits-off/zero-allowance result before editing
 app policy. The enabled binding instead uses `onpc_parent::set_allowance` and

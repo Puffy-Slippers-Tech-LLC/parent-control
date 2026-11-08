@@ -376,6 +376,9 @@ For post-installation work, run `./tools/prepare-appsnapshot --vm NAME --y --ove
 under the [setup contract](E2E-Building-Blocks.md#parent-login-and-time-scenarios).
 Use `--overwrite true` when application code changed; documentation-only and
 test-only changes continue to use `false`.
+An existing snapshot can still contain another package with the same version;
+apply the runner's [snapshot freshness and recovery contract](../../tests/e2e/README.md#run-e2e-scenarios)
+if the installed-content guard refuses after reuse.
 Wait for completion; report meaningful blockers or results rather than routine
 polling. Required watch observation remains active. Proceed only on success.
 Online preparation leaves a maintenance-owned running VM;

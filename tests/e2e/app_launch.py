@@ -195,6 +195,7 @@ def blocked_plan(rule, access, *, route='grid', control='enabled'):
 
 HARD_GRID_PLAN = blocked_plan('hard', 'permanent')
 HARD_DESKTOP_PLAN = blocked_plan('hard', 'permanent', route='desktop')
+SOFT_DESKTOP_PLAN = blocked_plan('soft', 'conditional', route='desktop')
 HARD_FILES_PLAN = blocked_plan('hard', 'permanent', route='files')
 SOFT_FILES_PLAN = blocked_plan('soft', 'conditional', route='files')
 SOFT_GRID_PLAN = blocked_plan('soft', 'conditional')
@@ -242,6 +243,8 @@ E2E_CASES = {'native-command-allowed-enabled': execute,
              'native-desktop-allowed-enabled': execute_desktop,
              'native-desktop-hard-blocked-enabled': partial(execute_desktop,
                  plan=HARD_DESKTOP_PLAN, case_id='native-desktop-hard-blocked-enabled'),
+             'native-desktop-soft-blocked-enabled': partial(execute_desktop,
+                 plan=SOFT_DESKTOP_PLAN, case_id='native-desktop-soft-blocked-enabled'),
              'native-file-manager-allowed-enabled': partial(execute_grid,
                  plan=FILES_PLAN, case_id='native-file-manager-allowed-enabled'),
              'native-file-manager-hard-blocked-enabled': partial(execute_grid,

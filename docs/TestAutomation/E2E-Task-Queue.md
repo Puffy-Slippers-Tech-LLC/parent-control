@@ -275,7 +275,7 @@ the removed menu, shortcut and Files combinations with limits off have no
 installed acceptance credit.
 
 Excluded tasks: **257** (separate background feedback reconnection).
-The developer combined this into [task 153 / case 157](E2E-Tasks/153-case-157.md).
+The developer combined this into [task 153 / case 157](UI-and-E2E-Coverage.md#feedback-sending-allocation).
 Task 257, its brief and inventory case 215 are absorbed, neither completed nor
 deferred; do not recreate the separate journey or reuse case ID 215. Its retained
 retry/background behavior now belongs to the
@@ -310,7 +310,7 @@ settings. Preserve that journey and the shared account preparation within
 the remaining account-change consumers.
 
 Task **256** and standalone inventory case **214** are absorbed into
-[task 151 / case 156](E2E-Tasks/151-case-156.md), neither completed nor deferred.
+[task 151 / case 156](UI-and-E2E-Coverage.md#feedback-sending-allocation), neither completed nor deferred.
 Do not recreate the brief or separate ordinary-feedback send or reuse case ID 214.
 Former case 156 sends without a reply address; [task 262 / former case 220](E2E-Tasks/262-case-220.md)
 sends an error report with a synthetic address. Both are pending UI obligations
@@ -641,7 +641,7 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 036h | Open a second native window from the desktop | 036g | APP01/02 desktop separate-window route passed on Ubuntu 26.04 in `20261108T181000Z-4e4fc697`: two independent same-S window pairs, trusted secondary desktop entry, exact icon selection/Enter, independent draft readback, distinct endpoints and unchanged original work. Fixed missing desktop keyboard focus with GNOME's normal panel-cycle shortcut after reproducing the original timeout in owned maintenance. All 62 scoped host safety checks, source/traceability, links, collection, worker shutdown, owned cleanup and baseline restoration passed. Required desktop-use regression passed in `20261108T181510Z-007da474`; VM observed off. [Qualified scope](E2E-Building-Blocks.md#native-desktop-entry-and-usable-launch). Other children and policy-denial bindings remain separate. | 20–30 |
 | [x] | 036b | Observe policy results for desktop launches | 036h | APP01/02/03 native desktop route passed on Ubuntu 26.04 in `20261108T183836Z-f9987566`: independent trusted A entries, public precise Hard/Soft saves, captured original-window closure, same-desktop relaunch denial and unaffected N use. Wrong-icon and ambiguous-owner refusals passed. All 32 scoped host safety checks, source/traceability, links, collection, worker/callback shutdown and baseline restoration passed. Affected desktop-use regression passed in `20261108T185959Z-0977c763`; VM observed off. [Qualified scope](E2E-Building-Blocks.md#native-desktop-entry-and-usable-launch). Other children, icon populations, temporary access and complete cases remain separate. | 20–30 |
 | [x] | 094 | Check that a hard block stops the child opening an app from the desktop | 180, 036b | Cases 70; passed on Ubuntu 26.04 in `scenario-d85ba01415704d05804e8e10a5fdf0b8`: Parent's precise permanent block, enabled 30-minute daily allowance/zero grant, Jordan's desktop launch denial and fresh Riley's same-app desktop use with independent submitted-draft readback. Affected Allowed case 68 passed separately in `scenario-7453b958f6c7490cb3b6a6dc6fec43c3`. Scoped host safety/source checks, collection, worker shutdown, owned entry cleanup and baseline restoration passed; VM observed off and coverage refreshed after each case. [Qualified scope](E2E-Building-Blocks.md#native-desktop-entry-and-usable-launch). | 20–30 |
-| [ ] | 095 | [E2E-019: native-desktop-soft-blocked-enabled](E2E-Tasks/095-case-72.md) | 180, 036b | Cases 72 | 20–30 |
+| [x] | 095 | Check that a soft block stops one child's desktop app | 180, 036b | Cases 72; passed on Ubuntu 26.04 in `scenario-28df7f797acb4518899dfce7c5285081`: Parent's precise conditional block and enabled 30-minute daily allowance/zero grant, Jordan's full desktop denial interval and fresh Riley's same-app launch/Submit/readback with untouched policy. Required Allowed desktop case 68 passed in `scenario-2337a3dcb97149ad83a6238786b708d3` after refreshed command rules and successful setup. Scoped host safety/source checks, listing, links, collection, worker shutdown, owned shortcut cleanup and baseline restoration passed; coverage regenerated after each pass and VM observed off. | 20–30 |
 | [ ] | 275 | [E2E-049: native-desktop-child-overlay](E2E-Tasks/275-case-233.md) | 197, 079b, 180, 036b | Cases 233 | 20–30 |
 | [ ] | 126p | [Prepare the declared offline game in the baseline](E2E-Tasks/126p-game-fixture.md) | 006, 077a | Offline-game baseline assets and FIX06 verification | 20–30 |
 | [ ] | 126a | [Launch and observe the prepared offline game](E2E-Tasks/126a-game-activity.md) | 126p, 047 | Game APP01/02/03/04 and FLOW08 usable activity | 20–30 |

@@ -74,6 +74,8 @@ prefix_rule(
         "./tools/fix-tests",
         "tools/generate_test_coverage.sh",
         "./tools/generate_test_coverage.sh",
+        "tools/newvm",
+        "./tools/newvm",
         "tools/onpc-diagnostics",
         "./tools/onpc-diagnostics",
         "tools/prepare-appsnapshot",

@@ -1,0 +1,65 @@
+<domain type="kvm" xmlns:newvm="urn:onpc:newvm">
+  <name>newvm</name>
+  <metadata><newvm:disk size-gib="80"/></metadata>
+  <memory unit="KiB">4718592</memory>
+  <currentMemory unit="KiB">4718592</currentMemory>
+  <memoryBacking><source type="memfd"/><access mode="shared"/></memoryBacking>
+  <vcpu placement="static">6</vcpu>
+  <os>
+    <type arch="x86_64" machine="pc-q35-resolute">hvm</type>
+    <bootmenu enable="yes" timeout="5000"/>
+  </os>
+  <features><acpi/><apic/><vmport state="off"/></features>
+  <cpu mode="host-passthrough" check="none" migratable="on">
+    <topology sockets="1" dies="1" clusters="1" cores="3" threads="2"/>
+    <cache mode="passthrough"/>
+    <feature policy="disable" name="invtsc"/>
+  </cpu>
+  <clock offset="utc">
+    <timer name="rtc" tickpolicy="catchup"/>
+    <timer name="pit" tickpolicy="delay"/>
+    <timer name="hpet" present="no"/>
+  </clock>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+  <pm><suspend-to-mem enabled="yes"/><suspend-to-disk enabled="no"/></pm>
+  <devices>
+    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+    <disk type="file" device="disk" snapshot="internal">
+      <driver name="qemu" type="qcow2" discard="unmap"/>
+      <source file="newvm.qcow2"/>
+      <target dev="vda" bus="virtio"/>
+      <boot order="2"/>
+    </disk>
+    <disk type="file" device="cdrom">
+      <driver name="qemu" type="raw"/>
+      <source file="installer.iso"/>
+      <target dev="sda" bus="sata"/>
+      <readonly/>
+      <boot order="1"/>
+    </disk>
+    <controller type="usb" model="qemu-xhci" ports="15"/>
+    <controller type="pci" model="pcie-root"/>
+    <controller type="sata" index="0"/>
+    <controller type="virtio-serial" index="0"/>
+    <interface type="network"><source network="default"/><model type="virtio"/></interface>
+    <serial type="pty"><target type="isa-serial" port="0"/></serial>
+    <console type="pty"><target type="serial" port="0"/></console>
+    <channel type="unix"><target type="virtio" name="org.qemu.guest_agent.0"/></channel>
+    <channel type="spicevmc"><target type="virtio" name="com.redhat.spice.0"/></channel>
+    <input type="tablet" bus="usb"/>
+    <graphics type="spice">
+      <listen type="none"/>
+      <clipboard copypaste="yes"/>
+      <filetransfer enable="no"/>
+    </graphics>
+    <graphics type="dbus" p2p="yes"><gl enable="no"/></graphics>
+    <sound model="ich9"/>
+    <audio id="1" type="spice"/>
+    <video><model type="virtio" heads="1" primary="yes"><acceleration accel3d="no"/></model></video>
+    <watchdog model="itco" action="reset"/>
+    <memballoon model="virtio" freePageReporting="on"/>
+    <rng model="virtio"><backend model="random">/dev/urandom</backend></rng>
+  </devices>
+</domain>

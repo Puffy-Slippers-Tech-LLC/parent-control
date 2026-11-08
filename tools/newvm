@@ -1,0 +1,10 @@
+#!/usr/bin/python3 -IB
+"""Create a powered-off VM and register it disabled, without an agent."""
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from newvm import main
+
+if __name__ == '__main__':
+    sys.exit(main())

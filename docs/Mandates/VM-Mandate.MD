@@ -80,6 +80,15 @@ see [the preparation contract](../Approval-Tools.md#one-time-setup).
 
 ### Owned maintenance and execution
 
+Explicit blank-VM provisioning uses
+[`tools/newvm`](../../tools/newvm) and the
+[creation contract](../../tests/integration/Environment.md#creating-a-blank-vm).
+It defines a fresh powered-off VM and registers it disabled, without booting,
+touching an existing VM, creating snapshots or adopting a disk. This provisioning
+route may target a disabled host; it is separate from registered maintenance
+and requires no running-guest display observation. Subsequent guest work uses
+the normal selection, observation and ownership rules below.
+
 Operate the selected, individually pinned VM only through maintained
 preparation/execution routes and `tools/test-vm` for maintenance. Do not bypass
 ownership or create snapshots, overlays or clones outside those routes. Stop

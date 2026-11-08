@@ -106,7 +106,6 @@
         if (entry.launcher_command) {
             const copyCommand = () => vscode.postMessage({ type: 'copy', root: entry.id,
                 text: entry.launcher_command, command: true });
-            labels.addEventListener('mouseenter', copyCommand);
             labels.addEventListener('click', copyCommand);
         }
         labels.disabled = !entry.launcher_command;
@@ -154,7 +153,7 @@
                 title.append(')');
             }
         }
-        if (entry.launcher_command) labels.title = `Copy command: ${entry.launcher_command}`;
+        if (entry.launcher_command) labels.title = entry.launcher_command;
         labels.classList.toggle('finished', entry.status === 'finished');
         const collapse = element('button', 'run-copy', controls);
         collapse.type = 'button';

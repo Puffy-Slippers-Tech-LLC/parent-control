@@ -682,7 +682,7 @@ sub native_usable_app {
             || $role eq 'S' && $child eq 'other-child'
             || $route eq 'command' &&
             ($role =~ /\A(?:A|S)\z/ && $child eq 'child'
-                || $role =~ /\A(?:N|unmatched-soft|SpaceCopy|CommaCopy)\z/ && $child eq 'other-child')));
+                || $role =~ /\A(?:N|unmatched-soft|SpaceCopy|CommaCopy|VersionNext|VersionNonmatch|VersionExisting)\z/ && $child eq 'other-child')));
     my $opened = $route eq 'command' ? native_open_command($journey, $desktop)
         : $kind ne 'native' ? native_launch_grid($journey,
             native_search($journey, $desktop, 'app-grid', $role, $kind), $gesture)
@@ -1211,6 +1211,25 @@ sub native_space_path {
         native_usable_app($app, 'command', $app->seen('desktop'), 'other-child',
             $profile eq 'space' ? 'SpaceCopy' : 'CommaCopy');
         native_finish_app($app);
+        $journey->seen($entry . '-cleanup');
+    }
+    $journey->seen('child-logout');
+    $journey->finish();
+}
+
+sub versioned_appimage_assets {
+    my ($exchange, $declared, $challenges) = @_;
+    die 'native:arguments' unless @_ == 3;
+    onpc_progress::operation('Checking the child can copy and use the new app files');
+    my $journey = native_child_entry($exchange, $declared, $challenges, 'versioned-appimage-assets');
+    for my $entry ('first', 'independent') {
+        $journey->seen($entry . '-next-copy');
+        $journey->seen($entry . '-nonmatch-copy');
+        for my $binding (['next', 'VersionNext'], ['existing', 'VersionExisting'], ['nonmatch', 'VersionNonmatch']) {
+            my $app = $journey->scope($entry . '-' . $binding->[0]);
+            native_usable_app($app, 'command', $app->seen('desktop'), 'other-child', $binding->[1]);
+            native_finish_app($app);
+        }
         $journey->seen($entry . '-cleanup');
     }
     $journey->seen('child-logout');

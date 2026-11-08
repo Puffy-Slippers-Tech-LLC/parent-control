@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from tests.fixtures.native_assets import (ASSETS as NATIVE_ASSETS, LAUNCHERS, TRUSTED_NATIVE, GUI_DIRECTORIES,
-    LEGACY_S, desktop_id, desktop_entry, executable_path, version_pattern)
+    LEGACY_S, VERSION_NONMATCH, desktop_id, desktop_entry, executable_path, version_pattern)
 from tests.fixtures import snap_assets, flatpak_assets
 SOURCE = Path(__file__).with_name("onpc_test_application.c")
 GUI_SOURCE = Path(__file__).with_name("gui_application.py")
@@ -207,7 +207,8 @@ def _build_native_layout(output: Path, native: Path) -> None:
     identities = {asset[1]: asset[0] for asset in NATIVE_ASSETS}
     identities[LEGACY_S] = 'S'
     identities[NATIVE_NAMES[3]] = 'S-update'
-    for name in dict.fromkeys((*NATIVE_NAMES, *(asset[1] for asset in NATIVE_ASSETS))):
+    identities[VERSION_NONMATCH] = 'N'
+    for name in dict.fromkeys((*NATIVE_NAMES, *(asset[1] for asset in NATIVE_ASSETS), VERSION_NONMATCH)):
         target = applications / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(_compile_native(output, identity=identities[name]), target)

@@ -47,6 +47,9 @@ for _role in ACCOUNTS:
         BINDINGS[_role + '-entry-' + _mode] = (_role, 'entry-' + _mode)
         LABELS['entry-' + _mode] = 'Verifying the declared desktop entry ' + _mode
 LOGOUT_COMMAND = ['/usr/bin/gnome-session-quit', '--logout', '--no-prompt']
+# GNOME can wait over a minute for a session client to finish. Leave room for
+# that shutdown and a slow guest; this polls the result without repeating input.
+LOGOUT_WAIT_SECONDS = 240
 
 
 class SessionError(RuntimeError):
@@ -612,7 +615,7 @@ def execute(binding, *, diagnostic=False):
             'monotonic_ns': time.monotonic_ns(), 'source': source,
             'observer_uid': os.geteuid()}), file=sys.stderr)
     submit(action)
-    deadline = time.monotonic() + 45
+    deadline = time.monotonic() + (LOGOUT_WAIT_SECONDS if action == 'logout' else 45)
     while True:
         try:
             current = sessions(diagnostic=logout_trace if diagnostic else
@@ -647,7 +650,8 @@ def observe(transport, binding, *, diagnostic=False):
     with watch_activity.operation(LABELS[action] + ' [' + role + ']'):
         raw = transport.call(['/usr/bin/python3', '-I', '-', binding,
                               *(['--diagnostic'] if diagnostic else [])],
-                             input=Path(__file__).read_bytes(), timeout=90)
+                             input=Path(__file__).read_bytes(),
+                             timeout=LOGOUT_WAIT_SECONDS + 60 if action == 'logout' else 90)
     require(type(raw) is bytes and 0 < len(raw) <= 1024, 'response-bound')
     result = json.loads(raw)
     if action.startswith('entry-'):

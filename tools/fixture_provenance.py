@@ -4,7 +4,7 @@ import json
 from pathlib import PurePosixPath
 import re
 
-IDENTITIES = ('mechanical', 'A', 'H', 'S', 'N', 'trusted-hard', 'trusted-soft',
+IDENTITIES = ('mechanical', 'A', 'H', 'S', 'S-update', 'N', 'trusted-hard', 'trusted-soft',
               'trusted-activity')
 COMPILER_INPUTS = frozenset(('cc', 'readelf', 'loader', 'cc1', 'collect2', 'as', 'ld',
     'crt1.o', 'Scrt1.o', 'crti.o', 'crtn.o', 'crtbegin.o', 'crtbeginS.o',

@@ -75,15 +75,25 @@ NATIVE_SPACE_COPY = 'Copied Path With Spaces.AppImage'
 NATIVE_COMMA_PARENT = Path('/opt/onpc-test-fixtures/Applications/Comma')
 NATIVE_COMMA_SOURCE = 'Path,With,Commas.AppImage'
 NATIVE_COMMA_COPY = 'Copied,Path,With,Commas.AppImage'
+NATIVE_PROFILES = ('native-space', 'native-comma', 'native-version-next', 'native-version-nonmatch')
+NATIVE_VERSION_PARENT = Path('/opt/onpc-test-fixtures/Applications/Versioned')
+NATIVE_VERSION_NEXT = 'Lunar Client-3.8.0.AppImage'
+NATIVE_VERSION_NONMATCH = 'NewPrismLauncher.AppImage'
 
 
 def native_space_operate(home, operation, request, profile='native-space'):
     """FILE05: one Jordan-owned executable copy, never arbitrary file input."""
     import pwd
-    require(profile in ('native-space', 'native-comma'))
-    parent_path, source_name, copy_name = (
-        (NATIVE_SPACE_PARENT, NATIVE_SPACE_SOURCE, NATIVE_SPACE_COPY) if profile == 'native-space'
-        else (NATIVE_COMMA_PARENT, NATIVE_COMMA_SOURCE, NATIVE_COMMA_COPY))
+    require(profile in NATIVE_PROFILES)
+    parent_path, source_name, copy_name = {
+        'native-space': (NATIVE_SPACE_PARENT, NATIVE_SPACE_SOURCE, NATIVE_SPACE_COPY),
+        'native-comma': (NATIVE_COMMA_PARENT, NATIVE_COMMA_SOURCE, NATIVE_COMMA_COPY),
+        'native-version-next': (NATIVE_VERSION_PARENT, NATIVE_VERSION_NEXT, NATIVE_VERSION_NEXT),
+        'native-version-nonmatch': (NATIVE_VERSION_PARENT, 'PrismLauncher.AppImage', NATIVE_VERSION_NONMATCH),
+    }[profile]
+    versioned = profile in ('native-version-next', 'native-version-nonmatch')
+    next_version = profile == 'native-version-next'
+    source_key = '../' + source_name if next_version else source_name
     child = pwd.getpwnam('onpc-child-jordan')
     require(os.getuid() == os.geteuid() == child.pw_uid
             and home == Path(child.pw_dir) == Path('/home/onpc-child-jordan'))
@@ -111,6 +121,7 @@ def native_space_operate(home, operation, request, profile='native-space'):
         require(info.st_uid == child.pw_uid and info.st_gid == child.pw_gid
                 and stat.S_IMODE(info.st_mode) == 0o755)
         fcntl.flock(parent, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        source_parent = chain[-2][2] if next_version else parent
 
         def guard():
             for ancestor, name, pinned, receipt in chain:
@@ -120,46 +131,48 @@ def native_space_operate(home, operation, request, profile='native-space'):
         def readback():
             guard()
             names = set(os.listdir(parent))
-            base = {source_name, 'onpc-test-gui.py', 'gtk_automation.py'}
-            require(names in (base, base | {copy_name}))
+            base = ({'Lunar Client-3.7.17.AppImage', 'PrismLauncher.AppImage'} if versioned
+                    else {source_name}) | {'onpc-test-gui.py', 'gtk_automation.py'}
+            require(base <= names <= base | ({NATIVE_VERSION_NEXT, NATIVE_VERSION_NONMATCH}
+                                            if versioned else {copy_name}))
             result = {'directory': chain[-1][3], 'destination': str(parent_path / copy_name),
                       'files': {}}
-            for name in (source_name, copy_name):
-                if name not in names:
+            for key, name, fd in ((source_key, source_name, source_parent), (copy_name, copy_name, parent)):
+                if key == copy_name and name not in names:
                     continue
-                data, entry = read_regular(parent, name, owner=child.pw_uid,
+                data, entry = read_regular(fd, name, owner=child.pw_uid,
                                             mode=0o755, limit=2 * 1024 * 1024)
                 digest = hashlib.sha256(data).hexdigest()
                 require(entry.st_gid == child.pw_gid and digest == expected['source'])
-                result['files'][name] = {'identity': identity(entry), 'sha256': digest,
+                result['files'][key] = {'identity': identity(entry), 'sha256': digest,
                                          'size': len(data)}
             guard()
             return result
 
         current = readback()
         if operation == 'stage':
-            require(previous is None and set(current['files']) == {source_name})
+            require(previous is None and set(current['files']) == {source_key})
         elif operation == 'absent':
             require(previous == {'absent': True}
-                    and set(current['files']) == {source_name})
+                    and set(current['files']) == {source_key})
             return {'absent': True}
         else:
             require(current == previous)
             if operation == 'copy':
-                require(set(current['files']) == {source_name})
-                data, entry = read_regular(parent, source_name, owner=child.pw_uid,
+                require(set(current['files']) == {source_key})
+                data, entry = read_regular(source_parent, source_name, owner=child.pw_uid,
                                           mode=0o755, limit=2 * 1024 * 1024)
-                require(identity(entry) == current['files'][source_name]['identity'])
+                require(identity(entry) == current['files'][source_key]['identity'])
                 guard()
                 write_exclusive(parent, copy_name, data, owner=child.pw_uid,
                                 group=child.pw_gid, mode=0o755)
             elif operation == 'cleanup':
-                require(set(current['files']) == {source_name, copy_name})
+                require(set(current['files']) == {source_key, copy_name})
                 guard()
                 require(identity(os.stat(copy_name, dir_fd=parent, follow_symlinks=False))
                         == current['files'][copy_name]['identity'])
                 os.unlink(copy_name, dir_fd=parent)
-                require(set(readback()['files']) == {source_name})
+                require(set(readback()['files']) == {source_key})
                 return {'absent': True}
         return readback()
 
@@ -657,7 +670,7 @@ def save_operate(home, operation, previous):
 
 def operate(home, operation, previous, profile='standard'):
     """Validate everything before the first mutation; failures never clean up."""
-    if profile in ('native-space', 'native-comma'):
+    if profile in NATIVE_PROFILES:
         return native_space_operate(home, operation, previous, profile)
     require(operation in ('stage', 'read', 'copy', 'rename', 'cleanup', 'absent', 'open-text', 'probe-text', 'open-zip', 'probe-zip', 'change-source', 'probe-source', 'saved'))
     require(profile in ('standard', 'zip', 'save') or profile in BOUNDARY_PROFILES)
@@ -781,7 +794,7 @@ def diagnostic_zip_refusal(error):
 def main():
     import pwd
     require(len(sys.argv) in (3, 4))
-    user = ('onpc-child-jordan' if len(sys.argv) == 4 and sys.argv[3] in ('native-space', 'native-comma')
+    user = ('onpc-child-jordan' if len(sys.argv) == 4 and sys.argv[3] in NATIVE_PROFILES
             else 'onpc-parent-jamie')
     account = pwd.getpwnam(user)
     require(os.getuid() == os.geteuid() == account.pw_uid and account.pw_dir == '/home/' + user)

@@ -4181,11 +4181,12 @@ S's adjacent GUI/automation modules live in `Applications/Versioned`; H uses
 the unrelated whitespace executable without making A's `Exact*` wildcard
 unrepresentable. The original root-level S remains an untrusted
 compatibility control with identical bytes. The pinned Versioned directory is
-Jordan-owned 0755 and contains only S and its two modules. Extra/stale files,
+Jordan-owned 0755 and contains S, the existing `PrismLauncher.AppImage` nonmatch
+and its two modules. Extra/stale files,
 links, changed bytes/modes or foreign ownership refuse. Active and legacy S
 remain excluded from file trust.
 
-The current native profile has 19 active source keys; Riley uses thirteen runtime
+The current native profile has 21 active source keys; Riley uses fifteen runtime
 files plus its own A launcher. Earlier ten/seven-file and twelve/nine-file
 qualifications do not verify this changed placement. The
 [compatible fixture scope](#c04p1-compatible-fixture-applicability) and
@@ -4228,7 +4229,26 @@ original-launcher case 64 passed in `20261104T033317Z-ed993b26`, including Jorda
 denial and Riley's unaffected usable app. Collection, owned cleanup and baseline
 restoration passed in both attempts; coverage was regenerated after each. This
 supplies no Fedora qualification.
-A future-version/new-nonmatch profile remains a separate pending capability.
+The future-version/new-nonmatch binding is implemented in
+[versioned_appimage_assets.py](../../tests/e2e/versioned_appimage_assets.py),
+qualified on Ubuntu 26.04 by `check_e2e_qualify_versioned_appimage_pattern_assets`
+in `20261108T012124Z-15220b79`. FIX06 declares the distinct root-level
+`Lunar Client-3.8.0.AppImage` source and `Versioned/PrismLauncher.AppImage`.
+`versioned_copy_actions` reuses FILE05's `native-version-next` and
+`native-version-nonmatch` profiles to add `Versioned/Lunar Client-3.8.0.AppImage`
+and `Versioned/NewPrismLauncher.AppImage` at separate caller-owned checkpoints.
+`VersionNext`, `VersionExisting` and `VersionNonmatch` command bindings use the existing secondary
+window's public Submit/readback/closure with exact Jordan/executable owner checks.
+`check_e2e_qualify_versioned_appimage_pattern_assets` is the focused readiness/use
+route, excluded from standalone system registration. Case 189 still owns the
+wildcard Save, denials, refresh interval and rejected-save recovery.
+Both independent copy/use/cleanup lifetimes passed for all three bindings.
+Affected native-denial qualification (`20261108T012923Z-a1f3061e`) and both-child
+case 62 (`20261108T014447Z-1d37e230`) passed, including collection, owned cleanup
+and baseline restoration. The shared logout observer now allows GNOME's delayed
+session-client shutdown while preserving one submission and independent greeter
+readback. Scoped host safety/source checks and coverage generation passed.
+This supplies no Fedora qualification or complete case 189 acceptance.
 Space-bearing ELF nonmatches in the legacy directory
 still require the separate unsafe-wildcard rejection under
 [application policy](../SystemDesign/Applications.md). Snap/Flatpak builders

@@ -505,6 +505,7 @@ def build_payload():
         root = Path(temporary)
         result = {role: _compile_native(root, identity=role).read_bytes()
                   for role, *_ in assets.ASSETS}
+        result['S-update'] = _compile_native(root, identity='S-update').read_bytes()
         result['mechanical'] = _compile_native(root, headless=True).read_bytes()
         for identity in assets.TRUSTED_NATIVE:
             result[identity] = _compile_native(root, headless=True, identity=identity).read_bytes()
@@ -804,7 +805,7 @@ def verify_native_policy_sources(g, identities, previous=None, *, include_native
 
 def reconcile(g, payload):
     """Repeat without writes; atomic owned upgrades and interrupted retries."""
-    keys = ('mechanical', *assets.TRUSTED_NATIVE, 'trusted-activity',
+    keys = ('mechanical', *assets.TRUSTED_NATIVE, 'trusted-activity', 'S-update',
             *(role for role, *_ in assets.ASSETS))
     require(all(isinstance(payload.get(key), bytes) and payload[key] for key in keys)
             and len({payload[key] for key in keys}) == len(keys))
@@ -814,6 +815,7 @@ def reconcile(g, payload):
     identities = fixture_accounts(g)
     source_keys = dict(zip(native_assets.executable_sources(),
                            (asset[0] for asset in native_assets.ASSETS)))
+    source_keys.update(zip(native_assets.version_sources(), ('S-update', 'N')))
     source_keys.update({source: source.rsplit('/', 1)[-1] for source in native_assets.gui_sources()})
     source_hashes = {source: hashlib.sha256(payload[key]).hexdigest()
                      for source, key in source_keys.items()}

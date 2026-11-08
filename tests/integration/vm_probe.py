@@ -1115,6 +1115,19 @@ def reproduce_daily_soft_balance(lease, fixture_selection):
         boundary_operation='time-explanation-refresh-read', fixture_selection=selection, timeout=1800)
 
 
+def reproduce_versioned_appimage_assets(lease, fixture_selection):
+    """Submit the asset journey's logout once and retain its actual result."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from versioned_appimage_assets import VersionedAppImageAssetsJourney, PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, VersionedAppImageAssetsJourney, PLAN,
+        'logout', 'versioned-appimage-assets', assets=assets,
+        boundary_operation='system:parent-logout', fixture_selection=selection, timeout=1800)
+
+
 def reproduce_native_denial(lease, fixture_selection):
     """Retain Jordan's first native command denial after the actual Parent saves."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1633,6 +1646,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
     from qualification_storage import recovery_session, allocate
     selected_setup = fixture_selection is not None
     reboot_context = False
+    versioned_assets = False
     if selected_setup or surface == 'baseline-restoration' or timeout != 900:
         from baseline_journey import BaselineJourney, PLAN
         from natural_access import NaturalAccessJourney, PLAN as NATURAL_ACCESS_PLAN
@@ -1659,6 +1673,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             from native_temporary_access import TemporaryAccessJourney as NativeTemporaryAccessJourney, COMMAND_KIOSK_PLAN
         from app_restart_expired import AppRestartExpiredJourney, SIGN_OUT_PLAN
         from daily_soft_expiry import DailySoftExpiryJourney, PLAN as DAILY_SOFT_PLAN
+        if surface == 'versioned-appimage-assets':
+            from versioned_appimage_assets import VersionedAppImageAssetsJourney, PLAN as VERSIONED_ASSETS_PLAN
         restoration = (surface == 'baseline-restoration'
             and journey_type is BaselineJourney and plan is PLAN
             and boundary == 'restore-saved' and boundary_operation == 'parent-save-disabled'
@@ -1728,7 +1744,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         daily_soft_balance = (surface == 'daily-soft-balance'
             and journey_type is DailySoftExpiryJourney and plan is DAILY_SOFT_PLAN
             and boundary == 'return-balance' and boundary_operation == 'time-explanation-refresh-read')
-        system.require(selected_setup and (restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or expired_sign_out or daily_soft_balance)
+        versioned_assets = (surface == 'versioned-appimage-assets'
+            and journey_type is VersionedAppImageAssetsJourney and plan is VERSIONED_ASSETS_PLAN
+            and boundary == 'logout' and boundary_operation == 'system:parent-logout')
+        system.require(selected_setup and (restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or expired_sign_out or daily_soft_balance or versioned_assets)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1746,6 +1765,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                          and boundary_operation == 'system:parent-entry-retained')
                         or (surface == 'grant-logout' and boundary == 'grant-logout-logout'
                             and boundary_operation == 'system:standard-logout')
+                        or (surface == 'versioned-appimage-assets' and versioned_assets)
                         or (surface == 'reboot-context' and reboot_context))
             and plan is not None and plan.screen_tags.get(boundary) == boundary_operation,
             'diagnosis:system-boundary-binding')
@@ -1770,8 +1790,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if selected_setup:
             from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS
             context.fixture_selection = fixture_selection
-            context.fixture_subsets = ('native',) if surface in ('native-denial', 'grant-logout', 'match-editor', 'flatpak-grid', 'flatpak-temporary-access', 'native-temporary-access') else ACTIVITY_SUBSETS
+            context.fixture_subsets = ('native',) if surface in ('native-denial', 'versioned-appimage-assets', 'grant-logout', 'match-editor', 'flatpak-grid', 'flatpak-temporary-access', 'native-temporary-access') else ACTIVITY_SUBSETS
             context.fixture_caller = ({'native-denial': None, 'flatpak-grid': None,
+                                       'versioned-appimage-assets': None,
                                        'flatpak-temporary-access': None,
                                        'native-temporary-access': None,
                                        'app-rule-return': 'E2E-006/disabled-pattern',

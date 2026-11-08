@@ -378,7 +378,7 @@ def _check_payloads(payloads, declared, inputs):
             verify_elf(data)
     if total > MAX_TOTAL:
         _fail('total-length')
-    executables = ('mechanical', 'A', 'H', 'S', 'N', 'C', 'trusted-hard',
+    executables = ('mechanical', 'A', 'H', 'S', 'S-update', 'N', 'C', 'trusted-hard',
                    'trusted-soft', 'trusted-activity')
     if len({_digest(sources[key]) for key in executables}) != len(executables):
         _fail('identity-collision')

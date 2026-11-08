@@ -122,7 +122,7 @@ right-aligned action buttons. As the tab row narrows,
 the tabs wrap onto additional rows until they stack vertically. Wrapped tabs have
 equal widths and centered text. The left panel's minimum width fits both the
 shortened title with its action buttons and the widest tab below it. Hover over a
-launcher title to see and copy its saved command with all parameters, including
+launcher title to see its saved command with all parameters, including
 argument quoting. The title uses normal bold text. Clicking also
 copies the full runnable command with its saved parameters, such as
 `tools/write-e2e --branch worktree <parameters>`, relative to the repository root.

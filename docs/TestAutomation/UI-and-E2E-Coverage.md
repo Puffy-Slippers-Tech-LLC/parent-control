@@ -91,6 +91,14 @@ automatic retries retain its frozen content and identity, and uncertain input
 must not be replayed. Request callbacks are recorded through the existing
 [request helpers](../../tests/support/request_form.py).
 
+Hold a fake retry response with the existing release file until the parent has
+observed the retry or closed feedback, then release it in `finally`. Release and
+transport receipts alone do not prove that the app handled success. For completion
+after feedback closes, await its public submitted status and check that no feedback
+or thanks window appeared before reopening; then independently check the cleared
+draft, reply and customer files. Refreshed diagnostics are a new attachment, not
+a retained customer file.
+
 Retain former cases **156, 157, 213, 216, 218, 219, 220 and 221** as allocation
 references, pending with no E2E executable or installed acceptance. The launcher
 carries the explicit `UI obligation;` scope marker through host-only selection,

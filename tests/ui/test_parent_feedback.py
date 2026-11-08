@@ -6,6 +6,7 @@ from tests.support.application_ui import utf16_length
 from tests.support.feedback import (
     dismiss_feedback_dialog,
     feedback_editor,
+    select_component_attachments,
     type_feedback,
 )
 
@@ -425,7 +426,7 @@ def test_feedback_retry_finishes_after_parent_closes_feedback(
     parent = ui.target("parent-window")
     draft = "A parent's synthetic report awaiting background completion."
     ui.reader.wait_feedback_collection()
-    ui.activate("feedback-add-files")
+    select_component_attachments(ui.reader, chooser_inputs)
     wait(lambda: ui.text("feedback-status") == "1 file attachment ready.",
          "parent's synthetic customer file is attached")
     assert ui.reader.feedback_snapshot(attachment_state=(
@@ -494,7 +495,7 @@ def test_feedback_submission_outcomes(
     )
     if anonymous_success:
         ui.reader.wait_feedback_collection()
-        ui.activate("feedback-add-files")
+        select_component_attachments(ui.reader, chooser_inputs)
         wait_for_accessible_state(
             lambda: ui.text("feedback-status") == "1 file attachment ready.",
             "synthetic customer file is attached",

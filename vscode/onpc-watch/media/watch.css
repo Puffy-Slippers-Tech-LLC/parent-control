@@ -277,10 +277,11 @@ nav button[aria-pressed="true"] {
     grid-template-rows: minmax(350px, 1fr); grid-auto-rows: auto;
 }
 .title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; font-weight: bold; }
-.tile-screenshot { display: flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 4px; border: 0; border-radius: 3px; background: transparent; }
-.tile-screenshot:hover { background: var(--vscode-toolbar-hoverBackground); }
-.tile-screenshot:disabled { opacity: .5; cursor: default; }
-.tile-screenshot svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.tile-action { display: flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 4px; border: 0; border-radius: 3px; background: transparent; }
+.tile-action:hover { background: var(--vscode-toolbar-hoverBackground); }
+.tile-action:disabled { opacity: .5; cursor: default; }
+.tile-action svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.tile-maximize svg { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .heading, .step, .status { padding: 4px 8px; overflow: hidden; overflow-wrap: anywhere; }
 .heading, .status { white-space: nowrap; text-overflow: ellipsis; }
 .vm .step { min-height: 3lh; max-height: 3lh; white-space: pre-wrap; overflow-y: auto; }

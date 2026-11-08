@@ -184,7 +184,13 @@
         const controls = element('span', 'run-controls', titlebar);
         const overflow = element('button', 'run-copy run-overflow', controls);
         overflow.type = 'button';
-        overflow.textContent = '>>';
+        const menuIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        menuIcon.setAttribute('viewBox', '0 0 20 20');
+        menuIcon.setAttribute('aria-hidden', 'true');
+        const menuShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        menuShape.setAttribute('d', 'M4 4h12 M4 10h12 M4 16h12');
+        menuIcon.append(menuShape);
+        overflow.append(menuIcon);
         overflow.title = 'Launcher actions';
         overflow.setAttribute('aria-label', overflow.title);
         overflow.setAttribute('aria-expanded', 'false');
@@ -327,7 +333,7 @@
             });
         }
         section.body.classList.toggle('collapsed', Boolean(section.collapsed));
-        const copy = element('button', 'run-copy', controls);
+        const copy = element('button', 'run-copy run-launcher-action', menu);
         copy.type = 'button';
         copy.title = 'Copy current tab content';
         copy.setAttribute('aria-label', copy.title);
@@ -337,15 +343,17 @@
         const shape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         shape.setAttribute('d', 'M7 7h10v10H7z M4 13H3V3h10v1');
         icon.append(shape);
-        copy.append(icon);
+        copy.append(icon, 'Copy');
         copy.addEventListener('click', () => {
+            menu.hidePopover();
+            overflow.focus();
             const body = { status: section.content, launcher: section.launcher,
                 error: section.errorStatus, session: section.output }[section.view];
             const activity = section.view === 'session' && !section.activity.hidden ?
                 `\n${section.activity.innerText}` : '';
             vscode.postMessage({ type: 'copy', root: entry.id, text: body.innerText + activity });
         });
-        controls.prepend(copy);
+        menu.prepend(copy);
         element('span', 'run-controls-divider', controls).setAttribute('aria-hidden', 'true');
         const restore = () => {
             maximizedRun = undefined;

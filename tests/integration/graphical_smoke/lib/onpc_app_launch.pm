@@ -20,7 +20,7 @@ sub run {
         && ($control eq 'enabled' || $control eq 'disabled')
         && ($route eq 'command' || ($route eq 'grid' && $control eq 'enabled')
             || $route eq 'files' && $control eq 'enabled'
-                && ($policy eq 'allowed' || $policy eq 'hard-blocked') && $kind eq 'native')
+                && $kind eq 'native')
         && ($policy eq 'allowed' || $policy eq 'hard-blocked' || $policy eq 'soft-blocked')
         && ($kind eq 'native' || $kind eq 'snap' && $policy eq 'allowed'
             || $kind eq 'flatpak');

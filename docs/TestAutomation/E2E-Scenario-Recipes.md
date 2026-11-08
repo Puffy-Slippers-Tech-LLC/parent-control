@@ -1245,6 +1245,16 @@ opens and submits the same app from Files with independent owned-window and
 submitted-result reads. Dismiss Riley's Files window too. Riley's policy and
 disabled limits remain untouched. No approval or alternate launch route is used.
 
+Case 78 uses `app_launch.SOFT_FILES_PLAN` and the same worker's enabled,
+soft-blocked Files binding. Parent saves Jordan's 30-minute daily allowance,
+zero grant and fixture A's precise conditional block with independent readback,
+without approval. Fresh Jordan activates the exact executable from Files once;
+the shared denial operation requires continuous complete app-window absence for
+15 seconds on Jordan's desktop. After Files is dismissed and Jordan logs out,
+fresh Riley opens and submits the same app from Files with independent
+owned-window and submitted-result reads. Dismiss Riley's Files window too.
+Riley's policy and disabled limits remain untouched. No alternate route is used.
+
 Case 81 uses the same fixture, precise Allowed rule, Jordan/Riley order and
 native command/window/Submit/result operations. Parent independently verifies
 Jordan's clean limits-off and zero-allowance settings before the app-policy save;

@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **098 — [E2E-019: native-file-manager-soft-blocked-enabled](E2E-Tasks/098-case-78.md)**.
+Next task: **278 — [E2E-049: native-file-manager-kiosk](E2E-Tasks/278-case-236.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 """Installed engineering check on one idle ordinary fixture user manager."""
+from contextlib import contextmanager
 import json
 from pathlib import Path
 import pwd
@@ -25,15 +26,40 @@ def manager(unit):
     return value
 
 
+@contextmanager
+def owned_manager(account, *, category='wellbeing-installed', timeout=60,
+                  startup_category='manager-identity'):
+    """Stop only the user-manager invocation created here, even after failed start."""
+    unit = f'user@{account.pw_uid}.service'
+    before = manager(unit)
+    guest.require(before['ActiveState'] == 'inactive', category + ':manager-already-active')
+    identity = None
+    try:
+        try:
+            guest.run(['systemctl', 'start', unit], timeout=timeout)
+        finally:
+            current = manager(unit)
+            if (valid_invocation(current['InvocationID']) and
+                    current['InvocationID'] != before['InvocationID']):
+                identity = current
+        guest.require(identity is not None and identity['ActiveState'] == 'active' and
+                      identity['MainPID'].isdecimal() and int(identity['MainPID']) > 1,
+                      category + ':' + startup_category)
+        yield Path('/proc') / identity['MainPID']
+    finally:
+        if identity is not None:
+            guest.require(manager(unit)['InvocationID'] == identity['InvocationID'],
+                          category + ':manager-replaced')
+            guest.run(['systemctl', 'stop', unit], timeout=timeout)
+            guest.require(manager(unit)['ActiveState'] == 'inactive',
+                          category + ':manager-not-stopped')
+
+
 def qualify():
     guest.guard()
     account = pwd.getpwnam(ACCOUNT)
     guest.require(account.pw_uid >= 1000 and account.pw_uid != pwd.getpwnam('oh-no-parent-control').pw_uid,
                   'wellbeing-installed:fixture-account')
-    unit = f'user@{account.pw_uid}.service'
-    before = manager(unit)
-    guest.require(before['ActiveState'] == 'inactive', 'wellbeing-installed:manager-already-active')
-    identity = None
     environment = {'HOME': account.pw_dir, 'USER': account.pw_name, 'LANG': 'C.UTF-8',
         'PATH': '/usr/bin:/bin', 'XDG_RUNTIME_DIR': f'/run/user/{account.pw_uid}',
         'DBUS_SESSION_BUS_ADDRESS': f'unix:path=/run/user/{account.pw_uid}/bus'}
@@ -44,19 +70,7 @@ def qualify():
             *[key + '=' + value for key, value in environment.items()], *arguments],
             timeout=30, merge_stderr=False, **options).decode().strip()
 
-    try:
-        try:
-            guest.run(['systemctl', 'start', unit], timeout=60)
-        finally:
-            current = manager(unit)
-            # A failed start can still have created a live invocation. Record
-            # that identity before validating readiness so cleanup owns it too.
-            if (valid_invocation(current['InvocationID']) and
-                    current['InvocationID'] != before['InvocationID']):
-                identity = current
-        guest.require(identity is not None and identity['ActiveState'] == 'active' and
-                      identity['MainPID'].isdecimal() and int(identity['MainPID']) > 1,
-                      'wellbeing-installed:manager-identity')
+    with owned_manager(account):
         raw = user_command(['systemctl', '--user', 'show-environment'])
         for line in raw.splitlines():
             if line.split('=', 1)[0] in SETTINGS_ENV:
@@ -113,14 +127,6 @@ def qualify():
                       'wellbeing-installed:settings-target-mismatch')
         guest.require(service_identity() == service, 'wellbeing-installed:service-replaced')
         result['ordinary_settings_environment_retained'] = True
-    finally:
-        if identity is not None:
-            # Readiness/state can change on a failed invocation. Ownership
-            # follows its immutable systemd identity, never a replacement.
-            guest.require(manager(unit)['InvocationID'] == identity['InvocationID'],
-                          'wellbeing-installed:manager-replaced')
-            guest.run(['systemctl', 'stop', unit], timeout=60)
-            guest.require(manager(unit)['ActiveState'] == 'inactive', 'wellbeing-installed:manager-not-stopped')
     result['owned_manager_stopped'] = True
     return result
 

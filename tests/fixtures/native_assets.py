@@ -31,7 +31,9 @@ GUI_DIRECTORIES = ('', 'Versioned/', 'Whitespace/', 'Comma/')
 # Keep the earlier generated/baseline S file as an untrusted compatibility
 # control. The active launcher and policy pattern use only Versioned.
 LEGACY_S = 'Lunar Client-3.7.17.AppImage'
-NEXT_VERSION = 'Lunar Client-3.8.0.AppImage'
+# The source is an unrelated executable in A's wildcard directory. Its name
+# must be representable as an exact exception; FILE05 gives the copy its space.
+NEXT_VERSION = 'LunarClient-3.8.0.AppImage'
 VERSION_NONMATCH = 'Versioned/PrismLauncher.AppImage'
 TRUSTED_NATIVE = {
     'trusted-hard': ('/opt/onpc-test-fixtures-trusted-hard/native-fixture', 'TrustedHard'),

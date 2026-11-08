@@ -299,7 +299,7 @@ NATIVE_DENIAL_BINDINGS = {
         ('comma', 'C', ('command-blocked',)),
         ('space-copy', 'SpaceCopy', ('desktop', 'command-launch', 'command-blocked', 'opened', 'submit', 'submitted', 'close', 'closed')),
         ('comma-copy', 'CommaCopy', ('desktop', 'command-launch', 'command-blocked', 'opened', 'submit', 'submitted', 'close', 'closed')),
-        ('version-next', 'VersionNext', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed')),
+        ('version-next', 'VersionNext', ('desktop', 'command-launch', 'command-blocked', 'opened', 'submit', 'submitted', 'close', 'closed')),
         ('version-existing', 'VersionExisting', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed')),
         ('version-nonmatch', 'VersionNonmatch', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed')),
         ('nonmatching', 'N', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed')))
@@ -453,6 +453,7 @@ TEXT_VALUES = {
     'match-hard-precise': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Whitespace/Path With Spaces.AppImage'),
     'match-soft-wildcard': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-*.AppImage'),
     'match-soft-precise': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage'),
+    'match-soft-rejected-directory': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Rejected/*.AppImage'),
     'match-update-wildcard': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Catalogue/Catalogue-*.AppImage'),
     'catalogue-absent': ('parent-app-search', 'ONPC Absent Catalogue Fixture 077b'),
     'catalogue-clear': ('parent-app-search', ''),
@@ -731,11 +732,13 @@ BASELINE_POLICY_DRAFTS = {'match-hard-precise': MATCH_APPS['H'],
                           'match-alias-precise': MATCH_APPS['Alias'],
                           'match-soft-wildcard': MATCH_APPS['S'],
                           'match-soft-precise': MATCH_APPS['S'],
+                          'match-soft-rejected-directory': MATCH_APPS['S'],
                           'match-update-wildcard': MATCH_APPS['Update']}
 BASELINE_MATCH_OPERATIONS = {f'match-{name}-{action}': (MATCH_APPS[role], action)
     for name, role in (('hard', 'H'), ('soft', 'S'), ('alias', 'Alias'), ('update', 'Update'))
     for action in ('open', 'read', 'row', 'save', 'cancel', 'reset')}
 BASELINE_MATCH_OPERATIONS['match-update-absent'] = (MATCH_APPS['Update'], 'absent')
+BASELINE_MATCH_OPERATIONS['match-soft-rejected'] = (MATCH_APPS['S'], 'rejected')
 MATCH_OPERATIONS = frozenset('match-' + action for action in
     ('open', 'read', 'row', 'save', 'cancel', 'reset', 'rejected', 'wrong-app', 'ambiguous'))
 MATCH_INVALID = {key: ('A match rule is required' if key in ('empty', 'whitespace') else
@@ -7616,7 +7619,9 @@ class AccessibleUI:
         if invalid:
             self.read_synthetic_text('match-invalid-' + action, child=child)
         if action == 'rejected':
-            self.read_synthetic_text('match-rejected-directory', child=child)
+            self.text_match_app = app
+            self.read_synthetic_text('match-soft-rejected-directory' if app == MATCH_APPS['S']
+                                     else 'match-rejected-directory', child=child)
         # Invalid Save can leave a short-lived toast in the public tree. Retry
         # only the complete recipient proof before dispatch, with the existing
         # deadline and fresh ownership/child checks after every failed read.
@@ -13079,7 +13084,8 @@ class AccessibleUI:
                 and (role != 'C' or child == EXISTING_CHILD and blocked)
                 and (role != 'N' or child == EXISTING_CHILD and not blocked), 'ui:native-binding')
         require(role not in ('VersionNext', 'VersionNonmatch', 'VersionExisting') or
-                kind == 'native' and child == EXISTING_CHILD and not blocked, 'ui:native-binding')
+                kind == 'native' and child == EXISTING_CHILD
+                and (not blocked or role == 'VersionNext'), 'ui:native-binding')
         require((instance == {'A': 'primary', 'H': 'hard', 'S': 'soft'}[role]
                  or role == 'S' and instance == 'secondary') if flatpak else
                 (instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'))
@@ -15303,7 +15309,7 @@ def native_execution_journal_diagnostic(unit, *, executable='/opt/onpc-test-fixt
     """
     diagnostic = {'status': 'unavailable', 'entries': 0, 'exec_errors': []}
     if executable not in tuple(NATIVE_EXECUTABLES[role]
-            for role in ('A', 'H', 'SpaceCopy', 'C', 'CommaCopy', 'S', 'Update')):
+            for role in ('A', 'H', 'SpaceCopy', 'C', 'CommaCopy', 'S', 'Update', 'VersionNext')):
         return diagnostic
     if type(unit) is not str or re.fullmatch(r'onpc-test-native-[0-9a-f]{32}\.service', unit) is None:
         return diagnostic

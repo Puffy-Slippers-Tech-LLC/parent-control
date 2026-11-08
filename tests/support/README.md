@@ -306,6 +306,15 @@ alone does not prove the child can open and use it. Keep policy effects and
 original-versus-copy assertions in the consuming case, separate from copy
 qualification.
 
+For versioned additions under an active child block, `SyntheticFiles` accepts
+`administrative=True` only for `native-version-next` and `native-version-nonmatch`.
+It uses the existing guarded root transport for ordinary placement/readback,
+requires real/effective root, and keeps the same Jordan-owned directory chain,
+exclusive creation, file owner/mode/digest and source/copy identity guards.
+The selected actor stays with that controller through cleanup. The default
+remains child execution; neither mode changes policy, trust or refresh state.
+Customer access results still come from the child's single-use launch operation.
+
 Fixture qualifications share `qualification_storage.run_qualification` for
 private allocation, result writing and failure reporting. Each caller keeps its
 root/target preflight, finite input selection, proof and any named-session options.

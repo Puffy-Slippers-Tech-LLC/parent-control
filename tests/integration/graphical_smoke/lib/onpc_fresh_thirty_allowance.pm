@@ -80,6 +80,48 @@ sub match_editor_case {
     $journey->finish();
 }
 
+sub pattern_files_case {
+    onpc_progress::operation('Checking that a parent pattern blocks new matching apps and preserves other apps');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'pattern-files:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'pattern-files-case', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen($_) for qw(saved-settings apps-page);
+    onpc_app_rows::match_edit($journey, 'match-soft-wildcard', 'confirmed',
+        'confirmed-open', 'confirmed-read', 'confirmed-rule');
+    onpc_app_rows::access_choice($journey, 'block-save', 'blocked-access');
+    $journey->seen($_) for qw(next-copy nonmatch-copy);
+    my $leaving = $journey->scope('leave-parent');
+    onpc_desktop_session::switch_user($leaving, $leaving->seen('desktop'));
+    onpc_desktop_session::enter_desktop(
+        $journey, 'gdm', 'other-child', 'fresh', 'success', 'child-entry');
+    onpc_app_rows::native_blocked_app($journey->scope('current'), 'S');
+    onpc_app_rows::native_blocked_app($journey->scope('next'), 'VersionNext');
+    my $app = $journey->scope('existing');
+    onpc_app_rows::native_usable_app($app, 'command', $app->seen('desktop'), 'other-child', 'VersionExisting');
+    onpc_app_rows::native_finish_app($app);
+    $journey->seen('refresh-interval');
+    $app = $journey->scope('new-nonmatch');
+    onpc_app_rows::native_usable_app($app, 'command', $app->seen('desktop'), 'other-child', 'VersionNonmatch');
+    onpc_app_rows::native_finish_app($app);
+    $journey->seen($_) for qw(child-logout child-greeter);
+    onpc_desktop_session::enter_desktop(
+        $journey, 'gdm', 'parent', 'retained', 'success', 'parent-return');
+    $journey->consume_observation('supplied-parent-retained', onpc_parent::open_for_child(
+        $journey, 'desktop', 'same-user', 'retained', 'existing', 'supplied', 0));
+    $journey->seen('returned-apps');
+    onpc_app_rows::match_edit($journey, 'match-soft-rejected-directory', 'rejected',
+        'rejected-open', 'rejected-read', undef);
+    onpc_feedback_privacy::close_parent_report($journey, 'rejected');
+    $journey->seen($_) for qw(restored-rule restored-access copies-cleanup parent-logout);
+    $journey->finish();
+}
+
 sub catalogue_refresh {
     my ($journey, $prefix) = @_;
     my $reopen = $journey->scope($prefix . 'reopen');

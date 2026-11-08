@@ -96,12 +96,14 @@ def test_copy_refuses_wrong_child_and_linked_directory_before_writing(copy_bound
     assert not (root / files.NATIVE_SPACE_COPY).exists()
 
 
-def test_version_copy_cleanup_refuses_replaced_source_in_parent_directory(tmp_path, monkeypatch):
+@pytest.mark.parametrize('administrative', [False, True])
+def test_version_copy_cleanup_refuses_replaced_source_in_parent_directory(tmp_path, monkeypatch, administrative):
+    child_uid, child_gid = os.getuid(), os.getgid()
     root = tmp_path / 'Applications'
     root.mkdir(mode=0o755)
     versioned = root / 'Versioned'
     versioned.mkdir(mode=0o755)
-    source = root / files.NATIVE_VERSION_NEXT
+    source = root / files.NATIVE_VERSION_SOURCE
     source.write_bytes(b'next version')
     source.chmod(0o755)
     for name in ('Lunar Client-3.7.17.AppImage', 'PrismLauncher.AppImage',
@@ -112,15 +114,31 @@ def test_version_copy_cleanup_refuses_replaced_source_in_parent_directory(tmp_pa
     monkeypatch.setattr(os, 'open', lambda path, flags, *args, **kwargs:
                         real_open(tmp_path if path == '/' else path, flags, *args, **kwargs))
     monkeypatch.setattr(pwd, 'getpwnam', lambda name: SimpleNamespace(
-        pw_uid=os.getuid(), pw_gid=os.getgid(), pw_dir='/home/onpc-child-jordan'))
+        pw_uid=child_uid, pw_gid=child_gid, pw_dir='/home/onpc-child-jordan'))
+    if administrative:
+        monkeypatch.setattr(os, 'getuid', lambda: 0)
+        monkeypatch.setattr(os, 'geteuid', lambda: 0)
     expected = {'source': hashlib.sha256(b'next version').hexdigest(),
                 'nonmatching': hashlib.sha256(b'other version').hexdigest()}
 
     def call(operation, previous=None):
         return files.native_space_operate(Path('/home/onpc-child-jordan'), operation,
-            {'expected': expected, 'previous': previous}, profile='native-version-next')
+            {'expected': expected, 'previous': previous}, profile='native-version-next',
+            administrative=administrative)
 
-    copied = call('copy', call('stage'))
+    staged = call('stage')
+    if administrative:
+        # Root input still cannot follow a destination link or adopt a collision.
+        destination = versioned / files.NATIVE_VERSION_NEXT
+        destination.symlink_to(source)
+        with pytest.raises(ValueError, match='files:refused'):
+            call('copy', staged)
+        assert destination.is_symlink()
+        destination.unlink()
+    copied = call('copy', staged)
+    assert call('read', copied) == copied
+    destination = versioned / files.NATIVE_VERSION_NEXT
+    assert (destination.stat().st_uid, destination.stat().st_gid) == (child_uid, child_gid)
     source.rename(root / 'original-source')
     source.write_bytes(b'next version')
     source.chmod(0o755)
@@ -128,3 +146,14 @@ def test_version_copy_cleanup_refuses_replaced_source_in_parent_directory(tmp_pa
         call('cleanup', copied)
     assert (versioned / files.NATIVE_VERSION_NEXT).read_bytes() == b'next version'
     assert (versioned / 'PrismLauncher.AppImage').read_bytes() == b'preserved'
+
+
+def test_administrative_copy_refuses_other_profiles_and_nonroot_before_files(monkeypatch):
+    monkeypatch.setattr(os, 'getuid', lambda: 12345)
+    monkeypatch.setattr(os, 'geteuid', lambda: 12345)
+    monkeypatch.setattr(pwd, 'getpwnam', lambda name: SimpleNamespace(
+        pw_uid=12345, pw_gid=12345, pw_dir='/home/onpc-child-jordan'))
+    for profile in ('native-space', 'native-version-next'):
+        with pytest.raises(ValueError, match='files:refused'):
+            files.native_space_operate(Path('/home/onpc-child-jordan'), 'stage', None,
+                                       profile, administrative=True)

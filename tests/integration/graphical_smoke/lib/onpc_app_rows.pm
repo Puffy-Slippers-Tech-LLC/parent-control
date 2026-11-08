@@ -207,10 +207,10 @@ sub match_edit {
     onpc_progress::operation('Editing the declared match draft and independently observing Save');
     my ($journey, $draft, $prefix, $open, $read, $row) = @_;
     die 'match:edit-binding' unless @_ == 6 && ref($journey) eq 'onpc_journey'
-        && defined($draft) && $draft =~ /\Amatch-(?:(?:precise|wildcard)(?:-basename)?|wildcard-appimages|rejected-directory|hard-precise|alias-precise|soft-(?:wildcard|precise))\z/;
+        && defined($draft) && $draft =~ /\Amatch-(?:(?:precise|wildcard)(?:-basename)?|wildcard-appimages|rejected-directory|hard-precise|alias-precise|soft-(?:wildcard|precise|rejected-directory))\z/;
     die 'match:edit-stages' unless !grep { !defined($_) || !/\A[a-z][a-z0-9-]*\z/ }
         ($prefix, $open, $read);
-    die 'match:edit-result' unless $draft eq 'match-rejected-directory'
+    die 'match:edit-result' unless $draft =~ /\Amatch-(?:soft-)?rejected-directory\z/
         ? !defined($row) : defined($row) && $row =~ /\A[a-z][a-z0-9-]*\z/;
     my %used;
     die 'match:edit-stages' if grep { $used{$_}++ }
@@ -716,7 +716,7 @@ sub native_blocked_app {
     my ($journey, $role, $route) = @_;
     $route //= 'command';
     die 'native:denial-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
-        && ($route eq 'command' && $role =~ /\A(?:A|H|S|Alias|C|SpaceCopy|CommaCopy)\z/
+        && ($route eq 'command' && $role =~ /\A(?:A|H|S|Alias|C|SpaceCopy|CommaCopy|VersionNext)\z/
             || $route eq 'grid' && $role =~ /\A(?:A|Alias|H|S)\z/);
     if ($route eq 'grid') {
         my $entry = native_search($journey, $journey->seen('desktop'), 'app-grid', $role);

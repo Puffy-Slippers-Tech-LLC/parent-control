@@ -2355,7 +2355,7 @@
         {"coverage_id": 186, "id": "match-reopen", "owner": "continuous-journeys", "parameters": {"flow": "match-reopen"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/match_reopen_case.py", "test_id": "match-reopen"}},
         {"coverage_id": 187, "id": "shared-launchers", "owner": "continuous-journeys", "parameters": {"flow": "shared-launchers"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/shared_launchers_case.py", "test_id": "shared-launchers"}},
         {"coverage_id": 188, "id": "special-paths", "owner": "continuous-journeys", "parameters": {"flow": "special-paths"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/special_paths_case.py", "test_id": "special-paths"}},
-        {"coverage_id": 189, "id": "pattern-files", "owner": "continuous-journeys", "parameters": {"flow": "pattern-files"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 189, "id": "pattern-files", "owner": "continuous-journeys", "parameters": {"flow": "pattern-files"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/pattern_files_case.py", "test_id": "pattern-files"}}
       ]
     },
     {

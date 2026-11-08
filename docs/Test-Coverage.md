@@ -6,17 +6,17 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5884</span>/<span style="color: gray">0</span>/5884 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5886</span>/<span style="color: gray">0</span>/5886 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">225</span>/<span style="color: gray">0</span>/225 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">295</span>/<span style="color: gray">0</span>/295 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">57</span>/<span style="color: gray">0</span>/57 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
+| Installed system | <span style="color: green">56</span>/<span style="color: gray">0</span>/56 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">123</span>/<span style="color: gray">73</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6598</span>/<span style="color: gray">73</span>/6671** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">124</span>/<span style="color: gray">72</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6600</span>/<span style="color: gray">72</span>/6672** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">122</span>/<span style="color: gray">73</span>/195 |
+| customer-journey | <span style="color: green">123</span>/<span style="color: gray">72</span>/195 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -135,6 +135,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [186](#scenario-186) | Search the app list and edit match rules (flow: match reopen) | `E2E-041/match-reopen` | ready |
 | [187](#scenario-187) | Search the app list and edit match rules (flow: shared launchers) | `E2E-041/shared-launchers` | ready |
 | [188](#scenario-188) | Search the app list and edit match rules (flow: special paths) | `E2E-041/special-paths` | ready |
+| [189](#scenario-189) | Search the app list and edit match rules (flow: pattern files) | `E2E-041/pattern-files` | ready |
 | [191](#scenario-191) | Read Help, About and command usage on each surface (surface: child overlay) | `E2E-042/child-overlay` | ready |
 | [192](#scenario-192) | Read Help, About and command usage on each surface (surface: kiosk) | `E2E-042/kiosk` | ready |
 | [193](#scenario-193) | Read Help, About and command usage on each surface (surface: command help) | `E2E-042/command-help` | ready |
@@ -207,7 +208,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[180](#scenario-180)</span> | <span style="color: gray">Refresh accounts and remembered selections after account changes (change: remove selected)</span> | <span style="color: gray">`E2E-040/remove-selected`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[181](#scenario-181)</span> | <span style="color: gray">Refresh accounts and remembered selections after account changes (change: remove last child)</span> | <span style="color: gray">`E2E-040/remove-last-child`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[182](#scenario-182)</span> | <span style="color: gray">Refresh accounts and remembered selections after account changes (change: ineligible approver)</span> | <span style="color: gray">`E2E-040/ineligible-approver`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[189](#scenario-189)</span> | <span style="color: gray">Search the app list and edit match rules (flow: pattern files)</span> | <span style="color: gray">`E2E-041/pattern-files`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[190](#scenario-190)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: parent links)</span> | <span style="color: gray">`E2E-042/parent-links`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[196](#scenario-196)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: ordinary; time: daily reset)</span> | <span style="color: gray">`E2E-044/ordinary-daily-reset`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[197](#scenario-197)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: ordinary; time: rest of day)</span> | <span style="color: gray">`E2E-044/ordinary-rest-of-day`</span> | <span style="color: gray">pending</span> |
@@ -1651,6 +1651,20 @@ Variant: flow: special paths
 - Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests cover representative query/filter combinations and local editor boundaries by final results. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
 - Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
 
+### Scenario 189
+
+**Search the app list and edit match rules (flow: pattern files)**
+
+Case: `E2E-041/pattern-files` · Category: customer-journey · Status: **ready**
+
+Variant: flow: pattern files
+
+**Steps:**
+
+- Give the child usable time and open App Limits with the declared assets. Read the child-specific list, including an app installed only for that child.
+- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests cover representative query/filter combinations and local editor boundaries by final results. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
+- Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
+
 ### Scenario 191
 
 **Read Help, About and command usage on each surface (surface: child overlay)**
@@ -2965,26 +2979,6 @@ Variant: change: ineligible approver
 - Use this case's disposable spare accounts. For remove-selected, prepare Jordan and Riley once with distinct saved allowances and request choices; leave Parent selecting Jordan and let the station remember Jordan before exiting it normally. Other branches select their declared child or approver and read its choices.
 - Through shared system-account commands, remove the selected logged-out spare child exactly once while Parent stays open, remove the last spare child, or change the spare remembered approver to standard. Close request forms before changing their accounts and retain the active administrator.
 - For remove-selected, independently check automatic Parent fallback to Riley in the same window with Riley's own settings, then reopen the station and check automatic fallback to Riley with Riley's own duration, custom value and soft-app choice before any edit or request. Do not reset preparation between results. Other branches check the empty explanation or eligible approver fallback.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 189
-
-**Search the app list and edit match rules (flow: pattern files)**
-
-Case: `E2E-041/pattern-files` · Category: customer-journey · Status: **pending**
-
-Variant: flow: pattern files
-
-**Steps:**
-
-- Give the child usable time and open App Limits with the declared assets. Read the child-specific list, including an app installed only for that child.
-- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests cover representative query/filter combinations and local editor boundaries by final results. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
-- Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 

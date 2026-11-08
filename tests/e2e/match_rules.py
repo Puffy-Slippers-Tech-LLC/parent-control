@@ -18,7 +18,8 @@ def match_edit(draft, prefix, *, editor, row):
     require(type(editor) is tuple and len(editor) == 2
             and all(type(stage) is str and re.fullmatch(r'[a-z][a-z0-9-]*', stage)
                     for stage in (prefix, *editor)), 'match:edit-stages')
-    require(row is None if draft == 'match-rejected-directory' else
+    rejected = draft in ('match-rejected-directory', 'match-soft-rejected-directory')
+    require(row is None if rejected else
             type(row) is str and re.fullmatch(r'[a-z][a-z0-9-]*', row),
             'match:edit-result')
     stages = (*editor, *text_fragment(draft, prefix + '-draft'), prefix + '-save',
@@ -27,11 +28,12 @@ def match_edit(draft, prefix, *, editor, row):
     operation = 'ui:match-' + {'match-hard-precise': 'hard-',
                               'match-alias-precise': 'alias-',
                               'match-soft-wildcard': 'soft-',
+                              'match-soft-rejected-directory': 'soft-',
                               'match-soft-precise': 'soft-'}.get(draft, '')
     return {
         editor[0]: operation + 'open', editor[1]: operation + 'read',
         **text_fragment(draft, prefix + '-draft'),
-        prefix + '-save': 'ui:match-rejected' if row is None else operation + 'save',
+        prefix + '-save': operation + 'rejected' if row is None else operation + 'save',
         **({row: operation + 'row'} if row is not None else {}),
     }
 

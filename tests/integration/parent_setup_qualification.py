@@ -2753,6 +2753,18 @@ class KioskReminderBindingQualification(KioskEntryQualification):
         return KioskReminderJourney(context, progress)
 
 
+class ReminderChildStationBindingQualification(KioskEntryQualification):
+    worker_timeout = 2400
+
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from reminder_child_station import ReminderChildStationJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return ReminderChildStationJourney(context, progress)
+
+
 class ReminderFullscreenPreferenceQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

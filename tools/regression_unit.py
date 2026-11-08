@@ -25,6 +25,8 @@ Kiosk approval safety uses process-local clocks/observation doubles and bounded,
 reaped Perl children with captured pipes. Credential-reader checks use tiny
 pytest-private canary files and process-local caller doubles, never real host
 configuration. No bus, display, VM or shared cache is opened; unit overlap is safe.
+Reminder input refusals use only process-local account, draft and transport
+doubles in that same safety module; they add no resources or cleanup lifetime.
 
 Native copy safety uses real descriptor operations only in private pytest paths,
 with process-local account/root bindings. It owns no children, bus, display,

@@ -27,9 +27,11 @@ the report after refusal. A missed window fails; do not loop Request or approval
 
 Extend `kiosk_approved_flow.approved_request` / `onpc_request_flow::approve`,
 `onpc_gdm::enter_station` and `AccessibleUI.kiosk_request_form` for the genuine
-cooldown/result/report-choice binding. Existing request composites accept only
-75 seconds with soft apps included; case 178 needs the explicit 30-second,
-soft-excluded binding and cross-child refusal. FEED15's request-result branch
+cooldown/result/report-choice binding. Reuse the existing caller-bound request
+choices through `prepared_request(initial='observed', surface='kiosk')` and
+`approved_request(explicit=True)` for case 178's 30-second, soft-excluded
+approval. Those values are already supported; the new cooldown composition and
+cross-child refusal still need qualification. FEED15's request-result branch
 is planned. Declining needs neither Privacy nor a retained account visit, and
 this slice ends without waiting or another approval.
 

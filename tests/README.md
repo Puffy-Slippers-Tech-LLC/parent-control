@@ -3230,8 +3230,18 @@ the unexecuted/failed selection with its original assertions.
    not a loop after every diagnostic change. Register canonical cases once
    even when several requirement/task IDs use them; retain every required layer.
 
-Feedback component tests use a fake delivery transport and do not send mail.
-Their evidence cannot prove external delivery. Any live delivery test must
+By developer decision, routine feedback sending, retry, draft lifetime and
+report-close checks reuse the existing fake sender in the Parent/request UI
+component previews. The real editor, validation, multipart encoder, retry
+controller and result handlers run; only the external HTTP response is faked.
+These tests send no mail, require no inbox access or sending authorization,
+and add no mock mode or endpoint override to the shipped product. Missing
+assertions stay with the existing feedback UI owners. Their passing results
+establish app behavior under declared responses, not real service acceptance,
+email delivery or an installed desktop/GDM destination.
+
+Real sending is a separate optional integration check, outside the routine
+write-e2e queues and not a prerequisite for these component checks. Any such test must
 declare the actual service, explicit authorization and dedicated test recipient;
 never send automated customer journeys to a production support inbox or label
 a fake transport as real delivery. The scenario inventory and final audit must

@@ -22,25 +22,31 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 Compose only the kiosk app-close branch with an already observed real AUTH01
 prompt and explicit pre-request choices/balances. Use the shared Application UI
 API surface `close` operation on the owned `kiosk-request-window`, preserving
-its normal busy/modal refusal, observe GDM, then re-enter the station. Cancel
-on the agent is not this route. Read REQUEST03 through the same API facade and
-require the old external prompt absent; a later request must authenticate afresh
-in case 175.
+its actual visibility, sensitivity and owned-modal refusals, observe GDM, then
+re-enter the station. Cancel on the agent is not this route. Read REQUEST03
+through the same API facade and require the old external prompt absent; a later
+request must authenticate afresh in case 175.
 
 Extend `kiosk_approved_flow.approved_request`, `onpc_gdm::enter_station` and
-the shared API surface-close operation; FLOW17 has no callable yet. Reuse the
-qualified prompt/automatic approval leaves. Neither retained-child visits nor
-rejection, Cancel or immediate-success exit is exercised by this composition.
+compose the existing shared API surface-close operation; FLOW17 has no callable
+yet. Reuse the qualified prompt/automatic approval leaves. Neither retained-child
+visits nor rejection, Cancel or immediate-success exit is exercised by this
+composition.
+
+The API delegates to the toolkit's normal close path; it has no request-specific
+busy veto. The form's Cancel is disabled and Escape belongs to the authentication
+agent while approval is pending, so neither substitutes for this window-close
+route. Preserve the gate until that route independently reaches GDM.
 
 ## Live VM acceptance
 
 On the VM, supply usable time and a real pending approval, close the station
 through the declared public route, observe GDM and re-enter normally. Qualify
-this new busy/modal close binding, old-prompt absence, cancellation and usable
-request return with unchanged choices/balances. Preserve its reachability gate
-and focused ownership/refusal qualification. Case 175 owns fresh authentication
-and the successful time/access result; do not repeat that complete recovery
-here. Cancellation consumes no cooldown; add no fixed wait.
+this new pending-prompt close composition, old-prompt absence, cancellation and
+usable request return with unchanged choices/balances. Preserve its reachability
+gate and focused ownership/refusal qualification. Case 175 owns fresh
+authentication and the successful time/access result; do not repeat that
+complete recovery here. Cancellation consumes no cooldown; add no fixed wait.
 
 Planned qualification selector (not registered; implement before use):
 

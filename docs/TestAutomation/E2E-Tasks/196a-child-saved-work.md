@@ -22,8 +22,10 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 Add the finite work-document binding to the maintained native work fixture and
 shared FILE08/09 operations. `gui_application.py::main` currently has an in-memory
 draft/Submit action, with no document Open/Save/reopen behavior.
-`SyntheticFiles._command` runs as Jamie; checked 196 changes an attachment
-source and does not supply child-owned editor work. Extend those shared owners
+`SyntheticFiles._command` runs attachment profiles as Jamie and has separate
+child-owned executable/desktop-entry profiles; none opens or saves a child work
+document. Checked 196 changes an attachment source and does not supply that
+editor work. Extend those shared owners
 for one declared synthetic document per child, explicit Riley/Jordan identity,
 bounded text and the exact owned destination. Baseline preparation owns reusable
 fixture assets; attempts allocate their own documents through the shared lifetime.

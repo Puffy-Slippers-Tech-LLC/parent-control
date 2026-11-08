@@ -1,61 +1,53 @@
-# 150 — Send approved sample feedback and check success
+# 150 — Check feedback success with the fake sender
 
-Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [UI acceptance](../E2E-Execution-Contracts.md#ui-acceptance).
 
 Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **FEED11, FEED09 sending/success and FEED14 Parent feedback**. First scheduled consumer: [E2E-032, case 156](../E2E-Scenario-Recipes.md#e2e-032).
-Read the named [block contracts](../E2E-Building-Blocks.md#about-feedback-and-customer-selected-attachments) and only the selected consumer's recipe.
+Deliver **UI obligation; FEED11, FEED09 sending/success and FEED14 Parent
+feedback** through the existing component preview. Allocation consumer: case 156.
 
-Authorization is supplied by task 150a's exact reviewed profile. A changed or
-expired authorization remains a blocker; do not request renewed permission for
-an unchanged covered submission.
+Required tasks (current queue IDs):
 
-Required tasks (queue IDs; use delivered scope, not predecessor briefs):
+- **150a** — existing component mocks and finite synthetic input allocation.
 
-- **150a** — Concrete synthetic reports, recipient and authorization scope for FEED11 consumers.
+## Implementation and expected results
 
-## Implementation
+Reuse the Parent preview's fake HTTP Session and actual editor/encoder/retry and
+result handlers. The existing `test_feedback_submission_outcomes` already covers
+success/error responses, Add Email Address, anonymous confirmation and thanks;
+retain that coverage and fill only missing app behavior.
 
-Reuse the concrete reviewed profile and submission authorization from task 150a.
-Use an empty optional reply address for this Parent ordinary-feedback binding.
-Read the current report through FEED03 and reuse 150a's reviewed Privacy evidence.
-Compose one Send, the owned anonymous confirmation with one Send Anonymously
-action, FEED09 sending/success and FEED14 dismissal without reopening
-the unchanged disclosure. Qualify these result projections through the supported
-real service and dedicated recipient. Do not expand content, recipient or
-submission counts.
+With an empty optional reply, select Send once, independently require the owned
+anonymous confirmation and no submission yet, then choose Send Anonymously
+once. Observe the mock response through the real submission/result path and
+owned thanks without a reply-follow-up note. Dismiss normally; opening the
+confirmation alone must never send. Reuse existing valid-reply and confirmation
+revalidation checks. An idle editable draft is not success evidence. Case 156's
+allocation owns complete cleared-draft readback; do not duplicate its history.
 
-Source gap: `AccessibleUI.feedback_snapshot` / `feedback_state_operation` read
-editable, idle drafts and do not implement sending, retry or success-dialog
-projections. Add the finite public submission/readback operations to the shared
-facade and observation registration; do not reuse an idle snapshot as success.
-Bind `feedback-send` once, `feedback-anonymous-dialog`,
-`feedback-send-anonymously` once, `feedback-status`, and the owned
-`feedback-success-dialog`, `feedback-success-text` and `feedback-success-close`.
-The actual `_send` → `feedback_transport.submit` → `_submission_done` /
-`_success_closed` handlers in `common/oh_no_parent_control_ui/feedback.py` own
-submission, clearing and exit. `_anonymous_response` revalidates the current
-draft before creating the submission; opening the confirmation is not sending.
-Runtime authorization and uncertain-input guards
-remain in the shared operation; unchanged draft/chooser qualifications are reused.
+This is a **UI obligation** under the developer's mock-sending decision.
+Reuse [150a's component boundary](150a-feedback-profile.md); production code
+and endpoint remain unchanged. Tests must make no real network request.
+Numeric case IDs are allocation references only: no installed E2E pass,
+real-service acceptance or delivery credit. A real-send check is separate and
+optional, never a prerequisite here.
 
-## Live VM acceptance
+## UI acceptance
 
-With authorized service configuration, select Send and explicitly confirm Send
-Anonymously once on the VM, then observe the actual
-app response and owned confirmation, then dismiss it normally. Qualify the shared
-authorization, single-input and success-result binding; case 156 owns reopening
-and the complete cleared-draft result. Reuse existing draft/chooser checks and
-cover changed authorization/uncertain-input refusals in their focused harness
-owner, without another draft lifecycle. No provider receipt probe or automatic
-repeat send. Planning is not sending authorization.
-
-Planned qualification selector (not registered; implement before use):
+Inspect existing coverage first; fill only missing product assertions in the
+named owner and reuse its shared Application UI API helpers. Do not add a
+parallel fixture, mock server, portal, inbox or production mock switch.
+Run the focused maintained selection after implementation:
 
 ```sh
-tools/run-tests system check_e2e_feedback_send
+tools/run-tests ui 'tests/ui/test_parent_feedback.py' --timeout 1800s
 ```
+
+Reuse existing deterministic transport timing/error coverage in
+[the transport unit owner](../../../tests/unit/test_feedback_transport.py);
+run its affected selection only if transport test coverage changes. This
+brief's documentation update executes no tests or acceptance.

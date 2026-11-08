@@ -1,59 +1,61 @@
-# 190a — Check report recovery on the child desktop
+# 190a — Check overlay report retry and recovery
 
-Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [UI acceptance](../E2E-Execution-Contracts.md#ui-acceptance).
 
 Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **FEED09 child-overlay retry/reconnection and FEED17 pending Stop action**. Named consumer: task **190o** and any
-complete cases released directly by this slice in the canonical queue.
+Deliver **UI obligation; FEED09 child-overlay retry/recovery and FEED17 pending
+Stop action**. Task 190o owns the separate direct-stop result.
 
-**Gate:** Authorization for the submission, public cooldown-error entry and safe normal connectivity control are required.
+Required tasks (queue IDs):
 
-The [product contract](../../SystemDesign/Logging-and-Feedback.md#feedback-and-diagnostic-export)
-and `FeedbackDialog._hide_draft` use a direct Stop sending and close action.
-Leave that action untouched while testing recovery. No extra warning dialog or
-stay response is required; task 190o owns the separate direct-stop result.
+- **150** — existing fake HTTP Session and submission/result handling.
 
-Required tasks (queue IDs; use delivered scope, not predecessor briefs):
+## Implementation and expected results
 
-- **150** — Shared authorized submission and success/confirmation operations; gate in brief.
-- **187o** — Qualified public overlay cooldown-error/report entry; gate in brief.
-- **193a** — Owned VM Internet isolation/recovery; no Parent retry or toggle history.
+Use the existing request preview report in child-overlay mode and extend its fake
+HTTP Session only with finite retry-then-success response/release controls.
+No public cooldown trigger, VM Internet isolation or real network is needed.
+Keep the actual encoder, retry controller and result/dialog handlers.
 
-## Implementation
+Send one synthetic report, independently observe public retry and the enabled
+Stop sending and close action while leaving it untouched. Release the same
+submission's successful mock response within its normal retry lifetime. Require
+owned thanks and no `close_overlay` callback before manual dismissal, then
+report closure and exactly one callback. No second Send or Close while retrying;
+no warning/stay dialog belongs to this flow. Reuse existing success/callback
+coverage; fill only the missing retry/recovery behavior. Pure timing/backoff and
+frozen-identity combinations stay in the transport unit owner.
 
-Reuse the exact reviewed sending authorization and public connectivity route.
-Observe retry and the available Stop action while leaving the report open,
-then reconnect and observe the same submission's automatic acceptance and exit.
+The preview records the real report-close flow's `close_overlay` or `logout`
+callback. Assert that callback and its ordering, not an installed desktop/GDM
+result. Installed destinations remain with the public
+[request-exit owners](../E2E-Building-Blocks.md#kiosk-child-overlay-and-the-shared-request-form).
 
-Extend `AccessibleUI.feedback_snapshot` / `FeedbackStateObservation` and the
-shared feedback API facade for sending/retry and FEED17. Reuse LIFE06's
-`InternetIsolation` directly; Parent's toggle/retry journey is not part of
-this surface's qualification. Keep one guarded Send and an independent
-retry result before reconnection.
+This is a **UI obligation** under the developer's mock-sending decision.
+Reuse [150a's component boundary](150a-feedback-profile.md); production code
+and endpoint remain unchanged. Tests must make no real network request.
+Numeric case IDs are allocation references only: no installed E2E pass,
+real-service acceptance or delivery credit. A real-send check is separate and
+optional, never a prerequisite here.
 
-Use the recipe's [sending/retry preparation](../E2E-Scenario-Recipes.md#sending-background-completion-and-report-exits)
-for this report-open/reconnection branch.
+## UI acceptance
 
-Reuse the shared overlay result/exit projections delivered for case 220 when
-available, without depending on that scenario's execution or repeating its
-complete history. Qualify only the new retry/reconnection binding and any
-changed safety binding; missing projections remain implementation work.
-
-## Live VM acceptance
-
-In an authorized VM attempt, use LIFE06 to remove Internet access, Send once
-and independently observe retry with the report still open. Read the pending
-Stop action without activating it. Reconnect within the retry window, observe
-the same submission succeed, dismiss its owned thanks and require the child
-desktop through the shared success-exit operation. No second Send or Close
-while retrying. This qualifies no direct-stop result or complete case.
-
-Planned qualification selector (not registered; implement before use):
+Reuse [the existing error-report owner](../../../tests/ui/test_error_feedback.py)
+and [request component preview](../../../tests/ui/request_component_preview.py).
+Inspect delivered coverage first and add only missing product assertions,
+through the shared Application UI API helpers. Keep actual editor, encoder,
+retry/result and dialog handlers; extend only the existing fake HTTP Session's
+finite response/release controls where needed. No parallel framework or server.
 
 ```sh
-tools/run-tests system check_e2e_overlay_report_retry
+tools/run-tests ui 'tests/ui/test_error_feedback.py' --timeout 1800s
 ```
+
+Pure backoff, expiry, response and frozen-submission checks remain in the existing
+[transport unit owner](../../../tests/unit/test_feedback_transport.py). Run its
+affected selection only if that coverage changes. Documentation edits alone
+execute no tests or acceptance.

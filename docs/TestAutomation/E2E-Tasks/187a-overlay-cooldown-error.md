@@ -27,10 +27,13 @@ report after refusal. A missed window fails; do not loop Request or approvals.
 
 Extend `request_flow.overlay_approved_request` / `onpc_request_flow::overlay_approve`
 and `AccessibleUI.kiosk_request_form` with the genuine cooldown/result/report-choice
-binding. Those callables currently qualify only 75 seconds with soft apps
-included; case 176 needs its explicit 30-second, soft-excluded binding. FEED15's
-request-result branch is planned. Declining needs neither Privacy nor a retained
-account visit, and this slice ends without waiting or another approval.
+binding. Reuse the existing caller-bound request choices for case 176's
+30-second, soft-excluded approval; those values are already supported by
+`prepared_request(initial='observed', surface='overlay')` and
+`overlay_approved_request`. Their existing worker guards do not admit a cooldown
+journey, and no cooldown result is qualified by those approval bindings.
+FEED15's request-result branch is planned. Declining needs neither Privacy nor a
+retained account visit, and this slice ends without waiting or another approval.
 
 ## Live VM acceptance
 

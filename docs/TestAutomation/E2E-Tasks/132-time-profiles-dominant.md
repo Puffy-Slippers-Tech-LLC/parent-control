@@ -32,8 +32,11 @@ and larger grant/daily inputs without an expiry wait. Prepare fixtures and
 observers before grant issuance; retain the recipe's positive original-grant
 and dominance margins at Parent and request time. Parameterize only
 these declared shared inputs, retaining each caller's public inequality and
-elapsed-time comparison. The current fixed 75-second request composition and
-0/15/30 `configure_time_controls` binding do not implement these values.
+elapsed-time comparison. The shared explicit request composition already accepts
+the required 600/1200-second setup requests. Reuse it rather than extending its
+legacy fixed defaults. `configure_time_controls` supports presets and finite
+short custom values, but not the enabled 20/40-minute allowance edits required
+here. Bind those missing edits and the daily-dominant balance comparisons.
 
 ## Live VM acceptance
 

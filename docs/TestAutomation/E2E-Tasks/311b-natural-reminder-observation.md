@@ -21,9 +21,10 @@ prepare assets and the public observer before the 10-minute real grant, then
 require at least 300 seconds when arming the original countdown approach.
 Perform real native activity until it naturally crosses that
 threshold. Independently observe the owned ChildUI notification's exact literal
-body, `critical` urgency and the canonical seconds required by the API contract,
-using elapsed bounds. Bind the saved row's trigger independently from the public
-list. Require no delivery before crossing; naturally exhaust access and require
+body, `critical` urgency and the current verified remaining seconds required by
+the API contract, using elapsed bounds. Bind the saved row's trigger independently
+from the public list; the emitted live balance is not that configured threshold.
+Require no delivery before crossing; naturally exhaust access and require
 the owned warning absent on the resulting lock. Qualify independent natural
 delivery entry. Focused harness checks cover wrong account/endpoint, missing or
 ambiguous surfaces, stale delivery and hidden/locked input; live observation
@@ -53,15 +54,24 @@ Extend shared facade/observation operations for ChildUI's
 and `GnomeApplicationUiAdapter.listSurfaces` / `elements` in
 [gnomeApplicationUiAdapter.js](../../../child/gnomeApplicationUiAdapter.js).
 
-The [public API owner](../Application-UI-API.md#child-panel) currently specifies
-configured threshold seconds for message `getValue`, while source returns
-`current.seconds`, the live remaining balance. Reconcile that exact observation
-contract before claiming qualification; elapsed samples must not silently stand
-in for a configured threshold. `RemainingTimeNotifications.present` initializes
-it from the current scheduled balance, and `update` replaces it with subsequent
-remaining time. Return condition: the public protocol and maintained reader
-agree on the declared canonical observation, with saved threshold and live
-balance distinguished and independently compared. Private clocks, injected reminders, preview
+The [public API owner](../Application-UI-API.md#child-panel) specifies current
+verified remaining seconds for message `getValue`, matching `current.seconds`
+in the adapter. `RemainingTimeNotifications.present` initializes it from the
+current scheduled balance, and `update` replaces it with subsequent remaining
+time. The shared facade already routes these IDs to the owned notification
+surface, but the maintained natural-delivery observer and its installed
+qualification remain missing. Return condition: implement that observer with
+the saved threshold and emitted live balance distinguished and independently
+compared; qualify natural crossing, current content/urgency and removal at lock.
+The public notification surface and control IDs are stable across deliveries;
+they do not expose a per-delivery identity. Establish an independent lifetime
+binding before claiming the same warning survived a transition or was not
+replaced. Extend the existing read-only ChildUI projection with a current-delivery
+identity if needed, backed by the real owned notification lifetime, and qualify
+the shared observer against replacement and stale reads. A stable surface ID
+alone supplies no such proof. This is missing observation implementation under
+the settled same-warning requirement, not a choice to relax that requirement.
+Elapsed samples must not stand in for the saved threshold. Private clocks, injected reminders, preview
 delivery and broker calls as UI input supply no acceptance.
 
 Planned fixed selector: `check_e2e_natural_reminder_observation`; unregistered and

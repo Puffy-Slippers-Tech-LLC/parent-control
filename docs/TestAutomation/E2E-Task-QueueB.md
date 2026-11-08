@@ -6,7 +6,7 @@ Use the [shared execution instructions](E2E-Execution-Instructions.md) and
 briefs, scope, estimates and acceptance are preserved from the original queue.
 Pending prerequisites and their consumers stay together here; there are no
 unfinished dependencies on Plan A or [Plan C](E2E-Task-QueueC.md).
-Later system, multi-desktop, calendar, preset and What's New groups moved to C;
+Later system, calendar, preset and What's New groups moved to C;
 the current lifecycle group and all feedback prerequisite groups stay here.
 Follow this table in order, never another
 plan’s pointer. Exclusions and shared delivered context remain in the
@@ -110,12 +110,12 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 223 | Show an explanation after the last child is removed | 017 | Cases 181; passed on selected Fedora 44 in `20261108T092130Z-84aa3d74`: independently prepared/observed sole spare Jordan, one guarded logged-out removal and automatic explanation, disabled empty picker and `(None)` in the original Parent window. Parent now updates control availability on an empty refresh; controlled live comparison, affected host checks and DEB/RPM builds passed. Collection, worker shutdown, owned cleanup and baseline restoration passed; VM off. Coverage regenerated. | 20–30 |
 | [x] | 224 | Choose an eligible parent after approval access changes | 155 | Cases 182; passed on selected Fedora 44 in `scenario-b15a44f0389b4cbd89bd14efa569a4bc`: fresh Sam remembered independently on both forms, normal closure, one guarded standard-role change, then Sam exclusion and untouched first-eligible-parent selection on each reopened form. Developer approved this fallback; the shared recipe and both observers agree. Plans A/B/C checked for similar conflicts; none remain. Account-safety/history, source, listing and document checks passed; coverage regenerated. Collection, worker/callback shutdown, owned cleanup and baseline restoration passed; VM off. | 40–60 (exception) |
 | [ ] | 312 | [Child reminder preferences persist across request surfaces](E2E-Tasks/312-child-reminder-preferences.md) | 312a, 312b, 007 | Planned scenario; create/edit/save custom text, exact station readback, one Cancel, delete/save empty list, then reboot and check both screens and the other child's unchanged reminders/language. Duplicate times, sorting and detailed translations belong to smaller local editing checks; installed editing and kiosk bindings qualified by 312a/312b; complete scenario has no implementation or acceptance | 35–55 (exception) |
-| [ ] | 150a | [Prepare sample feedback for approved sending](E2E-Tasks/150a-feedback-profile.md) | 038, 031a, 030 | Concrete synthetic reports, recipient and authorization scope for FEED11 consumers | 20–30 |
-| [ ] | 150 | [Send approved sample feedback and check success](E2E-Tasks/150-feedback-send.md) | 150a | FEED11 with explicit Parent anonymous-send confirmation, FEED09 sending/success and FEED14 Parent feedback; gate in brief | 20–30 |
-| [ ] | 151 | [Check that sent feedback clears after success](E2E-Tasks/151-case-156.md) | 150 | Cases 156; explicit anonymous-send confirmation, service acceptance and cleared draft; gate in brief | 35–55 (exception) |
-| [ ] | 152 | [Check feedback recovers after reconnecting](E2E-Tasks/152-network.md) | 150, 193 | FEED09 Parent retry/recovery over qualified LIFE06; gate in brief | 20–30 |
-| [ ] | 153 | [Check feedback finishes after reconnecting](E2E-Tasks/153-case-157.md) | 152 | Cases 157; Parent anonymous-send confirmation when applicable, then one background retry/completion history; gate in brief | 35–55 (exception) |
-| [ ] | 258 | [Check feedback stops retrying when Parent closes](E2E-Tasks/258-case-216.md) | 152, 030a | Cases 216; Parent anonymous-send confirmation when applicable, then app-exit reset with no resumed outbox; gate in brief | 20–30 |
+| [ ] | 150a | [Prepare network-free feedback checks](E2E-Tasks/150a-feedback-profile.md) | Baseline | UI obligation; first implement explicit host-only launcher support, reconcile former case allocation metadata, then reuse existing fake sender and synthetic inputs; no VM or real-send gate | 20–30 |
+| [ ] | 150 | [Check feedback success with the fake sender](E2E-Tasks/150-feedback-send.md) | 150a | UI obligation; FEED11, anonymous confirmation, app success and manual thanks dismissal with existing fake sender | 20–30 |
+| [ ] | 151 | [Check that sent feedback clears after success](E2E-Tasks/151-case-156.md) | 150 | UI obligation; former case 156, anonymous confirmation and cleared draft under fake success; no E2E acceptance | 20–30 |
+| [ ] | 152 | [Check feedback recovers after a retryable response](E2E-Tasks/152-network.md) | 150 | UI obligation; Parent retry/recovery using existing test-local responses; no Internet isolation | 20–30 |
+| [ ] | 153 | [Check feedback finishes in the background](E2E-Tasks/153-case-157.md) | 152 | UI obligation; former case 157, one fake submission, same-process background completion and no unsolicited window | 20–30 |
+| [ ] | 258 | [Check feedback stops retrying when Parent closes](E2E-Tasks/258-case-216.md) | 152 | UI obligation; former case 216, app-exit reset and no resumed outbox with fake sender | 20–30 |
 | [ ] | 183a | [Lock during pending overlay approval](E2E-Tasks/183a-lock-during-pending-overlay-approval.md) | 048d, 043c | FLOW17 overlay lock; gate in brief | 20–30 |
 | [ ] | 213 | [E2E-039: overlay-lock](E2E-Tasks/213-case-171.md) | 183a, 180, 079b, 079d | Cases 171; gate in brief | 20–30 |
 | [ ] | 183b | [Switch User during pending overlay approval](E2E-Tasks/183b-switch-user-during-pending-overlay-approval.md) | 048d, 043c | FLOW17 overlay Switch User; gate in brief | 20–30 |
@@ -129,22 +129,22 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 187a | [Observe and decline a overlay cooldown error](E2E-Tasks/187a-overlay-cooldown-error.md) | 048d | REQUEST09 overlay cooldown and FEED15 decline branch; gate in brief | 20–30 |
 | [ ] | 187o | [Review an overlay cooldown report](E2E-Tasks/187o-read-overlay-cooldown-errors-and-report-choices.md) | 187a, 030 | REQUEST09 cooldown and FEED15 overlay; gate in brief | 20–30 |
 | [ ] | 218 | [E2E-039: overlay-cooldown](E2E-Tasks/218-case-176.md) | 187o, 180, 079b, 079d, 052c | Cases 176; includes report review/decline (former 206); gate in brief | 20–30 |
-| [ ] | 262 | [E2E-047: overlay-success](E2E-Tasks/262-case-220.md) | 150, 187o | Cases 220; missing shared overlay success/exit projections and complete authorized Send/dismiss/child-desktop history; gate in brief | 20–30 |
+| [ ] | 262 | [Check overlay report success and close callback](E2E-Tasks/262-case-220.md) | 150 | UI obligation; former case 220, fake success, reply note, manual dismissal and recorded close-overlay callback; no installed destination credit | 20–30 |
 | [ ] | 187b | [Observe and decline a kiosk cooldown error](E2E-Tasks/187b-kiosk-cooldown-error.md) | 021a | REQUEST09 kiosk cooldown and FEED15 decline branch; gate in brief | 20–30 |
 | [ ] | 187k | [Review a kiosk cooldown report](E2E-Tasks/187k-read-station-cooldown-errors-and-report-choices.md) | 187b, 030 | REQUEST09 cooldown and FEED15 kiosk; gate in brief | 20–30 |
 | [ ] | 220 | [E2E-039: kiosk-cooldown-other](E2E-Tasks/220-case-178.md) | 187k, 180, 079b, 079d, 052c | Cases 178; includes report review/decline (former 207); same-child 177 removed; gate in brief | 20–30 |
-| [ ] | 263 | [E2E-047: kiosk-success](E2E-Tasks/263-case-221.md) | 150, 187k | Cases 221; missing shared kiosk success/exit projections and complete authorized Send/dismiss/GDM history; gate in brief | 20–30 |
+| [ ] | 263 | [Check station report success and logout callback](E2E-Tasks/263-case-221.md) | 150 | UI obligation; former case 221, fake success, manual dismissal and recorded logout callback; no installed destination credit | 20–30 |
 | [ ] | 188r | [Observe and retry failed Parent diagnostic collection](E2E-Tasks/188r-parent-collection-retry.md) | 009, 031a | FEED09 Parent collection failure and usable controls; FEED16 Parent collection recovery; gate in brief | 30–45 (exception) |
 | [ ] | 250 | [E2E-046: parent-retry](E2E-Tasks/250-case-208.md) | 188r | Cases 208; gate in brief | 20–30 |
 | [ ] | 188k | [Observe failed kiosk diagnostic collection](E2E-Tasks/188k-retry-failed-kiosk-diagnostic-collection.md) | 187k | FEED09 kiosk collection failure and usable controls; gate in brief | 20–30 |
-| [ ] | 189k | [Send a kiosk report without unavailable logs](E2E-Tasks/189k-send-a-kiosk-report-without-unavailable-logs.md) | 188k, 150 | FEED11 without-logs and FEED09/14 kiosk result; gate in brief | 20–30 |
-| [ ] | 255 | [E2E-046: kiosk-without-logs](E2E-Tasks/255-case-213.md) | 189k | Cases 213; gate in brief | 20–30 |
-| [ ] | 190a | [Check report recovery on the child desktop](E2E-Tasks/190a-overlay-sending-stay.md) | 150, 187o, 193a | FEED09 overlay retry/reconnection while left open and FEED17 pending Stop action; gate in brief | 20–30 |
-| [ ] | 190o | [Stop a report from the child desktop](E2E-Tasks/190o-confirm-stopping-a-sending-overlay-report.md) | 190a | FEED09 retry and FEED17/18 direct overlay Stop and exit; gate in brief | 20–30 |
-| [ ] | 260 | [Check that stopping a report returns to the child desktop](E2E-Tasks/260-case-218.md) | 190o | Cases 218; direct Stop, report closure and child-desktop return; gate in brief | 20–30 |
-| [ ] | 190b | [Check report recovery at the request station](E2E-Tasks/190b-kiosk-sending-stay.md) | 150, 187k, 193a | FEED09 kiosk retry/reconnection while left open and FEED17 pending Stop action; gate in brief | 20–30 |
-| [ ] | 190k | [Stop a report at the request station](E2E-Tasks/190k-confirm-stopping-a-sending-kiosk-report.md) | 190b | FEED09 retry and FEED17/18 direct kiosk Stop and exit; gate in brief | 20–30 |
-| [ ] | 261 | [Check that stopping a report returns to sign-in](E2E-Tasks/261-case-219.md) | 190k | Cases 219; direct Stop, report closure and sign-in return; gate in brief | 20–30 |
+| [ ] | 189k | [Check Send without logs with the fake sender](E2E-Tasks/189k-send-a-kiosk-report-without-unavailable-logs.md) | 150 | UI obligation; actual without-logs action, encoded omission, app success and callback with component collector failure | 20–30 |
+| [ ] | 255 | [Check the station report without-logs flow](E2E-Tasks/255-case-213.md) | 189k | UI obligation; former case 213, failed component collection, explicit without-logs sending and logout callback; no installed collection credit | 20–30 |
+| [ ] | 190a | [Check overlay report retry and recovery](E2E-Tasks/190a-overlay-sending-stay.md) | 150 | UI obligation; retry/recovery while report stays open and explicit Stop availability with fake sender | 20–30 |
+| [ ] | 190o | [Stop an overlay report](E2E-Tasks/190o-confirm-stopping-a-sending-overlay-report.md) | 190a | UI obligation; direct Stop, actual dialog closure and recorded close-overlay callback | 20–30 |
+| [ ] | 260 | [Check overlay report Stop callback](E2E-Tasks/260-case-218.md) | 190o | UI obligation; former case 218, retry cancellation and exactly one close-overlay callback; no installed destination credit | 20–30 |
+| [ ] | 190b | [Check station report retry and recovery](E2E-Tasks/190b-kiosk-sending-stay.md) | 150 | UI obligation; retry/recovery while report stays open and explicit Stop availability with fake sender | 20–30 |
+| [ ] | 190k | [Stop a station report](E2E-Tasks/190k-confirm-stopping-a-sending-kiosk-report.md) | 190b | UI obligation; direct Stop, actual dialog closure and recorded logout callback | 20–30 |
+| [ ] | 261 | [Check station report Stop callback](E2E-Tasks/261-case-219.md) | 190k | UI obligation; former case 219, retry cancellation and exactly one logout callback; no installed destination credit | 20–30 |
 
 ## Deferred future work
 

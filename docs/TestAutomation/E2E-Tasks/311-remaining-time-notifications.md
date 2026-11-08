@@ -40,13 +40,15 @@ events and accelerated private clocks cannot establish customer acceptance.
 
 Bind notification reads to the ChildUI endpoint's `child-time-notification`
 surface: `child-time-notification-message` supplies literal body and canonical
-threshold seconds; `child-time-notification-urgency` supplies `critical`/`high`.
+current remaining seconds; independently bind the configured trigger from the
+saved public reminder list. `child-time-notification-urgency` supplies `critical`/`high`.
 These IDs describe the emitted notification, not native banner visibility.
 Consume 311b/311c's repository-owned banner observations through the shared
 Application UI API; require logical body text, current owned identity and
 independent visible/hidden surface observations in this journey. Urgency alone
-proves no visibility. Preserve 311b's
-canonical-seconds contract gate; no generic Shell adapter, coordinates, private
+proves no visibility. Preserve 311b's missing maintained natural observer and
+installed qualification gate, including its independent saved-trigger/live-balance
+comparison; no generic Shell adapter, coordinates, private
 actors or pixel/rendering acceptance is required.
 
 Finite history: start with untouched defaults and read all four saved thresholds

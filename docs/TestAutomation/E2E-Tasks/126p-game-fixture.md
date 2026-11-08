@@ -40,8 +40,9 @@ preserve cleanup refusal cases. This does not claim a playable-game or expiry re
 `build_test_applications.build` already emits `onpc-test-game` and its launcher,
 and `gui_application.main` provides public move/score controls. The current
 `baseline_fixtures.build_payload` builds native roles only, and
-`NativeFixtures` accepts only native/Chinese verification profiles. Add the
-game to those finite baseline/readback declarations. Actual level/mode and
+`NativeFixtures` accepts native, Chinese and scoped native-activity profiles,
+with no game verification profile. Add the game to those finite baseline/readback
+declarations. Actual level/mode and
 playability bindings remain with 126a/126/129; a built file is not that result.
 
 Qualification selector (planned; implement and register before use). Qualify

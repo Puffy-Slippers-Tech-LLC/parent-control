@@ -551,6 +551,19 @@ keep that distinct result in its installed owner instead of calling a host
 double equivalent. After a UI obligation passes, apply ordinary document
 close-out without claiming an E2E pass or changing scenario readiness.
 
+For the [feedback sending allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation),
+task 150a first implements missing launcher support for the explicit UI marker
+through selection, prompts and host-only completion. Current code exempts only
+historical task 192, so this paragraph is not a claim that the new route already
+works. Preserve installed-task and incomplete-result guards; qualify the
+affected existing launcher/parser path at its host unit layer. Routine mocked
+sending must not acquire a VM or claim a live result to satisfy an old prompt.
+The first 150a change is implemented from the brief in a normal coding-agent
+session before invoking the old launcher, whose selection/supervisor admission
+precedes the task session. After host checks and normal close-out, later rows
+use the updated driver. This is the explicit bootstrap route, not an existing
+no-VM switch or a developer-input gate.
+
 ## Completion and document cleanup
 
 After the guard is released and cleanup succeeds:
@@ -578,8 +591,10 @@ implementation belongs to the current task's affected checks.
    [Plan C](E2E-Task-QueueC.md))
    row only after all acceptance and close-out
    pass. Keep ID, delivered scope and prerequisites; remove resolved blockers.
-   Preserve the machine-readable scope prefix (`Cases N;`, `Retained regression N;`
-   or `System obligation N`) when recording results. Close-out prose must not
+   Preserve the machine-readable scope prefix (`Cases N;`, `Retained regression N;`,
+   `System obligation N` or `UI obligation;`) when recording results. Explicit UI
+   reallocations retain former case IDs as allocation references without E2E
+   pass credit. Close-out prose must not
    turn a scenario row into an apparent capability or lose its inventory mapping.
    Close only the selected row. A capability slice supplies no complete-scenario
    acceptance credit.
@@ -605,6 +620,12 @@ implementation belongs to the current task's affected checks.
    current customer case implementations and bindings. The explicitly
    [reallocated UI cases 161 and 190](UI-and-E2E-Coverage.md#duplicate-review-and-allocation)
    retain their stable IDs and historical evidence without runnable E2E bindings.
+   The [feedback allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation)
+   also retains former IDs 156/157/213/216/218/219/220/221 without runnable E2E
+   bindings or installed acceptance; task 150a synchronizes their metadata.
+   Removed tasks 143–149 and 171 belong only to the open questions in
+   [Two desktops](../Two_Desktops.md) and [Unlock desktop](../Unlock_Desktop.md).
+   Do not recreate them from pending inventory records or historical references.
    Their shared
    provider routes still require qualification under the current mandate.
 

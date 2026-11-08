@@ -36,7 +36,7 @@ the shared runtime ownership and input guards without testing those guards.
 | Application search/matching | Queries/filters, Save/Cancel/Reset, invalid drafts | Real catalogue, saved rules, broker rejection, reload limits and enforcement |
 | Application access | All choices, unchanged autosave, wrong-row/modal refusal | Saved Allowed/Hard/Soft policy, actual launch and running-app effects |
 | Help/About | Controls, link availability and text | Installed identity, return to work, station restrictions and manuals; no external-handler tour |
-| Diagnostics/transport | Presentation and callback matrices | Real collection/cancellation/failure, sanitization, authorized service acceptance, retry and lifetime |
+| Diagnostics/transport | Presentation; sending, retry, draft lifetime and report-close behavior with the existing fake sender | Real collection/cancellation/failure, sanitization and actual report-exit destinations; real sending is separate optional integration work |
 | Countdown/animation | Panel/tooltip/menu behavior | Work until natural exhaustion, normal locking, independent saved preferences across session/reboot without policy changes |
 | Language | Representative scripts, Save/Cancel/failure, inherited text and draft preservation | Account independence, offline/session persistence, native translated approvals, usable request surfaces and natural expiry |
 | Reminders/presets | Editing, sorting, duplicate/invalid values, literal text versus translated triggers, Save/Cancel/empty list | Saved custom reminders, exact cross-surface readback, reboot and unchanged peer settings; warning delivery is distinct |
@@ -64,6 +64,42 @@ Attachment fixtures replace only the external chooser's returned file list;
 the frontend still reads/validates files and updates its draft. Local tests do
 not replace the installed chooser handoff. Language/reminder fixtures likewise
 do not prove native authentication or actual warning delivery.
+
+### Feedback sending allocation
+
+The developer chose existing network-free component previews for routine
+feedback sending. Tasks **150a, 150, 151, 152, 153, 258, 262, 263, 189k, 255,
+190a, 190o, 260, 190b, 190k and 261** are explicit **UI obligation** rows,
+implemented in the existing `test_parent_feedback.py` and
+`test_error_feedback.py` owners. Reuse their fake HTTP session and real editor,
+encoding, retry and result handlers; add only missing assertions. No production
+mock switch, alternate endpoint, server, inbox or sending authorization is
+needed. Deterministic transport/backoff checks remain with
+`tests/unit/test_feedback_transport.py`.
+
+Retain former cases **156, 157, 213, 216, 218, 219, 220 and 221** as allocation
+references, pending with no E2E executable or installed acceptance. Task 150a
+first implements the launcher's missing explicit host-only task route, then
+synchronizes their allocation metadata before later UI tasks. The existing
+launcher only exempts historical task 192 today; this documentation records
+required work, not a functioning UI-task closeout path. Keep installed-task
+guards intact and qualify the affected launcher behavior at its existing unit
+layer, never through UI tests of the tool.
+
+Mock responses must not contact the real service. They establish anonymous
+confirmation, success/clearing, retry/background completion, app-exit reset,
+direct Stop and explicit Send without logs under declared responses. Recorded
+request close/logout callbacks establish callback ordering, not an installed
+desktop or GDM destination. Genuine installed error entry, collection failure
+and recovery, confinement and public request-exit results remain with their
+existing owners. Do not gate these local sending checks on a real cooldown,
+Internet isolation or a missing public collection-failure trigger.
+
+Real sending is a separate optional integration check under the
+[live-delivery contract](../../tests/README.md#coverage-maintenance-workflow),
+outside routine queue acceptance. A mock pass supplies no live-service or email
+delivery result. No sending permission or recipient profile should be requested
+for these routine UI obligations.
 
 ## Reuse of system coverage
 
@@ -121,11 +157,12 @@ attempt is redundant; retain the failed result, usable controls, draft,
 restoration and successful Retry together. No public failure/recovery trigger
 is established, so the combined capability and complete case 208 remain pending.
 
-Tasks 150o/150k's duplicate Send/dismiss/exit qualifiers are absorbed into
-cases 220/221. Task 150 owns the shared authorization and real service response;
-187o/187k own error-report entry and Privacy. The cases add only missing public
-success/exit projections and keep their complete independent submission,
-confirmation, dismissal and usable destination. Pending-prompt transition
+Tasks 150o/150k's duplicate Send/dismiss/exit qualifiers remain absorbed into
+former cases 220/221, now allocated to the
+[mock-sending UI owner](#feedback-sending-allocation). Task 150 owns shared
+component response/confirmation checks; 187o/187k retain real installed
+error-report entry and Privacy. Mock close/logout callbacks do not qualify
+their installed destinations. Pending-prompt transition
 qualifiers 183a–e retain cancellation and safe return; cases 171–175 own the
 fresh successful approval, balance and access recovery. No lower-layer pass
 supplies those journeys, and changed provider/safety boundaries retain scoped
@@ -153,11 +190,11 @@ task status and executable bindings are unchanged.
 | --- | --- | --- |
 | Approvals and extension-dependent timing | Existing core/adapter owners retain arithmetic, identity and failure-refusal coverage. TIME01, REQUEST08 and FLOW05 retain public observations on their declared surfaces. Current extension dependencies are documented in [Screen time](../SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement) | A second timing ledger, copied status/approval journey or authentication matrix. Retiring the proposals grants no installed acceptance and removes no executable coverage. |
 | Current daily/grant/combined natural locks, denial, retained work and peer activity | Existing cases 22, 25–29; shared TIME04, lock-input and activity observations | A new baseline expiry journey or unchanged provider matrix. Existing cases receive only affected regressions after actual code changes. |
-| Revocation at zero/positive daily time, Cancel, retained entry and peer continuity | Tasks 084/085, canonical cases 17/19; tasks 144/145 own the distinct supported multi-desktop cases 18/20 behind task 143 | A separate migration-only copy of these scenarios. They switch to Parent before revocation; foreground immediate-lock acceptance belongs to the installed residual below. Deliver each full case once. |
+| Revocation at zero/positive daily time, Cancel, retained entry and peer continuity | Tasks 084/085, canonical single-desktop cases 17/19. Former tasks 143–149 and cases 18/20/112–115 are removed from execution and retained only in [Two desktops](../Two_Desktops.md). | A separate migration-only copy or reconstruction of the removed two-desktop tasks. Cases 17/19 switch to Parent before revocation; foreground immediate-lock acceptance belongs to the installed residual below. |
 | Daily balance outlasting a soft-app grant | Task 182 owns positive FLOW18 preparation; task 206/case 164 owns uninterrupted expiry/no-lock/soft-access results | Task 182 must not add its optional second expiry wait. Tasks 207–212/cases 165–170 reuse preparation/observation and own only their different post-expiry transitions. |
 | Idle and suspend before/after grant expiry | Task 164/case 122; LIFE03 tasks 166a/166; tasks 167/168/cases 124/125 | Another generic idle/suspend expiry suite. LIFE03 is implemented/qualified once; complete cases retain only their unique choices, policy, work and recovery composition. |
-| Real usage-read outage/recovery; zero-time entry exposure | Task 172 (engineering obligation 143) and task 171 (engineering obligation 142) under the installed session owners | A second identity-scoped reader-fault matrix or zero-time exposure qualifier under the migration. Retain unresolved before-access behavior and provider gates. |
-| Expiry-specific broker/timer failure, hang, owner replacement, stale work, lock completion, foreground revocation and policy races | Tasks 172a–172h and 172j–172l extend the `system_graphical_expiry` owner and system 282's shared mechanics. Foreground revocation has the distinct `session::test_foreground_revocation` binding (system 303), without replaying system 282 | System 303's foreground zero/positive daily revocation, bounded protected lock, original-work recovery and positive input passed on the session-selected Ubuntu 26.04 VM; Fedora remains unqualified. Pending approval and time-decision ordering are allocated separately below; other bindings remain planned. No customer-case credit. Reuse obligation 148’s existing concurrency assertions; no separate host preparation task or engineering suite. Tasks 169/170/173–175/178/179 retain their different residuals; tasks 171/172 own exposure/reader faults. |
+| Real usage-read outage/recovery | Task 172 (engineering obligation 143) under the installed session owners. Former task 171/obligation 142 is removed from execution; [Unlock desktop](../Unlock_Desktop.md) preserves that open question only. | A second identity-scoped reader-fault matrix or recreation of the removed entry-exposure qualifier. The open question is not a prerequisite for remaining session work. |
+| Expiry-specific broker/timer failure, hang, owner replacement, stale work, lock completion, foreground revocation and policy races | Tasks 172a–172h and 172j–172l extend the `system_graphical_expiry` owner and system 282's shared mechanics. Foreground revocation has the distinct `session::test_foreground_revocation` binding (system 303), without replaying system 282 | System 303's foreground zero/positive daily revocation, bounded protected lock, original-work recovery and positive input passed on the session-selected Ubuntu 26.04 VM; Fedora remains unqualified. Pending approval and time-decision ordering are allocated separately below; other bindings remain planned. No customer-case credit. Reuse obligation 148’s existing concurrency assertions; no separate host preparation task or engineering suite. Tasks 169/170/173–175/178/179 retain their different residuals; task 172 owns reader faults. The former entry-exposure question is unscheduled in [Unlock desktop](../Unlock_Desktop.md). |
 | Expiry while a genuine parent approval remains pending | `system_graphical_expiry`, `natural_expiry.APPROVAL_PLAN` / `PendingApprovalJourney` and `session::test_expiry_during_pending_approval` (system 304), reusing system 282's attached worker and activity/lock/recovery mechanics | Passed on session-selected `onpc-Ubuntu26.04-1` in `20261107T163336Z-aa8348da`: two 300-second histories with challenge readiness at least 180 seconds before original expiry, timely natural lock, protected input, cancellation without grant changes, original-work recovery and unrelated foreground input. Collection, worker shutdown, owned cleanup and baseline restoration passed. Fedora remains unqualified. No customer-case or task 171 entry-exposure credit; background protection supplies no natural-lock latency claim. |
 | Latest parent time decision versus an in-flight read and original expiry | Eight controlled commit/rollback order checks in `test_core`, deadline dispatch in `test_private_dbus_service`, and `session::test_policy_changes_before_expiry` (system 305) through `natural_expiry.PolicyOrderJourney` and `system_graphical_expiry` | Passed on session-selected `onpc-Ubuntu26.04-1` in `20261107T234126Z-f7d43e80`: renewal, allowance and disablement each preserved original-desktop input and work past its unchanged 180-second deadline, followed by bounded restricted natural lock, both protected-input challenges, original-work recovery and peer continuity. Reuses existing Busy/conflict, stale-callback and system-282 mechanics. Collection, worker/callback shutdown, owned cleanup and baseline restoration passed. Fedora remains unqualified; no customer-case credit. |
 | Scheduled expiry work after the original child session ends | `natural_expiry.SessionReplacementJourney`, `onpc_desktop_session::session_replacement` and `session::test_session_replacement_before_expiry` (system 306), through the existing `system_graphical_expiry` fixture and attached worker | Passed on session-selected `onpc-Ubuntu26.04-1` in `20261108T013846Z-afcf0b18`: changing displayed countdown text before logout, a different same-account session with positive authoritative entitlement, continuous replacement input and retained work across the unchanged 600-second original deadline, and peer input/work before and after it. Collection, worker/callback closure, owned cleanup and baseline restoration passed. This qualifies pending scheduled work, not a deliberately held asynchronous completion. Fedora remains unqualified; no customer-case credit. |
@@ -195,7 +232,9 @@ its [registered session test](../../tests/system/test_session_expiry.py),
 [broker core regressions](../../tests/unit/test_core.py) and
 [private D-Bus dispatch](../../tests/component/test_private_dbus_service.py).
 Sharing an installed attempt does not merge the distinct assertions or give
-obligations 142/143 completion credit before their own residuals pass.
+obligation 143 completion credit before its residual passes. Obligation 142's
+open question is unscheduled in [Unlock desktop](../Unlock_Desktop.md), with no
+completion or acceptance claim.
 
 ### Expiry engineering contract
 
@@ -203,7 +242,9 @@ Tasks 172a–172h and 172j–172l own only uncovered expiry effects at the exist
 session owner. Delivered panel-independent timed locking, fresh protected-input
 challenges, original-work recovery and foreground peer observations stay done;
 reuse those mechanics without rerunning unchanged qualification. Customer cases,
-entry exposure, reader faults and ordinary concurrency keep their owners above.
+reader faults and ordinary concurrency keep their owners above. The removed
+entry-exposure question stays only in [Unlock desktop](../Unlock_Desktop.md);
+these expiry tasks must not restore it as a prerequisite.
 Planned bindings are not executable selectors; register the actual affected
 selection before execution. This planning merge changes no scenario IDs or status.
 
@@ -224,6 +265,18 @@ restarted services alone cannot pass. Positive-entitlement controls stay usable.
 Restore only owned processes, sessions, grants, limits and fault state under the
 existing cleanup contract. No second ledger, provider matrix, fault framework,
 production hook, supervision policy or scheduler is introduced.
+
+Task 172k may repair transient public lock-action retry within the existing
+owned enforcement callback and timer, as required by repeated exhaustion
+enforcement. This is not a separate expiry scheduler or fallback lock policy.
+Keep one finite-timeout lock request in flight, bound every retry by the
+original absolute timed-lock window, and revalidate the current verified
+deadline, entitlement and session before each attempt. Cancel pending work on
+secure lock, renewal, disablement, owner invalidation, session departure or
+disposal. Retry spacing is an implementation choice within that bound; late
+recovery cannot retroactively pass protection. Persistent unavailability keeps
+172l's characterization-only scope. These settled results need no new behavior
+choice; production edits retain the applicable code-review and validation mandates.
 
 Current production behavior is tested first. Missing supported fault ownership
 blocks a task. A production mismatch follows
@@ -260,10 +313,11 @@ live balances while deciding and each surface's reboot recovery. Required real
 assets, public timing precision, continuous login observation and reproducible
 public failure triggers remain gates. Qualification cannot supply missing results.
 
-Feedback Send retains authorization/profile gates, service confirmation, draft
-lifetime, dismissal and original-flow exit. Offline completion opens no unsolicited
-window and needs no second Send. Internet loss alone does not prove diagnostic
-collection failure.
+Feedback Send follows the [mock-sending allocation](#feedback-sending-allocation):
+routine UI checks retain draft lifetime, dismissal and callback ordering under
+declared responses, with no recipient or authorization gate. Background
+completion opens no unsolicited window and needs no second Send. Internet loss
+alone does not prove genuine installed diagnostic collection failure.
 
 [Unsupported native gestures](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures)
 remain excluded. Retained uncovered assertions must not disappear or become new

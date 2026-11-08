@@ -17,7 +17,7 @@ def baseline_restoration(args, configured):
     """Freeze the diagnostic's selected fixtures for its exact VM and lifetime."""
     actions = ('reproduce-baseline-restoration', 'reproduce-natural-access', 'reproduce-natural-expiry',
                'reproduce-countdown-grant', 'reproduce-suspend-active-grant', 'reproduce-suspend-expired-grant', 'reproduce-overlay-activity', 'reproduce-overlay-return',
-               'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-grant-logout',
+               'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-native-files', 'reproduce-grant-logout',
                'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
                'reproduce-panel-request', 'reproduce-app-restart-choices', 'reproduce-reboot-context',
                'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-expired-sign-out',
@@ -38,7 +38,7 @@ def baseline_restoration(args, configured):
         store = Store(directory('state') / ('retention-baseline-restoration-' + configured.name))
         with store.session():
             if args[0] in ('reproduce-suspend-active-grant', 'reproduce-suspend-expired-grant', 'reproduce-overlay-return', 'reproduce-system-graphical-expiry', 'reproduce-natural-expiry',
-                           'reproduce-native-denial', 'reproduce-grant-logout', 'reproduce-match-editor',
+                           'reproduce-native-denial', 'reproduce-native-files', 'reproduce-grant-logout', 'reproduce-match-editor',
                            'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-panel-request',
                            'reproduce-app-restart-choices', 'reproduce-reboot-context',
                            'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-expired-sign-out',

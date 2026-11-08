@@ -790,7 +790,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          feedback_formats=False, feedback_link_semantics=False, real_interval=False,
          independent_network=False, public_connectivity_controls=False, native_grid_usable=False,
          riley_native_grid=False, native_denial=False, native_space_path=False, native_comma_path=False, versioned_appimage_assets=False, native_policy_closure=False, shared_target_launchers=False,
-         native_app=False, flatpak_retained_work=False, app_activity=False, retained_app_visits=False, chinese_language_assets=False, desktop_language=False,
+         native_app=False, native_files_usable=False, flatpak_retained_work=False, app_activity=False, retained_app_visits=False, chinese_language_assets=False, desktop_language=False,
          chinese_native_auth=False, parent_language=False, kiosk_language=False, overlay_language=False,
          panel_language_refresh=False,
          kiosk_language_restoration=False, overlay_reminder_editing=False, kiosk_reminder_binding=False,
@@ -1016,6 +1016,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         and not any(value for name, value in locals().items()
             if name not in ('assets', 'provision_credentials', 'retained_app_visits')
             and isinstance(value, bool)))), 'smoke:retained-app-visits-prerequisites')
+    require(type(native_files_usable) is bool and (not native_files_usable or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and approval_flow is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'native_files_usable')
+            and isinstance(value, bool)))), 'smoke:native-files-prerequisites')
     require(type(app_activity) is bool and (not app_activity or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1874,6 +1879,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-shared-target-launchers-qualification'
         if app_activity:
             result['scope'] = 'installed-app-activity-qualification'
+        if native_files_usable:
+            result['scope'] = 'installed-native-files-usable-qualification'
         if retained_app_visits:
             result['scope'] = 'installed-retained-app-visits-qualification'
         if catalogue_search:
@@ -2116,7 +2123,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if (product_free_entry or parent_entry is not None or lock_surface is not None or parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or kiosk_preferences_confinement or baseline_app_effects or baseline_auth_pause or baseline_journey or active_grant_disable or confinement_usability
-                        or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or panel_language_refresh or overlay_reminder_editing or kiosk_reminder_binding or reminder_fullscreen_preference or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or native_denial or native_space_path or native_comma_path or versioned_appimage_assets or native_policy_closure or flatpak_retained_work or shared_target_launchers or app_activity or retained_app_visits
+                        or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or panel_language_refresh or overlay_reminder_editing or kiosk_reminder_binding or reminder_fullscreen_preference or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or native_files_usable or native_denial or native_space_path or native_comma_path or versioned_appimage_assets or native_policy_closure or flatpak_retained_work or shared_target_launchers or app_activity or retained_app_visits
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or revoke_cancel or revocation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
@@ -2476,6 +2483,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if app_activity:
                     from parent_setup_qualification import NativeActivityQualification
                     qualification_class = NativeActivityQualification
+                if native_files_usable:
+                    from parent_setup_qualification import NativeFilesQualification
+                    qualification_class = NativeFilesQualification
                 if retained_app_visits:
                     from parent_setup_qualification import RetainedAppVisitsQualification
                     qualification_class = RetainedAppVisitsQualification

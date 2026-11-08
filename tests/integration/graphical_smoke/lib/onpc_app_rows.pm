@@ -672,7 +672,7 @@ sub native_usable_app {
     $kind //= 'native';
     $gesture //= 'ret';
     die 'native:usable-binding' unless (@_ >= 3 && @_ <= 7) && ref($journey) eq 'onpc_journey'
-        && defined($route) && ($route eq 'command' || $route eq 'grid')
+        && defined($route) && ($route eq 'command' || $route eq 'grid' || $route eq 'files')
         && (defined($desktop) || $route eq 'command')
         && ($child eq 'child' || $child eq 'other-child' || $child eq 'parent' && $route eq 'command')
         && ($gesture eq 'ret' || ($kind eq 'snap' || $kind eq 'flatpak') && $route eq 'grid' && $gesture eq 'ctrl-ret')
@@ -687,10 +687,20 @@ sub native_usable_app {
             || $route eq 'command' &&
             ($role =~ /\A(?:A|S)\z/ && $child eq 'child'
                 || $role =~ /\A(?:N|unmatched-soft|SpaceCopy|CommaCopy|VersionNext|VersionNonmatch|VersionExisting)\z/ && $child eq 'other-child')));
-    my $opened = $route eq 'command' ? native_open_command($journey, $desktop)
+    die 'native:files-binding' if $route eq 'files' &&
+        !($kind eq 'native' && $child eq 'other-child' && (!defined($role) || $role eq 'S'));
+    my $opened;
+    if ($route eq 'files') {
+        $journey->consume_observation('desktop', $desktop);
+        $journey->consume_observation('files', $journey->seen('files'));
+        testapi::send_key('ret');
+        $opened = $journey->seen('opened');
+    } else {
+        $opened = $route eq 'command' ? native_open_command($journey, $desktop)
         : $kind ne 'native' ? native_launch_grid($journey,
             native_search($journey, $desktop, 'app-grid', $role, $kind), $gesture)
                                    : native_open_grid($journey, $desktop, $role);
+    }
     return native_use_app($journey, $opened);
 }
 
@@ -1385,6 +1395,29 @@ sub snap_grid {
         native_finish_app($flow);
     }
     native_finish_app(_native_activity_scope($journey, 'earlier'));
+    $journey->finish();
+}
+
+sub native_files_usable {
+    onpc_progress::operation('Checking the child can launch from Files and keep work in a separate window');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'native:arguments' unless @_ == 3;
+    my $journey = native_child_entry($exchange, $declared, $challenges, 'native-files-usable');
+    my $first = $journey->scope('first');
+    native_usable_app($first, 'files', $first->seen('desktop'));
+    $first->seen('dismiss');
+    native_finish_app($first);
+    my $earlier = $journey->scope('earlier');
+    native_usable_app($earlier, 'command', $earlier->seen('desktop'), 'other-child', 'S');
+    native_read_activity($earlier, 'capture');
+    my $second = $journey->scope('second');
+    native_usable_app($second, 'files', $second->seen('desktop'), 'other-child', 'S');
+    $second->seen('dismiss');
+    native_read_activity($second, 'capture');
+    native_read_activity($earlier, 'reread');
+    native_finish_app($second);
+    native_finish_app($earlier);
+    $journey->seen('child-logout');
     $journey->finish();
 }
 

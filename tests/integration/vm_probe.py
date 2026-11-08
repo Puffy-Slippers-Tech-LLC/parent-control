@@ -1128,6 +1128,19 @@ def reproduce_versioned_appimage_assets(lease, fixture_selection):
         boundary_operation='system:parent-logout', fixture_selection=selection, timeout=1800)
 
 
+def reproduce_native_files(lease, fixture_selection):
+    """Probe first Files dismissal and retain the qualification's child scene."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from native_files_usable import NativeFilesJourney
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, NativeFilesJourney, None,
+        'first-dismiss', 'native-files', assets=assets,
+        boundary_operation='native-files-allowed-dismiss', fixture_selection=selection, timeout=1800)
+
+
 def reproduce_native_denial(lease, fixture_selection):
     """Retain Jordan's first native command denial after the actual Parent saves."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1657,6 +1670,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from overlay_approved_exit import OverlayApprovedExitJourney, TRANSLATED_PLAN
         from approval_return import ApprovalReturnJourney, NEW_PLAN
         from native_denial import NativeDenialJourney, PLAN as NATIVE_DENIAL_PLAN
+        from native_files_usable import NativeFilesJourney
         from grant_access_case import GrantAccessJourney, PLAN as GRANT_ACCESS_PLAN
         from match_editor_case import PLAN as MATCH_EDITOR_PLAN
         from policy_edits import AppPolicyJourney
@@ -1706,6 +1720,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         native_denial = (surface == 'native-denial'
             and journey_type is NativeDenialJourney and plan is NATIVE_DENIAL_PLAN
             and boundary == 'first-hard-command' and boundary_operation == 'native-hard-command-blocked')
+        native_files = (surface == 'native-files'
+            and journey_type is NativeFilesJourney and plan is None
+            and boundary == 'first-dismiss' and boundary_operation == 'native-files-allowed-dismiss')
         grant_logout = (surface == 'grant-logout'
             and journey_type is GrantAccessJourney and plan is GRANT_ACCESS_PLAN
             and boundary == 'grant-logout-logout' and boundary_operation == 'system:standard-logout')
@@ -1747,7 +1764,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         versioned_assets = (surface == 'versioned-appimage-assets'
             and journey_type is VersionedAppImageAssetsJourney and plan is VERSIONED_ASSETS_PLAN
             and boundary == 'logout' and boundary_operation == 'system:parent-logout')
-        system.require(selected_setup and (restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or expired_sign_out or daily_soft_balance or versioned_assets)
+        system.require(selected_setup and (restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or expired_sign_out or daily_soft_balance or versioned_assets)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1790,8 +1807,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if selected_setup:
             from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS
             context.fixture_selection = fixture_selection
-            context.fixture_subsets = ('native',) if surface in ('native-denial', 'versioned-appimage-assets', 'grant-logout', 'match-editor', 'flatpak-grid', 'flatpak-temporary-access', 'native-temporary-access') else ACTIVITY_SUBSETS
+            context.fixture_subsets = ('native',) if surface in ('native-denial', 'native-files', 'versioned-appimage-assets', 'grant-logout', 'match-editor', 'flatpak-grid', 'flatpak-temporary-access', 'native-temporary-access') else ACTIVITY_SUBSETS
             context.fixture_caller = ({'native-denial': None, 'flatpak-grid': None,
+                                       'native-files': None,
                                        'versioned-appimage-assets': None,
                                        'flatpak-temporary-access': None,
                                        'native-temporary-access': None,

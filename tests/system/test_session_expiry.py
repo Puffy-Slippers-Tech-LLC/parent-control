@@ -38,3 +38,8 @@ def test_session_replacement_before_expiry(record_testsuite_property):
 def test_broker_crash_before_expiry(record_testsuite_property):
     from system_graphical_expiry import verify_broker_crash
     verify_broker_crash(record_testsuite_property)
+
+
+def test_broker_stop_before_expiry(record_testsuite_property):
+    from system_graphical_expiry import verify_broker_stop
+    verify_broker_stop(record_testsuite_property)

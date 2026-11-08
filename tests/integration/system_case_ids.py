@@ -639,6 +639,8 @@ CASES = (
                  'Keep old expiry work away from a replacement child session'),
     CaseIdentity(307, 'session', 'test_broker_crash_before_expiry',
                  'Protect child work and original expiry across a broker crash'),
+    CaseIdentity(308, 'session', 'test_broker_stop_before_expiry',
+                 'Protect child work and original expiry while the service is stopped'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

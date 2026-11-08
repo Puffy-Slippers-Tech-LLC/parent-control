@@ -2574,6 +2574,16 @@
     ],
     "expected": "Outage time consumes the original grant; both lock challenges protect input, service recovery replays no grant, original child work and peer input survive, and owned cleanup completes."
   },
+  "308": {
+    "summary": "Protect the child's time limit and saved work while the background service is stopped",
+    "steps": [
+      "Prepare the child's retained work and another user's independent work before starting one three-minute grant-only history.",
+      "Stop the exact recorded service with at least two minutes remaining, keep it stopped across the original deadline, and observe timely natural locking and protected input.",
+      "Activate a new service owner and verify zero balance and the unchanged expired grant before granting recovery time.",
+      "Recover the original child work within five minutes of the original expiry, then return to the same other user's work and verify real input."
+    ],
+    "expected": "The stopped service stays stopped through expiry and the input challenge; outage time consumes the original grant, recovery replays no grant, original child and peer work survive, and owned cleanup completes."
+  },
   "299": {
     "summary": "Restore the extension from Parent controls",
     "steps": [

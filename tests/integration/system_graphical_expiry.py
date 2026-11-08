@@ -303,7 +303,7 @@ def graphical_history(command):
     child = accounts['child']
     path = FIXTURE / 'graphical-history.json'
     if command in ('host-ready', 'revoke-ready', 'approval-ready', 'policy-ready',
-                   'replacement-ready', 'crash-ready'):
+                   'replacement-ready', 'crash-ready', 'stop-ready'):
         guest.require(not path.exists(), 'expiry:graphical-history-replayed')
         wait_for(lambda: (FIXTURE / 'seeded.json').is_file(), 'expiry:gdm-seed-not-observed')
         seeded = json.loads((FIXTURE / 'seeded.json').read_text())
@@ -322,6 +322,7 @@ def graphical_history(command):
                    'policy_order': command == 'policy-ready', 'policy_steps': 0,
                    'session_replacement': command == 'replacement-ready',
                    'broker_crash': command == 'crash-ready',
+                   'broker_stop': command == 'stop-ready',
                    'broker_invocation': guest.run(['systemctl', 'show', guest.BROKER,
                                                   '--property=InvocationID', '--value']),
                    'account': [pwd.getpwuid(child).pw_name, child,
@@ -347,6 +348,8 @@ def graphical_history(command):
                           == history['other_state'], 'expiry:graphical-history-continuity')
         if history.get('broker_crash'):
             return crash_history(command, history, path, accounts)
+        if history.get('broker_stop'):
+            return stop_history(command, history, path, accounts)
         if history.get('policy_order') and command.startswith('policy-') and command != 'policy-complete':
             sequence = ('policy-renew-seed', 'policy-renew', 'policy-allowance-seed',
                         'policy-allowance', 'policy-disable-seed', 'policy-disable',
@@ -465,8 +468,8 @@ def graphical_history(command):
     return {'remaining_seconds': remaining}
 
 
-def crash_recorded_broker(invocation, record):
-    """Signal only the pinned main process of this attempt's broker invocation."""
+def fault_recorded_broker(invocation, record, *, stop=False):
+    """Fault only the pinned broker; the owned mask excludes new activation."""
     from system_kiosk_confinement import process_identity, exited
     guest.guard()
     def properties():
@@ -492,10 +495,17 @@ def crash_recorded_broker(invocation, record):
         guest.require(properties() == before and not exited(descriptor)
                       and process_identity(process) == identity,
                       'expiry:crash-broker-replaced')
-        signal.pidfd_send_signal(descriptor, signal.SIGKILL)
+        if stop:
+            guest.run(['systemctl', 'stop', guest.BROKER])
+        else:
+            signal.pidfd_send_signal(descriptor, signal.SIGKILL)
         wait_for(lambda: exited(descriptor), 'expiry:crash-not-observed', timeout=10)
-        wait_for(lambda: guest.run(['systemctl', 'show', guest.BROKER,
-                                   '--property=ExecMainStatus', '--value']) == str(signal.SIGKILL)
+        wait_for(lambda: (guest.run(['systemctl', 'show', guest.BROKER,
+                                    '--property=ActiveState', '--value']) == 'inactive'
+                          and guest.run(['systemctl', 'show', guest.BROKER,
+                                         '--property=Result', '--value']) == 'success' if stop else
+                          guest.run(['systemctl', 'show', guest.BROKER,
+                                     '--property=ExecMainStatus', '--value']) == str(signal.SIGKILL))
                  and guest.run(['systemctl', 'show', guest.BROKER,
                                 '--property=MainPID', '--value']) == '0',
                  'expiry:crash-service-exit-not-observed', timeout=10)
@@ -525,7 +535,7 @@ def crash_history(command, history, path, accounts):
         def record(identity):
             history['crash_identity'] = identity
             path.write_text(json.dumps(history))
-        crash_recorded_broker(history['broker_invocation'], record)
+        fault_recorded_broker(history['broker_invocation'], record)
         guest.require(time.time() < history['original_expiry'], 'expiry:crash-after-expiry')
         history.setdefault('crashes', []).append(history['crash_identity'])
         result = {'remaining_seconds': history['original_expiry'] - time.time()}
@@ -561,6 +571,69 @@ def crash_history(command, history, path, accounts):
         guest.require(len(history.get('crashes', [])) == 2
                       and len(history.get('recoveries', [])) == 2,
                       'expiry:crash-history-incomplete')
+        history['complete'] = True
+        result = {'completed': True}
+    history['grants'] += 1
+    path.write_text(json.dumps(history))
+    return result
+
+
+def stop_history(command, history, path, accounts):
+    """One grant-only outage with a fixed, outage-inclusive recovery deadline."""
+    child = accounts['child']
+    sequence = ('stop-arm', 'stop-inject', 'stop-recovery', 'stop-complete')
+    index = history['grants']
+    guest.require(index < len(sequence) and command == sequence[index], 'expiry:stop-order')
+    if command == 'stop-arm':
+        history['original_expiry'] = grant(child, 180)
+        history['recover_by'] = time.monotonic() + history['original_expiry'] - time.time() + 300
+        history['original_grant'] = account_property(child, LIMITS, 'ActiveExtension')
+        history['child_state'] = hashlib.sha256(repr(account_state(child)).encode()).hexdigest()
+        guest.require(account_property(child, LIMITS, 'DailyLimit') == 0, 'expiry:stop-not-grant-only')
+        result = {'remaining_seconds': history['original_expiry'] - time.time()}
+    elif command == 'stop-inject':
+        guest.require(history['original_expiry'] - time.time() >= 120,
+                      'expiry:stop-insufficient-headroom')
+        history['mask'] = guest.runtime_service_mask(guest.BROKER, category='expiry:stop')
+        path.write_text(json.dumps(history))
+        def record(identity):
+            history['stop_identity'] = identity
+            path.write_text(json.dumps(history))
+        fault_recorded_broker(history['broker_invocation'], record, stop=True)
+        history['service_start'] = guest.run(['systemctl', 'show', guest.BROKER,
+                                              '--property=ExecMainStartTimestampMonotonic', '--value'])
+        guest.require(time.time() < history['original_expiry'], 'expiry:stop-after-expiry')
+        result = {'remaining_seconds': history['original_expiry'] - time.time()}
+    elif command == 'stop-recovery':
+        mask_identity = tuple(history['mask'])
+        guest.runtime_service_mask(guest.BROKER, category='expiry:stop', identity=mask_identity)
+        guest.require(time.time() >= history['original_expiry']
+                      and guest.run(['systemctl', 'show', guest.BROKER,
+                                     '--property=MainPID', '--value']) == '0'
+                      and guest.run(['systemctl', 'show', guest.BROKER,
+                                     '--property=ActiveState', '--value']) == 'inactive'
+                      and guest.run(['systemctl', 'show', guest.BROKER,
+                                     '--property=ExecMainStartTimestampMonotonic', '--value'])
+                          == history['service_start']
+                      and hashlib.sha256(repr(account_state(child)).encode()).hexdigest()
+                          == history['child_state'], 'expiry:stop-outage-not-retained')
+        guest.remove_runtime_service_mask(guest.BROKER, mask_identity, category='expiry:stop')
+        guest.activate_broker(restart=False)
+        invocation = guest.run(['systemctl', 'show', guest.BROKER,
+                                '--property=InvocationID', '--value'])
+        guest.require(re.fullmatch(r'[0-9a-f]{32}', invocation) is not None
+                      and invocation != '0' * 32 and invocation != history['broker_invocation']
+                      and accepted(call(accounts['parent'], 'GetTimeStatus', '(uu)', (child, 0))) == [0, 0, 0, 0]
+                      and account_property(child, LIMITS, 'ActiveExtension') == history['original_grant']
+                      and hashlib.sha256(repr(account_state(child)).encode()).hexdigest()
+                          == history['child_state']
+                      and time.monotonic() < history['recover_by'], 'expiry:stop-recovery-time-or-state')
+        history['recovered'] = True
+        deadline = grant(child, 1200)
+        result = {'remaining_seconds': deadline - time.time()}
+    else:
+        guest.require(history.get('recovered') is True and 'stop_identity' in history,
+                      'expiry:stop-history-incomplete')
         history['complete'] = True
         result = {'completed': True}
     history['grants'] += 1
@@ -748,12 +821,25 @@ def verify_broker_crash(record):
            'original-session-and-work; peer-input-and-work')
 
 
+def verify_broker_stop(record):
+    guest.guard()
+    history = json.loads((FIXTURE / 'graphical-history.json').read_text())
+    guest.require(history.get('broker_stop') is True and history.get('complete') is True
+                  and history['grants'] == 4 and history.get('recovered') is True,
+                  'expiry:stop-history-incomplete')
+    record('onpc.expiry.broker-stop',
+           'identity-recorded-service-stop-before-expiry; inactive-through-protected-input; '
+           'original-deadline; new-owner-zero-balance-unchanged-grant; '
+           'outage-inclusive-recovery; original-session-and-work; peer-input-and-work')
+
+
 def verify(record):
     guest.guard()
     history = json.loads((FIXTURE / 'graphical-history.json').read_text())
     guest.require(history.get('complete') is True and not history.get('foreground_revoke')
                   and not history.get('pending_approval') and not history.get('policy_order')
-                  and not history.get('session_replacement') and not history.get('broker_crash'),
+                  and not history.get('session_replacement') and not history.get('broker_crash')
+                  and not history.get('broker_stop'),
                   'expiry:graphical-history-incomplete')
     # Retain completed observations even if a native dependency later stalls
     # and pytest cannot finish its JUnit document. The outer collector already
@@ -857,7 +943,8 @@ if __name__ == '__main__':
                 'replacement-ready', 'replacement-arm', 'replacement-entitlement',
                 'replacement-bind', 'replacement-complete', 'crash-ready',
                 'crash-natural-arm', 'crash-peer-arm', 'crash-inject',
-                'crash-natural-recovery', 'crash-peer-recovery', 'crash-complete')
+                'crash-natural-recovery', 'crash-peer-recovery', 'crash-complete',
+                'stop-ready', 'stop-arm', 'stop-inject', 'stop-recovery', 'stop-complete')
     guest.require(len(sys.argv) == 2 and sys.argv[1] in (
         'prepare', 'broker-ready', 'host-observe', 'approval-natural', 'approval-peer',
         'approval-finish', *commands),

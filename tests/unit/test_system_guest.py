@@ -11,14 +11,16 @@ import guest_install_recipe
 
 
 @pytest.mark.parametrize('replaced', [False, True])
-def test_broker_crash_signals_only_the_recorded_live_invocation(monkeypatch, tmp_path, replaced):
+@pytest.mark.parametrize('stop', [False, True])
+def test_broker_fault_affects_only_the_recorded_live_invocation(monkeypatch, tmp_path, replaced, stop):
     import system_graphical_expiry as expiry
     import system_kiosk_confinement as processes
     invocation = 'a' * 32
     before = f'MainPID=42\nInvocationID={invocation}\nActiveState=active'
     after = before.replace(invocation, 'b' * 32) if replaced else before
     monkeypatch.setattr(guest, 'guard', Mock())
-    monkeypatch.setattr(guest, 'run', Mock(side_effect=[before, after]))
+    run = Mock(side_effect=[before, after, ''] if stop and not replaced else [before, after])
+    monkeypatch.setattr(guest, 'run', run)
     monkeypatch.setattr(expiry.os, 'pidfd_open', Mock(return_value=91))
     close, send = Mock(), Mock()
     monkeypatch.setattr(expiry.os, 'close', close)
@@ -32,11 +34,16 @@ def test_broker_crash_signals_only_the_recorded_live_invocation(monkeypatch, tmp
     record = Mock()
     if replaced:
         with pytest.raises(guest.GuestError, match='expiry:crash-broker-replaced'):
-            expiry.crash_recorded_broker(invocation, record)
+            expiry.fault_recorded_broker(invocation, record, stop=stop)
         send.assert_not_called()
+        assert all(call.args[0][:2] != ['systemctl', 'stop'] for call in run.call_args_list)
     else:
-        expiry.crash_recorded_broker(invocation, record)
-        send.assert_called_once_with(91, expiry.signal.SIGKILL)
+        expiry.fault_recorded_broker(invocation, record, stop=stop)
+        if stop:
+            send.assert_not_called()
+            assert run.call_args_list[-1].args[0] == ['systemctl', 'stop', guest.BROKER]
+        else:
+            send.assert_called_once_with(91, expiry.signal.SIGKILL)
     record.assert_called_once_with({'invocation': invocation, 'pid': 42, 'start': '123'})
     close.assert_called_once_with(91)
 

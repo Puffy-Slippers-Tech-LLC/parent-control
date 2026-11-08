@@ -1499,6 +1499,13 @@ sub run {
             $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{system_broker_stop}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_desktop_session::broker_stop(\&exchange,
+            $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{system_graphical_expiry}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

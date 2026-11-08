@@ -106,7 +106,7 @@ independent queues; none gains a prerequisite on unfinished work in another
 plan. There is no duplicate expiry implementation queue. Full-case
 delivery closes that same row only after its normal acceptance;
 later work consumes accepted scope without repeating it. No row is completed
-by the split. Tasks 172a–172l retain only the removed broker plan's useful,
+by the split. Tasks 172a–172h and 172j–172l retain only the removed broker plan's useful,
 uncovered current-path engineering deltas in [Plan C](E2E-Task-QueueC.md);
 they extend system-282 rather than copying these canonical scenarios. Native-only
 research, independent-reader proposals and proposal handover are not rescheduled.

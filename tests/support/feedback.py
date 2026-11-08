@@ -90,11 +90,10 @@ def install_component_chooser(manifest, gtk, gio, glib):
     gtk.FileDialog = Chooser
 
 
-def add_component_attachments(ui, batch, manifest):
-    """Use the same public before/result projections as the installed handoff."""
+def select_component_attachments(ui, manifest):
+    """Submit one chooser selection and await its handoff, not the app result."""
     delivery = manifest.with_suffix('.delivered')
     previous = int(delivery.read_text(encoding='ascii')) if delivery.exists() else 0
-    ui.boundary_operation(f'boundary-{batch}-before')
     ui.activate_id('feedback-add-files')
     # Consecutive rejected selections can have identical rows and messages.
     # Do not let the previous public result satisfy this selection before the
@@ -106,5 +105,11 @@ def add_component_attachments(ui, batch, manifest):
     except BaseException:
         ui.input_uncertain = True
         raise
+
+
+def add_component_attachments(ui, batch, manifest):
+    """Use the same public before/result projections as the installed handoff."""
+    ui.boundary_operation(f'boundary-{batch}-before')
+    select_component_attachments(ui, manifest)
     ui.boundary_operation(f'boundary-{batch}-result')
     return ui.boundary_operation(f'boundary-{batch}-preserved')

@@ -2,6 +2,8 @@
 
 Parent feedback retry recovery uses the existing owned preview/display/bus and
 fake HTTP Session, with a tiny tmp_path release file released in finally.
+Success/closed-feedback attachment setup reuses the boundary matrix's same
+chooser delivery receipt and independent public result; no extra chooser or file.
 No network, process, shared path or cleanup owner is added; keep the Feedback
 whole-module bucket and its existing resource reservation.
 

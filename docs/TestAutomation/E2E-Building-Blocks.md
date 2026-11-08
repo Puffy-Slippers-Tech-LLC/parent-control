@@ -4558,8 +4558,8 @@ collection, worker shutdown and baseline restoration; the VM was observed off.
 The maintained `reproduce-native-desktop` route composes case 68's Parent saves
 and stops at `jordan-use-selected`, retaining Jordan's scene for guarded maintenance probes;
 see the [diagnostic interface](../../tests/e2e/README.md#shared-guarded-worker).
-It supplies no acceptance credit. Multiple ordinary icons and policy-denial
-bindings remain unqualified.
+It supplies no acceptance credit. Multiple ordinary icons remain unqualified;
+the policy-result qualification is recorded below.
 
 `native_desktop_new_window.PLAN` / `onpc_app_rows::native_desktop_new_window`
 qualifies Jordan's same-S separate-window binding on Ubuntu 26.04. The normal DING
@@ -4591,8 +4591,32 @@ The required `check_e2e_native_desktop_usable` regression passed in
 worker/callback shutdown, baseline restoration and host/source preservation
 passed; the VM was observed off. The provider tuple remains
 `50.26.04.8ubuntu`, `en_US.UTF-8`, `xkb/us`. This qualifies the sole ordinary S
-icon and Jordan's primary/secondary windows; other children, icon populations
-and policy-denial bindings remain separate.
+icon and Jordan's primary/secondary windows; other children and icon populations
+remain separate.
+
+`native_desktop_route.PLAN` / `NativeDesktopRouteJourney` and
+`onpc_app_rows::native_policy_closure(..., 'desktop')` add Jordan's precise A
+Hard/Soft save results. Each round independently places the verified trusted
+desktop entry, launches through DING's exact sole-icon selection and Enter,
+submits work and captures its public window. After the Parent save and legitimate
+return, APP02 compares complete closure against that immutable capture before
+any new launch. `native_blocked_app('A', route='desktop')` then activates the
+same entry once; `native-desktop-denied` requires complete owned-window absence
+for 15 seconds and a recognized prompt-free desktop. No command denial or
+alternative launcher supplies this result. Unaffected N remains usable and
+each round removes only its owned desktop entry before logout.
+
+`check_e2e_native_desktop_route` passed on Ubuntu 26.04 in
+`20261108T183836Z-f9987566`: independent Hard/Soft desktop entries, original-window
+closure, denied desktop relaunch, unaffected app use, wrong-icon and ambiguous-owner
+refusals, collection, worker/callback shutdown and baseline restoration passed.
+The affected `check_e2e_native_desktop_usable` regression passed in
+`20261108T185959Z-0977c763`, including both independent placements and normal
+closure. All 32 scoped host safety checks, source/traceability, links, collection,
+worker/callback shutdown and baseline restoration passed; the VM was observed off.
+The DING tuple remains `50.26.04.8ubuntu`, `en_US.UTF-8`, `xkb/us`.
+This qualifies APP01/02/03 for these precise policy results; other children,
+icon populations, temporary approval and complete customer cases remain separate.
 
 #### Native launch denial qualification
 
@@ -5489,7 +5513,7 @@ Generic pointer, image, positional and graphical-reattachment routes remain reti
 | Portal/Nautilus chooser | `chooser_snapshot` plus `validate_chooser_portal_owner` bind unique modal and sole delegated D-Bus request. Missing/ambiguous/replaced/contradictory relations refuse. Imported Wayland parents need no GTK CONTROLLED_BY. Scoped Close cancels portal; native GTK uses Cancel; `button`/`push button` roles supported. Parent Open/Cancel qualified on `1:50.2.2-0ubuntu0.1` and `1:50.2.2-0ubuntu0.2`, `en_US.UTF-8`, `xkb/us`; named Save/Cancel, unwritable-save recovery and export on `1:50.2.2-0ubuntu0.2`, caller `parent-feedback`. Save restores collapsed `filename_label` before exact-name proof. [Handoff](#attachment-chooser-handoff). | Fixed Parent Open/Cancel, Save/Cancel, save-error recovery and FEED08 export ready; other profiles/tuples pending. |
 | Document viewer | `license_viewer_snapshot`/`check_e2e_license_viewer`: Ubuntu 26.04 Text Editor `50.1-0ubuntu0.1`, `en_US.UTF-8`, `[["xkb", "us"]]`. Owned active viewer, bounded GPL content, close/absence and unchanged caller state; ambiguous/unrelated/hidden content refuses. [DESK10](#same-desktop-window-activation) additionally covers direct LICENSE launch/repeated activation. | DESK10 only; About links and FILE08/FEED08 inspection require no viewer. |
 | Terminal; Settings Users/Date & Time | Retired supporting GUI routes. Fixed guarded commands own files, account fixtures and date/time reads; observe product effects independently. | FILE01/02/06, INFO02, ACCOUNT01/02, AUTH04, TIME05 helpers; no Terminal GUI consumer. |
-| DING desktop icons | Ubuntu 26.04 DING `50.26.04.8ubuntu`, `en_US.UTF-8`, `xkb/us`: `native_desktop_snapshot` / `native_desktop_operation`, `native_usable_app('desktop')` and `check_e2e_native_desktop_usable` qualify exact owner/icon focus, sole selection, Enter activation and independently usable work. `native_desktop_new_window` / `check_e2e_native_desktop_new_window` add Jordan's same-S primary/secondary windows with retained original work and normal panel-cycle navigation. [Exact scope](#native-desktop-entry-and-usable-launch). | Jordan's and Riley's sole ordinary Allowed fixture entry and APP01/02/03/FLOW08 use, plus Jordan's same-S desktop second window and APP04 original-work comparison ready; other children, icon populations and denial bindings pending. |
+| DING desktop icons | Ubuntu 26.04 DING `50.26.04.8ubuntu`, `en_US.UTF-8`, `xkb/us`: `native_desktop_snapshot` / `native_desktop_operation`, `native_usable_app('desktop')` and `check_e2e_native_desktop_usable` qualify exact owner/icon focus, sole selection, Enter activation and independently usable work. `native_desktop_new_window` / `check_e2e_native_desktop_new_window` add Jordan's same-S primary/secondary windows with retained original work and normal panel-cycle navigation. `native_blocked_app('A', route='desktop')` / `check_e2e_native_desktop_route` add captured closure and desktop relaunch denial after precise Hard/Soft saves. [Exact scope](#native-desktop-entry-and-usable-launch). | Jordan's and Riley's sole ordinary Allowed fixture entry and APP01/02/03/FLOW08 use, Jordan's same-S desktop second window and APP04 original-work comparison, and Jordan's precise A Hard/Soft closure and desktop denial ready; other children, icon populations and temporary-access bindings pending. |
 | Nautilus Files | Qualify only the tested file-manager enforcement launch; supporting file preparation uses commands. | FILE04/declared APP01/02 routes individually gated. |
 | File Roller | No GUI consumer; bounded FILE08 archive API reads customer exports. | FILE08/FEED08 readers ready; no archive viewer needed. |
 | Registered editor | Direct handler launch only for declared preview/information integration or retained-work activity. Source mutation/export reads use FILE05/08/09. | FILE08 work/APP03/04; no FEED08 viewer dependency. |

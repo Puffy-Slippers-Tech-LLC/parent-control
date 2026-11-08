@@ -471,6 +471,85 @@ def test_feedback_retry_finishes_after_parent_closes_feedback(
     assert "Traceback" not in log
 
 
+@pytest.mark.parametrize("reply_email", ["", "first@example.invalid"],
+                         ids=["anonymous", "with-reply"])
+def test_parent_exit_discards_pending_feedback_and_reopened_draft(
+        launch_ui, automation, wait_for_accessible_state,
+        collect_application_logs, tmp_path, reply_email):
+    from tests.support.feedback import attachment_choices
+    from tests.e2e.accessible_ui import BOUNDARY_FILES
+
+    ui, wait = automation, wait_for_accessible_state
+    release = tmp_path / "feedback-retry-release"
+    chooser_inputs, _paths = attachment_choices(tmp_path, ('single',))
+    process, log_path = launch_ui(
+        "parent_component_preview", environment_overrides={
+            "ONPC_FEEDBACK_STATUS": "503",
+            "ONPC_FEEDBACK_RETRY_RELEASE": str(release),
+            "ONPC_FEEDBACK_CHOOSER_INPUTS": str(chooser_inputs),
+            "GTK_IM_MODULE": "gtk-im-context-simple",
+        },
+    )
+    wait(lambda: ui.find("parent-feedback-button") is not None,
+         "Parent is ready before its feedback submission")
+    ui.reader.open_feedback()
+    select_component_attachments(ui.reader, chooser_inputs)
+    wait(lambda: ui.text("feedback-status") == "1 file attachment ready.",
+         "parent's customer file is ready before sending")
+    assert ui.reader.feedback_snapshot(attachment_state=(
+        BOUNDARY_FILES['single'], "1 file attachment ready.", True,
+    ))['items'] == [['Synthetic note.txt', '26 bytes']]
+    draft = "A parent's synthetic report abandoned when Parent exits."
+    type_feedback(ui, draft, wait)
+    ui.setText("feedback-reply-email", reply_email)
+    ui.activate("feedback-send")
+    try:
+        if not reply_email:
+            wait(lambda: ui.showing("feedback-anonymous-dialog"),
+                 "parent explicitly confirms sending anonymously")
+            ui.activate("feedback-send-anonymously")
+        wait(lambda: ui.text("feedback-status").startswith(
+            "Could not confirm submission. Retrying in "),
+            "parent observes the pending retry")
+        wait(lambda: collect_application_logs(log_path).count(
+            "component-feedback-post") == 2,
+            "the retry response is held by this preview's fixture")
+        ui.activate("feedback-close")
+        wait(lambda: ui.absent("feedback-dialog", within="parent-window"),
+             "parent closes feedback before exiting Parent")
+        ui.close("parent-window")
+        assert process.wait(timeout=20) == 0
+        closed_log = collect_application_logs(log_path)
+        assert closed_log.count("component-feedback-post") == 2
+        assert "component-feedback-frozen-retry" not in closed_log
+        assert "Traceback" not in closed_log
+
+        # A new process must acquire its own endpoint, never reuse the old owner.
+        ui.reconstruct("parent")
+        reopened, reopened_log_path = launch_ui("parent_component_preview")
+        wait(lambda: ui.find("parent-feedback-button") is not None,
+             "a fresh Parent process is ready")
+        assert reopened.pid != process.pid
+        assert ui.target("parent-window").get_process_id() == reopened.pid
+        cleared = ui.reader.open_feedback()
+        assert cleared['draft'] == 'initial-empty'
+        assert cleared['attachments'] == ['diagnostic-logs.zip']
+        assert ui.content("feedback-reply-email") == ""
+    finally:
+        # Release only while the owned preview fixture still exists, on failures too.
+        release.touch()
+
+    # Releasing the old response cannot revive its exited process or new draft.
+    assert process.poll() == 0
+    assert ui.reader.feedback_snapshot() == cleared
+    assert ui.absent("feedback-success-dialog", within="parent-window")
+    reopened_log = collect_application_logs(reopened_log_path)
+    assert "component-feedback-post" not in reopened_log
+    assert draft not in closed_log + reopened_log
+    assert "first@example.invalid" not in closed_log + reopened_log
+    assert "Traceback" not in reopened_log
+
+
 @pytest.mark.parametrize("status, reply_email", [
     pytest.param(202, "", id="anonymous-success"),
     pytest.param(202, "first@example.invalid", id="reply-success"),

@@ -26,7 +26,7 @@ integration work and must not become a queue prerequisite.
 
 ## Next task
 
-Next task: **258 — [Check feedback stops retrying when Parent closes](E2E-Tasks/258-case-216.md)**.
+Next task: **183a — [Lock during pending overlay approval](E2E-Tasks/183a-lock-during-pending-overlay-approval.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

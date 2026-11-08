@@ -1222,6 +1222,20 @@ restoration. This exact history passed on the session-selected
 collection and baseline restoration. Fedora and customer scenarios receive no
 acceptance from this result.
 
+System 305, `session::test_policy_changes_before_expiry`, uses the same fixture
+and guarded worker through `natural_expiry.PolicyOrderJourney`. Renewal,
+increased daily allowance and disabled limits each preserve usable original
+child input and work past their unchanged 180-second deadlines. Each policy
+change starts with at least 120 seconds of headroom. The history then restores
+restrictions and reuses the bounded natural lock, protected-input, original-work
+recovery and foreground-peer checks. Eight controlled core commit/rollback order
+checks and the private-bus deadline dispatch check cover the in-flight read
+boundary; existing Busy/conflict and stale-callback coverage stays with its owner.
+This history passed on session-selected `onpc-Ubuntu26.04-1` in
+`20261107T234126Z-f7d43e80`, including collection, worker/callback shutdown,
+owned cleanup and baseline restoration. Fedora remains unqualified, and this
+engineering result supplies no customer-case acceptance.
+
 The `extension` area (system ID 295) owns the standalone native GNOME monitor
 history in `system_extension_monitor.verify`. It uses a fresh autologin desktop
 with saved controls initially off, then stages saved-enabled policy through the

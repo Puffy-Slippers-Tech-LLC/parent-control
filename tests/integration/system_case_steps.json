@@ -2546,6 +2546,15 @@
     ],
     "expected": "Expiry protects the retained child desktop without ending the parent's challenge; cancellation preserves the original grant, recovery preserves the child's work, another user's input stays usable, and owned cleanup completes."
   },
+  "305": {
+    "summary": "Keep the child's desktop usable after a parent changes the old time limit",
+    "steps": [
+      "Ready the child's original work, then renew time, increase the daily allowance and disable limits in three ordered histories.",
+      "Use that same desktop after each original deadline without changing that history's clock.",
+      "Restore restrictions, observe timely natural locking, recover the original work and check another user's input."
+    ],
+    "expected": "Each entitled desktop accepts real input past its original deadline; restricted time locks within the existing bound, both lock challenges protect input, original work survives recovery, peer input continues and owned cleanup completes."
+  },
   "299": {
     "summary": "Restore the extension from Parent controls",
     "steps": [

@@ -23,3 +23,8 @@ def test_foreground_revocation(record_testsuite_property):
 def test_expiry_during_pending_approval(record_testsuite_property):
     from system_graphical_expiry import verify_pending_approval
     verify_pending_approval(record_testsuite_property)
+
+
+def test_policy_changes_before_expiry(record_testsuite_property):
+    from system_graphical_expiry import verify_policy_order
+    verify_policy_order(record_testsuite_property)

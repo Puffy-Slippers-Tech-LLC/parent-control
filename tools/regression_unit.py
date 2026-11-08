@@ -5,6 +5,9 @@ Owned children are bounded and reaped; no live VM, service, display or shared
 cache is acquired. Deleting tests adds no resource owner or overlap requirement.
 Unknown modules remain exclusive pending review.
 
+Core deadline/order checks add one bounded, joined thread with private Events
+and recording adapters per case; no bus, process, shared path or VM is acquired.
+
 Suspend ownership checks in vm_control_cleanup_safety use only process-local
 domain, SSH and clock doubles; no new resources or cleanup lifetime are added.
 

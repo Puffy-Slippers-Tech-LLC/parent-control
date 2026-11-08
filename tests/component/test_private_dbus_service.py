@@ -482,6 +482,29 @@ def test_request_workers_dispatch_concurrently(private_service):
     assert maximum_active == 2
 
 
+def test_deadline_dispatch_continues_while_a_time_transaction_is_pending(private_service):
+    entered, release = threading.Event(), threading.Event()
+
+    def pending_request(*_args):
+        entered.set()
+        assert release.wait(3), "request worker was not released"
+        return "correlation", "approved"
+
+    private_service.broker.behaviors["request_access"] = pending_request
+    first = begin_call(private_service.client, "RequestAccess",
+                       GLib.Variant("(uuub)", (1100, 1200, 300, False)), "(ss)")
+    try:
+        spin_until(entered.is_set)
+        deadline = call(private_service.client, "CalculateOwnDeadline",
+                        GLib.Variant("(tt)", (123_000_000, 0)), "(t)")
+        assert deadline.unpack() == (132_500_000,)
+        assert not first["done"]
+    finally:
+        release.set()
+        spin_until(lambda: first["done"])
+    assert first["result"].unpack() == ("correlation", "approved")
+
+
 def test_client_cancellation_does_not_stall_service(private_service):
     started = threading.Event()
     gate = threading.Event()

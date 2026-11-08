@@ -300,7 +300,7 @@ def graphical_history(command):
     accounts = identities()
     child = accounts['child']
     path = FIXTURE / 'graphical-history.json'
-    if command in ('host-ready', 'revoke-ready', 'approval-ready'):
+    if command in ('host-ready', 'revoke-ready', 'approval-ready', 'policy-ready'):
         guest.require(not path.exists(), 'expiry:graphical-history-replayed')
         wait_for(lambda: (FIXTURE / 'seeded.json').is_file(), 'expiry:gdm-seed-not-observed')
         seeded = json.loads((FIXTURE / 'seeded.json').read_text())
@@ -316,6 +316,7 @@ def graphical_history(command):
                    'scope': props['Scope'], 'grants': 0,
                    'foreground_revoke': command == 'revoke-ready',
                    'pending_approval': command == 'approval-ready',
+                   'policy_order': command == 'policy-ready', 'policy_steps': 0,
                    'other_state': hashlib.sha256(repr(account_state(accounts['other'])).encode()).hexdigest()}
         with path.open('x') as stream:
             json.dump(history, stream)
@@ -333,6 +334,59 @@ def graphical_history(command):
                       and guest.run(['systemctl', 'is-active', history['scope']]) == 'active'
                       and hashlib.sha256(repr(account_state(accounts['other'])).encode()).hexdigest()
                           == history['other_state'], 'expiry:graphical-history-continuity')
+        if history.get('policy_order') and command.startswith('policy-') and command != 'policy-complete':
+            sequence = ('policy-renew-seed', 'policy-renew', 'policy-allowance-seed',
+                        'policy-allowance', 'policy-disable-seed', 'policy-disable',
+                        'policy-restrict')
+            index = history['policy_steps']
+            guest.require(index < len(sequence) and command == sequence[index],
+                          'expiry:policy-order')
+            if command.endswith('-seed'):
+                if index:
+                    guest.require(time.time() >= history['policy_original_expiry'],
+                                  'expiry:policy-original-deadline-not-crossed')
+                history['policy_original_expiry'] = grant(child, 180)
+                if command == 'policy-disable-seed':
+                    # The allowance control cleared its grant. Keep that daily
+                    # entitlement until the new grant exists, so setup cannot
+                    # lock the desktop before the disablement being tested.
+                    accepted(call(accounts['parent'], 'SetParentControl', '(ubu)', (child, True, 0)))
+                result = {'remaining_seconds': history['policy_original_expiry'] - time.time()}
+            elif command == 'policy-restrict':
+                guest.require(time.time() >= history['policy_original_expiry'],
+                              'expiry:policy-original-deadline-not-crossed')
+                # First restore a positive daily balance, then install the
+                # measured grant before reducing daily time. Enabling at zero
+                # could lock before that grant exists and invalidate the history.
+                accepted(call(accounts['parent'], 'SetParentControl', '(ubu)', (child, True, 15)))
+                expiry = grant(child, 180)
+                accepted(call(accounts['parent'], 'SetParentControl', '(ubu)', (child, True, 0)))
+                guest.require(expiry - time.time() >= 120, 'expiry:policy-restrict-headroom')
+                result = {'remaining_seconds': expiry - time.time()}
+                # Continue only the existing lock/recovery/peer mechanics.
+                history['grants'] = 1
+            else:
+                guest.require(history['policy_original_expiry'] - time.time() >= 120,
+                              'expiry:policy-change-insufficient-headroom')
+                if command == 'policy-renew':
+                    grant(child, 1200)
+                elif command == 'policy-allowance':
+                    accepted(call(accounts['parent'], 'SetParentControl', '(ubu)', (child, True, 15)))
+                    accepted(call(accounts['parent'], 'RevokeOneTimeGrant', '(u)', (child,)))
+                    guest.require(account_property(child, LIMITS, 'DailyLimit') == 900
+                                  and account_property(child, LIMITS, 'ActiveExtension')[1] == 0,
+                                  'expiry:policy-allowance-authority')
+                else:
+                    accepted(call(accounts['parent'], 'SetParentControl', '(ubu)', (child, False, 0)))
+                    guest.require(account_property(child, LIMITS, 'LimitType') == 0
+                                  and account_property(child, LIMITS, 'ActiveExtension')[1] == 0,
+                                  'expiry:policy-disable-authority')
+                result = {'original_remaining_seconds': history['policy_original_expiry'] - time.time()}
+                guest.require(result['original_remaining_seconds'] > 0,
+                              'expiry:policy-change-missed-deadline')
+            history['policy_steps'] += 1
+            path.write_text(json.dumps(history))
+            return result
         if history.get('foreground_revoke'):
             sequence = ('revoke-zero', 'revoke-positive-setup', 'revoke-positive',
                         'revoke-complete')
@@ -367,11 +421,15 @@ def graphical_history(command):
             path.write_text(json.dumps(history))
             deadline = grant(child, seconds)
             return {'remaining_seconds': deadline - time.time()}
-        if command in ('host-complete', 'approval-complete'):
+        if command in ('host-complete', 'approval-complete', 'policy-complete'):
             guest.require(history['grants'] == 4 and not history.get('complete'),
                           'expiry:graphical-history-incomplete')
             guest.require((command == 'approval-complete') == history.get('pending_approval', False),
                           'expiry:graphical-history-kind')
+            guest.require((command == 'policy-complete') == history.get('policy_order', False),
+                          'expiry:graphical-history-kind')
+            if history.get('policy_order'):
+                guest.require(history['policy_steps'] == 7, 'expiry:policy-history-incomplete')
             if history.get('pending_approval'):
                 guest.require(history.get('approvals') == ['approval-natural', 'approval-peer'],
                               'expiry:approval-history-incomplete')
@@ -483,11 +541,22 @@ def verify_foreground_revoke(record):
            'zero-daily-bounded-protected-lock; original-work-recovered; positive-daily-usable')
 
 
+def verify_policy_order(record):
+    guest.guard()
+    history = json.loads((FIXTURE / 'graphical-history.json').read_text())
+    guest.require(history.get('policy_order') is True and history.get('complete') is True
+                  and history['policy_steps'] == 7 and history['grants'] == 4,
+                  'expiry:policy-history-incomplete')
+    record('onpc.expiry.policy-order',
+           'renewal-allowance-disable-before-original-expiry; entitled-input-preserved; '
+           'restricted-natural-lock; protected-input; original-work-recovered; peer-input-preserved')
+
+
 def verify(record):
     guest.guard()
     history = json.loads((FIXTURE / 'graphical-history.json').read_text())
     guest.require(history.get('complete') is True and not history.get('foreground_revoke')
-                  and not history.get('pending_approval'),
+                  and not history.get('pending_approval') and not history.get('policy_order'),
                   'expiry:graphical-history-incomplete')
     # Retain completed observations even if a native dependency later stalls
     # and pytest cannot finish its JUnit document. The outer collector already
@@ -585,7 +654,9 @@ if __name__ == '__main__':
     commands = ('host-ready', 'natural-grant', 'natural-recovery',
                 'peer-grant', 'peer-recovery', 'host-complete', 'revoke-ready',
                 'revoke-zero', 'revoke-positive-setup', 'revoke-positive', 'revoke-complete',
-                'approval-ready', 'approval-complete')
+                'approval-ready', 'approval-complete', 'policy-ready', 'policy-complete',
+                'policy-renew-seed', 'policy-renew', 'policy-allowance-seed',
+                'policy-allowance', 'policy-disable-seed', 'policy-disable', 'policy-restrict')
     guest.require(len(sys.argv) == 2 and sys.argv[1] in (
         'prepare', 'broker-ready', 'host-observe', 'approval-natural', 'approval-peer',
         'approval-finish', *commands),

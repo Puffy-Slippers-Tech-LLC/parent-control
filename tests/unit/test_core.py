@@ -1903,6 +1903,92 @@ def submit_request(broker, surface, duration=300, allow_soft=False):
     return broker.request_access(991, ":1.20", 1001, 1003, duration, allow_soft)
 
 
+@pytest.mark.parametrize("change", ("renew", "revoke", "allowance", "disable"))
+@pytest.mark.parametrize("rollback", (False, True))
+def test_inflight_deadline_read_does_not_serialize_or_undo_time_decisions(
+        monkeypatch, change, rollback):
+    accounts, preferences = Accounts(), Preferences()
+    preferences.values[1001]["parent_control_enabled"] = True
+    broker = make_broker(accounts=accounts, preferences=preferences, extensions=Extensions())
+    wall = int(broker._now().timestamp())
+    accounts.extension = (wall - 30, 90)
+    before = (accounts.limit_type, accounts.daily_limit, accounts.daily_schedule,
+              accounts.extension, accounts.filter, preferences.load(1001))
+    captured, release = threading.Event(), threading.Event()
+    original_read, original_write = accounts.get_extension, accounts.set_filter
+    outcomes = []
+    reader_ident = None
+
+    def held_read(uid):
+        value = original_read(uid)
+        if threading.get_ident() == reader_ident:
+            captured.set()
+            assert release.wait(5), "deadline reader was not released"
+        return value
+
+    def read_deadline():
+        nonlocal reader_ident
+        reader_ident = threading.get_ident()
+        try:
+            outcomes.append(broker.calculate_own_deadline(1001, 0, 0))
+        except Exception as error:
+            outcomes.append(error)
+
+    failed = False
+
+    def fail_once(uid, value):
+        nonlocal failed
+        original_write(uid, value)
+        if rollback and not failed:
+            failed = True
+            raise RuntimeError("one-shot commit failure")
+
+    monkeypatch.setattr(accounts, "get_extension", held_read)
+    monkeypatch.setattr(accounts, "set_filter", fail_once)
+    actions = {
+        "renew": lambda: submit_request(broker, "kiosk"),
+        "revoke": lambda: broker.revoke_one_time_grant(1003, 1001),
+        "allowance": lambda: broker.set_parent_control(1003, 1001, True, 15),
+        "disable": lambda: broker.set_parent_control(1003, 1001, False, 0),
+    }
+    thread = threading.Thread(target=read_deadline)
+    thread.start()
+    try:
+        assert captured.wait(3)
+        # Reads own no transaction slot. Commit or complete rollback while the
+        # original read still holds its old grant, then release that reply.
+        if rollback:
+            with pytest.raises(BackendFailure):
+                actions[change]()
+        else:
+            actions[change]()
+        committed = (accounts.limit_type, accounts.daily_limit, accounts.daily_schedule,
+                     accounts.extension, accounts.filter, preferences.load(1001))
+        if rollback:
+            assert committed == before
+        elif change == "renew":
+            assert sum(accounts.extension) > sum(before[3])
+        elif change == "revoke":
+            assert accounts.extension == (0, 0) and accounts.daily_limit == before[1]
+        elif change == "allowance":
+            assert accounts.daily_limit == 900 and accounts.extension == before[3]
+        else:
+            assert (accounts.limit_type, accounts.extension) == (0, (0, 0))
+            assert not preferences.load(1001)["parent_control_enabled"]
+        events = list(accounts.events)
+    finally:
+        release.set()
+        thread.join(5)
+    assert not thread.is_alive()
+    assert outcomes == [160_000_000]  # The original snapshot, never a renewed interval.
+    assert accounts.events == events  # Reply completion cannot write old state back.
+    assert not broker._request_lock.locked()
+    assert (accounts.limit_type, accounts.daily_limit, accounts.daily_schedule,
+            accounts.extension, accounts.filter, preferences.load(1001)) == committed
+    expected = max(0, (sum(accounts.extension) - wall + 100) * 1_000_000)
+    assert broker.calculate_own_deadline(1001, 0, 0) == (expected if accounts.extension[1] else 0)
+
+
 def record_time_states(monkeypatch, accounts):
     states = []
     for name in ("set_limit_type", "set_daily_limit", "set_daily_schedule", "set_extension"):

@@ -172,9 +172,17 @@ def _system_history_command(transport, command):
         timeout=120)
     require(type(raw) is bytes and 0 < len(raw) < 1024, 'expiry:history-response')
     value = json.loads(raw)
-    if command in ('host-complete', 'revoke-complete', 'approval-complete'):
+    if command in ('host-complete', 'revoke-complete', 'approval-complete', 'policy-complete'):
         require(value == {'completed': True}, 'expiry:history-incomplete')
         return value
+    if command in ('policy-renew', 'policy-allowance', 'policy-disable'):
+        require(type(value) is dict and set(value) == {'original_remaining_seconds'}
+                and type(value['original_remaining_seconds']) in (int, float)
+                and 0 < value['original_remaining_seconds'] <= 180,
+                'expiry:policy-response')
+        # For a positive control use the upper endpoint: input after this time
+        # is independently after the guest's original deadline, even with SSH lag.
+        return time.monotonic() + value['original_remaining_seconds']
     if command in ('revoke-zero', 'revoke-positive'):
         require(type(value) is dict and set(value) == {'revoked_monotonic_ns'}
                 and type(value['revoked_monotonic_ns']) is int
@@ -419,6 +427,54 @@ APPROVAL_PLAN = replace(SYSTEM_PLAN, stage_actions={**SYSTEM_PLAN.stage_actions,
     'natural-expiry': 'approval-natural', 'peer-expiry': 'approval-peer'})
 
 
+POLICY_PLAN = replace(SYSTEM_PLAN, stage_actions={**SYSTEM_PLAN.stage_actions,
+    'natural-expiry': 'policy-order'})
+
+
+class PolicyOrderJourney(SystemGraphicalExpiryJourney):
+    def __init__(self, context, progress, plan=POLICY_PLAN, *, actions=None, transport=None):
+        if actions is None:
+            actions = {'policy-order': self.policy_order, 'natural-recovery': self.natural_recovery,
+                       'peer-expiry': self.peer_expiry, 'peer-lock-entry': self.peer_lock_entry,
+                       'peer-recovery': self.peer_recovery}
+        super().__init__(context, progress, plan, actions=actions, transport=transport)
+
+    @staticmethod
+    def policy_order(journey, guard):
+        controls = {}
+        for change in ('renew', 'allowance', 'disable'):
+            guard()
+            _system_history_command(journey.transport, 'policy-' + change + '-seed')
+            original_expiry_upper = _system_history_command(journey.transport, 'policy-' + change)
+            finish_by = engineering_deadline(original_expiry_upper, LOCK_VERIFICATION_SECONDS)
+            while True:
+                guard()
+                started = time.monotonic()
+                value = journey.ui.observe('child-natural-expiry-engineering-activity')['natural_expiry']
+                completed = time.monotonic()
+                require(journey.ui.boot_proof == journey.boot and value['state'] == 'desktop'
+                        and value['session_sha256'] == journey.original_session
+                        and value['acted'] and completed < finish_by,
+                        'expiry:policy-' + change + '-usable-input')
+                compare_app_activity(AppActivityObservation.from_value(value['activity']),
+                                     journey.activity_observations['activity-capture'])
+                if started >= original_expiry_upper:
+                    controls[change] = {'original_deadline_crossed': True,
+                                        'same_desktop_real_input_and_work': True}
+                    break
+                time.sleep(SAMPLE_INTERVAL_SECONDS)
+        # Restore limits and issue a fresh measured grant only
+        # after all positive controls. Never reset a deadline being observed.
+        expiry_at = _system_history_command(journey.transport, 'policy-restrict')
+        result = await_engineering_expiry(journey.ui, guard,
+            journey.activity_observations['activity-capture'],
+            expiry_at=expiry_at, boot_sha256=journey.boot)
+        require(result['activity_actions'] > 0, 'expiry:no-original-app-input')
+        journey.lock_deadline = engineering_deadline(
+            result['observed_monotonic'], LOCK_VERIFICATION_SECONDS)
+        return {**result, 'positive_policy_controls': controls}
+
+
 class PendingApprovalJourney(SystemGraphicalExpiryJourney):
     """The real authentication lifetime encloses the existing expiry observers."""
 
@@ -498,11 +554,13 @@ class PendingApprovalJourney(SystemGraphicalExpiryJourney):
 
 def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected_inputs,
                                progress, context, credentials=None, foreground_revoke=False,
-                               pending_approval=False):
+                               pending_approval=False, policy_order=False):
     """Compose engineering input checks before the installed PAM password tests."""
     from desktop_session import run_attached
-    require(not (foreground_revoke and pending_approval), 'expiry:ambiguous-history')
+    require(sum((foreground_revoke, pending_approval, policy_order)) <= 1, 'expiry:ambiguous-history')
     plan, journey_type, ready, complete = (
+        (POLICY_PLAN, PolicyOrderJourney, 'policy-ready', 'policy-complete')
+        if policy_order else
         (APPROVAL_PLAN, PendingApprovalJourney, 'approval-ready', 'approval-complete')
         if pending_approval else
         (REVOKE_PLAN, ForegroundRevokeJourney, 'revoke-ready', 'revoke-complete')

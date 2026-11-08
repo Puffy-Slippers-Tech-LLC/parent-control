@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5933</span>/<span style="color: gray">0</span>/5933 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5936</span>/<span style="color: gray">0</span>/5936 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">225</span>/<span style="color: gray">0</span>/225 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">295</span>/<span style="color: gray">0</span>/295 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -16,7 +16,7 @@
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
 | E2E | <span style="color: green">134</span>/<span style="color: gray">63</span>/197 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6661</span>/<span style="color: gray">63</span>/6724** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">6664</span>/<span style="color: gray">63</span>/6727** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -2780,7 +2780,7 @@ Variant: delivery: success
 - Open Parent feedback, enter authorized synthetic text with the optional reply address empty, add reviewed files, inspect Privacy, select Send once and explicitly confirm Send Anonymously with the authorized service profile.
 - Read service acceptance and the owned thanks without a reply-follow-up note, then manually dismiss it. Reopen feedback and read the cleared body, reply address and customer files. Exact confirmation wordings, pending-control guards and duplicate-send widgets are shared UI coverage.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Excluded from E2E scheduling: UI allocation to tests/ui/test\_parent\_feedback.py, tasks 150/151. Preserve anonymous confirmation, attachments, success, manual thanks dismissal and cleared draft/reply/files under the fake sender. Missing assertions remain pending in those tasks; no installed acceptance or delivery credit.
 
 </div>
 
@@ -2802,7 +2802,7 @@ Variant: delivery: retry
 - Close only ordinary feedback, keep the same Parent app running and reconnect through the same shared system-network helper within the retry period. Require no unsolicited feedback or thank-you window during the bounded background completion interval.
 - Reopen feedback within the bounded completion interval and verify automatic completion and an empty draft without another Send. If sending remains active, observe explicit acceptance, dismiss any resulting visible confirmation and reopen to verify the cleared draft; elapsed time alone is not proof of success.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Excluded from E2E scheduling: UI allocation to tests/ui/test\_parent\_feedback.py, tasks 152/153/258. Preserve one frozen submission, retry recovery, background completion without unsolicited windows, and cleared draft on reopen without another Send using test-local responses. Missing assertions remain pending; no Internet isolation, installed acceptance or delivery credit.
 
 </div>
 
@@ -3122,7 +3122,7 @@ Variant: choice: without logs; surface: kiosk
 - Confirm editing and Close remain usable and enter a synthetic draft. Parent restores the genuine public prerequisite and chooses Retry once. Station reviews the valid draft and in-app Privacy, verifies no Add files, log download, attachment shortcut or external Privacy link, then explicitly chooses the authorized Send without logs once.
 - Parent retry reads completed collection and unchanged draft before normal close without Send. Station without-logs reads actual acceptance and thanks while the original report exit remains pending, then manually dismisses thanks and requires report closure and the sign-in screen. A failed send preserves the draft and is not success.
 
-Pending: Requires a genuine publicly reproducible collection failure, public unavailable-log observations, explicit reviewed sending authorization and a dedicated real service profile. Sending without logs does not depend on the separate collection-recovery branch.
+Pending: Excluded from E2E scheduling: UI allocation to tests/ui/test\_error\_feedback.py, tasks 189k/255. Preserve unavailable-log observations, edited draft, explicit Send without logs, encoded omission, success, manual dismissal and logout callback under test-local collection failure. Missing assertions remain pending; actual installed exit is owned by request-exit checks. No real-send gate or installed/delivery credit.
 
 </div>
 
@@ -3142,7 +3142,7 @@ Variant: flow: app exit
 - Perform the declared action: keep feedback open, exit the app, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check no outbox after relaunch or the original error-flow exit after manual thanks dismissal. Overlay-success observes the reply-follow-up note and manually dismisses the owned thanks before returning to the child desktop. Restore connectivity where needed. Background reconnection is combined into E2E-033 case 157.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Excluded from E2E scheduling: UI allocation to tests/ui/test\_parent\_feedback.py, task 258. Preserve app exit during retry, fresh-instance reset and no persisted outbox or surprise replay. Missing assertions remain pending; no installed acceptance or delivery credit.
 
 </div>
 
@@ -3162,7 +3162,7 @@ Variant: flow: overlay stop
 - Perform the declared action: keep feedback open, exit the app, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check no outbox after relaunch or the original error-flow exit after manual thanks dismissal. Overlay-success observes the reply-follow-up note and manually dismisses the owned thanks before returning to the child desktop. Restore connectivity where needed. Background reconnection is combined into E2E-033 case 157.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Excluded from E2E scheduling: UI allocation to tests/ui/test\_error\_feedback.py, tasks 190a/190o/260. Preserve report-open retry, direct Stop, retained editable draft and closure/callback ordering under fake responses. Missing assertions remain pending; actual child return stays with installed request-exit owners. No installed acceptance or delivery credit.
 
 </div>
 
@@ -3182,7 +3182,7 @@ Variant: flow: kiosk stop
 - Perform the declared action: keep feedback open, exit the app, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check no outbox after relaunch or the original error-flow exit after manual thanks dismissal. Overlay-success observes the reply-follow-up note and manually dismisses the owned thanks before returning to the child desktop. Restore connectivity where needed. Background reconnection is combined into E2E-033 case 157.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Excluded from E2E scheduling: UI allocation to tests/ui/test\_error\_feedback.py, tasks 190b/190k/261. Preserve report-open retry, direct Stop, retained editable draft and closure/logout callback ordering under fake responses. Missing assertions remain pending; actual GDM return stays with installed request-exit owners. No installed acceptance or delivery credit.
 
 </div>
 
@@ -3202,7 +3202,7 @@ Variant: flow: overlay success
 - Perform the declared action: keep feedback open, exit the app, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check no outbox after relaunch or the original error-flow exit after manual thanks dismissal. Overlay-success observes the reply-follow-up note and manually dismisses the owned thanks before returning to the child desktop. Restore connectivity where needed. Background reconnection is combined into E2E-033 case 157.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Excluded from E2E scheduling: UI allocation to tests/ui/test\_error\_feedback.py, task 262. Preserve fake success with first@example.invalid, reply-follow-up note, manual thanks dismissal and close\_overlay callback ordering. Missing assertions remain pending; actual child return stays installed. No installed acceptance or delivery credit.
 
 </div>
 
@@ -3222,7 +3222,7 @@ Variant: flow: kiosk success
 - Perform the declared action: keep feedback open, exit the app, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check no outbox after relaunch or the original error-flow exit after manual thanks dismissal. Overlay-success observes the reply-follow-up note and manually dismisses the owned thanks before returning to the child desktop. Restore connectivity where needed. Background reconnection is combined into E2E-033 case 157.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Excluded from E2E scheduling: UI allocation to tests/ui/test\_error\_feedback.py, task 263. Preserve anonymous fake success, manual thanks dismissal and logout callback ordering. Missing assertions remain pending; actual GDM return stays installed. No installed acceptance or delivery credit.
 
 </div>
 

@@ -10,6 +10,7 @@ import vm_config
 sys.path.pop(0)
 
 extract = vm_config.extract
+extract_selector = vm_config.extract_selector
 arguments = vm_config.arguments
 select = vm_config.select
 selected = vm_config.selected
@@ -50,6 +51,16 @@ def execution_selection(name=None):
     else:
         os.environ.pop(BATCH, None)
     return concurrency, vms
+
+
+def task_selection(selector=None, *, host_only=False):
+    """Host obligations must not consult VM configuration or inherit a guest."""
+    if host_only:
+        os.environ.pop(BATCH, None)
+        os.environ.pop(VARIABLE, None)
+        return None
+    execution_selection(selector)
+    return execution_binding()
 
 
 def execution_arguments():

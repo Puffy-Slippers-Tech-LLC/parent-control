@@ -633,6 +633,8 @@ CASES = (
                  'Revoke time while the child keeps using the desktop'),
     CaseIdentity(304, 'session', 'test_expiry_during_pending_approval',
                  'Protect expired child input while parent approval remains pending'),
+    CaseIdentity(305, 'session', 'test_policy_changes_before_expiry',
+                 'Apply the latest parent time decision before the old deadline'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

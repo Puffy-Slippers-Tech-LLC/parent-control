@@ -56,6 +56,8 @@ DEMANDS = {
     # Each connection owns a short, isolated Python authentication helper and
     # private socketpair; completion/cancellation closes fds and reaps that
     # recorded child. No host desktop/settings/units; existing admission fits.
+    # Deadline dispatch overlaps one Event-gated request on those private buses;
+    # finally releases and joins the existing worker through its async reply.
     'component': Demand(2, GIB),
     'fixture-runtime': Demand(2, GIB),
     'source': Demand(2, GIB),

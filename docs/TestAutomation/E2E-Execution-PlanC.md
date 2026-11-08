@@ -13,7 +13,7 @@ Task queue: [Plan C ordered checklist](E2E-Task-QueueC.md).
 
 ## Next task
 
-Next task: **172c — [Apply the latest time decision at expiry](E2E-Tasks/172c-policy-expiry.md)**.
+Next task: **172d — [Keep old expiry callbacks away from replacement sessions](E2E-Tasks/172d-session-expiry.md)**.
 
 This plan owns its queue, unchanged task briefs and next-task pointer.
 It can run independently of all unfinished work in

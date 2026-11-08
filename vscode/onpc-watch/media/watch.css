@@ -263,7 +263,7 @@ nav button { flex-shrink: 0; }
     flex: 0 0 auto; white-space: pre; overflow-wrap: normal;
     background: linear-gradient(var(--vscode-editor-background), var(--watch-well));
 }
-.run-history { min-height: calc(1lh + 16px); }
+.run-history { min-height: calc(2lh + 16px); }
 .run-history.has-summary { border-top: 1px solid var(--watch-rule); }
 .run-latest { flex: 0 0 auto; padding: 0 8px 8px; }
 .run-latest-label {

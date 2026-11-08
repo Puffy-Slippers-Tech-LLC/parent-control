@@ -1128,7 +1128,7 @@
                 errorStatus.setAttribute('aria-label', 'Last Error and Status');
                 section = Object.assign(sessionPanel(body), { body, divider, heading, content, summary, history,
                     preview, latestLabel, latestTitle, latest, launcher, errorStatus,
-                    view: 'status', weight: 1, followStatus: true });
+                    view: 'status', weight: 1, followStatus: true, previewMaximized: true });
                 const panel = section;
                 previewDivider(panel);
                 history.addEventListener('scroll', () => {

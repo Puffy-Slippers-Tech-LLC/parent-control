@@ -542,6 +542,9 @@ class Bridge {
                 const { screen: _screen, ...metadata } = entry;
                 const staleFrame = frame && (!connected || source.staleFrames.has(entry.id));
                 entries.push({ ...metadata, id: route, source: key(id, entry.source),
+                    transport: source.config.transport,
+                    server: source.config.transport === 'ssh' ? source.config.host : 'local',
+                    title_label: entry.label,
                     label: (labelSources ? `[${label}] ` : '') + entry.label,
                     status: (connected ? entry.status : source.status) +
                         (staleFrame ? ' Waiting for fresh frame; showing last received frame.' : ''),

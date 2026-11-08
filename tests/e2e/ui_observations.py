@@ -11,6 +11,7 @@ import accessible_ui
 import watch_activity
 from private_artifacts import require
 import system_runner as system
+from tools.vm_source_snapshot import read_bytes as source_bytes
 
 
 UI_PROGRAM_SOURCES = {
@@ -33,12 +34,12 @@ def guest_ui_program():
                     f'module.__path__ = []\n'
                     f'sys.modules[{package!r}] = module\n')
     for name, path in UI_PROGRAM_SOURCES.items():
-        source = (system.ROOT / path).read_text()
+        source = source_bytes(system.ROOT / path).decode('utf-8')
         modules += (f'module = types.ModuleType({name!r})\n'
                     f'module.__package__ = {name.rpartition(".")[0]!r}\n'
                     f'sys.modules[{name!r}] = module\n'
                     f'exec(compile({source!r}, {name + ".py"!r}, "exec"), module.__dict__)\n')
-    return modules + (system.ROOT / 'tests/e2e/accessible_ui.py').read_text()
+    return modules + source_bytes(system.ROOT / 'tests/e2e/accessible_ui.py').decode('utf-8')
 
 
 # Collection replies need room for their full bounded semantic projection.

@@ -1802,36 +1802,6 @@ def kiosk_activation_host_inputs():
             for source in KIOSK_ACTIVATION_HOST_INPUTS}
 
 
-def kiosk_activation_host_inputs_unchanged(recorded):
-    """Verify the activation closure and every additional frozen suite input.
-
-    Additional frozen suite inputs must also match their recorded bytes.
-    Missing activation inputs continue to fail the exact dictionary comparison.
-    """
-    from guest_inputs import read
-    current = dict(kiosk_activation_host_inputs())
-    for source in recorded.keys() - current.keys():
-        current[source] = hashlib.sha256(read(ROOT, source)).hexdigest()
-    if current != recorded:
-        # Report the comparison that actually refused entry, without rereading
-        # moving inputs or exposing file contents or arbitrary manifest paths.
-        changed = current.keys() | recorded.keys()
-        changed = {source for source in changed
-                   if current.get(source) != recorded.get(source)}
-        details = {
-            'activation_sources': {
-                source: {'recorded_sha256': recorded.get(source),
-                         'current_sha256': current.get(source)}
-                for source in KIOSK_ACTIVATION_HOST_INPUTS if source in changed
-            },
-            'additional_source_count': len(changed - set(KIOSK_ACTIVATION_HOST_INPUTS)),
-        }
-        log('kiosk-activation:host-input-diff ' + json.dumps(details, sort_keys=True))
-    else:
-        log(f'kiosk-activation:host-inputs-verified files={len(current)}')
-    return current == recorded
-
-
 def observe_kiosk_activation(vm, lease, directory, selection, phase):
     """Extend only the declared continuous native activation history."""
     if not any(item.area == 'package' and item.case_id == KIOSK_ACTIVATION_CASE and not item.prerequisite
@@ -1840,8 +1810,6 @@ def observe_kiosk_activation(vm, lease, directory, selection, phase):
     from kiosk_entry import observe_activation
     semantic = PHASE_SEMANTICS.get(phase, phase)
     inputs = json.loads((directory / 'input/selected-inputs.json').read_bytes())
-    require(kiosk_activation_host_inputs_unchanged(inputs['host_files']),
-            'kiosk-activation:host-inputs-changed')
     before = json.loads(vm.call(guest_command(lease.state['run'], 'activation-state', semantic)))
     if semantic == 'installed':
         vm.call(guest_command(lease.state['run'], 'prepare-activation-greeter'), timeout=150)
@@ -1850,8 +1818,6 @@ def observe_kiosk_activation(vm, lease, directory, selection, phase):
     after = json.loads(vm.call(guest_command(lease.state['run'], 'activation-state', semantic)))
     require(before == after and observed['boot_sha256'] == before['boot_sha256'],
             'kiosk-activation:boot-or-policy-changed')
-    require(kiosk_activation_host_inputs_unchanged(inputs['host_files']),
-            'kiosk-activation:host-inputs-changed')
     if semantic == 'rebooted':
         installed_phase = phase.removesuffix('rebooted') + 'installed'
         previous = json.loads((directory / ('guest-results/gdm-' + installed_phase + '.json')).read_bytes())
@@ -2263,14 +2229,10 @@ def observe_graphical_expiry(vm, lease, directory, ledger, fixture_context, fixt
     """Extend system-282 under its existing lease, before PAM changes passwords."""
     sys.path.insert(0, str(ROOT / 'tests/e2e'))
     from types import SimpleNamespace
-    from check_graphical_smoke import inputs as graphical_inputs
     from e2e_fixture_preparation import ACTIVITY_SUBSETS
     from natural_expiry import run_system_graphical_expiry
     from provenance import VerifiedInputs
 
-    recorded = json.loads((directory / 'input/selected-inputs.json').read_bytes())[
-        'graphical_expiry_host_files']
-    require(graphical_inputs() == recorded, 'expiry:host-inputs-changed')
     require(fixture_context is not None, 'expiry:fixture-context-required')
     fixture_context['controller'].require_ready(fixture_context['receipt'])
     verified = VerifiedInputs(lease=lease, root=ROOT)
@@ -2287,7 +2249,6 @@ def observe_graphical_expiry(vm, lease, directory, ledger, fixture_context, fixt
     result = run_system_graphical_expiry(output, lease, vm, ledger,
         expected_inputs=verified.source_files, progress=progress, context=context,
         foreground_revoke=foreground_revoke, pending_approval=pending_approval, policy_order=policy_order)
-    require(graphical_inputs() == recorded, 'expiry:host-inputs-changed')
     (output / 'result.json').write_bytes(baseline.encode(result))
 
 
@@ -2295,18 +2256,13 @@ def prepare_extension_parent(vm, lease, directory, ledger, fixture_context, fixt
     """Attach only long enough to enter the real parent desktop for pytest."""
     sys.path.insert(0, str(ROOT / 'tests/e2e'))
     from types import SimpleNamespace
-    from check_graphical_smoke import inputs as graphical_inputs
     from extension_parent import prepare_parent_desktop
     from provenance import VerifiedInputs
 
     selected_inputs = json.loads((directory / 'input/selected-inputs.json').read_bytes())
-    recorded = selected_inputs['graphical_expiry_host_files']
     adapter = selected_inputs['generated_files']['accessible_ui.py']
-    require(baseline.digest(directory / 'input/accessible_ui.py') == adapter['sha256']
-            and all(baseline.digest(ROOT / path) == digest
-                    for path, digest in adapter['sources'].items()),
+    require(baseline.digest(directory / 'input/accessible_ui.py') == adapter['sha256'],
             'extension-parent:adapter-inputs-changed')
-    require(graphical_inputs() == recorded, 'extension-parent:host-inputs-changed')
     require(fixture_context is not None, 'extension-parent:fixture-context-required')
     fixture_context['controller'].require_ready(fixture_context['receipt'])
     verified = VerifiedInputs(lease=lease, root=ROOT)
@@ -2319,7 +2275,6 @@ def prepare_extension_parent(vm, lease, directory, ledger, fixture_context, fixt
         log('stage:extension-parent-' + stage)
     result = prepare_parent_desktop(output, lease, vm, ledger,
         expected_inputs=verified.source_files, progress=progress, context=context)
-    require(graphical_inputs() == recorded, 'extension-parent:host-inputs-changed')
     (output / 'result.json').write_bytes(baseline.encode(result))
 
 
@@ -2327,14 +2282,10 @@ def observe_extension_login(vm, lease, directory, ledger, fixture_context, fixtu
     """Run one login/unlock history under the installed owner's live lease."""
     sys.path.insert(0, str(ROOT / 'tests/e2e'))
     from types import SimpleNamespace
-    from check_graphical_smoke import inputs as graphical_inputs
     from e2e_fixture_preparation import ACTIVITY_SUBSETS
     from extension_login import run_login_recovery
     from provenance import VerifiedInputs
 
-    recorded = json.loads((directory / 'input/selected-inputs.json').read_bytes())[
-        'graphical_expiry_host_files']
-    require(graphical_inputs() == recorded, 'extension-login:host-inputs-changed')
     require(fixture_context is not None, 'extension-login:fixture-context-required')
     fixture_context['controller'].require_ready(fixture_context['receipt'])
     verified = VerifiedInputs(lease=lease, root=ROOT)
@@ -2348,7 +2299,6 @@ def observe_extension_login(vm, lease, directory, ledger, fixture_context, fixtu
         log('stage:extension-login-' + stage)
     result = run_login_recovery(output, lease, vm, ledger,
         expected_inputs=verified.source_files, progress=progress, context=context)
-    require(graphical_inputs() == recorded, 'extension-login:host-inputs-changed')
     (output / 'result.json').write_bytes(baseline.encode(result))
 
 

@@ -517,6 +517,14 @@ def child_retention_owner(argv):
                          'check_fixture_recorded_serial', 'check_fixture_live_refresh'))
 
 
+def vm_snapshot_command(root, argv, command):
+    """Freeze VM controller sources only; host checks and listing stay live."""
+    if argv[:1] not in (['system'], ['e2e']) or '--list' in argv:
+        return command
+    wrapper = confined_file(root, 'tools/vm_source_snapshot.py')
+    return [*command[:2], str(wrapper), *command[2:]]
+
+
 def run(root, argv, caller):
     sys.path.insert(0, str(root / 'tools'))
     import vm_pool
@@ -563,6 +571,7 @@ def run(root, argv, caller):
             raise ValueError('test-runner:invalid-unattended-category')
         if retention_run and argv[0] == 'system' and len(argv) > 1 and argv[1].startswith('check_'):
             raise ValueError('test-runner:invalid-retention-category')
+        command = vm_snapshot_command(root, argv, command)
         module = runpy.run_path(str(confined_file(root, 'tools/regression_process.py')))
         sys.path.insert(0, str(root / 'tools'))
         environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
@@ -617,6 +626,7 @@ def run(root, argv, caller):
         return subprocess.run(command, cwd=root, env=environment, check=False).returncode
     if argv[0] == 'appsnapshot' and '--probe' in argv:
         return subprocess.run(command, cwd=root, env=environment, check=False).returncode
+    command = vm_snapshot_command(root, argv, command)
     # Run only the selected operation. Live lease/ownership and retention
     # checks stay in the target; regression tests are never cleanup preflight.
     sys.path.insert(0, str(root / 'tools'))

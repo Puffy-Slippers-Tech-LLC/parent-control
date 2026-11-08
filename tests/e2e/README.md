@@ -947,10 +947,37 @@ Root controller reads scope Git's `safe.directory` to this invocation's
 trusted checkout, without changing global configuration. Ignored build outputs
 are excluded. The capture rejects symlinks,
 hardlinks and special input files, pins parent directory opens and checks file
-identity around each read. Source capture records identities; it does not copy
-the checkout. Callbacks load current trusted checkout bytes. The worker stages
-current validated distribution bytes separately and guards that private copy
-throughout execution.
+identity around each read. This provenance capture records initial identities;
+it is separate from the dispatcher's disposable VM helper copy described below.
+The worker stages validated distribution bytes separately and guards that
+private copy throughout execution.
+
+### Disposable VM controller sources
+
+The installed dispatcher wraps `system` and `e2e` execution with
+`tools/vm_source_snapshot.py`. Each controller invocation captures current
+working files, including uncommitted changes, once before loading its helpers.
+Recursive folder rules and suffix patterns in that module include new Python
+helpers, inventories and graphical worker resources automatically. Ordinary
+host tests and declaration listing keep reading the live checkout.
+
+Captured Python imports retain their original filenames and package paths, so
+configuration, VM leases, journals and output remain owned by the original
+checkout. Inventory reads, embedded UI programs and worker distribution staging
+also select captured inputs. Uncovered file reads or helper subprocesses may
+still use current checkout files; this is deliberately not hermetic execution.
+Checkout edits do not trigger source-equality failures during a history. Product
+assertions, generated/staged payload integrity, recipient and VM ownership checks
+remain active. Initial source provenance does not claim complete isolation.
+
+There is one disposable copy per VM controller process, with no cross-invocation
+cache, historical generations or change watcher. The next invocation captures
+the latest working files automatically. A context-managed directory under the
+shared disk scratch owner removes the copy after controller cleanup, including
+normal failure and interruption. After abrupt process/host death, existing
+scratch receipts and descendant leases permit reclamation once the owner is
+idle. Parallel VM controllers each own a copy; the count is per controller,
+not a checkout-wide two-copy limit. Copies are never retained with reports.
 
 The [source-selection contract](../integration/README.md#package-and-fixture-inputs)
 defines the shared exact-path exception for supervisor-owned operator output.

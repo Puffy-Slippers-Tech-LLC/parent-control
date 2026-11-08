@@ -32,7 +32,8 @@ def checkout(tmp_path):
     root = Path(__file__).resolve().parents[2]
     tools = tmp_path / 'tools'
     tools.mkdir()
-    for name in ('regression_process.py', 'test_activity.py'):
+    for name in ('regression_process.py', 'test_activity.py', 'vm_source_snapshot.py',
+                 'test_storage.py', 'test_retention.py', 'test_io.py'):
         shutil.copy2(root / 'tools' / name, tools / name)
     integration = tmp_path / 'tests/integration'
     integration.mkdir(parents=True)
@@ -382,7 +383,9 @@ def test_dispatch_runs_only_selected_controller_with_retention_guard(checkout, m
     caller = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture', pw_dir='/tmp')
     assert runner['run'](checkout, ['system', 'check_future_feature', *VM_ARGS], caller) == status
     execute.assert_called_once()
-    assert execute.call_args.args[0] == select(checkout, ['system', 'check_future_feature'])
+    expected = runner['vm_snapshot_command'](checkout, ['system'],
+                                             select(checkout, ['system', 'check_future_feature']))
+    assert execute.call_args.args[0] == expected
     assert 'user' not in execute.call_args.kwargs
     assert guard.call_args_list == [call(checkout), call(checkout)]
 
@@ -452,7 +455,8 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
                 pwd.getpwuid(os.getuid()))
         assert status == safety_status
         assert len(calls) == 1
-        assert calls[0][2].endswith('/tests/integration/system_runner.py')
+        assert calls[0][2].endswith('/tools/vm_source_snapshot.py')
+        assert calls[0][3].endswith('/tests/integration/system_runner.py')
         assert '--cleanup-prerequisites' not in calls[0]
         print('dispatcher checkout imports exercised')
         '''))
@@ -550,7 +554,7 @@ def test_selected_producer_dispatch_keeps_command_without_parent_owner(
     selected = [*arguments, *(['--vm', vm_name(0)]
         if arguments[-1] in ('check_e2e_baseline_journey', 'check_e2e_chinese_current_install',
                              'check_fixture_recorded_serial') else VM_ARGS)]
-    expected = runner['selection'](checkout, selected)
+    expected = runner['vm_snapshot_command'](checkout, selected, runner['selection'](checkout, selected))
     assert runner['run'](checkout, (['--unattended'] if unattended else []) + selected, caller) == 7
     invocation = (control.run if unattended else execute).call_args
     assert invocation.args == (expected,)
@@ -585,6 +589,8 @@ def test_e2e_child_owns_capture_across_real_subprocess_boundary(
     e2e = checkout / 'tests/e2e'
     e2e.mkdir()
     child = e2e / 'runner.py'
+    helper = e2e / 'snapshot_fixture_helper.py'
+    helper.write_text('VALUE = "local-fix"\n')
     child.write_text(textwrap.dedent('''\
         def preflight(argv, **kwargs):
             return dict(mode=MODE_LITERAL, artifacts='/tmp/onpc-selected', cases=[],
@@ -623,6 +629,15 @@ def test_e2e_child_owns_capture_across_real_subprocess_boundary(
                 raise SystemExit(0)
             raise AssertionError('inherited authority minted a capture')
         if __name__ == '__main__':
+            from tools.vm_source_snapshot import _active, read_bytes
+            assert _active is not None
+            helper = CHECKOUT / 'tests/e2e/snapshot_fixture_helper.py'
+            helper.write_text('VALUE = "later-edit"\\n')
+            import snapshot_fixture_helper
+            assert snapshot_fixture_helper.VALUE == 'local-fix'
+            assert snapshot_fixture_helper.__file__ == str(helper)
+            assert b'local-fix' in read_bytes(helper)
+            print('frozen local fix loaded')
             assert retention.VARIABLE not in os.environ
             assert retention.OWNER_VARIABLE not in os.environ
             qualification_storage.ROOT = CHECKOUT
@@ -700,7 +715,11 @@ def test_e2e_child_owns_capture_across_real_subprocess_boundary(
     caller = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture', pw_dir=str(checkout))
     arguments = ([f'--retention-run={expected_run}', '--unattended'] if unattended else []) + selection
     assert runner['run'](checkout, arguments, caller) == 7, ''.join(output)
-    assert len(invocations) == 1 and invocations[0][0] == command
+    expected = runner['vm_snapshot_command'](checkout, selection, command)
+    assert len(invocations) == 1 and invocations[0][0] == expected
+    assert 'frozen local fix loaded' in ''.join(output)
+    scratch = storage.directory('scratch')
+    assert not list(scratch.glob('run-*/tmp/vm-sources-*'))
     assert 'child live owner ' in ''.join(output)
     state = json.loads((journal / 'current.json').read_text())
     assert state['finished'] is True

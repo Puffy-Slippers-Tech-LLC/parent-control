@@ -272,7 +272,7 @@ sub flatpak_temporary_access {
         && ($kind eq 'flatpak' && ($route eq 'command' && $surface eq 'kiosk'
                                   || $route eq 'grid' && $surface eq 'overlay')
             || $kind eq 'native' && ($route eq 'grid' && ($surface eq 'overlay' || $surface eq 'kiosk')
-                                    || $route eq 'command' && $surface eq 'kiosk'));
+                                    || ($route eq 'command' || $route eq 'files') && $surface eq 'kiosk'));
     my $seconds = $kind eq 'native' ? 30 : 300;
     my $journey = onpc_journey->new(exchange => $exchange,
         prefix => $kind eq 'native' ? ($surface eq 'kiosk' ? "native-$route-kiosk-temporary-access"
@@ -290,10 +290,13 @@ sub flatpak_temporary_access {
     my $allowed = $journey->scope('allowed');
     onpc_app_rows::native_usable_app($allowed, $route, $allowed->seen('desktop'), 'other-child',
                                    $kind eq 'native' ? undef : 'A', $kind);
+    $journey->seen('allowed-dismiss') if $route eq 'files';
     $journey->seen('allowed-capture');
     my $blocked = $kind eq 'native' ? \&onpc_app_rows::native_blocked_app : \&onpc_app_rows::flatpak_blocked_app;
     $blocked->($journey->scope('initial-hard'), 'H', $route);
+    $journey->seen('initial-hard-dismiss') if $route eq 'files';
     $blocked->($journey->scope('initial-soft'), 'S', $route);
+    $journey->seen('initial-soft-dismiss') if $route eq 'files';
     for my $row (['first', 'parent', 0], ['included', 'other-parent', 1], ['replacement', 'parent', 0]) {
         my ($name, $approver, $soft) = @$row;
         my $request = $journey->scope($name);
@@ -318,13 +321,16 @@ sub flatpak_temporary_access {
         $request->seen('soft-closed') if $name eq 'replacement';
         $request->seen($_) for qw(allowed-preserved allowed-submit allowed-submitted allowed-original);
         $blocked->($request->scope('hard'), 'H', $route);
+        $request->seen('hard-dismiss') if $route eq 'files';
         if ($soft) {
             my $activity = $request->scope('soft');
             onpc_app_rows::native_usable_app($activity, $route, $activity->seen('desktop'),
                                            'other-child', 'S', $kind);
+            $request->seen('soft-dismiss') if $route eq 'files';
             $request->seen('soft-capture');
         } else {
             $blocked->($request->scope('soft'), 'S', $route);
+            $request->seen('soft-dismiss') if $route eq 'files';
         }
     }
     onpc_desktop_session::enter_desktop($journey, 'desktop', 'parent', 'retained',

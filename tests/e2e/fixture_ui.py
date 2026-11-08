@@ -13,7 +13,7 @@ class FixtureUI:
         self.require = require
         self.require(kind in ('native', 'flatpak', 'snap', 'game')
                 and (instance in ('primary', 'secondary')
-                     or kind == 'flatpak' and instance in ('hard', 'soft')), 'ui:fixture-binding')
+                     or kind in ('native', 'flatpak') and instance in ('hard', 'soft')), 'ui:fixture-binding')
         self.ui = ui
         self.scope = f'onpc-fixture-{kind}-{instance}'
 

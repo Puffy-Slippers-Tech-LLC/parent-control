@@ -2170,13 +2170,21 @@ The native grid/child-overlay binding uses `native_temporary_access.PLAN`; the
 native grid/station binding uses the same module's `KIOSK_PLAN` / `execute_kiosk`.
 The native command/station binding uses `COMMAND_KIOSK_PLAN` /
 `execute_command_kiosk`, with the same finite approvals and app assertions.
+The native Files/station binding uses `FILES_KIOSK_PLAN` /
+`execute_files_kiosk`, selecting `route=files` in the same worker. Files selects
+each exact argument-free executable; native H/S default to distinct hard/soft
+fixture windows while A retains its original primary work. Denial requires
+15 seconds of complete absence of that app's window, with the selected Files
+recipient still present, followed by Files dismissal. The included S window's
+owner-bound activity is captured and compared with complete closure after the
+replacement exclusion.
 These bindings use the shared `onpc_request_flow::flatpak_temporary_access` worker's native
 binding, with the request surface explicit; the command binding selects
 `route=command` in that same worker. Station approvals return to the
 retained child through the enclosing journey's declared login challenges and
 compare its original Allowed activity before the next app checks.
 Each binding's three 30-second requests bind Jordan and each selected approver through the
-same guarded approval operations. Native H/S launchers use the secondary fixture
+same guarded approval operations. Native grid/command H/S launchers use the secondary fixture
 window so the original Allowed work remains independently observable. Blocked
 native grid entries use the shared visible-launch or attributed command-denial
 witness, without asserting launcher visibility.

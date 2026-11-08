@@ -32,7 +32,10 @@ from ui_observations import (
 ACTIVITY_BINDINGS = {
     **{operation: ('native-primary', False) for operation in (
         'native-activity', 'overlay-native-activity', 'parent-native-activity',
-        'native-policy-activity', 'native-files-allowed-activity', 'native-files-soft-activity')},
+        'native-policy-activity', 'native-files-allowed-activity')},
+    'native-files-soft-activity': ('native-soft', False),
+    'native-files-soft-policy-activity': ('native-soft', False),
+    'native-files-soft-policy-closed': ('native-soft', True),
     **{operation: ('native-secondary', False) for operation in (
         'native-unmatched-soft-activity', 'native-policy-soft-activity',
         'overlay-native-policy-soft-activity')},
@@ -183,6 +186,7 @@ class JourneyPlan:
         activity_closures = {
             'ui:native-policy-closed': 'ui:native-policy-activity',
             'ui:native-policy-soft-closed': 'ui:native-policy-soft-activity',
+            'ui:native-files-soft-policy-closed': 'ui:native-files-soft-policy-activity',
             'ui:overlay-native-policy-soft-closed': 'ui:overlay-native-policy-soft-activity',
             'ui:flatpak-hard-policy-closed': 'ui:flatpak-hard-policy-activity',
             'ui:flatpak-soft-policy-closed': 'ui:flatpak-soft-policy-activity',

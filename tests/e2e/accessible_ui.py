@@ -330,6 +330,12 @@ NATIVE_FILES_BINDINGS = {
 NATIVE_FILES_BINDINGS.update({
     'native-files-allowed-launch-refusals': ('A', 'launch-refusals'),
     'native-files-allowed-denied': ('A', 'denied'),
+    'native-files-hard-launch': ('H', 'launch'),
+    'native-files-hard-denied': ('H', 'denied'),
+    'native-files-hard-dismiss': ('H', 'dismiss'),
+    'native-files-soft-denied': ('S', 'denied'),
+    'native-files-soft-policy-activity': ('S', 'policy-activity'),
+    'native-files-soft-policy-closed': ('S', 'policy-closed'),
 })
 NATIVE_APP_OPERATIONS |= frozenset(NATIVE_FILES_BINDINGS)
 OPERATIONS |= frozenset(NATIVE_FILES_BINDINGS)
@@ -1705,7 +1711,7 @@ def owned_surface_id(identity):
     are product IDs, not external-provider aliases or label-derived selectors.
     A surface itself is discovered by its unique ID by the caller.
     """
-    fixture = re.match(r'^(onpc-fixture-(?:(?:native|flatpak|snap|game)-(?:primary|secondary)|flatpak-(?:hard|soft)))(?:-|$)', identity)
+    fixture = re.match(r'^(onpc-fixture-(?:(?:native|flatpak|snap|game)-(?:primary|secondary)|(?:native|flatpak)-(?:hard|soft)))(?:-|$)', identity)
     if fixture:
         return None if identity == fixture[1] else fixture[1]
     for prefix, surface in (('kiosk-system-notification', 'kiosk-system-notification'),
@@ -1794,7 +1800,7 @@ def prompt_diagnostic_id(identity, approved):
 def owned_applications(identity):
     fixture = re.match(r'^onpc-fixture-(native|flatpak|snap|game)-(primary|secondary|hard|soft)(?:-|$)', identity)
     if fixture:
-        require(fixture[1] == 'flatpak' or fixture[2] in ('primary', 'secondary'), 'ui:fixture-binding')
+        require(fixture[1] in ('native', 'flatpak') or fixture[2] in ('primary', 'secondary'), 'ui:fixture-binding')
         return (f'com.puffyslippers.ONPCFixture.{fixture[1]}.{fixture[2]}',)
     if identity.startswith('kiosk-system-notification'):
         return ('com.puffyslippers.OhNoParentControl.KioskNotifications',)
@@ -13181,7 +13187,7 @@ class AccessibleUI:
     def native_files_snapshot(self, role, *, child=EXISTING_CHILD, active=True):
         """FILE04/07: exact directory, selection and live Files owner; no geometry."""
         from gi.repository import Gio, GLib
-        require(child == EXISTING_CHILD and role in ('A', 'S', 'N')
+        require(child == EXISTING_CHILD and role in ('A', 'H', 'S', 'N')
                 or child == CHILD and role == 'A', 'ui:native-files-binding')
         require_active_launch_session(unlocked=True)
         require(os.getuid() == os.geteuid() == pwd.getpwnam(
@@ -13243,7 +13249,7 @@ class AccessibleUI:
     def native_files_launch(self, role, *, child=EXISTING_CHILD, qualify_refusals=False):
         """Open Files at the declared fixture and qualify its Enter recipient."""
         from gi.repository import Gio, GLib
-        require(child == EXISTING_CHILD and role in ('A', 'S')
+        require(child == EXISTING_CHILD and role in ('A', 'H', 'S')
                 or child == CHILD and role == 'A', 'ui:native-files-binding')
         require(type(qualify_refusals) is bool and (not qualify_refusals
                 or child == EXISTING_CHILD and role == 'A'), 'ui:native-files-refusal-binding')
@@ -13251,7 +13257,8 @@ class AccessibleUI:
         require_active_launch_session(unlocked=True)
         require(os.getuid() == os.geteuid() == pwd.getpwnam(
             CHILD_ACCOUNTS[child]).pw_uid, 'ui:native-files-account')
-        require(self.native_app_closed(desktop=False, complete_absence=True),
+        instance = {'A': 'primary', 'H': 'hard', 'S': 'soft'}[role]
+        require(self.native_app_closed(instance, desktop=False, complete_absence=True),
                 'ui:native-window-exists')
         self.handle_system_prompt()
         self.prepare_launch_desktop()
@@ -13303,7 +13310,8 @@ class AccessibleUI:
     def native_files_operation(self, operation):
         role, action = NATIVE_FILES_BINDINGS[operation]
         child = CHILD if operation.startswith('overlay-') else EXISTING_CHILD
-        arguments = dict(role=role, child=child, implicit_instance=True)
+        instance = {'A': 'primary', 'H': 'hard', 'S': 'soft'}[role]
+        arguments = dict(role=role, child=child, instance=instance, implicit_instance=True)
         if action in ('launch', 'launch-refusals'):
             return self.native_files_launch(role, child=child,
                                             qualify_refusals=action == 'launch-refusals')
@@ -13313,13 +13321,16 @@ class AccessibleUI:
                 require_active_launch_session(unlocked=True)
                 require(os.getuid() == os.geteuid() == pwd.getpwnam(
                     CHILD_ACCOUNTS[child]).pw_uid, 'ui:native-files-account')
-                require(self.native_app_closed(desktop=False, complete_absence=True),
+                require(self.native_app_closed(instance, desktop=False, complete_absence=True),
                         'ui:native-files-blocked-window')
                 require(self.native_files_snapshot(role, child=child, active=False) is not None,
                         'ui:native-files-denial-recipient')
                 return time.monotonic() - started >= 15
             self.wait(denied, 'native-files-denied', prompt_in_predicate=True)
             return None
+        if action in ('policy-activity', 'policy-closed'):
+            return self.native_policy_activity(closed=action == 'policy-closed', role=role,
+                                               child=child, files=True)
         if action == 'dismiss':
             require(not self.input_uncertain, 'ui:uncertain-input')
             deadline = time.monotonic() + self.timeout
@@ -13350,14 +13361,14 @@ class AccessibleUI:
             self.wait(absent, 'native-files-dismissed')
             return None
         if action == 'closed':
-            self.wait(lambda: self.native_app_closed(desktop=False, complete_absence=True),
+            self.wait(lambda: self.native_app_closed(instance, desktop=False, complete_absence=True),
                       'native-files-closed')
             return None
         if action == 'submit':
             return self.native_app_submit(**arguments)
         if action == 'close':
             self.native_app_snapshot('ONPC fixture draft', **arguments)
-            self.activate_id('onpc-fixture-native-primary-close')
+            self.activate_id('onpc-fixture-native-' + instance + '-close')
             return None
         return self.wait(lambda: self.native_app_snapshot(
             'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
@@ -13545,8 +13556,9 @@ class AccessibleUI:
                 'ui:snap-binding')
         require(snap or flatpak or role is None and instance == 'primary' or role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting')
                 and (instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary')
-                     or role == 'S' and instance == 'primary' and implicit_instance), 'ui:native-binding')
-        require(type(implicit_instance) is bool and (not implicit_instance or role in ('A', 'S') and instance == 'primary'),
+                     or role == 'S' and instance == 'soft' and implicit_instance), 'ui:native-binding')
+        require(type(implicit_instance) is bool and (not implicit_instance
+                or instance == {'A': 'primary', 'S': 'soft'}.get(role)),
                 'ui:native-binding')
         if role is not None:
             require(child in (CHILD, EXISTING_CHILD) and (role not in ('N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') or child == EXISTING_CHILD),
@@ -13809,9 +13821,10 @@ class AccessibleUI:
     def native_app_owner(self, root, role, instance, *, implicit_instance=False):
         """Bind the GUI child to its live native policy executable and account."""
         require(role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') and (instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary')
-                or role == 'S' and instance == 'primary' and implicit_instance),
+                or role == 'S' and instance == 'soft' and implicit_instance),
                 'ui:native-binding')
-        require(type(implicit_instance) is bool and (not implicit_instance or role in ('A', 'S') and instance == 'primary'),
+        require(type(implicit_instance) is bool and (not implicit_instance
+                or instance == {'A': 'primary', 'S': 'soft'}.get(role)),
                 'ui:native-binding')
         pid = root.get_process_id()
         require(type(pid) is int and pid > 0, 'ui:native-owner')
@@ -13840,7 +13853,7 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(kind in ('snap', 'flatpak') or role is None and instance == 'primary' or role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting')
                 and (instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary')
-                     or role == 'S' and instance == 'primary' and implicit_instance), 'ui:native-binding')
+                     or role == 'S' and instance == 'soft' and implicit_instance), 'ui:native-binding')
         if role is not None and child == CHILD:
             self.require_child_overlay_session()
         # A provider can exit after desktop enumeration but before GetItems.
@@ -13855,7 +13868,7 @@ class AccessibleUI:
     def native_app_closed(self, instance='primary', *, desktop=True, complete_absence=False, kind='native'):
         """Complete owned absence; closure also recognizes the stable desktop."""
         require(kind in ('native', 'snap', 'flatpak')
-                and (instance in ('primary', 'secondary') or kind == 'flatpak' and instance in ('hard', 'soft'))
+                and (instance in ('primary', 'secondary') or kind in ('native', 'flatpak') and instance in ('hard', 'soft'))
                 and type(desktop) is bool
                 and type(complete_absence) is bool, 'ui:native-binding')
         if desktop:
@@ -13864,15 +13877,18 @@ class AccessibleUI:
                                           check_prompt=True)
         return node is None or not complete_absence and not self.showing(node)
 
-    def native_policy_activity(self, *, closed=False, role='A', child=EXISTING_CHILD, kind='native'):
+    def native_policy_activity(self, *, closed=False, role='A', child=EXISTING_CHILD, kind='native',
+                               files=False):
         """APP02: bind public presence/complete absence to the same child session."""
         require(type(closed) is bool and (kind == 'native' and role in ('A', 'S')
                 and (child == EXISTING_CHILD or child == CHILD and role == 'S')
                 or kind == 'flatpak' and role in ('A', 'H', 'S') and child == EXISTING_CHILD
                 and (not closed or role != 'A')),
                 'ui:native-binding')
+        require(type(files) is bool and (not files or kind == 'native'
+                and child == EXISTING_CHILD and role == 'S'), 'ui:native-files-binding')
         instance = ({'A': 'primary', 'H': 'hard', 'S': 'soft'}[role] if kind == 'flatpak'
-                    else 'secondary' if role == 'S' else 'primary')
+                    else 'soft' if files else 'secondary' if role == 'S' else 'primary')
         uid = os.getuid()
         require(uid == pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid == os.geteuid(),
                 'ui:native-activity-owner')
@@ -13883,7 +13899,7 @@ class AccessibleUI:
         else:
             value = self.wait(lambda: self.native_app_snapshot(
                 'ONPC fixture draft', with_window=True, role=role, instance=instance,
-                child=child, implicit_instance=kind == 'native' and role == 'A', kind=kind),
+                child=child, implicit_instance=kind == 'native' and (role == 'A' or files), kind=kind),
                 'native-policy-activity', prompt_in_predicate=True)
         require(session_control.entry_identity(session_control.sessions(), uid, 'same') == owner,
                 'ui:native-activity-owner-changed')

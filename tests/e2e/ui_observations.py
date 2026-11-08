@@ -567,7 +567,7 @@ class AppActivityObservation:
     def from_value(cls, value, *, closed=False, binding='native-primary'):
         fields = {'binding', 'pid', 'endpoint', 'state'}
         require(type(closed) is bool and type(value) is dict and set(value) in (fields, fields | {'owner'})
-                and binding in ('native-primary', 'native-secondary', 'snap-primary', 'snap-secondary',
+                and binding in ('native-primary', 'native-secondary', 'native-soft', 'snap-primary', 'snap-secondary',
                                 'flatpak-primary', 'flatpak-secondary', 'flatpak-hard', 'flatpak-soft')
                 and value['binding'] == binding, 'ui:app-activity')
         owner = value.get('owner')
@@ -1533,8 +1533,8 @@ class UiObservations:
             raise
 
     def _observe(self, operation, *, child=None):
-        if operation == 'native-files-allowed-denied':
-            require(self.last_operation == 'native-files-allowed-launch',
+        if operation in accessible_ui.NATIVE_FILES_BINDINGS and operation.endswith('-denied'):
+            require(self.last_operation == operation.removesuffix('denied') + 'launch',
                     'ui:native-files-denial-order')
         if operation in ('native-grid-denied', 'native-alias-grid-denied',
                          'native-hard-grid-denied', 'native-soft-grid-denied'):
@@ -2114,7 +2114,13 @@ class UiObservations:
                     'submitted': 'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
                     'score': 'Moves: 0; token: 0'}
             elif action == 'activity':
-                AppActivityObservation.from_value(result.get('activity'))
+                AppActivityObservation.from_value(result.get('activity'),
+                    binding='native-soft' if _role == 'S' else 'native-primary')
+                expected['activity'] = result['activity']
+            elif action in ('policy-activity', 'policy-closed'):
+                activity = AppActivityObservation.from_value(result.get('activity'),
+                    closed=action == 'policy-closed', binding='native-soft')
+                require(activity.owner is not None, 'ui:app-activity-owner')
                 expected['activity'] = result['activity']
         if operation in accessible_ui.PACKAGED_APP_BINDINGS:
             _role, instance, action = accessible_ui.PACKAGED_APP_BINDINGS[operation]

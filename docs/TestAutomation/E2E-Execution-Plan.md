@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **278 — [E2E-049: native-file-manager-kiosk](E2E-Tasks/278-case-236.md)**.
+Next task: **036g — [Place and launch a native desktop entry](E2E-Tasks/036g-native-desktop-usable.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

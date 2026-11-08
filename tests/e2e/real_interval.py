@@ -54,6 +54,16 @@ def interval_action(duration):
     return action
 
 
+def interval_toward(journey, guard, target_ns):
+    """Wait at most one TIME03 interval toward a controller-monotonic target.
+
+    Staged expiry histories keep their worker reply boundaries and original
+    deadline. Callers own missing-target guards and independent expiry results.
+    """
+    remaining = (target_ns - time.monotonic_ns()) / 1e9
+    return interval_action(min(300, remaining))(journey, guard) if remaining > 0 else 0
+
+
 def wait_until(journey, guard, target):
     """Reach one controller-monotonic target through bounded TIME03 intervals.
 

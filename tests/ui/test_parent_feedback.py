@@ -372,11 +372,29 @@ def test_collection_progress_disables_send_but_allows_editing(
 ])
 def test_feedback_submission_outcomes(
         launch_ui, automation, wait_for_accessible_state,
-        collect_application_logs, status, reply_email):
+        collect_application_logs, tmp_path, status, reply_email):
+    from tests.support.feedback import attachment_choices
+    from tests.e2e.accessible_ui import BOUNDARY_FILES
+
     ui = automation
+    anonymous_success = status == 202 and not reply_email
+    chooser_inputs = None
+    if anonymous_success:
+        chooser_inputs, _paths = attachment_choices(tmp_path, ('single',))
     editor, log_path = open_feedback(
         launch_ui, ui, wait_for_accessible_state, status=status,
+        chooser_inputs=chooser_inputs,
     )
+    if anonymous_success:
+        ui.reader.wait_feedback_collection()
+        ui.activate("feedback-add-files")
+        wait_for_accessible_state(
+            lambda: ui.text("feedback-status") == "1 file attachment ready.",
+            "synthetic customer file is attached",
+        )
+        assert ui.reader.feedback_snapshot(attachment_state=(
+            BOUNDARY_FILES['single'], "1 file attachment ready.", True,
+        ))['items'] == [['Synthetic note.txt', '26 bytes']]
     type_feedback(ui, "A private feedback draft", wait_for_accessible_state)
     wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
                               "feedback send is ready")
@@ -436,6 +454,11 @@ def test_feedback_submission_outcomes(
                               "feedback dialog reopens")
     feedback_editor(ui, wait_for_accessible_state)
     assert not ui.content(editor).strip()
+    assert ui.content("feedback-reply-email") == ""
+    if anonymous_success:
+        # Reopening refreshes diagnostics; they are not retained customer files.
+        ui.reader.wait_feedback_collection()
+        assert ui.reader.feedback_snapshot()['attachments'] == ['diagnostic-logs.zip']
     if status == 413:
         assert ui.text("feedback-logs-row") == "No logs attached"
     log = collect_application_logs(log_path)

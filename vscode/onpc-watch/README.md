@@ -127,13 +127,20 @@ Long titles truncate with an ellipsis before the dropdown and right-aligned acti
 buttons. The left panel's minimum width fits the shortened title, dropdown and
 action buttons. Hover over a
 launcher title to see its saved command with all parameters, including
-argument quoting. The title uses normal bold text. Clicking also
+argument quoting. The title uses normal bold text. Double-clicking
 copies the full runnable command with its saved parameters, such as
 `tools/write-e2e --branch worktree <parameters>`, relative to the repository root.
 The explicit branch selects the displayed launcher's checkout even when run from
 `main`. A successful copy briefly shows **Launcher command copied** over the tile
 and in the VS Code status bar. Older runs without
 saved parameters show only the plain title.
+Single-click the title to edit its display text without changing the command.
+Press Enter or click elsewhere to save; Escape cancels. Clearing the text restores
+the default title. Renamed titles show an Undo button at the right end on hover
+or keyboard focus; click it to restore the default title.
+Names are saved in VS Code's workspace state, survive closing Watch and restarting
+VS Code, and remain with finished or failed output. The next run clears the name
+and uses its default title again.
 The name comes from the launcher's `current.json`
 publication, including custom plan launcher names. Older runs without a published
 name show `launcher` until their next start, attachment or reload request.

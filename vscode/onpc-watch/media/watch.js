@@ -93,22 +93,17 @@
 
     function sessionHeading(section) {
         const entry = section.entry;
-        const signature = JSON.stringify([entry.run, entry.server, entry.transport, entry.label, entry.status, entry.session, entry.session_active,
+        if (section.editingTitle && section.editingTitle.run === entry.run) return;
+        section.editingTitle = undefined;
+        const signature = JSON.stringify([entry.run, entry.custom_title, entry.server, entry.transport, entry.label, entry.status, entry.session, entry.session_active,
             entry.session_number, entry.session_inactive, entry.launcher_controls, entry.launcher_command, entry.launcher_action_command, entry.launcher_reload_command, entry.active, section.view, section.collapsed, maximizedRun === entry.id]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
         section.heading.replaceChildren();
         const titlebar = element('span', 'run-titlebar', section.heading);
-        const labels = element('button', 'title run-label', titlebar);
-        labels.type = 'button';
+        const labels = element('span', 'title run-label', titlebar);
         const title = tileTitle(labels, entry);
         title.classList.add('run-launcher-label');
-        if (entry.launcher_command) {
-            const copyCommand = () => vscode.postMessage({ type: 'copy', root: entry.id,
-                text: entry.launcher_command, command: true });
-            labels.addEventListener('click', copyCommand);
-        }
-        labels.disabled = !entry.launcher_command;
         const views = element('span', 'run-view-control', titlebar);
         const select = element('button', 'run-view-select', views);
         select.type = 'button';
@@ -237,6 +232,70 @@
             }
         }
         if (entry.launcher_command) labels.title = entry.launcher_command;
+        if (entry.custom_title) title.textContent = entry.custom_title;
+        const defaultText = title.textContent;
+        title.tabIndex = 0;
+        title.setAttribute('role', 'textbox');
+        title.setAttribute('aria-label', 'Launcher title');
+        title.setAttribute('aria-readonly', 'true');
+        const finishTitle = save => {
+            if (!section.editingTitle) return;
+            const value = title.textContent.trim().slice(0, 512);
+            section.editingTitle = undefined;
+            if (save) {
+                const title = value === defaultText ? (entry.custom_title || '') : value;
+                section.entry.custom_title = title || undefined;
+                vscode.postMessage({ type: 'renameLauncher', root: entry.id, run: entry.run, title });
+            }
+            section.headingSignature = undefined;
+            sessionHeading(section);
+        };
+        const editTitle = () => {
+            if (section.editingTitle) return;
+            section.editingTitle = { run: entry.run };
+            title.contentEditable = 'plaintext-only';
+            title.setAttribute('aria-readonly', 'false');
+            title.focus();
+            const selection = window.getSelection();
+            selection.selectAllChildren(title);
+        };
+        title.addEventListener('click', event => {
+            if (event.detail < 2) editTitle();
+        });
+        title.addEventListener('dblclick', event => {
+            event.preventDefault();
+            title.textContent = defaultText;
+            finishTitle(false);
+            if (entry.launcher_command) vscode.postMessage({ type: 'copy', root: entry.id,
+                text: entry.launcher_command, command: true });
+        });
+        title.addEventListener('blur', () => finishTitle(true));
+        title.addEventListener('keydown', event => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                if (section.editingTitle) finishTitle(true);
+                else editTitle();
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                finishTitle(false);
+            }
+        });
+        if (entry.custom_title) {
+            const undo = element('button', 'run-title-undo', labels);
+            undo.type = 'button';
+            undo.textContent = '↶';
+            undo.title = 'Restore default title';
+            undo.setAttribute('aria-label', undo.title);
+            // Avoid committing an in-progress edit before restoring the default.
+            undo.addEventListener('mousedown', event => event.preventDefault());
+            undo.addEventListener('click', () => {
+                section.editingTitle = undefined;
+                section.entry.custom_title = undefined;
+                vscode.postMessage({ type: 'renameLauncher', root: entry.id, run: entry.run, title: '' });
+                section.headingSignature = undefined;
+                sessionHeading(section);
+            });
+        }
         labels.classList.toggle('finished', entry.status === 'finished');
         section.body.classList.toggle('collapsed', Boolean(section.collapsed));
         const copy = element('button', 'run-copy', controls);
@@ -633,7 +692,7 @@
 
     function tileSelection(body, heading) {
         body.addEventListener('click', event => {
-            const selected = !heading.contains(event.target) || Boolean(event.target.closest('a, button, select')) ||
+            const selected = !heading.contains(event.target) || Boolean(event.target.closest('a, button, select, [role="textbox"]')) ||
                 !body.classList.contains('selected');
             for (const tile of layout.querySelectorAll('.watch-tile')) {
                 tile.classList.toggle('selected', tile === body && selected);

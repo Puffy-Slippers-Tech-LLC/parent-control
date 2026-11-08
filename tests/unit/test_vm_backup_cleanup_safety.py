@@ -1032,9 +1032,17 @@ def test_optional_backup_root_allows_non_backup_registry_consumers(tmp_path, mon
     config.write_text('{"agent":"codex","agent":"claude","families":[{}]}')
     with pytest.raises(ValueError, match='duplicate-key'):
         resolve_selection(root)
-    config.write_text('{"families":[{}],"unknown":true,"agent":"codex"}')
-    with pytest.raises(ValueError, match='vm-config:fields'):
-        resolve_selection(root)
+    document['agent'] = 'codex'
+    document['unknown'] = {'future': True}
+    document['hosts'] = [dict(name='local', enabled='true', transport='local',
+                              concurrency=1, unknown={'future': True})]
+    document['branches'] = [dict(name='main', host='local', repo_root=str(root), unknown=True)]
+    document['launchers'] = [dict(name='write-e2e', default_branch='main', unknown=True)]
+    document['families'][0]['unknown'] = True
+    document['families'][0]['vms'][0].update(host='local', unknown=True)
+    config.write_text(json.dumps(document))
+    assert resolve_selection(root).name == 'codex'
+    assert vm_config.registry(config)['Guest'].name == 'Guest'
     config.unlink()
     with pytest.raises(ValueError, match='executing checkout.*unreadable'):
         resolve_selection(root)

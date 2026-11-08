@@ -1,4 +1,7 @@
-"""Shared test VM configuration; loading it never accesses libvirt or VM disks."""
+"""Shared VM configuration: validate known fields and ignore unknown attributes.
+
+Loading never accesses libvirt or VM disks.
+"""
 
 from dataclasses import dataclass
 import argparse
@@ -82,7 +85,6 @@ def read_document(path=None, *, validate_agent=True):
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise ValueError('vm-config:unreadable; check config/environment.json') from error
     if (not isinstance(document, dict) or not {'families'} <= set(document) or
-            not set(document) <= {'families', 'concurrency', 'backup_root', 'hosts', 'branches', 'launchers', 'agent'} or
             not isinstance(document['families'], list) or not document['families']):
         raise ValueError('vm-config:fields')
     if validate_agent and 'agent' in document and document['agent'] not in ('codex', 'claude'):
@@ -103,9 +105,8 @@ def launcher_registry(document):
         raise ValueError('vm-config:launchers must be an array')
     launchers = {}
     for entry in entries:
-        if (not isinstance(entry, dict) or 'name' not in entry
-                or not set(entry) <= {'name', 'default_branch'}):
-            raise ValueError('vm-config:launcher fields must be name and optional default_branch')
+        if not isinstance(entry, dict) or 'name' not in entry:
+            raise ValueError('vm-config:launcher requires name')
         name = validate_name(entry['name'])
         if name in launchers:
             raise ValueError('vm-config:duplicate launcher')
@@ -124,8 +125,8 @@ def branch_registry(document):
         raise ValueError('vm-config:branches must be an array')
     branches, locations = {}, set()
     for entry in entries:
-        if not isinstance(entry, dict) or set(entry) != {'name', 'host', 'repo_root'}:
-            raise ValueError('vm-config:branch fields must be name, host and repo_root')
+        if not isinstance(entry, dict) or not {'name', 'host', 'repo_root'} <= set(entry):
+            raise ValueError('vm-config:branch requires name, host and repo_root')
         name = entry['name']
         if (not isinstance(name, str) or not name or name.startswith(('-', '/'))
                 or name.endswith(('/', '.')) or any(c.isspace() or ord(c) < 32 for c in name)
@@ -164,8 +165,7 @@ def host_registry(document):
     hosts = {}
     for entry in entries:
         if (not isinstance(entry, dict) or
-                not {'name', 'enabled', 'transport', 'concurrency'} <= set(entry) or
-                not set(entry) <= {'name', 'enabled', 'transport', 'concurrency', 'backup_root', 'ssh_port'}):
+                not {'name', 'enabled', 'transport', 'concurrency'} <= set(entry)):
             raise ValueError('vm-config:host fields')
         name = validate_name(entry['name'])
         if name in hosts:
@@ -184,6 +184,8 @@ def host_registry(document):
         if transport == 'local' and 'ssh_port' in entry:
             raise ValueError('vm-config:local host cannot have ssh_port')
         root = absolute_path(entry['backup_root'], 'backup_root') if 'backup_root' in entry else None
+        if 'virt-manager' in entry:
+            absolute_path(entry['virt-manager'], 'virt-manager')
         hosts[name] = HostConfig(name, entry['enabled'] == 'true', transport, concurrency, root, port)
     if sum(host.transport == 'local' for host in hosts.values()) > 1:
         raise ValueError('vm-config:only one local host is allowed')
@@ -240,10 +242,16 @@ def fixture_targets(path=None):
 
 def validate_family(document):
     if (not isinstance(document, dict) or
-            set(document) != {'family', 'package_format', 'fixture_path', 'vms'} or
+            not {'family', 'package_format', 'fixture_path', 'vms'} <= set(document) or
             not isinstance(document['vms'], list) or not document['vms']):
         raise ValueError('vm-config:family fields')
     family = document['family']
+    if 'iso' in document:
+        pattern = document['iso']
+        if (not isinstance(pattern, str) or not pattern.endswith('.iso') or
+                '/' in pattern or '\\' in pattern or
+                any(ord(char) < 32 for char in pattern)):
+            raise ValueError('vm-config:iso must be an ISO filename pattern without directories')
     if not isinstance(family, str) or not family.strip() or any(ord(char) < 32 for char in family):
         raise ValueError('vm-config:family must be a nonempty literal string')
     if document['package_format'] not in ('deb', 'rpm'):
@@ -366,8 +374,7 @@ def require_branch(vm, branch):
 
 def validate_entry(document, family, hosts=None, *, explicit_hosts=False):
     if (not isinstance(document, dict) or
-            not {'name', 'disk_anchor'} <= set(document) or
-            not set(document) <= {'name', 'disk_anchor', 'enabled', 'id', 'owning_branch', 'host'}):
+            not {'name', 'disk_anchor'} <= set(document)):
         raise ValueError('vm-config:fields')
     name = validate_name(document['name'])
     hosts = {'local': HostConfig()} if hosts is None else hosts

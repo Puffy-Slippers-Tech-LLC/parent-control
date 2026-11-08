@@ -22,7 +22,7 @@ sub run {
             || $route eq 'files' && $control eq 'enabled'
                 && $kind eq 'native'
             || $route eq 'desktop' && $control eq 'enabled'
-                && $kind eq 'native' && ($policy eq 'allowed' || $policy eq 'hard-blocked'))
+                && $kind eq 'native')
         && ($policy eq 'allowed' || $policy eq 'hard-blocked' || $policy eq 'soft-blocked')
         && ($kind eq 'native' || $kind eq 'snap' && $policy eq 'allowed'
             || $kind eq 'flatpak');

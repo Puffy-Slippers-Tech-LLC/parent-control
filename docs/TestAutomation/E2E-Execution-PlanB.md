@@ -26,7 +26,7 @@ integration work and must not become a queue prerequisite.
 
 ## Next task
 
-Next task: **151 — [Check that sent feedback clears after success](E2E-Tasks/151-case-156.md)**.
+Next task: **152 — [Check feedback recovers after a retryable response](E2E-Tasks/152-network.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

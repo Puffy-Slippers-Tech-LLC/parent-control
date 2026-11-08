@@ -149,6 +149,12 @@ after full verification. Product-only edits do not change the fixture key;
 incomplete, corrupt, missing or replaced registered inputs refuse without repair
 or replacement. Independent executions own separate bounded copies.
 
+When fixture declarations grow, inspect the exact older inventory before changing
+baseline compatibility. `baseline_fixtures._compiled_retirement_record` reconstructs
+known historical closures in reverse addition order and admits their receipts
+only as read-only clean-output witnesses after verifying ownership and absence.
+That compatibility supplies no authority to delete a partial or foreign fixture.
+
 Select before acquiring a VM. Pass the immutable `Selection.record()` through
 descendants and keep the existing retention environment and
 `test_storage.scratch_descriptors()` forwarding. The inherited owner descriptor
@@ -571,6 +577,22 @@ keeps that history, its departure-before-expiry guard and replacement arithmetic
 in the case, using shared allowance, approval, countdown and TIME03 operations.
 Do not infer grant expiry from total time or renew the grant to repair navigation
 that consumed the case's preparation margin.
+
+Staged expiry histories reuse `real_interval.interval_toward(journey, guard, target_ns)`
+for one wait of at most 300 seconds toward the original controller-monotonic
+nanosecond deadline. Keep the finite wait stages and worker reply boundaries in
+the caller; replacing them with one complete-deadline wait can outlast a worker's
+reply budget. Missing-deadline refusals and independent expiry assertions remain
+with the history.
+
+For a parent edit after expiry, distinguish the save from the child's later
+session entry. Check the action's grant effect against the
+[product transaction and session rules](../../docs/System-Design.md#state-ownership-and-shared-constraints)
+before choosing the expected app result. Preserve the original Soft work capture,
+the parent's save/readback, and the child's return as separate ordered endpoints;
+closure observed after return does not establish that Save closed the app.
+`daily_soft_expiry.py` shares those mechanics across allowance, toggle and
+unchanged-match saves while keeping their different app/grant assertions local.
 
 The daily, grant-only and combined retained-work cases compose
 `journey_blocks.countdown_activity` and `journey_checks.CountdownActivityJourney`.

@@ -1,6 +1,5 @@
 """Daily access after expiry and the declared app-policy restoring action."""
 from dataclasses import replace
-import time
 
 from accessible_ui import NAMED_CHILD_OPERATIONS, countdown_seconds
 from countdown import CountdownSample
@@ -13,7 +12,7 @@ from journey_blocks import (allowance_selection, desktop_entry, desktop_return, 
                             retained_app_activities, retained_app_visit, retained_parent_entry)
 from native_fixtures import fixture_actions
 from private_artifacts import require
-from real_interval import interval_action
+from real_interval import interval_toward
 
 
 PEER = retained_app_activities((('peer', 'other-child', 'fresh'),))
@@ -293,8 +292,7 @@ class DailySoftExpiryJourney(DailySoftProfileJourney):
     @staticmethod
     def wait_expiry(journey, guard):
         require(journey.expiry_controller_ns is not None, 'daily-soft-expiry:missing-original-deadline')
-        remaining = (journey.expiry_controller_ns - time.monotonic_ns()) / 1e9
-        return interval_action(min(300, remaining))(journey, guard) if remaining > 0 else 0
+        return interval_toward(journey, guard, journey.expiry_controller_ns)
 
 
 def execute(recorder, context):

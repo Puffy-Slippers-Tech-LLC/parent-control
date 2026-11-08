@@ -16,7 +16,7 @@ from named_app_set import APPS, named_app_set
 from native_fixtures import fixture_actions
 from policy_edits import AppPolicyJourney
 from private_artifacts import require
-from real_interval import interval_action
+from real_interval import interval_toward
 
 
 GRANT_SECONDS = 600
@@ -292,8 +292,7 @@ class AppRestartExpiredJourney(GrantOnlyProfileJourney, AppPolicyJourney):
     @staticmethod
     def remaining_interval(journey, guard):
         require(journey.original_deadline_ns is not None, 'app-restart-expired:missing-deadline')
-        remaining = (journey.original_deadline_ns - time.monotonic_ns()) / 1e9
-        return interval_action(min(300, remaining))(journey, guard) if remaining > 0 else 0
+        return interval_toward(journey, guard, journey.original_deadline_ns)
 
 
 def execute(recorder, context):

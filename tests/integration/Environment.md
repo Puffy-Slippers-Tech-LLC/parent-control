@@ -395,6 +395,11 @@ manager for packages installed or updated by the public app installation; other
 additions and package removals refuse. Retained results bind those package versions.
 Invoke authorized baseline refresh separately; this check never
 refreshes a baseline or grants provisioning, runner or customer acceptance.
+Its retained-source inventory excludes the shared staged-retirement declaration.
+Older captures may preserve the inert configuration from before the registry
+rename only when the check verifies its exact historical bytes, size and private
+root ownership in both the baseline and restored app capture. Other unexpected
+files or changed historical configurations still refuse; the audit deletes nothing.
 
 `tools/run-tests system --vm onpc-Ubuntu26.04 check_fixture_provisioning`
 qualifies the shared provisioner in three separate watched attempts: refusal of

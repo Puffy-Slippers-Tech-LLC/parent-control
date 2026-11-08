@@ -1834,10 +1834,11 @@ and the same owned maintenance envelope, with no acceptance credit. Finish with
 `tools/test-vm --vm NAME stop` before clean qualification.
 
 `tools/test-vm --vm NAME reproduce-native-desktop` reuses
-`NativeDesktopJourney` through trusted placement, Jordan's exact icon focus and
-one selection shortcut. It stops at `first-selected`, records the shared
+`app_launch.DESKTOP_PLAN` through Parent's saved allowed policy, trusted placement,
+Jordan's exact icon focus and one selection shortcut. It stops at
+`jordan-use-selected`, records the shared
 selection observation and retains Jordan's desktop for guarded `exec` probes.
-The VM-bound native fixtures, owned maintenance envelope and input guards stay
+The case's qualified fixture profile, owned maintenance envelope and input guards stay
 active. It supplies no acceptance credit; finish with
 `tools/test-vm --vm NAME stop` before clean qualification.
 

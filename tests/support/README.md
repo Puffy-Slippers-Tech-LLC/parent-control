@@ -313,6 +313,13 @@ alone does not prove the child can open and use it. Keep policy effects and
 original-versus-copy assertions in the consuming case, separate from copy
 qualification.
 
+Desktop launch consumers reuse `synthetic_files.desktop_entry_actions(child=...)`
+for trusted placement, independent readback and receipt-owned cleanup. Keep the
+child visits, launch/use assertions and placement/cleanup order in each plan;
+do not import a qualification plan to obtain file mechanics. Actual icon input
+uses the [qualified DING operation](../../docs/TestAutomation/E2E-Building-Blocks.md#native-desktop-entry-and-usable-launch),
+including its independent keyboard-selection guard.
+
 For versioned additions under an active child block, `SyntheticFiles` accepts
 `administrative=True` only for `native-version-next` and `native-version-nonmatch`.
 It uses the existing guarded root transport for ordinary placement/readback,
@@ -353,8 +360,11 @@ Use the qualified profiles in
 [e2e_fixture_preparation.py](../integration/e2e_fixture_preparation.py), including
 `ACTIVITY_SUBSETS` for retained native work. Attaching a desktop worker does not
 provision extra files; pass that existing fixture context to `run_attached`.
-Check this declaration before diagnosing a missing activity fixture as a launch
-or product failure. Preserve the finite caller allowlist and readiness refusals.
+Check both the declared profile and exact caller registration with
+`qualified_subsets` before the first live attempt; setting the context fields
+alone does not register a new consumer. Check this declaration before diagnosing
+a missing activity fixture as a launch or product failure. Preserve the finite
+caller allowlist and readiness refusals.
 
 Snap and Flatpak separate-window checks reuse
 `ui_observations.compare_app_activity(result='separate')` on their immutable
@@ -1049,6 +1059,10 @@ Keep preparation outside the retry predicate too; an earlier successful desktop
 read is not a current launch proof.
 The launch command runs once outside the wait, with the uncertain-input latch
 set before submission and independent window/activity readback afterward.
+Native desktop-icon operations use the same bounded complete-read policy for
+their window-absence preflight. A retiring unrelated provider discards that
+observation; a complete existing-window refusal stays terminal. Focus, Ctrl+A
+and Enter are never replayed by the read wait.
 Native launch, live-owner comparison and attributed denial reads share
 `accessible_ui.NATIVE_EXECUTABLES`. A new path needs its exact finite binding
 through all three operations that the consumer uses: Allowed copy/use does not

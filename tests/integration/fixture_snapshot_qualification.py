@@ -10,7 +10,6 @@ from pathlib import Path
 import re
 import stat
 import sys
-import tempfile
 import traceback
 from collections import Counter
 from types import SimpleNamespace
@@ -28,7 +27,7 @@ import installed_setup
 import online_snapshot
 import prepare_vm
 from provenance import preflight_source
-from qualification_storage import allocate, session
+from qualification_storage import run_qualification
 from suite_lease import Suite
 import system_runner as system
 from tests.fixtures.native_trust import database_row, native_tool_paths
@@ -48,8 +47,10 @@ def check_input_files(files, allowed):
             original = str(path.parent.parent / (path.name.split('.')[0] + '.py'))
             if original in allowed:
                 continue
-        # Installation command records are bounded diagnostics, not inputs.
-        if re.fullmatch(r'private/stage-[A-Za-z0-9_]{8}/command-[0-9]{4}(?:-stderr)?\.txt', name):
+        # Installation command records and the installer's fixed trust-cost
+        # report are diagnostics, not movable fixture inputs.
+        if re.fullmatch(r'private/stage-[A-Za-z0-9_]{8}/(?:command-[0-9]{4}(?:-stderr)?'
+                        r'|install-trust-diagnostic)\.txt', name):
             continue
         if re.fullmatch(r'private/redaction-identities/[A-Za-z0-9_]{8}\.json', name):
             continue
@@ -73,11 +74,16 @@ def runtime_absence():
 
 TARGETS = prepare_vm.vm_config.fixture_targets()
 
+# The config rename in 7d8d95b0 left this exact inert input in older captures.
+# Preserve it only with its historical bytes and private preparation ownership;
+# this is not permission to accept another file or a changed configuration.
+LEGACY_VM_CONFIG = ('config/test-vm.json', 1642,
+    'fa707fe3f766b5e972b0674613ebefbcc4287e9d7f214eb0082e06c3aab5b66d')
+
 
 def preparation_checkout_files(os_id='ubuntu'):
     files = set(prepare_vm.preparation_files(os_id)) | set(prepare_vm.REQUIRED_CHECKOUT_ENTRIES)
-    files -= set(prepare_vm.FIXTURE_SOURCE_FILES)
-    files.discard('common/oh_no_parent_control_ui/gtk_automation.py')
+    files -= set(prepare_vm.FIXTURE_SOURCE_FILES) | set(baseline_guest.STAGED_MOVABLE_SOURCES)
     files.update(str(Path(account.icon_file).relative_to(prepare_vm.CHECKOUT))
                  for account in prepare_vm.IDENTITIES)
     return sorted(files)
@@ -150,6 +156,7 @@ def audit_baseline(suite, allowed):
         baseline_guest.verify_clean_sources(g)
         checkout = baseline_guest.STAGE + '/checkout'
         checkout_files = []
+        expected_checkout = set(preparation_checkout_files(os_id))
         for name in g.find(checkout):
             relative = relative_member(name)
             path = checkout + '/' + relative
@@ -159,7 +166,14 @@ def audit_baseline(suite, allowed):
                            'fixture-snapshots:unsafe-retained-checkout')
             if stat.S_ISREG(info['st_mode']):
                 checkout_files.append(relative)
-        system.require(set(checkout_files) == set(preparation_checkout_files(os_id)),
+                if relative == LEGACY_VM_CONFIG[0]:
+                    system.require(info['st_uid'] == info['st_gid'] == 0
+                        and stat.S_IMODE(info['st_mode']) == 0o600 and info['st_nlink'] == 1
+                        and info['st_size'] == LEGACY_VM_CONFIG[1]
+                        and g.checksum('sha256', path) == LEGACY_VM_CONFIG[2]
+                        and g.lstatns(path) == info, 'fixture-snapshots:legacy-config')
+                    expected_checkout.add(relative)
+        system.require(set(checkout_files) == expected_checkout,
                        'fixture-snapshots:unexpected-retained-source')
         roots = input_roots(g.ls('/var/tmp'))
         inventories = {}
@@ -203,8 +217,17 @@ for current,dirs,names in os.walk(checkout,followlinks=False):
   info=path.lstat()
   assert not stat.S_ISLNK(info.st_mode),'unsafe-retained-checkout'
   assert stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode),'unsafe-retained-checkout'
-  if stat.S_ISREG(info.st_mode): retained.append(path.relative_to(checkout).as_posix())
-assert sorted(retained)==data['checkout_files'],'unexpected-retained-source'
+  if stat.S_ISREG(info.st_mode):
+   relative=path.relative_to(checkout).as_posix()
+   retained.append(relative)
+   if relative==data['legacy_config'][0]:
+    assert info.st_uid==info.st_gid==0 and stat.S_IMODE(info.st_mode)==0o600 and info.st_nlink==1,'legacy-config'
+    assert info.st_size==data['legacy_config'][1],'legacy-config'
+    assert hashlib.sha256(path.read_bytes()).hexdigest()==data['legacy_config'][2],'legacy-config'
+    after=path.lstat()
+    assert all(getattr(after,key)==getattr(info,key) for key in ('st_dev','st_ino','st_mode','st_uid','st_gid','st_nlink','st_size','st_mtime_ns')),'legacy-config'
+    data['checkout_files'].append(relative)
+assert sorted(retained)==sorted(data['checkout_files']),'unexpected-retained-source'
 trees={}
 for root in sorted(pathlib.Path('/var/tmp').iterdir()):
  if not root.name.startswith('onpc-system-input'): continue
@@ -237,6 +260,7 @@ def audit_online(transport, allowed, expected, os_id='ubuntu'):
         input=system.baseline.encode({'absent': runtime_absence(),
                                      'fixture_sources': fixture_sources,
                                      'checkout_files': preparation_checkout_files(os_id),
+                                     'legacy_config': LEGACY_VM_CONFIG,
                                      'expected': expected}), timeout=120)
     system.require(len(raw) <= 1024 * 1024, 'fixture-snapshots:oversized-audit')
     value = json.loads(raw)
@@ -272,7 +296,9 @@ def baseline_transport(suite, directory):
 
 def native_rows(raw, absent, product_paths, os_id='ubuntu'):
     """Separate package-owned product rows from the preserved vendor database."""
-    system.require(type(raw) is bytes and 0 < len(raw) <= 32 * 1024 * 1024,
+    # Supported updated baselines can exceed 32 MiB (36,123,181 bytes observed).
+    # Keep a finite growth budget; every row still receives the checks below.
+    system.require(type(raw) is bytes and 0 < len(raw) <= 64 * 1024 * 1024,
                    'fixture-snapshots:native-database-size')
     vendor, product = Counter(), Counter()
     for line in raw.decode('utf-8').splitlines():
@@ -620,7 +646,15 @@ def qualify_identities(directory, lease, assets, bundle, xml):
     original = prepare_vm.preparation_digest(checkout, os_id=os_id)
     system.require(original == lease.capture.state['script_digest'],
                    'fixture-snapshots:preparation-source-changed')
-    for relative in prepare_vm.FIXTURE_SOURCE_FILES:
+    # Some fixture sources also supply persistent Snap/Flatpak runtimes. Only
+    # omitted files and projected fixture-only bodies may leave identity intact.
+    fixture_sources = tuple(relative for relative in prepare_vm.FIXTURE_SOURCE_FILES
+        if relative not in prepare_vm.preparation_files(os_id)
+        or relative in prepare_vm.SNAPSHOT_SOURCE_SYMBOLS)
+    dependency_sources = ('tests/integration/guest_test_dependencies.py', *(
+        relative for relative in prepare_vm.FIXTURE_SOURCE_FILES
+        if relative not in fixture_sources))
+    for relative in fixture_sources:
         path = checkout / relative
         path.write_bytes(path.read_bytes() + b'\n# fixture-only mutation\n')
     shared = checkout / 'tests/integration/baseline_fixtures.py'
@@ -640,10 +674,13 @@ def qualify_identities(directory, lease, assets, bundle, xml):
     system.require(prepare_vm.preparation_digest(checkout, os_id=os_id) != original,
                    'fixture-snapshots:lifecycle-does-not-invalidate')
     shared.write_bytes(original_shared)
-    dependency = checkout / 'tests/integration/guest_test_dependencies.py'
-    dependency.write_bytes(dependency.read_bytes() + b'\n# dependency mutation\n')
-    system.require(prepare_vm.preparation_digest(checkout, os_id=os_id) != original,
-                   'fixture-snapshots:dependency-does-not-invalidate')
+    for relative in dependency_sources:
+        dependency = checkout / relative
+        original_dependency = dependency.read_bytes()
+        dependency.write_bytes(original_dependency + b'\n')
+        system.require(prepare_vm.preparation_digest(checkout, os_id=os_id) != original,
+                       'fixture-snapshots:dependency-does-not-invalidate')
+        dependency.write_bytes(original_dependency)
     expected = app_snapshot.input_identity(lease, assets, bundle, lease.commands)
     changed = changed_bundle(bundle, prepare_vm.FIXTURE_SOURCE_FILES)
     system.require(app_snapshot.input_identity(lease, assets, changed, lease.commands) == expected
@@ -671,7 +708,8 @@ def qualify_identities(directory, lease, assets, bundle, xml):
             'product_package_mutation_method': ('private-rpm-archive-byte' if os_id == 'fedora'
                                                 else 'repacked-deb-product-file'),
             'changed_baseline_identity_invalidates_app': True,
-            'mutated_fixture_sources': list(prepare_vm.FIXTURE_SOURCE_FILES)}
+            'mutated_fixture_sources': list(fixture_sources),
+            'mutated_dependency_sources': list(dependency_sources)}
 
 
 def qualify(directory, assets):
@@ -751,20 +789,9 @@ def qualify(directory, assets):
 
 
 def main(*, assets):
-    directory = None
-    try:
+    def preflight():
         system.require(os.geteuid() == 0, 'fixture-snapshots:root-required')
         system.require(prepare_vm.vm_config.selected().name in TARGETS,
                        'fixture-snapshots:target-not-qualified')
-        os.umask(0o077)
-        with session():
-            directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-fixture-snapshots-'))
-            result = qualify(directory, assets)
-            (directory / 'result.json').write_bytes(system.baseline.encode(result))
-        print('fixture-snapshots: passed; evidence=' + str(directory), flush=True)
-        return 0
-    except (Exception, KeyboardInterrupt) as error:
-        print('fixture-snapshots: ' + system.error_category(error), file=sys.stderr, flush=True)
-        if directory is not None:
-            print('fixture-snapshots: evidence=' + str(directory), file=sys.stderr, flush=True)
-        return 1
+    return run_qualification('fixture-snapshots',
+        lambda directory: qualify(directory, assets), preflight=preflight)

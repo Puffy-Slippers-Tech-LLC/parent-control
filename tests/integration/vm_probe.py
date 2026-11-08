@@ -1129,15 +1129,16 @@ def reproduce_versioned_appimage_assets(lease, fixture_selection):
 
 
 def reproduce_native_desktop(lease, fixture_selection):
-    """Retain Jordan's desktop after the shared icon selection input."""
+    """Retain case 68's Jordan selection after the actual Parent policy saves."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
-    from native_desktop_usable import NativeDesktopJourney
+    from app_launch import DESKTOP_PLAN
+    from policy_edits import AppPolicyJourney
     from tools.test_storage import named_input
     selection = installed_reproduction_selection(lease, fixture_selection)
     assets = named_input(vm_source=True, package_source=True, fixture_source=True)
     system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
-    return reproduce_denial(lease, NativeDesktopJourney, None,
-        'first-selected', 'native-desktop', assets=assets,
+    return reproduce_denial(lease, AppPolicyJourney, DESKTOP_PLAN,
+        'jordan-use-selected', 'native-desktop', assets=assets,
         boundary_operation='native-desktop-selected', fixture_selection=selection, timeout=1800)
 
 
@@ -1760,7 +1761,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from native_denial import NativeDenialJourney, PLAN as NATIVE_DENIAL_PLAN
         from native_files_usable import NativeFilesJourney
         if surface == 'native-desktop':
-            from native_desktop_usable import NativeDesktopJourney
+            from app_launch import DESKTOP_PLAN
         from grant_access_case import GrantAccessJourney, PLAN as GRANT_ACCESS_PLAN
         from match_editor_case import PLAN as MATCH_EDITOR_PLAN
         from policy_edits import AppPolicyJourney
@@ -1823,8 +1824,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             and journey_type is NativeFilesJourney and plan is None
             and boundary == 'first-dismiss' and boundary_operation == 'native-files-allowed-dismiss')
         native_desktop = (surface == 'native-desktop'
-            and journey_type is NativeDesktopJourney and plan is None
-            and boundary == 'first-selected' and boundary_operation == 'native-desktop-selected')
+            and journey_type is AppPolicyJourney and plan is DESKTOP_PLAN
+            and boundary == 'jordan-use-selected' and boundary_operation == 'native-desktop-selected')
         grant_logout = (surface == 'grant-logout'
             and journey_type is GrantAccessJourney and plan is GRANT_ACCESS_PLAN
             and boundary == 'grant-logout-logout' and boundary_operation == 'system:standard-logout')
@@ -1909,10 +1910,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if selected_setup:
             from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS
             context.fixture_selection = fixture_selection
-            context.fixture_subsets = ('native',) if surface in ('ineligible-approver', 'remove-selected', 'remove-last-child', 'native-denial', 'native-files', 'native-desktop', 'versioned-appimage-assets', 'grant-logout', 'match-editor', 'flatpak-grid', 'flatpak-temporary-access', 'native-temporary-access') else ACTIVITY_SUBSETS
+            context.fixture_subsets = ('native',) if surface in ('ineligible-approver', 'remove-selected', 'remove-last-child', 'native-denial', 'native-files', 'versioned-appimage-assets', 'grant-logout', 'match-editor', 'flatpak-grid', 'flatpak-temporary-access', 'native-temporary-access') else ACTIVITY_SUBSETS
             context.fixture_caller = ({'ineligible-approver': None, 'remove-selected': None, 'remove-last-child': None, 'native-denial': None, 'flatpak-grid': None,
                                        'native-files': None,
-                                       'native-desktop': None,
+                                       'native-desktop': 'E2E-019/native-desktop-allowed-enabled',
                                        'versioned-appimage-assets': None,
                                        'flatpak-temporary-access': None,
                                        'native-temporary-access': None,
@@ -2016,6 +2017,13 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if surface == 'flatpak-temporary-access':
             from flatpak_fixtures import fixture_actions
             actions = fixture_actions(include_refusal=False)
+        if surface == 'native-desktop':
+            from native_fixtures import fixture_actions
+            from synthetic_files import desktop_entry_actions
+            actions = fixture_actions(include_refusal=False)
+            for name, child in (('jordan', 'other-child'), ('riley', 'child')):
+                actions.update({name + '-' + key: action
+                                for key, action in desktop_entry_actions(child=child).items()})
         if surface in ('match-editor', 'panel-request', 'app-restart-choices', 'reboot-context', 'native-temporary-access'):
             from native_fixtures import fixture_actions
             actions = fixture_actions(include_refusal=False)

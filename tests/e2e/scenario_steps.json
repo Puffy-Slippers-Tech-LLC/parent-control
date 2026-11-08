@@ -207,7 +207,7 @@
       "match-editor": {"steps": ["Edit an app's match rule.", "Check valid rules save and rejected rules preserve the last accepted choice.", "Try the affected child launches."]},
       "match-reopen": {"steps": ["Save a precise match override for an app with a suggested pattern.", "Reopen Parent and inspect the documented suggested-pattern redisplay.", "Select precise matching again before saving and check launches."]},
       "shared-launchers": {"steps": ["Inspect apps that share a launcher target.", "Save the intended app rule.", "Try the related child launches and check the rule applies correctly."]},
-      "special-paths": {"steps": ["Inspect apps whose paths contain special characters.", "Save their match rules.", "Try launching them as the child and check the intended restrictions."]},
+      "special-paths": {"steps": ["Copy the child's apps whose paths contain spaces or commas.", "Save Hard choices and check the child cannot open either original or copy while a different app works.", "Repeat with Soft choices without an exception, then restore Allowed and remove the copies."]},
       "pattern-files": {"steps": ["Save a file-pattern rule for an app.", "Copy or rename the relevant files.", "Check matching launches are restricted and unrelated launches remain usable."]}
     }
   },

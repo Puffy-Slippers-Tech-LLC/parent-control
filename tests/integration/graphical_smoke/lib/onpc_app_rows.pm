@@ -689,7 +689,7 @@ sub native_blocked_app {
     my ($journey, $role, $route) = @_;
     $route //= 'command';
     die 'native:denial-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
-        && ($route eq 'command' && ($role eq 'A' || $role eq 'H' || $role eq 'S' || $role eq 'Alias')
+        && ($route eq 'command' && $role =~ /\A(?:A|H|S|Alias|C|SpaceCopy|CommaCopy)\z/
             || $route eq 'grid' && $role =~ /\A(?:A|Alias|H|S)\z/);
     if ($route eq 'grid') {
         my $entry = native_search($journey, $journey->seen('desktop'), 'app-grid', $role);

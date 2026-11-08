@@ -232,6 +232,45 @@ sub shared_launchers_case {
     $journey->finish();
 }
 
+sub special_paths_case {
+    onpc_progress::operation('Checking that parent blocks deny special-path apps and their identical copies');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'special-paths:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'special-paths-case', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen($_) for qw(saved-settings apps-page initial-rows space-copy comma-copy);
+    for my $name ('hard', 'soft') {
+        onpc_app_rows::access_choice($journey, "$name-$_-save", "$name-$_-row")
+            for ('hard', 'comma');
+        $journey->seen($_) for ("$name-leave-desktop", "$name-leave-switch", "$name-leave-greeter");
+        onpc_desktop_session::enter_desktop(
+            $journey, 'gdm', 'other-child', 'fresh', 'success', "$name-entry");
+        for my $app (['space-original', 'H'], ['space-copy', 'SpaceCopy'],
+                     ['comma-original', 'C'], ['comma-copy', 'CommaCopy']) {
+            onpc_app_rows::native_blocked_app($journey->scope($name . '-' . $app->[0]), $app->[1]);
+        }
+        my $allowed = $journey->scope("$name-allowed");
+        onpc_app_rows::native_usable_app($allowed, 'command', $allowed->seen('desktop'), 'other-child', 'N');
+        onpc_app_rows::native_finish_app($allowed);
+        $journey->seen($_) for ("$name-logout", "$name-greeter");
+        onpc_desktop_session::enter_desktop(
+            $journey, 'gdm', 'parent', 'retained', 'success', "$name-return");
+        $journey->consume_observation("$name-supplied-parent-retained",
+            onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained',
+                                        'existing', "$name-supplied", 0));
+        $journey->seen("$name-apps-page");
+    }
+    onpc_app_rows::access_choice($journey, "restore-$_-save", "restore-$_-row")
+        for ('hard', 'comma');
+    $journey->seen($_) for qw(space-cleanup comma-cleanup parent-logout);
+    $journey->finish();
+}
+
 sub parent_error_report {
     onpc_progress::operation('Reviewing and closing reports from rejected Parent match rules');
     my ($exchange) = @_;

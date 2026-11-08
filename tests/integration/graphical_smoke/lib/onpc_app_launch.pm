@@ -22,7 +22,7 @@ sub run {
             || $route eq 'files' && $control eq 'enabled'
                 && $kind eq 'native'
             || $route eq 'desktop' && $control eq 'enabled'
-                && $kind eq 'native' && $policy eq 'allowed')
+                && $kind eq 'native' && ($policy eq 'allowed' || $policy eq 'hard-blocked'))
         && ($policy eq 'allowed' || $policy eq 'hard-blocked' || $policy eq 'soft-blocked')
         && ($kind eq 'native' || $kind eq 'snap' && $policy eq 'allowed'
             || $kind eq 'flatpak');
@@ -70,7 +70,7 @@ sub run {
     }
     $jordan->seen('dismiss') if $route eq 'files';
     if ($route eq 'desktop') {
-        onpc_app_rows::native_finish_app($jordan);
+        onpc_app_rows::native_finish_app($jordan) if $policy eq 'allowed';
         $jordan->seen('cleanup');
     }
     $journey->seen('jordan-logout');

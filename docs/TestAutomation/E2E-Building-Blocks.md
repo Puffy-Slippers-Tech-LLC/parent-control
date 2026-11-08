@@ -4481,7 +4481,16 @@ standalone system registration. Complete case 76 subsequently passed on Ubuntu
 fresh Riley's Files launch/Submit/readback with untouched policy. Affected
 Allowed Files case 74 passed in `20261108T090001Z-3ebc8efa`. Both passed
 collection, worker shutdown, owned cleanup and baseline restoration; the VM
-ended off. Complete case 78 remains separate.
+ended off. Complete case 78 passed on Ubuntu 26.04 in
+`scenario-2d648d0c47fb4f8390ae6bbeb96fabfa`: Parent's saved precise conditional
+block and 30-minute allowance/zero grant, fresh Jordan's denied Files activation,
+and fresh Riley's Files launch/Submit/readback with untouched policy and limits.
+Collection, worker shutdown, owned cleanup and baseline restoration passed;
+the VM ended off. Affected Hard Files case 76 passed in
+`scenario-ab66bee5d4074893ac64007d27f0539e`, including both children's independent
+results, collection, worker shutdown, owned cleanup and baseline restoration.
+Coverage was regenerated after each pass; scoped host safety, source checks
+and Markdown links passed. Other Files bindings and provider tuples remain separate.
 
 `tools/test-vm --vm NAME reproduce-native-files` reuses this journey through
 the first submitted result and probes `first-dismiss`, closing the worker
@@ -4763,6 +4772,7 @@ or alternative launch substitutes for the declared route.
 | 66 / `app_launch.SOFT_GRID_PLAN`, `run(..., 'enabled', 'grid', 'soft-blocked')` | Same target, precise match, 30-minute allowance and zero grant; Parent saves conditional access for Jordan without approval. Jordan's grid action is independently denied; fresh Riley grid launch/use remains unaffected. |
 | 74 / `app_launch.FILES_PLAN`, `run(..., 'enabled', 'files')` | 30 daily minutes/zero grant; Parent saves and reads Jordan's precise Allowed A rule. Fresh Jordan and then fresh Riley open the same argument-free executable from Files, submit the draft and independently read the result. Riley's policy and disabled limits remain untouched; Files is dismissed before leaving each desktop. Passed on Ubuntu 26.04; see [Files qualification](#native-files-launch-and-separate-windows). |
 | 76 / `app_launch.HARD_FILES_PLAN`, `run(..., 'enabled', 'files', 'hard-blocked')` | 30 daily minutes/zero grant; Parent saves and reads Jordan's precise permanent A block. Fresh Jordan's one Files activation requires continuous complete app-window absence for 15 seconds; fresh Riley opens/submits the same executable from Files with independent result readback and untouched policy/limits. Both Files windows are dismissed. Passed on Ubuntu 26.04; see [Files qualification and complete-case result](#native-files-launch-and-separate-windows). |
+| 78 / `app_launch.SOFT_FILES_PLAN`, `run(..., 'enabled', 'files', 'soft-blocked')` | 30 daily minutes/zero grant; Parent saves and reads Jordan's precise conditional A block without approval. Fresh Jordan's one Files activation requires continuous complete app-window absence for 15 seconds; fresh Riley opens/submits the same executable from Files with independent result readback and untouched policy/limits. Both Files windows are dismissed. Passed on Ubuntu 26.04; see [Files qualification and complete-case result](#native-files-launch-and-separate-windows). |
 | 80 / `app_launch.PLAN`, `onpc_app_launch::run` | Same enabled setup; Jordan then Riley freshly enter and use `Exact Fixture.AppImage` through the fixed command route. |
 | 81 / `app_launch.DISABLED_PLAN`, `run(..., 'disabled')` | Limits off/zero allowance; skip only enabled allowance setup/readback. Both children prove the same command target usable. |
 | 82 / `app_launch.HARD_COMMAND_PLAN`, `run(..., 'enabled', 'command', 'hard-blocked')` | 30 daily minutes/zero grant; Parent saves A's precise permanent block for Jordan. Fresh Jordan command execution requires an attributed permission denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same executable usable with Riley's policy untouched. |

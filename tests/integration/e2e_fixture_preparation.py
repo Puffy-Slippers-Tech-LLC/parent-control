@@ -54,6 +54,7 @@ ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',
                     'E2E-019/native-grid-allowed-enabled',
                     'E2E-019/native-file-manager-allowed-enabled',
                     'E2E-019/native-file-manager-hard-blocked-enabled',
+                    'E2E-019/native-file-manager-soft-blocked-enabled',
                     'E2E-019/native-grid-hard-blocked-enabled',
                     'E2E-019/native-grid-soft-blocked-enabled')
 LIFECYCLE_SUBSETS = ('native', 'baseline-child')

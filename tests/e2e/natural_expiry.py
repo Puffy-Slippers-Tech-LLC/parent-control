@@ -174,7 +174,7 @@ def _system_history_command(transport, command):
     value = json.loads(raw)
     if command in ('host-complete', 'revoke-complete', 'approval-complete', 'policy-complete',
                    'replacement-complete', 'crash-complete', 'stop-complete',
-                   'stall-complete', 'stall-cleanup'):
+                   'stall-complete', 'stall-cleanup', 'timer-complete', 'timer-cleanup'):
         require(value == {'completed': True}, 'expiry:history-incomplete')
         return value
     if command in ('policy-renew', 'policy-allowance', 'policy-disable'):
@@ -505,6 +505,25 @@ class BrokerStopJourney(SystemGraphicalExpiryJourney):
         compare_app_activity(AppActivityObservation.from_value(value['activity']),
                              journey.activity_observations['peer-activity-capture'])
         return {'peer_input_and_original_work': True}
+
+
+class TimerReplacementJourney(BrokerStopJourney):
+    """Reuse the single-outage history with a real native timer replacement."""
+
+    @staticmethod
+    def natural_lock(journey, guard):
+        result = BrokerCrashJourney.natural_lock(journey, guard,
+            arm='timer-arm', inject='timer-inject')
+        journey.original_expiry = result['expiry_at']
+        return result
+
+    @staticmethod
+    def natural_recovery(journey, guard):
+        result = journey._recover(journey, guard, 'timer-recovery')
+        journey.recovery_deadline = min(journey.recovery_deadline,
+            engineering_deadline(journey.original_expiry, RECOVERY_SECONDS))
+        require(time.monotonic() < journey.recovery_deadline, 'expiry:recovery-deadline')
+        return result
 
 
 REVOKE_SCREENS = {
@@ -910,13 +929,16 @@ class PendingApprovalJourney(SystemGraphicalExpiryJourney):
 def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected_inputs,
                                progress, context, credentials=None, foreground_revoke=False,
                                pending_approval=False, policy_order=False, session_replacement=False,
-                               broker_crash=False, broker_stop=False, broker_stall=False):
+                               broker_crash=False, broker_stop=False, broker_stall=False,
+                               timer_replacement=False):
     """Compose engineering input checks before the installed PAM password tests."""
     from desktop_session import run_attached
     require(sum((foreground_revoke, pending_approval, policy_order, session_replacement,
-                 broker_crash, broker_stop, broker_stall)) <= 1,
+                 broker_crash, broker_stop, broker_stall, timer_replacement)) <= 1,
             'expiry:ambiguous-history')
     plan, journey_type, ready, complete = (
+        (STOP_PLAN, TimerReplacementJourney, 'timer-ready', 'timer-complete')
+        if timer_replacement else
         (SYSTEM_PLAN, BrokerStallJourney, 'stall-ready', 'stall-complete')
         if broker_stall else
         (STOP_PLAN, BrokerStopJourney, 'stop-ready', 'stop-complete')
@@ -943,5 +965,7 @@ def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected
             # The attached worker has closed. Resume only our recorded process
             # before outer collection/shutdown, including an interrupted history.
             _system_history_command(transport, 'stall-cleanup')
+        if timer_replacement:
+            _system_history_command(transport, 'timer-cleanup')
     _system_history_command(transport, complete)
     return result

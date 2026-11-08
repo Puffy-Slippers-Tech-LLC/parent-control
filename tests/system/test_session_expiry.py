@@ -48,3 +48,8 @@ def test_broker_stop_before_expiry(record_testsuite_property):
 def test_broker_stall_before_expiry(record_testsuite_property):
     from system_graphical_expiry import verify_broker_stall
     verify_broker_stall(record_testsuite_property)
+
+
+def test_timer_replacement_before_expiry(record_testsuite_property):
+    from system_graphical_expiry import verify_timer_replacement
+    verify_timer_replacement(record_testsuite_property)

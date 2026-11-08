@@ -695,6 +695,19 @@ The broker-stall history reuses both crash histories and applies the same
 outage-inclusive recovery clock to each. Only the identity-recorded stopped
 process can receive SIGCONT, including the worker's failure cleanup; a recovered
 zero-balance reply and original-work readback remain independent assertions.
+`TimerReplacementJourney` reuses the single-outage `STOP_PLAN` and its worker.
+Its guest `timer_history` pins the actual Malcontent bus owner, process start
+and service invocation before stopping that native timer under an owned mask.
+The mask remains through original expiry and protected input. Recovery requires
+a distinct bus/process/service owner, the real child's native exhausted estimate,
+zero balance and unchanged expired grant before any recovery entitlement.
+Child work recovery stays within original expiry plus 300 seconds; the same
+parent session, input and work are checked before and after. Failure cleanup
+removes only the recorded mask. System 310 passed on session-selected
+`onpc-Ubuntu26.04-1` in `20261108T075926Z-16e1908b`, including collection,
+worker shutdown, owned cleanup and baseline restoration. Fedora remains
+unqualified; existing retry and session-replacement owners retain their distinct
+stale-work assertions, without a new deliberately held-reply matrix here.
 The complete current-production system-282 history passed on Ubuntu 26.04 and
 Fedora 44, including both protected-input challenges and original-work recovery.
 This qualifies the shared engineering observations, not extension-free locking

@@ -643,6 +643,8 @@ CASES = (
                  'Protect child work and original expiry while the service is stopped'),
     CaseIdentity(309, 'session', 'test_broker_stall_before_expiry',
                  'Protect child work and original expiry while the service stalls'),
+    CaseIdentity(310, 'session', 'test_timer_replacement_before_expiry',
+                 'Keep the child protected while the native timer owner is replaced'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

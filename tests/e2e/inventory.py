@@ -62,7 +62,8 @@ def no_duplicate_keys(pairs):
 
 def read_json(path):
     try:
-        raw = path.read_bytes()
+        snapshot = sys.modules.get('tools.vm_source_snapshot')
+        raw = snapshot.read_bytes(path) if snapshot is not None else path.read_bytes()
         return json.loads(raw, object_pairs_hook=no_duplicate_keys), hashlib.sha256(raw).hexdigest()
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise InventoryError('inventory:unreadable-json') from error

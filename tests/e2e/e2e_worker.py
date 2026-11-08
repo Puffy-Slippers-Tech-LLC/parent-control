@@ -14,6 +14,7 @@ import stat
 import struct
 import sys
 import time
+from tools.vm_source_snapshot import source_path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests/integration'))
@@ -138,16 +139,17 @@ def distribution_inputs():
     No arbitrary worker variables, extra schedule, checkpoints, executable
     overrides or credential input are accepted at this boundary.
     """
-    require(DISTRIBUTION.resolve() == DISTRIBUTION, 'e2e:distribution-path')
+    distribution = source_path(DISTRIBUTION)
+    require(distribution.resolve() == distribution, 'e2e:distribution-path')
     result = {}
     total_bytes = 0
-    for path in sorted(DISTRIBUTION.rglob('*')):
+    for path in sorted(distribution.rglob('*')):
         metadata = path.lstat()
         require(not stat.S_ISLNK(metadata.st_mode), 'e2e:distribution-symlink')
         if stat.S_ISDIR(metadata.st_mode):
             continue
         require(stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1
-                and (path.suffix == '.pm' or (path.parent == DISTRIBUTION / 'needles'
+                and (path.suffix == '.pm' or (path.parent == distribution / 'needles'
                                               and path.suffix in ('.json', '.png')))
                 and metadata.st_size <= 1024 * 1024,
                 'e2e:distribution-file')
@@ -158,7 +160,7 @@ def distribution_inputs():
                     'e2e:distribution-replaced')
             data = stream.read(1024 * 1024 + 1)
         require(len(data) <= 1024 * 1024, 'e2e:distribution-size')
-        result[path.relative_to(DISTRIBUTION).as_posix()] = data
+        result[path.relative_to(distribution).as_posix()] = data
         total_bytes += len(data)
         require(len(result) <= MAX_DISTRIBUTION_FILES
                 and total_bytes <= MAX_DISTRIBUTION_BYTES, 'e2e:distribution-size')

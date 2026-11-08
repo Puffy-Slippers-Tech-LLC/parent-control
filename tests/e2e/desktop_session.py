@@ -204,7 +204,6 @@ def run_attached(directory, lease, transport, ledger, plan, *, expected_inputs,
     """
     from private_artifacts import require
     from fixture_credentials import FixtureCredentials
-    from check_graphical_smoke import inputs
     import e2e_worker
 
     directory = Path(directory)
@@ -220,21 +219,8 @@ def run_attached(directory, lease, transport, ledger, plan, *, expected_inputs,
     context = SimpleNamespace(**values)
     expected_inputs = dict(expected_inputs)
 
-    def check_sources():
-        mismatches = [path for path, digest in inputs().items()
-                      if expected_inputs.get(path) != digest]
-        if mismatches:
-            # Report only bounded names from the accepted source manifest, not
-            # file contents or names of newly introduced, unreviewed inputs.
-            known = sorted(path for path in mismatches if path in expected_inputs)
-            print(plan.prefix + ':attached-source-drift ' + json.dumps({
-                'changed_paths': known[:12],
-                'changed_count': len(known),
-                'added_count': len(mismatches) - len(known),
-            }, sort_keys=True), flush=True)
-        require(not mismatches, plan.prefix + ':attached-source-changed')
-
-    check_sources()
+    # The dispatcher captures host helpers once. Uncaptured checkout reads are
+    # allowed to stay live; source edits are not a mid-history failure gate.
     journey = journey_type(context, progress, plan, actions=actions, transport=transport)
     credentials = FixtureCredentials() if credentials is None else credentials
     require(type(credentials) is FixtureCredentials, plan.prefix + ':attached-credentials')
@@ -243,7 +229,6 @@ def run_attached(directory, lease, transport, ledger, plan, *, expected_inputs,
     def step(guard):
         def guarded(**options):
             guard(**options)
-            check_sources()
             return guard()
         if stop_before is not None and (directory / (stop_before + '.request.json')).exists():
             guarded()
@@ -253,7 +238,6 @@ def run_attached(directory, lease, transport, ledger, plan, *, expected_inputs,
         return stop_before is None and len(journey.steps) == len(stages)
 
     def validate():
-        check_sources()
         require(not journey.failed and journey.trace_token is None,
                 plan.prefix + ':attached-incomplete')
         require([item['stage'] for item in journey.steps] == list(stages)

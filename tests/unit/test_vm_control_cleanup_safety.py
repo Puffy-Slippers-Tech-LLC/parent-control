@@ -1804,7 +1804,8 @@ def test_attached_diagnostic_prefix_cannot_claim_a_complete_journey(tmp_path, mo
                 'scene_retained': True, 'worker_stopped': True, 'callback_closed': True}
 
     monkeypatch.setattr(fixture_credentials, 'FixtureCredentials', Credentials)
-    monkeypatch.setattr(check_graphical_smoke, 'inputs', lambda: {})
+    monkeypatch.setattr(check_graphical_smoke, 'inputs',
+                        Mock(side_effect=AssertionError('checkout drift must not gate attachment')))
     monkeypatch.setattr(e2e_worker, 'run_distribution', run)
     result = desktop_session.run_attached(tmp_path, lease, transport, object(), plan,
         expected_inputs={}, progress=lambda *args: None, journey_type=Journey, stop_before=stop_before)

@@ -29,6 +29,12 @@ configuration. No bus, display, VM or shared cache is opened; unit overlap is sa
 Native copy safety uses real descriptor operations only in private pytest paths,
 with process-local account/root bindings. It owns no children, bus, display,
 shared cache or VM and is compatible with ordinary unit overlap.
+
+Privileged-runner source captures use tiny pytest-private checkout/scratch trees
+in the existing bounded, waited child processes. No live VM, service or shared
+snapshot cache is opened; the module remains compatible with unit overlap.
+The attachment source-drift check adds only a process-local failing double to
+vm_control_cleanup_safety; its existing unit/cleanup classifications still apply.
 """
 
 from pathlib import PurePosixPath

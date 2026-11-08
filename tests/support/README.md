@@ -326,6 +326,14 @@ child visits, launch/use assertions and placement/cleanup order in each plan;
 do not import a qualification plan to obtain file mechanics. Actual icon input
 uses the [qualified DING operation](../../docs/TestAutomation/E2E-Building-Blocks.md#native-desktop-entry-and-usable-launch),
 including its independent keyboard-selection guard.
+For a second window, compose `journey_blocks.native_window_app` for the explicit
+command-primary and desktop-secondary S endpoints. Keep captures, distinct-window
+comparisons and unchanged original work in the caller. The shared
+`onpc_app_rows::native_open_desktop` owns the optional panel-cycle navigation
+before icon observation; individual workers must not copy that shortcut or use
+it as a retry after uncertain input. An icon's accessibility focus does not
+establish compositor keyboard focus or DING's selected-file set. Qualify the
+route with original work still open, not only on an empty desktop.
 
 For versioned additions under an active child block, `SyntheticFiles` accepts
 `administrative=True` only for `native-version-next` and `native-version-nonmatch`.

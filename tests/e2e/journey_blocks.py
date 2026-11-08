@@ -222,6 +222,23 @@ def overlay_license_read(prefix='', *, links='license'):
         ('form-returned', 'overlay-valid-fraction-soft-read'))}
 
 
+def native_window_app(route, *, instance):
+    """Use Jordan's explicit S endpoint without replacing the original window.
+
+    Only the qualified command-primary and desktop-secondary bindings belong
+    here. The caller owns captures, independent entries and retention checks.
+    """
+    require((route, instance) in (('command', 'primary'), ('desktop', 'secondary')),
+            'journey:native-window-binding')
+    operation = 'ui:native-soft-' + instance + '-'
+    return {
+        **({'command': operation + 'command-launch'} if route == 'command' else {
+            'icon': 'ui:native-soft-desktop-icon',
+            'selected': 'ui:native-soft-desktop-selected'}),
+        **{action: operation + action for action in ('opened', 'submit', 'submitted')},
+    }
+
+
 def native_usable_app(route, *, child='other-child', role=None, desktop_observation=True,
                       kind='native', instance='primary'):
     """FLOW08 finite native usable scope; caller owns stages and later activity."""

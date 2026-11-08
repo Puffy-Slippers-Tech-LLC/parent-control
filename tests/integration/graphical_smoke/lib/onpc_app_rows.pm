@@ -1432,10 +1432,18 @@ sub snap_grid {
 # It opens our NON_UNIQUE fixture's secondary process even with primary work open.
 sub native_open_desktop {
     onpc_progress::operation('Opening the child\'s app through its exact desktop icon');
-    my ($journey, $result) = @_;
+    my ($journey, $result, $focus_desktop) = @_;
     $result //= 'opened';
-    die 'native:desktop-arguments' unless (@_ == 1 || @_ == 2)
-        && ref($journey) eq 'onpc_journey' && ($result eq 'opened' || $result eq 'denied');
+    $focus_desktop //= 0;
+    die 'native:desktop-arguments' unless (@_ >= 1 && @_ <= 3)
+        && ref($journey) eq 'onpc_journey' && ($result eq 'opened' || $result eq 'denied')
+        && ($focus_desktop eq '0' || $focus_desktop eq '1')
+        && (!$focus_desktop || $result eq 'opened');
+    # With original work open, GNOME's panel-cycle shortcut transfers keyboard
+    # focus to DING without closing that work. AT-SPI icon focus alone cannot
+    # transfer compositor focus. Select this route before input, never as a retry;
+    # the fresh exact-icon and sole-selection guards still precede Enter.
+    testapi::send_key('ctrl-alt-esc') if $focus_desktop;
     my $icon = $journey->consume_observation('icon', $journey->seen('icon'));
     die 'native:desktop-selection' unless exists($icon->{desktop_icon_selected});
     testapi::send_key('ctrl-a') unless $icon->{desktop_icon_selected};
@@ -1455,14 +1463,8 @@ sub native_desktop_new_window {
         my $earlier = $flow->scope('earlier');
         native_use_app($earlier, native_open_command($earlier, undef));
         native_read_activity($earlier, 'capture');
-        # GNOME's normal panel-cycle shortcut gives DING keyboard focus while
-        # leaving the original window mapped. Icon grab_focus alone cannot
-        # transfer compositor focus from that active application to the desktop.
-        # The next shared observation still proves the exact icon recipient
-        # before selection/Enter; no alternate app launch is involved.
-        testapi::send_key('ctrl-alt-esc');
         my $second = $flow->scope('second');
-        native_use_app($second, native_open_desktop($second));
+        native_use_app($second, native_open_desktop($second, 'opened', 1));
         native_read_activity($second, 'capture');
         native_read_activity($earlier, 'reread');
         native_finish_app($second);

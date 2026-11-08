@@ -4595,7 +4595,8 @@ It supplies no acceptance credit. Multiple ordinary icons remain unqualified;
 the policy-result qualification is recorded below.
 
 `native_desktop_new_window.PLAN` / `onpc_app_rows::native_desktop_new_window`
-qualifies Jordan's same-S separate-window binding on Ubuntu 26.04. The normal DING
+composes `journey_blocks.native_window_app`'s command-primary and desktop-secondary
+endpoints for Jordan's same-S separate-window binding on Ubuntu 26.04. The normal DING
 route is sole-icon selection and Enter: the installed `desktopManager.js`
 Return handler calls `fileItem.js::doOpen`, whose trusted desktop-file path
 uses `Gio.DesktopAppInfo.launch_uris_as_manager`. S's verified desktop entry
@@ -4605,11 +4606,12 @@ activity remains. `AccessibleUI.native_window_operation` checks each S process's
 executable, exact arguments, child owner and public window ID; APP04 compares
 distinct endpoints and rereads unchanged original work. The shared
 `native_open_desktop` worker retains the existing selection/Enter guards and
-never substitutes another route. With original work open, the shared
-`native_desktop_new_window` worker first uses GNOME's normal Ctrl+Alt+Escape
+never substitutes another route. With original work open, its explicit
+`focus_desktop` argument first uses GNOME's normal Ctrl+Alt+Escape
 panel-cycle shortcut to give the desktop keyboard focus; icon focus alone
 cannot transfer compositor focus from the active app. The unchanged exact-icon
-observation still precedes selection and Enter.
+observation still precedes selection and Enter. Callers select this branch
+before input; it is not a fallback after a failed launch or focus operation.
 
 `check_e2e_native_desktop_new_window` passed in `20261108T181000Z-4e4fc697`:
 two independent original/second S window pairs, trusted secondary desktop entry,

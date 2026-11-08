@@ -30,6 +30,7 @@ def proxy(directory, status):
     began = time.monotonic()
     loop = GLib.MainLoop()
     mode, serial, held, forwarded = None, 0, None, False
+    rejected = 0
     settings = Gio.Settings.new('org.gnome.desktop.lockdown')
     key = 'disable-lock-screen'
     assert settings.is_writable(key) and not settings.get_boolean(key)
@@ -55,8 +56,24 @@ def proxy(directory, status):
         record('native-action-paused' if paused else 'native-action-restored', mode=mode)
 
     def method(bus, sender, object_path, interface, member, parameters, invocation):
-        nonlocal held, forwarded
+        nonlocal held, forwarded, rejected, mode
+        retry = False
         assert owner('org.gnome.Shell.ScreenShield') == native
+        if member == 'Lock' and sender == native:
+            record('requested', mode=mode)
+        if member == 'Lock' and mode in ('transient', 'renewal') and sender == native:
+            if mode == 'renewal' or rejected == 0:
+                rejected += 1
+                record('unavailable', mode=mode)
+                invocation.return_dbus_error('org.freedesktop.DBus.Error.Failed',
+                                             'Temporary lock unavailability')
+                return
+            # Only the real retry restores availability and the competing
+            # native action. A service restart cannot supply a false pass.
+            record('retried', mode=mode)
+            native_action(False)
+            mode = None
+            retry = True
         hold = member == 'Lock' and mode in ('delayed', 'missing') and sender == native
         if hold:
             assert held is None and native_paused
@@ -72,6 +89,8 @@ def proxy(directory, status):
             nonlocal forwarded
             try:
                 value = bus.call_finish(result)
+                if retry:
+                    record('retry-native-complete')
                 if hold:
                     forwarded = True
                     record('native-complete', mode=mode)
@@ -109,7 +128,7 @@ def proxy(directory, status):
     print('onpc-lock-service-ready', flush=True)
 
     def control():
-        nonlocal serial, mode, held, forwarded
+        nonlocal serial, mode, held, forwarded, rejected
         assert time.monotonic() < began + 1800
         assert owner(name) == connection.get_unique_name()
         assert owner('org.gnome.Shell.ScreenShield') == native
@@ -124,10 +143,15 @@ def proxy(directory, status):
         assert value['serial'] == serial + 1
         serial = value['serial']
         action = value['action']
-        if action in ('delayed', 'missing'):
+        if action in ('delayed', 'missing', 'transient', 'renewal'):
             assert held is None
             mode = action
+            rejected = 0
             native_action(True)
+        elif action == 'available':
+            assert mode == 'renewal' and rejected > 0
+            native_action(False)
+            mode = None
         elif action == 'release':
             assert mode == 'delayed' and held is not None and forwarded
             held.return_value(GLib.Variant('()', ()))
@@ -312,6 +336,71 @@ def history(command, value, path, accounts):
     else:
         guest.require(value.get('reply_histories') == ['delayed', 'missing'],
                       'expiry:lock-reply-history-incomplete')
+        value['complete'] = True
+        result = {'completed': True}
+    value['grants'] += 1
+    path.write_text(json.dumps(value))
+    return result
+
+
+def retry_history(command, value, path, accounts):
+    """One real transient failure and one renewal cancelling stale retries."""
+    import system_guest as guest
+    from system_graphical_expiry import LIMITS, account_property, grant, wait_for, installed_manager
+    from system_extension_monitor import BrokerEvents
+
+    child = accounts['child']
+    installed_manager()
+    sequence = ('retry-renew-arm', 'retry-renew', 'retry-renew-check',
+                'retry-arm', 'retry-recovery', 'retry-complete')
+    index = value['grants']
+    guest.require(index < len(sequence) and command == sequence[index], 'expiry:lock-retry-order')
+    if command in ('retry-renew-arm', 'retry-arm'):
+        control('renewal' if index == 0 else 'transient')
+        value['retry_expiry'] = grant(child, 180)
+        value['retry_grant'] = account_property(child, LIMITS, 'ActiveExtension')
+        result = {'remaining_seconds': value['retry_expiry'] - time.time()}
+    elif command == 'retry-renew':
+        wait_for(lambda: any(row['event'] == 'unavailable' and row['mode'] == 'renewal'
+                             for row in records()), 'expiry:lock-retry-renewal-fault', timeout=210)
+        before = BrokerEvents.read('child')
+        grant(child, 1200)
+        # Commit plus current positive product calculation precedes restoration
+        # of availability. Neither alone proves cancellation or usable input.
+        wait_for(lambda: any(row not in before and row['event'] == 'child.estimate'
+                             and row.get('fields', {}).get('remaining', 0) > 300
+                             for row in BrokerEvents.read('child')),
+                 'expiry:lock-retry-renewal-not-confirmed', timeout=30)
+        control('available')
+        value['renew_available_at'] = time.monotonic()
+        value['renew_request_count'] = len([row for row in records() if row['event'] == 'requested'])
+        result = {'completed': True}
+    elif command == 'retry-renew-check':
+        guest.require(time.time() > value['retry_expiry'] + 15
+                      and time.monotonic() > value['renew_available_at'] + 15,
+                      'expiry:lock-retry-renewal-window-not-crossed')
+        guest.require(len([row for row in records() if row['event'] == 'requested'])
+                      == value['renew_request_count'], 'expiry:lock-retry-stale-request')
+        value['renewal_cancelled_retry'] = True
+        result = {'completed': True}
+    elif command == 'retry-recovery':
+        rows = records()
+        faults = [row for row in rows if row['event'] == 'unavailable' and row.get('mode') == 'transient']
+        retries = [row for row in rows if row['event'] == 'retried']
+        completions = [row for row in rows if row['event'] == 'retry-native-complete']
+        guest.require(len(faults) == len(retries) == 1
+                      and len(completions) == 1
+                      and faults[0]['monotonic'] < retries[0]['monotonic']
+                      <= completions[0]['monotonic']
+                      and not any(row['event'] == 'native-error' for row in rows),
+                      'expiry:lock-retry-real-boundary-not-retried')
+        guest.require(account_property(child, LIMITS, 'ActiveExtension') == value['retry_grant']
+                      and time.time() >= value['retry_expiry'], 'expiry:lock-retry-original-grant')
+        value['transient_recovered'] = True
+        result = {'remaining_seconds': grant(child, 1200) - time.time()}
+    else:
+        guest.require(value.get('renewal_cancelled_retry') and value.get('transient_recovered'),
+                      'expiry:lock-retry-incomplete')
         value['complete'] = True
         result = {'completed': True}
     value['grants'] += 1

@@ -463,6 +463,23 @@ product's zero-time lock. Broker-owner replacement invalidates outstanding work
 and requires a fresh read. Grant confirmation requests a fresh calculation
 rather than awarding the original duration again at receipt time.
 
+Transient public `Lock` failures retry through the indicator's existing timer,
+with one request in flight and each call limited by the remaining absolute
+15-second enforcement window. Normal countdown expiry anchors that window to
+its verified deadline; a newly confirmed already-exhausted read establishes a
+current decision at confirmation, including after a slow initial load. Neither
+a retry nor a successful acknowledgement restarts it. Native secure lock,
+renewal, disablement, source invalidation and disposal retire retry authority;
+an already dispatched native call cannot be retracted. Exhausted failures open
+the existing error reporter once, while cancelled decisions cannot report late.
+Later current confirmed exhaustion can establish its own decision. This adds no
+separate scheduler, fallback lock, logout or termination policy. The installed
+transient-failure and renewal delta is `session::test_transient_lock_recovery`
+(system 312). This delta and the affected secure-lock-completion regression
+(system 311) passed on session-selected `onpc-Ubuntu26.04-1`, including original
+work and parent input continuity. Fedora and persistent lock-action outage
+protection remain unqualified.
+
 The `child.countdown-deadline` diagnostic records bounded operand durations and
 the broker result, never raw deadlines or identities. The older
 `child.countdown-sample` catalogue entry remains readable for historical logs.

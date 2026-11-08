@@ -33,6 +33,7 @@ const SCREEN_SAVER_INTERFACE = 'org.gnome.ScreenSaver';
 const COUNTDOWN_ANIMATION_KEY = 'one-minute-countdown-animation';
 const BROKER_NAME = 'com.puffyslippers.OhNoParentControl1';
 const REFRESH_RETRY_DELAYS_MS = [1000, 3000, 10000];
+const LOCK_WINDOW_USEC = 15_000_000;
 
 // Diagnostics retain durations, never native wall-clock deadlines or identities.
 function diagnosticSeconds(value) {
@@ -167,6 +168,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             ? GLib.get_monotonic_time() + approvedGrantRemaining * 1_000_000 : 0;
         this._statusLoaded = false;
         this._lockPending = false;
+        this._lockDecision = null;
         this._expiryDiagnostic = null;
         this._refreshPending = false;
         this._refreshAgain = false;
@@ -496,6 +498,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         if (this._destroyed)
             return;
         this._destroyed = true;
+        this._cancelLockDecision();
         this._cancelRefreshRetry();
         if (this._sessionPrepareRetryId) {
             GLib.source_remove(this._sessionPrepareRetryId);
@@ -621,6 +624,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     async _refreshEstimate() {
         if (this._destroyed)
             return;
+        this._cancelLockDecision();
         const serial = this._refreshSerial = (this._refreshSerial ?? 0) + 1;
         if (this._refreshPending) {
             this._refreshAgain = true;
@@ -651,6 +655,16 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             this._deadlineUsec = deadline;
             this._deadlineSerial = serial;
             this._statusLoaded = true;
+            if (deadline <= GLib.get_monotonic_time()) {
+                // A fresh already-exhausted read establishes a current
+                // decision even after a slow first load. Subsequent attempts
+                // consume this one bound; the live test still owns its
+                // independent original-expiry protection deadline.
+                this._lockDecision = {
+                    until: GLib.get_monotonic_time() + LOCK_WINDOW_USEC,
+                    next: 0,
+                };
+            }
             this._refreshRetries = 0;
             logInfo('child.estimate', {remaining: diagnosticSeconds(this._remainingSeconds())});
         } catch (error) {
@@ -840,6 +854,9 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             greeter: Main.sessionMode.isGreeter,
         });
         const remainingSecs = state.remaining;
+        if (!state.shouldLock || !manager.dailyLimitEnabled ||
+            this._deadlineSerial !== this._refreshSerial)
+            this._cancelLockDecision();
         this._notifications?.update(remainingSecs,
             state.visible && this._statusLoaded && manager.dailyLimitEnabled);
         // Ubuntu uses a primary session mode named "ubuntu", while upstream
@@ -887,15 +904,42 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             state.nextUpdateSeconds);
     }
 
+    _cancelLockDecision() {
+        if (this._lockDecision)
+            this._clearTimeout();
+        this._lockDecision = null;
+    }
+
     _lockSession() {
-        if (this._destroyed || this._lockPending)
+        if (this._destroyed || this._preview || this._lockPending ||
+            !this._statusLoaded || this._deadlineSerial !== this._refreshSerial ||
+            !Main.timeLimitsManager.dailyLimitEnabled ||
+            Main.sessionMode.isLocked || Main.sessionMode.isGreeter ||
+            this._remainingSeconds() > 0)
             return;
 
+        const now = GLib.get_monotonic_time();
+        const decision = this._lockDecision ??= {
+            until: (this._deadlineUsec || now) + LOCK_WINDOW_USEC,
+            next: 0,
+        };
+        const remainingMs = Math.floor((decision.until - now) / 1000);
+        if (remainingMs <= 0) {
+            if (decision.error && !decision.reported) {
+                decision.reported = true;
+                this._onError?.(decision.error, 'session-lock');
+            }
+            return;
+        }
+        if (now < decision.next) {
+            this._schedule(1);
+            return;
+        }
         this._lockPending = true;
         logInfo('child.lock-requested');
         Gio.DBus.session.call(
             SCREEN_SAVER_NAME, SCREEN_SAVER_PATH, SCREEN_SAVER_INTERFACE, 'Lock',
-            null, null, Gio.DBusCallFlags.NONE, -1, null,
+            null, null, Gio.DBusCallFlags.NONE, remainingMs, null,
             (connection, result) => {
                 try {
                     connection.call_finish(result);
@@ -903,10 +947,19 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                 } catch (error) {
                     if (!this._destroyed) {
                         logWarning('child.lock-failed');
-                        this._onError?.(error, 'session-lock');
+                        if (this._lockDecision === decision)
+                            decision.error = error;
                     }
                 } finally {
                     this._lockPending = false;
+                    // A reply is not secure completion. Reuse the existing
+                    // timer until native lock is observed. Invalidation retires
+                    // this exact decision even while a call remains in flight.
+                    if (!this._destroyed && this._lockDecision === decision) {
+                        decision.next = GLib.get_monotonic_time() + 1_000_000;
+                    }
+                    if (!this._destroyed)
+                        this._sync();
                 }
             });
     }

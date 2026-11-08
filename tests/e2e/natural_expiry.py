@@ -162,20 +162,21 @@ SYSTEM_PLAN = JourneyPlan(
 )
 
 
-def _system_history_command(transport, command):
+def _system_history_command(transport, command, *, timeout=120):
     """The maintained installed guest leaf owns finite fixture transitions."""
     import system_runner
     started = time.monotonic()
     raw = transport.call(['env', 'ONPC_EXPECTED_RUN=' + transport.config['run'],
         'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-B',
         system_runner.PAYLOAD + '/system_graphical_expiry.py', command],
-        timeout=120)
+        timeout=timeout)
     require(type(raw) is bytes and 0 < len(raw) < 1024, 'expiry:history-response')
     value = json.loads(raw)
     if command in ('host-complete', 'revoke-complete', 'approval-complete', 'policy-complete',
                    'replacement-complete', 'crash-complete', 'stop-complete',
                    'stall-complete', 'stall-cleanup', 'timer-complete', 'timer-cleanup',
-                   'reply-complete', 'reply-missing-wait'):
+                   'reply-complete', 'reply-missing-wait', 'retry-complete',
+                   'retry-renew', 'retry-renew-check'):
         require(value == {'completed': True}, 'expiry:history-incomplete')
         return value
     if command in ('policy-renew', 'policy-allowance', 'policy-disable'):
@@ -555,6 +556,41 @@ REPLY_PLAN = replace(STOP_PLAN, screen_tags=_REPLY_SCREENS,
     activity_checks={**STOP_PLAN.activity_checks,
         'second-recovery-activity-opened': ('activity-capture', 'same'),
         'second-recovery-work': ('activity-capture', 'same')})
+
+
+class LockRetryJourney(BrokerStopJourney):
+    """Renewal cancels retries; a later temporary failure must really recover."""
+
+    @staticmethod
+    def natural_lock(journey, guard):
+        guard()
+        _system_history_command(journey.transport, 'retry-renew-arm')
+        _system_history_command(journey.transport, 'retry-renew', timeout=260)
+        # The guest has confirmed current positive entitlement and restored
+        # availability. Real input/work must remain usable beyond the complete
+        # old retry window, with no stale call recorded by the real service.
+        finish = time.monotonic() + 20
+        while True:
+            guard()
+            value = journey.ui.observe('child-natural-expiry-engineering-activity')['natural_expiry']
+            require(journey.ui.boot_proof == journey.boot and value['state'] == 'desktop'
+                    and value['session_sha256'] == journey.original_session and value['acted'],
+                    'expiry:lock-retry-renewal-usable-input')
+            compare_app_activity(AppActivityObservation.from_value(value['activity']),
+                                 journey.activity_observations['activity-capture'])
+            if time.monotonic() >= finish:
+                break
+            time.sleep(SAMPLE_INTERVAL_SECONDS)
+        _system_history_command(journey.transport, 'retry-renew-check')
+        journey.original_expiry = _system_history_command(journey.transport, 'retry-arm')
+        result = journey.observe_expiry(guard, journey.original_expiry)
+        require(result['activity_actions'] > 0, 'expiry:no-original-app-input')
+        return {**result, 'renewal_preserved_real_input_and_work': True}
+
+    @staticmethod
+    def natural_recovery(journey, guard):
+        return journey._recover_after_outage(journey, guard,
+            'retry-recovery', expiry_at=journey.original_expiry)
 
 
 class LockCompletionJourney(BrokerStopJourney):
@@ -1017,13 +1053,16 @@ def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected
                                progress, context, credentials=None, foreground_revoke=False,
                                pending_approval=False, policy_order=False, session_replacement=False,
                                broker_crash=False, broker_stop=False, broker_stall=False,
-                               timer_replacement=False, lock_completion=False):
+                               timer_replacement=False, lock_completion=False, lock_retry=False):
     """Compose engineering input checks before the installed PAM password tests."""
     from desktop_session import run_attached
     require(sum((foreground_revoke, pending_approval, policy_order, session_replacement,
-                 broker_crash, broker_stop, broker_stall, timer_replacement, lock_completion)) <= 1,
+                 broker_crash, broker_stop, broker_stall, timer_replacement, lock_completion,
+                 lock_retry)) <= 1,
             'expiry:ambiguous-history')
     plan, journey_type, ready, complete = (
+        (STOP_PLAN, LockRetryJourney, 'retry-ready', 'retry-complete')
+        if lock_retry else
         (REPLY_PLAN, LockCompletionJourney, 'reply-ready', 'reply-complete')
         if lock_completion else
         (STOP_PLAN, TimerReplacementJourney, 'timer-ready', 'timer-complete')
@@ -1044,8 +1083,9 @@ def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected
         if foreground_revoke else
         (SYSTEM_PLAN, SystemGraphicalExpiryJourney, 'host-ready', 'host-complete'))
     _system_history_command(transport, ready)
-    if lock_completion:
+    if lock_completion or lock_retry:
         return _run_lock_reply_history(directory, lease, transport, ledger,
+            plan=plan, journey_type=journey_type, complete=complete,
             expected_inputs=expected_inputs, progress=progress, context=context,
             credentials=credentials)
     try:
@@ -1064,7 +1104,8 @@ def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected
     return result
 
 
-def _run_lock_reply_history(directory, lease, transport, ledger, **options):
+def _run_lock_reply_history(directory, lease, transport, ledger, *, plan, journey_type,
+                            complete, **options):
     """The synchronous proxy command encloses the worker and its cleanup."""
     import system_runner
     from desktop_session import run_attached
@@ -1086,9 +1127,9 @@ def _run_lock_reply_history(directory, lease, transport, ledger, **options):
             require(not started, 'expiry:lock-reply-service-replayed')
             started = True
             try:
-                result = run_attached(directory, lease, transport, ledger, REPLY_PLAN,
-                    journey_type=LockCompletionJourney, timeout=1800, **options)
-                _system_history_command(transport, 'reply-complete')
+                result = run_attached(directory, lease, transport, ledger, plan,
+                    journey_type=journey_type, timeout=1800, **options)
+                _system_history_command(transport, complete)
             finally:
                 # The callback cannot hand a live process/lease to another turn.
                 transport.call(command('finish'), timeout=30)

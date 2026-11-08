@@ -791,11 +791,15 @@ test('broker replacement cannot duplicate or strand an already pending lock requ
     const indicator = createIndicator({
         Gio: {DBus: {session: {call(...args) { callbacks.push(args.at(-1)); }}},
             DBusCallFlags: {NONE: 0}},
+        Main: {sessionMode: {isLocked: false, isGreeter: false},
+            timeLimitsManager: {dailyLimitEnabled: true}},
         SCREEN_SAVER_NAME: 'org.gnome.ScreenSaver',
         SCREEN_SAVER_PATH: '/org/gnome/ScreenSaver',
         SCREEN_SAVER_INTERFACE: 'org.gnome.ScreenSaver',
         logInfo: event => events.push(event), logWarning() {},
     });
+    Object.assign(indicator, {_statusLoaded: true, _deadlineSerial: 0, _refreshSerial: 0,
+        _deadlineUsec: 0, _remainingSeconds: () => 0, _schedule() {}, _sync() {}});
     indicator.refreshEstimate = () => refreshes++;
     indicator._brokerOwner = ':1.10';
     indicator._lockSession();
@@ -809,12 +813,155 @@ test('broker replacement cannot duplicate or strand an already pending lock requ
     callbacks.shift()(connection, {});
     assert.equal(indicator._lockPending, false, 'the original completion releases its request');
     assert.deepEqual(events, ['child.lock-requested', 'child.locked']);
+    indicator._cancelLockDecision(); // a later freshly confirmed exhaustion
     indicator._lockSession();
     assert.equal(callbacks.length, 1, 'a later real expiry is not stranded');
     indicator._destroyed = true;
     callbacks.shift()(connection, {});
     indicator._lockSession();
     assert.equal(callbacks.length, 0, 'disposed sessions cannot receive another lock');
+});
+
+function lockHarness() {
+    let now = 100_000_000;
+    let nextId = 0;
+    let resolveEstimate;
+    const timers = new Map();
+    const requests = [];
+    const reports = [];
+    const mode = {isLocked: false, isGreeter: false};
+    const manager = {dailyLimitEnabled: true, dailyLimitTime: 100,
+        getCurrentTime: () => now / 1e6};
+    const indicator = createIndicator({
+        GLib: {get_monotonic_time: () => now, source_remove: id => timers.delete(id),
+            timeout_add_seconds: (_priority, delay, callback) => {
+                timers.set(++nextId, {at: now + delay * 1e6, callback});
+                return nextId;
+            }},
+        Main: {sessionMode: mode, timeLimitsManager: manager},
+        Gio: {DBus: {session: {call(...args) { requests.push(args); }}},
+            DBusCallFlags: {NONE: 0}}, logInfo() {}, logWarning() {},
+        displayState, remainingSeconds,
+        queryEstimatedTimes: () => new Promise(resolve => { resolveEstimate = resolve; }),
+        calculateOwnDeadline: async () => 100_000_000,
+    });
+    Object.assign(indicator, {_statusLoaded: true, _deadlineSerial: 1, _refreshSerial: 1,
+        _deadlineUsec: now, _timeoutId: 0, _timeoutDeadline: 0,
+        _prepareSession() {}, _recordCountdownState() {}, _recordCountdownRefresh() {},
+        _stopRequestIconSpin() {}, _setShown() {}, _updateLabel() {},
+        _onError: error => reports.push(error)});
+    return {indicator, requests, reports, timers, mode, manager,
+        advance: seconds => { now += seconds * 1e6; },
+        estimates: () => resolveEstimate({'': [0, 0, 100]}),
+        tick() {
+            const [id, timer] = [...timers].sort((a, b) => a[1].at - b[1].at)[0];
+            now = Math.max(now, timer.at);
+            timers.delete(id);
+            timer.callback();
+        },
+        reply(error = null) {
+            requests.at(-1).at(-1)({call_finish() { if (error) throw error; }}, {});
+        }};
+}
+
+test('temporary lock failure retries one request at a time within the original window', () => {
+    const h = lockHarness();
+    h.indicator._lockSession();
+    assert.equal(h.requests[0][7], 15000);
+    h.indicator._lockSession();
+    assert.equal(h.requests.length, 1);
+    h.reply(new Error('temporary'));
+    h.indicator._lockSession();
+    assert.equal(h.requests.length, 1, 'unrelated sync cannot skip retry spacing');
+    h.advance(1);
+    h.indicator._lockSession();
+    assert.equal(h.requests.length, 2);
+    h.reply();
+    h.advance(13);
+    h.indicator._lockSession();
+    assert.equal(h.requests[2][7], 1000, 'the call timeout consumes only the original remaining window');
+    h.reply(new Error('timeout'));
+    h.advance(1);
+    h.indicator._lockSession();
+    assert.equal(h.requests.length, 3, 'expiry of the retry window cannot rearm itself');
+});
+
+test('slow initial and invalidated successful reads establish current exhaustion enforcement', async () => {
+    for (const loaded of [false, true]) {
+        const h = lockHarness();
+        h.indicator._statusLoaded = loaded;
+        const pending = h.indicator._refreshEstimate();
+        h.advance(26);
+        h.estimates();
+        await pending;
+        assert.equal(h.requests.length, 1, 'a slow successful read still dispatches the first lock');
+        assert.equal(h.requests[0][7], 15000);
+        h.mode.isLocked = true;
+        h.reply();
+        assert.equal(h.timers.size, 0);
+    }
+});
+
+test('scheduled immediate lock refusals report once when the unchanged window ends', () => {
+    const h = lockHarness();
+    h.indicator._sync();
+    const failure = new Error('temporary');
+    for (let attempt = 0; attempt < 15; attempt++) {
+        assert.equal(h.requests.length, attempt + 1);
+        h.reply(failure);
+        h.tick();
+    }
+    assert.equal(h.requests.length, 15);
+    assert.deepEqual(h.reports, [failure]);
+    h.indicator._sync();
+    assert.equal(h.reports.length, 1);
+    assert.equal(h.timers.size, 0);
+});
+
+test('final timeout reports, while secure recovery and renewal cancel scheduled retry and reports', () => {
+    const timeout = lockHarness();
+    timeout.indicator._sync();
+    timeout.advance(15);
+    timeout.reply(new Error('timeout'));
+    assert.equal(timeout.reports.length, 1);
+    for (const secure of [false, true]) {
+        const h = lockHarness();
+        h.indicator._sync();
+        h.reply(new Error('temporary'));
+        if (secure)
+            h.mode.isLocked = true;
+        else
+            h.indicator._deadlineUsec += 1200e6;
+        h.indicator._sync();
+        h.advance(20);
+        h.indicator._sync();
+        assert.equal(h.requests.length, 1);
+        assert.equal(h.reports.length, 0);
+        assert.equal(h.indicator._lockDecision, null);
+    }
+});
+
+test('renewal and invalidation retire pending lock callbacks without duplicating in-flight input', () => {
+    const h = lockHarness();
+    h.indicator._lockSession();
+    h.indicator._cancelLockDecision();
+    h.indicator._remainingSeconds = () => 1200;
+    h.reply(new Error('temporary'));
+    h.advance(2);
+    h.indicator._lockSession();
+    assert.equal(h.requests.length, 1, 'renewed time prevents stale retries');
+    h.indicator._remainingSeconds = () => 0;
+    h.indicator._deadlineSerial = 0;
+    h.indicator._lockSession();
+    assert.equal(h.requests.length, 1, 'unverified entitlement cannot dispatch');
+    h.indicator._deadlineSerial = 1;
+    for (const change of [() => { h.mode.isLocked = true; },
+        () => { h.mode.isLocked = false; h.manager.dailyLimitEnabled = false; },
+        () => { h.manager.dailyLimitEnabled = true; h.indicator._destroyed = true; }]) {
+        change();
+        h.indicator._lockSession();
+        assert.equal(h.requests.length, 1);
+    }
 });
 
 test('grant confirmation requests a fresh deadline without adding its original duration', () => {

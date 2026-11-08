@@ -2555,6 +2555,15 @@
     ],
     "expected": "Each entitled desktop accepts real input past its original deadline; restricted time locks within the existing bound, both lock challenges protect input, original work survives recovery, peer input continues and owned cleanup completes."
   },
+  "306": {
+    "summary": "Keep the child's replacement session usable past the signed-out session's deadline",
+    "steps": [
+      "Arm the original child's ten-minute grant and observe changing displayed countdown text before signing out.",
+      "Confirm that desktop ended, prepare twenty minutes for the same child account and enter a different session.",
+      "Prepare another user's work, then use the replacement desktop across the unchanged original deadline and return to the same peer work."
+    ],
+    "expected": "Pending scheduled work is torn down with its original desktop; the same-account replacement has positive authoritative entitlement, accepts real input and retains its work past the old deadline, while peer input and work remain usable."
+  },
   "299": {
     "summary": "Restore the extension from Parent controls",
     "steps": [

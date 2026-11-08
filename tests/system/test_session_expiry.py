@@ -28,3 +28,8 @@ def test_expiry_during_pending_approval(record_testsuite_property):
 def test_policy_changes_before_expiry(record_testsuite_property):
     from system_graphical_expiry import verify_policy_order
     verify_policy_order(record_testsuite_property)
+
+
+def test_session_replacement_before_expiry(record_testsuite_property):
+    from system_graphical_expiry import verify_session_replacement
+    verify_session_replacement(record_testsuite_property)

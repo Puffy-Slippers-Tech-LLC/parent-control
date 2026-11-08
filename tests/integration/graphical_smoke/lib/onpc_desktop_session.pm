@@ -469,6 +469,42 @@ sub system_graphical_expiry {
     $journey->finish();
 }
 
+sub session_replacement {
+    onpc_progress::operation('Keeping the child and another user working past an old session deadline');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'desk:session-replacement-plan' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => 'system-session-replacement', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->seen('return-greeter');
+    enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'initial');
+    onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
+    $journey->invoke('original-timer');
+    $journey->seen('original-logout');
+    $journey->invoke('replacement-ready');
+    enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'replacement');
+    onpc_app_rows::native_activity_entry($journey, 'replacement-activity', 'command', 'child');
+    $journey->invoke('replacement-before');
+    $journey->seen('child-switch');
+    $journey->invoke('child-greeter');
+    enter_desktop($journey, 'gdm', 'parent', 'fresh', 'success', 'peer');
+    onpc_app_rows::native_activity_entry($journey, 'peer-activity', 'command', 'parent');
+    $journey->invoke('peer-before');
+    $journey->seen('peer-switch');
+    $journey->invoke('peer-greeter');
+    enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'return');
+    onpc_app_rows::native_activity_resume($journey, 'replacement-resume');
+    $journey->invoke('replacement-cross');
+    $journey->seen('child-switch-after');
+    $journey->invoke('child-greeter-after');
+    enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'final-peer');
+    onpc_app_rows::native_activity_resume($journey, 'peer-resume');
+    $journey->invoke('peer-after');
+    $journey->finish();
+}
+
 sub foreground_revoke {
     onpc_progress::operation('Checking child access after a parent revokes time');
     my ($exchange, $declared, $challenges) = @_;

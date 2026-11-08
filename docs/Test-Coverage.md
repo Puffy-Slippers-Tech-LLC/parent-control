@@ -10,7 +10,7 @@
 | Private D-Bus component | <span style="color: green">225</span>/<span style="color: gray">0</span>/225 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">295</span>/<span style="color: gray">0</span>/295 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">54</span>/<span style="color: gray">0</span>/54 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
+| Installed system | <span style="color: green">55</span>/<span style="color: gray">0</span>/55 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |

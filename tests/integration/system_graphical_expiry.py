@@ -300,7 +300,8 @@ def graphical_history(command):
     accounts = identities()
     child = accounts['child']
     path = FIXTURE / 'graphical-history.json'
-    if command in ('host-ready', 'revoke-ready', 'approval-ready', 'policy-ready'):
+    if command in ('host-ready', 'revoke-ready', 'approval-ready', 'policy-ready',
+                   'replacement-ready'):
         guest.require(not path.exists(), 'expiry:graphical-history-replayed')
         wait_for(lambda: (FIXTURE / 'seeded.json').is_file(), 'expiry:gdm-seed-not-observed')
         seeded = json.loads((FIXTURE / 'seeded.json').read_text())
@@ -317,6 +318,9 @@ def graphical_history(command):
                    'foreground_revoke': command == 'revoke-ready',
                    'pending_approval': command == 'approval-ready',
                    'policy_order': command == 'policy-ready', 'policy_steps': 0,
+                   'session_replacement': command == 'replacement-ready',
+                   'account': [pwd.getpwuid(child).pw_name, child,
+                               pwd.getpwuid(child).pw_gid, pwd.getpwuid(child).pw_dir],
                    'other_state': hashlib.sha256(repr(account_state(accounts['other'])).encode()).hexdigest()}
         with path.open('x') as stream:
             json.dump(history, stream)
@@ -328,6 +332,8 @@ def graphical_history(command):
         guest.require(history['run'] == marker['run']
                       and history['boot'] == Path('/proc/sys/kernel/random/boot_id').read_text(),
                       'expiry:graphical-history-identity')
+        if history.get('session_replacement'):
+            return replacement_history(command, history, path, accounts)
         current = child_session(child)
         guest.require(current is not None and current[0] == history['session']
                       and current[1]['Scope'] == history['scope']
@@ -452,6 +458,62 @@ def graphical_history(command):
     return {'remaining_seconds': remaining}
 
 
+def replacement_history(command, history, path, accounts):
+    """Keep the original deadline while replacing only its owned desktop."""
+    child = accounts['child']
+    account = pwd.getpwuid(child)
+    guest.require(history['account'] == [account.pw_name, child, account.pw_gid, account.pw_dir]
+                  and hashlib.sha256(repr(account_state(accounts['other'])).encode()).hexdigest()
+                      == history['other_state'], 'expiry:replacement-account-changed')
+    sequence = ('replacement-arm', 'replacement-entitlement', 'replacement-bind',
+                'replacement-complete')
+    index = history['grants']
+    guest.require(index < len(sequence) and command == sequence[index],
+                  'expiry:replacement-order')
+    if command == 'replacement-arm':
+        current = child_session(child)
+        guest.require(current is not None and current[0] == history['session']
+                      and current[1]['Scope'] == history['scope'],
+                      'expiry:original-session-changed')
+        history['original_expiry'] = grant(child, 600)
+        result = {'remaining_seconds': history['original_expiry'] - time.time()}
+    elif command == 'replacement-entitlement':
+        wait_for(lambda: child_session(child) is None, 'expiry:original-session-not-ended')
+        guest.require(history['original_expiry'] - time.time() >= 300,
+                      'expiry:replacement-setup-headroom')
+        deadline = grant(child, 1200)
+        history['replacement_grant'] = account_property(child, LIMITS, 'ActiveExtension')
+        result = {'remaining_seconds': deadline - time.time()}
+    else:
+        current = child_session(child, service='gdm-password')
+        guest.require(current is not None and current[0] != history['session']
+                      and current[1]['Scope'] != history['scope'],
+                      'expiry:replacement-session-not-new')
+        live_grant = account_property(child, LIMITS, 'ActiveExtension')
+        guest.require(live_grant == history['replacement_grant']
+                      and live_grant[0] + live_grant[1] - time.time() >= 300
+                      # Malcontent's daily-limit flag is bit 1; bit 0 is a schedule.
+                      and account_property(child, LIMITS, 'LimitType') == 2
+                      and account_property(child, LIMITS, 'DailyLimit') == 0,
+                      'expiry:replacement-entitlement-changed')
+        if command == 'replacement-bind':
+            guest.require(history['original_expiry'] - time.time() >= 180,
+                          'expiry:replacement-entry-headroom')
+            history['replacement_session'] = current[0]
+            history['replacement_scope'] = current[1]['Scope']
+            result = {'remaining_seconds': live_grant[0] + live_grant[1] - time.time()}
+        else:
+            guest.require(current[0] == history['replacement_session']
+                          and current[1]['Scope'] == history['replacement_scope']
+                          and time.time() >= history['original_expiry'],
+                          'expiry:replacement-history-incomplete')
+            history['complete'] = True
+            result = {'completed': True}
+    history['grants'] += 1
+    path.write_text(json.dumps(history))
+    return result
+
+
 def pending_approval(command):
     """Hold one real challenge until the host finishes its expiry observation.
 
@@ -552,11 +614,24 @@ def verify_policy_order(record):
            'restricted-natural-lock; protected-input; original-work-recovered; peer-input-preserved')
 
 
+def verify_session_replacement(record):
+    guest.guard()
+    history = json.loads((FIXTURE / 'graphical-history.json').read_text())
+    guest.require(history.get('session_replacement') is True and history.get('complete') is True
+                  and history['grants'] == 4
+                  and history['replacement_session'] != history['session'],
+                  'expiry:replacement-history-incomplete')
+    record('onpc.expiry.session-replacement',
+           'pending-displayed-tick; original-session-ended; same-account-new-session; '
+           'positive-replacement-input-and-work-past-original-deadline; peer-input-and-work')
+
+
 def verify(record):
     guest.guard()
     history = json.loads((FIXTURE / 'graphical-history.json').read_text())
     guest.require(history.get('complete') is True and not history.get('foreground_revoke')
-                  and not history.get('pending_approval') and not history.get('policy_order'),
+                  and not history.get('pending_approval') and not history.get('policy_order')
+                  and not history.get('session_replacement'),
                   'expiry:graphical-history-incomplete')
     # Retain completed observations even if a native dependency later stalls
     # and pytest cannot finish its JUnit document. The outer collector already
@@ -656,7 +731,9 @@ if __name__ == '__main__':
                 'revoke-zero', 'revoke-positive-setup', 'revoke-positive', 'revoke-complete',
                 'approval-ready', 'approval-complete', 'policy-ready', 'policy-complete',
                 'policy-renew-seed', 'policy-renew', 'policy-allowance-seed',
-                'policy-allowance', 'policy-disable-seed', 'policy-disable', 'policy-restrict')
+                'policy-allowance', 'policy-disable-seed', 'policy-disable', 'policy-restrict',
+                'replacement-ready', 'replacement-arm', 'replacement-entitlement',
+                'replacement-bind', 'replacement-complete')
     guest.require(len(sys.argv) == 2 and sys.argv[1] in (
         'prepare', 'broker-ready', 'host-observe', 'approval-natural', 'approval-peer',
         'approval-finish', *commands),

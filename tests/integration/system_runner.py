@@ -142,8 +142,9 @@ GRAPHICAL_EXPIRY_CASE = 'test_kiosk_expiry_graphical_runtime'
 FOREGROUND_REVOKE_CASE = 'test_foreground_revocation'
 PENDING_APPROVAL_CASE = 'test_expiry_during_pending_approval'
 POLICY_ORDER_CASE = 'test_policy_changes_before_expiry'
+SESSION_REPLACEMENT_CASE = 'test_session_replacement_before_expiry'
 GRAPHICAL_EXPIRY_CASES = (GRAPHICAL_EXPIRY_CASE, FOREGROUND_REVOKE_CASE, PENDING_APPROVAL_CASE,
-                        POLICY_ORDER_CASE)
+                        POLICY_ORDER_CASE, SESSION_REPLACEMENT_CASE)
 PACKAGE_READINESS_CASES = ('test_installed_package',)
 # Host entry/transport and the public observer's embedded source closure. Keep
 # these identities separate from guest imports; no host module runs in the VM.
@@ -2225,7 +2226,8 @@ def run_pytest(vm, run, phase, selection):
 
 
 def observe_graphical_expiry(vm, lease, directory, ledger, fixture_context, fixture_selection,
-                             *, foreground_revoke=False, pending_approval=False, policy_order=False):
+                             *, foreground_revoke=False, pending_approval=False, policy_order=False,
+                             session_replacement=False):
     """Extend system-282 under its existing lease, before PAM changes passwords."""
     sys.path.insert(0, str(ROOT / 'tests/e2e'))
     from types import SimpleNamespace
@@ -2248,7 +2250,8 @@ def observe_graphical_expiry(vm, lease, directory, ledger, fixture_context, fixt
         log('stage:graphical-expiry-' + stage)
     result = run_system_graphical_expiry(output, lease, vm, ledger,
         expected_inputs=verified.source_files, progress=progress, context=context,
-        foreground_revoke=foreground_revoke, pending_approval=pending_approval, policy_order=policy_order)
+        foreground_revoke=foreground_revoke, pending_approval=pending_approval, policy_order=policy_order,
+        session_replacement=session_replacement)
     (output / 'result.json').write_bytes(baseline.encode(result))
 
 
@@ -2571,7 +2574,9 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                         pending_approval=any(item.case_id == PENDING_APPROVAL_CASE
                                              for item in selection.executions),
                         policy_order=any(item.case_id == POLICY_ORDER_CASE
-                                         for item in selection.executions))
+                                         for item in selection.executions),
+                        session_replacement=any(item.case_id == SESSION_REPLACEMENT_CASE
+                                                for item in selection.executions))
             if phase == 'extension':
                 if already_installed:
                     require_fixture_ready()

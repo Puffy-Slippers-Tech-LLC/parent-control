@@ -172,7 +172,8 @@ def _system_history_command(transport, command):
         timeout=120)
     require(type(raw) is bytes and 0 < len(raw) < 1024, 'expiry:history-response')
     value = json.loads(raw)
-    if command in ('host-complete', 'revoke-complete', 'approval-complete', 'policy-complete'):
+    if command in ('host-complete', 'revoke-complete', 'approval-complete', 'policy-complete',
+                   'replacement-complete'):
         require(value == {'completed': True}, 'expiry:history-incomplete')
         return value
     if command in ('policy-renew', 'policy-allowance', 'policy-disable'):
@@ -191,6 +192,9 @@ def _system_history_command(transport, command):
     require(type(value) is dict and set(value) == {'remaining_seconds'}
             and type(value['remaining_seconds']) in (int, float)
             and 0 < value['remaining_seconds'] <= 1200, 'expiry:history-grant-response')
+    if command == 'replacement-arm':
+        # Positive input must be after even the latest possible original expiry.
+        return time.monotonic() + value['remaining_seconds']
     # Conservative controller lower endpoint: grant read latency never adds
     # time to the original expiry or outage budget.
     return started + value['remaining_seconds']
@@ -475,6 +479,181 @@ class PolicyOrderJourney(SystemGraphicalExpiryJourney):
         return {**result, 'positive_policy_controls': controls}
 
 
+REPLACEMENT_SCREENS = {
+    'return-greeter': 'system:child-return-greeter',
+    **prefixed_stages('initial', desktop_entry('child', source='gdm', entry='retained')),
+    **native_activity_entry('activity', child='child'),
+    'original-timer': 'ui:child-countdown-present',
+    'original-logout': 'system:child-logout',
+    'replacement-ready': 'ui:gdm-returned',
+    **prefixed_stages('replacement', desktop_entry('child', source='gdm', entry='fresh')),
+    **native_activity_entry('replacement-activity', child='child'),
+    'replacement-before': 'ui:child-natural-expiry-engineering-observe',
+    'child-switch': 'system:child-switch-user',
+    'child-greeter': 'ui:gdm-returned',
+    **prefixed_stages('peer', desktop_entry('parent', source='gdm', entry='fresh')),
+    **native_activity_entry('peer-activity', child='parent'),
+    'peer-before': 'ui:parent-native-activity',
+    'peer-switch': 'system:parent-switch-user',
+    'peer-greeter': 'ui:gdm-returned',
+    **prefixed_stages('return', desktop_entry('child', source='gdm', entry='retained')),
+    **native_activity_resume('replacement-resume', child='child'),
+    'replacement-cross': 'ui:child-natural-expiry-engineering-observe',
+    'child-switch-after': 'system:child-switch-user',
+    'child-greeter-after': 'ui:gdm-returned',
+    **prefixed_stages('final-peer', desktop_entry('parent', source='gdm', entry='retained')),
+    **native_activity_resume('peer-resume', child='parent'),
+    'peer-after': 'ui:parent-native-activity',
+}
+_REPLACEMENT_ENTRIES = {stage for prefix, account in (
+    ('initial', 'child'), ('replacement', 'child'), ('peer', 'parent'),
+    ('return', 'child'), ('final-peer', 'parent'))
+    for stage in prefixed_stages(prefix, fresh_desktop(account))}
+REPLACEMENT_PLAN = JourneyPlan(
+    prefix='system-session-replacement', worker_mode='system_session_replacement',
+    screen_tags=REPLACEMENT_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' for stage in REPLACEMENT_SCREENS}},
+    invocations=tuple(stage for stage in REPLACEMENT_SCREENS if stage in _REPLACEMENT_ENTRIES
+        or stage in ('original-timer', 'replacement-ready', 'replacement-before',
+                     'child-greeter', 'peer-before', 'peer-greeter', 'replacement-cross',
+                     'child-greeter-after', 'peer-after')),
+    challenges={prefix: (account, prefix + '-' + role + 'qualified',
+                        prefix + '-' + role + 'rechecked')
+                for prefix, account, role in (
+                    ('initial', 'child', 'child-recipient-'),
+                    ('replacement', 'child', 'child-recipient-'),
+                    ('peer', 'parent', 'recipient-'),
+                    ('return', 'child', 'child-recipient-'),
+                    ('final-peer', 'parent', 'recipient-'))},
+    stage_actions={'original-timer': 'arm-original', 'replacement-ready': 'prepare-replacement',
+                   'replacement-before': 'bind-replacement', 'peer-before': 'peer-input',
+                   'replacement-cross': 'cross-original', 'peer-after': 'peer-input'},
+    activity_entries={'original-timer': 'activity-capture',
+                      'return-entry-guard': 'replacement-activity-capture'},
+    activity_checks={'replacement-resume-opened': ('replacement-activity-capture', 'same'),
+                     'peer-before': ('peer-activity-capture', 'same'),
+                     'peer-resume-opened': ('peer-activity-capture', 'same'),
+                     'peer-after': ('peer-activity-capture', 'same')},
+)
+
+
+class SessionReplacementJourney(InstalledJourney):
+    """Pending scheduled expiry work belongs to the desktop that created it."""
+
+    def __init__(self, context, progress, plan=REPLACEMENT_PLAN, *, actions=None, transport=None):
+        if actions is None:
+            actions = {'arm-original': self.arm_original,
+                       'prepare-replacement': self.prepare_replacement,
+                       'bind-replacement': self.bind_replacement,
+                       'peer-input': self.peer_input, 'cross-original': self.cross_original}
+        super().__init__(context, progress, plan, actions=actions, transport=transport)
+        self.original_session = None
+        self.replacement_session = None
+        self.peer_session = None
+        self.original_expiry = None
+        self.peer_before_done = False
+
+    def check_settings(self, stage, observed):
+        if stage == 'initial-entry-guard':
+            self.original_session = observed['system']['session_sha256']
+        if stage in ('replacement-desktop', 'return-entry-guard'):
+            # A fresh-entry guard proves no session exists yet. Pin the new
+            # desktop after sign-in; retained entry must match that identity.
+            identity = (session_control.observe(self.transport, 'child-entry-same')['session_sha256']
+                        if stage == 'replacement-desktop' else observed['system']['session_sha256'])
+            require(self.original_session is not None and identity != self.original_session,
+                    'expiry:replacement-session-not-new')
+            self.replacement_session = self.replacement_session or identity
+            require(identity == self.replacement_session, 'expiry:replacement-session-changed')
+        if stage in ('peer-desktop', 'final-peer-entry-guard'):
+            identity = (session_control.observe(self.transport, 'parent-entry-same')['session_sha256']
+                        if stage == 'peer-desktop' else observed['system']['session_sha256'])
+            self.peer_session = self.peer_session or identity
+            require(identity == self.peer_session, 'expiry:replacement-peer-changed')
+
+    @staticmethod
+    def arm_original(journey, guard):
+        guard()
+        journey.original_expiry = _system_history_command(journey.transport, 'replacement-arm')
+        finish_by = time.monotonic() + 150
+        first = None
+        while True:
+            guard()
+            require(time.monotonic() < finish_by, 'expiry:original-tick-not-observed')
+            require(session_control.observe(journey.transport, 'child-entry-same')['session_sha256']
+                    == journey.original_session, 'expiry:original-session-changed')
+            value = journey.ui.observe('child-countdown-present')['countdown']
+            require(journey.ui.boot_proof == journey.boot, 'expiry:replacement-boot-changed')
+            if 300 <= value['seconds'] <= 600:
+                if first is None:
+                    first = value['text']
+                elif value['text'] != first:
+                    # getValue derives seconds directly from the clock. Only
+                    # changing displayed text witnesses _sync and its next tick.
+                    require(journey.original_expiry - time.monotonic() >= 300,
+                            'expiry:replacement-setup-headroom')
+                    return {'display_tick_observed': True, 'original_seconds': 600,
+                            'pending_scheduled_work': True}
+            time.sleep(SAMPLE_INTERVAL_SECONDS)
+
+    @staticmethod
+    def prepare_replacement(journey, guard):
+        guard()
+        _system_history_command(journey.transport, 'replacement-entitlement')
+        return {'replacement_grant_seconds': 1200, 'original_session_ended': True}
+
+    @staticmethod
+    def bind_replacement(journey, guard):
+        guard()
+        _system_history_command(journey.transport, 'replacement-bind')
+        require(journey.original_expiry - time.monotonic() >= 180,
+                'expiry:replacement-entry-headroom')
+        return journey.replacement_input(guard)
+
+    def replacement_input(self, guard):
+        guard()
+        value = self.ui.observe('child-natural-expiry-engineering-activity')['natural_expiry']
+        require(self.ui.boot_proof == self.boot and value['state'] == 'desktop'
+                and value['session_sha256'] == self.replacement_session and value['acted'],
+                'expiry:replacement-usable-input')
+        compare_app_activity(AppActivityObservation.from_value(value['activity']),
+                             self.activity_observations['replacement-activity-capture'])
+        return {'replacement_input_and_work': True}
+
+    @staticmethod
+    def cross_original(journey, guard):
+        require(journey.original_expiry - time.monotonic() >= 120,
+                'expiry:replacement-observer-headroom')
+        while True:
+            started = time.monotonic()
+            result = journey.replacement_input(guard)
+            require(time.monotonic() < engineering_deadline(
+                journey.original_expiry, LOCK_VERIFICATION_SECONDS),
+                'expiry:replacement-observation-deadline')
+            if started >= journey.original_expiry:
+                return {**result, 'original_deadline_crossed': True}
+            time.sleep(SAMPLE_INTERVAL_SECONDS)
+
+    @staticmethod
+    def peer_input(journey, guard):
+        guard()
+        require((time.monotonic() < journey.original_expiry) != journey.peer_before_done,
+                'expiry:peer-original-deadline-order')
+        require(session_control.observe(journey.transport, 'parent-entry-same')['session_sha256']
+                == journey.peer_session, 'expiry:replacement-peer-changed')
+        journey.ui.observe('parent-native-resubmit')
+        value = journey.ui.observe('parent-native-activity')
+        require(journey.ui.boot_proof == journey.boot, 'expiry:replacement-boot-changed')
+        compare_app_activity(AppActivityObservation.from_value(value['activity']),
+                             journey.activity_observations['peer-activity-capture'])
+        if not journey.peer_before_done:
+            require(time.monotonic() < journey.original_expiry,
+                    'expiry:peer-not-ready-before-original-expiry')
+            journey.peer_before_done = True
+        return {'peer_input_and_original_work': True}
+
+
 class PendingApprovalJourney(SystemGraphicalExpiryJourney):
     """The real authentication lifetime encloses the existing expiry observers."""
 
@@ -554,11 +733,14 @@ class PendingApprovalJourney(SystemGraphicalExpiryJourney):
 
 def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected_inputs,
                                progress, context, credentials=None, foreground_revoke=False,
-                               pending_approval=False, policy_order=False):
+                               pending_approval=False, policy_order=False, session_replacement=False):
     """Compose engineering input checks before the installed PAM password tests."""
     from desktop_session import run_attached
-    require(sum((foreground_revoke, pending_approval, policy_order)) <= 1, 'expiry:ambiguous-history')
+    require(sum((foreground_revoke, pending_approval, policy_order, session_replacement)) <= 1,
+            'expiry:ambiguous-history')
     plan, journey_type, ready, complete = (
+        (REPLACEMENT_PLAN, SessionReplacementJourney, 'replacement-ready', 'replacement-complete')
+        if session_replacement else
         (POLICY_PLAN, PolicyOrderJourney, 'policy-ready', 'policy-complete')
         if policy_order else
         (APPROVAL_PLAN, PendingApprovalJourney, 'approval-ready', 'approval-complete')

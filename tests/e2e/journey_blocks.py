@@ -225,9 +225,15 @@ def overlay_license_read(prefix='', *, links='license'):
 def native_usable_app(route, *, child='other-child', role=None, desktop_observation=True,
                       kind='native', instance='primary'):
     """FLOW08 finite native usable scope; caller owns stages and later activity."""
-    require(route in ('command', 'grid'), 'journey:native-route')
+    require(route in ('command', 'grid', 'files'), 'journey:native-route')
     require(kind in ('native', 'snap', 'flatpak') and (kind != 'native' or instance == 'primary'),
             'journey:fixture-binding')
+    if route == 'files':
+        require(kind == 'native' and child == 'other-child' and role in (None, 'S')
+                and type(desktop_observation) is bool, 'journey:native-files-binding')
+        name = 'soft' if role == 'S' else 'allowed'
+        return {stage: 'ui:native-files-' + name + '-' + action for stage, action in (
+            ('files', 'launch'), ('opened', 'opened'), ('submit', 'submit'), ('submitted', 'submitted'))}
     if kind == 'flatpak':
         require((route == 'command' or instance == 'primary') and (child == 'other-child'
                 or child == 'child' and role == 'A' and instance == 'primary') and role in ('A', 'H', 'S')

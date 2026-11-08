@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **036f — [Launch separate usable native windows from Files](E2E-Tasks/036f-native-files-usable.md)**.
+Next task: **096 — [E2E-019: native-file-manager-allowed-enabled](E2E-Tasks/096-case-74.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

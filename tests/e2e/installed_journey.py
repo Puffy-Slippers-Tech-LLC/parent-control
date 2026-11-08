@@ -160,6 +160,7 @@ class JourneyPlan:
         used = set()
         stages = list(self.screen_tags)
         activity_tags = {
+            'ui:native-files-allowed-activity', 'ui:native-files-soft-activity',
             'ui:native-activity', 'ui:overlay-native-activity', 'ui:parent-native-activity',
             'ui:native-policy-activity', 'ui:native-unmatched-soft-activity',
             'ui:native-policy-soft-activity', 'ui:overlay-native-policy-soft-activity',
@@ -612,6 +613,7 @@ class InstalledJourney:
             self.activity_observations[stage] = current
             return
         if self.plan.screen_tags.get(stage) not in ('ui:native-activity', 'ui:overlay-native-activity',
+                'ui:native-files-allowed-activity', 'ui:native-files-soft-activity',
                 'ui:parent-native-activity', 'ui:native-policy-activity', 'ui:native-policy-closed',
                 'ui:native-unmatched-soft-activity', 'ui:native-policy-soft-activity',
                 'ui:native-policy-soft-closed', 'ui:overlay-native-policy-soft-activity',

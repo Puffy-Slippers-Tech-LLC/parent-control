@@ -322,6 +322,14 @@ NATIVE_DENIAL_BINDINGS.update({
 NATIVE_APP_OPERATIONS |= frozenset(NATIVE_DENIAL_BINDINGS)
 OPERATIONS |= frozenset(NATIVE_DENIAL_BINDINGS)
 STANDARD_OPERATIONS |= frozenset(NATIVE_DENIAL_BINDINGS)
+NATIVE_FILES_BINDINGS = {
+    'native-files-' + name + '-' + action: (role, action)
+    for name, role in (('allowed', 'A'), ('soft', 'S'))
+    for action in ('launch', 'opened', 'submit', 'submitted', 'activity', 'dismiss', 'close', 'closed')
+}
+NATIVE_APP_OPERATIONS |= frozenset(NATIVE_FILES_BINDINGS)
+OPERATIONS |= frozenset(NATIVE_FILES_BINDINGS)
+STANDARD_OPERATIONS |= frozenset(NATIVE_FILES_BINDINGS)
 OVERLAY_NATIVE_OPERATIONS |= frozenset(BASELINE_NATIVE_BINDINGS)
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_NATIVE_OPERATIONS
 OVERLAY_ABOUT_OPERATIONS = frozenset({'overlay-about-open', 'overlay-license-read',
@@ -13059,6 +13067,161 @@ class AccessibleUI:
         self.wait(focused, 'parent-result-focus')
         self.input_uncertain = False
 
+    def native_files_snapshot(self, role, *, active=True):
+        """FILE04/07: exact directory, selection and live Files owner; no geometry."""
+        from gi.repository import Gio, GLib
+        require(role in ('A', 'S'), 'ui:native-files-binding')
+        require_active_launch_session(unlocked=True)
+        require(os.getuid() == os.geteuid() == pwd.getpwnam(
+            CHILD_ACCOUNTS[EXISTING_CHILD]).pw_uid, 'ui:native-files-account')
+        connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        def call(bus, path, interface, method, signature, values):
+            return connection.call_sync(bus, path, interface, method,
+                GLib.Variant(signature, values), None, Gio.DBusCallFlags.NO_AUTO_START,
+                2000, None).unpack()[0]
+        owner = call('org.freedesktop.DBus', '/org/freedesktop/DBus',
+            'org.freedesktop.DBus', 'GetNameOwner', '(s)', ('org.freedesktop.FileManager1',))
+        pid = call('org.freedesktop.DBus', '/org/freedesktop/DBus',
+            'org.freedesktop.DBus', 'GetConnectionUnixProcessID', '(s)', (owner,))
+        process = Path('/proc/' + str(pid))
+        require(process.stat().st_uid == os.getuid()
+                and str((process / 'exe').readlink()) == '/usr/bin/nautilus',
+                'ui:native-files-owner')
+        locations = call(owner, '/org/freedesktop/FileManager1',
+            'org.freedesktop.DBus.Properties', 'Get', '(ss)',
+            ('org.freedesktop.FileManager1', 'OpenLocations'))
+        executable = Path(NATIVE_EXECUTABLES[role])
+        if not locations:
+            return None
+        require(locations == [executable.parent.as_uri()], 'ui:native-files-location')
+        nodes, edges, ids, facts = self.read_snapshot()
+        applications = [node for node in nodes if facts[node]['role'] == 'application'
+                        and node.get_process_id() == pid]
+        require(len(applications) <= 1, 'ui:native-files-application')
+        if not applications:
+            return None
+        scoped = self.snapshot_scope(nodes, edges, applications[0])
+        windows = [node for node in scoped if facts[node]['showing']
+                   and facts[node]['role'] in ('frame', 'window')]
+        require(len(windows) <= 1, 'ui:native-files-window')
+        if not windows or active and not self.surface_available(windows[0]):
+            return None
+        scoped = self.snapshot_scope(nodes, edges, windows[0])
+        self.handle_system_prompt(observation=(nodes, edges, facts))
+        views = [node for node in scoped if facts[node]['name'] == 'Content View'
+                 and node.get_selection_iface() is not None]
+        require(len(views) <= 1, 'ui:native-files-view')
+        if not views:
+            return None
+        selection = views[0].get_selection_iface()
+        count = self.api.Selection.get_n_selected_children(selection)
+        require(count in (0, 1), 'ui:native-files-selection')
+        if not count:
+            return None
+        target = self.api.Selection.get_selected_child(selection, 0)
+        require(target in scoped and target.get_process_id() == pid,
+                'ui:native-files-target')
+        target_scope = self.snapshot_scope(nodes, edges, target)
+        require(any(facts[node]['name'] == executable.name for node in target_scope)
+                or facts[target]['name'] in (executable.name, executable.name + '. Program',
+                                            executable.name + '. File'),
+                'ui:native-files-wrong-file')
+        return target, pid, windows[0]
+
+    def native_files_launch(self, role):
+        """Open Files at the declared fixture and qualify its Enter recipient."""
+        from gi.repository import Gio, GLib
+        require(role in ('A', 'S'), 'ui:native-files-binding')
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        require_active_launch_session(unlocked=True)
+        require(os.getuid() == os.geteuid() == pwd.getpwnam(
+            CHILD_ACCOUNTS[EXISTING_CHILD]).pw_uid, 'ui:native-files-account')
+        require(self.native_app_closed(desktop=False, complete_absence=True),
+                'ui:native-window-exists')
+        self.handle_system_prompt()
+        self.prepare_launch_desktop()
+        self.input_uncertain = True
+        connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        connection.call_sync('org.freedesktop.FileManager1', '/org/freedesktop/FileManager1',
+            'org.freedesktop.FileManager1', 'ShowItems',
+            GLib.Variant('(ass)', ([Path(NATIVE_EXECUTABLES[role]).as_uri()], '')),
+            None, Gio.DBusCallFlags.NONE, 15000, None)
+        self.input_uncertain = False
+        self.invalidate_observation()
+        self.wait(lambda: self.native_files_snapshot(role), 'native-files-ready',
+                  prompt_in_predicate=True)
+        target, pid, _window = self.native_files_snapshot(role)
+        # ShowItems selects and focuses the file. GTK's virtual grid cell
+        # exposes Component but refuses GrabFocus with NotSupported. Read the
+        # actual recipient instead; the worker sends Enter exactly once.
+        self.invalidate_observation()
+        def focused():
+            current = self.native_files_snapshot(role)
+            if current is None:
+                return None
+            require(current[0] == target and current[1] == pid,
+                    'ui:native-files-target-changed')
+            nodes, edges, _ids, _facts = self.read_snapshot()
+            return any(self.has_state(node, self.api.StateType.FOCUSED)
+                       for node in self.snapshot_scope(nodes, edges, target))
+        self.wait(focused, 'native-files-focused', prompt_in_predicate=True)
+        environment = dict(item.split(b'=', 1) for item in
+            Path('/proc/' + str(pid) + '/environ').read_bytes().split(b'\0') if b'=' in item)
+        locale = (environment.get(b'LC_ALL') or environment.get(b'LC_MESSAGES')
+                  or environment.get(b'LANG') or b'C').decode('ascii')
+        return validate_shell_metadata({'version': session_control.installed_package_version('nautilus'),
+            'locale': locale, 'keyboard': [list(source) for source in Gio.Settings.new(
+                'org.gnome.desktop.input-sources').get_value('sources').unpack()]})
+
+    def native_files_operation(self, operation):
+        role, action = NATIVE_FILES_BINDINGS[operation]
+        arguments = dict(role=role, child=EXISTING_CHILD, implicit_instance=True)
+        if action == 'launch':
+            return self.native_files_launch(role)
+        if action == 'dismiss':
+            require(not self.input_uncertain, 'ui:uncertain-input')
+            deadline = time.monotonic() + self.timeout
+            def close_target():
+                current = self.native_files_snapshot(role, active=False)
+                if current is None:
+                    return None
+                _target, pid, window = current
+                nodes, edges, _ids, facts = self.read_snapshot()
+                controls = [node for node in self.snapshot_scope(nodes, edges, window)
+                            if facts[node]['role'] in ('button', 'push button')
+                            and facts[node]['name'] == 'Close' and node.get_process_id() == pid]
+                require(len(controls) == 1, 'ui:native-files-close')
+                return controls[0], pid
+            # A provider can stop replying while the fixture takes focus.
+            # Retry only the complete read-only preflight; Close stays outside
+            # the wait so an uncertain action is never sent again.
+            control, pid = self.wait(close_target, 'native-files-close-ready',
+                                     prompt_in_predicate=True)
+            require(time.monotonic() < deadline, 'ui:timeout:native-files-close-ready')
+            self._invoke_target(control)
+            self.invalidate_observation()
+            def absent():
+                require(time.monotonic() < deadline, 'ui:timeout:native-files-dismissed')
+                nodes, _edges, _ids, facts = self.read_snapshot()
+                return not any(node.get_process_id() == pid and facts[node]['showing']
+                    and facts[node]['role'] in ('window', 'frame') for node in nodes)
+            self.wait(absent, 'native-files-dismissed')
+            return None
+        if action == 'closed':
+            self.wait(lambda: self.native_app_closed(desktop=False, complete_absence=True),
+                      'native-files-closed')
+            return None
+        if action == 'submit':
+            return self.native_app_submit(**arguments)
+        if action == 'close':
+            self.native_app_snapshot('ONPC fixture draft', **arguments)
+            self.activate_id('onpc-fixture-native-primary-close')
+            return None
+        return self.wait(lambda: self.native_app_snapshot(
+            'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
+            pending=True, with_window=action == 'activity', **arguments),
+            'native-files-' + action, prompt_in_predicate=True)
+
     def native_launch_command(self, instance='primary', *, child=EXISTING_CHILD, blocked=False,
                               fixture='policy', role=None, locked=False, kind='native'):
         """APP01: one fixed native command in Jordan's active desktop session.
@@ -13239,8 +13402,9 @@ class AccessibleUI:
                 and instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'),
                 'ui:snap-binding')
         require(snap or flatpak or role is None and instance == 'primary' or role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting')
-                and instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary'), 'ui:native-binding')
-        require(type(implicit_instance) is bool and (not implicit_instance or role == 'A'),
+                and (instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary')
+                     or role == 'S' and instance == 'primary' and implicit_instance), 'ui:native-binding')
+        require(type(implicit_instance) is bool and (not implicit_instance or role in ('A', 'S') and instance == 'primary'),
                 'ui:native-binding')
         if role is not None:
             require(child in (CHILD, EXISTING_CHILD) and (role not in ('N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') or child == EXISTING_CHILD),
@@ -13502,9 +13666,10 @@ class AccessibleUI:
 
     def native_app_owner(self, root, role, instance, *, implicit_instance=False):
         """Bind the GUI child to its live native policy executable and account."""
-        require(role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') and instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary'),
+        require(role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') and (instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary')
+                or role == 'S' and instance == 'primary' and implicit_instance),
                 'ui:native-binding')
-        require(type(implicit_instance) is bool and (not implicit_instance or role == 'A'),
+        require(type(implicit_instance) is bool and (not implicit_instance or role in ('A', 'S') and instance == 'primary'),
                 'ui:native-binding')
         pid = root.get_process_id()
         require(type(pid) is int and pid > 0, 'ui:native-owner')
@@ -13528,17 +13693,19 @@ class AccessibleUI:
                 'ui:native-owner-changed')
 
     def native_app_submit(self, instance='primary', *, submitted='No submitted draft', role=None, child=CHILD,
-                          kind='native'):
+                          kind='native', implicit_instance=False):
         """One normal public action; no replay after uncertain delivery."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(kind in ('snap', 'flatpak') or role is None and instance == 'primary' or role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting')
-                and instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary'), 'ui:native-binding')
+                and (instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary')
+                     or role == 'S' and instance == 'primary' and implicit_instance), 'ui:native-binding')
         if role is not None and child == CHILD:
             self.require_child_overlay_session()
         # A provider can exit after desktop enumeration but before GetItems.
         # Reacquire the whole read-only preflight within the normal deadline;
         # a complete wrong activity/owner still refuses, and input stays outside.
-        self.wait(lambda: self.native_app_snapshot(submitted, instance=instance, role=role, child=child, kind=kind)
+        self.wait(lambda: self.native_app_snapshot(submitted, instance=instance, role=role, child=child, kind=kind,
+                                                  implicit_instance=implicit_instance)
                   if role is not None else self.native_app_snapshot(submitted), 'native-submit-ready',
                   prompt_in_predicate=True)
         self.activate_id('onpc-fixture-' + kind + '-' + instance + '-submit')
@@ -14243,7 +14410,11 @@ class AccessibleUI:
                                or operation == 'station-default-entry' else
                                None if operation in GREETER_OPERATIONS else 'desktop')
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
-        if operation in SNAP_APP_OPERATIONS | FLATPAK_APP_OPERATIONS:
+        if operation in NATIVE_FILES_BINDINGS:
+            value = self.native_files_operation(operation)
+            if value is not None:
+                result['provider' if NATIVE_FILES_BINDINGS[operation][1] == 'launch' else 'activity'] = value
+        elif operation in SNAP_APP_OPERATIONS | FLATPAK_APP_OPERATIONS:
             value = self.snap_app_operation(operation)
             if value is not None:
                 result['activity'] = value

@@ -385,6 +385,14 @@ Simulated checkouts must copy that complete inventory too.
 A missing required launcher is a test-fixture failure, not a reason
 to weaken rendering validation or refresh host permissions.
 
+Routine setup tolerates only missing grants for newly added optional executables
+when the saved policy otherwise exactly matches the template and retains the
+required launcher grants. It warns with the missing paths and leaves all rules
+unchanged, so unrelated VM validation can continue. Those new tools still need
+regeneration and a fresh Codex process before unattended use. Removed tools,
+missing required grants and other policy changes remain fatal. The renderer's
+`--check` remains strict about the complete current inventory.
+
 Development-helper Polkit actions bind these exact executable paths and default to `no`,
 so missing authorization rules cannot trigger an authentication dialog. The
 wrappers query their own process identity without action details, which Polkit

@@ -303,7 +303,8 @@ def graphical_history(command):
     child = accounts['child']
     path = FIXTURE / 'graphical-history.json'
     if command in ('host-ready', 'revoke-ready', 'approval-ready', 'policy-ready',
-                   'replacement-ready', 'crash-ready', 'stop-ready', 'stall-ready', 'timer-ready'):
+                   'replacement-ready', 'crash-ready', 'stop-ready', 'stall-ready', 'timer-ready',
+                   'reply-ready'):
         guest.require(not path.exists(), 'expiry:graphical-history-replayed')
         wait_for(lambda: (FIXTURE / 'seeded.json').is_file(), 'expiry:gdm-seed-not-observed')
         seeded = json.loads((FIXTURE / 'seeded.json').read_text())
@@ -325,6 +326,7 @@ def graphical_history(command):
                    'broker_stop': command == 'stop-ready',
                    'broker_stall': command == 'stall-ready',
                    'timer_replacement': command == 'timer-ready',
+                   'lock_reply': command == 'reply-ready',
                    'broker_invocation': guest.run(['systemctl', 'show', guest.BROKER,
                                                   '--property=InvocationID', '--value']),
                    'account': [pwd.getpwuid(child).pw_name, child,
@@ -362,6 +364,9 @@ def graphical_history(command):
             return stall_history(command, history, path, accounts)
         if history.get('timer_replacement'):
             return timer_history(command, history, path, accounts)
+        if history.get('lock_reply'):
+            from system_lock_reply import history as reply_history
+            return reply_history(command, history, path, accounts)
         if history.get('policy_order') and command.startswith('policy-') and command != 'policy-complete':
             sequence = ('policy-renew-seed', 'policy-renew', 'policy-allowance-seed',
                         'policy-allowance', 'policy-disable-seed', 'policy-disable',
@@ -1071,6 +1076,21 @@ def verify_timer_replacement(record):
            'original-child-session-and-work; same-peer-input-and-work')
 
 
+def verify_lock_completion(record):
+    guest.guard()
+    history = json.loads((FIXTURE / 'graphical-history.json').read_text())
+    guest.require(history.get('lock_reply') is True and history.get('complete') is True
+                  and history.get('reply_histories') == ['delayed', 'missing']
+                  and (FIXTURE / 'lock-reply' / 'restored').is_file(),
+                  'expiry:lock-reply-history-incomplete')
+    record('onpc.expiry.lock-replies',
+           'real-shell-requests; native-completion-before-held-reply; '
+           'public-native-action-gate-restored-before-forwarding; '
+           'independent-timely-lock-and-protected-input; delayed-ack-after-input; '
+           'missing-reply-client-failure; original-child-work; same-peer-input-and-work; '
+           'normal-facade-restored-with-same-native-owner; no-lock-retry-owner')
+
+
 def verify(record):
     guest.guard()
     history = json.loads((FIXTURE / 'graphical-history.json').read_text())
@@ -1078,7 +1098,7 @@ def verify(record):
                   and not history.get('pending_approval') and not history.get('policy_order')
                   and not history.get('session_replacement') and not history.get('broker_crash')
                   and not history.get('broker_stop') and not history.get('broker_stall')
-                  and not history.get('timer_replacement'),
+                  and not history.get('timer_replacement') and not history.get('lock_reply'),
                   'expiry:graphical-history-incomplete')
     # Retain completed observations even if a native dependency later stalls
     # and pytest cannot finish its JUnit document. The outer collector already
@@ -1186,7 +1206,9 @@ if __name__ == '__main__':
                 'stop-ready', 'stop-arm', 'stop-inject', 'stop-recovery', 'stop-complete',
                 'stall-ready', 'stall-natural-arm', 'stall-peer-arm', 'stall-inject',
                 'stall-natural-recovery', 'stall-peer-recovery', 'stall-complete', 'stall-cleanup',
-                'timer-ready', 'timer-arm', 'timer-inject', 'timer-recovery', 'timer-complete', 'timer-cleanup')
+                'timer-ready', 'timer-arm', 'timer-inject', 'timer-recovery', 'timer-complete', 'timer-cleanup',
+                'reply-ready', 'reply-delayed-arm', 'reply-delayed-recovery',
+                'reply-missing-arm', 'reply-missing-wait', 'reply-missing-recovery', 'reply-complete')
     guest.require(len(sys.argv) == 2 and sys.argv[1] in (
         'prepare', 'broker-ready', 'host-observe', 'approval-natural', 'approval-peer',
         'approval-finish', *commands),

@@ -174,7 +174,8 @@ def _system_history_command(transport, command):
     value = json.loads(raw)
     if command in ('host-complete', 'revoke-complete', 'approval-complete', 'policy-complete',
                    'replacement-complete', 'crash-complete', 'stop-complete',
-                   'stall-complete', 'stall-cleanup', 'timer-complete', 'timer-cleanup'):
+                   'stall-complete', 'stall-cleanup', 'timer-complete', 'timer-cleanup',
+                   'reply-complete', 'reply-missing-wait'):
         require(value == {'completed': True}, 'expiry:history-incomplete')
         return value
     if command in ('policy-renew', 'policy-allowance', 'policy-disable'):
@@ -519,6 +520,97 @@ class TimerReplacementJourney(BrokerStopJourney):
     def natural_recovery(journey, guard):
         return journey._recover_after_outage(journey, guard,
             'timer-recovery', expiry_at=journey.original_expiry)
+
+
+_REPLY_TAIL = tuple(STOP_SCREENS)[tuple(STOP_SCREENS).index('child-switch-after'):]
+_SECOND_REPLY_SCREENS = {
+    'second-expiry': SYSTEM_SCREENS['natural-expiry'],
+    'second-lock-input-ready': SYSTEM_SCREENS['lock-input-ready'],
+    'second-lock-result': SYSTEM_SCREENS['lock-result'],
+    'second-recovery-greeter': SYSTEM_SCREENS['recovery-greeter'],
+    **prefixed_stages('second-recovered', desktop_entry('child', source='gdm', entry='retained')),
+    **native_activity_resume('second-recovery-activity', child='child'),
+    'second-recovery-work': 'ui:overlay-native-activity',
+}
+_REPLY_SCREENS = {
+    **{stage: tag for stage, tag in STOP_SCREENS.items() if stage not in _REPLY_TAIL},
+    **_SECOND_REPLY_SCREENS,
+    **{stage: STOP_SCREENS[stage] for stage in _REPLY_TAIL},
+}
+_REPLY_INVOCATIONS = set(STOP_PLAN.invocations) | {
+    'second-expiry', 'second-lock-input-ready', 'second-lock-result', 'second-recovery-work',
+    *prefixed_stages('second-recovered', fresh_desktop('child')),
+}
+REPLY_PLAN = replace(STOP_PLAN, screen_tags=_REPLY_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' for stage in _REPLY_SCREENS}},
+    invocations=tuple(stage for stage in _REPLY_SCREENS if stage in _REPLY_INVOCATIONS),
+    challenges={**STOP_PLAN.challenges,
+        'second-recovered': ('child', 'second-recovered-child-recipient-qualified',
+                            'second-recovered-child-recipient-rechecked')},
+    stage_actions={**STOP_PLAN.stage_actions, 'second-expiry': 'second-lock',
+                   'second-lock-result': 'second-recovery'},
+    activity_entries={**STOP_PLAN.activity_entries, 'second-expiry': 'activity-capture',
+                      'second-recovered-entry-guard': 'activity-capture'},
+    activity_checks={**STOP_PLAN.activity_checks,
+        'second-recovery-activity-opened': ('activity-capture', 'same'),
+        'second-recovery-work': ('activity-capture', 'same')})
+
+
+class LockCompletionJourney(BrokerStopJourney):
+    """Two real foreground locks; only their service replies are faulty."""
+
+    def __init__(self, context, progress, plan=REPLY_PLAN, *, actions=None, transport=None):
+        if actions is None:
+            actions = {'natural-lock': self.natural_lock, 'natural-recovery': self.natural_recovery,
+                       'second-lock': self.second_lock, 'second-recovery': self.second_recovery,
+                       'peer-input': self.peer_input}
+        super().__init__(context, progress, plan, actions=actions, transport=transport)
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage == 'recovery-work':
+            # The next fault starts on the recovered desktop. Do not carry the
+            # first history's locked-surface proof into that fresh observation.
+            # InstalledJourney rebuilds the observer with its boot/trace guards.
+            self.ui = None
+        if stage == 'second-recovered-entry-guard':
+            require(observed['system']['session_sha256'] == self.original_session,
+                    'expiry:original-session-changed')
+        if stage in ('second-lock-input-ready', 'second-lock-result'):
+            require(time.monotonic() < self.lock_deadline, 'expiry:locked-input-deadline')
+        if stage == 'second-recovery-work':
+            require(time.monotonic() < self.recovery_deadline, 'expiry:recovery-deadline')
+
+    @staticmethod
+    def crossing(journey, guard, command):
+        guard()
+        journey.original_expiry = _system_history_command(journey.transport, command)
+        result = journey.observe_expiry(guard, journey.original_expiry)
+        require(result['activity_actions'] > 0, 'expiry:no-original-app-input')
+        return result
+
+    @staticmethod
+    def natural_lock(journey, guard):
+        return journey.crossing(journey, guard, 'reply-delayed-arm')
+
+    @staticmethod
+    def second_lock(journey, guard):
+        result = journey.crossing(journey, guard, 'reply-missing-arm')
+        # Keep the facade/invocation live through the actual client failure;
+        # the shared worker challenges protected input after that failure.
+        _system_history_command(journey.transport, 'reply-missing-wait')
+        return result
+
+    @staticmethod
+    def natural_recovery(journey, guard):
+        return journey._recover_after_outage(journey, guard,
+            'reply-delayed-recovery', expiry_at=journey.original_expiry)
+
+    @staticmethod
+    def second_recovery(journey, guard):
+        return journey._recover_after_outage(journey, guard,
+            'reply-missing-recovery', expiry_at=journey.original_expiry)
 
 
 REVOKE_SCREENS = {
@@ -925,13 +1017,15 @@ def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected
                                progress, context, credentials=None, foreground_revoke=False,
                                pending_approval=False, policy_order=False, session_replacement=False,
                                broker_crash=False, broker_stop=False, broker_stall=False,
-                               timer_replacement=False):
+                               timer_replacement=False, lock_completion=False):
     """Compose engineering input checks before the installed PAM password tests."""
     from desktop_session import run_attached
     require(sum((foreground_revoke, pending_approval, policy_order, session_replacement,
-                 broker_crash, broker_stop, broker_stall, timer_replacement)) <= 1,
+                 broker_crash, broker_stop, broker_stall, timer_replacement, lock_completion)) <= 1,
             'expiry:ambiguous-history')
     plan, journey_type, ready, complete = (
+        (REPLY_PLAN, LockCompletionJourney, 'reply-ready', 'reply-complete')
+        if lock_completion else
         (STOP_PLAN, TimerReplacementJourney, 'timer-ready', 'timer-complete')
         if timer_replacement else
         (SYSTEM_PLAN, BrokerStallJourney, 'stall-ready', 'stall-complete')
@@ -950,6 +1044,10 @@ def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected
         if foreground_revoke else
         (SYSTEM_PLAN, SystemGraphicalExpiryJourney, 'host-ready', 'host-complete'))
     _system_history_command(transport, ready)
+    if lock_completion:
+        return _run_lock_reply_history(directory, lease, transport, ledger,
+            expected_inputs=expected_inputs, progress=progress, context=context,
+            credentials=credentials)
     try:
         result = run_attached(directory, lease, transport, ledger,
             plan,
@@ -963,4 +1061,39 @@ def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected
         if timer_replacement:
             _system_history_command(transport, 'timer-cleanup')
     _system_history_command(transport, complete)
+    return result
+
+
+def _run_lock_reply_history(directory, lease, transport, ledger, **options):
+    """The synchronous proxy command encloses the worker and its cleanup."""
+    import system_runner
+    from desktop_session import run_attached
+    pending, started, result = b'', False, None
+
+    def command(action):
+        return ['env', 'ONPC_EXPECTED_RUN=' + transport.config['run'],
+            'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-B',
+            system_runner.PAYLOAD + '/system_lock_reply.py', action]
+
+    def output(data):
+        nonlocal pending, started, result
+        pending += data
+        require(len(pending) < 4096, 'expiry:lock-reply-response-size')
+        while b'\n' in pending:
+            line, pending = pending.split(b'\n', 1)
+            if line != b'onpc-lock-service-ready':
+                continue
+            require(not started, 'expiry:lock-reply-service-replayed')
+            started = True
+            try:
+                result = run_attached(directory, lease, transport, ledger, REPLY_PLAN,
+                    journey_type=LockCompletionJourney, timeout=1800, **options)
+                _system_history_command(transport, 'reply-complete')
+            finally:
+                # The callback cannot hand a live process/lease to another turn.
+                transport.call(command('finish'), timeout=30)
+
+    raw = transport.call(command('serve'), timeout=1890, on_output=output)
+    require(started and result is not None and b'onpc-lock-service-restored\n' in raw,
+            'expiry:lock-reply-history-incomplete')
     return result

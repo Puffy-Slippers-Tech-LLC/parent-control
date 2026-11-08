@@ -496,6 +496,14 @@ sub broker_stop {
     enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'recovered');
     onpc_app_rows::native_activity_resume($journey, 'recovery-activity');
     $journey->invoke('recovery-work');
+    if (grep { $_ eq 'second-expiry' } @$declared) {
+        $journey->invoke('second-expiry');
+        verify_locked_input($journey, 'second-lock-input-ready', 'second-lock-result');
+        $journey->seen('second-recovery-greeter');
+        enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'second-recovered');
+        onpc_app_rows::native_activity_resume($journey, 'second-recovery-activity');
+        $journey->invoke('second-recovery-work');
+    }
     $journey->seen('child-switch-after');
     $journey->invoke('child-greeter-after');
     enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'final-peer');

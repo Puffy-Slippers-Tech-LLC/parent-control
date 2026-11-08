@@ -173,7 +173,7 @@ def _system_history_command(transport, command):
     require(type(raw) is bytes and 0 < len(raw) < 1024, 'expiry:history-response')
     value = json.loads(raw)
     if command in ('host-complete', 'revoke-complete', 'approval-complete', 'policy-complete',
-                   'replacement-complete', 'crash-complete'):
+                   'replacement-complete', 'crash-complete', 'stop-complete'):
         require(value == {'completed': True}, 'expiry:history-incomplete')
         return value
     if command in ('policy-renew', 'policy-allowance', 'policy-disable'):
@@ -332,9 +332,9 @@ class BrokerCrashJourney(SystemGraphicalExpiryJourney):
     """Keep both original expiry histories under a real, identity-owned outage."""
 
     @staticmethod
-    def natural_lock(journey, guard):
+    def natural_lock(journey, guard, *, arm='crash-natural-arm', inject='crash-inject'):
         guard()
-        expiry_at = _system_history_command(journey.transport, 'crash-natural-arm')
+        expiry_at = _system_history_command(journey.transport, arm)
         # Confirm the new deadline reached the actual child before taking its
         # broker away. This also proves positive input and retained work.
         while True:
@@ -349,7 +349,7 @@ class BrokerCrashJourney(SystemGraphicalExpiryJourney):
             if 120 <= value['seconds'] <= 180:
                 break
             time.sleep(SAMPLE_INTERVAL_SECONDS)
-        _system_history_command(journey.transport, 'crash-inject')
+        _system_history_command(journey.transport, inject)
         result = journey.observe_expiry(guard, expiry_at)
         require(result['activity_actions'] > 0, 'expiry:crash-no-outage-input')
         return result
@@ -368,6 +368,107 @@ class BrokerCrashJourney(SystemGraphicalExpiryJourney):
     @staticmethod
     def peer_recovery(journey, guard):
         return journey._recover(journey, guard, 'crash-peer-recovery')
+
+
+STOP_SCREENS = {
+    'return-greeter': SYSTEM_SCREENS['return-greeter'],
+    **prefixed_stages('initial', desktop_entry('child', source='gdm', entry='retained')),
+    **native_activity_entry('activity', child='child'),
+    'child-switch': 'system:child-switch-user', 'child-greeter': 'ui:gdm-returned',
+    **prefixed_stages('peer', desktop_entry('parent', source='gdm', entry='fresh')),
+    **native_activity_entry('peer-activity', child='parent'),
+    'peer-before': 'ui:parent-native-activity',
+    'peer-switch': 'system:parent-switch-user', 'peer-greeter': 'ui:gdm-returned',
+    **prefixed_stages('return', desktop_entry('child', source='gdm', entry='retained')),
+    **native_activity_resume('outage-activity', child='child'),
+    **{stage: SYSTEM_SCREENS[stage] for stage in (
+        'natural-expiry', 'lock-input-ready', 'lock-result', 'recovery-greeter')},
+    **prefixed_stages('recovered', desktop_entry('child', source='gdm', entry='retained')),
+    **native_activity_resume('recovery-activity', child='child'),
+    'recovery-work': 'ui:overlay-native-activity',
+    'child-switch-after': 'system:child-switch-user', 'child-greeter-after': 'ui:gdm-returned',
+    **prefixed_stages('final-peer', desktop_entry('parent', source='gdm', entry='retained')),
+    **native_activity_resume('peer-resume', child='parent'),
+    'peer-after': 'ui:parent-native-activity',
+}
+_STOP_ENTRIES = {stage for prefix, account in (
+    ('initial', 'child'), ('peer', 'parent'), ('return', 'child'),
+    ('recovered', 'child'), ('final-peer', 'parent'))
+    for stage in prefixed_stages(prefix, fresh_desktop(account))}
+STOP_PLAN = JourneyPlan(
+    prefix='system-graphical-expiry', worker_mode='system_broker_stop', screen_tags=STOP_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' for stage in STOP_SCREENS}},
+    invocations=tuple(stage for stage in STOP_SCREENS if stage in _STOP_ENTRIES
+        or stage in ('child-greeter', 'peer-before', 'peer-greeter', 'natural-expiry',
+                     'lock-input-ready', 'lock-result', 'recovery-work',
+                     'child-greeter-after', 'peer-after')),
+    challenges={prefix: (account, prefix + '-' + role + 'qualified',
+                        prefix + '-' + role + 'rechecked')
+                for prefix, account, role in (
+                    ('initial', 'child', 'child-recipient-'), ('peer', 'parent', 'recipient-'),
+                    ('return', 'child', 'child-recipient-'), ('recovered', 'child', 'child-recipient-'),
+                    ('final-peer', 'parent', 'recipient-'))},
+    stage_actions={'natural-expiry': 'natural-lock', 'lock-result': 'natural-recovery',
+                   'peer-before': 'peer-input', 'peer-after': 'peer-input'},
+    activity_entries={'return-entry-guard': 'activity-capture',
+                      'natural-expiry': 'activity-capture', 'recovered-entry-guard': 'activity-capture'},
+    activity_checks={stage: (capture, 'same') for stage, capture in (
+        ('outage-activity-opened', 'activity-capture'),
+        ('recovery-activity-opened', 'activity-capture'), ('recovery-work', 'activity-capture'),
+        ('peer-before', 'peer-activity-capture'), ('peer-resume-opened', 'peer-activity-capture'),
+        ('peer-after', 'peer-activity-capture'))},
+)
+
+
+class BrokerStopJourney(SystemGraphicalExpiryJourney):
+    """One stopped-service history; peer and child work predate the fault."""
+
+    def __init__(self, context, progress, plan=STOP_PLAN, *, actions=None, transport=None):
+        if actions is None:
+            actions = {'natural-lock': self.natural_lock, 'natural-recovery': self.natural_recovery,
+                       'peer-input': self.peer_input}
+        super().__init__(context, progress, plan, actions=actions, transport=transport)
+        self.peer_session = None
+        self.original_expiry = None
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage == 'return-entry-guard':
+            require(observed['system']['session_sha256'] == self.original_session,
+                    'expiry:original-session-changed')
+        if stage == 'peer-desktop':
+            self.peer_session = session_control.observe(self.transport, 'parent-entry-same')['session_sha256']
+        if stage == 'final-peer-entry-guard':
+            require(observed['system']['session_sha256'] == self.peer_session, 'expiry:stop-peer-changed')
+
+    @staticmethod
+    def natural_lock(journey, guard):
+        result = BrokerCrashJourney.natural_lock(journey, guard, arm='stop-arm', inject='stop-inject')
+        journey.original_expiry = result['expiry_at']
+        return result
+
+    @staticmethod
+    def natural_recovery(journey, guard):
+        result = journey._recover(journey, guard, 'stop-recovery')
+        # The original expiry anchors recovery, including outage and lock input;
+        # neither service activation nor the recovery grant restarts this clock.
+        journey.recovery_deadline = min(journey.recovery_deadline,
+            engineering_deadline(journey.original_expiry, RECOVERY_SECONDS))
+        require(time.monotonic() < journey.recovery_deadline, 'expiry:recovery-deadline')
+        return result
+
+    @staticmethod
+    def peer_input(journey, guard):
+        guard()
+        require(session_control.observe(journey.transport, 'parent-entry-same')['session_sha256']
+                == journey.peer_session, 'expiry:stop-peer-changed')
+        journey.ui.observe('parent-native-resubmit')
+        value = journey.ui.observe('parent-native-activity')
+        require(journey.ui.boot_proof == journey.boot, 'expiry:stop-boot-changed')
+        compare_app_activity(AppActivityObservation.from_value(value['activity']),
+                             journey.activity_observations['peer-activity-capture'])
+        return {'peer_input_and_original_work': True}
 
 
 REVOKE_SCREENS = {
@@ -773,12 +874,15 @@ class PendingApprovalJourney(SystemGraphicalExpiryJourney):
 def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected_inputs,
                                progress, context, credentials=None, foreground_revoke=False,
                                pending_approval=False, policy_order=False, session_replacement=False,
-                               broker_crash=False):
+                               broker_crash=False, broker_stop=False):
     """Compose engineering input checks before the installed PAM password tests."""
     from desktop_session import run_attached
-    require(sum((foreground_revoke, pending_approval, policy_order, session_replacement, broker_crash)) <= 1,
+    require(sum((foreground_revoke, pending_approval, policy_order, session_replacement,
+                 broker_crash, broker_stop)) <= 1,
             'expiry:ambiguous-history')
     plan, journey_type, ready, complete = (
+        (STOP_PLAN, BrokerStopJourney, 'stop-ready', 'stop-complete')
+        if broker_stop else
         (SYSTEM_PLAN, BrokerCrashJourney, 'crash-ready', 'crash-complete')
         if broker_crash else
         (REPLACEMENT_PLAN, SessionReplacementJourney, 'replacement-ready', 'replacement-complete')

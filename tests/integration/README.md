@@ -1276,6 +1276,28 @@ collection, worker/callback shutdown, owned cleanup and baseline restoration;
 the VM ended powered off. Fedora remains unqualified, and this engineering
 result supplies no customer-case acceptance.
 
+System 308, `session::test_broker_stop_before_expiry`, uses `STOP_PLAN` /
+`natural_expiry.BrokerStopJourney` and
+`onpc_desktop_session::broker_stop` through the same system-282 fixture and
+attached worker. One grant-only retained-desktop history prepares child and
+peer work before a 180-second grant. With at least 120 seconds remaining,
+`system_graphical_expiry.stop_history` masks activation and deliberately stops
+only the broker invocation pinned by pidfd, start time, root credentials and
+cgroup. It observes successful inactive service state and process exit, then
+retains the same mask and service-start timestamp through original expiry and
+the protected-input challenge. Natural locking retains the original 15-second
+allowance. On-demand recovery must produce a new owner with zero balance and
+the unchanged expired grant/account state before explicit recovery time is
+issued. The child's authenticated return and independent original-work
+readback must finish within 300 seconds of the original expiry, including
+the outage and lock-input check. The peer's same session, work and real input
+are checked before and after that history; this does not claim continuous
+foreground peer input during the outage. The first run passed on session-selected
+`onpc-Ubuntu26.04-1` in `20261108T062038Z-4e988099`, including worker closure,
+collection, owned cleanup and baseline restoration; the VM ended powered off.
+Fedora remains unqualified. No service supervision or customer-case credit is
+introduced.
+
 The `extension` area (system ID 295) owns the standalone native GNOME monitor
 history in `system_extension_monitor.verify`. It uses a fresh autologin desktop
 with saved controls initially off, then stages saved-enabled policy through the

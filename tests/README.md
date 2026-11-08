@@ -817,8 +817,7 @@ final results remain visible. Diffs use syntax colors, hunk line numbers and
 pale red/green backgrounds for removals/additions
 when supplied by the event; file-change events containing only paths show those
 paths without inventing a diff. The detached supervisor renders an append-only,
-100-column transcript with ANSI styling retained on reattachment. Terminal
-observers wrap its text to their current width with hanging indentation preserved.
+100-column transcript with ANSI styling retained for Watch.
 CLI diagnostics
 remain separate from event parsing, and unknown events remain visible. There is
 no interactive agent approval prompt; developer decisions use the launcher's
@@ -842,9 +841,8 @@ category passes. The fifth session's diagnostic run still finishes, but further
 interpretation fails that case at the budget boundary and continues the queue. `stalled` means no
 useful authorized next step exists, rather than an experiment awaiting execution.
 
-Closing the terminal detaches; rerun `tools/fix-tests --vm NAME` to attach to the current
-output, with a bounded tail of earlier output. `tools/fix-tests --vm NAME --stop` and
-Ctrl+C request the same immediate cancellation. Tests receive the runner's
+ONPC: Watch can attach to the current output at any time.
+`tools/fix-tests --vm NAME --stop` requests immediate cancellation and returns. Tests receive the runner's
 Ctrl+C path and finish guarded cleanup before exit. Agents receive termination,
 with a three-second limit before their recorded process group is killed. If the
 loop owner dies, its supervisor detects EOF and cancels the current operation.
@@ -874,7 +872,7 @@ product or fixture changes can trigger another refresh within the same run.
 
 Logs and small control files are private under `output/test-runs/host/fix-tests/`. They are
 not agent conversation history. Existing test evidence remains under the runner's
-retention policy. The terminal prints the report and `Failure handoff:` paths
+retention policy. Watch shows the report and `Failure handoff:` paths
 with a short instruction to read and follow the handoff's `prompt` field;
 the full investigation prompt is saved in machine-readable `failure.json` with
 stable retry category and case IDs. `fix-tests` reads that saved prompt directly,
@@ -1034,9 +1032,7 @@ before the next session; the current session
 finishes normally and completed work is preserved. Invalid options are rejected.
 An owner already finishing at its limit refuses adjustments; restart after it exits.
 Workers started before adjustable-limit support require a restart to accept changes.
-Closing the terminal detaches. Another invocation attaches to its styled output,
-using the same compact session transcript as `fix-tests`: agent messages,
-commands and their results remain visually separate, including without color.
+ONPC: Watch observes the retained session transcript at any time.
 `--stop` finishes the current session, including test cleanup and its handoff or
 task close-out, then starts no further session. In the interactive chat composer,
 Cancel, Escape or Ctrl+C interrupts the active turn and waits for owned cleanup, leaving
@@ -1459,153 +1455,29 @@ paths and error codes belong in the saved handoff. Each choice says who does
 what and what happens next; two versions of the same repair are not distinct
 choices. Access failures require checking the exact command against its grant
 before blaming host permissions or asking for administrator help.
-The launcher asks one concrete question with two or three suggestions, the recommended
-action first, and a gray **Other** placeholder for your instructions. Choose a
-number or use Up/Down, then press Enter to submit. Selecting Other lets you type
-your own instructions; Backspace edits and Ctrl+U clears them. Page Up/Page Down
-still scroll the explanation. Blank input never chooses an answer, and pasting
-multiple lines does not submit automatically.
-
-The workflow waits indefinitely without starting another model session or
-consuming session allowance. An unchanged prompt performs no repeated layout or
-terminal writes; keyboard input and terminal resizing remain responsive.
-Closing the terminal leaves it paused; rerun
-`tools/write-e2e` in an interactive terminal to answer. Piped output remains an
-observer and never invents an answer. With multiple attached terminals, the first
-submitted answer wins. Your answer continues the same task through a fresh
-recovery session at its retained model tier, with the saved handoff and your instructions. It does not
-count as passing the blocked prerequisite. If a session limit was exhausted at
-the blocker, answering grants one recovery session beyond that limit; automatic
-work remains subject to the limits afterward. `--stop` saves the pending question
-and exits cleanly; Ctrl+C retains its cancellation behavior. Restarting a paused
-task asks for its answer before doing more work.
+The launcher publishes one concrete question with two or three suggestions and
+an Other option in ONPC: Watch. The workflow waits without consuming a model
+session. Watch can attach later; the first submitted answer wins and continues
+the same task at its retained model tier. An answer grants no acceptance credit.
+If the session allowance was exhausted, answering grants one recovery session;
+automatic work remains subject to the limits afterward. `--stop` preserves the
+pending question for the next run.
 
 The shared [session renderer](../tools/launcher_render.py) applies these display
 rules to every supervised agent; launchers do not format agent events themselves.
-All launchers use the same output-following loop and
-[three-pane task display](../tools/launcher_display.py), customized with
-[presentation strategies](../tools/launcher_view.py). The upper pane pins the controller journey: `run-tests` shows the selected
-category and position with overall progress; `fix-tests` adds the current round number and
-the running-tests/fixing-errors status.
-Each `fix-tests` VM heading includes a bold, colored status: gray for
-`Queued on VM slot` or `Queued on <VM> repair`, blue for `Running`, orange for
-`Repairing`, `Verifying` or `Save fix`, green for `Complete`, and red for
-`Waiting for input`, `Task limit reached`, `Stopping`, `Stopped` or `Blocked`.
-The repair wait names the transaction owner through verification and Git
-close-out; cases already executing retain their active status until they wait.
-`Running` is reserved for normal tests outside a repair transaction. Test
-execution within a repair transaction, including diagnostic runs and queued-failure
-rechecks, stays `Verifying` until repair work or Git close-out resumes.
-An active agent session shows `Repairing`, even while its controller progress
-still contains the preceding test or admission status.
-The lower frame divides execution details and optional session input on the left
-from current task summary and status/issues on the right. `run-tests` has no
-session composer; `fix-tests`, E2E and ordinary plan workflows offer the
-conversation composer described below. Repair prompts steer the active agent;
-messages sent during testing queue for the next repair session in that workflow.
-For `fix-tests`, the lower-left area has **Active**, **Session** and **Launcher**
-tabs across its full width. Pipeline status, round/category progress, case counts
-and the test tree are available in **ONPC: Watch**.
-**Active (Session)** follows the active repair session, including its shared
-transcript and chatbox; otherwise **Active (Launcher)** shows launcher output.
-The explicit **Session** tab shares that same session and draft, or shows
-`No active session`. **Launcher** shows output only; **Active (Launcher)** keeps
-the composer available between sessions. Click a tab or use Alt+1/2/3.
-The tabs reuse the shared scrolling controls.
-The upper and lower frames share an initial width ratio of 75:25; dragging either
-vertical divider resizes both frames together and keeps their dividers aligned.
-The shared ratio survives terminal resizing. Both dividers turn blue while dragging
-and return to their normal color on release. Hover requests the standard horizontal
-resize pointer over dividers and an I-beam over the conversation composer's text
-area using OSC 22; terminals without pointer-shape support keep their
-own pointer, including VS Code's integrated terminal (xterm.js does not implement
-OSC 22). The live layout owns an alternate screen, keeping the shell prompt and
-shell scrollback outside the launcher. Mouse controls start enabled: wheels
-scroll the pane under the pointer, and the output pane has its own draggable
-scrollbar. The terminal's scrollbar does not control the panes. Scrolling output
-keeps the overview, totals, task summary and composer fixed. F2 releases mouse
-reporting for ordinary native selection, Ctrl+Shift+C and the terminal's configured
-right-click menu; F2 again restores pane controls. While mouse controls are
-enabled, use the terminal's native selection modifier to select text. Unmodified
-native selection and application mouse controls cannot be offered simultaneously
-through this terminal protocol. Non-chat displays also accept m when no blocker
-question is pending; F2 remains available during questions.
-The bottom-right panel shows the current task ID/title, session count/duration,
-session phase and selected model/effort. Execution-plan task titles follow the
-shared [plain-language title contract](../docs/Execution-Plans.md#plan-format)
-when tasks are generated or revised; no separate task explanation is generated
-or displayed. The shared [panel contract](../docs/Execution-Plans.md#common-launcher-interface)
-owns the bold error/status labels, separators, task-local error age
-and colored status values. These updates are presentation only, never
-acceptance evidence.
+Launcher commands acknowledge controller admission in green, or failure in red,
+and exit immediately. ONPC: Watch owns progress, conversation, questions, controls
+and results; it can attach at any time. The [Watch guide](../vscode/onpc-watch/README.md)
+owns the interface. Startup success does not establish successful task completion.
 
-`fix-tests` populates those same fields during testing and repair: both a reported
-Last Error and Status show `(duration ago)`, refreshing without new output and
-surviving observer reconnection. Each round/category keeps its own metadata;
-repair retries retain the error clock, and corrective verification changes status
-before testing and after a passing selected run.
-
-The bottom-left composer accepts typing during work. Enter sends; Shift+Enter
-inserts a newline in terminals supporting modified-key reporting, which the
-display enables while attached. Alt+Enter and Ctrl+J also insert a newline;
-multiline paste never sends
-automatically. Arrow keys, Home/End, Backspace/Delete and Ctrl+U/Ctrl+K edit
-the draft. Its height follows the content, scrolling around the caret when
-space is limited. Messages steer an active turn or start a continuation in the
-same session after interruption. Replies appear in the left transcript. The
-composer owns Cancel/Escape/Ctrl+C; the output pane has no termination shortcut.
-The shared [session panel contract](../docs/Execution-Plans.md#common-launcher-interface)
-defines its footer's Simplified toggle, which defaults to agent text with an
-inline activity preview and can restore the full command/tool output. The same control is available in Watch's
-Session tab; the task's right column has no duplicate session transcript.
-Pending blocker questions appear above the composer: send a suggested number
-or type your own instructions. Multiple observers share the existing first-answer
-rule. Mouse wheels scroll the panel under the pointer by default.
-The top-left overview follows the shared
-[five-row scrolling contract](../docs/Execution-Plans.md#common-launcher-interface)
-and omits the run's `Tasks:` count. The top-right plan totals remain visible.
-Category and session transitions update immediately. Routine overall counts refresh at most
-once every five seconds, while detailed test progress and agent output continue
-in the lower pane. Child output cannot move the cursor into the upper pane.
-
-Overview text wraps to the observer's current width and scrolls within the
-five-row limit, starting at the newest rows. Pipes and dumb
-terminals accumulate plain output. Reconnection restores the latest controller
-steps separately from the output tail. The live panes retain a bounded transcript;
-dashboard redraws and arriving output never enter the shell's scrollback while
-attached. On exit the launcher restores the primary screen, cursor and input
-modes, then replays the saved run log, including an unfinished final line, into
-native scrollback. This includes cancellation, exceptions and
-default termination signals (HUP, TERM and QUIT); SIGKILL cannot run terminal
-cleanup. Existing shell history is preserved. Full output remains in the existing run log,
-subject to its storage limits. The full top-left overview and exit timing are
-appended under the shared [exit recap contract](../docs/Execution-Plans.md#common-launcher-interface),
-including summaries outside the visible pane; pipes receive the same plain-text
-recap. `run-tests` preserves its detailed dashboards when observed
-through a workflow launcher, below that workflow's controller summary.
-For `run-tests`, mouse capture starts enabled, as in the chat displays.
-The divider shows `F2/m: select text`; press `F2` (or `m` outside a pending question)
-to release mouse controls for ordinary native selection and context menus.
-The divider changes to `F2/m: scroll/resize`.
-A pinned **↓** button at the lower pane's
-bottom-right corner returns to the newest output and resumes following it.
-The button stays outside the scrolling transcript and follows terminal resizing.
-The scrollbar and button hide while the terminal owns selection. Press `F2` or `m`
-again to restore pane controls. Use Up/Down or Page Up/Page Down to scroll a pane,
-Tab to switch panes (initially the lower pane), and End to return to the newest
-rows in either mode.
-The [common execution-plan contract](../docs/Execution-Plans.md) defines Markdown
-plans, delegation, shared `--tasks` semantics and extension boundaries. The
-[generic launcher](../tools/execute-plan) runs ordinary plans; E2E and repair
-retain their specialized state machines and existing model ladders. Repair's optional
-`--tasks` bounds completed category passes (an unfiltered verification `all`
-pass counts as one composite task); omission retains the full selected loop.
+The [execution contract](../docs/Execution-Plans.md) owns task limits and workflow
+extension boundaries.
 
 The shared [detached launcher module](../tools/detached_launcher.py) owns
 workflow attachment, process supervision, fresh Codex transport, log rotation
-and output following for `fix-tests`, `write-e2e` and ordinary plan workflows;
+and startup acknowledgement for `fix-tests`, `write-e2e` and ordinary plan workflows;
 `run-tests` shares its lock
-primitives, output following and terminal display, and registers test owners
+primitives and registers test owners
 started inside an E2E or ordinary plan agent session. The
 [adapter map](../docs/Execution-Plans.md#extension-boundary) distinguishes their
 shared components and retained execution engines.
@@ -1631,7 +1503,7 @@ Current-task updates keep their existing format.
 Completed optimization sessions use the same green compact summary, retaining
 their optimization batch heading and their own session count and duration.
 These compact summaries survive attachment and replace the completed task's
-controller scrollback too. At launcher exit, the final recap includes every
+retained controller output too. The final recap includes every
 task completed in that run, in order, with the existing detailed format:
 a green `Task ID complete.` line,
 followed by the number of sessions spent on that task (including earlier
@@ -1688,23 +1560,21 @@ the installed Parent About/license scenario. For E2E-only runs, use
 Parent About, replace `--ready` with `--scenario 'E2E-030/parent'`. The
 [E2E runner guide](e2e/README.md#run-e2e-scenarios) covers building inputs, listing,
 pending scope and prerequisites.
-Every `tools/run-tests` category runs independently of its terminal. Closing the
-terminal detaches the display; tests continue. Ctrl+C requests cancellation and
-waits for owned cleanup. `--reload` requests fresh shared launcher code through the
-[stable bootstrap](../docs/Execution-Plans.md#common-launcher-interface), following
-the same run. Observers defer replacement while input is unfinished; controllers
-join admitted work and preserve completed cases before replacement. Source edits
-alone never trigger reload. When idle, `--reload` is ignored and starts normally.
-Invoke `tools/run-tests --vm NAME` for a VM run in a new terminal to attach to
-the existing progress and final output, including its exit status. While a run
-is active in the requested scope, execution invocations warn and attach to it,
-ignoring new categories or invalid options. VM attachment and cancellation
+Every `tools/run-tests` category runs in a detached controller. The launcher
+returns after admission; Watch observes the progress and final verdict.
+`--reload` requests replacement at a safe boundary and returns immediately.
+Controllers join admitted work and preserve completed cases before replacement.
+Source edits alone never trigger reload. When idle, `--reload` starts normally.
+While a run is active, repeated execution commands acknowledge that owner and
+ignore new categories. Test invocations inside plan agents, repair supervisors
+and Make recipes continue to wait for the completed test verdict.
+VM attachment and cancellation
 require the original canonical `--vm` selection for explicitly selected runs;
 missing or different selections refuse. Default queue runs attach and cancel
 without `--vm` or with the original list. IDs resolve to names before saving
 the selection; repair retries forward those names rather than expanding to all enabled VMs.
 `tools/run-tests --vm NAME --stop` attaches to a narrowed VM run, requests
-cancellation, and waits for owned cleanup; when idle it returns without starting
+cancellation, and returns immediately while owned cleanup continues; when idle it returns without starting
 tests or consuming saved results. Attachment searches only the requested scope:
 use a host category for host work and `vm` for VM work. Host and VM sessions and
 activity locks are independent, allowing separate runs and standalone VM
@@ -1722,11 +1592,11 @@ result. After delivery, or when no VM session exists, an invocation without argu
 aggregate. VM session output and ownership records live under
 `output/test-runs/host/sessions/`; host-only records live under
 `output/test-runs/host/sessions-host/`. Reconnect to a host-only run with a host
-category such as `host`, `ui`, or `unit` to replay its idle result.
+category such as `host`, `ui`, or `unit` to address its active owner; use Watch to read retained results.
 Runs started before reconnect support
 cannot be adopted; their existing checkout lock still prevents duplicate launches.
 Refresh an older installed dispatcher with `./setup.sh --test-tools-only` before
-using the new fast mode. Neither aggregate accepts suite selectors. The terminal shows
+using the new fast mode. Neither aggregate accepts suite selectors. Watch shows
 colored category progress with branches for the four host workers, a join before
 the exclusive VM stages, and overall wall time. Publishing, build A, build B and
 comparison appear individually under the host branch that runs them. Branch assignment reflects
@@ -1735,12 +1605,8 @@ branches refresh together, including elapsed times while children are quiet.
 Idle branch headings are gray; running branch headings are bold.
 Queued categories with a known reason display `[Waiting]` and that reason,
 including observed and required RAM for memory admission. These rows remain
-visible ahead of completed work when the terminal is short.
+visible ahead of completed work.
 Completed categories remain under the branch that ran them, in launch order.
-Detailed dashboard rows are clipped to terminal width to keep cursor redraws
-aligned; controller headers wrap without clipping. The lower frame fits the
-space beneath the header, using the output terminal's actual
-dimensions instead of potentially stale `LINES`/`COLUMNS` environment values.
 The saved final summary retains the full text of all rows. Full output is continuously
 appended and flushed to the run's retained `report.md`.
 The accompanying `progress.json` records the latest category counts, states,
@@ -1748,7 +1614,7 @@ branch assignments and launch order. Case IDs and retained-pass inventories live
 in adjacent immutable `inventory-NNN.json` files; each progress row names its file
 and entry index. The inventory is published only when categories or their inventories
 change, and identical progress snapshots and session frames are not rewritten.
-Live terminal/watch readers reuse unchanged JSON payloads after checking the
+Watch readers reuse unchanged JSON payloads after checking the
 current file's identity, timestamps and safety on every poll; changed or replaced
 files are read again. Log readers continue reading only appended bytes.
 Rejected metadata does not stop attached log replay or final-result delivery and
@@ -1875,7 +1741,7 @@ appears after owned cleanup, including launcher-level VM recovery, finishes.
 
 The maintained launchers hold a checkout activity lock for the full command,
 including cleanup. Aggregate children join through an inherited locked file
-descriptor; another terminal's `tools/run-tests` attaches within the same scope.
+descriptor; repeated `tools/run-tests` commands acknowledge the owner within the same scope.
 Host-only selections use `artifacts/test-activity/host.lock`; selections with
 installed system or E2E work keep
 `artifacts/test-activity/lock`. These are the only two test scope locks;

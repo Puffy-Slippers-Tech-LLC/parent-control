@@ -130,18 +130,11 @@ def _select(root, argv, *, reload=False):
             return None, False
         current = directory / 'current.json'
         if run is not None:
-            from vm_selection import extract_execution as extract
-            _, requested_vm = extract(requested, required=False)
-            previous_args = json.loads(current.read_text())['argv']
-            _, previous_vm = extract(previous_args, required=False)
-            same_vm = requested_vm == previous_vm
             result = run / 'result'
             try:
                 broken = not result.exists() or int(result.read_text()) != 0
             except (ValueError, OSError):
                 broken = True
-            if '--resume' not in argv and same_vm and not (run / 'delivered').exists() and not argv and broken:
-                return run, False
             if broken and not (run / 'delivered').exists():
                 print(f'Previous test owner is idle; preserving its incomplete/failed output in {run}.',
                       file=sys.stderr, flush=True)
@@ -209,20 +202,54 @@ def _select(root, argv, *, reload=False):
 
 
 def follow(run, stream=None):
-    from detached_launcher import follow_output, atomic
-    from launcher_view import view_for
+    """Forward owned test output to a supervisor and preserve its verdict."""
+    import codecs
+    from detached_launcher import atomic
+    from watch_output import JsonReader, snapshot
     stream = stream or sys.stdout
-    # A supervising fix-tests process retains frames separately from its log.
-    # Only the final observer knows whether (and how large) its terminal is.
     destination = os.environ.get(FRAME_DIRECTORY)
+    destination = Path(destination) if destination else None
+    decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
+    reader = JsonReader()
+    forwarded = None
     try:
-        with view_for('run-tests').display(stream, run) as display:
-            return follow_output(run, stream, display, label='run-tests',
-                                 test_session=True, destination=Path(destination) if destination else None,
-                                 owner_busy=lambda owner: busy(owner))
+        with lock(run / 'owner') as owner, (run / 'output').open('rb') as output:
+            while True:
+                active = busy(owner)
+                if output.tell() > os.fstat(output.fileno()).st_size:
+                    output.seek(0)
+                    decoder.reset()
+                if destination is not None:
+                    try:
+                        steps = snapshot(run / 'controller.json', steps=True, reader=reader)
+                        lines = snapshot(run / 'frame.json', reader=reader)
+                        if steps is not None and (steps, lines) != forwarded:
+                            atomic(destination / 'frame.json', lines)
+                            if lines:
+                                atomic(destination / 'test-frame.json', lines)
+                            atomic(destination / 'test-controller.json', steps)
+                            forwarded = (steps, lines)
+                    except (OSError, ValueError, KeyError, TypeError):
+                        pass
+                data = output.read(65536)
+                if data:
+                    stream.write(decoder.decode(data))
+                    stream.flush()
+                    continue
+                if not active:
+                    stream.write(decoder.decode(b'', final=True))
+                    stream.flush()
+                    result = run / 'result'
+                    status = int(result.read_text()) if result.exists() else 1
+                    if not result.exists():
+                        print('Test owner stopped without a final result; run is incomplete.',
+                              file=stream, flush=True)
+                    (run / 'delivered').touch(mode=0o600)
+                    return status
+                time.sleep(.1)
     finally:
-        if destination:
-            atomic(Path(destination) / 'frame.json', [])
+        if destination is not None:
+            atomic(destination / 'frame.json', [])
 
 
 def main(root, argv, *, reload=False, reset=False):
@@ -257,18 +284,19 @@ def main(root, argv, *, reload=False, reset=False):
             return _main(argv)
         if requested:
             cancel()
-        if not started and '--stop' in argv:
-            print('run-tests: cancellation requested; waiting for owned cleanup.',
+        # Automation must receive the test verdict before accepting work or
+        # starting the next Make recipe. MAKELEVEL is exported by Make itself.
+        # Independent public launchers only acknowledge controller admission.
+        from detached_launcher import WORKFLOW_DIRECTORY
+        if (os.environ.get(FRAME_DIRECTORY) or os.environ.get('ONPC_RUNNER_INVOCATION')
+                or os.environ.get(WORKFLOW_DIRECTORY)
+                or os.environ.get('MAKELEVEL', '0') not in ('', '0')):
+            print(f'{"Started" if started else "Attached to"} run-tests session: {run.name}',
                   file=sys.stderr, flush=True)
-        elif not started and not reload:
-            print('WARNING: A previous run is in the background or has an unread result; '
-                  'ignoring all new arguments and attaching to it.', file=sys.stderr, flush=True)
-        # Install cancellation before advertising readiness to a supervisor.
-        print(f'{"Started" if started else "Attached to"} run-tests session: {run.name}',
-              file=sys.stderr, flush=True)
-        print('Closing this terminal detaches; invoke tools/run-tests again to attach.',
-              file=sys.stderr, flush=True)
-        return follow(run)
+            return follow(run)
+        from detached_launcher import report_start
+        return report_start(run, label='run-tests', started=started,
+                            stop='--stop' in argv, reload=reload)
     finally:
         signal.signal(signal.SIGINT, previous)
 

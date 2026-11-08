@@ -211,15 +211,14 @@ SSH placement uses the configured host name as a private OpenSSH alias and its
 `ssh_port`. It runs the selected checkout's launcher on that server, verifies
 the checked-out branch, and pins the destination without reapplying remote
 launcher defaults. Arguments are shell-quoted; stdin/stdout/stderr and exit status
-travel through SSH, with a remote terminal only for interactive callers.
+travel through SSH without allocating a remote terminal.
 Authentication is noninteractive and requires an already trusted host key;
 connection failures never fall back to local execution. Run `./setup.sh --server`
 on the server and `./setup.sh --connect-server` on the client first. No additional
 controller service is needed. Source and credentials remain host-local; dispatch
 does not synchronize checkouts or forward the client's environment.
 Routing policy lives in the reloadable `launcher_controller.py`; the stable
-bootstrap remains a trampoline. Reloading a retained observer stays attached to
-its original run rather than selecting a new branch. Inspection commands such as
+public commands return after controller admission. Inspection commands such as
 `--help` use the same branch selection and placement rules.
 Internal `run-tests CATEGORY --unattended` children stay in their controller's
 checkout and retain its activity ownership; public defaults are not reapplied.
@@ -255,12 +254,12 @@ cancellation fails with a red “already stopping and is not cancellable” mess
 it never removes a committed stop. Existing runs must be restarted with updated
 launcher code to support cancellation.
 `fix-tests` and `run-tests` retain their cooperative cancellation semantics.
-Fresh ordinary-plan observers paint their startup panel before loading the saved
-queue/checkpoint, then reuse that screen when the backend starts. Ctrl+C retains
-signal-based cancellation during startup; chat input starts when the owner is ready.
-Closing an observer terminal detaches. Repeating the command reconnects to
-the same owner and retained checkpoint; model defaults do not change an active
-run. On attachment, `--reload` or `--stop`, omitted `--vm` preserves that owner's VM queue
+Launcher commands start the detached controller, print a green startup acknowledgement
+or a red failure, and exit. The acknowledgement reports admission, not completion.
+Repeating a command updates or acknowledges the existing owner without opening a
+terminal client. ONPC: Watch can attach at any time for progress, results, questions
+and conversation; closing Watch leaves the controller running. Model defaults do
+not change an active run. On attachment, `--reload` or `--stop`, omitted `--vm` preserves that owner's VM queue
 and concurrency; fresh execution uses the current configured defaults. An explicit
 `--vm` must match the active run's binding.
 Attachment and `--stop` use the master's stable checkout-relative path and
@@ -355,33 +354,19 @@ briefs without comparing their definitions with old snapshots.
 
 The shared `--reload` option applies to ordinary plans and their dedicated wrappers,
 `fix-tests`, `write-e2e`, `sync-whatsnew`, `run-tests` and its direct `run-unit-tests`
-observer. Use the same plan/VM/scope
-selection as for attachment. It keeps the terminal attached to the existing run;
-when idle the flag is ignored and ordinary startup applies. It does not cancel work,
-reset allowances or replay an observer's original task limit. Bare `fix-tests
---reload` requests both active repair scopes before following them.
-Existing observers check the shared request while their owner is active.
-[`launcher_bootstrap.py`](../tools/launcher_bootstrap.py) is the stable trampoline:
-it only runs the entry point, lets an observer reload unwind its contexts, and
-replaces the interpreter. Shared request and descriptor handling lives in
-[`launcher_reload.py`](../tools/launcher_reload.py); observer reattachment lives in
-[`launcher_observer.py`](../tools/launcher_observer.py), outside the bootstrap.
-The fresh observer follows the exact retained run directly; it never replays
-the launch command, reapplies `--tasks`, selects work or starts a new backend.
-Its display rebuilds from retained output and progress. Unsent input, partial
-keyboard/paste sequences, edited answers and active selections defer replacement
-until finished or cleared. Terminal modes are restored before replacement;
-reload adds no completion recap and does not cancel the owner. Internal test-frame
-forwarders stay under their existing supervisor. Controllers reload only after
+launcher. Use the same plan/VM/scope selection as for an existing run.
+The request returns immediately; when idle the flag is ignored and ordinary startup
+applies. It does not cancel work or reset allowances. Bare `fix-tests --reload`
+requests both active repair scopes. Shared request and descriptor handling lives in
+[`launcher_reload.py`](../tools/launcher_reload.py). Internal test-frame forwarders
+stay under their existing supervisor. Controllers reload only after
 their admitted operations and cleanup finish. Ordinary plans and E2E implementation
 retain session/task checkpoints; repair pipelines drain to retained boundaries before
 their coordinator reloads; translations finish and retain their current batch.
 The test scheduler stops admitting jobs, joins active work, saves completed cases
 and reloads with the original selectors and checkpoint. Cancellation takes precedence;
 cleanup/audit failures retain a failed result rather than being hidden by reload.
-Subsequent supervisors import current code. Bootstrap edits require reattachment, as do observers
-started before this support was installed. An observer reload/import failure
-leaves the backend running and its retained result available for reattachment.
+Subsequent supervisors import current code. Watch reads retained state independently.
 A controller import failure ends that owner with an incomplete result and its
 last checkpoint retained for manual recovery.
 
@@ -465,249 +450,13 @@ surface in use before resuming; follow the
 Resume through the same launcher after resolution, preserving the saved task and
 finishing any interrupted work and owned cleanup.
 
-Plan-driven launchers use the same terminal layout: tasks overview at top left, plan
-totals at top right, execution details and optional input at bottom left, current
-task summary and status/issues at bottom right. Task entries in the
-overview and task summary use bold task labels, such as `Task 4-5c:`.
-The bottom-left transcript and prompt use the shared
-[`SessionPanel`](../tools/launcher_session.py) component. Other launcher surfaces
-can embed it in their own location without the plan overview or status columns.
-Below the chatbox, the footer keeps the model/effort on the left and a
-`Simplified [on]`/`Simplified [off]` toggle on the right. The `Simplified` label is
-normal gray text; only `[on]`/`[off]` is a blue, underlined, clickable link.
-Simplified defaults to on
-and shows the agent's text messages, using the same descriptive transcript
-previously displayed at bottom right. Each message keeps the standard leading
-`•`, a blank line between messages and indented continuation lines.
-Structured session results, including continuation and prerequisite handoffs,
-display their summary and next-session prompt as readable prose in both views;
-the original JSON remains the launcher's orchestration input.
-Prose paragraphs wrap to the current panel width, including after resizing;
-the supervisor retains logical lines and preserves explicit Markdown breaks.
-Non-text activity shows a single line ending in `...`, such as `• Ran tools/run-tests --help...`
-or `• Explored Search tests...`, with the full view's verb and content colors.
-Consecutive non-text events replace that line in place; a text message keeps the
-preceding activity line in history and starts a new message. Activity previews
-stay on one physical line, truncating to the current pane width before `...`.
-The observer derives these previews from the existing current-session transcript;
-display reload applies them immediately, including during an active agent session,
-without waiting for controller or supervisor replacement. Hover requests a hand
-pointer where the terminal supports OSC 22.
-Turning Simplified off restores the full output, including commands, tools and
-their results in launcher terminals. [Watch's Session view](../vscode/onpc-watch/README.md)
-hides command and tool result bodies in both modes, retaining activity names
-and the original saved transcript. Switching views keeps the chat draft
-and saved transcripts intact and returns the output viewport to its newest rows.
-The bottom-right column ends with Last Error and Status; it has no duplicate
-session transcript or trailing horizontal divider.
-The shared supervisor publishes session identity, model/effort and lifecycle in
-`session-view.json`, and a bounded current-session `session-output.log`, inside
-the existing owned run. These display artifacts carry no execution or acceptance
-authority and retire with that run. Plan and repair sessions use the shared
-conversation input throughout work, including steering the active agent and
-answering pending developer decisions. Prompts entered between repair sessions
-queue for the next agent in the displayed workflow.
-Answering a pending developer decision retains the displayed conversation and
-adds the answer as a `You` message. The following agent session appends its
-output after that answer rather than clearing the transcript.
-The repair launcher's lower-left area additionally splits current pipeline status
-from tabbed output, initially 1:2. Its draggable divider uses the shared ratio
-and scrolling controls and retains the chosen proportion across terminal resizing.
-**Active (Session)** and **Session** share the current session transcript and
-chatbox; without an active session, **Session** shows `No active session` and
-**Active (Launcher)** shows launcher output with the composer available between
-sessions. **Launcher** shows output only. Click the tabs or use Alt+1/2/3. Session
-discovery and input stay scoped to the attached workflow and its VM pipelines.
-The top-left overview is at most five terminal rows high, including wrapped
-lines, and shrinks further in short terminals. All overview content scrolls
-together with the mouse wheel; click it to direct Page Up/Page Down there.
-It reuses the bottom-left panel's scrollbar rendering and controls: a dim track
-and draggable thumb, track clicks, and a pinned **↓** button to return to the
-newest rows. Both panels hide these controls during native terminal selection.
-It starts at the bottom and follows the newest rows until scrolled upward;
-returning to the bottom resumes following. It has no `Tasks:` summary count.
-Completed task entries in the top-left overview start with a green `✓`
-checkmark and use green text.
-The title is followed by one space and the task's elapsed duration in parentheses,
-using the shared minute/hour format: `✓ Task title (12m)` or `✓ Task title (1h 12m)`.
-Observers normalize completed rows retained by older backends to this green
-checkmark format and remove the old `— complete` suffix. When an old row has
-no recorded elapsed time, show `(duration unavailable)`; never fabricate timing.
-Single-task E2E runs publish the same completed recap as multi-task runs.
-Watch shows `[branch] launcher (Closing Task)` during task close-out, with
-`Closing Task` in green. This includes the inactive, struck-through Session
-interval while the controller processes a completion response, validation and
-the commit skill's commit, push and propagation. Retained accepted results in
-Git reconciliation also count, including repository synchronization lock waits.
-It clears when the green
-completed task recap appears in Status. Stop and reload notices take priority.
-
-The current task summary uses the plan's plain-language task title. Its separator
-is followed by bold `Last Error:` and `Status:` labels, with a blank line between
-the two fields. The last error summary is red, followed by its elapsed age in
-parentheses, for example `(12m ago)`;
-with no reported error, show a normal
-`-` and no age. Errors belong only to the current task and retain their original
-timestamp across retries, suspension, observer reconnections and backend restarts.
-The age refreshes every minute without requiring new output. The status value is
-exactly one of the following. With no last error, it is always blue `Running`:
-
-| Status | Text color |
-| --- | --- |
-| Running (no last error) | Blue |
-| Investigating | Blue |
-| Root cause identified, fixing | Blue |
-| Testing fix, previous error point not reached yet | Yellow |
-| Testing fix, previous error point passed | Green |
-| Collecting diagnostic evidence | Yellow |
-| Diagnostic case passed; awaiting interpretation | Blue |
-
-Blue status values and the elapsed age use explicit blue (`#0098ff`) so terminal
-palette settings cannot render them gray. The `Status:` label keeps its normal color.
-The status is followed by its age in parentheses, such as `Running (12m ago)` or
-`Investigating (1h 12m ago)`, using the shared minute/hour duration formatter.
-Its clock resets only when the status value changes and refreshes every minute
-without requiring new output. Task-local status timestamps survive retries,
-suspension and observer reconnections. For older backends or non-agent workflows
-without a retained timestamp, the observer measures from its first observation
-of the current task/status.
-
-Plan/E2E coordinators report a short `last_error` once per new occurrence and
-update `status` through `LAUNCHER_STATUS` commentary. The launcher supplies the
-error timestamp; repeated old failures must not reset it. Testing statuses require
-evidence about the previous error point, not merely starting an unrelated test.
-
-`fix-tests` uses the same metadata, validation and panel clocks, scoped to each
-round/category. Its controller records each failed run once; repair agents update
-their investigation/fixing status through the same commentary
-protocol. Before corrective verification the controller sets the yellow testing
-status, and a passing selected run sets green while retaining the last error and
-its age. Diagnostic retries show `Collecting diagnostic evidence`, then
-`Diagnostic case passed; awaiting interpretation` after an exact-case pass.
-They stop before later cases and return observations to the repair agent;
-diagnostic execution alone grants no verified-fix status. Moving to a
-different category or round selects its own metadata and clocks.
-
-Before launching the test or retry that verifies a fix at the previous error point,
-the coordinator sends `Testing fix, previous error point not reached yet` in a
-separate `LAUNCHER_STATUS` commentary before the verification tool call. Keep
-that yellow status through setup, earlier steps and waiting for evidence that
-the previous error point passed; do not leave the panel on fixing during that run.
-Report `Testing fix, previous error point passed` only after observing that
-evidence. A changed fix needing fresh verification returns to yellow before its
-retry, even if an earlier candidate passed that point.
-These fields are presentation only and never acceptance evidence. Conversation
-lifecycle notices and developer questions appear separately from the status value.
-Valid `LAUNCHER_STATUS` metadata is omitted from the general transcript and
-descriptive output, including when it follows prose on the same line or appears
-among multiple message lines. Natural-language text before and after its JSON
-object is preserved in both outputs; invalid metadata remains visible.
-Below `Status:`, a horizontal separator introduces the latest agent session's
-descriptive output. This duplicates the agent's natural-language messages from
-the full bottom-left transcript, excluding command activity such as `Ran …`,
-`Explored …` and `Wrote …`, tool results, file changes, plans and developer input.
-The descriptive pane follows new messages and has independent wheel scrolling
-and a draggable scrollbar when its retained output exceeds the available space.
-Click the pane to direct Page Up/Page Down to it. Scrolling it leaves the task
-summary, error/status fields and full transcript in place. New
-messages preserve a scrolled reading position; reaching the bottom resumes
-following. Reconnection restores the bounded descriptive history, and each new
-agent session starts an empty history. Sessions predating this feature leave
-the pane empty; never infer prose by filtering rendered command output.
-Plan/E2E sessions offer conversation input; repair offers input
-for developer decisions; `run-tests` has no agent sessions or composer.
-The retained run counter `Tasks: x/y/z`, included in plain output and the exit
-recap, counts completed, unfinished and total tasks
-in this run against the run's task limit; an active task remains unfinished
-until completion. Unfinished is the total minus completed, with a minimum of zero.
-For zero or negative `--tasks`, z is the number completed
-in this run plus the remaining tasks, so an unlimited run shows a numeric total.
-Plan/E2E observers read remaining counts from the current queue, including when
-reconnecting to a backend started before numeric totals were recorded.
-The conversation composer uses a light gray background with dark text across
-its full textbox, including padding and border, like the standard agent chatbox.
-Below the textbox, show the current session's model name and reasoning effort
-(for example, `gpt-6.1-sol high`) in the same dim font as the former keyboard hint,
-replacing `Enter: send · Shift+Enter: newline`. Read these values from the session
-state so observer reconnection preserves them; leave unavailable values blank.
-The conversation composer shows a blinking underscore cursor at the current
-insertion position, including while another pane is selected or output scrolls.
-Hovering over its text area requests an I-beam mouse pointer in terminals that
-support pointer shapes.
-While the agent works, the composer border shows `Working (duration)`, refreshing
-every second even without output. This clock measures the active turn, survives
-observer reconnection and resets on continuation after interruption or a reply.
-The indicator disappears while waiting, interrupting, cleaning up or finished.
-The Plan/E2E right-panel session line shows only the session number and elapsed
-clock time, for example `Session [1]: 2m`, refreshing every minute even without
-new output: `12m` below one hour, then `1h 0m`, `1h 12m`, and so on.
-The clock starts with each session, survives observer reconnection and stops
-when the session finishes.
-The top and lower splits share one 75:25 width ratio. Dragging either vertical
-divider resizes both frames together; their dividers stay aligned during dragging
-and terminal resizing. The top-right `Total Tasks: x/y/z` shows completed
-tasks in green, unfinished tasks in explicit grey (`#808080`) and the total in
-the normal text color.
-Displayed counters use the shared count styling function, overriding retained ANSI
-colors so completed and unfinished counts stay distinct.
-These counts cover the plan's entire active queue, excluding deferred future
-work, regardless of `--tasks`. Completed is the accepted completion count from
-the retained run counter plus tasks completed before this run; both counters use
-the same budget snapshot. A queue checkbox edited during a session or pending
-Git close-out grants no completion credit in either counter. The total refreshes
-as the active queue changes, and unfinished is total minus accepted completions.
-Displays without a Markdown plan show unavailable counts as dashes.
-Below the counts, `Total Duration` shows elapsed time for the backend launcher
-in the same minute/hour format. It refreshes every minute and continues across
-tasks and observer reconnections. Each new backend process resets this clock;
-previous backend runs never contribute elapsed time.
-The live layout uses the terminal's alternate screen, keeping the shell prompt
-and shell scrollback outside the launcher. Mouse controls are enabled on attachment:
-the wheel scrolls the pane under the pointer, the output pane has its own
-draggable scrollbar and **↓** returns to the newest output. Scrolling output
-leaves the overview, totals, task summary and composer fixed. No F2 switch is
-needed to start scrolling. The terminal's scrollbar does not control these panes.
-Drag text with mouse controls enabled to select within the starting panel.
-Selection and copied text stop at its boundaries, including the vertical divider;
-releasing the drag sends the selected text to the clipboard through OSC 52.
-The terminal must support and permit OSC 52 clipboard writes. Wide characters
-and combining marks remain intact. Output arriving during a drag does not change
-the text being copied; resizing cancels the selection. A click without a drag
-does not replace the clipboard. Scrollbars and divider drags retain their controls.
-`F2` releases the mouse for native terminal selection, Ctrl+Shift+C and the
-terminal's right-click menu; press `F2` again to restore pane controls. Native
-selection, including the terminal's selection modifier, belongs to the terminal
-and can cross panel boundaries. Non-chat displays also accept `m` outside a pending
-question. Page Up/Page Down remain available for keyboard pane scrolling in either mode.
-The live panes keep bounded history; the retained run log remains the complete
-output source. On exit, the launcher restores the shell and input/cursor modes,
-then appends the saved run log to native terminal scrollback for later copying
-and browsing. Its final recap starts with the full top-left tasks overview:
-the pinned counter and task summaries in their displayed order, including entries
-hidden by pane scrolling or terminal size. This recap follows the log replay and retains
-the overview's completion checkmarks, durations, colors and bold task labels.
-On every exit, regardless of the reason, append these two lines after the
-summaries, including when no task summary is available:
-
-- **Ended:** `hh:mm`, using local time with a two-digit 12-hour clock.
-- **Duration:** elapsed time, such as `1h 12m`, using the shared
-  [`clock_duration`](../tools/launcher_display.py) formatter and the backend's
-  start clock used by `Total Duration`. Older backends without that clock use
-  elapsed time since observer attachment.
-
-When the entire execution-plan queue finishes successfully, append a final banner
-after the recap and timing: `QUEUE COMPLETE` in bold green uppercase, with one
-green line of `=` characters above and below it, each matching the message's
-character length. The bottom border is the last output line.
-Plain output retains the banner text without terminal styling. Task limits,
-stops, cancellation and failures do not count as queue completion.
-
-Only the `Ended:` and `Duration:` labels are bold terminal text; their values
-use normal weight. Cancellation, exceptions and handled termination signals
-retain this footer after terminal restoration; uncatchable termination cannot
-run exit cleanup.
-Pipes receive the same final recap as plain text and retain the same owner/result
-semantics.
+ONPC: Watch owns the interactive launcher interface: task overview, status,
+transcripts, conversation, developer questions, controls and retained results.
+See the [Watch guide](../vscode/onpc-watch/README.md). Launcher commands have no
+terminal display, keyboard editor, mouse handling or output-following loop.
+Test invocations inside plan agents, repair supervisors or Make recipes still
+wait for their result; their exit status remains the test verdict. Supervised
+tests forward progress to their owning controller without a terminal UI.
 
 ### Git close-out and recovery
 
@@ -1030,12 +779,10 @@ tools/execute-plan 'docs/Source-Plan.md' --reconcile RUN --split-plan 'docs/New-
 Use composition with small policy objects and presentation strategies. Avoid a
 single state machine containing every task type's acceptance branches.
 
-Presentation has two extension levels: the shared `WorkflowView` supports custom
-launchers, and its `ExecutionPlanView` specialization owns all plan panel wiring.
-Every execution-plan launcher, including `write-e2e`, supplies its checkout and
-master plan to that specialization. It inherits the same layout, queue totals,
-task/session labels, live timing, suspension display, completion overview and
-observer reload identity. Watch's Status tab uses the same plan totals and
+Every execution-plan launcher, including `write-e2e`, publishes its checkout and
+master plan through `publish_plan_view`. Watch owns layout, task/session labels,
+live timing, suspension display and completion overview.
+Watch's Status tab uses the same plan totals and
 duration above the task/session rows for every plan launcher. The shared Session
 link shows the current task's session number until completion. Pending questions
 inherit flashing status, countdowns and the `+10m` action for timed questions,
@@ -1052,20 +799,19 @@ presentation strategy directly and can customize their layout and progress.
 
 | Shared component | Responsibility | Customization |
 | --- | --- | --- |
-| [`launcher_bootstrap.py`](../tools/launcher_bootstrap.py) / [`launcher_reload.py`](../tools/launcher_reload.py) / [`launcher_observer.py`](../tools/launcher_observer.py) | Stable interpreter trampoline, explicit reload requests and observer reattachment | Exact run, label and plan projection; never workflow admission |
 | [`execution_plan.py`](../tools/execution_plan.py) | Markdown selection, dependency/pointer and completion guards | Master/queue paths, task briefs and acceptance metadata |
 | [`plan_launcher.py`](../tools/plan_launcher.py) | Resumable ordinary-plan session driver | Immutable `PlanWorkflow`: name, plan, model/effort, session allowance, VM selection, Git policy |
 | [`launcher_runtime.py`](../tools/launcher_runtime.py) | Common options, locked task budget and live limit changes | Worker defines an accepted task boundary and default budget |
-| [`detached_launcher.py`](../tools/detached_launcher.py) | Owner locks, detached sessions, supervised transport, nested-test cleanup, following | Worker command, validated namespace, lifecycle callbacks |
-| [`launcher_view.py`](../tools/launcher_view.py) / [`launcher_display.py`](../tools/launcher_display.py) / [`launcher_progress.py`](../tools/launcher_progress.py) | Synchronized panels, input routing, task formatting and durable completion rows | `ExecutionPlanView`: checkout/master data with shared plan wiring; `WorkflowView`: custom progress, layout options, questions and composer for other launchers |
-| [`launcher_session.py`](../tools/launcher_session.py) | Shared session transcript/composer layout, editor and caret geometry | Host supplies viewport, transcript, session state and authorized input callback in a launcher pane |
+| [`detached_launcher.py`](../tools/detached_launcher.py) | Owner locks, detached sessions, supervised transport, nested-test cleanup, startup acknowledgement | Worker command, validated namespace, lifecycle callbacks |
+| [`launcher_view.py`](../tools/launcher_view.py) / [`launcher_display.py`](../tools/launcher_display.py) / [`launcher_progress.py`](../tools/launcher_progress.py) | Watch projection metadata, status formatting and durable completion rows | Master and queue paths published for Watch |
+| [`launcher_session.py`](../tools/launcher_session.py) | Bounded Watch session transcript projection | Watch supplies retained transcript and session state |
 | [`launcher_git.py`](../tools/launcher_git.py) / [`launcher_worktrees.py`](../tools/launcher_worktrees.py) | Upstream reconciliation, literal paths and mandatory commit/push/propagation close-out with recovery | Workflow owns safe pull boundaries and commit scope; shared Git owns pulls, commit, push, destination discovery, stash/merge/restore, automatic conflict resolution and recovery |
 
 The current adapters use these components according to their workflow:
 
 | Launcher | Shared infrastructure | Execution input and retained engine |
 | --- | --- | --- |
-| `write-e2e` | Task options/budgets, detached supervision, `ExecutionPlanView`, shared plan progress, Git and queue reader | E2E master, ordered queue and briefs through its specialized acceptance, model and optimization engine |
+| `write-e2e` | Task options/budgets, detached supervision, Watch projection metadata, shared plan progress, Git and queue reader | E2E master, ordered queue and briefs through its specialized acceptance, model and optimization engine |
 | `fix-tests` | Task options/budgets, detached supervision, display and developer questions | Selected suite inventory, verification rounds and failure handoffs through its repair engine; no Markdown task plan |
 | `run-tests` | Ownership lock primitives, output following, display, storage and retention | Selected suite inventory through its scheduler and test checkpoints; no Markdown task plan, agent composer or `--tasks` option |
 | `execute-plan` | Ordinary plan driver, task options/budgets, detached supervision and display | Caller-selected master, ordered queue and briefs through `PlanWorkflow`; shared per-task commit and push |

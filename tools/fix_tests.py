@@ -2093,12 +2093,8 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
         on_start=started, **({'reload': True} if reload else {}))
 
 
-def follow(run, stream=None):
-    return detached_launcher.follow(run, stream, label='fix-tests')
-
-
 def stop_all(root):
-    """Cancel this checkout's repair owners before waiting for any cleanup."""
+    """Cancel this checkout's repair owners without waiting for cleanup."""
     runs = []
     legacy = root / 'artifacts/fix-tests'
     if (legacy / 'owner').exists():
@@ -2119,7 +2115,7 @@ def stop_all(root):
     status = 0
     for run in runs:
         print(f'fix-tests: stopping {run.name}; log: {run / "output"}', flush=True)
-        status = follow(run) or status
+        status = detached_launcher.report_start(run, label='fix-tests', stop=True) or status
     return status
 
 
@@ -2233,7 +2229,7 @@ def main(argv=None):
                 if selected is not None:
                     runs.append(selected)
             if runs:
-                return max(follow(selected) for selected in runs)
+                return max(detached_launcher.report_start(selected, label='fix-tests', reload=True) for selected in runs)
         from vm_selection import execution_selection
         from test_commands import repair_host_only_request
         host_only = repair_host_only_request(root, args.categories)
@@ -2266,9 +2262,8 @@ def main(argv=None):
             return 0
         if requested:
             cancel()
-        print(f'fix-tests: {"started" if started else "attached to"} {run.name}; log: {run / "output"}', flush=True)
-        print(f'Closing the terminal detaches. Ctrl+C or tools/{reattach_label(run)} --stop cancels.', flush=True)
-        return follow(run)
+        return detached_launcher.report_start(run, label='fix-tests', started=started,
+                                              stop=requested, reload=args.reload)
     except BrokenPipeError:
         return 0  # The detached owner continues independently.
     except (OSError, ValueError) as error:

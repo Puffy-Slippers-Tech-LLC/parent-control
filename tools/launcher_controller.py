@@ -29,7 +29,7 @@ def _local_checkout(root, branch):
 
 
 def _remote(host, branch, arguments):
-    """Let SSH carry the terminal and exit status; never execute locally."""
+    """Dispatch admission through SSH and return its startup status."""
     # OpenSSH passes a command string to the remote shell. Quote every token,
     # including the Python bootstrap and opaque user arguments, exactly once.
     # Use the established destination marker rather than importing a new helper
@@ -55,14 +55,14 @@ os.execve('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(command),
     # Native adapters prepare their own environment only for agent operations;
     # help, observation and stop must work without a coding CLI or NVM.
     remote = shlex.join(destination)
-    command = ['ssh', '-t' if sys.stdin.isatty() and sys.stdout.isatty() else '-T',
+    command = ['ssh', '-T',
                '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
                '-o', 'IgnoreUnknown=UseKeychain', '-o', 'ConnectTimeout=10',
                '-o', 'ServerAliveInterval=30', '-o', 'ServerAliveCountMax=3',
                '-p', str(host.ssh_port), host.name, remote]
     sys.stdout.flush()
     sys.stderr.flush()
-    os.execvp(command[0], command)
+    return subprocess.run(command, check=False).returncode
 
 
 def dispatch(entry):
@@ -148,8 +148,6 @@ def dispatch(entry):
 
 
 def run(entry):
-    from launcher_bootstrap import run as bootstrap_run
-
     def admitted():
         try:
             return dispatch(entry)
@@ -157,4 +155,12 @@ def run(entry):
             print(f'launcher: {error}', file=sys.stderr)
             return 2
 
-    return bootstrap_run(admitted)
+    try:
+        status = admitted()
+    except SystemExit as error:
+        if error.code:
+            print('\033[31mLauncher command failed.\033[0m', file=sys.stderr, flush=True)
+        raise
+    if status:
+        print('\033[31mLauncher command failed.\033[0m', file=sys.stderr, flush=True)
+    return status

@@ -1857,13 +1857,10 @@ def main(argv=None):
             return 0
         if interrupted:
             cancel()
-        print(f"write-e2e: {'started' if started else 'attached to'} {run.name}; log: {run / 'output'}",
-              flush=True)
-        print('Closing the terminal detaches. Chat Ctrl+C interrupts; again while waiting exits. '
-              '--stop waits for a session boundary.',
-              flush=True)
-        from launcher_view import plan_view
-        return launcher.follow(run, label='write-e2e', view=plan_view(root, PLAN, queue=QUEUE))
+        from launcher_view import publish_plan_view
+        publish_plan_view(run, PLAN, queue=QUEUE)
+        return launcher.report_start(run, label='write-e2e', started=started,
+                                     stop='--stop' in argv, reload='--reload' in argv)
     except BrokenPipeError:
         return 0
     except (OSError, ValueError, ImportError) as error:

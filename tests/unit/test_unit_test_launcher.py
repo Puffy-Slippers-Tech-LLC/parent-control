@@ -5,6 +5,7 @@ import os
 import runpy
 import shutil
 import subprocess
+import time
 from unittest.mock import Mock
 
 import pytest
@@ -280,6 +281,11 @@ time = _JournalClock()
     monkeypatch.setenv('PYTEST_DISABLE_PLUGIN_AUTOLOAD', '1')
     monkeypatch.setenv('PYTEST_ADDOPTS', '--rootdir=/missing-private-sentinel')
     monkeypatch.setenv('PYTEST_PLUGINS', 'missing_private_sentinel')
+    # Make recipes require the completed verdict; independent launches only
+    # acknowledge admission. Keep this independent of the outer test command.
+    monkeypatch.delenv('MAKELEVEL', raising=False)
+    if expected == 1:
+        monkeypatch.setenv('MAKELEVEL', '1')
     try:
         result = subprocess.run(
             [str(checkout / 'tools/run-unit-tests'), 'tests/unit/test_stat*.py', '-q', *options],
@@ -302,9 +308,7 @@ time = _JournalClock()
         error.add_note('Private launcher timeout diagnostics:\n' + stderr[-16384:]
                        + '\n' + '\n'.join(diagnostics))
         raise
-    nested_diagnostics = '\n'.join(path.read_text(errors='replace')[-8192:] for path in
-        sorted((checkout / 'output/test-runs/host/reports').glob('*/category-*.log')))
-    assert result.returncode == expected, result.stdout + result.stderr + nested_diagnostics
+    assert result.returncode == (expected if expected == 1 else 0), result.stdout + result.stderr
     if '--collect-only' in options:
         assert 'starting pytest with 1 validated selection(s)' in result.stderr
     else:
@@ -312,10 +316,17 @@ time = _JournalClock()
         import json
         base = directory('sessions-host', root=checkout, create=False)
         run = base / json.loads((base / 'current.json').read_text())['run']
+        from detached_launcher import lock, busy
+        deadline = time.monotonic() + 20
+        with lock(run / 'owner') as owner:
+            while busy(owner) and time.monotonic() < deadline:
+                time.sleep(.05)
+            assert not busy(owner), f'Test controller did not finish: {run}'
         assert int((run / 'result').read_text()) == expected
+        nested_diagnostics = '\n'.join(path.read_text(errors='replace')[-8192:] for path in
+            sorted((checkout / 'output/test-runs/host/reports').glob('*/category-*.log')))
         summary = '1 deselected' if expected == 5 else ('1 passed' if expected == 0 else '1 failed')
-        # The shared dashboard owns observer output; pytest's raw summary is
-        # retained in its category report stream.
+        # Admission succeeds independently of the retained test verdict.
         assert summary in nested_diagnostics, nested_diagnostics
     assert 'private_sentinel' not in result.stdout + result.stderr
     assert not list((checkout / 'tests/unit').rglob('*.pyc'))

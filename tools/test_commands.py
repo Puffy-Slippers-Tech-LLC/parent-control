@@ -304,8 +304,9 @@ def usage():
        tools/run-tests --reload
 
 With no categories, start the all aggregate. An active run takes precedence
-over new execution categories; no arguments can replay an unread failed result.
-An idle successful run starts fresh. Attach to a
+over new execution categories. Idle invocations start fresh.
+Launch commands return after admission; use ONPC: Watch for progress and results.
+Select a
 configured queue without --vm; narrowed runs require their original --vm NAME.
 Help, listing and collection return immediately without attaching.
 --reverse reverses cases within each category (JS: file order). Pytest and JS
@@ -320,8 +321,8 @@ execution resets the checkpoint. Required preparation and lifecycle prerequisite
 cleanup, recovers recorded resources and clears saved progress before starting
 fresh. Source edits and historical logs are preserved. Conflicts with --resume,
 --stop and --reload; inspection performs no reset.
---stop requests cancellation of the active run and waits for owned cleanup.
---reload refreshes a running launcher at safe boundaries and stays attached;
+--stop requests cancellation and returns immediately; follow cleanup in ONPC: Watch.
+--reload requests a controller refresh at safe boundaries and returns immediately;
 when idle, the flag is ignored and execution starts normally.
 VM categories read config/environment.json and select VMs with enabled equal to
 the string "true" on online hosts, using each host's concurrency limit. Queue

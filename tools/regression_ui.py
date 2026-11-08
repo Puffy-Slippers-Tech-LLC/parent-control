@@ -1,5 +1,10 @@
 """Partition the discovered UI inventory without splitting shared fixtures.
 
+Parent feedback retry recovery uses the existing owned preview/display/bus and
+fake HTTP Session, with a tiny tmp_path release file released in finally.
+No network, process, shared path or cleanup owner is added; keep the Feedback
+whole-module bucket and its existing resource reservation.
+
 Shared host journal pacing delays real test-tool syncs within each worker;
 it adds no display, process, shared path or cleanup owner. Product API actions
 and existing private compositor/bus reservations remain unchanged.

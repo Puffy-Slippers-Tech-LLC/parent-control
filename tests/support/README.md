@@ -299,6 +299,13 @@ supplies snapshot infrastructure acceptance only.
 
 ## Host and guest boundaries
 
+Disposable eligible-parent setup must verify eligibility after unlocking; a
+successful AccountsService unlock can leave a password-disabled account locked.
+`e2e_dynamic_account.prepare_spare_approver` reuses `system_caller.FixturePassword`
+to set a private random credential before unlocking, then independently checks
+the new account and retained administrator. Reuse that guarded fixture rather
+than changing a baseline account or treating command success as eligibility.
+
 For a copied executable, reuse FILE05's `SyntheticFiles` operation and its
 [qualified copy binding](../../docs/TestAutomation/E2E-Building-Blocks.md#space-bearing-executable-copy).
 `SyntheticFiles.copy_executable(source=..., destination=...)` stages and copies
@@ -400,6 +407,13 @@ retain their own lifetime records. Resolve a D-Bus dependency's actual
 masking it. Budget its native stop timeout plus transport headroom: the usage
 reader uses `system_guest.run`'s 120-second default rather than racing the
 daemon's normal inactivity exit with a 30-second deadline.
+
+Installed ordinary-account checks reuse
+`system_wellbeing_qualification.owned_manager` for temporary user-manager startup
+and cleanup. It refuses an already active manager, records a new invocation even
+when startup fails, and refuses to stop a replacement. Callers keep their account
+selection, command environment, finite timeout and product assertions; station
+collateral checks retain their separate 75-second budget and diagnostics.
 
 For a fault that needs explicit reversal, persist its exact ownership receipt
 before delivering the fault, as in

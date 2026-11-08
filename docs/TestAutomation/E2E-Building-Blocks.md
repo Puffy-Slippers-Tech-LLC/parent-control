@@ -6534,6 +6534,13 @@ Use explicit endpoints or the shared operation's scoped stage names. Trace
 [captured app closure](#captured-native-activity-closure) through its original
 activity and return endpoints before composing a later launch attempt.
 
+For similar actions on different surfaces, use surface-specific checkpoints,
+as the reminder reboot history does with `station-*` and `overlay-*` edits.
+Review each declaration, worker-emitted stage and observed public operation as
+one mapping before the first live attempt. Changing the declared operation alone
+does not rename the worker's checkpoint; preserve its surface, child and
+independent result through both sides of the exchange.
+
 For a composed approval, trace the actual scoped journey prefix and request
 duration through the shared credential binding before the first VM attempt.
 Renaming checkpoints does not authorize that secret route. Use the existing

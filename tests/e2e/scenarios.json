@@ -2189,7 +2189,7 @@
         {"coverage_id": 167, "id": "allowance-edit", "owner": "continuous-journeys", "parameters": {"restore": "allowance-edit"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/daily_soft_expiry.py", "test_id": "allowance-edit"}},
         {"coverage_id": 168, "id": "toggle", "owner": "continuous-journeys", "parameters": {"restore": "toggle"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/daily_soft_expiry.py", "test_id": "toggle"}},
         {"coverage_id": 169, "id": "app-save", "owner": "continuous-journeys", "parameters": {"restore": "app-save"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/daily_soft_expiry.py", "test_id": "app-save"}},
-        {"coverage_id": 170, "id": "revoke", "owner": "continuous-journeys", "parameters": {"restore": "revoke"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 170, "id": "revoke", "owner": "continuous-journeys", "parameters": {"restore": "revoke"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/daily_soft_expiry.py", "test_id": "revoke"}}
       ]
     },
     {

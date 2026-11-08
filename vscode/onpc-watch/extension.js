@@ -206,7 +206,11 @@ function html(webview, context) {
         <button type="button" data-layout="horizontal" title="Horizontal" aria-label="Horizontal tile layout" aria-pressed="false">
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="5" height="14"/><rect x="12" y="3" width="5" height="14"/></svg></button>
         </div></div>
-        <main id="grid"><p class="empty" role="status">Connecting to watch…</p></main></section></div>
+        <main id="grid"><p class="empty" role="status">Connecting to watch…</p></main>
+        <div id="minimized-tiles" aria-label="Minimized tiles" hidden>
+        <div id="minimized-titles"></div>
+        <details id="tile-overflow"><summary title="Show all tiles" aria-label="Show all tiles">&gt;&gt;</summary>
+        <div id="tile-list" aria-label="All tiles"></div></details></div></section></div>
         <footer><button id="watch-error-indicator" type="button" hidden title="Show Watch error details" aria-label="Show Watch error details">
         <svg viewBox="0 0 20 20" aria-hidden="true">
         <defs><linearGradient id="watch-alert-red" x2="0" y2="1"><stop stop-color="#ff3025"/><stop offset="1" stop-color="#df0905"/></linearGradient></defs>

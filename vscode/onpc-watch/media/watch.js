@@ -27,6 +27,13 @@
     const saved = vscode.getState();
     let state = { scope: 'all', selected: saved?.selected || 'all' };
     let tileLayout = ['auto', 'vertical', 'horizontal'].includes(saved?.tileLayout) ? saved.tileLayout : 'auto';
+    const minimized = new Set(saved?.minimized || []);
+    let manualTiles = Boolean(saved?.manualTiles);
+    let viewerEntries = [];
+    const minimizedFooter = document.getElementById('minimized-tiles');
+    const minimizedTitles = document.getElementById('minimized-titles');
+    const tileOverflow = document.getElementById('tile-overflow');
+    const tileList = document.getElementById('tile-list');
     let split = Number.isFinite(saved?.split) ? saved.split : 30;
     let pending = Promise.resolve();
     const resourceSamples = new Map();
@@ -376,21 +383,116 @@
     }
 
     function persist() {
-        vscode.setState({ ...state, split, tileLayout });
+        vscode.setState({ ...state, split, tileLayout, manualTiles, minimized: [...minimized] });
     }
 
     function arrangeTiles(value) {
         tileLayout = value;
+        manualTiles = false;
+        minimized.clear();
         grid.dataset.layout = value;
-        document.querySelectorAll('#tile-layout button[data-layout]').forEach(button => {
-            button.setAttribute('aria-pressed', String(button.dataset.layout === value));
-        });
         persist();
     }
+
+    function tileLayoutButtons() {
+        document.querySelectorAll('#tile-layout button[data-layout]').forEach(button => {
+            button.setAttribute('aria-pressed', String(!manualTiles &&
+                ['all', 'run-time'].includes(state.selected) && button.dataset.layout === tileLayout));
+        });
+    }
     document.querySelectorAll('#tile-layout button[data-layout]').forEach(button => {
-        button.addEventListener('click', () => arrangeTiles(button.dataset.layout));
+        button.addEventListener('click', () => {
+            arrangeTiles(button.dataset.layout);
+            select(state.scope, 'all');
+        });
     });
-    arrangeTiles(tileLayout);
+    grid.dataset.layout = tileLayout;
+    tileLayoutButtons();
+
+    function maximizeTile(id) {
+        manualTiles = true;
+        for (const entry of viewerEntries) minimized.add(entry.id);
+        minimized.delete(id);
+        select(state.scope, id);
+    }
+
+    function minimizeTile(id) {
+        manualTiles = true;
+        if (state.selected === id) {
+            for (const entry of viewerEntries) minimized.add(entry.id);
+            select(state.scope, 'all');
+        } else {
+            minimized.add(id);
+            persist();
+            viewerLayout();
+        }
+    }
+
+    function fitMinimizedTitles() {
+        if (minimizedFooter.hidden) return;
+        const buttons = [...minimizedTitles.children];
+        buttons.forEach(button => { button.hidden = false; });
+        const total = buttons.reduce((width, button) => width + button.getBoundingClientRect().width, 0);
+        const fullWidth = minimizedTitles.clientWidth + tileOverflow.getBoundingClientRect().width;
+        tileOverflow.hidden = total <= fullWidth;
+        if (tileOverflow.hidden) {
+            tileOverflow.open = false;
+            return;
+        }
+        let used = 0;
+        const available = minimizedTitles.clientWidth;
+        for (const button of buttons) {
+            used += button.getBoundingClientRect().width;
+            button.hidden = used > available;
+        }
+    }
+    new ResizeObserver(() => fitMinimizedTitles()).observe(minimizedFooter);
+    document.addEventListener('click', event => {
+        if (!tileOverflow.contains(event.target)) tileOverflow.open = false;
+    });
+    tileOverflow.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+            tileOverflow.open = false;
+            tileOverflow.querySelector('summary').focus();
+        }
+    });
+
+    function viewerLayout() {
+        const runtime = state.selected === 'run-time';
+        const maximized = !['all', 'run-time'].includes(state.selected);
+        const visible = viewerEntries.filter(entry => !runtime &&
+            (maximized ? entry.id === state.selected : !minimized.has(entry.id)));
+        const visibleIds = new Set(visible.map(entry => entry.id));
+        for (const [id, view] of cards) view.body.hidden = !visibleIds.has(id);
+        grid.classList.toggle('single', maximized || visible.length === 1);
+        tileLayoutButtons();
+        const collapsed = viewerEntries.filter(entry => !visibleIds.has(entry.id));
+        minimizedFooter.hidden = runtime || !collapsed.length;
+        const signature = JSON.stringify([collapsed.map(entry => [entry.id, entry.label]),
+            viewerEntries.map(entry => [entry.id, entry.label])]);
+        if (minimizedFooter.dataset.signature !== signature) {
+            minimizedFooter.dataset.signature = signature;
+            const titleButton = entry => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'watch-tile minimized-tile';
+                const heading = element('span', 'watch-tile-heading tile-titlebar', button);
+                element('span', 'title', heading).textContent = entry.label;
+                button.title = entry.label;
+                button.addEventListener('click', () => {
+                    tileOverflow.open = false;
+                    maximizeTile(entry.id);
+                });
+                return button;
+            };
+            minimizedTitles.replaceChildren(...collapsed.map(titleButton));
+            tileList.replaceChildren(...viewerEntries.map(titleButton));
+            tileOverflow.open = false;
+        }
+        fitMinimizedTitles();
+        const empty = grid.querySelector('.empty');
+        if (empty && viewerEntries.length) empty.remove();
+    }
 
     function resize(value) {
         split = Math.min(90, Math.max(0, value));
@@ -431,6 +533,7 @@
         }
         state = { scope, selected };
         persist();
+        viewerLayout();
         vscode.postMessage({ type: 'select', ...state });
     }
 
@@ -483,6 +586,18 @@
         shape.setAttribute('d', 'M2 6h4l2-3h4l2 3h4v11H2z M13 11a3 3 0 1 1-6 0 3 3 0 1 1 6 0');
         icon.append(shape);
         screenshot.append(icon);
+        const minimize = element('button', 'tile-action tile-minimize', titlebar);
+        minimize.type = 'button';
+        minimize.title = 'Minimize tile';
+        minimize.setAttribute('aria-label', `Minimize tile: ${entry.label}`);
+        const minimizeIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        minimizeIcon.setAttribute('viewBox', '0 0 20 20');
+        minimizeIcon.setAttribute('aria-hidden', 'true');
+        const minimizeShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        minimizeShape.setAttribute('d', 'M5 10h10');
+        minimizeIcon.append(minimizeShape);
+        minimize.append(minimizeIcon);
+        minimize.addEventListener('click', () => minimizeTile(entry.id));
         const maximize = element('button', 'tile-action tile-maximize', titlebar);
         maximize.type = 'button';
         const maximizeIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -491,7 +606,12 @@
         const maximizeShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         maximizeIcon.append(maximizeShape);
         maximize.append(maximizeIcon);
-        maximize.addEventListener('click', () => select(state.scope, state.selected === entry.id ? 'all' : entry.id));
+        maximize.addEventListener('click', () => {
+            if (state.selected === entry.id) {
+                arrangeTiles(tileLayout);
+                select(state.scope, 'all');
+            } else maximizeTile(entry.id);
+        });
         const heading = element('div', 'heading', body);
         const step = element('div', 'step', body);
         const display = element('div', 'display', body);
@@ -1211,10 +1331,16 @@
         runStatus(snapshot.runs);
         tabs(viewers, [{ id: 'all', label: 'VM Viewer', active: true },
             { id: 'run-time', label: 'Run Time', active: true }],
-            state.selected === 'run-time' ? 'run-time' : 'all', selected => select(state.scope, selected));
+            state.selected === 'run-time' ? 'run-time' : 'all', selected => {
+                if (selected === 'all') arrangeTiles(tileLayout);
+                select(state.scope, selected);
+            });
         resourceCharts(snapshot);
         serverStatus(snapshot.servers || []);
-        const shown = snapshot.entries.filter(entry => state.selected === 'all' ? entry.active : entry.id === state.selected);
+        const entryIds = new Set(snapshot.entries.map(entry => entry.id));
+        for (const id of minimized) if (!entryIds.has(id)) minimized.delete(id);
+        const shown = snapshot.entries.filter(entry => entry.active || entry.id === state.selected || minimized.has(entry.id));
+        viewerEntries = shown;
         const ids = new Set(shown.map(entry => entry.id));
         for (const [id, view] of cards) {
             if (!ids.has(id)) {
@@ -1224,17 +1350,18 @@
             }
         }
         if (state.selected === 'run-time') {
+            viewerLayout();
             runTimes(snapshot.run_times || []);
             return;
         }
         grid.querySelector('.run-times')?.remove();
         grid.classList.remove('runtime-body');
         if (!shown.length) {
+            viewerLayout();
             message('Waiting for UI tests or VM activity.');
             return;
         }
         grid.querySelector('.empty')?.remove();
-        grid.classList.toggle('single', shown.length === 1);
         const draws = [];
         shown.forEach((entry, index) => {
             let view = cards.get(entry.id);
@@ -1268,6 +1395,7 @@
             }
             draws.push(screen(view, entry.screen));
         });
+        viewerLayout();
         await Promise.all(draws);
     }
 

@@ -7,8 +7,48 @@ another baseline, download a new image, or create a replacement domain.
 
 ## Shared VM configuration
 
+### Creating a blank VM
+
+Run `tools/newvm --name NAME --host HOST --family FAMILY` from the checkout root.
+This is a plain program; it invokes no coding agents. HOST and FAMILY must
+already exist in `config/environment.json`. Provisioning may target a disabled
+host, since it creates an offline VM rather than scheduling tests. SSH hosts use
+their configured alias and port with noninteractive SSH; no remote validation
+is implied by the presence of a template.
+
+Each host's absolute `virt-manager` directory must already exist. Its
+`ISO` subdirectory must contain exactly one regular, nonsymlink file matching
+the family's `iso` filename pattern. Zero or multiple matches fail explicitly;
+the program does not guess a newest image or download one.
+
+`config/HOST-vm-template.xml` supplies the hardware and
+`metadata/newvm:disk/@size-gib` supplies the sparse QCOW2 capacity (currently
+80 GiB). Both supplied templates use the shared 4.5 GiB/6-vCPU Q35 BIOS
+configuration, unrestricted host CPU placement, virtio graphics without 3D,
+sound and a guest-agent channel. They contain no host folder share.
+The new disk is `HOST.virt-manager/NAME.qcow2`; the selected ISO is attached
+with CD-ROM-first boot. The program assigns a fresh UUID and libvirt assigns
+fresh network MAC addresses. Existing domains, registry names/IDs, disk files
+and disk references are refused rather than overwritten.
+
+Creation defines but never starts the VM. Successful creation appends it to the
+selected family with a unique numeric ID and `enabled: "false"`, leaving the
+host's availability unchanged. Concurrent newvm calls serialize registry
+updates; an unrelated editor's intervening changes are refused. A partial
+external failure preserves the disk/domain for operator inspection and reports
+the affected name/path; retrying never adopts or deletes those resources.
+After manual OS installation, enable the VM/host explicitly and follow the
+normal preparation workflow before scheduling tests. Local prerequisites are
+`python3`, `qemu-img`, `virsh`, and permission to define system-libvirt domains
+and write the VM directory. SSH targets need the same tools/permissions plus
+working batch SSH; the program never invokes sudo or installs prerequisites.
+
 [config/environment.json](../../config/environment.json) is the single configuration for
 guest preparation, host capture, installed-system/E2E runners and VM maintenance.
+Readers ignore unknown attributes at the document, host, branch, launcher,
+family and VM levels, allowing new metadata without breaking existing consumers.
+Required fields, recognized values, duplicate keys and identity/reference checks
+remain validated.
 Its tracked `hosts` array declares each host's unique `name`, `transport`
 (`local` or `ssh`), string `enabled`, positive integer `concurrency`, and optional
 absolute `backup_root` (required for backup/restore). Each VM's `host` names one

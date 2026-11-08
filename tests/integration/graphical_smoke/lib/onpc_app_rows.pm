@@ -738,7 +738,12 @@ sub native_blocked_app {
     die 'native:denial-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
         && ($route eq 'command' && $role =~ /\A(?:A|H|S|Alias|C|SpaceCopy|CommaCopy|VersionNext)\z/
             || $route eq 'grid' && $role =~ /\A(?:A|Alias|H|S)\z/
-            || $route eq 'files' && $role =~ /\A(?:A|H|S)\z/);
+            || $route eq 'files' && $role =~ /\A(?:A|H|S)\z/
+            || $route eq 'desktop' && $role eq 'A');
+    if ($route eq 'desktop') {
+        $journey->consume_observation('desktop', $journey->seen('desktop'));
+        return native_open_desktop($journey, 'denied');
+    }
     if ($route eq 'files') {
         $journey->consume_observation('files', $journey->seen('files'));
         testapi::send_key('ret');
@@ -826,9 +831,10 @@ sub native_policy_closure {
     $route //= 'original';
     die 'native:closure-arguments' unless (@_ == 3 || @_ == 4) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
-        && ($route eq 'original' || $route eq 'files');
+        && ($route eq 'original' || $route eq 'files' || $route eq 'desktop');
     my $journey = onpc_journey->new(exchange => $exchange,
-        prefix => $route eq 'files' ? 'native-files-routes' : 'native-policy-closure', review => 0);
+        prefix => $route eq 'desktop' ? 'native-desktop-route'
+                : $route eq 'files' ? 'native-files-routes' : 'native-policy-closure', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -846,8 +852,9 @@ sub native_policy_closure {
         onpc_desktop_session::switch_user($leaving, $leaving->seen('desktop'));
         onpc_desktop_session::enter_desktop(
             $journey, 'gdm', 'other-child', 'fresh', 'success', $name . '-fresh');
+        $journey->seen($name . '-place') if $route eq 'desktop';
         my $activity = $journey->scope($name . '-activity');
-        native_usable_app($activity, $route eq 'files' ? 'files' : $name eq 'hard' ? 'grid' : 'command',
+        native_usable_app($activity, $route ne 'original' ? $route : $name eq 'hard' ? 'grid' : 'command',
                           $activity->seen('desktop'), 'other-child');
         $activity->seen('dismiss') if $route eq 'files';
         native_read_activity($journey, $name . '-capture');
@@ -861,11 +868,12 @@ sub native_policy_closure {
         # Compare the original capture before any new launch can conceal closure.
         native_read_activity($journey, $name . '-closed');
         my $denied = $journey->scope($name . '-denied');
-        native_blocked_app($denied, 'A', $route eq 'files' ? 'files' : 'command');
+        native_blocked_app($denied, 'A', $route ne 'original' ? $route : 'command');
         $denied->seen('dismiss') if $route eq 'files';
         my $other = $journey->scope($name . '-unaffected');
         native_usable_app($other, 'command', $other->seen('desktop'), 'other-child', 'N');
         native_finish_app($other);
+        $journey->seen($name . '-cleanup') if $route eq 'desktop';
         $journey->seen($name . '-logout');
     }
     $journey->finish();
@@ -1424,14 +1432,16 @@ sub snap_grid {
 # It opens our NON_UNIQUE fixture's secondary process even with primary work open.
 sub native_open_desktop {
     onpc_progress::operation('Opening the child\'s app through its exact desktop icon');
-    my ($journey) = @_;
-    die 'native:desktop-arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    my ($journey, $result) = @_;
+    $result //= 'opened';
+    die 'native:desktop-arguments' unless (@_ == 1 || @_ == 2)
+        && ref($journey) eq 'onpc_journey' && ($result eq 'opened' || $result eq 'denied');
     my $icon = $journey->consume_observation('icon', $journey->seen('icon'));
     die 'native:desktop-selection' unless exists($icon->{desktop_icon_selected});
     testapi::send_key('ctrl-a') unless $icon->{desktop_icon_selected};
     $journey->consume_observation('selected', $journey->seen('selected'));
     testapi::send_key('ret');
-    return $journey->seen('opened');
+    return $journey->seen($result);
 }
 
 sub native_desktop_new_window {

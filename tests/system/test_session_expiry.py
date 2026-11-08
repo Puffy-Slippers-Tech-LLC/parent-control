@@ -58,3 +58,8 @@ def test_timer_replacement_before_expiry(record_testsuite_property):
 def test_secure_lock_completion(record_testsuite_property):
     from system_graphical_expiry import verify_lock_completion
     verify_lock_completion(record_testsuite_property)
+
+
+def test_transient_lock_recovery(record_testsuite_property):
+    from system_graphical_expiry import verify_lock_retry
+    verify_lock_retry(record_testsuite_property)

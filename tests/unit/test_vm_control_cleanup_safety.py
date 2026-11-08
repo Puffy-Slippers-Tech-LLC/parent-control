@@ -2276,10 +2276,13 @@ def test_foreground_dispatch_runs_only_owned_operation_without_test_gate(tmp_pat
     monkeypatch.setattr(dispatcher['os'], 'getgrouplist', lambda *args: [])
     caller = SimpleNamespace(pw_uid=os.getuid(), pw_gid=os.getgid(), pw_name='fixture',
                              pw_dir=str(tmp_path))
+    expected = ['selected-operation']
+    if argv[0] == 'system':
+        expected.append(str(root / 'tools/vm_source_snapshot.py'))
     calls = []
     def execute(command, **kwargs):
         calls.append(command)
-        assert calls == [['selected-operation']]
+        assert calls == [expected]
         assert kwargs['env']['PKEXEC_UID'] == str(caller.pw_uid)
         assert 'user' not in kwargs
         return SimpleNamespace(returncode=status)

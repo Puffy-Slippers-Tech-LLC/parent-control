@@ -21,7 +21,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **172k — [Check locking after a temporary interruption](E2E-Tasks/172k-lock-provider.md)**.
+Next task: **172l — [Check protection while locking is unavailable](E2E-Tasks/172l-secure-lock-outage.md)**.
 
 This plan owns its queue, remaining task briefs and next-task pointer.
 It can run independently of all unfinished work in

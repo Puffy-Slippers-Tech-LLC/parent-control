@@ -647,6 +647,8 @@ CASES = (
                  'Keep the child protected while the native timer owner is replaced'),
     CaseIdentity(311, 'session', 'test_secure_lock_completion',
                  'Keep the child protected when the lock reply is delayed or missing'),
+    CaseIdentity(312, 'session', 'test_transient_lock_recovery',
+                 'Protect child work after a temporary lock interruption and cancel retries on renewal'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

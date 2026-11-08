@@ -2594,6 +2594,16 @@
     ],
     "expected": "Both original deadlines protect input independently of request success, activity and session hints; original work and peer input survive, client completion follows the controlled reply order, and the normal service and owned cleanup are restored. No new retry owner is introduced."
   },
+  "312": {
+    "summary": "Protect child work after a temporary lock interruption",
+    "steps": [
+      "Keep original child and parent work alive while the real lock action temporarily refuses requests.",
+      "Commit renewal, confirm the current positive product calculation, restore lock availability and verify continued input beyond the old retry window.",
+      "Start a separate original three-minute deadline, refuse its first lock request, and restore availability only when the product retries.",
+      "Observe timely secure protection and protected input, recover the original child work, check the same parent input and restore the normal lock service."
+    ],
+    "expected": "A real bounded retry protects the child by the original deadline plus fifteen seconds. Confirmed renewal cancels stale retries. Original child and parent work survive and owned cleanup restores normal locking."
+  },
   "299": {
     "summary": "Restore the extension from Parent controls",
     "steps": [

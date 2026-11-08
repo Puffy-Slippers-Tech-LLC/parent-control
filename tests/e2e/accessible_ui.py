@@ -201,6 +201,10 @@ NATIVE_DESKTOP_OPERATIONS = frozenset((
     'native-desktop-icon', 'native-desktop-icon-refusals', 'native-desktop-selected'))
 OPERATIONS |= NATIVE_DESKTOP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_DESKTOP_OPERATIONS
+RILEY_NATIVE_DESKTOP_OPERATIONS = frozenset('overlay-' + operation
+    for operation in NATIVE_DESKTOP_OPERATIONS if operation != 'native-desktop-icon-refusals')
+NATIVE_DESKTOP_OPERATIONS |= RILEY_NATIVE_DESKTOP_OPERATIONS
+OPERATIONS |= RILEY_NATIVE_DESKTOP_OPERATIONS
 SNAP_APP_BINDINGS = {
     'snap-' + name + '-' + action: (role, instance, action)
     for name, role, instance in (('allowed', 'A', 'primary'), ('hard', 'H', 'primary'),
@@ -280,6 +284,7 @@ OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-grant-form', 'o
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | NATURAL_EXPIRY_OPERATIONS | frozenset({'child-command-launch'})
 CHILD_DESKTOP_OPERATIONS |= RILEY_SNAP_OPERATIONS
 CHILD_DESKTOP_OPERATIONS |= RILEY_FLATPAK_OPERATIONS
+CHILD_DESKTOP_OPERATIONS |= RILEY_NATIVE_DESKTOP_OPERATIONS
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_LANGUAGE_OPERATIONS - {'overlay-language-wrong-entry'}
 OVERLAY_NATIVE_OPERATIONS = frozenset('overlay-native-' + suffix for suffix in (
     'desktop', 'command-launch', 'activity-launch', 'command-blocked', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed',
@@ -13188,7 +13193,7 @@ class AccessibleUI:
         self.wait(focused, 'parent-result-focus')
         self.input_uncertain = False
 
-    def native_desktop_snapshot(self, *, product=NATIVE_PRODUCT, duplicate_owner=False):
+    def native_desktop_snapshot(self, *, child=EXISTING_CHILD, product=NATIVE_PRODUCT, duplicate_owner=False):
         """DING's public icon name, scoped to its session-bus owner and child.
 
         DING's Gtk.Box icons have no public IDs or activation action. Its
@@ -13197,9 +13202,10 @@ class AccessibleUI:
         No geometry, file-manager preparation or alternate launch route.
         """
         from gi.repository import Gio, GLib
+        require(child in (EXISTING_CHILD, CHILD), 'ui:native-desktop-binding')
         require_active_launch_session(unlocked=True)
         require(os.getuid() == os.geteuid() == pwd.getpwnam(
-            CHILD_ACCOUNTS[EXISTING_CHILD]).pw_uid, 'ui:native-desktop-account')
+            CHILD_ACCOUNTS[child]).pw_uid, 'ui:native-desktop-account')
         connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         def call(method, signature, values):
             return connection.call_sync('org.freedesktop.DBus', '/org/freedesktop/DBus',
@@ -13249,36 +13255,40 @@ class AccessibleUI:
 
     def native_desktop_operation(self, operation):
         require(operation in NATIVE_DESKTOP_OPERATIONS, 'ui:native-desktop-operation')
+        child = CHILD if operation in RILEY_NATIVE_DESKTOP_OPERATIONS else EXISTING_CHILD
+        operation = operation.removeprefix('overlay-')
+        def snapshot(**arguments):
+            return self.native_desktop_snapshot(child=child, **arguments)
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(self.native_app_closed(desktop=False, complete_absence=True),
                 'ui:native-window-exists')
         if operation == 'native-desktop-selected':
             def selected():
-                current = self.native_desktop_snapshot()
+                current = snapshot()
                 return current and current[2] and self.has_state(current[0], self.api.StateType.FOCUSED)
             self.wait(selected, 'native-desktop-selected', prompt_in_predicate=True)
             return None
         self.prepare_launch_desktop()
-        target, pid, _selected = self.wait(self.native_desktop_snapshot,
+        target, pid, _selected = self.wait(snapshot,
             'native-desktop-icon', prompt_in_predicate=True)
         if operation == 'native-desktop-icon-refusals':
             for arguments, expected in (
                     ({'product': 'ONPC Nonmatching Fixture'}, 'ui:native-desktop-wrong-icon'),
                     ({'duplicate_owner': True}, 'ui:native-desktop-ambiguous-owner')):
                 try:
-                    self.native_desktop_snapshot(**arguments)
+                    snapshot(**arguments)
                 except UiError as error:
                     require(str(error) == expected, 'ui:native-desktop-wrong-refusal')
                 else:
                     require(False, 'ui:native-desktop-refusal-missing')
         self.invalidate_observation()
-        current = self.native_desktop_snapshot()
+        current = snapshot()
         require(current is not None and current[:2] == (target, pid),
                 'ui:native-desktop-icon-changed')
         self.input_uncertain = True
         require(target.get_component_iface().grab_focus(), 'ui:native-desktop-focus-refused')
         def focused():
-            current = self.native_desktop_snapshot()
+            current = snapshot()
             require(current is not None and current[:2] == (target, pid),
                     'ui:native-desktop-icon-changed')
             return current if self.has_state(current[0], self.api.StateType.FOCUSED) else None

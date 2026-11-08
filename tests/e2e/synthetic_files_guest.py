@@ -80,7 +80,8 @@ NATIVE_VERSION_PARENT = Path('/opt/onpc-test-fixtures/Applications/Versioned')
 NATIVE_VERSION_SOURCE = 'LunarClient-3.8.0.AppImage'
 NATIVE_VERSION_NEXT = 'Lunar Client-3.8.0.AppImage'
 NATIVE_VERSION_NONMATCH = 'NewPrismLauncher.AppImage'
-DESKTOP_PROFILE = 'native-desktop'
+DESKTOP_PROFILES = {'native-desktop': 'onpc-child-jordan',
+                    'native-desktop-riley': 'onpc-child-riley'}
 DESKTOP_ENTRY = 'com.puffyslippers.ONPCTest.A.desktop'
 
 
@@ -109,12 +110,13 @@ def desktop_trusted(path, value=None):
     return info.get_attribute_string('metadata::trusted') == 'true'
 
 
-def native_desktop_operate(home, operation, request):
+def native_desktop_operate(home, operation, request, *, user='onpc-child-jordan'):
     """One exact child-owned desktop entry; never adopt or overwrite a collision."""
     import pwd
-    child = pwd.getpwnam('onpc-child-jordan')
+    require(user in DESKTOP_PROFILES.values())
+    child = pwd.getpwnam(user)
     require(os.getuid() == os.geteuid() == child.pw_uid
-            and home == Path(child.pw_dir) == Path('/home/onpc-child-jordan'))
+            and home == Path(child.pw_dir) == Path('/home') / user)
     require(operation in ('stage', 'copy', 'read', 'cleanup', 'absent')
             and type(request) is dict and set(request) == {'expected', 'previous'})
     expected, previous = request['expected'], request['previous']
@@ -784,8 +786,8 @@ def save_operate(home, operation, previous):
 
 def operate(home, operation, previous, profile='standard'):
     """Validate everything before the first mutation; failures never clean up."""
-    if profile == DESKTOP_PROFILE:
-        return native_desktop_operate(home, operation, previous)
+    if profile in DESKTOP_PROFILES:
+        return native_desktop_operate(home, operation, previous, user=DESKTOP_PROFILES[profile])
     if profile in NATIVE_PROFILES:
         return native_space_operate(home, operation, previous, profile)
     require(operation in ('stage', 'read', 'copy', 'rename', 'cleanup', 'absent', 'open-text', 'probe-text', 'open-zip', 'probe-zip', 'change-source', 'probe-source', 'saved'))
@@ -913,7 +915,8 @@ def main():
     administrative = len(sys.argv) == 5
     require(not administrative or sys.argv[4] == 'administrative' and sys.argv[3] in (
         'native-version-next', 'native-version-nonmatch'))
-    user = ('onpc-child-jordan' if len(sys.argv) >= 4 and sys.argv[3] in (*NATIVE_PROFILES, DESKTOP_PROFILE)
+    user = (DESKTOP_PROFILES[sys.argv[3]] if len(sys.argv) >= 4 and sys.argv[3] in DESKTOP_PROFILES else
+            'onpc-child-jordan' if len(sys.argv) >= 4 and sys.argv[3] in NATIVE_PROFILES
             else 'onpc-parent-jamie')
     account = pwd.getpwnam(user)
     require(os.getuid() == os.geteuid() == (0 if administrative else account.pw_uid)

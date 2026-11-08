@@ -14,8 +14,9 @@ import synthetic_files_guest as files
 
 
 @pytest.fixture
-def desktop_boundary(tmp_path, monkeypatch):
-    home = tmp_path / 'home/onpc-child-jordan'
+def desktop_boundary(tmp_path, monkeypatch, request):
+    user = getattr(request, 'param', 'onpc-child-jordan')
+    home = tmp_path / 'home' / user
     source = home / '.local/share/applications'
     source.mkdir(parents=True, mode=0o755)
     desktop = home / 'Desktop'
@@ -29,7 +30,7 @@ def desktop_boundary(tmp_path, monkeypatch):
     monkeypatch.setattr(os, 'open', lambda path, flags, *args, **kwargs:
                         real_open(tmp_path if path == '/' else path, flags, *args, **kwargs))
     monkeypatch.setattr(pwd, 'getpwnam', lambda name: SimpleNamespace(
-        pw_uid=os.getuid(), pw_gid=os.getgid(), pw_dir='/home/onpc-child-jordan'))
+        pw_uid=os.getuid(), pw_gid=os.getgid(), pw_dir='/home/' + user))
     monkeypatch.setattr(files, 'desktop_directory', lambda home: home / 'Desktop')
     trust = {}
     def metadata(path, value=None):
@@ -38,11 +39,13 @@ def desktop_boundary(tmp_path, monkeypatch):
         return trust.get(str(path), False)
     monkeypatch.setattr(files, 'desktop_trusted', metadata)
     def call(operation, previous=None):
-        return files.native_desktop_operate(Path('/home/onpc-child-jordan'), operation,
-            {'expected': {'source': hashlib.sha256(content).hexdigest()}, 'previous': previous})
+        return files.native_desktop_operate(Path('/home') / user, operation,
+            {'expected': {'source': hashlib.sha256(content).hexdigest()}, 'previous': previous},
+            user=user)
     return source, desktop, call
 
 
+@pytest.mark.parametrize('desktop_boundary', ['onpc-child-jordan', 'onpc-child-riley'], indirect=True)
 def test_desktop_copy_cleans_only_its_owned_entry(desktop_boundary):
     source, desktop, call = desktop_boundary
     unrelated = desktop / 'preserved.txt'
@@ -54,6 +57,14 @@ def test_desktop_copy_cleans_only_its_owned_entry(desktop_boundary):
     assert call('cleanup', copied) == call('absent', {'absent': True}) == {'absent': True}
     assert unrelated.read_bytes() == b'child work'
     assert (source / files.DESKTOP_ENTRY).is_file()
+
+
+def test_desktop_profile_refuses_another_childs_home_before_files(monkeypatch):
+    monkeypatch.setattr(pwd, 'getpwnam', lambda name: SimpleNamespace(
+        pw_uid=os.getuid(), pw_gid=os.getgid(), pw_dir='/home/onpc-child-riley'))
+    with pytest.raises(ValueError, match='files:refused'):
+        files.native_desktop_operate(Path('/home/onpc-child-jordan'), 'stage', None,
+                                     user='onpc-child-riley')
 
 
 @pytest.mark.parametrize('collision', ['file', 'symlink', 'hardlink'])

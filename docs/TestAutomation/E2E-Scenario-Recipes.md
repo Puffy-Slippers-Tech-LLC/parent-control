@@ -1226,6 +1226,18 @@ from concealing a failed second launch.
 `AppPolicyJourney` owns saved time/match/access comparisons; the case owns account
 order and recorder phases. It prepares no approval and requires no retained work.
 
+Case 68 uses `app_launch.DESKTOP_PLAN` / `onpc_app_launch::run` with the enabled,
+Allowed native desktop binding. Parent saves Jordan's 30-minute daily allowance,
+zero grant and fixture A's precise Allowed rule with independent readback.
+Fresh Jordan and then fresh Riley each receive the same verified trusted launcher
+on their own desktop through `native_desktop_usable.desktop_entry_actions`.
+The shared DING adapter binds the child's owner and exact sole ordinary icon,
+focuses it, and independently verifies its selection before one Enter activation.
+Each child submits the normal draft with independent window and result reads,
+then closes that app normally and removes only the owned desktop entry.
+Riley's policy and disabled limits remain untouched. No approval, alternate route,
+separate-window or launcher-visibility assertion is used.
+
 Case 74 uses `app_launch.FILES_PLAN` / `onpc_app_launch::run` with the enabled,
 Allowed native Files binding. Parent gives Jordan 30 daily minutes with zero
 grant, saves fixture A's precise Allowed rule and independently reads it back.

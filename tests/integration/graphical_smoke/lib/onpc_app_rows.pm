@@ -696,7 +696,8 @@ sub native_usable_app {
             || $child eq 'child' && !defined($role)));
     my $opened;
     if ($route eq 'desktop') {
-        die 'native:desktop-binding' unless $kind eq 'native' && $child eq 'other-child' && !defined($role);
+        die 'native:desktop-binding' unless $kind eq 'native'
+            && ($child eq 'other-child' || $child eq 'child') && !defined($role);
         $journey->consume_observation('desktop', $desktop);
         my $icon = $journey->consume_observation('icon', $journey->seen('icon'));
         die 'native:desktop-selection' unless exists($icon->{desktop_icon_selected});

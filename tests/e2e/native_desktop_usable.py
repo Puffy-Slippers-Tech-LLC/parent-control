@@ -6,13 +6,15 @@ from private_artifacts import require
 from synthetic_files import SyntheticFiles
 
 
-def desktop_entry_actions():
+def desktop_entry_actions(*, child='other-child'):
     """Finite FILE05 desktop-entry binding shared with desktop launch consumers."""
+    require(child in ('other-child', 'child'), 'files:desktop-child')
     def place(journey, guard):
         guard()
         require(not hasattr(journey, 'desktop_entry_files'), 'files:desktop-replay')
         source = 'fixtures/native-launchers/com.puffyslippers.ONPCTest.A.desktop'
-        controller = SyntheticFiles(journey.transport, 'native-desktop', expected={
+        controller = SyntheticFiles(journey.transport,
+            'native-desktop' if child == 'other-child' else 'native-desktop-riley', expected={
             'source': journey.native_fixtures.receipt['files'][source]['sha256']})
         journey.desktop_entry_files = controller
         before = controller.call('stage')

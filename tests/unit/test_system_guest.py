@@ -10,6 +10,37 @@ import system_guest as guest
 import guest_install_recipe
 
 
+@pytest.mark.parametrize('replaced', [False, True])
+def test_broker_crash_signals_only_the_recorded_live_invocation(monkeypatch, tmp_path, replaced):
+    import system_graphical_expiry as expiry
+    import system_kiosk_confinement as processes
+    invocation = 'a' * 32
+    before = f'MainPID=42\nInvocationID={invocation}\nActiveState=active'
+    after = before.replace(invocation, 'b' * 32) if replaced else before
+    monkeypatch.setattr(guest, 'guard', Mock())
+    monkeypatch.setattr(guest, 'run', Mock(side_effect=[before, after]))
+    monkeypatch.setattr(expiry.os, 'pidfd_open', Mock(return_value=91))
+    close, send = Mock(), Mock()
+    monkeypatch.setattr(expiry.os, 'close', close)
+    monkeypatch.setattr(expiry.signal, 'pidfd_send_signal', send)
+    monkeypatch.setattr(processes, 'process_identity', Mock(return_value=('123', 1, ('0',) * 4)))
+    monkeypatch.setattr(processes, 'exited', Mock(return_value=False))
+    monkeypatch.setattr(expiry, 'wait_for', Mock())
+    (tmp_path / '42').mkdir()
+    (tmp_path / '42/cgroup').write_text('0::/system.slice/' + guest.BROKER)
+    monkeypatch.setattr(expiry, 'Path', lambda value: tmp_path if value == '/proc' else Path(value))
+    record = Mock()
+    if replaced:
+        with pytest.raises(guest.GuestError, match='expiry:crash-broker-replaced'):
+            expiry.crash_recorded_broker(invocation, record)
+        send.assert_not_called()
+    else:
+        expiry.crash_recorded_broker(invocation, record)
+        send.assert_called_once_with(91, expiry.signal.SIGKILL)
+    record.assert_called_once_with({'invocation': invocation, 'pid': 42, 'start': '123'})
+    close.assert_called_once_with(91)
+
+
 def expected_install(package):
     return ['make', '--no-print-directory', '-C',
             str(Path(guest_install_recipe.__file__).resolve().parent / 'install-source'), 'install',

@@ -283,6 +283,9 @@ have an identified focus recipient and native popup traversal.
 Parent refreshes managed accounts every five seconds, coalesces reads and keeps
 selection stable. If the selected account disappears it loads the first remaining
 child; empty lists show an explanation. Time status refreshes every 30 seconds.
+An invalid-target background status error first checks the current eligible
+account list. Confirmed absence triggers account refresh instead of an error
+report for the removed child; other errors retain normal reporting.
 Revoke is available when idle with positive total remaining time or running
 soft-blocked apps, including zero-time locked desktops. Revocation leaves daily
 allowance intact.

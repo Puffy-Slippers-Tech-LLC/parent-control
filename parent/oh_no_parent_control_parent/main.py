@@ -45,7 +45,7 @@ from common.oh_no_parent_control_ui.errors import (
 )
 from common.oh_no_parent_control_ui.user_icon import parse_listed_user
 
-from .client import (BrokerClient, configure_logging, management_access_denied,
+from .client import (BUS_NAME, BrokerClient, configure_logging, management_access_denied,
                      broker_reboot_required, broker_unavailable)
 from .language_dialog import LanguageDialog
 from .whats_new_dialog import WhatsNewDialog
@@ -1656,7 +1656,24 @@ class ParentWindow(Adw.ApplicationWindow):
             self._errors = ErrorHandler(self, "Parent App")
         self._errors.handle(error, GENERIC_TITLE, detail, on_close=on_close)
 
-    def _show_refresh_error(self, error, detail):
+    def _show_refresh_error(self, error, detail, *, uid=None):
+        if (uid is not None and isinstance(error, GLib.Error)
+                and Gio.DBusError.get_remote_error(error) == f"{BUS_NAME}.Error.InvalidRequest"):
+            # Status polling can reach a removed child before account polling
+            # updates the selector. Confirm absence before discarding its error;
+            # a still-eligible target or failed discovery retains normal reporting.
+            def report(_discovery_error=None):
+                if uid == self._selected_uid():
+                    self._show_refresh_error(error, detail)
+
+            def checked(users):
+                if any(parse_listed_user(user)[0] == uid for user in users):
+                    report()
+                else:
+                    self._load_users()
+
+            self._run(self._client.list_users, checked, report)
+            return
         # Package migration temporarily excludes the broker. Background reads
         # already retry; do not leave a modal blocking the recovered window.
         # Initial discovery, user writes and authorization failures retain
@@ -2202,7 +2219,8 @@ class ParentWindow(Adw.ApplicationWindow):
         set_text(self._time_explanation, 'label', "—")
         self._screen_time_ready = True
         ParentWindow._reveal_screen(self)
-        self._show_refresh_error(error, m.REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER)
+        self._show_refresh_error(error, m.REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER,
+                                 uid=uid)
 
     def _retry_time_status(self):
         self._time_status_retry_id = 0
@@ -2280,7 +2298,8 @@ class ParentWindow(Adw.ApplicationWindow):
         if (not self._policy_warning_query_failed and self._language_dialog is None
                 and getattr(self, '_whats_new_dialog', None) is None):
             self._policy_warning_query_failed = True
-            self._show_refresh_error(error, m.APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI)
+            self._show_refresh_error(error, m.APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI,
+                                     uid=uid)
 
     def _refresh_users(self):
         self._load_users()

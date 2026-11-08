@@ -9,6 +9,8 @@ import sys
 
 import system_guest as guest
 from system_assertions import account_properties
+from system_accounts import (SPARE_CHILDREN, create_disposable_identity,
+                             delete_disposable_identity)
 
 
 USERNAME = "onpc-e2e-new-child"
@@ -260,10 +262,81 @@ def prepare_ineligible_approver():
     print('onpc-e2e: stage=ineligible-approver outcome=prepared', flush=True)
 
 
+def eligible_children():
+    """Read the complete OS child set, never infer eligibility from a count."""
+    children = {}
+    for entry in account_identities(pwd.getpwall(), APPROVER_NONINTERACTIVE_SHELLS):
+        if entry.pw_name == KIOSK_USERNAME:
+            continue
+        values = property_values(account_path(entry.pw_uid))
+        guest.require(values['Uid'] == str(entry.pw_uid)
+                      and values['UserName'] == entry.pw_name, 'spare-child:identity')
+        if (values['LocalAccount'], values['SystemAccount'], values['AccountType']) == (
+                'true', 'false', '0'):
+            children[entry.pw_name] = entry.pw_uid
+    return children
+
+
+def prepare_spare_children(profile):
+    """One finite spare-only profile; restoration retains every baseline identity."""
+    guest.guard()
+    guest.require(profile in ('one', 'two'), 'spare-child:profile')
+    roles = ('jordan', 'riley') if profile == 'two' else ('jordan',)
+    before = pwd.getpwall()
+    names = {entry.pw_name for entry in before}
+    guest.require(len(names) == len(before)
+                  and len({entry.pw_uid for entry in before}) == len(before)
+                  and set((*FIXED_CHILDREN, *FIXED_APPROVERS, KIOSK_USERNAME)) <= names
+                  and not names.intersection(value[0] for value in SPARE_CHILDREN.values()),
+                  'spare-child:baseline-identity')
+    guest.require(set(eligible_children()) == set(FIXED_CHILDREN),
+                  'spare-child:baseline-eligible-set')
+    sessions = guest.run(['loginctl', 'list-sessions', '--no-legend', '--no-pager'])
+    baseline_uids = {pwd.getpwnam(name).pw_uid for name in FIXED_CHILDREN}
+    for line in sessions.splitlines():
+        fields = line.split()
+        guest.require(len(fields) >= 3 and fields[1].isdigit(), 'spare-child:session-read')
+        guest.require(int(fields[1]) not in baseline_uids, 'spare-child:baseline-active')
+    # This profile explicitly changes only the two baseline children's roles,
+    # preserving their identities. It never borrows/removes them as spares.
+    for name in FIXED_APPROVERS:
+        guest.require(property_values(account_path(pwd.getpwnam(name).pw_uid))['AccountType'] == '1',
+                      'spare-child:retained-administrator')
+    for name in FIXED_CHILDREN:
+        guest.guard()
+        path = account_path(pwd.getpwnam(name).pw_uid)
+        guest.run(['busctl', '--system', 'call', ACCOUNTS_NAME, path,
+                   USER_INTERFACE, 'SetAccountType', 'i', '1'])
+        guest.require(property_value(path, 'AccountType', 'i') == '1', 'spare-child:baseline-role')
+    created = {}
+    for role in roles:
+        uid = create_disposable_identity(role, lambda *_: None, surface='spare-child')
+        guest.require(uid not in {entry.pw_uid for entry in before}, 'spare-child:new-identity')
+        guest.retain_identity_for_redaction(uid)
+        created[role] = uid
+    guest.require(eligible_children() == {SPARE_CHILDREN[role][0]: uid
+                                        for role, uid in created.items()},
+                  'spare-child:prepared-eligible-set')
+    guest.require({(entry.pw_name, entry.pw_uid, entry.pw_shell) for entry in pwd.getpwall()}
+                  == {(entry.pw_name, entry.pw_uid, entry.pw_shell) for entry in before}
+                  | {(SPARE_CHILDREN[role][0], uid, '/bin/bash') for role, uid in created.items()},
+                  'spare-child:retained-identities')
+    guest.guard()
+    print(json.dumps(created, sort_keys=True), flush=True)
+
+
+def remove_spare_child(uid):
+    guest.guard()
+    delete_disposable_identity(uid, 'jordan', surface='spare-child')
+    guest.guard()
+    print('onpc-e2e: stage=spare-child outcome=removed', flush=True)
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     guest.require(argv in (["create"], ["prepare-empty"], ['prepare-no-approver'],
-                          ['prepare-ineligible-approver']),
+                          ['prepare-ineligible-approver'], ['prepare-one-spare-child'],
+                          ['prepare-two-spare-children'], ['remove-spare-child']),
                   "dynamic-account:operation")
     if argv == ["create"]:
         create()
@@ -271,6 +344,13 @@ def main(argv=None):
         prepare_empty()
     elif argv == ['prepare-ineligible-approver']:
         prepare_ineligible_approver()
+    elif argv in (['prepare-one-spare-child'], ['prepare-two-spare-children']):
+        prepare_spare_children('one' if argv == ['prepare-one-spare-child'] else 'two')
+    elif argv == ['remove-spare-child']:
+        raw = sys.stdin.buffer.read(65)
+        guest.require(re.fullmatch(rb'[1-9][0-9]{3,9}', raw) is not None,
+                      'spare-child:removal-input')
+        remove_spare_child(int(raw))
     else:
         # The controller carries the public selection over guarded private stdin,
         # never as account labels or command-line arguments.

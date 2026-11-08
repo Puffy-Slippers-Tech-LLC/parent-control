@@ -531,8 +531,8 @@ class ParentWindowTests(unittest.TestCase):
         window._selected_uid.return_value = 1001
         window._users_loaded_once = True
         window._user_discovery_error_reported = False
-        window._show_refresh_error = lambda error, detail: ParentWindow._show_refresh_error(
-            window, error, detail)
+        window._show_refresh_error = lambda error, detail, **options: ParentWindow._show_refresh_error(
+            window, error, detail, **options)
         error = RuntimeError("private")
         for _ in range(3):
             ParentWindow._policy_warnings_failed(window, 1001, error)
@@ -549,8 +549,8 @@ class ParentWindowTests(unittest.TestCase):
         window._selected_uid.return_value = 1001
         window._users_loaded_once = True
         window._user_discovery_error_reported = False
-        window._show_refresh_error = lambda error, detail: ParentWindow._show_refresh_error(
-            window, error, detail)
+        window._show_refresh_error = lambda error, detail, **options: ParentWindow._show_refresh_error(
+            window, error, detail, **options)
         error = Gio.DBusError.new_for_dbus_error(
             "org.freedesktop.DBus.Error.NameHasNoOwner", "private-detail")
         for _ in range(3):
@@ -565,6 +565,33 @@ class ParentWindowTests(unittest.TestCase):
         window._users = []
         ParentWindow._users_loaded(window, [])
         self.assertFalse(window._user_discovery_error_reported)
+
+    def test_removed_child_refresh_error_requires_fresh_confirmed_absence(self):
+        error = Gio.DBusError.new_for_dbus_error(
+            "com.puffyslippers.OhNoParentControl1.Error.InvalidRequest", "private-detail")
+        for outcome in ('removed', 'eligible', 'discovery-failed', 'selection-changed'):
+            with self.subTest(outcome=outcome):
+                window = mock.Mock()
+                window._selected_uid.return_value = 1001
+                window._show_refresh_error = lambda error, detail, **options: ParentWindow._show_refresh_error(
+                    window, error, detail, **options)
+                window._show_refresh_error(error, 'status unavailable', uid=1001)
+                window._show_error.assert_not_called()
+                success, failure = window._run.call_args.args[1:]
+                if outcome == 'discovery-failed':
+                    failure(RuntimeError('discovery unavailable'))
+                else:
+                    if outcome == 'selection-changed':
+                        window._selected_uid.return_value = 1002
+                    success([(1002 if outcome == 'removed' else 1001, 'Child', '')])
+                if outcome == 'removed':
+                    window._load_users.assert_called_once_with()
+                else:
+                    window._load_users.assert_not_called()
+                if outcome in ('eligible', 'discovery-failed'):
+                    window._show_error.assert_called_once_with(error, 'status unavailable')
+                else:
+                    window._show_error.assert_not_called()
 
     def test_runtime_icon_matches_the_installed_parent_desktop_icon(self):
         root = Path(__file__).resolve().parents[2]

@@ -1688,6 +1688,15 @@ the worker and callback close while the VM and shared watch remain owned for
 `scene-retained` result is diagnostic only, never successful shutdown or E2E
 acceptance. Evidence uses the existing recovery-diagnostics retention journal.
 
+`tools/test-vm --vm NAME reproduce-remove-selected` uses the same maintenance
+envelope with `AccountChangeJourney` / `account_changes.PLAN`. It prepares the
+registered spare children, replays their saved allowances and request choices,
+and removes Jordan once through `SpareChildrenFixture`. It observes Parent's
+Riley fallback once at the unanswered `parent-fallback` boundary, then closes
+the worker and retains Parent for guarded `exec` inspection. The boundary result
+is diagnostic only. Finish with `tools/test-vm --vm NAME stop`; clean case 180
+acceptance remains separate.
+
 `tools/test-vm --vm NAME reproduce-lock-denial` uses that same envelope with
 `RetainedDenialJourney` / `CHILD_DENIAL_PLAN`. It stops at the `time-denied`
 request after the child's guarded curtain reveal, before native restriction

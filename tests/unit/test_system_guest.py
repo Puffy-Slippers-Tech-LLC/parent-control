@@ -205,3 +205,61 @@ def test_activation_greeter_renewal_never_terminates_a_personal_session(monkeypa
     else:
         guest.prepare_activation_greeter()
     assert any(argv[:2] == ['systemctl', 'restart'] for argv in calls) == (session not in ('personal', 'unknown'))
+
+
+@pytest.mark.parametrize('role', ['onpc-child-jordan', 'parent', 'approver', 'target'])
+def test_spare_deletion_registry_refuses_protected_or_unregistered_names(monkeypatch, role):
+    import system_accounts as accounts
+    monkeypatch.setattr(guest, 'guard', Mock())
+    run = Mock()
+    monkeypatch.setattr(guest, 'run', run)
+    with pytest.raises(guest.GuestError, match='deletion-fixture-scope'):
+        accounts.delete_disposable_identity(1001, role, surface='spare-child')
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize('refusal', ['replaced', 'administrator', 'active', 'unreadable-sessions'])
+def test_spare_deletion_refuses_changed_identity_role_or_live_session(monkeypatch, refusal):
+    from types import SimpleNamespace
+    import system_accounts as accounts
+    uid = 1200
+    name = accounts.SPARE_CHILDREN['jordan'][0]
+    monkeypatch.setattr(guest, 'guard', Mock())
+    monkeypatch.setattr(accounts.pwd, 'getpwnam', lambda _: SimpleNamespace(
+        pw_uid=uid + int(refusal == 'replaced')))
+    monkeypatch.setattr(accounts.pwd, 'getpwuid', lambda _: SimpleNamespace(pw_name=name))
+    monkeypatch.setattr(accounts, 'account_properties', lambda *_: {
+        'Uid': uid, 'UserName': name, 'AccountType': int(refusal == 'administrator'),
+        'LocalAccount': True, 'SystemAccount': False})
+    run = Mock(return_value='3 1200 spare seat0 tty2' if refusal == 'active' else 'unreadable')
+    monkeypatch.setattr(guest, 'run', run)
+    redaction = Mock()
+    monkeypatch.setattr(guest, 'retain_identity_for_redaction', redaction)
+    with pytest.raises(guest.GuestError):
+        accounts.delete_disposable_identity(uid, 'jordan', surface='spare-child')
+    assert not any('DeleteUser' in call.args[0] for call in run.call_args_list)
+    redaction.assert_not_called()
+
+
+@pytest.mark.parametrize('refusal', ['collision', 'extra-child', 'active-baseline-child'])
+def test_spare_profile_refuses_unsafe_start_before_any_account_mutation(monkeypatch, refusal):
+    from types import SimpleNamespace
+    import e2e_dynamic_account as fixture
+    names = (*fixture.FIXED_CHILDREN, *fixture.FIXED_APPROVERS, fixture.KIOSK_USERNAME)
+    if refusal == 'collision':
+        names += (fixture.SPARE_CHILDREN['jordan'][0],)
+    entries = [SimpleNamespace(pw_name=name, pw_uid=1200 + index) for index, name in enumerate(names)]
+    monkeypatch.setattr(guest, 'guard', Mock())
+    monkeypatch.setattr(fixture.pwd, 'getpwall', lambda: entries)
+    monkeypatch.setattr(fixture.pwd, 'getpwnam', lambda name: next(
+        entry for entry in entries if entry.pw_name == name))
+    eligible = dict.fromkeys(fixture.FIXED_CHILDREN, 1200)
+    if refusal == 'extra-child':
+        eligible['unrelated-child'] = 1300
+    monkeypatch.setattr(fixture, 'eligible_children', lambda: eligible)
+    run = Mock(return_value='3 1200 child seat0 tty2')
+    monkeypatch.setattr(guest, 'run', run)
+    with pytest.raises(guest.GuestError):
+        fixture.prepare_spare_children('two')
+    assert not any('SetAccountType' in call.args[0] or 'CreateUser' in call.args[0]
+                   for call in run.call_args_list)

@@ -7,6 +7,12 @@ chooser delivery receipt and independent public result; no extra chooser or file
 No network, process, shared path or cleanup owner is added; keep the Feedback
 whole-module bucket and its existing resource reservation.
 
+Parent feedback app-exit checks start a second preview only after the first
+owned Popen exits normally. They reuse the same private compositor/bus/settings,
+fake Session, tmp_path chooser inputs and finally-released response gate. No
+overlapping app processes, shared files, network or cleanup owner is added;
+the Feedback whole-module bucket and existing reservation remain appropriate.
+
 Shared host journal pacing delays real test-tool syncs within each worker;
 it adds no display, process, shared path or cleanup owner. Product API actions
 and existing private compositor/bus reservations remain unchanged.

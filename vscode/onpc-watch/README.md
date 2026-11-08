@@ -123,6 +123,14 @@ While an active launcher's reload request awaits a safe boundary, its title
 shows `(Reload Requested)` in the same orange as **Stop Requested**. The suffix
 clears when the controller accepts the reload or the launcher exits; a stop
 request takes precedence.
+Immediately after Reload, **Kill** (red outlined octagon with an X) asks for
+confirmation with **Kill** and **Cancel**. It requests immediate cooperative
+cancellation of the displayed controller, current session and owned tests,
+including a running VM test. Normal cleanup still runs, including baseline
+restoration for VM-backed workflows under their existing ownership guards.
+Kill is disabled for inactive or disconnected runs, while stopping, or when
+the source adapter does not advertise support. The run identity is checked
+again after confirmation and on the originating host before cancellation.
 The **Status**, **Launcher**, **Error** and **Session** views are selected from
 a dropdown centered in the single title row, with a vertical divider on each side.
 Long titles truncate with an ellipsis before the dropdown and right-aligned action

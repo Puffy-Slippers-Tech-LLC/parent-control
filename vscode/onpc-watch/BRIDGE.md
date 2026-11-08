@@ -211,9 +211,11 @@ current stop, cancel-stop or resume button's hover tooltip.
 Optional `launcher_reload_command` contains the resolved reload command for its
 adjacent icon button and advertises support for the reload action. Older adapters
 omit it, leaving Reload disabled.
+Optional `launcher_kill: true` advertises immediate cooperative cancellation of
+an active run. Older adapters omit it, leaving Kill disabled.
 An explicit click requests
 `{"protocol":1,"launcher_action":{"root":"run-section-id","run":"run-identity","kind":"stop"}}`
-(or `kind: "resume"`, `"cancel-stop"` or `"reload"`). The adapter checks the displayed run against its current,
+(or `kind: "resume"`, `"cancel-stop"`, `"reload"` or `"kill"`). The adapter checks the displayed run against its current,
 owner-checked publication and returns `launcher_result` with `ok: false, error`
 or `ok: true, root, run, launcher, argv`. Paths and argv stay within the extension
 host; the webview receives display IDs and command text only. The adapter uses
@@ -226,6 +228,14 @@ run after confirmation, and opens a terminal on the originating local/SSH
 host and rechecks the run identity before invoking the public launcher in its
 original checkout. Errors stay in that terminal. Requests are never retried;
 polling, reconnecting and closing Watch do not issue launcher commands.
+For Kill, the adapter additionally requires a live owner and returns empty
+`argv`. The confirmation describes immediate cancellation and normal cleanup.
+After confirmation, the extension revalidates the source publication, then
+calls `watch_output.cancel_run(root, run)` on the originating host. This checks
+the exact live publication again and uses the existing `Output.cancel()` marker
+route; it never signals arbitrary processes or starts a replacement controller.
+Sessions and tests consume cancellation through their existing interrupt and
+owned cleanup paths, including guarded VM baseline restoration.
 
 ## Run time deletion
 

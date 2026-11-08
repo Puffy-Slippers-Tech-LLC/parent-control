@@ -135,6 +135,16 @@ def active_launchers(root, reader, *, include_idle=False, workflows_only=False):
             continue
 
 
+def cancel_run(root, run):
+    """Cancel an exact live publication; never adopt a replacement run."""
+    if not any(candidate == run for candidate, _name in active_launchers(root, JsonReader())):
+        raise ValueError('Launcher changed; refresh before trying again.')
+    output = Output(root, launcher_base=run.parent)
+    output.run = run
+    if not output.cancel():
+        raise ValueError('Launcher changed or cancellation could not be requested.')
+
+
 class Output:
     def __init__(self, root=None, *, terminal_size=None, show_log=True, launcher_base=None):
         self.root = root or Path(__file__).resolve().parents[1]

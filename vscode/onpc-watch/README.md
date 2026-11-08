@@ -26,7 +26,7 @@ worktrees. Independent runners keep their own sections. Older child runs without
 that publication remain visible until their next normal start.
 The horizontal dividers can be
 dragged to resize adjacent sections, or focused
-and adjusted with Up/Down. A vertical divider separates each copy button from
+and adjusted with Up/Down. A vertical divider separates each actions menu from
 **Minimize** and **Maximize** / **Restore**, using the same controls as viewer tiles.
 Minimize leaves only the title row with its view dropdown and buttons, hiding content.
 Its button becomes **Restore tile layout** while minimized and restores the same
@@ -53,8 +53,9 @@ worktree from its existing run files. Session input is disabled once its owner
 exits. Retention uses existing run files and reader memory; it adds no disk persistence.
 Launcher and viewer titles use the same bold text and single-line content:
 local/remote icon, host (`local` or the SSH host), `[branch]`, and launcher or VM name.
-Launcher titles occupy the first row with **Copy** followed by **>>** at its right.
-**>>** opens a dropdown containing the launcher action and **Reload**.
+Launcher titles occupy the first row with one three-line menu button at its right.
+The menu opens a dropdown with **Copy** first, followed by the launcher action,
+**Reload** and **Kill**.
 Click outside the dropdown or press Escape to close it. The launcher action is
 **Stop** (solid square) while active, **Undo** while a cancellable stop is pending,
 or **Resume** (play) while idle. It is disabled once stopping begins,
@@ -132,7 +133,9 @@ Kill is disabled for inactive or disconnected runs, while stopping, or when
 the source adapter does not advertise support. The run identity is checked
 again after confirmation and on the originating host before cancellation.
 The **Status**, **Launcher**, **Error** and **Session** views are selected from
-a dropdown centered in the single title row, with a vertical divider on each side.
+a dropdown in the single title row, with a vertical divider on each side.
+The dropdown and action buttons fit their contents, leaving the remaining width for the title.
+The dropdown, menu and resize controls use equal spacing beside their dividers.
 Long titles truncate with an ellipsis before the dropdown and right-aligned action
 buttons. The left panel's minimum width fits the shortened title, dropdown and
 action buttons. Hover over a
@@ -189,8 +192,8 @@ For `fix-tests`, Last Error includes the failing check, the runner's error text
 (or a readable summary of a structured failure, falling back to a bounded text
 output tail), and its output-log path. Full JSON results remain in that log. Reload launcher
 changes with `tools/fix-tests --reload`; `./setup.sh --watch` updates the extension.
-The links remain available in every view, including while idle. The copy icon
-before **Status** copies the current tab's body as plain text to the clipboard;
+The links remain available in every view, including while idle. **Copy** in the
+three-line menu copies the current tab's body as plain text to the clipboard;
 in **Session**, it copies the displayed transcript.
 For every execution-plan launcher, including `write-e2e`, **Status**
 starts with **Total Tasks: completed/unfinished/total | duration**

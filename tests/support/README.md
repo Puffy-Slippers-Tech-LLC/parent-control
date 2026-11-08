@@ -390,6 +390,15 @@ masking it. Budget its native stop timeout plus transport headroom: the usage
 reader uses `system_guest.run`'s 120-second default rather than racing the
 daemon's normal inactivity exit with a 30-second deadline.
 
+For a fault that needs explicit reversal, persist its exact ownership receipt
+before delivering the fault, as in
+[system_graphical_expiry.py](../integration/system_graphical_expiry.py)'s
+`fault_recorded_broker` callback and `timer_history` mask receipt. Close the attached desktop worker before
+reversal in `finally`; restore only that recorded process or mask. This keeps
+partial-failure cleanup usable without signalling a replacement service or
+adopting changed state. Keep the fault sequence and recovery assertions with
+the consuming history.
+
 Native policy workers reuse `onpc_app_rows::fixture_app(role)` for the fixed
 Allowed/Hard/Soft fixture app IDs, matching the controller's `MATCH_APPS`.
 Do not copy the desktop-ID hashing into another worker. Each consumer retains
@@ -688,11 +697,13 @@ subsequent input-verification budget across natural, policy-change, broker-crash
 broker-stop, broker-stall and pending-approval histories. Each caller keeps its original deadline, fault
 or policy sequence and real-input assertion; the worker uses
 `onpc_desktop_session::verify_locked_input` for the actual input challenge.
-The broker-stop history uses one grant and anchors complete child-work recovery
-to original expiry plus 300 seconds, including the outage and lock-input check;
-service activation and the explicit recovery grant cannot restart that clock.
-The broker-stall history reuses both crash histories and applies the same
-outage-inclusive recovery clock to each. Only the identity-recorded stopped
+`SystemGraphicalExpiryJourney._recover_after_outage(expiry_at=...)` shares the
+outage-inclusive recovery bound: the earlier of recovery-start plus 300 seconds
+and original expiry plus 300 seconds. Pass the original expiry explicitly for broker-stop,
+broker-stall and timer-replacement histories; service activation and the recovery
+grant cannot restart that clock. Callers retain their original expiry and work
+assertions. The broker-stop history uses one grant; broker-stall reuses both
+crash histories and applies that bound to each. Only the identity-recorded stopped
 process can receive SIGCONT, including the worker's failure cleanup; a recovered
 zero-balance reply and original-work readback remain independent assertions.
 `TimerReplacementJourney` reuses the single-outage `STOP_PLAN` and its worker.

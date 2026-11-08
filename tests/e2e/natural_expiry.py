@@ -267,6 +267,15 @@ class SystemGraphicalExpiryJourney(InstalledJourney):
         return {'declared_recovery_grant_seconds': 1200}
 
     @staticmethod
+    def _recover_after_outage(journey, guard, command, *, expiry_at):
+        result = journey._recover(journey, guard, command)
+        # Neither service activation nor a recovery grant renews this clock.
+        journey.recovery_deadline = min(journey.recovery_deadline,
+            engineering_deadline(expiry_at, RECOVERY_SECONDS))
+        require(time.monotonic() < journey.recovery_deadline, 'expiry:recovery-deadline')
+        return result
+
+    @staticmethod
     def natural_recovery(journey, guard):
         return journey._recover(journey, guard, 'natural-recovery')
 
@@ -382,16 +391,9 @@ class BrokerStallJourney(BrokerCrashJourney):
         return result
 
     @staticmethod
-    def _stall_recover(journey, guard, command):
-        result = journey._recover(journey, guard, command)
-        journey.recovery_deadline = min(journey.recovery_deadline,
-            engineering_deadline(journey.stall_expiry, RECOVERY_SECONDS))
-        require(time.monotonic() < journey.recovery_deadline, 'expiry:recovery-deadline')
-        return result
-
-    @staticmethod
     def natural_recovery(journey, guard):
-        return journey._stall_recover(journey, guard, 'stall-natural-recovery')
+        return journey._recover_after_outage(journey, guard,
+            'stall-natural-recovery', expiry_at=journey.stall_expiry)
 
     @staticmethod
     def peer_expiry(journey, guard):
@@ -403,7 +405,8 @@ class BrokerStallJourney(BrokerCrashJourney):
 
     @staticmethod
     def peer_recovery(journey, guard):
-        return journey._stall_recover(journey, guard, 'stall-peer-recovery')
+        return journey._recover_after_outage(journey, guard,
+            'stall-peer-recovery', expiry_at=journey.stall_expiry)
 
 
 STOP_SCREENS = {
@@ -486,13 +489,8 @@ class BrokerStopJourney(SystemGraphicalExpiryJourney):
 
     @staticmethod
     def natural_recovery(journey, guard):
-        result = journey._recover(journey, guard, 'stop-recovery')
-        # The original expiry anchors recovery, including outage and lock input;
-        # neither service activation nor the recovery grant restarts this clock.
-        journey.recovery_deadline = min(journey.recovery_deadline,
-            engineering_deadline(journey.original_expiry, RECOVERY_SECONDS))
-        require(time.monotonic() < journey.recovery_deadline, 'expiry:recovery-deadline')
-        return result
+        return journey._recover_after_outage(journey, guard,
+            'stop-recovery', expiry_at=journey.original_expiry)
 
     @staticmethod
     def peer_input(journey, guard):
@@ -519,11 +517,8 @@ class TimerReplacementJourney(BrokerStopJourney):
 
     @staticmethod
     def natural_recovery(journey, guard):
-        result = journey._recover(journey, guard, 'timer-recovery')
-        journey.recovery_deadline = min(journey.recovery_deadline,
-            engineering_deadline(journey.original_expiry, RECOVERY_SECONDS))
-        require(time.monotonic() < journey.recovery_deadline, 'expiry:recovery-deadline')
-        return result
+        return journey._recover_after_outage(journey, guard,
+            'timer-recovery', expiry_at=journey.original_expiry)
 
 
 REVOKE_SCREENS = {

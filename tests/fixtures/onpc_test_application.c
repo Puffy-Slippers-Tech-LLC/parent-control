@@ -41,6 +41,13 @@ main(int argc, char **argv)
     const struct timespec pause = {.tv_sec = 0, .tv_nsec = 10000000};
     int stay_alive = 0;
     const char *instance = "primary";
+    /* Files executes the binary without arguments. Keep H/S separate from
+     * the child's original Allowed window; explicit command/grid instances
+     * below still select their existing bindings. */
+    if (strcmp(FIXTURE_KIND, "native") == 0) {
+        if (strcmp(fixture_identity, "H") == 0) instance = "hard";
+        if (strcmp(fixture_identity, "S") == 0) instance = "soft";
+    }
 
     for (int index = 1; index < argc; index++) {
         if (strcmp(argv[index], "--stay-alive") == 0) {

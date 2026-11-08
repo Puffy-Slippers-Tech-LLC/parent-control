@@ -25,8 +25,8 @@ def main(argv=None):
     parser.add_argument('--kind', choices=KINDS, required=True)
     parser.add_argument('--instance', choices=INSTANCES, default='primary')
     options = parser.parse_args(argv)
-    if options.kind != 'flatpak' and options.instance in ('hard', 'soft'):
-        parser.error('Hard and Soft instances belong to the Flatpak fixtures')
+    if options.kind not in ('native', 'flatpak') and options.instance in ('hard', 'soft'):
+        parser.error('Hard and Soft instances belong to the native/Flatpak fixtures')
     if Gtk.get_major_version() != 4 or Gtk.get_minor_version() < 22:
         parser.error('GTK 4.22 or newer is required to publish public automation IDs')
     scope = f'onpc-fixture-{options.kind}-{options.instance}'

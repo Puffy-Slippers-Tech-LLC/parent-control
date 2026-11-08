@@ -733,7 +733,7 @@ sub native_blocked_app {
     die 'native:denial-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
         && ($route eq 'command' && $role =~ /\A(?:A|H|S|Alias|C|SpaceCopy|CommaCopy|VersionNext)\z/
             || $route eq 'grid' && $role =~ /\A(?:A|Alias|H|S)\z/
-            || $route eq 'files' && $role eq 'A');
+            || $route eq 'files' && $role =~ /\A(?:A|H|S)\z/);
     if ($route eq 'files') {
         $journey->consume_observation('files', $journey->seen('files'));
         testapi::send_key('ret');

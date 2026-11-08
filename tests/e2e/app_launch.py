@@ -94,6 +94,30 @@ GRID_PLAN = replace(
                    'jordan-command-submitted': 'step-3'},
 )
 
+FILES_JORDAN = {
+    'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
+    'jordan-use-desktop': 'ui:native-desktop',
+    **prefixed_stages('jordan-use', native_usable_app('files', child='other-child')),
+    'jordan-use-dismiss': 'ui:native-files-allowed-dismiss',
+}
+FILES_RILEY = {
+    'jordan-logout': 'system:standard-logout', **RILEY_ENTRY,
+    'riley-use-desktop': 'ui:overlay-native-desktop',
+    **prefixed_stages('riley-use', native_usable_app('files', child='child')),
+    'riley-use-dismiss': 'ui:overlay-native-files-allowed-dismiss',
+}
+FILES_PLAN = replace(
+    PLAN, prefix='native-files-allowed', worker_mode='native_files_allowed',
+    screen_tags={**SETUP, **FILES_JORDAN, **FILES_RILEY},
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' for stage in SETUP}, 'installed-greeter': 'start',
+            **{stage: 'step-2' for stage in FILES_JORDAN},
+            **{stage: 'step-3' for stage in FILES_RILEY}},
+    advance_after={'installed-greeter': 'step-1', 'allowed-final-match': 'step-2',
+                   'jordan-use-dismiss': 'step-3'},
+)
+
+
 def blocked_plan(rule, access, *, route='grid', control='enabled'):
     base = PLAN if control == 'enabled' else DISABLED_PLAN
     policy = policy_edit(MATCH_APP, 'match-precise', access, rule)
@@ -158,6 +182,8 @@ def execute_grid(recorder, context, *, plan=GRID_PLAN, case_id='native-grid-allo
 E2E_CASES = {'native-command-allowed-enabled': execute,
              'native-command-allowed-disabled': execute_disabled,
              'native-grid-allowed-enabled': execute_grid,
+             'native-file-manager-allowed-enabled': partial(execute_grid,
+                 plan=FILES_PLAN, case_id='native-file-manager-allowed-enabled'),
              'native-grid-hard-blocked-enabled': partial(execute_grid,
                  plan=HARD_GRID_PLAN, case_id='native-grid-hard-blocked-enabled'),
              'native-grid-soft-blocked-enabled': partial(execute_grid,

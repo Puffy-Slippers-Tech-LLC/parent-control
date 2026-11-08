@@ -1226,6 +1226,15 @@ from concealing a failed second launch.
 `AppPolicyJourney` owns saved time/match/access comparisons; the case owns account
 order and recorder phases. It prepares no approval and requires no retained work.
 
+Case 74 uses `app_launch.FILES_PLAN` / `onpc_app_launch::run` with the enabled,
+Allowed native Files binding. Parent gives Jordan 30 daily minutes with zero
+grant, saves fixture A's precise Allowed rule and independently reads it back.
+Fresh Jordan and then fresh Riley each open the same argument-free executable
+from Files with one Enter, submit the ordinary draft and independently read
+the submitted result. Each Files window is dismissed before leaving that
+desktop. Riley's policy and disabled limits remain untouched. No approval,
+alternate launch route or launcher-visibility assertion is used.
+
 Case 81 uses the same fixture, precise Allowed rule, Jordan/Riley order and
 native command/window/Submit/result operations. Parent independently verifies
 Jordan's clean limits-off and zero-allowance settings before the app-policy save;

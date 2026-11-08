@@ -5,7 +5,7 @@ from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (app_policy_entry, desktop_entry,
                             native_blocked_app, native_usable_app, prefixed_stages)
 from native_fixtures import fixture_actions
-from native_desktop_usable import desktop_entry_actions
+from synthetic_files import desktop_entry_actions
 from policy_edits import policy_edit, AppPolicyJourney
 from accessible_ui import MATCH_APP
 from match_rules import MATCH_RULES

@@ -2,37 +2,7 @@
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop, native_usable_app, prefixed_stages
 from native_fixtures import fixture_actions
-from private_artifacts import require
-from synthetic_files import SyntheticFiles
-
-
-def desktop_entry_actions(*, child='other-child'):
-    """Finite FILE05 desktop-entry binding shared with desktop launch consumers."""
-    require(child in ('other-child', 'child'), 'files:desktop-child')
-    def place(journey, guard):
-        guard()
-        require(not hasattr(journey, 'desktop_entry_files'), 'files:desktop-replay')
-        source = 'fixtures/native-launchers/com.puffyslippers.ONPCTest.A.desktop'
-        controller = SyntheticFiles(journey.transport,
-            'native-desktop' if child == 'other-child' else 'native-desktop-riley', expected={
-            'source': journey.native_fixtures.receipt['files'][source]['sha256']})
-        journey.desktop_entry_files = controller
-        before = controller.call('stage')
-        copied = controller.call('copy')
-        require(copied['source'] == before['source']
-                and copied['directory'] == before['directory']
-                and copied['sha256'] == before['sha256']
-                and copied['file'] is not None and before['file'] is None
-                and copied['file'] != copied['source'], 'files:desktop-copy')
-        return copied
-
-    def cleanup(journey, guard):
-        guard()
-        result = journey.desktop_entry_files.call('cleanup')
-        del journey.desktop_entry_files
-        return result
-
-    return {'desktop-place': place, 'desktop-cleanup': cleanup}
+from synthetic_files import desktop_entry_actions
 
 
 SCREENS = {

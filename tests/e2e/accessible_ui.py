@@ -13298,8 +13298,14 @@ class AccessibleUI:
         def snapshot(**arguments):
             return self.native_desktop_snapshot(child=child, **arguments)
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(self.native_app_closed(desktop=False, complete_absence=True),
-                'ui:native-window-exists')
+        def closed():
+            # Unrelated providers can exit between enumeration and GetItems.
+            # Reacquire the complete read, preserving a real window's refusal;
+            # focus and keyboard input remain outside this read-only wait.
+            require(self.native_app_closed(desktop=False, complete_absence=True),
+                    'ui:native-window-exists')
+            return True
+        self.wait(closed, 'native-desktop-preflight', prompt_in_predicate=True)
         if operation == 'native-desktop-selected':
             def selected():
                 current = snapshot()

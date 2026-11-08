@@ -4519,7 +4519,7 @@ Other accounts/routes/tuples remain separate.
 
 #### Native desktop entry and usable launch
 
-`native_desktop_usable.desktop_entry_actions(child=...)` uses `SyntheticFiles`'s
+`synthetic_files.desktop_entry_actions(child=...)` uses `SyntheticFiles`'s
 finite `native-desktop` and `native-desktop-riley` profiles to copy each child's
 verified launcher into the bound desktop directory, set its executable permission
 and supported GVfs trust
@@ -4555,8 +4555,8 @@ for the shared native/activity/baseline-child fixture closure. The affected
 `20261108T133854Z-d115f839`, including both independent placements, refusals,
 collection, worker shutdown and baseline restoration; the VM was observed off.
 
-The maintained `reproduce-native-desktop` route stops the same journey at
-`first-selected` and retains Jordan's scene for guarded maintenance probes;
+The maintained `reproduce-native-desktop` route composes case 68's Parent saves
+and stops at `jordan-use-selected`, retaining Jordan's scene for guarded maintenance probes;
 see the [diagnostic interface](../../tests/e2e/README.md#shared-guarded-worker).
 It supplies no acceptance credit. Multiple ordinary icons, separate windows
 and policy-denial bindings remain unqualified.

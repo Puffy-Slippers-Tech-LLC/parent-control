@@ -2584,6 +2584,16 @@
     ],
     "expected": "The stopped service stays stopped through expiry and the input challenge; outage time consumes the original grant, recovery replays no grant, original child and peer work survive, and owned cleanup completes."
   },
+  "311": {
+    "summary": "Keep the child protected when the lock service replies late or never replies",
+    "steps": [
+      "Prepare the child's original work and another user's work, pause the competing native action through the public lock setting, then restore that setting before forwarding the real expiry-driven product lock while holding its acknowledgement.",
+      "Independently observe timely protection and harmless input staying on the lock, then release the acknowledgement and recover the original work.",
+      "Repeat with a missing reply, observe the real client failure while the request remains held, recover the child's work and verify the same other user's input.",
+      "Close the owned fault service, reactivate the normal public service and verify that the native desktop lock owner is unchanged."
+    ],
+    "expected": "Both original deadlines protect input independently of request success, activity and session hints; original work and peer input survive, client completion follows the controlled reply order, and the normal service and owned cleanup are restored. No new retry owner is introduced."
+  },
   "299": {
     "summary": "Restore the extension from Parent controls",
     "steps": [

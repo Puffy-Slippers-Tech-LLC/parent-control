@@ -109,9 +109,27 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     api = runpy.run_path(str(confined_file(root, 'tests/e2e/inventory.py')))
     document, digest = api['read_json'](confined_file(root, 'tests/e2e/scenarios.json'))
     ready_only = args.ready or (not args.list and args.scenario is None and args.id is None)
-    plan = api['resolve_selection'](document, args.scenario, ready_only=ready_only,
-                                    coverage_id=args.id,
-                                    require_runnable=not args.list, root=root)
+    try:
+        plan = api['resolve_selection'](document, args.scenario, ready_only=ready_only,
+                                        coverage_id=args.id,
+                                        require_runnable=not args.list, root=root)
+    except api['InventoryError'] as error:
+        if str(error) == 'selection:pending':
+            # Diagnose the exact refused in-memory selection without rereading
+            # a changing inventory or relaxing the execution refusal.
+            refused = api['resolve_selection'](document, args.scenario,
+                ready_only=ready_only, coverage_id=args.id, root=root)
+            error.add_note('e2e:pending-selection ' + json.dumps({
+                'inventory_sha256': digest,
+                'selector_kind': 'id' if args.id is not None else 'scenario' if args.scenario else 'ready',
+                'selector': refused['selector'],
+                'selected_count': len(refused['cases']),
+                'selected': [{key: case[key] for key in ('coverage_id', 'case_id', 'status')}
+                             for case in refused['cases'][:16]],
+                'snapshot_active': getattr(sys.modules.get('tools.vm_source_snapshot'),
+                                           '_active', None) is not None,
+            }, sort_keys=True))
+        raise
     plan['inventory_sha256'] = digest
     plan['mode'] = 'list-only' if args.list else 'execution-preflight'
     if fixture_selection is not None:

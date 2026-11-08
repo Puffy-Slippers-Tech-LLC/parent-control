@@ -29,4 +29,18 @@ sub remove_selected {
     $journey->finish();
 }
 
+sub remove_last_child {
+    my ($exchange, $invocations, $challenges) = @_;
+    onpc_progress::operation('Checking Parent after removing the last eligible child');
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'remove-last-child', review => 0);
+    $journey->declare_invocations($invocations);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'initial',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    $journey->seen($_) for qw(jordan-only parent-empty);
+    $journey->finish();
+}
+
 1;

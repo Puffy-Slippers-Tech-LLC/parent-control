@@ -1,4 +1,4 @@
-"""One removal, with independent Parent and remembered-station recovery."""
+"""Guarded spare-child removal and automatic account-selection recovery."""
 
 from copy import deepcopy
 
@@ -48,6 +48,24 @@ PLAN = JourneyPlan(
                 'return': ('parent', 'return-recipient-qualified', 'return-recipient-rechecked')},
 )
 
+LAST_CHILD_SCREENS = {
+    **fresh_desktop('parent'),
+    'parent-command': 'ui:parent-command-launch', 'parent-window': 'ui:parent-window',
+    'jordan-only': 'ui:spare-parent-jordan-only',
+    'parent-empty': 'ui:spare-parent-empty',
+}
+LAST_CHILD_PLAN = JourneyPlan(
+    prefix='remove-last-child', worker_mode='remove_last_child', screen_tags=LAST_CHILD_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' for stage in LAST_CHILD_SCREENS},
+            'installed-greeter': 'start', 'jordan-only': 'step-2', 'parent-empty': 'step-3'},
+    advance_after={'installed-greeter': 'step-1', 'parent-window': 'step-2',
+                   'jordan-only': 'step-3'},
+    stage_actions={'setup-detached': 'prepare-spare-children', 'jordan-only': 'remove-spare-child'},
+    invocations=tuple(fresh_desktop('parent')),
+    challenges={'initial': ('parent', 'recipient-qualified', 'recipient-rechecked')},
+)
+
 
 class AccountChangeJourney(InstalledJourney):
     def __init__(self, context, progress, plan, *, actions=None):
@@ -56,16 +74,21 @@ class AccountChangeJourney(InstalledJourney):
 
         def compare(stage, observed):
             value = observed.get('ui', {}).get('account_change')
-            if value is not None and 'settings' in value:
+            if value is not None and 'window' in value:
                 if self.parent_window is None:
                     self.parent_window = deepcopy(value['window'])
-                require(value['window'] == self.parent_window, 'remove-selected:parent-window-replaced')
+                require(value['window'] == self.parent_window, plan.prefix + ':parent-window-replaced')
+            if value is not None and 'settings' in value:
                 role = 'riley' if stage in ('riley-selected', 'riley-allowance', 'parent-fallback') else 'jordan'
-                initial = stage in ('jordan-selected', 'riley-selected')
+                initial = stage in ('jordan-selected', 'riley-selected', 'jordan-only')
                 require(value['settings'] == {
                     'child': 'spare-' + role, 'limit_enabled': not initial,
                     'allowance': ['0 minutes' if initial else '15 minutes' if role == 'riley'
-                                  else '30 minutes']}, 'remove-selected:saved-settings')
+                                  else '30 minutes']}, plan.prefix + ':saved-settings')
+            if stage == 'parent-empty':
+                require(value is not None and value['empty'] is True,
+                        'remove-last-child:missing-empty-result')
+                observed['comparison'] = {'same_parent_window_empty': True}
             if stage == 'riley-saved':
                 self.riley_request = deepcopy(value['request'])
             if stage == 'station-fallback':
@@ -84,4 +107,11 @@ def execute(recorder, context):
         journey_type=AccountChangeJourney)
 
 
-E2E_CASES = {'remove-selected': execute}
+def execute_last_child(recorder, context):
+    fixture = SpareChildrenFixture(context, count=1)
+    record_installed_journey(recorder, context, LAST_CHILD_PLAN, timeout=1800,
+        actions={'prepare-spare-children': fixture.prepare, 'remove-spare-child': fixture.remove},
+        journey_type=AccountChangeJourney)
+
+
+E2E_CASES = {'remove-selected': execute, 'remove-last-child': execute_last_child}

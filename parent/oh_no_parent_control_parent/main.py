@@ -1908,6 +1908,7 @@ class ParentWindow(Adw.ApplicationWindow):
         ParentWindow._reveal_panel(self, "account")
         if not self._users:
             # No data is pending; show the ordinary disabled empty state.
+            self._set_apps_sensitive(False)
             ParentWindow._reveal_panel(self, "screen")
 
     def _selected_uid(self):
@@ -2329,7 +2330,7 @@ class ParentWindow(Adw.ApplicationWindow):
     def _set_apps_sensitive(self, sensitive):
         idle = not self._loading and not getattr(self, "_save_in_progress", False)
         sensitive = bool(sensitive and idle and self._selected_uid() is not None)
-        self._account.set_sensitive(idle)
+        self._account.set_sensitive(idle and self._selected_uid() is not None)
         self._revoke.set_sensitive(
             idle and self._selected_uid() is not None and
             getattr(self, "_app_catalog", []) is not None and

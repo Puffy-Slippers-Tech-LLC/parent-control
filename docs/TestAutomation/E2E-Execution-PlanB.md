@@ -18,7 +18,7 @@ Task queue: [Plan B ordered checklist](E2E-Task-QueueB.md).
 
 ## Next task
 
-Next task: **223 — [E2E-040: remove-last-child](E2E-Tasks/223-case-181.md)**.
+Next task: **224 — [E2E-040: ineligible-approver](E2E-Tasks/224-case-182.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

@@ -91,6 +91,26 @@
         return text;
     }
 
+    function launcherTitle(title, entry) {
+        const suffix = entry.status ? ` (${entry.status})` : '';
+        const defaultText = entry.custom_title || (suffix && title.textContent.endsWith(suffix) ?
+            title.textContent.slice(0, -suffix.length) : title.textContent);
+        title.textContent = defaultText;
+        if (entry.status) {
+            const statusClass = {
+                failed: 'failed', finished: 'finished', 'Closing Task': 'closing-task',
+                'Stop Requested': 'stop-requested', Stopping: 'stop-requested',
+                'Reload Requested': 'stop-requested', Repairing: 'stop-requested',
+                Verifying: 'stop-requested',
+            }[entry.status] || '';
+            title.append(' (');
+            element('span', `launcher-status ${statusClass}`, title).textContent =
+                entry.status.charAt(0).toUpperCase() + entry.status.slice(1);
+            title.append(')');
+        }
+        return defaultText;
+    }
+
     function sessionHeading(section) {
         const entry = section.entry;
         if (section.editingTitle && section.editingTitle.run === entry.run) return;
@@ -104,6 +124,7 @@
         const labels = element('span', 'title run-label', titlebar);
         const title = tileTitle(labels, entry);
         title.classList.add('run-launcher-label');
+        const defaultText = launcherTitle(title, entry);
         const views = element('span', 'run-view-control', titlebar);
         const select = element('button', 'run-view-select', views);
         select.type = 'button';
@@ -223,17 +244,6 @@
             overflow.focus();
             vscode.postMessage({ type: 'launcherAction', root: entry.id, run: entry.run, kind: 'reload' });
         });
-        const suffix = entry.status ? ` (${entry.status})` : '';
-        const defaultText = entry.custom_title || (suffix && title.textContent.endsWith(suffix) ?
-            title.textContent.slice(0, -suffix.length) : title.textContent);
-        if (entry.custom_title) title.textContent = defaultText + suffix;
-        if (['Stop Requested', 'Stopping', 'Reload Requested', 'Closing Task', 'Repairing', 'Verifying'].includes(entry.status)) {
-            if (title.textContent.endsWith(suffix)) {
-                title.textContent = `${title.textContent.slice(0, -suffix.length)} (`;
-                element('span', entry.status === 'Closing Task' ? 'closing-task' : 'stop-requested', title).textContent = entry.status;
-                title.append(')');
-            }
-        }
         if (entry.launcher_command) labels.title = entry.launcher_command;
         title.tabIndex = 0;
         title.setAttribute('role', 'textbox');
@@ -298,7 +308,6 @@
                 sessionHeading(section);
             });
         }
-        labels.classList.toggle('finished', entry.status === 'finished');
         section.body.classList.toggle('collapsed', Boolean(section.collapsed));
         const copy = element('button', 'run-copy', controls);
         copy.type = 'button';
@@ -1135,7 +1144,6 @@
                 section.toggle.disabled = true;
             }
             sessionHeading(section);
-            section.heading.classList.toggle('failed', entry.status === 'failed');
             section.content.hidden = section.view !== 'status';
             section.launcher.hidden = section.view !== 'launcher';
             section.errorStatus.hidden = section.view !== 'error';

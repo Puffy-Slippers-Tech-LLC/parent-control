@@ -6,6 +6,7 @@ from accessible_ui import NAMED_CHILD_OPERATIONS, countdown_seconds
 from countdown import CountdownSample
 from daily_soft_profile import PLAN as PROFILE_PLAN, SCREENS as PROFILE_SCREENS, DailySoftProfileJourney
 from installed_journey import record_installed_journey
+from journey_checks import require_zero_grant
 from journey_blocks import (allowance_selection, desktop_entry, desktop_return, fresh_desktop, lock_challenge, lock_recipient,
                             native_activity_entry, native_activity_resume,
                             native_blocked_app, native_usable_app, prefixed_stages,
@@ -180,6 +181,42 @@ ALLOWANCE_PLAN = replace(PLAN,
 )
 
 
+# Both toggle saves clear the expired grant without closing existing Soft work.
+# Prove that work first, then close it normally for an independent new launch.
+TOGGLE = {
+    **native_activity_resume('expired-soft', child='child', binding='policy-soft'),
+    **ALLOWANCE_ENTRIES['edit-parent'],
+    **prefixed_stages('edit', retained_parent_entry(source='same-user', desktop_observation=False)),
+    'limit-off': 'ui:parent-toggle-disabled',
+    'saved-off': 'ui:parent-save-disabled',
+    'limit-on': 'ui:parent-toggle-enabled',
+    'saved-on': 'ui:parent-save-enabled',
+    'cleared-balance': 'ui:time-explanation-refresh-read',
+    **ALLOWANCE_ENTRIES['restored-child'],
+}
+TOGGLE_RESULTS = {
+    **native_activity_resume('restored-soft', child='child', binding='policy-soft'),
+    'restored-soft-close': 'ui:overlay-native-soft-close',
+    'restored-soft-closed': 'ui:overlay-native-soft-closed',
+    **prefixed_stages('blocked-hard', native_blocked_app('H', child='child')),
+    **prefixed_stages('blocked-soft', native_blocked_app('S', child='child')),
+    **native_activity_resume('allowed-return', child='child'),
+    'final-child-countdown': 'ui:child-countdown-present',
+    **retained_app_visit('peer-return', account='other-child', source='desktop', source_account='child'),
+}
+TOGGLE_SCREENS = {**PEER, **PROFILE_SCREENS, **EXPIRY, **TOGGLE, **TOGGLE_RESULTS}
+TOGGLE_PLAN = replace(ALLOWANCE_PLAN,
+    worker_mode='daily_soft_toggle', screen_tags=TOGGLE_SCREENS,
+    phases={**{stage: phase for stage, phase in PLAN.phases.items()
+               if stage in TOGGLE_SCREENS or stage in ('ready', 'setup-detached')},
+        **{stage: 'step-2' for stage in TOGGLE},
+        **{stage: 'step-3' for stage in TOGGLE_RESULTS}},
+    child_bindings={stage: 'child' for stage, tag in TOGGLE_SCREENS.items()
+                    if tag.removeprefix('ui:') in NAMED_CHILD_OPERATIONS},
+    activity_checks={**PLAN.activity_checks, 'restored-soft-opened': ('soft-capture', 'same')},
+)
+
+
 class DailySoftExpiryJourney(DailySoftProfileJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan, actions=actions if actions is not None else {
@@ -211,6 +248,11 @@ class DailySoftExpiryJourney(DailySoftProfileJourney):
                     and observed['ui']['retained_parent'] == {
                         **self.parent_window, 'page': 'screen-limits'},
                     'daily-soft-expiry:retained-parent-before-allowance-edit')
+        if stage == 'cleared-balance':
+            balance = observed['ui']['time_explanation']
+            require_zero_grant(balance)
+            require(balance['daily']['seconds'] > 0, 'daily-soft-expiry:toggle-daily-access')
+            observed['comparison'] = {'grant_cleared': True, 'daily_access_positive': True}
         if stage in ('expired-countdown', 'final-child-countdown'):
             sample = CountdownSample.from_ui(observed['ui'], boot_sha256=observed['boot_sha256'])
             require(sample.boot_sha256 == self.return_boot
@@ -243,6 +285,10 @@ def execute_allowance_edit(recorder, context):
     execute_branch(recorder, context, ALLOWANCE_PLAN, 'allowance-edit')
 
 
+def execute_toggle(recorder, context):
+    execute_branch(recorder, context, TOGGLE_PLAN, 'toggle')
+
+
 def execute_branch(recorder, context, plan, branch):
     from e2e_fixture_preparation import ACTIVITY_SUBSETS
     context.fixture_subsets = ACTIVITY_SUBSETS
@@ -252,4 +298,4 @@ def execute_branch(recorder, context, plan, branch):
 
 
 E2E_CASES = {'none': execute, 'unlock': execute_unlock, 'fresh-login': execute_fresh_login,
-             'allowance-edit': execute_allowance_edit}
+             'allowance-edit': execute_allowance_edit, 'toggle': execute_toggle}

@@ -9,7 +9,7 @@ ACTIVITY_CALLER = 'check_e2e_baseline_journey'
 ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',
                     'check_e2e_prepare_a_daily_balance_that_outlasts_a_soft_exception',
                     'E2E-038/none', 'E2E-038/unlock', 'E2E-038/fresh-login',
-                    'E2E-038/allowance-edit',
+                    'E2E-038/allowance-edit', 'E2E-038/toggle',
                     'check_e2e_retained_app_visits',
                     'system-282', 'system-301',
                     'check_e2e_baseline_app_effects',

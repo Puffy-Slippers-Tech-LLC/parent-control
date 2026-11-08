@@ -28,7 +28,7 @@ The horizontal dividers can be
 dragged to resize adjacent sections, or focused
 and adjusted with Up/Down. A vertical divider separates each copy button from
 **Minimize** and **Maximize** / **Restore**, using the same controls as viewer tiles.
-Minimize leaves only the first title row and its buttons, hiding tabs and content.
+Minimize leaves only the title row with its view dropdown and buttons, hiding content.
 Maximize expands the selected launcher and minimizes every other launcher.
 Restore expands all launchers into their stacked layout, retaining resized proportions
 and selected tabs. Inactive launchers (finished, failed or stopped) minimize by default,
@@ -119,12 +119,11 @@ While an active launcher's reload request awaits a safe boundary, its title
 shows `(Reload Requested)` in the same orange as **Stop Requested**. The suffix
 clears when the controller accepts the reload or the launcher exits; a stop
 request takes precedence.
-The **Status**, **Launcher**, **Error** and **Session** tabs always occupy
-the second row, aligned left. Long titles truncate with an ellipsis before the
-right-aligned action buttons. As the tab row narrows,
-the tabs wrap onto additional rows until they stack vertically. Wrapped tabs have
-equal widths and centered text. The left panel's minimum width fits both the
-shortened title with its action buttons and the widest tab below it. Hover over a
+The **Status**, **Launcher**, **Error** and **Session** views are selected from
+a dropdown centered in the single title row, with a vertical divider on each side.
+Long titles truncate with an ellipsis before the dropdown and right-aligned action
+buttons. The left panel's minimum width fits the shortened title, dropdown and
+action buttons. Hover over a
 launcher title to see its saved command with all parameters, including
 argument quoting. The title uses normal bold text. Clicking also
 copies the full runnable command with its saved parameters, such as

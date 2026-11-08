@@ -97,7 +97,6 @@
             entry.session_number, entry.session_inactive, entry.launcher_controls, entry.launcher_command, entry.launcher_action_command, entry.launcher_reload_command, entry.active, section.view, section.collapsed, maximizedRun === entry.id]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
-        section.tabObserver?.disconnect();
         section.heading.replaceChildren();
         const titlebar = element('span', 'run-titlebar', section.heading);
         const labels = element('button', 'title run-label', titlebar);
@@ -110,6 +109,23 @@
             labels.addEventListener('click', copyCommand);
         }
         labels.disabled = !entry.launcher_command;
+        const views = element('span', 'run-view-control', titlebar);
+        const select = element('select', 'run-view-select', views);
+        select.setAttribute('aria-label', 'Run view');
+        for (const [view, label] of [['status', 'Status'], ['launcher', 'Launcher'], ['error', 'Error'], ['session', 'Session']]) {
+            const option = element('option', '', select);
+            option.value = view;
+            option.textContent = view === 'session' ? tabLabel(entry, view) : label;
+            if (view === 'session' && (entry.session_inactive ?? !entry.session_active)) {
+                option.classList.add('session-inactive');
+                if (section.view === view) select.classList.add('session-inactive');
+            }
+        }
+        select.value = section.view;
+        select.addEventListener('change', () => {
+            runView(entry.id, select.value);
+            section.heading.querySelector('.run-view-select').focus();
+        });
         const controls = element('span', 'run-controls', titlebar);
         const kind = entry.status === 'Stop Requested' ? 'cancel-stop' : entry.active ? 'stop' : 'resume';
         const button = element('button', 'run-copy run-launcher-action', controls);
@@ -190,27 +206,6 @@
             runDividers();
         });
         tileMaximizeState(resizing, maximizedRun === entry.id, entry.label);
-        const links = element('span', 'run-links', section.heading);
-        for (const [view, label] of [['status', 'Status'], ['launcher', 'Launcher'], ['error', 'Error'], ['session', 'Session']]) {
-            const text = ['session', 'launcher'].includes(view) ? tabLabel(entry, view) : label;
-            const item = link(links, text, () => runView(entry.id, view));
-            item.classList.add('run-tab');
-            if (view === 'session' && (entry.session_inactive ?? !entry.session_active)) item.classList.add('session-inactive');
-            if (section.view === view) item.setAttribute('aria-current', 'page');
-        }
-        section.tabObserver = new ResizeObserver(() => requestAnimationFrame(() => {
-            if (!links.isConnected) return;
-            // Measure compact tabs first so widening always restores a single row.
-            links.classList.remove('wrapped');
-            const widths = Array.from(links.children, tab => tab.getBoundingClientRect().width);
-            const gap = parseFloat(getComputedStyle(links).columnGap) || 0;
-            const singleRowWidth = widths.reduce((sum, width) => sum + width, 0) + gap * (widths.length - 1);
-            // Keep equal widths from increasing the heading's preferred width.
-            links.style.maxWidth = `${singleRowWidth}px`;
-            links.style.setProperty('--run-tab-width', `${Math.max(...widths)}px`);
-            links.classList.toggle('wrapped', singleRowWidth > links.getBoundingClientRect().width + 0.5);
-        }));
-        section.tabObserver.observe(links);
     }
 
     function link(parent, text, click) {
@@ -570,7 +565,7 @@
 
     function tileSelection(body, heading) {
         body.addEventListener('click', event => {
-            const selected = !heading.contains(event.target) || Boolean(event.target.closest('a, button')) ||
+            const selected = !heading.contains(event.target) || Boolean(event.target.closest('a, button, select')) ||
                 !body.classList.contains('selected');
             for (const tile of layout.querySelectorAll('.watch-tile')) {
                 tile.classList.toggle('selected', tile === body && selected);
@@ -844,7 +839,6 @@
             if (!ids.has(id)) {
                 section.inputObserver.disconnect();
                 section.statusObserver.disconnect();
-                section.tabObserver?.disconnect();
                 section.body.remove();
                 section.divider.remove();
                 sections.delete(id);

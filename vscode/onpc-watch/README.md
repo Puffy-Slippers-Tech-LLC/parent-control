@@ -46,9 +46,9 @@ section and all four tabs retain their contents, including while other worktrees
 remain active. Reconnecting restores the latest retained run in each idle
 worktree from its existing run files. Session input is disabled once its owner
 exits. Retention uses existing run files and reader memory; it adds no disk persistence.
-Each title shows two rows: a server icon and server name (`local` or the SSH host)
-above the branch and launcher, e.g. `[test] fix-tests`. It
-places 28 px icon buttons after the hostname on the same row as copy and collapse:
+Launcher and viewer titles use the same bold text and single-line content:
+local/remote icon, host (`local` or the SSH host), `[branch]`, and launcher or VM name.
+Launcher titles occupy the first row with 28 px icon buttons aligned to its right:
 **Stop** (solid square) while active, **Undo** while a cancellable stop is pending,
 or **Resume** (play) while idle. It is disabled once stopping begins,
 while disconnected, or when saved command parameters are unavailable. Clicking
@@ -116,20 +116,19 @@ While an active launcher's reload request awaits a safe boundary, its title
 shows `(Reload Requested)` in the same orange as **Stop Requested**. The suffix
 clears when the controller accepts the reload or the launcher exits; a stop
 request takes precedence.
-The title
-keeps **Status**, **Launcher**, **Error** and **Session**
-links at its right end. When narrowed, each title row truncates with an ellipsis.
-Further narrowing moves the title and action
-buttons onto the first row and all tabs onto the second row. As that row narrows,
+The **Status**, **Launcher**, **Error** and **Session** tabs always occupy
+the second row, aligned left. Long titles truncate with an ellipsis before the
+right-aligned action buttons. As the tab row narrows,
 the tabs wrap onto additional rows until they stack vertically. Wrapped tabs have
 equal widths and centered text. The left panel's minimum width fits both the
 shortened title with its action buttons and the widest tab below it. Hover over a
-launcher title to see its saved command with all parameters, including
-argument quoting. The title remains a short `[branch] launcher (status)` link.
-Clicking copies the full runnable command with its saved parameters, such as
+launcher title to see and copy its saved command with all parameters, including
+argument quoting. The title uses normal bold text. Clicking also
+copies the full runnable command with its saved parameters, such as
 `tools/write-e2e --branch worktree <parameters>`, relative to the repository root.
 The explicit branch selects the displayed launcher's checkout even when run from
-`main`. Older runs without
+`main`. A successful copy briefly shows **Launcher command copied** over the tile
+and in the VS Code status bar. Older runs without
 saved parameters show only the plain title.
 The name comes from the launcher's `current.json`
 publication, including custom plan launcher names. Older runs without a published
@@ -145,7 +144,7 @@ Each enabled stop, resume, reload or cancel-stop button asks for confirmation us
 VS Code's built-in modal warning dialog. Its button colors follow the host theme;
 the public extension API does not expose a destructive/red button style.
 The title switches to the recorded final status when the launcher exits.
-Failed launcher titles, including their command hyperlinks, appear in red.
+Failed launcher titles appear in red.
 **Status** shows the current run status, **Launcher** shows
 the launcher terminal output, **Error** shows the shared launcher's **Last Error**
 and **Status** fields with the same colors and elapsed ages, and **Session** opens
@@ -437,7 +436,7 @@ up; Watch never prompts for credentials. Independent clones require explicit
 sources. Set
 `onpc.watch.sources` in VS Code user or workspace settings to replace that default
 or combine sources. Source IDs must be unique and stable; labels identify hosts
-in viewer tabs; run titles show the SSH host or `local` above the branch name.
+in viewer tabs; tile titles show the SSH host or `local` before the branch name.
 Footer hosts always follow `config/environment.json`.
 Click Reconnect after editing.
 

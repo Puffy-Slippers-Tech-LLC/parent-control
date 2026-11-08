@@ -70,34 +70,40 @@ nav button { flex-shrink: 0; }
     border-bottom: 1px solid var(--watch-rule); background: var(--watch-header);
 }
 .tile-titlebar { min-height: 45px; }
-.run-heading { flex-wrap: wrap; }
-.run-titlebar { display: flex; flex: 1 1 0; min-width: min-content; align-items: flex-end; gap: 8px; }
+.run-heading { position: relative; flex-direction: column; align-items: stretch; }
+.run-titlebar { display: flex; min-width: min-content; align-items: center; gap: 8px; }
 .run-label, .run-tab, #viewers button { font-size: var(--vscode-font-size); }
-.run-label {
+.run-titlebar .run-label {
     flex: 1 1 8ch; width: 0; min-width: calc(8ch + 32px);
+    padding: 0; border: 0; background: transparent; color: inherit; font-weight: bold;
 }
-.run-server { display: flex; align-items: center; gap: 4px; }
-.run-server svg {
+.title svg {
     flex: 0 0 14px; width: 14px; height: 14px;
     fill: none; stroke: currentColor; stroke-width: 1.5;
 }
-.run-server-name { min-width: 0; }
 .run-launcher-action { flex: 0 0 28px; }
 .run-launcher-action[data-kind="stop"] { color: var(--vscode-errorForeground, #f14c4c); }
 .run-launcher-action svg { flex: 0 0 18px; width: 18px; height: 18px; }
 .run-launcher-action:disabled { opacity: .4; cursor: default; }
-.run-launcher-label { display: block; }
-.run-server-name, .run-launcher-label {
+.tile-title-text {
     overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
 }
-.run-controls { display: flex; flex-shrink: 0; }
+.run-controls { display: flex; flex-shrink: 0; margin-left: auto; }
+.command-copied::after {
+    content: 'Launcher command copied'; position: absolute; z-index: 5;
+    top: 36px; left: 8px; padding: 4px 8px; border-radius: 4px;
+    color: var(--vscode-editorHoverWidget-foreground, var(--vscode-foreground));
+    background: var(--vscode-editorHoverWidget-background, var(--vscode-editor-background));
+    border: 1px solid var(--vscode-focusBorder); box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+    pointer-events: none;
+}
 .run-label.finished { color: #008000; }
 .run-label.finished .run-launcher-label { color: inherit; }
 .run-label .stop-requested { color: #ffa500; }
 .run-label .closing-task { color: #008000; }
 .run-links {
-    display: flex; flex: 0 1 auto; flex-wrap: wrap; margin-left: auto;
-    justify-content: flex-end; align-items: baseline; gap: 4px;
+    display: flex; flex: 0 1 auto; flex-wrap: wrap;
+    justify-content: flex-start; align-items: baseline; gap: 4px;
 }
 .run-copy {
     display: inline-flex; vertical-align: middle; align-items: center; justify-content: center;
@@ -295,7 +301,8 @@ nav button { flex-shrink: 0; }
     grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(300px, 1fr);
     grid-template-rows: minmax(350px, 1fr); grid-auto-rows: auto;
 }
-.title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; font-weight: bold; }
+.title { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; font-weight: bold; }
+.title:disabled { cursor: default; }
 .tile-action { display: flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 4px; border: 0; border-radius: 3px; background: transparent; }
 .tile-action:hover { background: var(--vscode-toolbar-hoverBackground); }
 .tile-action:disabled { opacity: .5; cursor: default; }
@@ -329,7 +336,7 @@ footer { display: flex; flex-shrink: 0; gap: 8px; align-items: center; padding: 
 .server-status { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .server-status + .server-status::before { content: '|'; margin-right: 4px; color: var(--vscode-descriptionForeground); }
 .server-status svg { width: 20px; height: 20px; fill: none; stroke: #e51400; stroke-width: 1.5; }
-.server-status.connected svg, .run-server > svg.online-cloud { stroke: #28a745; }
+.server-status.connected svg, .title > svg.online-cloud { stroke: #28a745; }
 .server-connection { display: inline-flex; align-items: center; padding: 2px; border: 0; border-radius: 3px; background: transparent; }
 .server-connection:disabled { opacity: 1; }
 .server-connection:enabled { cursor: pointer; }

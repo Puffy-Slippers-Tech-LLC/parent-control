@@ -399,7 +399,10 @@ function activate(context) {
             } else if (message?.type === 'copy' && runRoots.has(message.root) &&
                        typeof message.text === 'string') {
                 void vscode.env.clipboard.writeText(message.text).then(() => {
-                    if (message.command === true) vscode.window.setStatusBarMessage('Command copied', 1500);
+                    if (message.command === true) {
+                        vscode.window.setStatusBarMessage('Launcher command copied', 1500);
+                        void panel.webview.postMessage({ type: 'commandCopied', root: message.root });
+                    }
                 },
                     error => errors.report('Cannot copy tab content', error));
             } else if (message?.type === 'sessionView' &&

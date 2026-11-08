@@ -69,6 +69,27 @@
             view === 'session' ? 'Session' : 'Launcher';
     }
 
+    function tileTitle(node, entry) {
+        const label = `${entry.server || 'local'} ${entry.title_label || entry.label}`;
+        const signature = JSON.stringify([label, entry.transport]);
+        if (node.dataset.titleSignature === signature) return node.lastElementChild;
+        node.dataset.titleSignature = signature;
+        node.replaceChildren();
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        icon.setAttribute('viewBox', '0 0 20 20');
+        icon.setAttribute('aria-hidden', 'true');
+        icon.classList.toggle('online-cloud', entry.transport === 'ssh');
+        const shape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        shape.setAttribute('d', entry.transport === 'ssh' ? cloudPath :
+            'M3 3h14v6H3z M3 11h14v6H3z M6 6h1 M6 14h1');
+        icon.append(shape);
+        node.append(icon);
+        const text = element('span', 'tile-title-text', node);
+        text.textContent = label;
+        node.title = label;
+        return text;
+    }
+
     function sessionHeading(section) {
         const entry = section.entry;
         const signature = JSON.stringify([entry.run, entry.server, entry.transport, entry.label, entry.status, entry.session, entry.session_active,
@@ -78,20 +99,20 @@
         section.tabObserver?.disconnect();
         section.heading.replaceChildren();
         const titlebar = element('span', 'run-titlebar', section.heading);
-        const labels = element('span', 'run-label', titlebar);
-        const server = element('span', 'run-server', labels);
-        const serverIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        serverIcon.setAttribute('viewBox', '0 0 20 20');
-        serverIcon.setAttribute('aria-hidden', 'true');
-        const serverShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        serverIcon.classList.toggle('online-cloud', entry.transport === 'ssh');
-        serverShape.setAttribute('d', entry.transport === 'ssh' ? cloudPath :
-            'M3 3h14v6H3z M3 11h14v6H3z M6 6h1 M6 14h1');
-        serverIcon.append(serverShape);
-        server.append(serverIcon);
-        element('span', 'run-server-name', server).textContent = entry.server;
+        const labels = element('button', 'title run-label', titlebar);
+        labels.type = 'button';
+        const title = tileTitle(labels, entry);
+        title.classList.add('run-launcher-label');
+        if (entry.launcher_command) {
+            const copyCommand = () => vscode.postMessage({ type: 'copy', root: entry.id,
+                text: entry.launcher_command, command: true });
+            labels.addEventListener('mouseenter', copyCommand);
+            labels.addEventListener('click', copyCommand);
+        }
+        labels.disabled = !entry.launcher_command;
+        const controls = element('span', 'run-controls', titlebar);
         const kind = entry.status === 'Stop Requested' ? 'cancel-stop' : entry.active ? 'stop' : 'resume';
-        const button = element('button', 'run-copy run-launcher-action', server);
+        const button = element('button', 'run-copy run-launcher-action', controls);
         button.type = 'button';
         button.dataset.kind = kind;
         button.title = kind === 'cancel-stop' ? 'Cancell stop request' : entry.active ? 'Stop launcher' : 'Resume launcher';
@@ -109,7 +130,7 @@
         button.append(actionIcon);
         button.addEventListener('click', () => vscode.postMessage({
             type: 'launcherAction', root: entry.id, run: entry.run, kind }));
-        const reload = element('button', 'run-copy run-launcher-action', server);
+        const reload = element('button', 'run-copy run-launcher-action', controls);
         reload.type = 'button';
         reload.dataset.kind = 'reload';
         reload.title = 'Reload launcher';
@@ -125,24 +146,16 @@
         reload.append(reloadIcon);
         reload.addEventListener('click', () => vscode.postMessage({
             type: 'launcherAction', root: entry.id, run: entry.run, kind: 'reload' }));
-        labels.title = `${entry.server}\n${entry.label}`;
-        const title = entry.launcher_command ? link(labels, '', () =>
-            vscode.postMessage({ type: 'copy', root: entry.id, text: entry.launcher_command,
-                command: true })) :
-            element('span', '', labels);
-        title.classList.add('run-launcher-label');
-        title.textContent = entry.label;
         if (['Stop Requested', 'Stopping', 'Reload Requested', 'Closing Task'].includes(entry.status)) {
             const suffix = ` (${entry.status})`;
             if (entry.label.endsWith(suffix)) {
-                title.textContent = entry.label.slice(0, -suffix.length) + ' (';
+                title.textContent = `${entry.server} ${entry.label.slice(0, -suffix.length)} (`;
                 element('span', entry.status === 'Closing Task' ? 'closing-task' : 'stop-requested', title).textContent = entry.status;
                 title.append(')');
             }
         }
-        title.title = entry.launcher_command ? `Copy command: ${entry.launcher_command}` : entry.label;
+        if (entry.launcher_command) labels.title = `Copy command: ${entry.launcher_command}`;
         labels.classList.toggle('finished', entry.status === 'finished');
-        const controls = element('span', 'run-controls', server);
         const collapse = element('button', 'run-copy', controls);
         collapse.type = 'button';
         const collapseIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -477,7 +490,7 @@
                 button.type = 'button';
                 button.className = 'watch-tile minimized-tile';
                 const heading = element('span', 'watch-tile-heading tile-titlebar', button);
-                element('span', 'title', heading).textContent = entry.label;
+                tileTitle(element('span', 'title', heading), entry);
                 button.title = entry.label;
                 button.addEventListener('click', () => {
                     tileOverflow.open = false;
@@ -1371,7 +1384,7 @@
                 view.source = entry.source;
             }
             if (grid.children[index] !== view.body) grid.insertBefore(view.body, grid.children[index] || null);
-            if (view.title.textContent !== entry.label) view.title.textContent = entry.label;
+            tileTitle(view.title, entry);
             const maximized = state.selected === entry.id;
             view.maximize.title = maximized ? 'Restore tile layout' : 'Maximize tile';
             view.maximize.setAttribute('aria-label', `${view.maximize.title}: ${entry.label}`);
@@ -1400,6 +1413,14 @@
     }
 
     window.addEventListener('message', event => {
+        if (event.data.type === 'commandCopied') {
+            const section = sections.get(event.data.root);
+            if (section) {
+                clearTimeout(section.copyFeedbackTimer);
+                section.heading.classList.add('command-copied');
+                section.copyFeedbackTimer = setTimeout(() => section.heading.classList.remove('command-copied'), 1500);
+            }
+        }
         if (event.data.type === 'snapshot') {
             pending = pending.then(() => render(event.data)).catch(error => {
                 message(error.message);

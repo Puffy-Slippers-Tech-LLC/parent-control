@@ -45,6 +45,7 @@ diagnostic files do not govern task progression.
 | [Unlock desktop](../Unlock_Desktop.md) | Open zero-time entry question and unscheduled exposure scenarios | An execution plan, prerequisite, passing result or permission to recreate former task 171 |
 | [Fixture design](Fixture-Design.md) | Immutable host inputs, minimal guest closure, provisioning/readiness and compatibility boundaries; runtime guides own current target availability | New runner capability or customer acceptance merely from the design |
 | [Evidence/export design](Export-Design.md) | Test evidence identity, capture, export and lifetime design; runtime contracts remain authoritative | Product acceptance, VM operations or new passing results |
+| [VM scheduling proposal](VM-Scheduling-Design.md) | Proposed unified scheduling ownership, repair boundary and replacement criteria | Implemented scheduling behavior, an execution plan or VM authorization |
 | [Generated coverage](../Test-Coverage.md) | Generated view of the executable inventories | Authority over its source files |
 
 Use the narrowest owner. The specification owns expected customer behavior;

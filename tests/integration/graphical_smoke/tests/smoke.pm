@@ -1540,12 +1540,12 @@ sub run {
     }
     if ($ready->{daily_soft_profile} || $ready->{daily_soft_expiry} || $ready->{daily_soft_unlock}
             || $ready->{daily_soft_fresh_login} || $ready->{daily_soft_allowance_edit}
-            || $ready->{daily_soft_toggle} || $ready->{daily_soft_app_save}) {
+            || $ready->{daily_soft_toggle} || $ready->{daily_soft_app_save} || $ready->{daily_soft_revoke}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
         my $run = $ready->{daily_soft_expiry} || $ready->{daily_soft_unlock}
                 || $ready->{daily_soft_fresh_login} || $ready->{daily_soft_allowance_edit}
-                || $ready->{daily_soft_toggle} || $ready->{daily_soft_app_save}
+                || $ready->{daily_soft_toggle} || $ready->{daily_soft_app_save} || $ready->{daily_soft_revoke}
                 ? \&onpc_app_rows::daily_soft_expiry
                                             : \&onpc_app_rows::daily_soft_profile;
         $run->(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, $ready->{kiosk_request},
@@ -1553,7 +1553,8 @@ sub run {
                 : $ready->{daily_soft_fresh_login} ? ('fresh-login')
                 : $ready->{daily_soft_allowance_edit} ? ('allowance-edit')
                 : $ready->{daily_soft_toggle} ? ('toggle')
-                : $ready->{daily_soft_app_save} ? ('app-save') : ());
+                : $ready->{daily_soft_app_save} ? ('app-save')
+                : $ready->{daily_soft_revoke} ? ('revoke') : ());
         return;
     }
     if ($ready->{grant_only_profile} || $ready->{grant_only_revoke} || $ready->{time_profiles_grant}) {

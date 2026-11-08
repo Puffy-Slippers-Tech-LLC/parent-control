@@ -244,6 +244,30 @@ APP_SAVE_PLAN = replace(ALLOWANCE_PLAN,
 )
 
 
+# Revoke clears the already-expired grant and closes blocked apps itself.
+# The zero-duration record must not issue new permission on retained return.
+REVOKE = {
+    **native_activity_resume('expired-soft', child='child', binding='policy-soft'),
+    **ALLOWANCE_ENTRIES['edit-parent'],
+    **prefixed_stages('edit', retained_parent_entry(source='same-user', desktop_observation=False)),
+    'revoke-before': 'ui:time-explanation-refresh-read',
+    'revoke-open': 'ui:revoke-open',
+    'revoke-confirm': 'ui:revoke-confirm',
+    'revoke-cleared': 'ui:time-explanation-refresh-read',
+    **ALLOWANCE_ENTRIES['restored-child'],
+}
+REVOKE_SCREENS = {**PEER, **PROFILE_SCREENS, **EXPIRY, **REVOKE, **ALLOWANCE_RESULTS}
+REVOKE_PLAN = replace(ALLOWANCE_PLAN,
+    worker_mode='daily_soft_revoke', screen_tags=REVOKE_SCREENS,
+    phases={**{stage: phase for stage, phase in PLAN.phases.items()
+               if stage in REVOKE_SCREENS or stage in ('ready', 'setup-detached')},
+        **{stage: 'step-2' for stage in REVOKE},
+        **{stage: 'step-3' for stage in ALLOWANCE_RESULTS}},
+    child_bindings={stage: 'child' for stage, tag in REVOKE_SCREENS.items()
+                    if tag.removeprefix('ui:') in NAMED_CHILD_OPERATIONS},
+)
+
+
 class DailySoftExpiryJourney(DailySoftProfileJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan, actions=actions if actions is not None else {
@@ -252,6 +276,7 @@ class DailySoftExpiryJourney(DailySoftProfileJourney):
         self.expiry_controller_ns = None
         self.expiry_guest_ns = None
         self.peer_session = None
+        self.revoke_balance = None
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
@@ -280,6 +305,21 @@ class DailySoftExpiryJourney(DailySoftProfileJourney):
             require_zero_grant(balance)
             require(balance['daily']['seconds'] > 0, 'daily-soft-expiry:toggle-daily-access')
             observed['comparison'] = {'grant_cleared': True, 'daily_access_positive': True}
+        if stage in ('revoke-before', 'revoke-cleared'):
+            balance = observed['ui']['time_explanation']
+            require_zero_grant(balance)
+            require(balance['daily']['seconds'] > 0, 'daily-soft-expiry:revoke-daily-access')
+            if stage == 'revoke-before':
+                self.revoke_balance = balance
+            else:
+                require(self.revoke_balance is not None, 'daily-soft-expiry:missing-revoke-balance')
+                before = self.revoke_balance
+                require(balance['observed_monotonic_ns'] > before['observed_monotonic_ns']
+                        and abs(balance['daily']['seconds'] - before['daily']['seconds'])
+                            <= balance['daily']['precision_seconds'] + before['daily']['precision_seconds'],
+                        'daily-soft-expiry:revoke-preserves-daily')
+            observed['comparison'] = {'zero_grant': True, 'daily_access_positive': True,
+                                      'revoked': stage == 'revoke-cleared'}
         if stage in ('expired-countdown', 'final-child-countdown'):
             sample = CountdownSample.from_ui(observed['ui'], boot_sha256=observed['boot_sha256'])
             require(sample.boot_sha256 == self.return_boot
@@ -319,6 +359,10 @@ def execute_app_save(recorder, context):
     execute_branch(recorder, context, APP_SAVE_PLAN, 'app-save')
 
 
+def execute_revoke(recorder, context):
+    execute_branch(recorder, context, REVOKE_PLAN, 'revoke')
+
+
 def execute_branch(recorder, context, plan, branch):
     from e2e_fixture_preparation import ACTIVITY_SUBSETS
     context.fixture_subsets = ACTIVITY_SUBSETS
@@ -329,4 +373,4 @@ def execute_branch(recorder, context, plan, branch):
 
 E2E_CASES = {'none': execute, 'unlock': execute_unlock, 'fresh-login': execute_fresh_login,
              'allowance-edit': execute_allowance_edit, 'toggle': execute_toggle,
-             'app-save': execute_app_save}
+             'app-save': execute_app_save, 'revoke': execute_revoke}

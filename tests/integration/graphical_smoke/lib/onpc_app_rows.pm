@@ -504,7 +504,8 @@ sub daily_soft_expiry {
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,6,1'
         && ($restore eq 'none' || $restore eq 'unlock' || $restore eq 'fresh-login'
-            || $restore eq 'allowance-edit' || $restore eq 'toggle' || $restore eq 'app-save');
+            || $restore eq 'allowance-edit' || $restore eq 'toggle' || $restore eq 'app-save'
+            || $restore eq 'revoke');
     # Keep FLOW18's qualified approval scope and exact request binding.
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'daily-soft-profile', review => 0);
     $journey->declare_invocations($declared);
@@ -539,7 +540,8 @@ sub daily_soft_expiry {
         native_blocked_app($journey->scope('blocked-soft'), 'S');
         my $allowed = $journey->scope('new-allowed');
         native_usable_app($allowed, 'command', $allowed->seen('desktop'), 'child', 'A');
-    } elsif ($restore eq 'allowance-edit' || $restore eq 'toggle' || $restore eq 'app-save') {
+    } elsif ($restore eq 'allowance-edit' || $restore eq 'toggle' || $restore eq 'app-save'
+            || $restore eq 'revoke') {
         onpc_desktop_session::enter_desktop(
             $journey, 'desktop', 'parent', 'retained', 'success', 'edit-parent', 'child');
         $journey->consume_observation('edit-parent-retained',
@@ -550,6 +552,8 @@ sub daily_soft_expiry {
             $journey->seen('app-save-apps');
             match_editor($journey, 'app-save-open', 'app-save-read');
             match_response($journey, 'app-save-save', 'app-save-row');
+        } elsif ($restore eq 'revoke') {
+            $journey->seen($_) for qw(revoke-before revoke-open revoke-confirm revoke-cleared);
         } else {
             require onpc_allowance_selection;
             onpc_allowance_selection::select($journey, 'raised', [15], 'confirm');

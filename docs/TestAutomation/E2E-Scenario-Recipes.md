@@ -1743,7 +1743,7 @@ outside acceptance.
 ### E2E-038
 
 The [shared expiry composition](../../tests/e2e/daily_soft_expiry.py) implements
-the no-action, unlock, fresh-login, allowance-edit, toggle and app-save branches. The inventory owns registration status.
+the no-action, unlock, fresh-login, allowance-edit, toggle, app-save and revoke branches. The inventory owns registration status.
 
 **Keep daily access after a grant ends and restore soft-app blocks.** Cases 164, 165, 166, 167, 168, 169, 170.
 

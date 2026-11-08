@@ -303,7 +303,7 @@ def graphical_history(command):
     child = accounts['child']
     path = FIXTURE / 'graphical-history.json'
     if command in ('host-ready', 'revoke-ready', 'approval-ready', 'policy-ready',
-                   'replacement-ready', 'crash-ready', 'stop-ready'):
+                   'replacement-ready', 'crash-ready', 'stop-ready', 'stall-ready'):
         guest.require(not path.exists(), 'expiry:graphical-history-replayed')
         wait_for(lambda: (FIXTURE / 'seeded.json').is_file(), 'expiry:gdm-seed-not-observed')
         seeded = json.loads((FIXTURE / 'seeded.json').read_text())
@@ -323,6 +323,7 @@ def graphical_history(command):
                    'session_replacement': command == 'replacement-ready',
                    'broker_crash': command == 'crash-ready',
                    'broker_stop': command == 'stop-ready',
+                   'broker_stall': command == 'stall-ready',
                    'broker_invocation': guest.run(['systemctl', 'show', guest.BROKER,
                                                   '--property=InvocationID', '--value']),
                    'account': [pwd.getpwuid(child).pw_name, child,
@@ -338,6 +339,9 @@ def graphical_history(command):
         guest.require(history['run'] == marker['run']
                       and history['boot'] == Path('/proc/sys/kernel/random/boot_id').read_text(),
                       'expiry:graphical-history-identity')
+        if command == 'stall-cleanup':
+            guest.require(history.get('broker_stall') is True, 'expiry:stall-cleanup-kind')
+            return stall_history(command, history, path, accounts)
         if history.get('session_replacement'):
             return replacement_history(command, history, path, accounts)
         current = child_session(child)
@@ -350,6 +354,8 @@ def graphical_history(command):
             return crash_history(command, history, path, accounts)
         if history.get('broker_stop'):
             return stop_history(command, history, path, accounts)
+        if history.get('broker_stall'):
+            return stall_history(command, history, path, accounts)
         if history.get('policy_order') and command.startswith('policy-') and command != 'policy-complete':
             sequence = ('policy-renew-seed', 'policy-renew', 'policy-allowance-seed',
                         'policy-allowance', 'policy-disable-seed', 'policy-disable',
@@ -468,10 +474,15 @@ def graphical_history(command):
     return {'remaining_seconds': remaining}
 
 
-def fault_recorded_broker(invocation, record, *, stop=False):
-    """Fault only the pinned broker; the owned mask excludes new activation."""
+def fault_recorded_broker(invocation, record, *, stop=False,
+                         process_signal=signal.SIGKILL, expected=None):
+    """Signal only the pinned broker; resume requires its original receipt."""
     from system_kiosk_confinement import process_identity, exited
     guest.guard()
+    guest.require(process_signal in (signal.SIGKILL, signal.SIGSTOP, signal.SIGCONT)
+                  and (not stop or process_signal == signal.SIGKILL)
+                  and (process_signal != signal.SIGCONT or expected is not None),
+                  'expiry:broker-fault-kind')
     def properties():
         return dict(line.split('=', 1) for line in guest.run([
             'systemctl', 'show', guest.BROKER, '-p', 'MainPID', '-p', 'InvocationID',
@@ -490,7 +501,9 @@ def fault_recorded_broker(invocation, record, *, stop=False):
                       and any(line.endswith('/' + guest.BROKER)
                               for line in (process / 'cgroup').read_text().splitlines()),
                       'expiry:crash-broker-owner')
-        record({'invocation': invocation, 'pid': pid, 'start': identity[0]})
+        recorded = {'invocation': invocation, 'pid': pid, 'start': identity[0]}
+        guest.require(expected is None or recorded == expected, 'expiry:broker-fault-identity-changed')
+        record(recorded)
         guest.guard()
         guest.require(properties() == before and not exited(descriptor)
                       and process_identity(process) == identity,
@@ -498,7 +511,16 @@ def fault_recorded_broker(invocation, record, *, stop=False):
         if stop:
             guest.run(['systemctl', 'stop', guest.BROKER])
         else:
-            signal.pidfd_send_signal(descriptor, signal.SIGKILL)
+            signal.pidfd_send_signal(descriptor, process_signal)
+        if process_signal in (signal.SIGSTOP, signal.SIGCONT):
+            def observed():
+                guest.require(properties() == before and not exited(descriptor)
+                              and process_identity(process) == identity,
+                              'expiry:crash-broker-replaced')
+                state = (process / 'stat').read_text().rsplit(')', 1)[1].split()[0]
+                return (state == 'T' if process_signal == signal.SIGSTOP else state != 'T')
+            wait_for(observed, 'expiry:broker-signal-not-observed', timeout=10)
+            return
         wait_for(lambda: exited(descriptor), 'expiry:crash-not-observed', timeout=10)
         wait_for(lambda: (guest.run(['systemctl', 'show', guest.BROKER,
                                     '--property=ActiveState', '--value']) == 'inactive'
@@ -634,6 +656,71 @@ def stop_history(command, history, path, accounts):
     else:
         guest.require(history.get('recovered') is True and 'stop_identity' in history,
                       'expiry:stop-history-incomplete')
+        history['complete'] = True
+        result = {'completed': True}
+    history['grants'] += 1
+    path.write_text(json.dumps(history))
+    return result
+
+
+def stall_history(command, history, path, accounts):
+    """Pause and resume only the same broker across each original expiry."""
+    from system_kiosk_confinement import process_identity
+    child = accounts['child']
+    if command == 'stall-cleanup':
+        if history.get('stalled'):
+            fault_recorded_broker(history['broker_invocation'], lambda identity: None,
+                process_signal=signal.SIGCONT, expected=history['stall_identity'])
+            history['stalled'] = False
+            path.write_text(json.dumps(history))
+        return {'completed': True}
+    sequence = ('stall-natural-arm', 'stall-inject', 'stall-natural-recovery',
+                'stall-peer-arm', 'stall-inject', 'stall-peer-recovery', 'stall-complete')
+    index = history['grants']
+    guest.require(index < len(sequence) and command == sequence[index], 'expiry:stall-order')
+    if command.endswith('-arm'):
+        history['original_expiry'] = grant(child, 180)
+        history['recover_by'] = time.monotonic() + history['original_expiry'] - time.time() + 300
+        history['original_grant'] = account_property(child, LIMITS, 'ActiveExtension')
+        history['child_state'] = hashlib.sha256(repr(account_state(child)).encode()).hexdigest()
+        result = {'remaining_seconds': history['original_expiry'] - time.time()}
+    elif command == 'stall-inject':
+        guest.require(history['original_expiry'] - time.time() >= 120,
+                      'expiry:stall-insufficient-headroom')
+        def record(identity):
+            # Record restoration ownership before delivering any signal.
+            history['stall_identity'] = identity
+            history['stalled'] = True
+            path.write_text(json.dumps(history))
+        fault_recorded_broker(history['broker_invocation'], record, process_signal=signal.SIGSTOP)
+        guest.require(time.time() < history['original_expiry'], 'expiry:stall-after-expiry')
+        history.setdefault('stalls', []).append(history['stall_identity'])
+        result = {'remaining_seconds': history['original_expiry'] - time.time()}
+    elif command.endswith('-recovery'):
+        identity = history['stall_identity']
+        process = Path('/proc') / str(identity['pid'])
+        guest.require(history.get('stalled') is True and time.time() >= history['original_expiry']
+                      and process_identity(process) == (identity['start'], 1, ('0',) * 4)
+                      and (process / 'stat').read_text().rsplit(')', 1)[1].split()[0] == 'T'
+                      and hashlib.sha256(repr(account_state(child)).encode()).hexdigest()
+                          == history['child_state'], 'expiry:stall-outage-not-retained')
+        fault_recorded_broker(history['broker_invocation'], lambda identity: None,
+            process_signal=signal.SIGCONT, expected=identity)
+        history['stalled'] = False
+        path.write_text(json.dumps(history))
+        guest.require(accepted(call(accounts['parent'], 'GetTimeStatus', '(uu)', (child, 0))) == [0, 0, 0, 0]
+                      and guest.run(['systemctl', 'show', guest.BROKER,
+                                     '--property=InvocationID', '--value']) == history['broker_invocation']
+                      and account_property(child, LIMITS, 'ActiveExtension') == history['original_grant']
+                      and hashlib.sha256(repr(account_state(child)).encode()).hexdigest()
+                          == history['child_state']
+                      and time.monotonic() < history['recover_by'], 'expiry:stall-recovery-time-or-state')
+        history.setdefault('recoveries', []).append({'zero_balance': True, 'grant_unchanged': True})
+        deadline = grant(child, 1200)
+        result = {'remaining_seconds': deadline - time.time()}
+    else:
+        guest.require(len(history.get('stalls', [])) == 2 and len(history.get('recoveries', [])) == 2
+                      and history.get('stalled') is False, 'expiry:stall-history-incomplete')
         history['complete'] = True
         result = {'completed': True}
     history['grants'] += 1
@@ -833,13 +920,26 @@ def verify_broker_stop(record):
            'outage-inclusive-recovery; original-session-and-work; peer-input-and-work')
 
 
+def verify_broker_stall(record):
+    guest.guard()
+    history = json.loads((FIXTURE / 'graphical-history.json').read_text())
+    guest.require(history.get('broker_stall') is True and history.get('complete') is True
+                  and history['grants'] == 7 and len(history['stalls']) == 2
+                  and len(history['recoveries']) == 2 and history.get('stalled') is False,
+                  'expiry:stall-history-incomplete')
+    record('onpc.expiry.broker-stall',
+           'identity-recorded-SIGSTOP-before-expiry; stopped-through-protected-input; '
+           'same-process-SIGCONT; original-deadline; zero-balance-unchanged-grant; '
+           'outage-inclusive-work-recovery; original-session; foreground-peer-input-and-work')
+
+
 def verify(record):
     guest.guard()
     history = json.loads((FIXTURE / 'graphical-history.json').read_text())
     guest.require(history.get('complete') is True and not history.get('foreground_revoke')
                   and not history.get('pending_approval') and not history.get('policy_order')
                   and not history.get('session_replacement') and not history.get('broker_crash')
-                  and not history.get('broker_stop'),
+                  and not history.get('broker_stop') and not history.get('broker_stall'),
                   'expiry:graphical-history-incomplete')
     # Retain completed observations even if a native dependency later stalls
     # and pytest cannot finish its JUnit document. The outer collector already
@@ -944,7 +1044,9 @@ if __name__ == '__main__':
                 'replacement-bind', 'replacement-complete', 'crash-ready',
                 'crash-natural-arm', 'crash-peer-arm', 'crash-inject',
                 'crash-natural-recovery', 'crash-peer-recovery', 'crash-complete',
-                'stop-ready', 'stop-arm', 'stop-inject', 'stop-recovery', 'stop-complete')
+                'stop-ready', 'stop-arm', 'stop-inject', 'stop-recovery', 'stop-complete',
+                'stall-ready', 'stall-natural-arm', 'stall-peer-arm', 'stall-inject',
+                'stall-natural-recovery', 'stall-peer-recovery', 'stall-complete', 'stall-cleanup')
     guest.require(len(sys.argv) == 2 and sys.argv[1] in (
         'prepare', 'broker-ready', 'host-observe', 'approval-natural', 'approval-peer',
         'approval-finish', *commands),

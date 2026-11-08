@@ -10,16 +10,14 @@ import system_guest as guest
 import guest_install_recipe
 
 
-@pytest.mark.parametrize('replaced', [False, True])
-@pytest.mark.parametrize('stop', [False, True])
-def test_broker_fault_affects_only_the_recorded_live_invocation(monkeypatch, tmp_path, replaced, stop):
+@pytest.fixture
+def broker_fault_machine(monkeypatch, tmp_path):
     import system_graphical_expiry as expiry
     import system_kiosk_confinement as processes
     invocation = 'a' * 32
     before = f'MainPID=42\nInvocationID={invocation}\nActiveState=active'
-    after = before.replace(invocation, 'b' * 32) if replaced else before
     monkeypatch.setattr(guest, 'guard', Mock())
-    run = Mock(side_effect=[before, after, ''] if stop and not replaced else [before, after])
+    run = Mock(return_value=before)
     monkeypatch.setattr(guest, 'run', run)
     monkeypatch.setattr(expiry.os, 'pidfd_open', Mock(return_value=91))
     close, send = Mock(), Mock()
@@ -31,6 +29,15 @@ def test_broker_fault_affects_only_the_recorded_live_invocation(monkeypatch, tmp
     (tmp_path / '42').mkdir()
     (tmp_path / '42/cgroup').write_text('0::/system.slice/' + guest.BROKER)
     monkeypatch.setattr(expiry, 'Path', lambda value: tmp_path if value == '/proc' else Path(value))
+    return expiry, invocation, before, run, close, send
+
+
+@pytest.mark.parametrize('replaced', [False, True])
+@pytest.mark.parametrize('stop', [False, True])
+def test_broker_fault_affects_only_the_recorded_live_invocation(broker_fault_machine, replaced, stop):
+    expiry, invocation, before, run, close, send = broker_fault_machine
+    after = before.replace(invocation, 'b' * 32) if replaced else before
+    run.side_effect = [before, after, ''] if stop and not replaced else [before, after]
     record = Mock()
     if replaced:
         with pytest.raises(guest.GuestError, match='expiry:crash-broker-replaced'):
@@ -46,6 +53,32 @@ def test_broker_fault_affects_only_the_recorded_live_invocation(monkeypatch, tmp
             send.assert_called_once_with(91, expiry.signal.SIGKILL)
     record.assert_called_once_with({'invocation': invocation, 'pid': 42, 'start': '123'})
     close.assert_called_once_with(91)
+
+
+@pytest.mark.parametrize('resume', [False, True])
+def test_broker_pause_and_resume_use_only_the_pinned_descriptor(broker_fault_machine, resume):
+    expiry, invocation, before, run, close, send = broker_fault_machine
+    identity = {'invocation': invocation, 'pid': 42, 'start': '123'}
+    selected_signal = expiry.signal.SIGCONT if resume else expiry.signal.SIGSTOP
+    expiry.fault_recorded_broker(invocation, Mock(), process_signal=selected_signal,
+                                expected=identity if resume else None)
+    send.assert_called_once_with(91, selected_signal)
+    close.assert_called_once_with(91)
+
+
+@pytest.mark.parametrize('original_start', ['122', None])
+def test_broker_resume_requires_the_original_process_receipt(broker_fault_machine, original_start):
+    expiry, invocation, before, run, close, send = broker_fault_machine
+    expected = (None if original_start is None else
+                {'invocation': invocation, 'pid': 42, 'start': original_start})
+    with pytest.raises(guest.GuestError, match='expiry:broker-fault-(identity-changed|kind)'):
+        expiry.fault_recorded_broker(invocation, Mock(), process_signal=expiry.signal.SIGCONT,
+                                    expected=expected)
+    send.assert_not_called()
+    if expected is None:
+        close.assert_not_called()
+    else:
+        close.assert_called_once_with(91)
 
 
 def expected_install(package):

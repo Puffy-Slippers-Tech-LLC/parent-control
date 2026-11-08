@@ -225,6 +225,9 @@ class Viewer:
                 include_idle=True)
             if run != output.run:
                 raise ValueError('Launcher changed; refresh before trying again.')
+            if action['kind'] == 'kill' and not any(
+                    candidate == run for candidate, _name in active_launchers(output.root, JsonReader())):
+                raise ValueError('Launcher is no longer active; refresh before trying again.')
             record = read_json(run.parent / 'current.json')
             name, argv = record.get('launcher'), record.get('argv')
             if action['kind'] in ('stop', 'cancel-stop'):
@@ -236,7 +239,8 @@ class Viewer:
             if command.is_symlink() or not command.is_file():
                 raise ValueError('Public launcher is unavailable.')
             return dict(ok=True, root=str(output.root), run=str(run), launcher=name,
-                        argv=launcher_arguments(record, action['kind'], execution_plan=output.execution_plan))
+                        argv=([] if action['kind'] == 'kill' else
+                              launcher_arguments(record, action['kind'], execution_plan=output.execution_plan)))
         except (OSError, ValueError, KeyError, TypeError) as error:
             return dict(ok=False, error=str(error))
 
@@ -527,6 +531,7 @@ class Viewer:
                         *launcher_arguments(record, kind, execution_plan=output.execution_plan)])
                     sections[-1]['launcher_reload_command'] = shlex.join([f'tools/{name}',
                         *launcher_arguments(record, 'reload', execution_plan=output.execution_plan)])
+                    sections[-1]['launcher_kill'] = active
             except (OSError, ValueError, AttributeError, TypeError):
                 sections[-1]['launcher_controls'] = False
         # Exiting one launcher must not remove its tabs while another checkout
@@ -789,7 +794,7 @@ def main():
                 if (set(request) - {'protocol', 'launcher_action'} or type(action) is not dict
                         or set(action) != {'root', 'run', 'kind'}
                         or any(type(value) is not str for value in action.values())
-                        or action['kind'] not in ('stop', 'cancel-stop', 'resume', 'reload')):
+                        or action['kind'] not in ('stop', 'cancel-stop', 'resume', 'reload', 'kill')):
                     raise ValueError('watch: invalid launcher action')
                 print(json.dumps(dict(protocol=1, launcher_result=viewer.launcher_command(action))), flush=True)
                 continue

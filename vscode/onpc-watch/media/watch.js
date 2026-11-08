@@ -116,7 +116,7 @@
         if (section.editingTitle && section.editingTitle.run === entry.run) return;
         section.editingTitle = undefined;
         const signature = JSON.stringify([entry.run, entry.custom_title, entry.server, entry.transport, entry.label, entry.status, entry.session, entry.session_active,
-            entry.session_number, entry.session_inactive, entry.launcher_controls, entry.launcher_command, entry.launcher_action_command, entry.launcher_reload_command, entry.active, section.view, section.collapsed, maximizedRun === entry.id]);
+            entry.session_number, entry.session_inactive, entry.launcher_controls, entry.launcher_command, entry.launcher_action_command, entry.launcher_reload_command, entry.launcher_kill, entry.active, section.view, section.collapsed, maximizedRun === entry.id]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
         section.heading.replaceChildren();
@@ -243,6 +243,24 @@
             menu.hidePopover();
             overflow.focus();
             vscode.postMessage({ type: 'launcherAction', root: entry.id, run: entry.run, kind: 'reload' });
+        });
+        const kill = element('button', 'run-copy run-launcher-action', menu);
+        kill.type = 'button';
+        kill.dataset.kind = 'kill';
+        kill.title = 'Kill launcher: cancel current session and tests immediately, then clean up';
+        kill.setAttribute('aria-label', 'Kill launcher');
+        kill.disabled = !entry.launcher_controls || !entry.launcher_kill || entry.status === 'Stopping';
+        const killIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        killIcon.setAttribute('viewBox', '0 0 20 20');
+        killIcon.setAttribute('aria-hidden', 'true');
+        const killShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        killShape.setAttribute('d', 'M6 1h8l5 5v8l-5 5H6l-5-5V6z M7 7l6 6 M13 7l-6 6');
+        killIcon.append(killShape);
+        kill.append(killIcon, 'Kill');
+        kill.addEventListener('click', () => {
+            menu.hidePopover();
+            overflow.focus();
+            vscode.postMessage({ type: 'launcherAction', root: entry.id, run: entry.run, kind: 'kill' });
         });
         if (entry.launcher_command) labels.title = entry.launcher_command;
         title.tabIndex = 0;

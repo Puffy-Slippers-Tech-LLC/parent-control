@@ -217,10 +217,12 @@ feedback.collect_logs = feedback_logs
 
 feedback_status = int(os.environ.get("ONPC_FEEDBACK_STATUS", "202"))
 feedback_attempts = 0
+feedback_retry_release = os.environ.get("ONPC_FEEDBACK_RETRY_RELEASE")
+feedback_first_request = None
 
 
 def feedback_post(_url, **kwargs):
-    global feedback_attempts
+    global feedback_attempts, feedback_first_request
     feedback_attempts += 1
     # A payload-free receipt lets component tests distinguish confirmation from
     # an actual request through the real encoder and submission worker.
@@ -228,6 +230,20 @@ def feedback_post(_url, **kwargs):
     part_names = [name for name, _part in kwargs["files"]]
     assert "body" in part_names
     assert "bodyHtml" in part_names
+    if feedback_retry_release:
+        request = (tuple(kwargs["files"]), dict(kwargs["headers"]))
+        if feedback_attempts == 1:
+            feedback_first_request = request
+        else:
+            assert feedback_attempts == 2
+            assert request == feedback_first_request
+            release = Path(feedback_retry_release)
+            deadline = time.monotonic() + 60
+            while not release.is_file():
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("feedback retry fixture was not released")
+                time.sleep(0.02)
+            print("component-feedback-frozen-retry", flush=True)
     if feedback_status == 413 and feedback_attempts > 1:
         assert not any(name == "attachments" and part[0] == "oh-no-parent-control-logs.zip"
                        for name, part in kwargs["files"])

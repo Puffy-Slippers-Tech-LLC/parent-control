@@ -9,11 +9,11 @@ except ImportError:
 try:
     from native_assets import (ASSETS, LAUNCHERS, GUI_FILES, GUI_DIRECTORIES, PREFIX, TRUSTED_NATIVE, ACTIVITY_PREFIX,
                                ACTIVITY_EXECUTABLE, trusted_file_modes, desktop_entry, desktop_id,
-                               legacy_executable_paths)
+                               legacy_executable_paths, NEXT_VERSION, VERSION_NONMATCH)
 except ImportError:
     from tests.fixtures.native_assets import (ASSETS, LAUNCHERS, GUI_FILES, GUI_DIRECTORIES, PREFIX, TRUSTED_NATIVE,
         ACTIVITY_PREFIX, ACTIVITY_EXECUTABLE, trusted_file_modes, desktop_entry, desktop_id,
-        legacy_executable_paths)
+        legacy_executable_paths, NEXT_VERSION, VERSION_NONMATCH)
 
 MECHANICAL = '/opt/onpc-baseline-assets/onpc-test-application'
 NATIVE = {
@@ -38,6 +38,8 @@ def native_files(accounts):
         files[PREFIX + '/' + filename] = (role, 0o755, 'other')
     for path in legacy_executable_paths():
         files[path] = ('S', 0o755, 'other')
+    files[PREFIX + '/' + NEXT_VERSION] = ('S-update', 0o755, 'other')
+    files[PREFIX + '/' + VERSION_NONMATCH] = ('N', 0o755, 'other')
     for directory in GUI_DIRECTORIES:
         for filename in GUI_FILES:
             files[PREFIX + '/' + directory + filename] = (filename, 0o644, 'other')

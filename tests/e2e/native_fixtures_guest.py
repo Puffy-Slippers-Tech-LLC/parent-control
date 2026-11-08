@@ -70,7 +70,7 @@ def destinations(child):
 
 @contextmanager
 def versioned_directory(child):
-    """The safe pattern directory contains exactly S and its adjacent runtime."""
+    """The safe pattern directory contains S, its existing nonmatch and runtime."""
     path = Path(PREFIX) / 'Versioned'
     expected = {target.name for source, (target, mode) in destinations(child).items()
                 if target.parent == path}

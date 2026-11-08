@@ -287,6 +287,9 @@ NATIVE_DENIAL_BINDINGS = {
         ('comma', 'C', ('command-blocked',)),
         ('space-copy', 'SpaceCopy', ('desktop', 'command-launch', 'command-blocked', 'opened', 'submit', 'submitted', 'close', 'closed')),
         ('comma-copy', 'CommaCopy', ('desktop', 'command-launch', 'command-blocked', 'opened', 'submit', 'submitted', 'close', 'closed')),
+        ('version-next', 'VersionNext', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed')),
+        ('version-existing', 'VersionExisting', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed')),
+        ('version-nonmatch', 'VersionNonmatch', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed')),
         ('nonmatching', 'N', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed')))
     for action in actions
 }
@@ -13057,16 +13060,18 @@ class AccessibleUI:
         require(not snap or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
                 or child == CHILD and role == 'A' and instance == 'primary')
                 and not blocked and not locked and fixture == 'policy', 'ui:snap-binding')
-        require(snap or flatpak or role is None or role in ('A', 'H', 'S', 'N', 'Update', 'SpaceCopy', 'CommaCopy', 'C') and child in (CHILD, EXISTING_CHILD)
+        require(snap or flatpak or role is None or role in ('A', 'H', 'S', 'N', 'Update', 'SpaceCopy', 'CommaCopy', 'C', 'VersionNext', 'VersionNonmatch', 'VersionExisting') and child in (CHILD, EXISTING_CHILD)
                 and fixture == 'policy' and (role != 'H' or blocked)
                 and (role != 'Update' or child == EXISTING_CHILD and blocked)
                 and (role not in ('SpaceCopy', 'CommaCopy') or child == EXISTING_CHILD)
                 and (role != 'C' or child == EXISTING_CHILD and blocked)
                 and (role != 'N' or child == EXISTING_CHILD and not blocked), 'ui:native-binding')
+        require(role not in ('VersionNext', 'VersionNonmatch', 'VersionExisting') or
+                kind == 'native' and child == EXISTING_CHILD and not blocked, 'ui:native-binding')
         require((instance == {'A': 'primary', 'H': 'hard', 'S': 'soft'}[role]
                  or role == 'S' and instance == 'secondary') if flatpak else
                 (instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'))
-                if snap else instance == ('secondary' if role in ('H', 'S', 'SpaceCopy', 'CommaCopy', 'C') else 'primary'), 'ui:native-binding')
+                if snap else instance == ('secondary' if role in ('H', 'S', 'SpaceCopy', 'CommaCopy', 'C', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary'), 'ui:native-binding')
         require(type(locked) is bool and (not locked or role == 'S' and blocked),
                 'ui:native-binding')
         require(type(blocked) is bool, 'ui:native-binding')
@@ -13125,6 +13130,9 @@ class AccessibleUI:
                 'S': 'Versioned/Lunar Client-3.7.17.AppImage', 'N': 'PrismLauncher.AppImage',
                 'SpaceCopy': 'Whitespace/Copied Path With Spaces.AppImage',
                 'CommaCopy': 'Comma/Copied,Path,With,Commas.AppImage',
+                'VersionNext': 'Versioned/Lunar Client-3.8.0.AppImage',
+                'VersionExisting': 'Versioned/PrismLauncher.AppImage',
+                'VersionNonmatch': 'Versioned/NewPrismLauncher.AppImage',
                 'C': 'Comma/Path,With,Commas.AppImage',
                 'Update': 'Catalogue/Catalogue-new.AppImage'}[role or 'A'])
         result = subprocess.run([
@@ -13221,12 +13229,12 @@ class AccessibleUI:
                 or child == CHILD and role == 'A' and instance == 'primary')
                 and instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'),
                 'ui:snap-binding')
-        require(snap or flatpak or role is None and instance == 'primary' or role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy')
-                and instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy') else 'primary'), 'ui:native-binding')
+        require(snap or flatpak or role is None and instance == 'primary' or role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting')
+                and instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary'), 'ui:native-binding')
         require(type(implicit_instance) is bool and (not implicit_instance or role == 'A'),
                 'ui:native-binding')
         if role is not None:
-            require(child in (CHILD, EXISTING_CHILD) and (role not in ('N', 'SpaceCopy', 'CommaCopy') or child == EXISTING_CHILD),
+            require(child in (CHILD, EXISTING_CHILD) and (role not in ('N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') or child == EXISTING_CHILD),
                     'ui:native-child-binding')
             if flatpak:
                 require(os.getuid() == os.geteuid() == pwd.getpwnam(
@@ -13485,7 +13493,7 @@ class AccessibleUI:
 
     def native_app_owner(self, root, role, instance, *, implicit_instance=False):
         """Bind the GUI child to its live native policy executable and account."""
-        require(role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy') and instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy') else 'primary'),
+        require(role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') and instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary'),
                 'ui:native-binding')
         require(type(implicit_instance) is bool and (not implicit_instance or role == 'A'),
                 'ui:native-binding')
@@ -13500,7 +13508,10 @@ class AccessibleUI:
         expected = '/opt/onpc-test-fixtures/Applications/' + {
             'A': 'Exact Fixture.AppImage', 'S': 'Versioned/Lunar Client-3.7.17.AppImage',
             'N': 'PrismLauncher.AppImage', 'SpaceCopy': 'Whitespace/Copied Path With Spaces.AppImage',
-            'CommaCopy': 'Comma/Copied,Path,With,Commas.AppImage'}[role]
+            'CommaCopy': 'Comma/Copied,Path,With,Commas.AppImage',
+            'VersionNext': 'Versioned/Lunar Client-3.8.0.AppImage',
+            'VersionExisting': 'Versioned/PrismLauncher.AppImage',
+            'VersionNonmatch': 'Versioned/NewPrismLauncher.AppImage'}[role]
         require(process.stat().st_uid == owner.stat().st_uid == os.getuid()
                 and str((owner / 'exe').readlink()) == expected
                 and (owner / 'cmdline').read_bytes().split(b'\0') ==
@@ -13517,8 +13528,8 @@ class AccessibleUI:
                           kind='native'):
         """One normal public action; no replay after uncertain delivery."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(kind in ('snap', 'flatpak') or role is None and instance == 'primary' or role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy')
-                and instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy') else 'primary'), 'ui:native-binding')
+        require(kind in ('snap', 'flatpak') or role is None and instance == 'primary' or role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting')
+                and instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary'), 'ui:native-binding')
         if role is not None and child == CHILD:
             self.require_child_overlay_session()
         # A provider can exit after desktop enumeration but before GetItems.
@@ -13575,7 +13586,7 @@ class AccessibleUI:
         # Denied launches must not collide with the retained Allowed primary
         # activity. H/S share the secondary slot, whose absence is still
         # required before and after each attributed execution denial.
-        instance = 'secondary' if role in ('H', 'S', 'SpaceCopy', 'CommaCopy', 'C') else 'primary'
+        instance = 'secondary' if role in ('H', 'S', 'SpaceCopy', 'CommaCopy', 'C', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary'
         product = NATIVE_SOFT_PRODUCT if role == 'S' else NATIVE_HARD_PRODUCT
         if action == 'search-ready':
             self.search_ready('overview')

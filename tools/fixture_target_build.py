@@ -23,7 +23,7 @@ import sys
 
 
 TARGETS = {'ubuntu': '26.04', 'fedora': '44'}
-IDENTITIES = ('mechanical', 'A', 'H', 'S', 'N', 'C', 'trusted-hard', 'trusted-soft',
+IDENTITIES = ('mechanical', 'A', 'H', 'S', 'S-update', 'N', 'C', 'trusted-hard', 'trusted-soft',
               'trusted-activity')
 READY = b'ONPC_TEST_APPLICATION_READY\n'
 _LEASE_FDS = ContextVar('fixture_target_lease_fds', default=())

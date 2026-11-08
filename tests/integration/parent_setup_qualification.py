@@ -2543,6 +2543,16 @@ class NativeSpacePathQualification(ChallengesQualification):
         return NativeSpacePathJourney(context, progress)
 
 
+class VersionedAppImageAssetsQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from versioned_appimage_assets import VersionedAppImageAssetsJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return VersionedAppImageAssetsJourney(context, progress)
+
+
 class NativeCommaPathQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):

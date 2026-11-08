@@ -924,6 +924,12 @@ sub run {
         onpc_app_rows::shared_target_launchers(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{versioned_appimage_assets}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::versioned_appimage_assets(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{native_space_path} || $ready->{native_comma_path}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

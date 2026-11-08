@@ -94,3 +94,37 @@ def test_copy_refuses_wrong_child_and_linked_directory_before_writing(copy_bound
     with pytest.raises(OSError):
         call('copy', staged)
     assert not (root / files.NATIVE_SPACE_COPY).exists()
+
+
+def test_version_copy_cleanup_refuses_replaced_source_in_parent_directory(tmp_path, monkeypatch):
+    root = tmp_path / 'Applications'
+    root.mkdir(mode=0o755)
+    versioned = root / 'Versioned'
+    versioned.mkdir(mode=0o755)
+    source = root / files.NATIVE_VERSION_NEXT
+    source.write_bytes(b'next version')
+    source.chmod(0o755)
+    for name in ('Lunar Client-3.7.17.AppImage', 'PrismLauncher.AppImage',
+                 'onpc-test-gui.py', 'gtk_automation.py'):
+        (versioned / name).write_bytes(b'preserved')
+    monkeypatch.setattr(files, 'NATIVE_VERSION_PARENT', Path('/Applications/Versioned'))
+    real_open = os.open
+    monkeypatch.setattr(os, 'open', lambda path, flags, *args, **kwargs:
+                        real_open(tmp_path if path == '/' else path, flags, *args, **kwargs))
+    monkeypatch.setattr(pwd, 'getpwnam', lambda name: SimpleNamespace(
+        pw_uid=os.getuid(), pw_gid=os.getgid(), pw_dir='/home/onpc-child-jordan'))
+    expected = {'source': hashlib.sha256(b'next version').hexdigest(),
+                'nonmatching': hashlib.sha256(b'other version').hexdigest()}
+
+    def call(operation, previous=None):
+        return files.native_space_operate(Path('/home/onpc-child-jordan'), operation,
+            {'expected': expected, 'previous': previous}, profile='native-version-next')
+
+    copied = call('copy', call('stage'))
+    source.rename(root / 'original-source')
+    source.write_bytes(b'next version')
+    source.chmod(0o755)
+    with pytest.raises(ValueError, match='files:refused'):
+        call('cleanup', copied)
+    assert (versioned / files.NATIVE_VERSION_NEXT).read_bytes() == b'next version'
+    assert (versioned / 'PrismLauncher.AppImage').read_bytes() == b'preserved'

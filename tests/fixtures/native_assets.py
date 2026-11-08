@@ -31,6 +31,8 @@ GUI_DIRECTORIES = ('', 'Versioned/', 'Whitespace/', 'Comma/')
 # Keep the earlier generated/baseline S file as an untrusted compatibility
 # control. The active launcher and policy pattern use only Versioned.
 LEGACY_S = 'Lunar Client-3.7.17.AppImage'
+NEXT_VERSION = 'Lunar Client-3.8.0.AppImage'
+VERSION_NONMATCH = 'Versioned/PrismLauncher.AppImage'
 TRUSTED_NATIVE = {
     'trusted-hard': ('/opt/onpc-test-fixtures-trusted-hard/native-fixture', 'TrustedHard'),
     'trusted-soft': ('/opt/onpc-test-fixtures-trusted-soft/native-fixture', 'TrustedSoft'),
@@ -95,7 +97,13 @@ def launcher_sources(*, alias=True):
 
 
 def runtime_sources():
-    return executable_sources() + gui_sources()
+    return executable_sources() + version_sources() + gui_sources()
+
+
+def version_sources():
+    """Reusable sources; FILE05 adds the future version and new nonmatch later."""
+    return tuple('fixtures/image-root' + PREFIX + '/' + name
+                 for name in (NEXT_VERSION, VERSION_NONMATCH))
 
 
 def sources(*, alias=True):
@@ -108,7 +116,7 @@ def source_destinations(home, *, prefix=None, alias=True):
     prefix = PREFIX if prefix is None else prefix
     image_prefix = 'fixtures/image-root' + PREFIX + '/'
     return {source: (prefix + '/' + source.removeprefix(image_prefix),
-                     0o755 if source in executable_sources() else 0o644)
+                     0o755 if source in executable_sources() + version_sources() else 0o644)
             for source in runtime_sources()} | {
         source: (home + '/.local/share/applications/' + source.rsplit('/', 1)[1], 0o644)
         for source in launcher_sources(alias=alias)}
@@ -123,7 +131,7 @@ def native_policy_files(expected, child_uids):
     """Closed Fedora baseline admissions; product denials precede these rules.
 
     Only the two prepared children may open the shared Python runtimes or
-    execute the five active native payloads. These inputs remain untrusted.
+    execute the active native payloads and the future version. These inputs remain untrusted.
     Source keys bind every copy of each runtime to identical expected bytes.
     """
     required = runtime_sources()
@@ -141,6 +149,10 @@ def native_policy_files(expected, child_uids):
     if (len(set(executables)) != len(ASSETS) or gui != gui[:len(GUI_FILES)] * len(GUI_DIRECTORIES)
             or len(set(gui)) != 2 or set(gui) & set(executables)):
         raise ValueError('native:baseline-policy-inputs')
+    next_version, nonmatch = (expected[key] for key in version_sources())
+    if next_version in executables or nonmatch != expected['fixtures/image-root' + executable_path('N')]:
+        raise ValueError('native:baseline-policy-inputs')
+    executables.append(next_version)
     subject = ','.join(str(uid) for uid in sorted(child_uids))
     def rules(permission, hashes):
         return ('# Finite reusable fixture admission; inputs remain untrusted.\n' + ''.join(

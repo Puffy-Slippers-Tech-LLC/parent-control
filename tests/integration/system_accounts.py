@@ -13,6 +13,15 @@ from system_assertions import account_properties
 from account_registry import SPARE_CHILDREN
 
 
+def require_logged_out(uids, *, read_category, active_category):
+    """Refuse mutation while any target has a session, including inactive ones."""
+    sessions = guest.run(['loginctl', 'list-sessions', '--no-legend', '--no-pager'])
+    for line in sessions.splitlines():
+        fields = line.split()
+        guest.require(len(fields) >= 3 and fields[1].isdigit(), read_category)
+        guest.require(int(fields[1]) not in uids, active_category)
+
+
 def disposable_identity_name(role, surface=None):
     if surface == 'spare-child':
         guest.require(role in SPARE_CHILDREN, 'authorization:deletion-fixture-scope')
@@ -70,12 +79,8 @@ def delete_disposable_identity(uid, role, *, surface=None):
         guest.require(properties == {'Uid': uid, 'UserName': name, 'AccountType': 0,
                                       'LocalAccount': True, 'SystemAccount': False},
                       'authorization:deletion-fixture-eligibility')
-        sessions = guest.run(['loginctl', 'list-sessions', '--no-legend', '--no-pager'])
-        for line in sessions.splitlines():
-            fields = line.split()
-            guest.require(len(fields) >= 3 and fields[1].isdigit(),
-                          'authorization:deletion-session-read')
-            guest.require(int(fields[1]) != uid, 'authorization:deletion-active-account')
+        require_logged_out({uid}, read_category='authorization:deletion-session-read',
+                           active_category='authorization:deletion-active-account')
     guest.retain_identity_for_redaction(uid)
     guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
                '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',

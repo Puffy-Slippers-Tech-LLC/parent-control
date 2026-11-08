@@ -10,7 +10,7 @@ import sys
 import system_guest as guest
 from system_assertions import account_properties
 from system_accounts import (SPARE_CHILDREN, create_disposable_identity,
-                             delete_disposable_identity)
+                             delete_disposable_identity, require_logged_out)
 
 
 USERNAME = "onpc-e2e-new-child"
@@ -291,12 +291,9 @@ def prepare_spare_children(profile):
                   'spare-child:baseline-identity')
     guest.require(set(eligible_children()) == set(FIXED_CHILDREN),
                   'spare-child:baseline-eligible-set')
-    sessions = guest.run(['loginctl', 'list-sessions', '--no-legend', '--no-pager'])
     baseline_uids = {pwd.getpwnam(name).pw_uid for name in FIXED_CHILDREN}
-    for line in sessions.splitlines():
-        fields = line.split()
-        guest.require(len(fields) >= 3 and fields[1].isdigit(), 'spare-child:session-read')
-        guest.require(int(fields[1]) not in baseline_uids, 'spare-child:baseline-active')
+    require_logged_out(baseline_uids, read_category='spare-child:session-read',
+                       active_category='spare-child:baseline-active')
     # This profile explicitly changes only the two baseline children's roles,
     # preserving their identities. It never borrows/removes them as spares.
     for name in FIXED_APPROVERS:

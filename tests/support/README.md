@@ -34,6 +34,7 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Graphical Perl helper probes | [perl.py](perl.py) | `run_perl` supplies the maintained library path, captured streams and a deadline. `run_password_guard` shares scoped proof recording and a secret-free delivery sink around the real credential guard in a fresh process. Tests keep finite bindings, order and assertions locally; do not import runnable customer plans merely to obtain guard inputs. Other probes declare their public testapi doubles and assert secret exclusion. |
 | Real needle pixel matching | [needle_matcher.py](needle_matcher.py) | `match_image` reuses the installed os-autoinst matcher for GDM and VT6 regressions. Synthetic mutations test refusals; they do not establish live input qualification. VT6 also requires its [exact pixel gate](../e2e/README.md#visible-vt6-installation-terminal). |
 | Simulated VM baseline and lease | [vm_baseline.py](vm_baseline.py), [vm_runner.py](vm_runner.py) | Real temporary files and mocked VM operations. Import both `rig` and `lease_rig` when using the latter. Direct simulated `Lease` constructors instead request the explicitly imported `local_preparation_source` fixture, so they hash archived sources without reading the development checkout. JUnit builders retain selected identities and intentional faults. |
+| Disposable guest accounts | [system_accounts.py](../integration/system_accounts.py), [account_fixture.py](../e2e/account_fixture.py) | System and E2E checks share observed AccountsService creation/deletion. `require_logged_out` refuses malformed session reads and any target session before spare-account role changes or deletion. Callers retain the exact registered identities, eligible set and single-use action; snapshot restoration owns reversal. |
 | Explicit extension-free engineering setup | [disable_extension.py](../../tools/disable_extension.py) | `apply(transport)` uses the test's existing guarded VM transport and lease, restarts the broker with the unshipped recovery bypass and disables eligible children's extensions. No restore or nested maintenance owner; ordinary attempt cleanup owns removal. See [development gate limits](#development-only-extension-isolation). |
 | Synthetic E2E evidence and provenance | [e2e_evidence.py](e2e_evidence.py), [e2e_provenance.py](e2e_provenance.py) | `attempt`, `source`, `assets` and `lease` exercise real validators with declared synthetic inputs. |
 | Offline asset transfer | [e2e_transfer.py](e2e_transfer.py) | `GuestFiles` uses pytest-private files for actual upload bytes, metadata, corruption and partial-failure tests. It acquires no VM or cleanup ownership. |
@@ -1681,6 +1682,15 @@ Keep expected outcomes, case tables, fault injection and independent oracles in
 the owning tests. The broker state-machine model intentionally has independent
 state and assertions. Standard `tmp_path`, `monkeypatch`, `unittest.mock` and
 `TemporaryDirectory` already supply reusable behavior and need no style wrapper.
+
+For automatic account-removal results, keep the original Parent window and read
+its selection or empty state without refreshing or operating the picker. Check
+control availability as well as the explanation: visible empty content alone
+does not prove stale controls were disabled. If background status polling races
+account discovery, inspect both paths; a stale-target error is dismissible only
+after a fresh successful eligible-account read confirms that target is absent.
+The delivered [account-change cases](../e2e/account_changes.py) retain these
+independent results; successful fixture deletion alone supplies no product result.
 
 Build external authentication tree fixtures from the qualified provider's
 catalogue and observed message branch, independently of the adapter's expected

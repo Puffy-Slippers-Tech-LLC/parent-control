@@ -330,6 +330,14 @@ NATIVE_FILES_BINDINGS = {
 NATIVE_APP_OPERATIONS |= frozenset(NATIVE_FILES_BINDINGS)
 OPERATIONS |= frozenset(NATIVE_FILES_BINDINGS)
 STANDARD_OPERATIONS |= frozenset(NATIVE_FILES_BINDINGS)
+NATIVE_FILES_BINDINGS.update({
+    'overlay-native-files-allowed-' + action: ('A', action)
+    for action in ('launch', 'opened', 'submit', 'submitted', 'dismiss')
+})
+CHILD_DESKTOP_OPERATIONS |= frozenset(
+    operation for operation in NATIVE_FILES_BINDINGS if operation.startswith('overlay-'))
+OPERATIONS |= frozenset(NATIVE_FILES_BINDINGS)
+NATIVE_APP_OPERATIONS |= frozenset(NATIVE_FILES_BINDINGS)
 OVERLAY_NATIVE_OPERATIONS |= frozenset(BASELINE_NATIVE_BINDINGS)
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_NATIVE_OPERATIONS
 OVERLAY_ABOUT_OPERATIONS = frozenset({'overlay-about-open', 'overlay-license-read',
@@ -13067,13 +13075,14 @@ class AccessibleUI:
         self.wait(focused, 'parent-result-focus')
         self.input_uncertain = False
 
-    def native_files_snapshot(self, role, *, active=True):
+    def native_files_snapshot(self, role, *, child=EXISTING_CHILD, active=True):
         """FILE04/07: exact directory, selection and live Files owner; no geometry."""
         from gi.repository import Gio, GLib
-        require(role in ('A', 'S'), 'ui:native-files-binding')
+        require(child == EXISTING_CHILD and role in ('A', 'S')
+                or child == CHILD and role == 'A', 'ui:native-files-binding')
         require_active_launch_session(unlocked=True)
         require(os.getuid() == os.geteuid() == pwd.getpwnam(
-            CHILD_ACCOUNTS[EXISTING_CHILD]).pw_uid, 'ui:native-files-account')
+            CHILD_ACCOUNTS[child]).pw_uid, 'ui:native-files-account')
         connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         def call(bus, path, interface, method, signature, values):
             return connection.call_sync(bus, path, interface, method,
@@ -13128,14 +13137,15 @@ class AccessibleUI:
                 'ui:native-files-wrong-file')
         return target, pid, windows[0]
 
-    def native_files_launch(self, role):
+    def native_files_launch(self, role, *, child=EXISTING_CHILD):
         """Open Files at the declared fixture and qualify its Enter recipient."""
         from gi.repository import Gio, GLib
-        require(role in ('A', 'S'), 'ui:native-files-binding')
+        require(child == EXISTING_CHILD and role in ('A', 'S')
+                or child == CHILD and role == 'A', 'ui:native-files-binding')
         require(not self.input_uncertain, 'ui:uncertain-input')
         require_active_launch_session(unlocked=True)
         require(os.getuid() == os.geteuid() == pwd.getpwnam(
-            CHILD_ACCOUNTS[EXISTING_CHILD]).pw_uid, 'ui:native-files-account')
+            CHILD_ACCOUNTS[child]).pw_uid, 'ui:native-files-account')
         require(self.native_app_closed(desktop=False, complete_absence=True),
                 'ui:native-window-exists')
         self.handle_system_prompt()
@@ -13148,15 +13158,15 @@ class AccessibleUI:
             None, Gio.DBusCallFlags.NONE, 15000, None)
         self.input_uncertain = False
         self.invalidate_observation()
-        self.wait(lambda: self.native_files_snapshot(role), 'native-files-ready',
+        self.wait(lambda: self.native_files_snapshot(role, child=child), 'native-files-ready',
                   prompt_in_predicate=True)
-        target, pid, _window = self.native_files_snapshot(role)
+        target, pid, _window = self.native_files_snapshot(role, child=child)
         # ShowItems selects and focuses the file. GTK's virtual grid cell
         # exposes Component but refuses GrabFocus with NotSupported. Read the
         # actual recipient instead; the worker sends Enter exactly once.
         self.invalidate_observation()
         def focused():
-            current = self.native_files_snapshot(role)
+            current = self.native_files_snapshot(role, child=child)
             if current is None:
                 return None
             require(current[0] == target and current[1] == pid,
@@ -13175,14 +13185,15 @@ class AccessibleUI:
 
     def native_files_operation(self, operation):
         role, action = NATIVE_FILES_BINDINGS[operation]
-        arguments = dict(role=role, child=EXISTING_CHILD, implicit_instance=True)
+        child = CHILD if operation.startswith('overlay-') else EXISTING_CHILD
+        arguments = dict(role=role, child=child, implicit_instance=True)
         if action == 'launch':
-            return self.native_files_launch(role)
+            return self.native_files_launch(role, child=child)
         if action == 'dismiss':
             require(not self.input_uncertain, 'ui:uncertain-input')
             deadline = time.monotonic() + self.timeout
             def close_target():
-                current = self.native_files_snapshot(role, active=False)
+                current = self.native_files_snapshot(role, child=child, active=False)
                 if current is None:
                     return None
                 _target, pid, window = current

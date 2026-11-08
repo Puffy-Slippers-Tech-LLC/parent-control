@@ -18,7 +18,8 @@ sub run {
     die 'app-launch:arguments' unless (@_ >= 3 && @_ <= 7) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ($control eq 'enabled' || $control eq 'disabled')
-        && ($route eq 'command' || ($route eq 'grid' && $control eq 'enabled'))
+        && ($route eq 'command' || ($route eq 'grid' && $control eq 'enabled')
+            || $route eq 'files' && $control eq 'enabled' && $policy eq 'allowed' && $kind eq 'native')
         && ($policy eq 'allowed' || $policy eq 'hard-blocked' || $policy eq 'soft-blocked')
         && ($kind eq 'native' || $kind eq 'snap' && $policy eq 'allowed'
             || $kind eq 'flatpak');
@@ -63,6 +64,7 @@ sub run {
         my $command = $journey->scope('jordan-command');
         onpc_app_rows::native_usable_app($command, 'command', $command->seen('desktop'), 'other-child');
     }
+    $jordan->seen('dismiss') if $route eq 'files';
     $journey->seen('jordan-logout');
     onpc_desktop_session::enter_desktop(
         $journey, 'gdm', 'child', 'fresh', 'success', 'riley-entry');
@@ -74,6 +76,7 @@ sub run {
         my $command = $journey->scope('riley-command');
         onpc_app_rows::native_usable_app($command, 'command', $command->seen('desktop'), 'child');
     }
+    $riley->seen('dismiss') if $route eq 'files';
     $journey->finish();
 }
 1;

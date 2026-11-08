@@ -815,6 +815,12 @@ sub run {
                             'enabled', 'grid', 'hard-blocked');
         return;
     }
+    if ($ready->{native_files_allowed}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, 'enabled', 'files');
+        return;
+    }
     if ($ready->{native_grid_allowed}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

@@ -692,7 +692,8 @@ sub native_usable_app {
             ($role =~ /\A(?:A|S)\z/ && $child eq 'child'
                 || $role =~ /\A(?:N|unmatched-soft|SpaceCopy|CommaCopy|VersionNext|VersionNonmatch|VersionExisting)\z/ && $child eq 'other-child')));
     die 'native:files-binding' if $route eq 'files' &&
-        !($kind eq 'native' && $child eq 'other-child' && (!defined($role) || $role eq 'S'));
+        !($kind eq 'native' && ($child eq 'other-child' && (!defined($role) || $role eq 'S')
+            || $child eq 'child' && !defined($role)));
     my $opened;
     if ($route eq 'files') {
         $journey->consume_observation('desktop', $desktop);

@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **096 — [E2E-019: native-file-manager-allowed-enabled](E2E-Tasks/096-case-74.md)**.
+Next task: **036a — [Observe policy results for Files launches](E2E-Tasks/036a-native-file-routes.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

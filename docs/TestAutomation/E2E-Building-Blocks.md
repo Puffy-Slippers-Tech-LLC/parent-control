@@ -4437,14 +4437,22 @@ host/source preservation passed; the VM was observed off. This capability
 supplies no complete-case acceptance or policy-denial qualification.
 
 `AccessibleUI.native_files_launch/native_files_snapshot` use FileManager1
-`ShowItems`, exact `OpenLocations`, the live Jordan-owned Nautilus process,
+`ShowItems`, exact `OpenLocations`, the live bound-child-owned Nautilus process,
 one window and one selected executable. Public selection/focus qualifies the
 single Enter recipient; GTK's virtual grid cell does not support `GrabFocus`.
 Dismissal reacquires a complete read within one deadline, sends Close once,
 then independently observes the Files window's absence. Wrong accounts,
 directories, selections and ambiguous owners/windows still refuse.
 The qualified provider tuple is Nautilus `1:50.2.2-0ubuntu0.2`, `en_US.UTF-8`,
-`xkb/us`; other accounts, locations and provider tuples remain pending.
+`xkb/us`. Case 74's `app_launch.FILES_PLAN` / `onpc_app_launch::run`
+qualified the same A Files launch/Submit/result and Files dismissal for fresh
+Jordan and Riley on Ubuntu 26.04 in `20261108T065443Z-4340e7a8`, with Jordan's
+saved enabled 30-minute allowance and precise Allowed rule and Riley's policy
+untouched. Riley's recorded provider tuple matches the one above. The affected
+`check_e2e_native_files_usable` regression passed in `20261108T070551Z-876289a7`,
+including S's separate-window/original-work comparison. Both runs passed
+collection, worker/callback shutdown, owned cleanup and baseline restoration.
+Other account/fixture bindings, locations and provider tuples remain pending.
 
 `tools/test-vm --vm NAME reproduce-native-files` reuses this journey through
 the first submitted result and probes `first-dismiss`, closing the worker
@@ -4724,6 +4732,7 @@ or alternative launch substitutes for the declared route.
 | 62 / `app_launch.GRID_PLAN`, `onpc_app_launch::run(..., 'enabled', 'grid')` | 30 daily minutes/zero grant; Jordan `other-child`, Riley `child`; each freshly enters and uses A through the grid. Reuses the qualified native/activity/baseline-child preparation: setup verifies Riley's catalogue and shared runtime; the native stage action verifies Jordan's catalogue. |
 | 64 / `app_launch.HARD_GRID_PLAN`, `run(..., 'enabled', 'grid', 'hard-blocked')` | Same 30-minute/zero-grant preparation; Parent saves A's precise permanent block for Jordan. Jordan's grid action is independently denied; Riley enters fresh and opens/submits the same A through the grid. |
 | 66 / `app_launch.SOFT_GRID_PLAN`, `run(..., 'enabled', 'grid', 'soft-blocked')` | Same target, precise match, 30-minute allowance and zero grant; Parent saves conditional access for Jordan without approval. Jordan's grid action is independently denied; fresh Riley grid launch/use remains unaffected. |
+| 74 / `app_launch.FILES_PLAN`, `run(..., 'enabled', 'files')` | 30 daily minutes/zero grant; Parent saves and reads Jordan's precise Allowed A rule. Fresh Jordan and then fresh Riley open the same argument-free executable from Files, submit the draft and independently read the result. Riley's policy and disabled limits remain untouched; Files is dismissed before leaving each desktop. Passed on Ubuntu 26.04; see [Files qualification](#native-files-launch-and-separate-windows). |
 | 80 / `app_launch.PLAN`, `onpc_app_launch::run` | Same enabled setup; Jordan then Riley freshly enter and use `Exact Fixture.AppImage` through the fixed command route. |
 | 81 / `app_launch.DISABLED_PLAN`, `run(..., 'disabled')` | Limits off/zero allowance; skip only enabled allowance setup/readback. Both children prove the same command target usable. |
 | 82 / `app_launch.HARD_COMMAND_PLAN`, `run(..., 'enabled', 'command', 'hard-blocked')` | 30 daily minutes/zero grant; Parent saves A's precise permanent block for Jordan. Fresh Jordan command execution requires an attributed permission denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same executable usable with Riley's policy untouched. |
@@ -4740,7 +4749,7 @@ or alternative launch substitutes for the declared route.
 | 109 / `flatpak_app_launch.SOFT_COMMAND_DISABLED_PLAN`, `run(..., 'disabled', 'command', 'soft-blocked', 'flatpak')` | Parent reads Jordan's untouched limits-off/zero-allowance settings and saves/reads A's conditional Flatpak access without an allowance or approval. Fresh Jordan's exact command requires the app-specific administrator-policy denial and complete owned-window absence. Fresh Riley launches/submits the same app with independent window/draft readback and untouched policy/limits. Passed on Ubuntu 26.04 in `scenario-1da3e6b9f9e34d8385315bb87a87a26a`, including collection, worker shutdown, owned cleanup and baseline restoration. Other families remain separate. |
 | 187 / `shared_launchers_case.PLAN`, `onpc_fresh_thirty_allowance::shared_launchers_case` | Jordan's A and Alias share one native target. Block A with Alias Allowed, restore both, block Alias with A Allowed, then restore both again. Each child visit independently proves both denials or both usable apps. Saved choices, Parent session/window, child selection and allowance persist across the complete history; [Ubuntu qualification](#native-fixture-preparation). |
 
-The Allowed native-A bindings are qualified on Ubuntu 26.04 and Fedora 44.
+The Allowed native-A grid/command bindings are qualified on Ubuntu 26.04 and Fedora 44.
 Case 64 passed on Ubuntu 26.04 in `20261103T204515Z-ad6fb573`, including
 collection, worker shutdown, owned cleanup and baseline restoration.
 Affected allowed-grid/command case 62 passed on the same target in

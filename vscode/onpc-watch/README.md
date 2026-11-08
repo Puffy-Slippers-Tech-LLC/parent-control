@@ -51,7 +51,9 @@ worktree from its existing run files. Session input is disabled once its owner
 exits. Retention uses existing run files and reader memory; it adds no disk persistence.
 Launcher and viewer titles use the same bold text and single-line content:
 local/remote icon, host (`local` or the SSH host), `[branch]`, and launcher or VM name.
-Launcher titles occupy the first row with 28 px icon buttons aligned to its right:
+Launcher titles occupy the first row with **Copy** followed by **>>** at its right.
+**>>** opens a dropdown containing the launcher action and **Reload**.
+Click outside the dropdown or press Escape to close it. The launcher action is
 **Stop** (solid square) while active, **Undo** while a cancellable stop is pending,
 or **Resume** (play) while idle. It is disabled once stopping begins,
 while disconnected, or when saved command parameters are unavailable. Clicking
@@ -110,7 +112,7 @@ CLI or its Node interpreter. Codex must already be installed and authenticated.
 **ONPC: Watch Terminal Diagnostic** reopens the last failed action's captured
 diagnostic in the same copyable dialog.
 
-Beside Stop/Resume, **Reload** (circular arrow) asks for confirmation with
+In the same dropdown, **Reload** (circular arrow) asks for confirmation with
 **Reload** and **Cancel**, showing the exact command. Confirming sends `--reload`
 with the saved parameters, stripping earlier lifecycle flags, on the same host
 and checkout. Reload is disabled while stopping, disconnected, or when the source

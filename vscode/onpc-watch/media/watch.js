@@ -110,25 +110,84 @@
         }
         labels.disabled = !entry.launcher_command;
         const views = element('span', 'run-view-control', titlebar);
-        const select = element('select', 'run-view-select', views);
+        const select = element('button', 'run-view-select', views);
+        select.type = 'button';
         select.setAttribute('aria-label', 'Run view');
+        select.setAttribute('aria-haspopup', 'menu');
+        select.setAttribute('aria-expanded', 'false');
+        const viewMenu = element('div', 'run-view-menu', views);
+        viewMenu.setAttribute('popover', 'auto');
+        viewMenu.setAttribute('role', 'menu');
+        viewMenu.setAttribute('aria-label', 'Run view');
+        select.popoverTargetElement = viewMenu;
         for (const [view, label] of [['status', 'Status'], ['launcher', 'Launcher'], ['error', 'Error'], ['session', 'Session']]) {
-            const option = element('option', '', select);
-            option.value = view;
+            const option = element('button', '', viewMenu);
+            option.type = 'button';
+            option.setAttribute('role', 'menuitemradio');
+            option.setAttribute('aria-checked', String(section.view === view));
             option.textContent = view === 'session' ? tabLabel(entry, view) : label;
+            if (section.view === view) select.textContent = option.textContent;
             if (view === 'session' && (entry.session_inactive ?? !entry.session_active)) {
                 option.classList.add('session-inactive');
                 if (section.view === view) select.classList.add('session-inactive');
             }
+            option.addEventListener('click', () => {
+                viewMenu.hidePopover();
+                runView(entry.id, view);
+                section.heading.querySelector('.run-view-select').focus();
+            });
         }
-        select.value = section.view;
-        select.addEventListener('change', () => {
-            runView(entry.id, select.value);
-            section.heading.querySelector('.run-view-select').focus();
+        select.setAttribute('aria-label', `Run view: ${select.textContent}`);
+        viewMenu.addEventListener('toggle', () => {
+            const open = viewMenu.matches(':popover-open');
+            select.setAttribute('aria-expanded', String(open));
+            if (!open) return;
+            const bounds = select.getBoundingClientRect();
+            viewMenu.style.minWidth = `${bounds.width + 10}px`;
+            viewMenu.style.left = `${Math.max(4, Math.min(bounds.left - 5,
+                window.innerWidth - viewMenu.offsetWidth - 4))}px`;
+            viewMenu.style.top = `${Math.max(4, Math.min(bounds.bottom + 5,
+                window.innerHeight - viewMenu.offsetHeight - 4))}px`;
+            viewMenu.querySelector('[aria-checked="true"]').focus();
+        });
+        viewMenu.addEventListener('keydown', event => {
+            const options = [...viewMenu.children];
+            const index = options.indexOf(document.activeElement);
+            const next = { ArrowDown: (index + 1) % options.length,
+                ArrowUp: (index - 1 + options.length) % options.length,
+                Home: 0, End: options.length - 1 }[event.key];
+            if (next === undefined) return;
+            event.preventDefault();
+            options[next].focus();
+        });
+        select.addEventListener('keydown', event => {
+            if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+            event.preventDefault();
+            viewMenu.showPopover();
         });
         const controls = element('span', 'run-controls', titlebar);
+        const overflow = element('button', 'run-copy run-overflow', controls);
+        overflow.type = 'button';
+        overflow.textContent = '>>';
+        overflow.title = 'Launcher actions';
+        overflow.setAttribute('aria-label', overflow.title);
+        overflow.setAttribute('aria-expanded', 'false');
+        const menu = element('div', 'run-action-menu', controls);
+        menu.setAttribute('popover', 'auto');
+        menu.setAttribute('aria-label', 'Launcher actions');
+        overflow.popoverTargetElement = menu;
+        menu.addEventListener('toggle', () => {
+            const open = menu.matches(':popover-open');
+            overflow.setAttribute('aria-expanded', String(open));
+            if (!open) return;
+            const bounds = overflow.getBoundingClientRect();
+            menu.style.left = `${Math.max(4, Math.min(bounds.right - menu.offsetWidth,
+                window.innerWidth - menu.offsetWidth - 4))}px`;
+            menu.style.top = `${Math.max(4, Math.min(bounds.bottom + 4,
+                window.innerHeight - menu.offsetHeight - 4))}px`;
+        });
         const kind = entry.status === 'Stop Requested' ? 'cancel-stop' : entry.active ? 'stop' : 'resume';
-        const button = element('button', 'run-copy run-launcher-action', controls);
+        const button = element('button', 'run-copy run-launcher-action', menu);
         button.type = 'button';
         button.dataset.kind = kind;
         button.title = kind === 'cancel-stop' ? 'Cancell stop request' : entry.active ? 'Stop launcher' : 'Resume launcher';
@@ -144,9 +203,13 @@
         if (kind === 'stop') actionShape.style.fill = 'currentColor';
         actionIcon.append(actionShape);
         button.append(actionIcon);
-        button.addEventListener('click', () => vscode.postMessage({
-            type: 'launcherAction', root: entry.id, run: entry.run, kind }));
-        const reload = element('button', 'run-copy run-launcher-action', controls);
+        button.append(kind === 'cancel-stop' ? 'Cancel stop request' : entry.active ? 'Stop' : 'Resume');
+        button.addEventListener('click', () => {
+            menu.hidePopover();
+            overflow.focus();
+            vscode.postMessage({ type: 'launcherAction', root: entry.id, run: entry.run, kind });
+        });
+        const reload = element('button', 'run-copy run-launcher-action', menu);
         reload.type = 'button';
         reload.dataset.kind = 'reload';
         reload.title = 'Reload launcher';
@@ -159,9 +222,12 @@
         const reloadShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         reloadShape.setAttribute('d', 'M16 3v5h-5 M16 8a6 6 0 1 0 0 5');
         reloadIcon.append(reloadShape);
-        reload.append(reloadIcon);
-        reload.addEventListener('click', () => vscode.postMessage({
-            type: 'launcherAction', root: entry.id, run: entry.run, kind: 'reload' }));
+        reload.append(reloadIcon, 'Reload');
+        reload.addEventListener('click', () => {
+            menu.hidePopover();
+            overflow.focus();
+            vscode.postMessage({ type: 'launcherAction', root: entry.id, run: entry.run, kind: 'reload' });
+        });
         if (['Stop Requested', 'Stopping', 'Reload Requested', 'Closing Task'].includes(entry.status)) {
             const suffix = ` (${entry.status})`;
             if (entry.label.endsWith(suffix)) {
@@ -191,6 +257,7 @@
                 `\n${section.activity.innerText}` : '';
             vscode.postMessage({ type: 'copy', root: entry.id, text: body.innerText + activity });
         });
+        controls.prepend(copy);
         element('span', 'run-controls-divider', controls).setAttribute('aria-hidden', 'true');
         const resizing = tileResizeControls(controls, entry.label, () => {
             if (maximizedRun === entry.id) maximizedRun = undefined;

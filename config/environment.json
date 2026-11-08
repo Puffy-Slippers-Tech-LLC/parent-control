@@ -13,7 +13,7 @@
       "enabled": "false",
       "transport": "ssh",
       "ssh_port": 22,
-      "backup_root": "/Data/virt-manager/backups/onpc",
+      "backup_root": "/SSD5/virt-manager/backups/onpc",
       "concurrency": 6
     }
   ],

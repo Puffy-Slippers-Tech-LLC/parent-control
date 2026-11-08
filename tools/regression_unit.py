@@ -29,6 +29,8 @@ configuration. No bus, display, VM or shared cache is opened; unit overlap is sa
 Native copy safety uses real descriptor operations only in private pytest paths,
 with process-local account/root bindings. It owns no children, bus, display,
 shared cache or VM and is compatible with ordinary unit overlap.
+The desktop-entry binding uses the same private descriptors and a process-local
+metadata double; it adds no GVfs/session-bus or display access.
 
 Privileged-runner source captures use tiny pytest-private checkout/scratch trees
 in the existing bounded, waited child processes. No live VM, service or shared

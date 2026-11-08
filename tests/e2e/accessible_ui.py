@@ -197,6 +197,10 @@ NATIVE_APP_OPERATIONS |= frozenset('native-alias-' + suffix for suffix in (
     'grid-blocked', 'grid-denied'))
 OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
+NATIVE_DESKTOP_OPERATIONS = frozenset((
+    'native-desktop-icon', 'native-desktop-icon-refusals', 'native-desktop-selected'))
+OPERATIONS |= NATIVE_DESKTOP_OPERATIONS
+STANDARD_OPERATIONS |= NATIVE_DESKTOP_OPERATIONS
 SNAP_APP_BINDINGS = {
     'snap-' + name + '-' + action: (role, instance, action)
     for name, role, instance in (('allowed', 'A', 'primary'), ('hard', 'H', 'primary'),
@@ -13184,6 +13188,122 @@ class AccessibleUI:
         self.wait(focused, 'parent-result-focus')
         self.input_uncertain = False
 
+    def native_desktop_snapshot(self, *, product=NATIVE_PRODUCT, duplicate_owner=False):
+        """DING's public icon name, scoped to its session-bus owner and child.
+
+        DING's Gtk.Box icons have no public IDs or activation action. Its
+        supported keyboard route is focus, Ctrl+A selection, then Enter. This
+        finite binding requires the fixture to be the only ordinary icon.
+        No geometry, file-manager preparation or alternate launch route.
+        """
+        from gi.repository import Gio, GLib
+        require_active_launch_session(unlocked=True)
+        require(os.getuid() == os.geteuid() == pwd.getpwnam(
+            CHILD_ACCOUNTS[EXISTING_CHILD]).pw_uid, 'ui:native-desktop-account')
+        connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        def call(method, signature, values):
+            return connection.call_sync('org.freedesktop.DBus', '/org/freedesktop/DBus',
+                'org.freedesktop.DBus', method, GLib.Variant(signature, values), None,
+                Gio.DBusCallFlags.NO_AUTO_START, 2000, None).unpack()[0]
+        owner = call('GetNameOwner', '(s)', ('com.rastersoft.ding',))
+        pid = call('GetConnectionUnixProcessID', '(s)', (owner,))
+        process = Path('/proc/' + str(pid))
+        require(process.stat().st_uid == os.getuid()
+                and (process / 'exe').readlink() == Path('/usr/bin/gjs').resolve(strict=True)
+                and b'/usr/share/gnome-shell/extensions/ding@rastersoft.com/app/ding.js'
+                in (process / 'cmdline').read_bytes().split(b'\0'), 'ui:native-desktop-owner')
+        nodes, edges, _ids, facts = self.read_snapshot()
+        applications = [node for node in nodes if facts[node]['role'] == 'application'
+                        and node.get_process_id() == pid]
+        if duplicate_owner:
+            applications = applications * 2
+        require(len(applications) <= 1, 'ui:native-desktop-ambiguous-owner')
+        if not applications:
+            return None
+        scoped = self.snapshot_scope(nodes, edges, applications[0])
+        self.handle_system_prompt(observation=(nodes, edges, facts))
+        names = (product + ' Application', product + ' Application Selected')
+        icons = [node for node in scoped if facts[node]['name'] in names
+                 and facts[node]['showing'] and node.get_component_iface() is not None]
+        require(len(icons) <= 1, 'ui:native-desktop-ambiguous-icon')
+        if not icons:
+            require(product == NATIVE_PRODUCT, 'ui:native-desktop-wrong-icon')
+            return None
+        target = icons[0]
+        # Ctrl+A selects ordinary files, excluding DING's Home/Trash shortcuts.
+        # Refuse other entries before selection; never launch a broad selection.
+        ordinary = [node for node in scoped if facts[node]['showing']
+                    and self.has_state(node, self.api.StateType.FOCUSABLE)
+                    and facts[node]['name'] not in ('Home Folder', 'Trash Folder')]
+        require(ordinary == [target], 'ui:native-desktop-extra-icons')
+        # DING's Enter opens the sole selected file, rather than merely the
+        # focused box. Refuse any other selection before authorizing keyboard input.
+        selected = [node for node in scoped if facts[node]['showing']
+                    and facts[node]['name'].endswith(' Selected')
+                    and self.has_state(node, self.api.StateType.FOCUSABLE)]
+        is_selected = facts[target]['name'] == names[1]
+        require(selected == ([target] if is_selected else []), 'ui:native-desktop-selection')
+        require(call('GetNameOwner', '(s)', ('com.rastersoft.ding',)) == owner,
+                'ui:native-desktop-owner-changed')
+        return target, pid, is_selected
+
+    def native_desktop_operation(self, operation):
+        require(operation in NATIVE_DESKTOP_OPERATIONS, 'ui:native-desktop-operation')
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        require(self.native_app_closed(desktop=False, complete_absence=True),
+                'ui:native-window-exists')
+        if operation == 'native-desktop-selected':
+            def selected():
+                current = self.native_desktop_snapshot()
+                return current and current[2] and self.has_state(current[0], self.api.StateType.FOCUSED)
+            self.wait(selected, 'native-desktop-selected', prompt_in_predicate=True)
+            return None
+        self.prepare_launch_desktop()
+        target, pid, _selected = self.wait(self.native_desktop_snapshot,
+            'native-desktop-icon', prompt_in_predicate=True)
+        if operation == 'native-desktop-icon-refusals':
+            for arguments, expected in (
+                    ({'product': 'ONPC Nonmatching Fixture'}, 'ui:native-desktop-wrong-icon'),
+                    ({'duplicate_owner': True}, 'ui:native-desktop-ambiguous-owner')):
+                try:
+                    self.native_desktop_snapshot(**arguments)
+                except UiError as error:
+                    require(str(error) == expected, 'ui:native-desktop-wrong-refusal')
+                else:
+                    require(False, 'ui:native-desktop-refusal-missing')
+        self.invalidate_observation()
+        current = self.native_desktop_snapshot()
+        require(current is not None and current[:2] == (target, pid),
+                'ui:native-desktop-icon-changed')
+        self.input_uncertain = True
+        require(target.get_component_iface().grab_focus(), 'ui:native-desktop-focus-refused')
+        def focused():
+            current = self.native_desktop_snapshot()
+            require(current is not None and current[:2] == (target, pid),
+                    'ui:native-desktop-icon-changed')
+            return current if self.has_state(current[0], self.api.StateType.FOCUSED) else None
+        current = self.wait(focused, 'native-desktop-focused', prompt_in_predicate=True)
+        self.input_uncertain = False
+        from gi.repository import Gio
+        environment = dict(item.split(b'=', 1) for item in
+            Path('/proc/' + str(pid) + '/environ').read_bytes().split(b'\0') if b'=' in item)
+        locale = (environment.get(b'LC_ALL') or environment.get(b'LC_MESSAGES')
+                  or environment.get(b'LANG') or b'C').decode('ascii')
+        # DING ships inside Ubuntu's desktop-icons package; the running source
+        # identity above is checked independently of this diagnostic tuple.
+        package = subprocess.run(['/usr/bin/dpkg-query', '--search',
+            '/usr/share/gnome-shell/extensions/ding@rastersoft.com/app/ding.js'],
+            stdin=subprocess.DEVNULL, capture_output=True, text=True, check=True, timeout=5)
+        lines = package.stdout.strip().splitlines()
+        require(len(lines) == 1 and lines[0].endswith(': /usr/share/gnome-shell/extensions/'
+                'ding@rastersoft.com/app/ding.js'), 'ui:native-desktop-package')
+        provider = validate_shell_metadata({
+            'version': subprocess.check_output(['/usr/bin/dpkg-query', '--show', '--showformat=${Version}',
+                lines[0].split(': ', 1)[0]], text=True, timeout=5).strip(),
+            'locale': locale, 'keyboard': [list(source) for source in Gio.Settings.new(
+                'org.gnome.desktop.input-sources').get_value('sources').unpack()]})
+        return {'provider': provider, 'selected': current[2]}
+
     def native_files_snapshot(self, role, *, child=EXISTING_CHILD, active=True):
         """FILE04/07: exact directory, selection and live Files owner; no geometry."""
         from gi.repository import Gio, GLib
@@ -14572,6 +14692,10 @@ class AccessibleUI:
             value = self.spare_account_operation(operation)
             if value is not None:
                 result['account_change'] = value
+        elif operation in NATIVE_DESKTOP_OPERATIONS:
+            value = self.native_desktop_operation(operation)
+            if value is not None:
+                result.update(value)
         elif operation in NATIVE_FILES_BINDINGS:
             value = self.native_files_operation(operation)
             if value is not None:

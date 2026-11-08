@@ -945,6 +945,12 @@ sub run {
         onpc_app_rows::retained_app_visits(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{native_desktop_usable}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::native_desktop_usable(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{native_files_usable}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

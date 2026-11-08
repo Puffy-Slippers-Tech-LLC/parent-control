@@ -14,6 +14,95 @@ import synthetic_files_guest as files
 
 
 @pytest.fixture
+def desktop_boundary(tmp_path, monkeypatch):
+    home = tmp_path / 'home/onpc-child-jordan'
+    source = home / '.local/share/applications'
+    source.mkdir(parents=True, mode=0o755)
+    desktop = home / 'Desktop'
+    desktop.mkdir(mode=0o755)
+    for directory in (home.parent, home, home / '.local', home / '.local/share', source, desktop):
+        directory.chmod(0o755)
+    content = b'[Desktop Entry]\nType=Application\nExec=/fixed/fixture\n'
+    (source / files.DESKTOP_ENTRY).write_bytes(content)
+    (source / files.DESKTOP_ENTRY).chmod(0o644)
+    real_open = os.open
+    monkeypatch.setattr(os, 'open', lambda path, flags, *args, **kwargs:
+                        real_open(tmp_path if path == '/' else path, flags, *args, **kwargs))
+    monkeypatch.setattr(pwd, 'getpwnam', lambda name: SimpleNamespace(
+        pw_uid=os.getuid(), pw_gid=os.getgid(), pw_dir='/home/onpc-child-jordan'))
+    monkeypatch.setattr(files, 'desktop_directory', lambda home: home / 'Desktop')
+    trust = {}
+    def metadata(path, value=None):
+        if value is not None:
+            trust[str(path)] = value
+        return trust.get(str(path), False)
+    monkeypatch.setattr(files, 'desktop_trusted', metadata)
+    def call(operation, previous=None):
+        return files.native_desktop_operate(Path('/home/onpc-child-jordan'), operation,
+            {'expected': {'source': hashlib.sha256(content).hexdigest()}, 'previous': previous})
+    return source, desktop, call
+
+
+def test_desktop_copy_cleans_only_its_owned_entry(desktop_boundary):
+    source, desktop, call = desktop_boundary
+    unrelated = desktop / 'preserved.txt'
+    unrelated.write_bytes(b'child work')
+    staged = call('stage')
+    copied = call('copy', staged)
+    assert copied['file'] != copied['source']
+    assert call('read', copied) == copied
+    assert call('cleanup', copied) == call('absent', {'absent': True}) == {'absent': True}
+    assert unrelated.read_bytes() == b'child work'
+    assert (source / files.DESKTOP_ENTRY).is_file()
+
+
+@pytest.mark.parametrize('collision', ['file', 'symlink', 'hardlink'])
+def test_desktop_copy_refuses_existing_destination(desktop_boundary, collision):
+    source, desktop, call = desktop_boundary
+    staged = call('stage')
+    target = desktop / files.DESKTOP_ENTRY
+    if collision == 'file':
+        target.write_bytes(b'foreign desktop file')
+    elif collision == 'symlink':
+        target.symlink_to(source / files.DESKTOP_ENTRY)
+    else:
+        os.link(source / files.DESKTOP_ENTRY, target)
+    before = target.lstat()
+    with pytest.raises((ValueError, OSError)):
+        call('copy', staged)
+    assert target.lstat() == before
+
+
+def test_desktop_cleanup_refuses_replaced_entry(desktop_boundary):
+    _source, desktop, call = desktop_boundary
+    copied = call('copy', call('stage'))
+    target = desktop / files.DESKTOP_ENTRY
+    content = target.read_bytes()
+    target.rename(desktop / 'original')
+    target.write_bytes(content)
+    target.chmod(0o755)
+    before = target.lstat()
+    with pytest.raises(ValueError, match='files:refused'):
+        call('cleanup', copied)
+    assert target.lstat() == before
+
+
+def test_desktop_copy_refuses_wrong_child_and_linked_directory(desktop_boundary, monkeypatch):
+    source, desktop, call = desktop_boundary
+    staged = call('stage')
+    with monkeypatch.context() as patch:
+        patch.setattr(pwd, 'getpwnam', lambda name: SimpleNamespace(
+            pw_uid=os.getuid() + 1, pw_gid=os.getgid(), pw_dir='/home/onpc-child-jordan'))
+        with pytest.raises(ValueError, match='files:refused'):
+            call('copy', staged)
+    desktop.rename(desktop.parent / 'original-desktop')
+    desktop.symlink_to(source, target_is_directory=True)
+    with pytest.raises(OSError):
+        call('copy', staged)
+    assert (source / files.DESKTOP_ENTRY).stat().st_mode & 0o777 == 0o644
+
+
+@pytest.fixture
 def copy_boundary(tmp_path, monkeypatch):
     root = tmp_path / 'fixtures'
     root.mkdir(mode=0o755)

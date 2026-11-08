@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **093 — [E2E-019: native-desktop-allowed-enabled](E2E-Tasks/093-case-68.md)**.
+Next task: **036h — [Open a second native window from the desktop](E2E-Tasks/036h-native-desktop-new-window.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

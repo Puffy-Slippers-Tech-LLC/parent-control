@@ -20,7 +20,9 @@ sub run {
         && ($control eq 'enabled' || $control eq 'disabled')
         && ($route eq 'command' || ($route eq 'grid' && $control eq 'enabled')
             || $route eq 'files' && $control eq 'enabled'
-                && $kind eq 'native')
+                && $kind eq 'native'
+            || $route eq 'desktop' && $control eq 'enabled'
+                && $kind eq 'native' && $policy eq 'allowed')
         && ($policy eq 'allowed' || $policy eq 'hard-blocked' || $policy eq 'soft-blocked')
         && ($kind eq 'native' || $kind eq 'snap' && $policy eq 'allowed'
             || $kind eq 'flatpak');
@@ -52,6 +54,7 @@ sub run {
     onpc_desktop_session::enter_desktop(
         $journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan-entry');
     my $jordan = $journey->scope($policy eq 'allowed' ? 'jordan-use' : 'jordan-denied');
+    $jordan->seen('place') if $route eq 'desktop';
     if ($policy eq 'allowed') {
         onpc_app_rows::native_usable_app($jordan, $route, $jordan->seen('desktop'), 'other-child',
                                        $kind ne 'native' ? 'A' : undef, $kind);
@@ -66,10 +69,15 @@ sub run {
         onpc_app_rows::native_usable_app($command, 'command', $command->seen('desktop'), 'other-child');
     }
     $jordan->seen('dismiss') if $route eq 'files';
+    if ($route eq 'desktop') {
+        onpc_app_rows::native_finish_app($jordan);
+        $jordan->seen('cleanup');
+    }
     $journey->seen('jordan-logout');
     onpc_desktop_session::enter_desktop(
         $journey, 'gdm', 'child', 'fresh', 'success', 'riley-entry');
     my $riley = $journey->scope('riley-use');
+    $riley->seen('place') if $route eq 'desktop';
     onpc_app_rows::native_usable_app($riley, $route, $riley->seen('desktop'), 'child',
                                    $kind ne 'native' ? 'A' : undef, $kind);
     if ($kind eq 'native' && $route eq 'grid' && $policy eq 'allowed') {
@@ -78,6 +86,10 @@ sub run {
         onpc_app_rows::native_usable_app($command, 'command', $command->seen('desktop'), 'child');
     }
     $riley->seen('dismiss') if $route eq 'files';
+    if ($route eq 'desktop') {
+        onpc_app_rows::native_finish_app($riley);
+        $riley->seen('cleanup');
+    }
     $journey->finish();
 }
 1;

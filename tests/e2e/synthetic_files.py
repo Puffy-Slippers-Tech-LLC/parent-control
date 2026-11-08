@@ -8,7 +8,8 @@ from private_artifacts import EvidenceError, require
 from watch_activity import operation
 
 NATIVE_PROFILES = ('native-space', 'native-comma', 'native-version-next', 'native-version-nonmatch')
-DESKTOP_PROFILE = 'native-desktop'
+DESKTOP_PROFILES = {'native-desktop': 'onpc-child-jordan',
+                    'native-desktop-riley': 'onpc-child-riley'}
 
 
 class SyntheticFiles:
@@ -16,7 +17,7 @@ class SyntheticFiles:
         require(type(administrative) is bool and (not administrative or profile in (
             'native-version-next', 'native-version-nonmatch')), 'files:administrative-profile')
         require(profile in ('standard', 'single', 'count', 'sixth', 'maximum', 'oversized', 'total', 'overflow',
-                            'name180', 'name181', 'hidden', 'mixed', 'zip', 'save', DESKTOP_PROFILE, *NATIVE_PROFILES),
+                            'name180', 'name181', 'hidden', 'mixed', 'zip', 'save', *DESKTOP_PROFILES, *NATIVE_PROFILES),
                 'files:profile')
         require((profile in NATIVE_PROFILES and type(expected) is dict
                  and set(expected) == {'source', 'nonmatching'}
@@ -24,11 +25,11 @@ class SyntheticFiles:
                          and all(c in '0123456789abcdef' for c in value)
                          for value in expected.values())
                  and expected['source'] != expected['nonmatching'])
-                or profile == DESKTOP_PROFILE and type(expected) is dict
+                or profile in DESKTOP_PROFILES and type(expected) is dict
                 and set(expected) == {'source'} and type(expected['source']) is str
                 and len(expected['source']) == 64
                 and all(c in '0123456789abcdef' for c in expected['source'])
-                or profile not in (*NATIVE_PROFILES, DESKTOP_PROFILE) and expected is None, 'files:expected')
+                or profile not in (*NATIVE_PROFILES, *DESKTOP_PROFILES) and expected is None, 'files:expected')
         self.transport = transport
         self.profile = profile
         self.expected = dict(expected) if expected is not None else None
@@ -86,11 +87,12 @@ class SyntheticFiles:
                    'sys.modules["guest_files"] = guest_files\n'
                    f'exec({files_source!r}, guest_files.__dict__)\n')
         program = modules.encode() + program
-        if self.profile in (*NATIVE_PROFILES, DESKTOP_PROFILE):
+        if self.profile in (*NATIVE_PROFILES, *DESKTOP_PROFILES):
             previous = {'expected': self.expected, 'previous': previous}
         raw = self.transport.call([
             *([] if self.administrative else ['/usr/sbin/runuser', '--user',
-                'onpc-child-jordan' if self.profile in (*NATIVE_PROFILES, DESKTOP_PROFILE) else 'onpc-parent-jamie', '--']),
+                DESKTOP_PROFILES[self.profile] if self.profile in DESKTOP_PROFILES else
+                'onpc-child-jordan' if self.profile in NATIVE_PROFILES else 'onpc-parent-jamie', '--']),
             '/usr/bin/python3', '-I', '-', name,
             json.dumps(previous, sort_keys=True),
             *([] if self.profile == 'standard' else [self.profile]),

@@ -229,11 +229,13 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
     require(kind in ('native', 'snap', 'flatpak') and (kind != 'native' or instance == 'primary'),
             'journey:fixture-binding')
     if route == 'desktop':
-        require(kind == 'native' and child == 'other-child' and role is None
+        require(kind == 'native' and child in ('other-child', 'child') and role is None
                 and desktop_observation is True, 'journey:native-desktop-binding')
-        return {'desktop': 'ui:native-desktop', 'icon': 'ui:native-desktop-icon',
+        stages = {'desktop': 'ui:native-desktop', 'icon': 'ui:native-desktop-icon',
                 'selected': 'ui:native-desktop-selected', 'opened': 'ui:native-opened',
                 'submit': 'ui:native-submit', 'submitted': 'ui:native-submitted'}
+        return {stage: tag.replace('ui:', 'ui:overlay-') if child == 'child' else tag
+                for stage, tag in stages.items()}
     if route == 'files':
         require(kind == 'native' and (child == 'other-child' and role in (None, 'S')
                 or child == 'child' and role is None)

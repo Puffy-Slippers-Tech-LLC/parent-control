@@ -363,10 +363,16 @@ def test_collection_progress_disables_send_but_allows_editing(
     assert ui.absent("feedback-collection-status", within="feedback-dialog")
 
 
-@pytest.mark.parametrize("status", [202, 409, 413, 422])
+@pytest.mark.parametrize("status, reply_email", [
+    pytest.param(202, "", id="anonymous-success"),
+    pytest.param(202, "first@example.invalid", id="reply-success"),
+    pytest.param(409, "", id="409"),
+    pytest.param(413, "", id="413"),
+    pytest.param(422, "", id="422"),
+])
 def test_feedback_submission_outcomes(
         launch_ui, automation, wait_for_accessible_state,
-        collect_application_logs, status):
+        collect_application_logs, status, reply_email):
     ui = automation
     editor, log_path = open_feedback(
         launch_ui, ui, wait_for_accessible_state, status=status,
@@ -374,15 +380,21 @@ def test_feedback_submission_outcomes(
     type_feedback(ui, "A private feedback draft", wait_for_accessible_state)
     wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
                               "feedback send is ready")
+    assert ui.content("feedback-reply-email") == ""
+    assert "component-feedback-post" not in collect_application_logs(log_path)
     ui.activate("feedback-send")
-    if status == 202:
-        wait_for_accessible_state(lambda: ui.showing("feedback-anonymous-dialog"),
-                                  "blank email asks before sending")
-        assert ui.text("feedback-anonymous-dialog") == "Send Feedback Anonymously?"
+    wait_for_accessible_state(lambda: ui.showing("feedback-anonymous-dialog"),
+                              "blank email asks before sending")
+    assert ui.text("feedback-anonymous-dialog") == "Send Feedback Anonymously?"
+    assert "component-feedback-post" not in collect_application_logs(log_path)
+    if reply_email:
         ui.activate("feedback-add-email")
         assert ui.content(editor).strip() == "A private feedback draft"
-        ui.setText("feedback-reply-email", "feedback@example.com")
+        assert "component-feedback-post" not in collect_application_logs(log_path)
+        ui.setText("feedback-reply-email", reply_email)
         ui.activate("feedback-send")
+    elif status == 202:
+        ui.activate("feedback-send-anonymously")
     if status == 409:
         wait_for_accessible_state(lambda: ui.showing("feedback-anonymous-dialog"),
                                   "anonymous send needs explicit approval")
@@ -422,7 +434,7 @@ def test_feedback_submission_outcomes(
     wait_for_accessible_state(lambda: ui.absent("feedback-dialog", within="parent-window"),
                               "feedback editor hides before confirmation dismissal")
     body = "Your feedback was sent successfully. We appreciate your help making the app better."
-    if status == 202:
+    if reply_email:
         body += ("\n\nWe may contact you at the email address you provided if we have "
                  "any follow-up questions.")
     assert ui.text("feedback-success-text") == body
@@ -436,5 +448,6 @@ def test_feedback_submission_outcomes(
     if status == 413:
         assert ui.text("feedback-logs-row") == "No logs attached"
     log = collect_application_logs(log_path)
+    assert log.count("component-feedback-post") == (1 if status == 202 else 2)
     assert "A private feedback draft" not in log
     assert "Traceback" not in log

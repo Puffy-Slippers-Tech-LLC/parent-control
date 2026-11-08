@@ -91,7 +91,9 @@ def plan_status(run, steps, *, reader, active):
     # Retain compact completions and only the latest session for each task.
     def task_key(step):
         heading = clean(step['lines'][0])
-        task = re.match(r'^Task ([\w.-]+):', heading)
+        # A blocker reached before the first session has only a task ID.
+        # Group it with the later titled session instead of retaining a stale pause.
+        task = re.match(r'^Task ([\w.-]+)(?=:|$)', heading)
         return ('task', task[1]) if task else ('heading', heading)
 
     latest = {task_key(step): step for step in steps

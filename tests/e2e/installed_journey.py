@@ -27,6 +27,25 @@ from ui_observations import (
 )
 
 
+# Declaration validation and runtime capture must recognize the same endpoints.
+# Cases retain their capture order and expected same/separate/closed result.
+ACTIVITY_BINDINGS = {
+    **{operation: ('native-primary', False) for operation in (
+        'native-activity', 'overlay-native-activity', 'parent-native-activity',
+        'native-policy-activity', 'native-files-allowed-activity', 'native-files-soft-activity')},
+    **{operation: ('native-secondary', False) for operation in (
+        'native-unmatched-soft-activity', 'native-policy-soft-activity',
+        'overlay-native-policy-soft-activity')},
+    'native-policy-closed': ('native-primary', True),
+    'native-policy-soft-closed': ('native-secondary', True),
+    'overlay-native-policy-soft-closed': ('native-secondary', True),
+    **{operation: (('flatpak-' if operation in accessible_ui.FLATPAK_APP_BINDINGS else 'snap-')
+                   + instance, action == 'policy-closed')
+       for operation, (_role, instance, action) in accessible_ui.PACKAGED_APP_BINDINGS.items()
+       if action in ('activity', 'policy-activity', 'policy-closed')},
+}
+
+
 def validate_boundary(journey, directory, boundary):
     """Retain only a complete verified prefix, never a failed or advanced scene."""
     system.require(not journey.failed and [s['stage'] for s in journey.steps]
@@ -159,13 +178,8 @@ class JourneyPlan:
                 self.prefix + ':assertion-plan')
         used = set()
         stages = list(self.screen_tags)
-        activity_tags = {
-            'ui:native-files-allowed-activity', 'ui:native-files-soft-activity',
-            'ui:native-activity', 'ui:overlay-native-activity', 'ui:parent-native-activity',
-            'ui:native-policy-activity', 'ui:native-unmatched-soft-activity',
-            'ui:native-policy-soft-activity', 'ui:overlay-native-policy-soft-activity',
-        } | {'ui:' + operation for operation, binding in accessible_ui.PACKAGED_APP_BINDINGS.items()
-             if binding[2] in ('activity', 'policy-activity')}
+        activity_tags = {'ui:' + operation for operation, (_binding, closed)
+                         in ACTIVITY_BINDINGS.items() if not closed}
         activity_closures = {
             'ui:native-policy-closed': 'ui:native-policy-activity',
             'ui:native-policy-soft-closed': 'ui:native-policy-soft-activity',
@@ -195,7 +209,6 @@ class JourneyPlan:
                                                        'ui:overlay-native-policy-soft-activity',
                                                        'ui:flatpak-allowed-policy-activity',
                                                        'ui:flatpak-hard-policy-activity',
-                                                       'ui:flatpak-allowed-policy-activity',
                                                        'ui:flatpak-soft-policy-activity')
                     for stage, capture in self.activity_entries.items()), self.prefix + ':activity-entry-plan')
         require(all(stage in stages and type(seconds) is int and seconds >= 0
@@ -599,34 +612,13 @@ class InstalledJourney:
     def check_activity(self, stage, observed):
         """Capture/compare before the worker can receive a durable reply."""
         operation = self.plan.screen_tags.get(stage, '')[3:]
-        packaged = accessible_ui.PACKAGED_APP_BINDINGS.get(operation)
-        if packaged is not None and packaged[2] in ('activity', 'policy-activity', 'policy-closed'):
-            require(stage not in self.activity_observations, 'ui:app-activity-replay')
-            current = AppActivityObservation.from_value(observed.get('ui', {}).get('activity'),
-                closed=packaged[2] == 'policy-closed',
-                binding=('flatpak-' if operation in accessible_ui.FLATPAK_APP_BINDINGS else 'snap-') + packaged[1])
-            if stage in self.plan.activity_checks:
-                earlier, result = self.plan.activity_checks[stage]
-                require(earlier in self.activity_observations, 'ui:missing-app-activity')
-                observed['comparison'] = compare_app_activity(
-                    current, self.activity_observations[earlier], result=result)
-            self.activity_observations[stage] = current
+        activity = ACTIVITY_BINDINGS.get(operation)
+        if activity is None:
             return
-        if self.plan.screen_tags.get(stage) not in ('ui:native-activity', 'ui:overlay-native-activity',
-                'ui:native-files-allowed-activity', 'ui:native-files-soft-activity',
-                'ui:parent-native-activity', 'ui:native-policy-activity', 'ui:native-policy-closed',
-                'ui:native-unmatched-soft-activity', 'ui:native-policy-soft-activity',
-                'ui:native-policy-soft-closed', 'ui:overlay-native-policy-soft-activity',
-                'ui:overlay-native-policy-soft-closed'):
-            return
+        endpoint, closed = activity
         require(stage not in self.activity_observations, 'ui:app-activity-replay')
         current = AppActivityObservation.from_value(observed.get('ui', {}).get('activity'),
-            closed=self.plan.screen_tags[stage].endswith('-closed'), binding=(
-                'native-secondary' if self.plan.screen_tags[stage] in (
-                    'ui:native-unmatched-soft-activity', 'ui:native-policy-soft-activity',
-                    'ui:native-policy-soft-closed', 'ui:overlay-native-policy-soft-activity',
-                    'ui:overlay-native-policy-soft-closed')
-                else 'native-primary'))
+            closed=closed, binding=endpoint)
         binding = self.plan.activity_checks.get(stage)
         if binding is not None:
             earlier, result = binding

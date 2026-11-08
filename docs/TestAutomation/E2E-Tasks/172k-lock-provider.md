@@ -20,6 +20,25 @@ directly; entitled state must prevent a stale retry. Reuse 172j's observations
 without repeating its acknowledgement matrix. Missing retry behavior remains
 explicit.
 
+The required protection and renewal results are settled acceptance. Recovery of
+lock availability alone cannot pass a history whose required protection or retry
+was absent. Keep that implementation gap incomplete under the shared failure
+contract; do not reinterpret this task as the characterization-only scope owned
+by 172l.
+
+Implement missing transient-failure recovery within the existing owned
+enforcement callback/timer. Keep one public `Lock` call in flight, bound each
+call and the finite retry sequence by the existing absolute timed-lock window,
+and revalidate the current session, verified entitlement and original deadline
+before dispatch. Secure lock, legitimate renewal, disablement, owner
+invalidation and disposal cancel stale retry authority. A later current
+confirmed exhaustion may establish its own enforcement decision. Retry spacing
+and count are implementation choices within that unchanged bound. Introduce no
+separate expiry scheduler, fallback lock, service supervisor, logout or
+termination of ordinary work. This is bounded repair of the existing
+[repeated-enforcement behavior](../../Specification.md#screen-time-setup-and-enforcement),
+not a new protection policy for persistent lock unavailability.
+
 This is installed system qualification, with no customer-case acceptance credit.
 Extend the existing system-282 owner only for these missing assertions; reuse
 covered mechanics and register the distinct binding once before execution.

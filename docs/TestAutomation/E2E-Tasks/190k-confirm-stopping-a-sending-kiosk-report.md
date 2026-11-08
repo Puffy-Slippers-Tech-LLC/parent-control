@@ -1,50 +1,60 @@
-# 190k — Stop a report at the request station
+# 190k — Stop a station report
 
-Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [UI acceptance](../E2E-Execution-Contracts.md#ui-acceptance).
 
 Estimate: 20–30 minutes.
 
-## Session boundary
-
-Add the direct Stop sending and close action and independently observe GDM.
-Reuse 190b's retry-entry/readback operations. Stopping cannot recall an already
-accepted request; restore connectivity after exit.
-
-Reuse the delivered scope of tasks **190b** under the
-[split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
-
 ## Scope and prerequisites
 
-Deliver **FEED09 retry and FEED17/18 kiosk**. First scheduled consumer: [E2E-047, case 219](../E2E-Scenario-Recipes.md#e2e-047).
-Read the named [block contracts](../E2E-Building-Blocks.md#about-feedback-and-customer-selected-attachments), [related block contracts](../E2E-Building-Blocks.md#additional-public-surfaces) and only the selected consumer's recipe.
+Deliver **UI obligation; FEED09 retry and FEED17/18 kiosk direct Stop**,
+allocated to case 219.
 
-**Gate:** Authorization for the submission, public cooldown-error entry and safe normal connectivity control are required.
+Required tasks (queue IDs):
 
-Required tasks (queue IDs; use delivered scope, not predecessor briefs):
+- **190b** — kiosk component retry-entry and pending Stop observation.
 
-- **190b** — FEED09 kiosk retry/reconnection and FEED17 pending Stop action; gate in brief.
+## Implementation and expected results
 
-## Implementation
+Reuse task 190b's fake HTTP Session controls and actual request report in
+kiosk mode. With one synthetic submission pending, independently observe
+retry and its explicit Stop sending and close action. Activate Stop once and
+require report disappearance, cancellation of pending retries and exactly one
+`logout` callback. The normal Stop action is direct: no confirmation,
+warning or stay response. A later released fake response must not revive the
+closed report or repeat its callback. No real Internet isolation/restoration.
 
-Reuse 190b's authorized retry-entry and FEED17 read operations, then activate
-FEED18 Stop sending and close once with its exact GDM destination. The action
-stops directly; no warning dialog, confirmation response or stay choice is part
-of the product contract. Do not infer recall of remote delivery.
+Keep the production close/cancellation path and use the existing preview
+ownership/release cleanup. Do not replace Stop with a private callback or infer
+that stopping recalls an already accepted request. Case 219's allocation
+reuses this assertion set rather than adding another complete copy.
 
-## Live VM acceptance
+The preview records the real report-close flow's `close_overlay` or `logout`
+callback. Assert that callback and its ordering, not an installed desktop/GDM
+result. Installed destinations remain with the public
+[request-exit owners](../E2E-Building-Blocks.md#kiosk-child-overlay-and-the-shared-request-form).
 
-In a fresh guarded VM attempt with an authorized synthetic report reached
-through its public error, use LIFE06 to remove Internet access, Send once and
-observe retry. Read the owned Stop action, activate it once and independently
-require report disappearance and GDM. Preserve shared wrong-surface/owner and
-uncertain-input refusals without replaying Send. Restore Internet access through
-the same LIFE06 helper from GDM; no Parent login is needed. Reuse 190b's unchanged
-retry-entry binding; its evidence supplies no saved VM state. Case 219 owns the
-complete journey.
+This is a **UI obligation** under the developer's mock-sending decision.
+Reuse [150a's component boundary](150a-feedback-profile.md); production code
+and endpoint remain unchanged. Tests must make no real network request.
+Numeric case IDs are allocation references only: no installed E2E pass,
+real-service acceptance or delivery credit. A real-send check is separate and
+optional, never a prerequisite here.
 
-Planned qualification selector (not registered; implement before use):
+## UI acceptance
+
+Reuse [the existing error-report owner](../../../tests/ui/test_error_feedback.py)
+and [request component preview](../../../tests/ui/request_component_preview.py).
+Inspect delivered coverage first and add only missing product assertions,
+through the shared Application UI API helpers. Keep actual editor, encoder,
+retry/result and dialog handlers; extend only the existing fake HTTP Session's
+finite response/release controls where needed. No parallel framework or server.
 
 ```sh
-tools/run-tests system check_e2e_stop_a_sending_kiosk_report
+tools/run-tests ui 'tests/ui/test_error_feedback.py' --timeout 1800s
 ```
+
+Pure backoff, expiry, response and frozen-submission checks remain in the existing
+[transport unit owner](../../../tests/unit/test_feedback_transport.py). Run its
+affected selection only if that coverage changes. Documentation edits alone
+execute no tests or acceptance.

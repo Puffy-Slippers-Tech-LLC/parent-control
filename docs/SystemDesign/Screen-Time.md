@@ -319,8 +319,22 @@ For a fixed-duration request, the broker launches the fixed-purpose
 `oh-no-parent-control-query-usage` helper under the authenticated approver's UID
 and primary GID. The helper opens a new system-bus connection and returns only
 usage intervals; the root broker validates them and owns every write. A
-rest-of-day request instead computes the seconds to the next local midnight with
-timezone-aware epoch arithmetic.
+rest-of-day request instead computes the seconds to tomorrow's midnight using
+the approval timestamp's timezone and subtracts epoch timestamps.
+
+Current daylight-saving limitation: the production clock in
+`ServiceDependencies.now`, and the broker's default clock, use
+`datetime.now().astimezone()`, whose timezone retains the current fixed UTC
+offset. `seconds_until_local_midnight` reuses that timezone for tomorrow's
+midnight instead of resolving its local offset independently. A rest-of-day
+approval before a spring-forward transition therefore expires one hour after
+the required local midnight; before a fall-back transition it expires one hour
+early for the one-hour transitions in the calendar cases. The requirement to
+expire at actual local midnight remains unchanged. The paired calendar cases
+retain that expected result and remain pending a production timezone correction
+and their normal acceptance; an injected transition-aware timezone in a unit
+test does not qualify the production clock binding. Fixed elapsed grants do
+not use this midnight calculation.
 
 Rest-of-day replaces the current grant with that midnight deadline; it does
 not take the maximum with an existing later expiry. Fixed requests can carry

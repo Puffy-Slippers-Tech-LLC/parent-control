@@ -21,25 +21,31 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 Compose only the overlay app-close branch with an already observed real AUTH01
 prompt and explicit pre-request choices/balances. Use the shared Application UI
 API surface `close` operation on the owned `kiosk-request-window`, preserving
-its normal busy/modal refusal, then reopen through REQUEST02's direct child
-command. Cancel on the agent is not this route. Read REQUEST03 through the same
-API facade and require the old external prompt absent; a later request must
-authenticate afresh in case 174.
+its actual visibility, sensitivity and owned-modal refusals, then reopen through
+REQUEST02's direct child command. Cancel on the agent is not this route. Read
+REQUEST03 through the same API facade and require the old external prompt absent;
+a later request must authenticate afresh in case 174.
 
 Extend `request_flow.overlay_authentication`, `onpc_request_flow::overlay_entry`
-and the shared API surface-close operation; FLOW17 has no callable yet. Parent
-LIFE01 restarts and retained-account visits do not implement this overlay route.
-Keep busy/modal refusal as the applicability gate and add focused new-binding
-safety coverage instead of repeating unchanged authentication histories.
+by composing the existing shared API surface-close operation; FLOW17 has no
+callable yet. Parent LIFE01 restarts and retained-account visits do not implement
+this overlay route.
+
+The API delegates to the toolkit's normal close path; it has no request-specific
+busy veto. The form's Cancel is disabled and Escape belongs to the authentication
+agent while approval is pending, so neither substitutes for this window-close
+route. Keep actual close reachability as the applicability gate and add focused
+new-binding safety coverage instead of repeating unchanged authentication
+histories.
 
 ## Live VM acceptance
 
 On the VM, supply usable time and a real pending approval, close the overlay
 through the declared public route and reopen normally. Qualify this new
-busy/modal close binding, old-prompt absence, cancellation and usable request
-return with unchanged choices/balances. Preserve its reachability gate and
-focused ownership/refusal qualification. Case 174 owns fresh authentication and
-the successful time/access result; do not repeat that complete recovery here.
+pending-prompt close composition, old-prompt absence, cancellation and usable
+request return with unchanged choices/balances. Preserve its reachability gate
+and focused ownership/refusal qualification. Case 174 owns fresh authentication
+and the successful time/access result; do not repeat that complete recovery here.
 Cancellation consumes no cooldown; add no fixed wait.
 
 Planned qualification selector (not registered; implement before use):

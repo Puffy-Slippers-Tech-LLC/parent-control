@@ -41,6 +41,8 @@ diagnostic files do not govern task progression.
 | [Execution contracts](E2E-Execution-Contracts.md) | Detailed sizing, provider qualification, live verification and close-out rules delegated by the execution plan | A second task queue, alternate selection or optional acceptance |
 | [Plan A queue](E2E-Task-Queue.md), [Plan B queue](E2E-Task-QueueB.md) and [Plan C queue](E2E-Task-QueueC.md) | Separate ordered checklists, provider prerequisites, retained regressions and delivered scope | Current block/scenario readiness or work selection in another queue |
 | `E2E-Tasks/` | Temporary brief for one unfinished queue item | Enduring policy or history after the task closes |
+| [Two desktops](../Two_Desktops.md) | Open question and unscheduled same-child/two-desktop scenario descriptions | An execution plan, prerequisite, passing result or permission to recreate former tasks 143–149 |
+| [Unlock desktop](../Unlock_Desktop.md) | Open zero-time entry question and unscheduled exposure scenarios | An execution plan, prerequisite, passing result or permission to recreate former task 171 |
 | [Fixture design](Fixture-Design.md) | Immutable host inputs, minimal guest closure, provisioning/readiness and compatibility boundaries; runtime guides own current target availability | New runner capability or customer acceptance merely from the design |
 | [Evidence/export design](Export-Design.md) | Test evidence identity, capture, export and lifetime design; runtime contracts remain authoritative | Product acceptance, VM operations or new passing results |
 | [Generated coverage](../Test-Coverage.md) | Generated view of the executable inventories | Authority over its source files |

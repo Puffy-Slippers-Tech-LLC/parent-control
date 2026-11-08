@@ -557,7 +557,8 @@ rules and both original activities. Confirm cleared the grant with daily time
 remaining, closed the original soft activity, preserved usable Allowed work and
 denied both H/S command launches; Riley's original work remained usable.
 Collection, worker cleanup and baseline restoration passed. Cases 18/20 remain
-pending. Case 17 uses Jordan's
+outside execution scheduling under [Two desktops](../Two_Desktops.md); they
+are open scenarios, not prerequisites for cases 17/19. Case 17 uses Jordan's
 zero daily allowance,
 a real 20-minute soft-included grant, original Allowed A/Soft Blocked S activities
 and Riley's retained activity. Cancel compares both original child windows and
@@ -565,13 +566,14 @@ balances before further input; Confirm independently reads zero time and preserv
 saved app rules before the retained GDM denial. Riley's original activity is then
 compared and used again. No foreground immediate-lock acceptance is claimed.
 
-**Cancel then confirm revocation with open apps.** Cases 17, 18, 19, 20.
+**Cancel then confirm revocation with open apps.** Active cases 17 and 19.
 
-Bindings: daily = zero / remaining; sessions = single / multiple.
+Bindings: daily = zero / remaining; sessions = single. The removed multiple
+variants retain their descriptions only in the open-question document.
 
-1. Prepare reusable observers before FLOW13(profile, active grant) → FLOW14(child desktop list,Riley); P opens the same child's Screen Limits. Use the finite non-expiry grant profile, with positive daily 30 where required; no wait for unused grant expiry.
+1. Prepare reusable observers before FLOW13(profile, active grant) → FLOW14(one selected-child desktop,Riley); P opens the same child's Screen Limits. Use the finite non-expiry grant profile, with positive daily 30 where required; no wait for unused grant expiry.
 2. PARENT17 → PARENT18(cancel) → PARENT09 → C(retained) → APP04(compare) → P.
-3. PARENT17 → PARENT18(confirm) → PARENT09. D>0: C(each retained) → APP02(soft closed) → FLOW08(allowed and blocked). D=0: C(retained,denied) → DESK11. FLOW09(Riley).
+3. PARENT17 → PARENT18(confirm) → PARENT09. D>0: C(retained) → APP02(soft closed) → FLOW08(allowed and blocked). D=0: C(retained,denied) → DESK11. FLOW09(Riley).
 
 Case 19 saves Jordan's 30-minute daily allowance (at least 1500 seconds actually
 remaining before approval) and obtains a real 20-minute addition with soft apps
@@ -1399,15 +1401,11 @@ Bindings: change = update / remove.
 
 ### E2E-021
 
-Implementation status: All cases pending.
-
-**Apply an action across a child's distinct retained desktops.** Cases 112, 113, 114, 115.
-
-Bindings: transaction = save / approve-without-soft / approve-with-soft / revoke.
-
-1. Prepare reusable observers, then FLOW13(positive daily 30, non-expiry grant when needed) → FLOW14(explicit distinct child desktops,Riley).
-2. Save: P → FLOW03. Approval: C(retained) → FLOW04 → FLOW05. Revoke: P → PARENT17 → PARENT18(confirm).
-3. For each child desktop: C(retained) → APP02 → APP04 if preserved → FLOW08. FLOW09(Riley). No distinct public entry means pending.
+Cases **112–115** are removed from execution scheduling by developer decision.
+[Two desktops](../Two_Desktops.md) preserves their scenario descriptions and the
+open customer-route question. It is not an execution plan. Pending inventory
+records and this retained family anchor supply no task, prerequisite,
+implementation instruction or passing result.
 
 ### E2E-022
 
@@ -1490,8 +1488,8 @@ The opposite pairings (cases 129 and 130) are removed; do not reuse those IDs.
 Both time calculations, both game modes and fullscreen request access remain
 required, with unchanged game progress through the extended natural expiry.
 
-1. FLOW13(dominant profile) → C → TIME01 → FLOW08(game) → APP05(mode,level) → APP04.
-2. Windowed: REQUEST02. Fullscreen: REQUEST13(panel API launch while the game remains fullscreen). Then REQUEST04(custom additional duration) → REQUEST08 → FLOW05 → TIME01 → UI12(increase). Panel reveal, focus and fullscreen-window choreography add no acceptance requirement.
+1. FLOW13(dominant profile) → FLOW03(game Always Allowed) → C → TIME01 → FLOW08(game) → APP05(mode,level) → APP04.
+2. Windowed: REQUEST02. Fullscreen: REQUEST13(panel API launch while the game remains fullscreen). Both select Jamie, Custom `1.25` Minutes (75 seconds), soft apps excluded. Then REQUEST08 → FLOW05 → TIME01 → UI12(resulting usable time equals max(D,G)+75 minus elapsed time). Panel reveal, focus and fullscreen-window choreography add no acceptance requirement.
 3. DESK10(game) → APP04(compare) → APP03 → TIME04(extended natural expiry).
 
 Resolve game assets/mode and arm observers before issuance. Case 131 uses the
@@ -1499,6 +1497,11 @@ finite daily-10/addition-10 grant-dominant profile; case 128 uses grant-10 then
 daily-20. Require at least 300 seconds of each positive operand and a dominance
 gap exceeding 90 seconds before the request, so setup cannot erase the original
 inequality. Both cases retain actual gameplay through extended natural expiry.
+Reuse the existing explicit request arguments; choosing the finite request data
+does not qualify the new gameplay composition. During implementation reconcile
+the pending inventory's stale panel-reveal wording and 1800-second case budget
+with this recipe's public API launch and the briefs' 40–60-minute continuous
+natural-expiry budget before registering either complete executable.
 
 ### E2E-025
 
@@ -1678,35 +1681,42 @@ No valid Send or original-log inspection is permitted.
 
 ### E2E-032
 
-Implementation status: All cases pending.
+Allocation: former case **156** is a pending host UI obligation under the
+[mock-sending decision](UI-and-E2E-Coverage.md#feedback-sending-allocation).
+Its ID is retained without an E2E executable or installed acceptance.
 
-**Send reviewed feedback and read service acceptance.** Cases 156.
+**Send synthetic feedback and observe the app's success response.**
 
-Bindings: delivery = success.
+Use the existing Parent component preview with a fake successful HTTP response.
+Keep the actual editor, validation, encoding and result handlers. Enter the
+declared synthetic body/files, leave reply empty, read Privacy, select Send,
+explicitly confirm Send Anonymously, observe and manually dismiss thanks, then
+reopen and require the submitted draft, reply and files cleared.
 
-1. P0 → FEED01 → UI16(reviewed body,empty reply address) → FEED06 → FEED03 → FEED05 → FEED11.
-2. FEED09(success and owned confirmation without reply follow-up) → FEED14(manual dismissal) → FEED01 → FEED03(cleared).
-
-This single ordinary-feedback send absorbs former case 214. Case 220 sends an
-error report with a reviewed reply address; focused dialog checks own the exact
-confirmation wording for both reply choices. Both journeys remain pending.
+This absorbs former case 214 without another submission. Former case 220 keeps
+the synthetic reply-address/follow-up-note branch in the request component
+owner. No message reaches the service or an inbox; real sending is optional
+integration work, never a prerequisite here.
 
 ### E2E-033
 
-Implementation status: All cases pending.
+Allocation: former case **157** is a pending host UI obligation under the
+[mock-sending decision](UI-and-E2E-Coverage.md#feedback-sending-allocation).
 
-**Recover feedback sending after reconnecting.** Cases 157.
+**Finish feedback in the background after a retryable response.**
 
-Bindings: delivery = retry.
-
-1. P0 → FEED01 → UI16 → FEED06 → FEED03. Reuse the reviewed profile's Privacy evidence; no new disclosure visit is needed for retry/background completion.
-2. LIFE06(disconnect).
-3. FEED11 on the still-open feedback surface → FEED09(retry). Internet isolation does not require leaving the dialog or activating it again.
-4. UI18(ordinary feedback only) → UI11(feedback); keep the same Parent running → LIFE06(reconnect before retry deadline). Require no unsolicited feedback/thanks window during the bounded background completion interval.
-5. FEED01 → FEED03(cleared after automatic completion). If sending remains active on reopening, observe FEED09 until explicit acceptance → FEED14 → FEED01 → FEED03(cleared). Never issue another Send or infer success from elapsed time alone.
+In the existing Parent component preview, return a retryable response from the
+fake sender, send once with anonymous confirmation when applicable, and observe
+actual retry state. Close only the ordinary feedback dialog, keep Parent alive,
+and release a successful response for the same frozen submission. Require no
+unsolicited feedback or thanks window, then reopen and observe the cleared
+draft. If reopened while still sending, await the actual result, dismiss thanks
+and reopen again. No second Send or success inferred only from elapsed time.
+Use test-local response/release controls; no VM Internet isolation, real network
+connection or new retry scheduler is needed.
 
 This one submission absorbs former E2E-047/background case 215; that case ID
-must not be reused. E2E-032 / case 156 retains visible service confirmation.
+must not be reused. Former case 156 retains visible app confirmation.
 
 ### E2E-035
 
@@ -2086,34 +2096,52 @@ report; retaining that prefix creates no separate report-review journey.
 
 ### E2E-046
 
-Implementation status: All cases pending.
+Case **208** remains an installed collection-failure/recovery journey. Former
+case **213** is a pending host UI obligation for explicit Send without logs,
+under the [mock-sending allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation).
 
-**Recover unavailable diagnostic collection.** Cases 208 and 213.
+**Recover collection, or explicitly send a report without unavailable logs.**
 
-Retained bindings: Parent retry (208) and station Send without logs (213).
 Parent without logs, both desktop request-report choices and station retry are
 removed from scheduling; case IDs 209–212 must not be reused. This keeps both
-recovery choices and station restrictions while accepting less coverage of
-screen-specific recovery problems.
+recovery choices at their declared layers.
 
-1. Parent: P → FEED01; station: qualified public cooldown/error prefix → FEED15. Independently capture the genuine terminal FEED09(failed collection) before recovery or Send; Internet loss alone is insufficient. No pre-entry trace or observed collecting transient is required.
-2. UI02(edit/Close usable) → UI16(valid synthetic body) → FEED03(capture draft). Parent: restore the declared public prerequisite and FEED16(Retry once). Station: FEED05(in-app Privacy readable) and UI02(no Add files, log download, attachment shortcut or external Privacy link) → FEED11(action=Send without logs, once under the reviewed authorization).
-3. Parent: FEED09(ready) → FEED03/UI12(unchanged draft) → UI18(normal close), without Send. Station: FEED09(acceptance) → UI01(thanks; original report exit still pending) → FEED14(manual dismissal) → UI11(report) → GDM01(sign-in screen). Failed sending preserves the draft and is not success.
+For 208, open Parent feedback and independently observe a genuine terminal
+collection failure. Editing/Close remain usable. Enter and capture a synthetic
+draft, restore the declared public prerequisite, select Retry once, require
+ready diagnostics with the unchanged draft, and close normally without Send.
+The public failure/recovery trigger remains required; Internet loss alone does
+not fail local collection.
+
+For 213, reuse the existing request component collector's declared failure and
+fake HTTP sender. Observe collection failure, usable editing/Close, in-app
+Privacy and absent kiosk attachment/download/external-link actions. Enter a
+synthetic draft, select Send without logs once, verify the encoded submission
+has no diagnostic attachment, observe app success and thanks, then manually
+dismiss and require real dialog closure plus the recorded logout callback.
+This component callback is not an installed GDM observation. No genuine
+cooldown trigger, installed collection outage, recipient or send authorization
+gates the local check; those installed results keep their own owners.
 
 ### E2E-047
 
-Implementation status: All cases pending.
+Allocation: former cases **216, 218–221** are pending host UI obligations under
+the [mock-sending decision](UI-and-E2E-Coverage.md#feedback-sending-allocation).
 
-**Finish or stop feedback in different user flows.** Cases 216, 218–221.
+**Finish or stop feedback in different app flows.**
 
 Bindings: flow = app-exit / overlay-stop / kiosk-stop / overlay-success / kiosk-success.
 
 Background reconnection is combined into [E2E-033 / case 157](#e2e-033),
 without a separate submission for former case 215.
 
-1. P → FEED01 or public-error prefix → FEED15. UI16 → FEED03; LIFE06(disconnect) for retry branches → FEED11 on the existing report surface. Reuse the reviewed profile and exact surface's qualified Privacy operation; no repeated disclosure tour is required for sending or exit behavior. Internet isolation needs no report-reactivation step.
-2. Perform the precise send-lifetime subrecipe below; FEED09 supplies sending/retry/success observations.
-3. Use FEED14 only for observed thanks; FEED03 checks cleared/preserved/reset draft as specified, and LIFE06 restores connectivity.
+Reuse the existing Parent/request component entry, actual dialog controls and
+fake sender. Perform the exact lifetime branch in
+[Sending, background completion and report exits](#sending-background-completion-and-report-exits).
+Read actual sending/retry/success states; dismiss only an observed thanks
+dialog. Preserve each branch's cleared/preserved/reset draft and exit-callback
+ordering without claiming a real desktop/GDM destination. No VM connectivity
+change, public-error trigger or real service prerequisite is required.
 
 ### E2E-048
 
@@ -2559,7 +2587,9 @@ Cooldown cases 176 and 178 measure each interval from successful approval to
 the next Request action. Reopening and, at the station, selecting the other child
 must complete within five seconds; if no supported route can do so, record that
 prerequisite gap. Do not extend the product cooldown or delay a response. The
-request error-report sending cases retain this same public-error prerequisite.
+installed error-report entry/decline cases retain this public-error prerequisite.
+The reallocated component sending cases use their existing request preview and
+must not repeat that public cooldown trigger.
 
 Ready the shared return/reopen helper and its read-only observer before the
 successful approval. After success, perform only the necessary exit, entry,
@@ -2673,19 +2703,23 @@ Kiosk has no chooser/download/preview route; its in-app Privacy remains readable
 
 ### Sending, background completion and report exits
 
-Every send needs separately explicit authorization for reviewed synthetic
-content and a supported dedicated recipient profile. Documentation grants none.
-The customer accepts the app's actual service confirmation; mailbox delivery,
-transport idempotency and payload equality remain separate integration work.
+Routine sending follows the developer's
+[component allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation).
+Reuse the existing Parent/request previews' fake HTTP sessions; the actual
+editor, encoder, retry controller and result handlers run, while no message
+contacts the real service or an inbox. No recipient profile, inbox access or
+external-send authorization is required. Real sending is separate optional
+integration work, never routine queue acceptance. A fake response proves app
+behavior under that response, not live service acceptance or email delivery.
 One action is issued once; uncertain input is never replayed.
 
 For Parent feedback or a Parent error report with an empty reply address,
 FEED11 first opens the anonymous-send confirmation. Explicitly choose Send
-Anonymously once before expecting sending, retry or service acceptance. The
+Anonymously once before expecting sending, retry or an app success result. The
 initial Send alone creates no submission; Add Email Address returns without
 sending. A nonempty valid reply address, child-overlay report or kiosk report
-uses direct Send. This required confirmation is part of the same authorized
-submission, not a second Send or permission to repeat one.
+uses direct Send. This required confirmation is part of the same
+component submission, not a second Send or permission to repeat one.
 
 Read the owned confirmation and explicitly dismiss it; no fixed inspection
 wait is required. Preserve the original report exit as pending before dismissal
@@ -2698,35 +2732,36 @@ do not reopen the disclosure in every send, retry or exit qualification. Case
 156 retains the ordinary-feedback disclosure visit; cooldown cases 176/178 and
 without-logs case 213 retain their request-surface disclosure results. A changed
 disclosure or surface binding still needs its affected qualification. Reusing
-Privacy evidence never reuses a draft, submission authorization outside its
-scope, or another case's send result.
+Privacy evidence never substitutes for the current draft or another case's
+send result. Fake-sender checks need no external submission permission.
 
-Before Send, ready the retry/status observer, any required warning/response
-bindings and the same LIFE06 restoration route. The original submission's retry
+Before Send, ready the retry/status observer and the test-local response/release
+controls in the existing preview. The original submission's retry
 deadline must cover the declared Close, stay/Stop or reconnection sequence with
 margin. Leave a report open when testing retry/reconnection; when testing Stop,
 independently observe its retry state before activating Stop sending and close
-once and observing its destination. A terminal
+once and observing actual dialog closure and the recorded exit callback. A terminal
 send failure or lost report cannot stand in for that result. These functional
-observations use the VM timing mandate without extending the product retry
-window or issuing another Send.
+observations retain finite host UI timeouts without extending the product retry
+window or issuing another Send. Timing arithmetic stays in the existing
+deterministic transport tests; no production clock or sender is replaced in an
+installed customer journey.
 
 | Case | Exact branch after preparation and one Send |
 | --- | --- |
 | 156 ordinary success | Leave the optional reply address empty and explicitly confirm Send Anonymously. FEED09(success and owned confirmation without reply follow-up) → FEED14(manual dismissal) → FEED01 → FEED03(cleared). |
-| 157 retry/background | Start offline, FEED09(retry) → UI18(ordinary feedback only) → UI11(feedback) → LIFE06(reconnect before retry deadline). Keep the same Parent running and require no unsolicited feedback/thanks window. Reopen within the bounded completion interval and FEED03(cleared). If sending remains active, read FEED09 until explicit acceptance, dismiss any resulting thanks and reopen to verify the empty draft. No second Send and no inference from elapsed time alone. |
-| 216 app-exit | Offline FEED09(retry) → UI18(feedback) → UI18(Parent) → LIFE06(reconnect) → PARENT01 → FEED01 → FEED03(reset, no resumed outbox). Do not claim an earlier request could not have reached the service. |
-| 218 overlay-stop / 219 kiosk-stop | Offline FEED09(retry) → FEED17(read explicit Stop action) → FEED18(Stop once and independent report closure/destination) → DESK01 or GDM01. Stop acts directly, with no warning or stay response. Restore Internet access through the same LIFE06 VM helper from that surface; no Parent visit/login. A stop cannot recall a request already accepted. |
-| 220 overlay-success / 221 kiosk-success | Case 220 includes the reviewed synthetic reply address and observes the reply follow-up note. FEED09(acceptance and owned confirmation; original report exit still pending) → FEED14(manual dismissal) → UI11(report) → DESK01 or GDM01. |
+| 157 retry/background | Fake retryable response → actual retry → close ordinary feedback while Parent stays alive → release fake success for the same frozen submission. Require no unsolicited window, reopen and verify cleared draft; if still sending, await result, dismiss thanks and reopen. No second Send or elapsed-time inference. |
+| 216 app-exit | Fake retryable response → actual retry → close feedback → exit Parent. Relaunch the preview normally and require reset draft with no resumed outbox or retry from the exited process. No live-service delivery claim. |
+| 218 overlay-stop / 219 kiosk-stop | Fake retryable response → actual retry and explicit Stop action → activate Stop once → require dialog closure, stopped pending retries and the recorded close-overlay/logout callback. No warning/stay dialog, public cooldown trigger, Internet isolation or installed destination credit. |
+| 220 overlay-success / 221 kiosk-success | Fake success → actual owned thanks while original report-exit callback remains pending → manual dismissal → report closed and callback recorded once. Case 220 uses the synthetic reply address and observes the follow-up note. No real desktop/GDM or service-acceptance credit. |
 
-Collection recovery cases 208 and 213 each require a real publicly observed
-collection failure. Parent retry additionally requires genuine recovery;
-station Send without logs does not. Loss of Internet does not itself fail local
-diagnostic collection. No deterministic public trigger is currently established:
-both cases stay pending until their exact public failure route is qualified,
-with recovery qualified for 208 and reviewed sending authorization for 213.
-Opening the report or seeing the final draft cannot stand in for observing
-failed collection, Retry, or explicit Send without logs.
+Installed collection-recovery case 208 still requires a real publicly observed
+failure and recovery; no deterministic public trigger is established. Task
+188k retains the distinct genuine kiosk collection-failure result. Former case
+213's component without-logs check instead uses the existing test-local
+collector failure and fake sender, and must observe the failed state before
+explicit Send without logs. It supplies no installed collection-failure result.
+Internet loss does not itself fail local diagnostic collection.
 
 The current `AccessibleUI.feedback_snapshot` and `wait_feedback_collection`
 only accept ready diagnostics; the former rejects visible Retry/Send without
@@ -2742,7 +2777,9 @@ pending retries and ends that report. Cases 218/219 test that action. They do no
 require an additional warning or a stay-open choice. Ordinary Parent feedback
 has a different Close lifetime: case 157 requires its retry to continue while
 Parent stays running. Public failure-trigger and sending-authorization gates
-remain prerequisites; this reconciliation qualifies no pending operation.
+remain prerequisites only for their distinct installed or optional real-send
+owners; they do not gate routine component sending. This reconciliation
+qualifies no pending operation.
 
 ### Natural calendar windows
 
@@ -2779,6 +2816,15 @@ window and expected displayed intervals before execution. Missing window or
 public precision is a gate, not permission to sample another day and call it
 the same case. Detailed timezone arithmetic and malformed timestamps retain
 their fast technical coverage.
+
+Cases 200/203 retain a known production mismatch: the
+[rest-of-day clock binding](../SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities)
+uses the approval's fixed UTC offset for tomorrow's midnight. Before the
+one-hour spring/fall transitions this yields a deadline one hour late/early.
+Keep the actual-local-midnight expectation and independent fixed-grant
+comparison. Correct the production timezone calculation before claiming these
+cases pass; do not redefine midnight, inject a test clock or substitute a unit
+test's transition-aware timezone for the installed result.
 
 ### E2E-053
 
@@ -3192,5 +3238,7 @@ or presentation acceptance matrix.
 No pixel/layout/scale/style pass gate, generic GDM password test, website
 filtering, unrelated networking test, remote device management or unsupported
 copied-program guarantee is added. A missing feature, public route, observation,
-asset, date window or authorized sending profile remains an explicit pending
-obligation. A passing subset never marks its complete variant ready.
+asset or date window remains an explicit pending obligation only for its
+scheduled owner. Optional real sending does not gate routine mocked checks;
+the two removed open questions do not restore execution tasks. A passing subset
+never marks its complete variant ready.

@@ -171,7 +171,10 @@ sort keys. A scenario never depends on another scenario's execution.
 
 If blocked, retain delivered scope and append
 `Blocker: …; resume when: …`. Complete authorized preparation for that task,
-including concrete reviewable inputs when sending authorization is missing.
+including concrete reviewable inputs if separately requested optional real
+sending lacks authorization. Routine fake-sender UI obligations need no
+recipient, inbox or external-send permission; follow their
+[allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation).
 Keep the row unchecked and the pointer on it; report the unresolved requirement.
 Do not mark an unavailable route, missing authorization or future calendar window
 as passed, and do not choose another row. A newly discovered prerequisite becomes
@@ -193,9 +196,18 @@ or suspended work from either plan. The three-way split preserves Plan A's task
 160 and Plan B's task 135a, their pointers and their pending prerequisite groups.
 Only later groups move: Flatpak fixtures/command/grid cases, package update/removal
 124/125, suspend 166a/167/166/168 and usage/expiry 172, 172a–172h and 172j–172l from A;
-169/170/171/173/174/175/178/179,
-143–149, 191/238/239/240/242/245 and 314/315 from B. IDs are labels, not ranges
-to execute implicitly. The original briefs and acceptance stay unchanged.
+169/170/173/174/175/178/179,
+191/238/239/240/242/245 and 314/315 from B. Former tasks 143–149 also moved at
+the split, but the developer subsequently removed their two-desktop scenarios
+from execution. [Two desktops](../Two_Desktops.md) retains that open question
+without an execution plan. Do not recreate those rows or their prerequisites
+during reconciliation. IDs are labels, not ranges to execute implicitly.
+Remaining briefs retain their acceptance unless an explicit scope decision
+in their owner says otherwise.
+Former task 171's stricter zero-time entry question was also removed from
+execution and retained in [Unlock desktop](../Unlock_Desktop.md). It is not a
+prerequisite for the remaining session work. Historical task/obligation
+references do not restore either removed group to the queue.
 
 Ordinary restarts retain strict interruption and close-out guards. If an inactive
 checkpoint retains the same unfinished task as the revised pointer, restart

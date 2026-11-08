@@ -1,50 +1,53 @@
-# 152 — Check feedback recovers after reconnecting
+# 152 — Check feedback recovers after a retryable response
 
-Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [UI acceptance](../E2E-Execution-Contracts.md#ui-acceptance).
 
 Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **FEED09 Parent retry/recovery over qualified LIFE06**. First scheduled consumer: [E2E-033, case 157](../E2E-Scenario-Recipes.md#e2e-033).
-Read the named [block contracts](../E2E-Building-Blocks.md#about-feedback-and-customer-selected-attachments), [related block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lifecycle-boundaries) and only the selected consumer's recipe.
+Deliver **UI obligation; FEED09 Parent retry/recovery** using the existing fake
+HTTP Session, without changing host or guest connectivity.
 
-**Gate:** Authorization for the reviewed submission and the qualified LIFE06
-VM Internet-isolation helper.
+Required tasks (current queue IDs):
 
-Required tasks (queue IDs; use delivered scope, not predecessor briefs):
+- **150** — Parent mock-response submission and result handling.
 
-- **150** — FEED11, FEED09 sending/success and FEED14 Parent feedback; gate in brief.
-- **193** — LIFE06.
+## Implementation and expected results
 
-## Implementation
+Reuse the Parent component preview's fake HTTP Session. Add only the missing
+finite retry-then-success response/release control there, exercising the actual
+encoder and retry controller. Do not replace `submit` with a success stub or add
+a server/network harness. Existing transport unit checks own exact backoff,
+expiry and frozen identity; no long retry-window sleep or product timing change.
 
-Reuse LIFE06's qualified enter-offline/restore-online operations unchanged.
-Extend FEED09 only for real retry and recovery during one authorized submission,
-preserving the normal retry window and observation transport. Network setup is
-already owned by 193a/193; do not choose another guest connection, networking
-backend or management path here. No transport fault injection or forged response.
+Send one synthetic report; with empty reply, explicitly confirm Send
+Anonymously. Independently observe public retry while the dialog stays open,
+release the same mock submission's next successful response and require its
+actual success/thanks result. No second explicit Send. Check meaningful UI
+sensitivity and preserved frozen input through the existing owner, without
+repeating Privacy/attachment/collection matrices.
 
-`offline_controls.offline_controls` composes synchronous control inputs and
-saved-state observations; its fixed loop does not bind a pending submission's
-background retry. Reuse `vm_internet.InternetIsolation.enter` / context-managed
-`restore` directly in the shared retry operation, keeping one isolation lifetime
-and one submission. Add only FEED09's public retry/success projections and their
-new composition; reuse unchanged LIFE06 online/offline/ownership/cleanup evidence.
+This is a **UI obligation** under the developer's mock-sending decision.
+Reuse [150a's component boundary](150a-feedback-profile.md); production code
+and endpoint remain unchanged. Tests must make no real network request.
+Numeric case IDs are allocation references only: no installed E2E pass,
+real-service acceptance or delivery credit. A real-send check is separate and
+optional, never a prerequisite here.
 
-## Live VM acceptance
+## UI acceptance
 
-In the authorized live retry attempt, remove Internet access through LIFE06,
-submit once (including Parent's Send Anonymously confirmation if the reviewed
-reply address is empty), observe retry, restore Internet access before its deadline and
-observe automatic success for that same submission. Run both supporting
-operations from the existing test-control channel while keeping the current
-app/session surface. If the qualified helper loses control or observation,
-report that infrastructure failure; do not improvise another network route.
-
-Planned qualification selector (not registered; implement before use):
+Inspect existing coverage first; fill only missing product assertions in the
+named owner and reuse its shared Application UI API helpers. Do not add a
+parallel fixture, mock server, portal, inbox or production mock switch.
+Run the focused maintained selection after implementation:
 
 ```sh
-tools/run-tests system check_e2e_network
+tools/run-tests ui 'tests/ui/test_parent_feedback.py' --timeout 1800s
 ```
+
+Reuse existing deterministic transport timing/error coverage in
+[the transport unit owner](../../../tests/unit/test_feedback_transport.py);
+run its affected selection only if transport test coverage changes. This
+brief's documentation update executes no tests or acceptance.

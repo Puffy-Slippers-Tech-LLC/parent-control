@@ -99,9 +99,11 @@ and later app/game journeys remain pending.
 
 Apply the [expiry coverage allocation](UI-and-E2E-Coverage.md#expiry-coverage-allocation)
 to all unfinished expiry consumers. Expiry coverage is delivered through the existing
-canonical rows: 084/085/144/145 (revocation), 182/206 (daily time outlasting a
-grant), 164/166a/166/167/168 (idle/suspend), and 171/172 (entry exposure and
-usage-read faults). These canonical tasks are partitioned across the three
+canonical rows: 084/085 (revocation), 182/206 (daily time outlasting a
+grant), 164/166a/166/167/168 (idle/suspend), and 172 (usage-read faults).
+Former task 171's entry-exposure question is retained only in
+[Unlock desktop](../Unlock_Desktop.md), outside execution scheduling. These
+remaining canonical tasks are partitioned across the three
 independent queues; none gains a prerequisite on unfinished work in another
 plan. There is no duplicate expiry implementation queue. Full-case
 delivery closes that same row only after its normal acceptance;
@@ -123,14 +125,15 @@ termination residuals; expiry work must not copy their existing fault matrices.
 ## Reallocated system coverage
 
 Tasks **150o/150k** are absorbed into **262/263** (cases **220/221**).
-Task **150** retains the shared authorized submission and service-success
-boundary; **187o/187k** retain each error-report entry and Privacy binding.
-The complete cases implement only the missing surface success/exit projections,
-then independently observe service acceptance, confirmation, dismissal and the
-usable child-desktop or GDM destination. No precursor repeats that history.
-Later sending/Close consumers reuse those shared operations without depending
-on another scenario's execution. All submission gates and uncovered journeys
-remain pending.
+Task **150** retains the shared fake-sender submission and app-success
+boundary; **187o/187k** retain each installed error-report entry and Privacy binding.
+Former cases 220/221 now follow the
+[mock-sending UI allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation):
+actual dialog success, confirmation, dismissal and recorded close/logout
+callbacks under fake responses. They supply no installed destination or real
+service credit. No precursor repeats that history. Later sending/Close consumers
+reuse those component operations; inbox and external-send authorization do not
+gate them. Genuine installed request-exit behavior keeps its existing owner.
 
 Task **102** is absorbed into cases **23/24/126/127** (tasks
 **103/104/127/130**). They compose natural lock, time denial, parameterized kiosk
@@ -274,11 +277,13 @@ installed acceptance credit.
 Excluded tasks: **257** (separate background feedback reconnection).
 The developer combined this into [task 153 / case 157](E2E-Tasks/153-case-157.md).
 Task 257, its brief and inventory case 215 are absorbed, neither completed nor
-deferred; do not recreate the separate journey or reuse case ID 215. Send once
-offline, observe retry, close only feedback, reconnect with the same Parent
-running, require no unexpected window and reopen to verify completion and an
-empty draft without another Send. Visible confirmation remains in E2E-032 /
-case 156. The combined journey remains pending.
+deferred; do not recreate the separate journey or reuse case ID 215. Its retained
+retry/background behavior now belongs to the
+[mock-sending UI allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation):
+fake retry then success with the same Parent alive, no unsolicited window and
+cleared reopened draft without another Send. Visible app confirmation remains
+with former case 156's UI owner. No real Internet isolation or service profile
+is required; missing component assertions remain pending.
 
 Excluded tasks: **237** (separate offline station journey).
 The developer combined both request screens into task 236 / case 194.
@@ -307,8 +312,9 @@ the remaining account-change consumers.
 Task **256** and standalone inventory case **214** are absorbed into
 [task 151 / case 156](E2E-Tasks/151-case-156.md), neither completed nor deferred.
 Do not recreate the brief or separate ordinary-feedback send or reuse case ID 214.
-Case 156 sends without a reply address; [task 262 / case 220](E2E-Tasks/262-case-220.md)
-sends an error report with an address. Both remain pending. The
+Former case 156 sends without a reply address; [task 262 / former case 220](E2E-Tasks/262-case-220.md)
+sends an error report with a synthetic address. Both are pending UI obligations
+using the existing fake sender, without real-service acceptance credit. The
 [UI coverage owner](UI-and-E2E-Coverage.md#duplicate-review-and-allocation)
 retains both exact confirmation wordings as focused dialog checks.
 
@@ -657,7 +663,7 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 312a | Qualify overlay reminder editing and persistence | 300i | Qualified on Ubuntu 26.04 and Fedora 44 through `check_e2e_overlay_reminder_editing`: defaults, literal 75-to-90-second editing with stable ID, independent Save/Cancel/empty-list readback, unchanged language/request/time/policy and owned cleanup. No natural-delivery or complete-case credit. | 20–30 |
 | [x] | 312b | Qualify kiosk reminder ownership and persistence | 312a, 300j | Qualified on Ubuntu 26.04 and Fedora 44 through `check_e2e_kiosk_reminder_binding`: exact saved-ID persistence from the 90-second overlay row through the 75-second kiosk edit and overlay readback, independent station reopen, Jordan list/language isolation, Riley preservation through Jamie → Casey and child switches, unchanged request/time/policy and owned cleanup. No natural-delivery or complete-case credit. | 20–30 |
 | [x] | 311a | Qualify the saved fullscreen reminder preference | 312a | Qualified on Ubuntu 26.04 and Fedora 44 through `check_e2e_reminder_fullscreen_preference`: Save false and independently reopen, Cancel a true draft and read saved false, exact reminder/language/request preservation, unchanged public policy/time and zero grants, with owned cleanup. Reports `20261013T201225Z-b7411901` and `20261013T201225Z-058fe498`; no notification-delivery or complete-case credit. | 20–30 |
-| [ ] | 311b | [Qualify natural reminder content and urgency](E2E-Tasks/311b-natural-reminder-observation.md) | 311a, 062, 300i | Natural ChildUI notification body, threshold binding and urgency. Blocker: declared threshold value differs from live-balance mapping; resume when the public contract and maintained reader distinguish the two consistently | 20–30 |
+| [ ] | 311b | [Qualify natural reminder content and urgency](E2E-Tasks/311b-natural-reminder-observation.md) | 311a, 062, 300i | Natural ChildUI notification body, independently bound saved threshold/live remaining balance and urgency; maintained natural observer and installed qualification pending | 20–30 |
 | [ ] | 311c | [Qualify owned reminder banners during fullscreen play](E2E-Tasks/311c-fullscreen-reminder-visibility.md) | 311b, 129 | Public owned-banner visibility/suppression during genuine fullscreen play; qualification pending | 20–30 |
 | [ ] | 311 | [Remaining-time system notifications](E2E-Tasks/311-remaining-time-notifications.md) | 007, 052, 062, 300i, 312b, 311c | Planned scenario; read all four saved defaults; naturally deliver 1m/15s warnings, with no 10m/5m or blank-text delivery cycle; retain per-child reminders, translated defaults, literal custom text, fullscreen on/off, renewed-time warnings, natural locking and latest-version reboot persistence; targeted schema/migration regressions cover upgrade handling; installed reminder-control, natural notification and owned fullscreen-banner qualifications are gates; no executable or acceptance | 40–60 (exception) |
 | [ ] | 295 | [Validate the manually prepared Lunar VM profile](E2E-Tasks/295-lunar-preparation.md) | 006 | FIX05; restored Lunar/AppImageLauncher/autostart/Minecraft prerequisites only. Blocker: profile and repeatable setup unqualified; resume when the manual assets and standard restore path are available. | 20–30 |

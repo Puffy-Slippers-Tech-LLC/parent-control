@@ -7,10 +7,13 @@ Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **FEED09 kiosk collection failure and usable controls**. First scheduled consumer: [E2E-046, case 213](../E2E-Scenario-Recipes.md#e2e-046).
-Read the named [block contracts](../E2E-Building-Blocks.md#additional-public-surfaces) and only the selected consumer's recipe.
+Deliver **FEED09 genuine installed kiosk collection failure and usable controls**.
+Former case 213's sending behavior is now a
+[separate UI obligation](../UI-and-E2E-Coverage.md#feedback-sending-allocation)
+and does not consume or qualify this installed result. Read the named
+[block contracts](../E2E-Building-Blocks.md#additional-public-surfaces).
 
-**Gate:** No deterministic public collection-failure trigger is established. Leave pending until an exact normal customer trigger is qualified; no internal fault injection. Successful collection recovery is not required by the retained Send without logs journey.
+**Gate:** No deterministic public collection-failure trigger is established. Leave pending until an exact normal customer trigger is qualified; no internal fault injection. No successful collection recovery or Send is required by this installed failure-state slice. Its missing trigger does not gate the component without-logs check.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 

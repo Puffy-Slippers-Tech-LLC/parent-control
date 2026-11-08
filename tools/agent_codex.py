@@ -325,7 +325,7 @@ class CodexBatchPresentation:
                 yield SessionEvent('text', {'id': item.get('id'), 'text': text,
                                            'complete': complete})
             elif category in ('command_execution', 'file_change', 'todo_list',
-                              'sub_agent_activity', 'mcp_tool_call', 'web_search'):
+                              'sub_agent_activity', 'collab_tool_call', 'mcp_tool_call', 'web_search'):
                 yield SessionEvent('item', {'item': item, 'complete': complete})
             else:
                 yield SessionEvent('diagnostic', {'value': packet})

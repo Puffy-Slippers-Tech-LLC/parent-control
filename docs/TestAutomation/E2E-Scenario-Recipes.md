@@ -1796,7 +1796,9 @@ owns the two approval epochs, child identities and unchanged-access comparisons.
 
 Implementation: case 180 uses `account_changes.AccountChangeJourney` /
 `PLAN`, `account_fixture.SpareChildrenFixture` and
-`onpc_account_changes::remove_selected`. Cases 181 and 182 remain pending.
+`onpc_account_changes::remove_selected`. Case 181 uses
+`account_changes.LAST_CHILD_PLAN` / `onpc_account_changes::remove_last_child`
+with the independent one-spare profile. Case 182 remains pending.
 
 **Refresh accounts and remembered selections after account changes.** Cases 180, 181, 182.
 
@@ -2568,7 +2570,8 @@ Jordan/Riley identify those disposable inputs, never permission to delete the
 baseline accounts. `SpareChildrenFixture(count=2)` supplies case 180's profile;
 `count=1` exposes the independent one-spare preparation for case 181. Preparation
 and both public eligible-set/fallback results are accepted in case 180 on
-Fedora 44; case 181 still needs its own complete journey and acceptance.
+Fedora 44. Case 181 independently passed its one-spare preparation, removal and
+same-window automatic empty result on Fedora 44.
 An engineering empty-list mutation cannot replace either customer setup.
 Case 182 independently prepares and reads the registered spare Sam
 administrator before its role change, without a separate fixture qualification;
@@ -2588,7 +2591,12 @@ request choices must not leak into either result. No reset or second removal
 separates the checks. For 182, both station and overlay remember Sam before
 ACCOUNT02 changes Sam to standard. Reopen both forms and independently require
 Sam excluded and Jamie automatically selected before any edit or manual
-selection. Case 181 separately checks removal of the last eligible child.
+selection. Case 181 independently prepares only spare Jordan, observes that
+exact eligible set and initial settings in Parent, and removes the logged-out
+spare once while retaining the administrator and the same Parent window.
+Without reopening, refreshing or activating the picker, require automatic
+empty choices/selection, the disabled picker's `(None)` label and the
+no-eligible-child explanation. No request form or allowance edit is needed.
 
 ### Feedback local values
 

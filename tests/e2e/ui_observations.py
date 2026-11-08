@@ -1694,10 +1694,14 @@ class UiObservations:
             if parent or action != 'seed':
                 value = result.get('account_change')
                 require(type(value) is dict and set(value) == (
+                    {'empty', 'window'} if action == 'empty' else
                     {'settings', 'window'} if parent else {'request'}), 'ui:spare-response')
                 if parent:
-                    settings = SettingsObservation.from_settings(value['settings'])
-                    require(settings.child == 'spare-' + role, 'ui:spare-child')
+                    if action == 'empty':
+                        require(value['empty'] is True, 'ui:spare-empty')
+                    else:
+                        settings = SettingsObservation.from_settings(value['settings'])
+                        require(settings.child == 'spare-' + role, 'ui:spare-child')
                     window = value['window']
                     require(type(window) is dict and set(window) == {
                         'binding', 'pid', 'endpoint', 'available'} and window['binding'] == 'parent'

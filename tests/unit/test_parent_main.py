@@ -31,6 +31,9 @@ class FakeDropDown:
     def get_selected(self):
         return self.owner.selected_index if self.owner.selected_index is not None else 0
 
+    def set_sensitive(self, sensitive):
+        self.sensitive = sensitive
+
 
 class FakeSensitiveWidget:
     def __init__(self, active=False):
@@ -64,6 +67,7 @@ class ParentWindowHarness:
     _users_loaded = ParentWindow._users_loaded
     _account_changed = ParentWindow._account_changed
     _selected_uid = ParentWindow._selected_uid
+    _set_apps_sensitive = ParentWindow._set_apps_sensitive
     _try_auto_whats_new = mock.Mock()
 
     def __init__(self):
@@ -73,6 +77,11 @@ class ParentWindowHarness:
         self._users_loading = True
         self._account = FakeDropDown(self)
         self._no_users_message = FakeVisibleWidget()
+        self._loading = False
+        self._enabled = FakeSensitiveWidget(active=True)
+        self._daily_limit = FakeSensitiveWidget()
+        self._revoke = FakeSensitiveWidget()
+        self._apps_group = FakeSensitiveWidget()
         self.load_count = 0
         self.model_updates = 0
         self.selected_index = None
@@ -1447,6 +1456,24 @@ class ParentWindowTests(unittest.TestCase):
         self.assertEqual(window.apps_load_uids, [])
         self.assertTrue(window._no_users_message.visible)
         self.assertEqual(window.toasts, ["No interactive non-admin users were found"])
+
+    def test_last_child_removal_disables_controls_in_the_open_window(self):
+        window = ParentWindowHarness()
+        window._users_loaded([(1001, "Child")])
+        window._set_apps_sensitive(True)
+        self.assertTrue(window._account.sensitive)
+        self.assertTrue(window._enabled.sensitive)
+
+        window._users_loaded([])
+
+        self.assertIsNone(window._selected_uid())
+        self.assertTrue(window._no_users_message.visible)
+        for control in (window._account, window._enabled, window._daily_limit,
+                        window._revoke, window._apps_group):
+            self.assertFalse(control.sensitive)
+        # Later status/save completion must not re-enable an empty picker.
+        window._set_apps_sensitive(True)
+        self.assertFalse(window._account.sensitive)
 
     def test_app_settings_stay_enabled_when_daily_limit_is_off(self):
         window = type("WindowHarness", (), {})()

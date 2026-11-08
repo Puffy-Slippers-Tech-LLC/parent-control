@@ -426,6 +426,12 @@ sub run {
         onpc_account_changes::remove_selected(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{remove_last_child}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_account_changes::remove_last_child(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{choices_overlay_to_kiosk}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

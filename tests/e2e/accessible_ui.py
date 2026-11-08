@@ -691,6 +691,8 @@ SPARE_PARENT_OPERATIONS = {
 }
 SPARE_PARENT_OPERATIONS['spare-parent-riley-fallback'] = ('riley', 'fallback')
 SPARE_PARENT_OPERATIONS['spare-parent-jordan-return'] = ('jordan', 'return')
+SPARE_PARENT_OPERATIONS['spare-parent-jordan-only'] = ('jordan', 'only')
+SPARE_PARENT_OPERATIONS['spare-parent-empty'] = ('jordan', 'empty')
 SPARE_REQUEST_OPERATIONS = {
     'spare-kiosk-' + role + '-' + action: (role, action)
     for role in ('jordan', 'riley') for action in ('seed', 'read')
@@ -6256,8 +6258,12 @@ class AccessibleUI:
         require(operation in SPARE_OPERATIONS, 'ui:spare-operation')
         parent = operation in SPARE_PARENT_OPERATIONS
         role, action = (SPARE_PARENT_OPERATIONS if parent else SPARE_REQUEST_OPERATIONS)[operation]
+        if action == 'empty':
+            self.parent_empty()
+            return {'empty': True, 'window': self.window_switch_proof('parent')}
         child = SPARE_CHILDREN[role][1]
-        roles = ('riley',) if action == 'fallback' else ('jordan', 'riley')
+        roles = ('jordan',) if action == 'only' else (
+            ('riley',) if action == 'fallback' else ('jordan', 'riley'))
         offered = {str(pwd.getpwnam(SPARE_CHILDREN[key][0]).pw_uid) for key in roles}
         selected_uid = str(pwd.getpwnam(SPARE_CHILDREN[role][0]).pw_uid)
         if parent:
@@ -6266,7 +6272,7 @@ class AccessibleUI:
                 if not self.has_state(selector, self.api.StateType.SENSITIVE):
                     return False
                 choices = selector.getChoices()
-                if action == 'fallback':
+                if action in ('fallback', 'only'):
                     return (type(choices) is list and len(choices) == len(offered)
                             and set(choices) == offered and selector.getValue() == selected_uid)
                 require(type(choices) is list and len(choices) == len(offered)
@@ -6282,7 +6288,7 @@ class AccessibleUI:
                 self.configure_time_controls(child, initial_enabled=False,
                     minutes=30 if role == 'jordan' else 15, final_enabled=True)
             else:
-                self.parent_save_snapshot(child, True)
+                self.parent_save_snapshot(child, action != 'only')
             return {'settings': self.settings(child), 'window': self.window_switch_proof('parent')}
 
         custom = '1.25' if role == 'jordan' else '2.5'
@@ -7289,6 +7295,8 @@ class AccessibleUI:
             placeholder = (self.find_id('parent-child-selected-none', root=picker)
                            if picker is not None else None)
             return (picker is not None and explanation is not None and placeholder is not None
+                    and not self.has_state(picker, self.api.StateType.SENSITIVE)
+                    and placeholder.get_name().strip() == '(None)'
                     and self.read_label(explanation, 'empty-explanation', maximum=80)
                     and self.read_label(picker, 'empty-picker', maximum=80))
         self.wait(empty, 'parent-empty')

@@ -1697,6 +1697,15 @@ the worker and retains Parent for guarded `exec` inspection. The boundary result
 is diagnostic only. Finish with `tools/test-vm --vm NAME stop`; clean case 180
 acceptance remains separate.
 
+`tools/test-vm --vm NAME reproduce-remove-last-child` uses the same envelope
+with `account_changes.LAST_CHILD_PLAN` and the independent one-spare profile.
+After observing exactly Jordan and removing that logged-out spare once, it
+observes `spare-parent-empty` at the unanswered `parent-empty` boundary and
+retains the same Parent window for guarded `exec` inspection. All original
+empty-state assertions remain active; a refusal is retained without advancing
+the boundary. Finish with `tools/test-vm --vm NAME stop`; this supplies no
+case 181 acceptance credit.
+
 `tools/test-vm --vm NAME reproduce-lock-denial` uses that same envelope with
 `RetainedDenialJourney` / `CHILD_DENIAL_PLAN`. It stops at the `time-denied`
 request after the child's guarded curtain reveal, before native restriction

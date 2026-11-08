@@ -1026,7 +1026,8 @@ BINDING_REMINDER_OPERATIONS = {
     f'binding-reminder-{binding}-{action}': (surface, child, action)
     for binding, surface, child, actions in (
         ('overlay', 'overlay', CHILD, ('open', 'create', 'delete', 'save', 'cancel')),
-        ('riley', 'kiosk', CHILD, ('open', 'edit', 'save', 'cancel')),
+        ('jordan-overlay', 'overlay', EXISTING_CHILD, ('open', 'cancel')),
+        ('riley', 'kiosk', CHILD, ('open', 'edit', 'delete', 'delete-all', 'save', 'cancel')),
         ('jordan', 'kiosk', EXISTING_CHILD, ('open', 'cancel')))
     for action in actions
 }
@@ -3530,11 +3531,11 @@ class AccessibleUI:
         return value
 
     @contextmanager
-    def language_scope(self, surface):
+    def language_scope(self, surface, *, child=CHILD):
         """Share the owning-account chooser boundary between previews and E2E."""
         require(surface in ('parent', 'kiosk', 'overlay'), 'ui:language-surface')
         if surface == 'overlay':
-            self.require_child_overlay_session()
+            self.require_child_overlay_session(child)
         original = self.application_ids
         requested = original() if callable(original) else original
         allowed = ((PARENT_APPLICATION,) if surface == 'parent' else
@@ -3547,8 +3548,8 @@ class AccessibleUI:
         finally:
             self.application_ids = original
 
-    def open_language_preferences(self, surface):
-        with self.language_scope(surface):
+    def open_language_preferences(self, surface, *, child=CHILD):
+        with self.language_scope(surface, child=child):
             self.id_target('parent-window' if surface == 'parent' else 'kiosk-request-window')
             self.activate_id('parent-menu-button' if surface == 'parent' else 'kiosk-menu-button')
             self.activate_id('parent-menu-preferences' if surface == 'parent'
@@ -3935,9 +3936,9 @@ class AccessibleUI:
             self.wait(selected, 'language-choice', prompt_in_predicate=True)
             self.input_uncertain = False
 
-    def language_save_completed(self, surface):
+    def language_save_completed(self, surface, *, child=CHILD):
         """Observe readiness and closure together; do not replay an uncertain Save."""
-        with self.language_scope(surface):
+        with self.language_scope(surface, child=child):
             def completed():
                 observation = self.read_snapshot()
                 if any(self.has_state(node, self.api.StateType.DEFUNCT)
@@ -10598,18 +10599,18 @@ class AccessibleUI:
 
     @staticmethod
     def _reminder_binding(surface, child):
-        require(surface in ('overlay', 'kiosk') and child in (CHILD, EXISTING_CHILD)
-                and (surface != 'overlay' or child == CHILD), 'ui:reminder-binding')
+        require(surface in ('overlay', 'kiosk') and child in (CHILD, EXISTING_CHILD),
+                'ui:reminder-binding')
 
     def _overlay_reminder_state(self, *, editor=False, require_tab=True, source=None,
                                 surface='overlay', child=CHILD):
         """Fresh child, modal, draft and control proofs for reminder operations."""
         self._reminder_binding(surface, child)
         if surface == 'overlay':
-            self.require_child_overlay_session()
+            self.require_child_overlay_session(child)
         observation = self.read_snapshot()
         nodes, edges, identities, _facts = observation
-        window = self.request_surface(observation, overlay=surface == 'overlay')
+        window = self.request_surface(observation, overlay=surface == 'overlay', child=child)
         self.initial_kiosk_child(observation, window, child=child)
         application = self.snapshot_matches(CHILD_APPLICATION if surface == 'overlay' else
                                            KIOSK_APPLICATION, nodes, identities=identities)
@@ -10708,7 +10709,7 @@ class AccessibleUI:
         """Read canonical reminder drafts through the shared product facade."""
         self._reminder_source_binding(expected_source)
         self._reminder_binding(surface, child)
-        with self.language_scope(surface):
+        with self.language_scope(surface, child=child):
             return self._overlay_reminder_state(source=expected_source, surface=surface,
                                                 child=child)['payload']
 
@@ -10726,9 +10727,9 @@ class AccessibleUI:
         """Open the bound child's preferences without completing startup setup."""
         self._reminder_binding(surface, child)
         require(not self.input_uncertain, 'ui:uncertain-input')
-        with self.language_scope(surface), self._reminder_input_scope():
+        with self.language_scope(surface, child=child), self._reminder_input_scope():
             observation = self.read_snapshot()
-            window = self.request_surface(observation, overlay=surface == 'overlay')
+            window = self.request_surface(observation, overlay=surface == 'overlay', child=child)
             self.initial_kiosk_child(observation, window, child=child)
             require(self.snapshot_owned_target('kiosk-language-ready', root=window,
                     observation=observation) is not None, 'ui:reminder-language-unready')
@@ -10738,7 +10739,7 @@ class AccessibleUI:
             require(not any(node != window and self.showing(node)
                             and self.has_state(node, self.api.StateType.MODAL)
                             for node in observation[0]), 'ui:reminder-modal-blocked')
-            self.open_language_preferences(surface)
+            self.open_language_preferences(surface, child=child)
             node = self._overlay_reminder_state(require_tab=False, surface=surface, child=child)['target'](
                 'preferences-tabs', sensitive=True)
             self.input_uncertain = True
@@ -10780,7 +10781,7 @@ class AccessibleUI:
                      and re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*', record_id)),
                 'ui:reminder-editor-binding')
         require(not self.input_uncertain, 'ui:uncertain-input')
-        with self.language_scope(surface), self._reminder_input_scope():
+        with self.language_scope(surface, child=child), self._reminder_input_scope():
             def state_for(**kwargs):
                 return self._overlay_reminder_state(surface=surface, child=child, **kwargs)
             before = state_for(source=expected_source)
@@ -10852,21 +10853,23 @@ class AccessibleUI:
             self.input_uncertain = False
             return result
 
-    def overlay_reminder_delete(self, record_id, *, expected_source=None):
+    def overlay_reminder_delete(self, record_id, *, expected_source=None,
+                                surface='overlay', child=CHILD):
         """Delete exactly one declared stable ID from the current draft."""
         self._reminder_source_binding(expected_source)
+        self._reminder_binding(surface, child)
         require(type(record_id) is str and len(record_id) <= 64
                 and re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*', record_id),
                 'ui:reminder-row-binding')
         require(not self.input_uncertain, 'ui:uncertain-input')
-        with self.language_scope('overlay'), self._reminder_input_scope():
-            state = self._overlay_reminder_state(source=expected_source)
+        with self.language_scope(surface, child=child), self._reminder_input_scope():
+            state = self._overlay_reminder_state(source=expected_source, surface=surface, child=child)
             before = state['payload']
             require(sum(row['id'] == record_id for row in before['records']) == 1,
                     'ui:reminder-row-binding')
             self._invoke_target(state['target'](f'reminder-{record_id}-delete', sensitive=True))
             self.input_uncertain = True
-            result = self._overlay_reminder_state()['payload']
+            result = self._overlay_reminder_state(surface=surface, child=child)['payload']
             require(result['records'] == [row for row in before['records'] if row['id'] != record_id]
                     and result['show_in_fullscreen'] == before['show_in_fullscreen']
                     and result['language'] == before['language'], 'ui:reminder-delete-result')
@@ -10878,15 +10881,15 @@ class AccessibleUI:
         self._reminder_binding(surface, child)
         require(type(save) is bool, 'ui:reminder-commit-binding')
         require(not self.input_uncertain, 'ui:uncertain-input')
-        with self.language_scope(surface), self._reminder_input_scope():
+        with self.language_scope(surface, child=child), self._reminder_input_scope():
             state = self._overlay_reminder_state(source=expected_source, surface=surface, child=child)
             self._invoke_target(state['target']('language-continue' if save else 'language-cancel',
                                                sensitive=True))
             self.input_uncertain = True
-            self.language_save_completed(surface)
+            self.language_save_completed(surface, child=child)
             self.input_uncertain = True
             observation = self.read_snapshot()
-            window = self.request_surface(observation, overlay=surface == 'overlay')
+            window = self.request_surface(observation, overlay=surface == 'overlay', child=child)
             self.initial_kiosk_child(observation, window, child=child)
             self.input_uncertain = False
 
@@ -10906,9 +10909,17 @@ class AccessibleUI:
             self.overlay_reminder_commit(save=action == 'save', expected_source=source, **binding)
             return {}
         records = self.overlay_reminder_read(expected_source=source, **binding)['records']
+        if action == 'delete-all':
+            result = self.overlay_reminder_read(expected_source=source, **binding)
+            for row in records:
+                result = self.overlay_reminder_delete(row['id'], expected_source=result['source'],
+                                                       **binding)
+            return {'reminders': result}
         if action == 'delete':
-            row = self._reminder_row(records, seconds=75, text='Save <work> & games!')
-            return {'reminders': self.overlay_reminder_delete(row['id'], expected_source=source)}
+            row = self._reminder_row(records, seconds=90 if surface == 'kiosk' else 75,
+                                     text='Save <work> & games!')
+            return {'reminders': self.overlay_reminder_delete(row['id'], expected_source=source,
+                                                             **binding)}
         record_id = (self._reminder_row(records, seconds=90, text='Save <work> & games!')['id']
                      if action == 'edit' else None)
         return {'reminders': self.overlay_reminder_editor(seconds=75 if action == 'edit' else 90,
@@ -16472,6 +16483,8 @@ def main():
             CHILD_ACCOUNTS[kiosk_request_values(kiosk_request)[0]] if kiosk_request is not None else
             CHILD_ACCOUNTS[overlay_request_values(overlay_request)[0]] if overlay_request is not None else
             CHILD_ACCOUNTS[TRANSFER_OPERATIONS[sys.argv[1]][1]] if sys.argv[1] in TRANSFER_OPERATIONS else
+            CHILD_ACCOUNTS[BINDING_REMINDER_OPERATIONS[sys.argv[1]][1]]
+            if sys.argv[1] in BINDING_REMINDER_OPERATIONS and not kiosk else
             (CHILD_ACCOUNTS[NAMED_CUSTOM_CHILDREN[child] if child else CHILD]
              if sys.argv[1] in CHILD_DESKTOP_OPERATIONS else
              'onpc-child-jordan' if sys.argv[1] in STANDARD_OPERATIONS else 'onpc-parent-jamie'))

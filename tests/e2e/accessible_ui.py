@@ -284,8 +284,9 @@ NATIVE_DENIAL_BINDINGS = {
         ('hard', 'H', ('command-blocked',)),
         ('soft', 'S', ('command-blocked',)),
         ('updated', 'Update', ('command-blocked',)),
-        ('space-copy', 'SpaceCopy', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed')),
-        ('comma-copy', 'CommaCopy', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed')),
+        ('comma', 'C', ('command-blocked',)),
+        ('space-copy', 'SpaceCopy', ('desktop', 'command-launch', 'command-blocked', 'opened', 'submit', 'submitted', 'close', 'closed')),
+        ('comma-copy', 'CommaCopy', ('desktop', 'command-launch', 'command-blocked', 'opened', 'submit', 'submitted', 'close', 'closed')),
         ('nonmatching', 'N', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed')))
     for action in actions
 }
@@ -693,7 +694,7 @@ OPERATIONS |= APP_ROW_OPERATIONS
 MATCH_APP = 'parent-app-' + hashlib.sha256(b'com.puffyslippers.ONPCTest.A.desktop').hexdigest()[:16]
 MATCH_APPS = {role: 'parent-app-' + hashlib.sha256(
     ('com.puffyslippers.ONPCTest.' + role + '.desktop').encode()).hexdigest()[:16]
-    for role in ('A', 'H', 'S', 'Alias', 'Update')}
+    for role in ('A', 'H', 'S', 'Alias', 'Update', 'C')}
 MATCH_OTHER_APP = 'parent-app-' + hashlib.sha256(b'com.puffyslippers.ONPCTest.N.desktop').hexdigest()[:16]
 SNAP_POLICY_APP = 'parent-app-' + hashlib.sha256(
     b'onpc-fixture-allowed_onpc-fixture-allowed.desktop').hexdigest()[:16]
@@ -738,7 +739,7 @@ ACCESS_CHOICES = ('allowed', 'permanent', 'conditional')
 ACCESS_OPERATIONS = frozenset('access-' + action for action in
     (*ACCESS_CHOICES, 'row', 'screen', 'wrong-row', 'disabled'))
 BASELINE_ACCESS_OPERATIONS = {f'access-{name}-{action}': (MATCH_APPS[role], action)
-    for name, role in (('hard', 'H'), ('soft', 'S'), ('alias', 'Alias'), ('update', 'Update'))
+    for name, role in (('hard', 'H'), ('soft', 'S'), ('alias', 'Alias'), ('update', 'Update'), ('comma', 'C'))
     for action in (*ACCESS_CHOICES, 'row')}
 BASELINE_ACCESS_OPERATIONS.update({f'access-snap-{action}': (SNAP_POLICY_APP, action)
                                    for action in ('allowed', 'row')})
@@ -13056,15 +13057,16 @@ class AccessibleUI:
         require(not snap or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
                 or child == CHILD and role == 'A' and instance == 'primary')
                 and not blocked and not locked and fixture == 'policy', 'ui:snap-binding')
-        require(snap or flatpak or role is None or role in ('A', 'H', 'S', 'N', 'Update', 'SpaceCopy', 'CommaCopy') and child in (CHILD, EXISTING_CHILD)
+        require(snap or flatpak or role is None or role in ('A', 'H', 'S', 'N', 'Update', 'SpaceCopy', 'CommaCopy', 'C') and child in (CHILD, EXISTING_CHILD)
                 and fixture == 'policy' and (role != 'H' or blocked)
                 and (role != 'Update' or child == EXISTING_CHILD and blocked)
-                and (role not in ('SpaceCopy', 'CommaCopy') or child == EXISTING_CHILD and not blocked)
+                and (role not in ('SpaceCopy', 'CommaCopy') or child == EXISTING_CHILD)
+                and (role != 'C' or child == EXISTING_CHILD and blocked)
                 and (role != 'N' or child == EXISTING_CHILD and not blocked), 'ui:native-binding')
         require((instance == {'A': 'primary', 'H': 'hard', 'S': 'soft'}[role]
                  or role == 'S' and instance == 'secondary') if flatpak else
                 (instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'))
-                if snap else instance == ('secondary' if role in ('H', 'S', 'SpaceCopy', 'CommaCopy') else 'primary'), 'ui:native-binding')
+                if snap else instance == ('secondary' if role in ('H', 'S', 'SpaceCopy', 'CommaCopy', 'C') else 'primary'), 'ui:native-binding')
         require(type(locked) is bool and (not locked or role == 'S' and blocked),
                 'ui:native-binding')
         require(type(blocked) is bool, 'ui:native-binding')
@@ -13123,6 +13125,7 @@ class AccessibleUI:
                 'S': 'Versioned/Lunar Client-3.7.17.AppImage', 'N': 'PrismLauncher.AppImage',
                 'SpaceCopy': 'Whitespace/Copied Path With Spaces.AppImage',
                 'CommaCopy': 'Comma/Copied,Path,With,Commas.AppImage',
+                'C': 'Comma/Path,With,Commas.AppImage',
                 'Update': 'Catalogue/Catalogue-new.AppImage'}[role or 'A'])
         result = subprocess.run([
             '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
@@ -13572,7 +13575,7 @@ class AccessibleUI:
         # Denied launches must not collide with the retained Allowed primary
         # activity. H/S share the secondary slot, whose absence is still
         # required before and after each attributed execution denial.
-        instance = 'secondary' if role in ('H', 'S', 'SpaceCopy', 'CommaCopy') else 'primary'
+        instance = 'secondary' if role in ('H', 'S', 'SpaceCopy', 'CommaCopy', 'C') else 'primary'
         product = NATIVE_SOFT_PRODUCT if role == 'S' else NATIVE_HARD_PRODUCT
         if action == 'search-ready':
             self.search_ready('overview')
@@ -15294,6 +15297,9 @@ def native_execution_journal_diagnostic(unit, *, executable='/opt/onpc-test-fixt
     if executable not in (
             '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
             '/opt/onpc-test-fixtures/Applications/Whitespace/Path With Spaces.AppImage',
+            '/opt/onpc-test-fixtures/Applications/Whitespace/Copied Path With Spaces.AppImage',
+            '/opt/onpc-test-fixtures/Applications/Comma/Path,With,Commas.AppImage',
+            '/opt/onpc-test-fixtures/Applications/Comma/Copied,Path,With,Commas.AppImage',
             '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage',
             '/opt/onpc-test-fixtures/Applications/Catalogue/Catalogue-new.AppImage'):
         return diagnostic

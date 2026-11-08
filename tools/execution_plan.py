@@ -99,6 +99,11 @@ class Task:
     title: str
     brief: Path | None
     requires: tuple
+    scope: str = ''
+
+    @property
+    def ui_obligation(self):
+        return self.scope.startswith('UI obligation;')
 
     def acceptance_metadata(self):
         return acceptance_metadata(self.brief.read_text(), self.id)
@@ -144,7 +149,8 @@ class Plan:
                 raise ValueError(f'unfinished task {identity} needs a brief link')
             brief = local_file(self.root, link[2], base=queue.parent) if link and not complete else None
             requires = tuple(item.strip() for item in dependencies.split(',')) if dependencies not in ('', '—', '-', 'Baseline') else ()
-            tasks.append(Task(identity, complete, link[1] if link else title, brief, requires))
+            tasks.append(Task(identity, complete, link[1] if link else title, brief, requires,
+                              fields[5]))
         if selected is not None:
             return tasks  # Run surviving selected IDs without revalidating edited content.
         # The queue is authoritative. A stale display pointer must not prevent

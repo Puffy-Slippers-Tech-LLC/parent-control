@@ -1976,11 +1976,11 @@
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
       "requirements": ["ONPC-CORE-FEEDBACK-009", "ONPC-CORE-FEEDBACK-010", "ONPC-CORE-FEEDBACK-013"],
-      "requirement_gap": "Actual service submission and displayed acceptance still need authorized installed qualification. Recipient/provider verification remains separate engineering work.",
+      "requirement_gap": "Historical case 156 is a pending UI allocation in tests/ui/test_parent_feedback.py (tasks 150/151), not installed work. Retained descriptions preserve finite assertions; the feedback sending allocation owns execution with fake responses. Real sending is optional separate integration work.",
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/SystemDesign/Logging-and-Feedback.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": ["ubuntu26.04", "fedora44"],
-      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "explicit-external-delivery-authorization", "dedicated-test-recipient", "supported-real-feedback-service-profile", "synthetic-feedback-and-attachment-fixtures", "fixture-credentials-via-secret-api"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "synthetic-feedback-and-attachment-fixtures", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
           {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
@@ -2017,7 +2017,7 @@
         "rationale": "Owns ordinary success without a reply address and with attachments, absorbing former case 214 without another send. E2E-047 case 220 sends an error report with a reply address; focused dialog checks own both exact confirmation wordings. Recipient receipt remains separately authorized integration work."
       },
       "variants": [
-        {"coverage_id": 156, "id": "success", "owner": "continuous-journeys", "parameters": {"delivery": "success"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 156, "id": "success", "owner": "continuous-journeys", "parameters": {"delivery": "success"}, "status": "pending", "pending_reason": "Excluded from E2E scheduling: UI allocation to tests/ui/test_parent_feedback.py, tasks 150/151. Preserve anonymous confirmation, attachments, success, manual thanks dismissal and cleared draft/reply/files under the fake sender. Missing assertions remain pending in those tasks; no installed acceptance or delivery credit.", "executable": null}
       ]
     },
     {
@@ -2026,11 +2026,11 @@
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
       "requirements": ["ONPC-CORE-FEEDBACK-009", "ONPC-CORE-FEEDBACK-010", "ONPC-CORE-FEEDBACK-011"],
-      "requirement_gap": "Requires shared system-network commands preserving management and observation and explicitly authorized real service submission; injected transport/idempotency/recipient checks remain separate.",
+      "requirement_gap": "Historical case 157 is a pending UI allocation in tests/ui/test_parent_feedback.py (tasks 152/153/258). Fake retry/release responses replace connectivity changes; no VM, real service or recipient is required. Retained descriptions preserve finite outcomes without installed or delivery credit.",
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/SystemDesign/Logging-and-Feedback.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": ["ubuntu26.04", "fedora44"],
-      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "explicit-external-delivery-authorization", "dedicated-test-recipient", "supported-real-feedback-service-profile", "synthetic-feedback-and-attachment-fixtures", "fixture-credentials-via-secret-api"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "synthetic-feedback-and-attachment-fixtures", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
           {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
@@ -2070,7 +2070,7 @@
         "rationale": "One offline submission combines retry recovery and background completion formerly scheduled as case 215; that case ID must not be reused. E2E-032 retains visible confirmation. The customer route changes real connectivity through shared system commands. Injected transport failure, frozen bytes, idempotency and recipient verification remain separately owned."
       },
       "variants": [
-        {"coverage_id": 157, "id": "retry", "owner": "continuous-journeys", "parameters": {"delivery": "retry"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 157, "id": "retry", "owner": "continuous-journeys", "parameters": {"delivery": "retry"}, "status": "pending", "pending_reason": "Excluded from E2E scheduling: UI allocation to tests/ui/test_parent_feedback.py, tasks 152/153/258. Preserve one frozen submission, retry recovery, background completion without unsolicited windows, and cleared draft on reopen without another Send using test-local responses. Missing assertions remain pending; no Internet isolation, installed acceptance or delivery credit.", "executable": null}
       ]
     },
     {
@@ -2665,7 +2665,7 @@
       },
       "variants": [
         {"coverage_id": 208, "id": "parent-retry", "owner": "continuous-journeys", "parameters": {"surface": "parent", "choice": "retry"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure and qualified recovery. This retry-only branch does not send.", "executable": null},
-        {"coverage_id": 213, "id": "kiosk-without-logs", "owner": "continuous-journeys", "parameters": {"surface": "kiosk", "choice": "without-logs"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure, public unavailable-log observations, explicit reviewed sending authorization and a dedicated real service profile. Sending without logs does not depend on the separate collection-recovery branch.", "executable": null}
+        {"coverage_id": 213, "id": "kiosk-without-logs", "owner": "continuous-journeys", "parameters": {"surface": "kiosk", "choice": "without-logs"}, "status": "pending", "pending_reason": "Excluded from E2E scheduling: UI allocation to tests/ui/test_error_feedback.py, tasks 189k/255. Preserve unavailable-log observations, edited draft, explicit Send without logs, encoded omission, success, manual dismissal and logout callback under test-local collection failure. Missing assertions remain pending; actual installed exit is owned by request-exit checks. No real-send gate or installed/delivery credit.", "executable": null}
       ]
     },
     {
@@ -2674,11 +2674,11 @@
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
       "requirements": ["ONPC-CORE-FEEDBACK-009", "ONPC-CORE-FEEDBACK-010", "ONPC-CORE-FEEDBACK-011", "ONPC-CORE-FEEDBACK-013"],
-      "requirement_gap": null,
+      "requirement_gap": "Historical cases 216/218/219/220/221 are pending UI allocations in the existing Parent and error feedback owners. The feedback sending allocation replaces real sending/connectivity with fake responses and observes close/logout callbacks. Installed request-exit owners retain actual child/GDM destinations; no host pass grants installed or delivery credit.",
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": ["ubuntu26.04", "fedora44"],
-      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data", "explicit-external-delivery-authorization", "dedicated-test-recipient", "supported-real-feedback-service-profile", "synthetic-feedback-and-attachment-fixtures"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data", "synthetic-feedback-and-attachment-fixtures"],
       "phases": {
         "setup": [
           {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
@@ -2716,11 +2716,11 @@
         "rationale": "Five distinct send lifetimes; background reconnection is combined into E2E-033 case 157 and former case ID 215 must not be reused. Ordinary visible success without a reply address absorbs former case 214 in E2E-032. Case 220 includes a reply address; focused dialog checks own both exact confirmation wordings. Parent automatic error-report sending was removed from scheduling; Parent error review and return to confirmed settings remain in E2E-045."
       },
       "variants": [
-        {"coverage_id": 216, "id": "app-exit", "owner": "continuous-journeys", "parameters": {"flow": "app-exit"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 218, "id": "overlay-stop", "owner": "continuous-journeys", "parameters": {"flow": "overlay-stop"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 219, "id": "kiosk-stop", "owner": "continuous-journeys", "parameters": {"flow": "kiosk-stop"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 220, "id": "overlay-success", "owner": "continuous-journeys", "parameters": {"flow": "overlay-success"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 221, "id": "kiosk-success", "owner": "continuous-journeys", "parameters": {"flow": "kiosk-success"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 216, "id": "app-exit", "owner": "continuous-journeys", "parameters": {"flow": "app-exit"}, "status": "pending", "pending_reason": "Excluded from E2E scheduling: UI allocation to tests/ui/test_parent_feedback.py, task 258. Preserve app exit during retry, fresh-instance reset and no persisted outbox or surprise replay. Missing assertions remain pending; no installed acceptance or delivery credit.", "executable": null},
+        {"coverage_id": 218, "id": "overlay-stop", "owner": "continuous-journeys", "parameters": {"flow": "overlay-stop"}, "status": "pending", "pending_reason": "Excluded from E2E scheduling: UI allocation to tests/ui/test_error_feedback.py, tasks 190a/190o/260. Preserve report-open retry, direct Stop, retained editable draft and closure/callback ordering under fake responses. Missing assertions remain pending; actual child return stays with installed request-exit owners. No installed acceptance or delivery credit.", "executable": null},
+        {"coverage_id": 219, "id": "kiosk-stop", "owner": "continuous-journeys", "parameters": {"flow": "kiosk-stop"}, "status": "pending", "pending_reason": "Excluded from E2E scheduling: UI allocation to tests/ui/test_error_feedback.py, tasks 190b/190k/261. Preserve report-open retry, direct Stop, retained editable draft and closure/logout callback ordering under fake responses. Missing assertions remain pending; actual GDM return stays with installed request-exit owners. No installed acceptance or delivery credit.", "executable": null},
+        {"coverage_id": 220, "id": "overlay-success", "owner": "continuous-journeys", "parameters": {"flow": "overlay-success"}, "status": "pending", "pending_reason": "Excluded from E2E scheduling: UI allocation to tests/ui/test_error_feedback.py, task 262. Preserve fake success with first@example.invalid, reply-follow-up note, manual thanks dismissal and close_overlay callback ordering. Missing assertions remain pending; actual child return stays installed. No installed acceptance or delivery credit.", "executable": null},
+        {"coverage_id": 221, "id": "kiosk-success", "owner": "continuous-journeys", "parameters": {"flow": "kiosk-success"}, "status": "pending", "pending_reason": "Excluded from E2E scheduling: UI allocation to tests/ui/test_error_feedback.py, task 263. Preserve anonymous fake success, manual thanks dismissal and logout callback ordering. Missing assertions remain pending; actual GDM return stays installed. No installed acceptance or delivery credit.", "executable": null}
       ]
     },
     {

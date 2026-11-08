@@ -20,19 +20,13 @@ Routine feedback sending rows are explicit **UI obligation** tasks using the
 existing network-free component previews. Apply the
 [feedback allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation): no
 inbox, recipient configuration, real-send permission or VM qualification gates
-those rows. Task 150a first supplies the missing host-only launcher handling and
-allocation metadata; later UI rows reuse it. Real sending is separate optional
+those rows. Explicit UI markers select host-only launcher handling, and allocation
+metadata names the existing UI owners. Real sending is separate optional
 integration work and must not become a queue prerequisite.
 
 ## Next task
 
-Next task: **150a — [Prepare network-free feedback checks](E2E-Tasks/150a-feedback-profile.md)**.
-
-Task 150a's first host-only launcher repair is bootstrapped by a normal coding
-session with `Implement task 150a in docs/TestAutomation/E2E-Execution-PlanB.md`,
-reading its brief directly. Do not start the old VM-first launcher for that
-bootstrap; it cannot dispatch a task that removes its own VM admission gate.
-After 150a's host checks and close-out, use the updated launcher for later rows.
+Next task: **150 — [Check feedback success with the fake sender](E2E-Tasks/150-feedback-send.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

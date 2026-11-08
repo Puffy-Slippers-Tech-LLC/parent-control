@@ -77,14 +77,28 @@ mock switch, alternate endpoint, server, inbox or sending authorization is
 needed. Deterministic transport/backoff checks remain with
 `tests/unit/test_feedback_transport.py`.
 
+Use the existing [Parent preview](../../tests/ui/parent_component_preview.py)
+and [request preview](../../tests/ui/request_component_preview.py), whose fake
+`feedback_transport.requests.Session` replacement stays unconditional. The real
+editor, multipart encoder, retry controller, result and dialog handlers run.
+Reuse the finite synthetic drafts in their existing test owners and the declared
+text/file inputs through [feedback helpers](../../tests/support/feedback.py)
+(`attachment_choices`); diagnostics come from the test-local collector. Ordinary
+anonymous success leaves reply empty; the reply-note branch uses
+`first@example.invalid`. Extend only existing test-local response/release controls
+when an owning UI task needs them. Keep one explicit Send per declared submission;
+automatic retries retain its frozen content and identity, and uncertain input
+must not be replayed. Request callbacks are recorded through the existing
+[request helpers](../../tests/support/request_form.py).
+
 Retain former cases **156, 157, 213, 216, 218, 219, 220 and 221** as allocation
-references, pending with no E2E executable or installed acceptance. Task 150a
-first implements the launcher's missing explicit host-only task route, then
-synchronizes their allocation metadata before later UI tasks. The existing
-launcher only exempts historical task 192 today; this documentation records
-required work, not a functioning UI-task closeout path. Keep installed-task
-guards intact and qualify the affected launcher behavior at its existing unit
-layer, never through UI tests of the tool.
+references, pending with no E2E executable or installed acceptance. The launcher
+carries the explicit `UI obligation;` scope marker through host-only selection,
+prompts and completion; historical task 192 retains its exception. UI tasks
+return `live_result=not_run` after focused host acceptance and ordinary close-out.
+Installed tasks still require live acceptance, and host-only completion cannot
+clear an outstanding failure. Allocation metadata names the existing UI owner
+and remaining task without registering host tests as E2E executables.
 
 Mock responses must not contact the real service. They establish anonymous
 confirmation, success/clearing, retry/background completion, app-exit reset,

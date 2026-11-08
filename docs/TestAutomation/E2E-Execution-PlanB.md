@@ -18,7 +18,7 @@ Task queue: [Plan B ordered checklist](E2E-Task-QueueB.md).
 
 ## Next task
 
-Next task: **224 — [E2E-040: ineligible-approver](E2E-Tasks/224-case-182.md)**.
+Next task: **312 — [Child reminder preferences persist across request surfaces](E2E-Tasks/312-child-reminder-preferences.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

@@ -695,7 +695,7 @@ CHILD_IDENTITIES = {CHILD: 'fixture-child', EXISTING_CHILD: 'existing-fixture-ch
                     NEW_CHILD: 'new-fixture-child'}
 CHILD_ACCOUNTS = {CHILD: 'onpc-child-riley', EXISTING_CHILD: 'onpc-child-jordan',
                   NEW_CHILD: 'onpc-e2e-new-child'}
-from account_registry import SPARE_CHILDREN
+from account_registry import SPARE_CHILDREN, SPARE_APPROVER
 
 for _role, (_username, _label) in SPARE_CHILDREN.items():
     CHILD_IDENTITIES[_label] = 'spare-' + _role
@@ -909,6 +909,16 @@ PARENT = 'Jamie (Parent)'
 OTHER_PARENT = 'Casey (Parent)'
 APPROVER_IDENTITIES = {OTHER_PARENT: 'other-fixture-parent', PARENT: 'fixture-parent'}
 APPROVER_ACCOUNTS = {OTHER_PARENT: 'onpc-parent-casey', PARENT: 'onpc-parent-jamie'}
+SPARE_PARENT = SPARE_APPROVER[1]
+APPROVER_IDENTITIES[SPARE_PARENT] = 'spare-approver'
+APPROVER_ACCOUNTS[SPARE_PARENT] = SPARE_APPROVER[0]
+APPROVER_CHANGE_OPERATIONS = {
+    'approver-change-' + surface + '-' + action: (surface == 'overlay', action)
+    for surface in ('kiosk', 'overlay') for action in ('seed', 'fallback')
+}
+OPERATIONS |= APPROVER_CHANGE_OPERATIONS.keys()
+CHILD_DESKTOP_OPERATIONS |= {operation for operation, (overlay, _action)
+                             in APPROVER_CHANGE_OPERATIONS.items() if overlay}
 KIOSK = 'Oh No! Parent Control'
 KIOSK_USERNAME = 'oh-no-parent-control'
 GREETER_IDENTITIES = {PARENT: 'parent', OTHER_PARENT: 'other-parent',
@@ -1502,6 +1512,8 @@ OPERATIONS |= TRANSFER_OPERATIONS.keys()
 KIOSK_SESSION_OPERATIONS |= {operation for operation, (overlay, *_binding) in TRANSFER_OPERATIONS.items()
                             if not overlay}
 KIOSK_SESSION_OPERATIONS |= SPARE_REQUEST_OPERATIONS.keys()
+KIOSK_SESSION_OPERATIONS |= {operation for operation, (overlay, _action)
+                             in APPROVER_CHANGE_OPERATIONS.items() if not overlay}
 # Public-ID inventory for external applications on the maintained Ubuntu 26.04
 # host.  An observed Builder ID is recorded only when the installed provider
 # owns it; it is not usable until the application and surface roots are also
@@ -6267,6 +6279,32 @@ class AccessibleUI:
         return {'child': CHILD_IDENTITIES[child],
                 'limit_enabled': toggle.get_state_set().contains(self.api.StateType.CHECKED),
                 'allowance': labels}
+
+    def approver_change_operation(self, operation):
+        """Remember Sam, or observe each reopened form's first eligible parent."""
+        overlay, action = APPROVER_CHANGE_OPERATIONS[operation]
+        if overlay:
+            self.require_child_overlay_session()
+        if action == 'seed':
+            if not overlay:
+                self.select_kiosk_account('child', CHILD, expected=(CHILD, EXISTING_CHILD))
+            return self.select_kiosk_account('approver', SPARE_PARENT,
+                expected=(PARENT, OTHER_PARENT, SPARE_PARENT), overlay=overlay)
+        # No setter or manual selection occurs after the role change. Read the
+        # usable form and its current public choices independently on each visit.
+        result = self.kiosk_request_form(enabled=True, overlay=overlay)
+        require(result['child'] == 'fixture-child', 'ui:approver-change-child')
+        selector, _form, _observation = self.kiosk_account_snapshot('approver', overlay=overlay)
+        choices = selector.getChoices()
+        sam = str(pwd.getpwnam(SPARE_APPROVER[0]).pw_uid)
+        jamie = str(pwd.getpwnam(APPROVER_ACCOUNTS[PARENT]).pw_uid)
+        require(type(choices) is list and all(type(uid) is str for uid in choices)
+                and len(choices) == len(set(choices))
+                and set(choices) == self.interactive_approver_uids()
+                and sam not in choices and jamie in choices
+                and selector.getValue() == choices[0],
+                'ui:approver-change-fallback')
+        return result
 
     def spare_account_operation(self, operation):
         """ACCOUNT01/02 consumers share normal Parent and request operations."""
@@ -14698,7 +14736,9 @@ class AccessibleUI:
                                or operation == 'station-default-entry' else
                                None if operation in GREETER_OPERATIONS else 'desktop')
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
-        if operation in SPARE_OPERATIONS:
+        if operation in APPROVER_CHANGE_OPERATIONS:
+            result['approver_change'] = self.approver_change_operation(operation)
+        elif operation in SPARE_OPERATIONS:
             value = self.spare_account_operation(operation)
             if value is not None:
                 result['account_change'] = value

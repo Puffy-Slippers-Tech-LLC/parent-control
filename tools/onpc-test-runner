@@ -176,7 +176,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reproduce-kiosk-preferences', 'probe-vt6-input', 'probe-vt6-reboot-input', 'probe-vt6-authentication',
                                       'reproduce-station-shortcuts',
                                       'reproduce-baseline-app-effects', 'reproduce-baseline-auth-pause',
-                                      'reproduce-baseline-restoration', 'reproduce-remove-selected', 'reproduce-remove-last-child',
+                                      'reproduce-baseline-restoration', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-ineligible-approver', 'probe-ineligible-approver',
                                       'probe-kiosk-latency', 'probe-kiosk-prompt-latency',
                                       'reproduce-lock-denial',
                                       'reproduce-retained-entry', 'probe-lock-curtain', 'probe-lock-time-denial',
@@ -246,7 +246,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             raise ValueError('test-runner:rename-requires-new-name')
         if args.fixture_maintenance and args.action != 'start':
             raise ValueError('test-runner:fixture-maintenance-requires-start')
-        if (args.action in ('sync-fixtures', 'reproduce-baseline-restoration', 'reproduce-remove-selected', 'reproduce-remove-last-child',
+        if (args.action in ('sync-fixtures', 'reproduce-baseline-restoration', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-ineligible-approver',
                            'reproduce-natural-access', 'reproduce-natural-expiry', 'reproduce-countdown-grant',
                            'reproduce-suspend-active-grant',
                            'reproduce-suspend-expired-grant',
@@ -258,7 +258,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                            'reproduce-expired-sign-out', 'reproduce-daily-soft-balance')) != (args.fixture_selection is not None):
             raise ValueError('test-runner:fixture-sync-requires-selection')
         fixture_options = []
-        if args.fixture_maintenance or args.action in ('sync-fixtures', 'reproduce-baseline-restoration', 'reproduce-remove-selected', 'reproduce-remove-last-child',
+        if args.fixture_maintenance or args.action in ('sync-fixtures', 'reproduce-baseline-restoration', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-ineligible-approver',
                                                       'reproduce-natural-access', 'reproduce-natural-expiry', 'reproduce-countdown-grant',
                                                       'reproduce-suspend-active-grant',
                                                       'reproduce-suspend-expired-grant',

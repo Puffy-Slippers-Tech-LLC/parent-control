@@ -263,3 +263,99 @@ def test_spare_profile_refuses_unsafe_start_before_any_account_mutation(monkeypa
         fixture.prepare_spare_children('two')
     assert not any('SetAccountType' in call.args[0] or 'CreateUser' in call.args[0]
                    for call in run.call_args_list)
+
+
+@pytest.mark.parametrize('refusal', [None, 'wrong-owner', 'baseline', 'replaced', 'ambiguous',
+                                   'standard', 'last-administrator', 'active', 'unreadable-sessions'])
+def test_spare_approver_role_change_protects_identity_and_administrator(monkeypatch, refusal):
+    from types import SimpleNamespace
+    import system_accounts as accounts
+    sam = SimpleNamespace(pw_name=accounts.SPARE_APPROVER[0], pw_uid=1200)
+    jamie = SimpleNamespace(pw_name='onpc-parent-jamie', pw_uid=1000)
+    entries = [sam, jamie]
+    if refusal == 'ambiguous':
+        entries.append(SimpleNamespace(pw_name='another-account', pw_uid=sam.pw_uid))
+    if refusal == 'replaced':
+        entries[0] = SimpleNamespace(pw_name=sam.pw_name, pw_uid=1201)
+    monkeypatch.setattr(guest, 'guard', Mock(side_effect=(
+        guest.GuestError('wrong-owner') if refusal == 'wrong-owner' else None)))
+    monkeypatch.setattr(accounts.pwd, 'getpwall', lambda: entries)
+    monkeypatch.setattr(accounts.pwd, 'getpwnam', lambda name: jamie)
+    changed = False
+
+    def properties(uid, *_):
+        return {'Uid': uid, 'UserName': sam.pw_name if uid == sam.pw_uid else jamie.pw_name,
+                'AccountType': 0 if changed or refusal == 'standard' and uid == sam.pw_uid
+                    or refusal == 'last-administrator' and uid == jamie.pw_uid else 1,
+                'LocalAccount': True, 'SystemAccount': False, 'Locked': False, 'Shell': '/bin/bash'}
+
+    def command(argv):
+        nonlocal changed
+        if 'SetAccountType' in argv:
+            changed = True
+            assert argv[-3:] == ['SetAccountType', 'i', '0']
+            assert argv[4] == '/org/freedesktop/Accounts/User1200'
+            return ''
+        return ('3 1200 sam seat0 tty2' if refusal == 'active' else
+                'unreadable' if refusal == 'unreadable-sessions' else '')
+
+    monkeypatch.setattr(accounts, 'account_properties', properties)
+    run = Mock(side_effect=command)
+    monkeypatch.setattr(guest, 'run', run)
+    uid = jamie.pw_uid if refusal == 'baseline' else sam.pw_uid
+    if refusal is not None:
+        with pytest.raises(guest.GuestError):
+            accounts.change_spare_approver_role(uid)
+        assert not changed
+    else:
+        accounts.change_spare_approver_role(uid)
+        assert changed
+        assert sum('SetAccountType' in call.args[0] for call in run.call_args_list) == 1
+
+
+def test_spare_approver_has_no_administrator_deletion_route(monkeypatch):
+    import system_accounts as accounts
+    monkeypatch.setattr(guest, 'guard', Mock())
+    run = Mock()
+    monkeypatch.setattr(guest, 'run', run)
+    with pytest.raises(guest.GuestError, match='deletion-fixture-scope'):
+        accounts.delete_disposable_identity(1200, 'approver', surface='spare-approver')
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize('refusal', ['collision', 'no-administrator'])
+def test_spare_approver_preparation_refuses_unsafe_start(monkeypatch, refusal):
+    from types import SimpleNamespace
+    import e2e_dynamic_account as fixture
+    entries = [SimpleNamespace(pw_name='onpc-parent-jamie', pw_uid=1000)]
+    if refusal == 'collision':
+        entries.append(SimpleNamespace(pw_name=fixture.SPARE_APPROVER[0], pw_uid=1200))
+    monkeypatch.setattr(guest, 'guard', Mock())
+    monkeypatch.setattr(fixture.pwd, 'getpwall', lambda: entries)
+    monkeypatch.setattr(fixture.pwd, 'getpwnam', lambda _: entries[0])
+    monkeypatch.setattr(fixture, 'account_path', lambda uid: f'/org/freedesktop/Accounts/User{uid}')
+    monkeypatch.setattr(fixture, 'property_values', lambda _: {})
+    run = Mock()
+    monkeypatch.setattr(guest, 'run', run)
+    with pytest.raises(guest.GuestError):
+        fixture.prepare_spare_approver()
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize('refusal', ['wrong-context', 'bad-run', 'replay'])
+def test_spare_approver_transport_refuses_wrong_owner_and_replay(refusal):
+    from types import SimpleNamespace
+    from account_fixture import SpareApproverFixture
+    context = SimpleNamespace(lease=SimpleNamespace(state={'run': 'a' * 32}))
+    fixture = SpareApproverFixture(context)
+    transport = Mock()
+    journey = SimpleNamespace(context=context, transport=transport)
+    if refusal == 'wrong-context':
+        journey.context = SimpleNamespace()
+    elif refusal == 'bad-run':
+        context.lease.state['run'] = 'invalid'
+    else:
+        fixture.prepared = True
+    with pytest.raises(Exception):
+        fixture.prepare(journey, Mock())
+    transport.call.assert_not_called()

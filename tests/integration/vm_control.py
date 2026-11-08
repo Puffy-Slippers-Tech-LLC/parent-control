@@ -437,7 +437,7 @@ def main(argv=None):
                                           'reproduce-station-shortcuts',
                                           'reproduce-baseline-app-effects',
                                           'reproduce-baseline-auth-pause',
-                                          'reproduce-baseline-restoration', 'reproduce-remove-selected', 'reproduce-remove-last-child',
+                                          'reproduce-baseline-restoration', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-ineligible-approver', 'probe-ineligible-approver',
                                           'probe-kiosk-latency', 'probe-kiosk-prompt-latency',
                                           'reproduce-lock-denial',
                                           'reproduce-retained-entry', 'probe-lock-curtain', 'probe-lock-time-denial',
@@ -494,7 +494,7 @@ def main(argv=None):
         runner.require((args.action == 'rename') == (args.new_name is not None), 'vm-control:arguments')
         runner.require(args.action != 'exec' or probe is not None, 'vm-control:arguments')
         runner.require(not args.fixture_maintenance or args.action == 'start', 'vm-control:arguments')
-        runner.require((args.action in ('sync-fixtures', 'reproduce-baseline-restoration', 'reproduce-remove-selected', 'reproduce-remove-last-child',
+        runner.require((args.action in ('sync-fixtures', 'reproduce-baseline-restoration', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-ineligible-approver',
                                        'reproduce-natural-access', 'reproduce-natural-expiry', 'reproduce-countdown-grant',
                                        'reproduce-suspend-active-grant',
                                        'reproduce-suspend-expired-grant',
@@ -553,14 +553,14 @@ def main(argv=None):
         elif args.action == 'rename-disk':
             from vm_disk_rename import rename_disk
             rename_disk(lease)
-        elif args.action in ('reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-baseline-restoration', 'reproduce-natural-access', 'reproduce-natural-expiry',
+        elif args.action in ('reproduce-ineligible-approver', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-baseline-restoration', 'reproduce-natural-access', 'reproduce-natural-expiry',
                              'reproduce-countdown-grant', 'reproduce-suspend-active-grant', 'reproduce-suspend-expired-grant', 'reproduce-overlay-activity', 'reproduce-overlay-return',
                              'reproduce-system-graphical-expiry', 'reproduce-grant-logout',
                              'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-panel-request',
                              'reproduce-app-restart-choices', 'reproduce-reboot-context',
                              'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-expired-sign-out',
                              'reproduce-daily-soft-balance'):
-            from vm_probe import (reproduce_remove_selected, reproduce_remove_last_child, reproduce_baseline_restoration, reproduce_natural_access, reproduce_natural_expiry,
+            from vm_probe import (reproduce_ineligible_approver, reproduce_remove_selected, reproduce_remove_last_child, reproduce_baseline_restoration, reproduce_natural_access, reproduce_natural_expiry,
                                   reproduce_countdown_grant, reproduce_suspend_active_grant, reproduce_suspend_expired_grant, reproduce_overlay_activity, reproduce_overlay_return,
                                   reproduce_system_graphical_expiry, reproduce_grant_logout,
                                   reproduce_app_rule_return, reproduce_revocation_return, reproduce_panel_request,
@@ -569,7 +569,8 @@ def main(argv=None):
                                   reproduce_daily_soft_balance)
             resume(lease)
             try:
-                reproduce = {'reproduce-remove-selected': reproduce_remove_selected,
+                reproduce = {'reproduce-ineligible-approver': reproduce_ineligible_approver,
+                             'reproduce-remove-selected': reproduce_remove_selected,
                              'reproduce-remove-last-child': reproduce_remove_last_child,
                              'reproduce-natural-access': reproduce_natural_access,
                              'reproduce-natural-expiry': reproduce_natural_expiry,
@@ -748,6 +749,10 @@ def main(argv=None):
             from vm_probe import probe_transfer_refusal
             resume(lease)
             probe_transfer_refusal(lease)
+        elif args.action == 'probe-ineligible-approver':
+            from vm_probe import probe_ineligible_approver
+            resume(lease)
+            probe_ineligible_approver(lease)
         elif args.action == 'probe-riley-native-grid':
             from vm_probe import probe_riley_native_grid
             resume(lease)

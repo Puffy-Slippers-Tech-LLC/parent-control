@@ -67,6 +67,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Checking the remembered parent and the eligible replacement'
+       for operation in accessible_ui.APPROVER_CHANGE_OPERATIONS},
     **{operation: 'Checking the disposable child and its own saved choices'
        for operation in accessible_ui.SPARE_OPERATIONS},
     **{operation: 'Checking approval for the chosen child and parent'
@@ -1086,6 +1088,7 @@ class UiObservations:
                             or operation in accessible_ui.BINDING_REMINDER_OPERATIONS
                             or operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS
                             or operation in accessible_ui.TRANSFER_OPERATIONS
+                            or operation in accessible_ui.APPROVER_CHANGE_OPERATIONS
                             or operation in ('overlay-request-form', 'overlay-grant-form', 'overlay-panel-reveal-ready'))
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.
@@ -1689,6 +1692,21 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
+        if operation in accessible_ui.APPROVER_CHANGE_OPERATIONS:
+            overlay, action = accessible_ui.APPROVER_CHANGE_OPERATIONS[operation]
+            value = result.get('approver_change')
+            require(type(value) is dict and value.get('approver') in (
+                ('spare-approver',) if action == 'seed' else
+                ('fixture-parent', 'other-fixture-parent')), 'ui:approver-change-response')
+            require(value == {
+                'surface': 'child-overlay' if overlay else 'kiosk', 'form_count': 1,
+                'child': 'fixture-child',
+                'approver': value['approver'],
+                'duration_seconds': 1800, 'custom_text': None, 'allow_soft': False,
+                'child_selector_enabled': not overlay, 'approver_selector_enabled': True,
+                'duration_enabled': True, 'soft_choice_enabled': True, 'request_enabled': True,
+                'cancel_enabled': True, 'message': '', 'mute': None}, 'ui:approver-change-response')
+            expected['approver_change'] = value
         if operation in accessible_ui.SPARE_OPERATIONS:
             parent = operation in accessible_ui.SPARE_PARENT_OPERATIONS
             role, action = (accessible_ui.SPARE_PARENT_OPERATIONS if parent else

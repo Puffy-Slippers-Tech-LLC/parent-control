@@ -25,8 +25,9 @@ from test_commands import host_only_selection, repair_inventory as requested_inv
 from test_checkpoint import RESUME_SELECTION_MISMATCH
 from detached_launcher import (
     Stopped, atomic, private_directory, current_run, environment, agent_command,
-    compact_log, TAIL_BYTES,
+    compact_log,
 )
+from watch_output import TAIL_BYTES
 import detached_launcher
 from agent_adapter import AgentSelection, resolve_profile, resolve_selection
 from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter

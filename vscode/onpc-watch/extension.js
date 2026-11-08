@@ -396,7 +396,7 @@ function activate(context) {
                     errors.show(panel);
                 }
             } else if (message?.type === 'launcherAction' && runRoots.has(message.root) &&
-                       typeof message.run === 'string' && ['stop', 'cancel-stop', 'resume', 'reload'].includes(message.kind)) {
+                       typeof message.run === 'string' && ['stop', 'cancel-stop', 'resume', 'reload', 'kill'].includes(message.kind)) {
                 void launchControl(message);
             } else if (message?.type === 'renameLauncher' && runRoots.has(message.root) &&
                        displayedRuns.get(message.root) === message.run &&
@@ -471,8 +471,9 @@ function activate(context) {
             const current = bridge;
             try {
                 let command = await current.launcherCommand(message.root, message.run, message.kind);
-                const action = { stop: 'Stop', resume: 'Resume', reload: 'Reload', 'cancel-stop': 'Cancel stop request' }[message.kind];
-                const commandText = [ `tools/${command.launcher}`, ...command.argv ].map(value =>
+                const action = { stop: 'Stop', resume: 'Resume', reload: 'Reload', kill: 'Kill', 'cancel-stop': 'Cancel stop request' }[message.kind];
+                const commandText = message.kind === 'kill' ? `Cancel run ${command.run} immediately; allow normal cleanup.` :
+                    [ `tools/${command.launcher}`, ...command.argv ].map(value =>
                     /^[\w@%+=:,./-]+$/.test(value) ? value : "'" + value.replace(/'/g, "'\\''") + "'").join(' ');
                 const answer = await vscode.window.showWarningMessage(
                     `${action} for ${command.launcher} on ${command.source.label}?`,
@@ -490,6 +491,11 @@ sys.path.insert(0, str(root / 'tools'))
 from watch_output import read_json
 if read_json(run.parent / 'current.json')['run'] != run.name:
     sys.exit('Launcher changed; refresh before trying again.')
+if c['kind'] == 'kill':
+    from watch_output import cancel_run
+    cancel_run(root, run)
+    print('Kill requested; waiting for owned shutdown and normal cleanup in Watch.')
+    sys.exit(0)
 branch = subprocess.check_output(['git', '-C', str(root), 'symbolic-ref', '--quiet', '--short', 'HEAD'], text=True).strip()
 os.chdir(root)
 if '--cancel-stop' in c['argv']:
@@ -498,7 +504,7 @@ os.environ['ONPC_LAUNCHER_DESTINATION'] = json.dumps(dict(root=str(root), branch
 os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c['launcher']), *c['argv']])
 `;
                 const argv = ['/usr/bin/python3', '-IBu', '-c', bootstrap,
-                    JSON.stringify({ root: command.root, run: command.run, launcher: command.launcher, argv: command.argv })];
+                    JSON.stringify({ root: command.root, run: command.run, launcher: command.launcher, argv: command.argv, kind: message.kind })];
                 const remote = command.source.transport === 'ssh';
                 const background = message.kind === 'resume';
                 const quote = value => "'" + value.replace(/'/g, "'\\''") + "'";

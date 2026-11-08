@@ -218,7 +218,7 @@ def test_attachment_items_adapter_reads_real_rows_and_removes_one(
 
 
 def open_feedback(launch_ui, ui, wait, *, scenario="normal", status=None,
-                  collection_release=None, chooser_inputs=None):
+                  collection_release=None, chooser_inputs=None, retry_release=None):
     environment = {"ONPC_PARENT_COMPONENT_SCENARIO": scenario,
                    "GTK_IM_MODULE": "gtk-im-context-simple"}
     if status is not None:
@@ -227,6 +227,8 @@ def open_feedback(launch_ui, ui, wait, *, scenario="normal", status=None,
         environment["ONPC_FEEDBACK_COLLECTION_RELEASE"] = str(collection_release)
     if chooser_inputs is not None:
         environment['ONPC_FEEDBACK_CHOOSER_INPUTS'] = str(chooser_inputs)
+    if retry_release is not None:
+        environment['ONPC_FEEDBACK_RETRY_RELEASE'] = str(retry_release)
     _process, log = launch_ui(
         "parent_component_preview", environment_overrides=environment,
         wait_for_application=False,
@@ -361,6 +363,50 @@ def test_collection_progress_disables_send_but_allows_editing(
                               "collection enables sending")
     assert ui.content(editor).strip() == "Draft during collection"
     assert ui.absent("feedback-collection-status", within="feedback-dialog")
+
+
+def test_feedback_retry_recovers_without_another_send(
+        launch_ui, automation, wait_for_accessible_state,
+        collect_application_logs, tmp_path):
+    ui, wait = automation, wait_for_accessible_state
+    release = tmp_path / "feedback-retry-release"
+    editor, log_path = open_feedback(
+        launch_ui, ui, wait, status=503, retry_release=release,
+    )
+    draft = "A parent's synthetic report awaiting recovery."
+    type_feedback(ui, draft, wait)
+    ui.reader.wait_feedback_collection()
+    assert ui.content("feedback-reply-email") == ""
+    ui.activate("feedback-send")
+    wait(lambda: ui.showing("feedback-anonymous-dialog"),
+         "parent confirms this anonymous submission")
+    ui.activate("feedback-send-anonymously")
+    try:
+        wait(lambda: ui.text("feedback-status").startswith(
+            "Could not confirm submission. Retrying in "),
+            "automatic retry is public")
+        assert ui.showing("feedback-dialog")
+        assert ui.absent("feedback-success-dialog", within="parent-window")
+        assert ui.content(editor).strip() == draft
+        assert ui.content("feedback-reply-email") == ""
+        for control in (editor, "feedback-reply-email", "feedback-send",
+                        "feedback-toggle-logs", "feedback-add-files"):
+            assert not ui.state(control, ui.api.StateType.SENSITIVE)
+        assert ui.state("feedback-close", ui.api.StateType.SENSITIVE)
+    finally:
+        # Release even on failure so owned preview teardown never strands a post.
+        release.touch()
+    wait(lambda: ui.showing("feedback-success-dialog"),
+         "the same submission succeeds automatically")
+    assert ui.absent("feedback-dialog", within="parent-window")
+    assert ui.text("feedback-success-text") == (
+        "Your feedback was sent successfully. We appreciate your help making the app better.")
+    dismiss_feedback_dialog(ui, wait, "feedback-success-dialog", within="parent-window")
+    log = collect_application_logs(log_path)
+    assert log.count("component-feedback-post") == 2
+    assert log.count("component-feedback-frozen-retry") == 1
+    assert draft not in log
+    assert "Traceback" not in log
 
 
 @pytest.mark.parametrize("status, reply_email", [

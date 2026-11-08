@@ -2471,7 +2471,8 @@ before any write. It copies the FIX06-verified
 `/opt/onpc-test-fixtures/Applications/Whitespace/Path With Spaces.AppImage`
 to `Copied Path With Spaces.AppImage` in the same directory, retaining the
 existing adjacent GUI modules. `native_space_path.copy_actions` supplies the
-finite source/N digests and independent exact destination/content comparison.
+finite source/N digests and destination to `SyntheticFiles.copy_executable`,
+which owns the shared independent exact destination/content/identity comparison.
 N remains the distinct `Applications/PrismLauncher.AppImage`; no baseline asset
 was added. The source and all unrelated files remain unchanged.
 

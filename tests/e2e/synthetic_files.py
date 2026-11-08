@@ -50,6 +50,21 @@ class SyntheticFiles:
         self.failed = False
         return value
 
+    def copy_executable(self, *, source, destination):
+        """Stage and compare one finite native copy under this receipt owner."""
+        require(self.profile in NATIVE_PROFILES, 'files:profile')
+        before = self.call('stage')
+        copied = self.call('copy')
+        target = Path(destination).name
+        require(set(copied['files']) == {source, target}
+                and copied['directory'] == before['directory']
+                and copied['files'][source] == before['files'][source]
+                and copied['files'][source]['sha256'] == copied['files'][target]['sha256']
+                and copied['files'][source]['identity'] != copied['files'][target]['identity']
+                and copied['destination'] == destination,
+                'files:executable-copy-result')
+        return copied
+
     def _command(self, name, previous):
         program = Path(__file__).with_name('synthetic_files_guest.py').read_bytes()
         source = Path(__file__).with_name('download_destination.py').read_text()

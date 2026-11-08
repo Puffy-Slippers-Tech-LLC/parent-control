@@ -16,7 +16,7 @@
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
 | E2E | <span style="color: green">122</span>/<span style="color: gray">74</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6592</span>/<span style="color: gray">74</span>/6666** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">6593</span>/<span style="color: gray">74</span>/6667** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 

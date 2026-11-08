@@ -294,6 +294,11 @@ supplies snapshot infrastructure acceptance only.
 
 For a copied executable, reuse FILE05's `SyntheticFiles` operation and its
 [qualified copy binding](../../docs/TestAutomation/E2E-Building-Blocks.md#space-bearing-executable-copy).
+`SyntheticFiles.copy_executable(source=..., destination=...)` stages and copies
+once, then compares the unchanged source, directory, identical bytes and distinct
+copy identity after independent readback. Special-path and versioned callers
+keep their finite source keys, destination paths, expected fixture digests and
+copy/cleanup order; a source in the parent directory retains its `../` receipt key.
 Carry the exact source/copy receipt through independent readback and cleanup;
 identical bytes do not authorize adopting a replacement inode. The copied path
 also needs its explicit shared launch and live-owner binding: a successful copy
@@ -517,6 +522,10 @@ receipt, submits the command and independently observes the greeter. Retained
 daily-access histories use this same operation for both accounts instead of
 spelling out the child switch separately. Session/work comparisons and the
 decision to switch or log out remain in each history.
+GNOME may spend over a minute waiting for a session client during ordinary
+logout. `session_control.LOGOUT_WAIT_SECONDS` and its transport margin cover
+that asynchronous result without delaying a prompt completion or submitting
+logout again; command success alone does not establish that the desktop ended.
 
 TIME02 minute and final-second consumers reuse `countdown.CountdownSample`,
 `check_countdown_progress` and `await_countdown_progress`. Each sample copies the
@@ -953,6 +962,11 @@ Keep preparation outside the retry predicate too; an earlier successful desktop
 read is not a current launch proof.
 The launch command runs once outside the wait, with the uncertain-input latch
 set before submission and independent window/activity readback afterward.
+Native launch, live-owner comparison and attributed denial reads share
+`accessible_ui.NATIVE_EXECUTABLES`. A new path needs its exact finite binding
+through all three operations that the consumer uses: Allowed copy/use does not
+qualify denial. Keep the denial reader's explicit role subset and its same-unit,
+same-executable EXEC error checks; an exit status alone cannot prove policy denial.
 
 Dedicated chooser checks opt out of automatic setup with
 `launch_ui(..., complete_language_setup=False)`. The host and future installed

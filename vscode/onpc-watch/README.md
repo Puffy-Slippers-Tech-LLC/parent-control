@@ -194,8 +194,11 @@ During task close-out, the title shows `[branch] launcher (Closing Task)`, with
 while **Session** is struck through, validation, and the commit skill's commit,
 push and propagation, including repository synchronization waits while an
 accepted completion is retained for Git reconciliation.
+Checkout synchronization and its repository lock waits show `Closing Task`
+when a task completion is still pending. Boundary synchronization before new
+work adds no title status.
 The suffix disappears when **Status** shows the task's
-green checkmark. Stop and reload notices take priority.
+green checkmark and task close-out has finished. Stop and reload notices take priority.
 For every execution-plan launcher, completed and current task headings end with
 ` | <duration>` from the retained task clock across sessions. The session summary
 ends with ` | <duration>` from its owner session clock.

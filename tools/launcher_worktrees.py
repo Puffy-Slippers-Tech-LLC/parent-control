@@ -214,12 +214,14 @@ def push_source(root, run, state, commit, *, git=git_output, selection=None):
 
 
 def _sync_current(root, run, state, *, git, checkpoint='checkpoint.json', push=False, selection=None):
+    pending = state.setdefault('upstream_pull', {})
+    def save():
+        launcher.atomic(run / checkpoint, state)
+    # Publish the intent before lock acquisition so observers also see waits.
+    save()
     print(f'Git: synchronizing checkout {root.name} with its upstream.', flush=True)
     with transaction_lock(root, run, git=git):
         before = _head(git, root)
-        pending = state.setdefault('upstream_pull', {})
-        def save():
-            launcher.atomic(run / checkpoint, state)
         commit = pending.get('worktree_propagation', {}).get('commit') or _head(git, root)
         targets = None if pending.get('worktree_propagation') else pull_targets(root, git=git)
         if push and targets is not None:

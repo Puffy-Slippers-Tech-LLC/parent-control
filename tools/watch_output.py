@@ -271,6 +271,14 @@ class Output:
         from launcher_progress import progress_keys
         try:
             state = self.reader.read(self.run / 'checkpoint.json', limit=2 * 1024 * 1024)
+            accepted = state.get('git_reconciliation', {}).get('accepted_result', {})
+            accepted_completion = (accepted.get('status') == 'task_complete'
+                                   and accepted.get('task_id') == state.get('task_id'))
+            # A retained completion distinguishes close-out synchronization from
+            # the boundary pull before new work, even without a current row.
+            if 'upstream_pull' in state and (state.get('pending_completion')
+                    or state.get('commit_intent') or accepted_completion):
+                return True
             keys = progress_keys(state)
             if not any(not step.get('replaces') and step['key'] in keys for step in steps):
                 return False
@@ -278,9 +286,7 @@ class Output:
                 return True
             # Reconciliation retains the accepted result outside
             # pending_completion, including while waiting for the Git lock.
-            accepted = state.get('git_reconciliation', {}).get('accepted_result', {})
-            if (accepted.get('status') == 'task_complete'
-                    and accepted.get('task_id') == state.get('task_id')):
+            if accepted_completion:
                 return True
             # The Session tab can become inactive before the controller saves
             # pending_completion, while it validates the finished task response.

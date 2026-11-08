@@ -732,7 +732,13 @@ sub native_blocked_app {
     $route //= 'command';
     die 'native:denial-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
         && ($route eq 'command' && $role =~ /\A(?:A|H|S|Alias|C|SpaceCopy|CommaCopy|VersionNext)\z/
-            || $route eq 'grid' && $role =~ /\A(?:A|Alias|H|S)\z/);
+            || $route eq 'grid' && $role =~ /\A(?:A|Alias|H|S)\z/
+            || $route eq 'files' && $role eq 'A');
+    if ($route eq 'files') {
+        $journey->consume_observation('files', $journey->seen('files'));
+        testapi::send_key('ret');
+        return $journey->seen('denied');
+    }
     if ($route eq 'grid') {
         my $entry = native_search($journey, $journey->seen('desktop'), 'app-grid', $role);
         $journey->consume_observation('app-grid', $entry);
@@ -811,10 +817,13 @@ sub native_denial {
 
 sub native_policy_closure {
     onpc_progress::operation('Checking that a parent block closes the child original app');
-    my ($exchange, $declared, $challenges) = @_;
-    die 'native:closure-arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
-        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'native-policy-closure', review => 0);
+    my ($exchange, $declared, $challenges, $route) = @_;
+    $route //= 'original';
+    die 'native:closure-arguments' unless (@_ == 3 || @_ == 4) && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && ($route eq 'original' || $route eq 'files');
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => $route eq 'files' ? 'native-files-routes' : 'native-policy-closure', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -833,8 +842,9 @@ sub native_policy_closure {
         onpc_desktop_session::enter_desktop(
             $journey, 'gdm', 'other-child', 'fresh', 'success', $name . '-fresh');
         my $activity = $journey->scope($name . '-activity');
-        native_usable_app($activity, $name eq 'hard' ? 'grid' : 'command',
+        native_usable_app($activity, $route eq 'files' ? 'files' : $name eq 'hard' ? 'grid' : 'command',
                           $activity->seen('desktop'), 'other-child');
+        $activity->seen('dismiss') if $route eq 'files';
         native_read_activity($journey, $name . '-capture');
         onpc_desktop_session::enter_desktop(
             $journey, 'desktop', 'parent', 'retained', 'success', $name . '-parent', 'other-child');
@@ -845,7 +855,9 @@ sub native_policy_closure {
             $journey, 'desktop', 'other-child', 'retained', 'success', $name . '-return', 'parent');
         # Compare the original capture before any new launch can conceal closure.
         native_read_activity($journey, $name . '-closed');
-        native_blocked_app($journey->scope($name . '-denied'), 'A');
+        my $denied = $journey->scope($name . '-denied');
+        native_blocked_app($denied, 'A', $route eq 'files' ? 'files' : 'command');
+        $denied->seen('dismiss') if $route eq 'files';
         my $other = $journey->scope($name . '-unaffected');
         native_usable_app($other, 'command', $other->seen('desktop'), 'other-child', 'N');
         native_finish_app($other);

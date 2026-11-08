@@ -319,6 +319,10 @@ def native_blocked_app(role, *, route='command', child='other-child'):
     if child == 'child':
         name = 'hard' if role == 'H' else 'soft'
         return {'command': 'ui:overlay-native-' + name + '-command-blocked'}
+    if route == 'files':
+        require(role == 'A', 'journey:native-files-denial-binding')
+        return {'files': 'ui:native-files-allowed-launch',
+                'denied': 'ui:native-files-allowed-denied'}
     if route == 'grid':
         require(role in ('A', 'Alias', 'H', 'S'), 'journey:native-denial-binding')
         if role in ('H', 'S'):

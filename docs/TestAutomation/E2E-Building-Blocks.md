@@ -4433,8 +4433,8 @@ APP04 compares S's Files-opened primary with its existing command-opened
 secondary, then independently rereads unchanged work in the original window.
 Normal fixture closures, Files dismissal and Jordan's sign-out passed.
 Host checks, worker/callback shutdown, owned cleanup, baseline restoration and
-host/source preservation passed; the VM was observed off. This capability
-supplies no complete-case acceptance or policy-denial qualification.
+host/source preservation passed; the VM was observed off. That usable/new-window
+slice supplies no complete-case acceptance or policy-denial qualification.
 
 `AccessibleUI.native_files_launch/native_files_snapshot` use FileManager1
 `ShowItems`, exact `OpenLocations`, the live bound-child-owned Nautilus process,
@@ -4453,6 +4453,29 @@ untouched. Riley's recorded provider tuple matches the one above. The affected
 including S's separate-window/original-work comparison. Both runs passed
 collection, worker/callback shutdown, owned cleanup and baseline restoration.
 Other account/fixture bindings, locations and provider tuples remain pending.
+
+`native_files_routes.PLAN` / `NativeFilesRoutesJourney` and
+`onpc_app_rows::native_policy_closure(..., 'files')` add Jordan's precise A
+Hard/Soft results through `check_e2e_native_file_routes`, passed on Ubuntu 26.04
+in `20261108T080641Z-3143a994`. The shared
+`journey_blocks.native_blocked_app('A', route='files')` / matching worker
+opens the exact Files selection and sends Enter once, with no substitute launch.
+Each policy starts with an independent fresh Jordan entry, usable Files-opened
+A and submitted work. After Parent saves the rule, APP04 compares complete
+closure of that original window before the denied Files relaunch. APP02 requires
+continuous complete window absence for 15 seconds on the bound child's desktop;
+Files dismissal and unaffected N launch/Submit/normal closure follow. Allowed
+access is restored and read back between the two policy histories.
+The first Files launch also qualified read-only wrong-file (N in the same
+directory) and wrong-user refusal before reacquiring the valid Enter recipient.
+The existing wrong-activity/owner closure-comparison refusals passed.
+The affected `check_e2e_native_files_usable` regression passed in
+`20261108T082714Z-7e5615ec`, retaining A/S launch/use, separate S windows and
+unchanged original work. Both runs passed collection, worker/callback shutdown,
+owned cleanup, baseline restoration and host/source preservation; the VM ended
+off. Scoped host input/dispatch safety and source/traceability checks passed.
+No complete case 76/78, other Files target or standalone system registration
+is supplied by this capability.
 
 `tools/test-vm --vm NAME reproduce-native-files` reuses this journey through
 the first submitted result and probes `first-dismiss`, closing the worker

@@ -1,6 +1,6 @@
 """036h: desktop activation opens another S window and preserves original work."""
 from installed_journey import InstalledJourney, JourneyPlan
-from journey_blocks import fresh_desktop, prefixed_stages
+from journey_blocks import fresh_desktop, native_window_app, prefixed_stages
 from native_fixtures import fixture_actions
 from synthetic_files import desktop_entry_actions
 
@@ -12,14 +12,9 @@ SCREENS = {
 }
 for entry in ('first', 'independent'):
     SCREENS.update({
-        entry + '-earlier-command': 'ui:native-soft-primary-command-launch',
-        **{entry + '-earlier-' + action: 'ui:native-soft-primary-' + action
-           for action in ('opened', 'submit', 'submitted')},
+        **prefixed_stages(entry + '-earlier', native_window_app('command', instance='primary')),
         entry + '-earlier-capture': 'ui:native-soft-primary-activity',
-        entry + '-second-icon': 'ui:native-soft-desktop-icon',
-        entry + '-second-selected': 'ui:native-soft-desktop-selected',
-        **{entry + '-second-' + action: 'ui:native-soft-secondary-' + action
-           for action in ('opened', 'submit', 'submitted')},
+        **prefixed_stages(entry + '-second', native_window_app('desktop', instance='secondary')),
         entry + '-second-capture': 'ui:native-soft-secondary-activity',
         entry + '-earlier-reread': 'ui:native-soft-primary-activity',
         **{entry + '-' + window + '-' + action: 'ui:native-soft-' + instance + '-' + action

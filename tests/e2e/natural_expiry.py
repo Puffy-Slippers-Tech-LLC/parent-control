@@ -241,13 +241,18 @@ class SystemGraphicalExpiryJourney(InstalledJourney):
     def natural_lock(journey, guard):
         guard()
         expiry_at = _system_history_command(journey.transport, 'natural-grant')
-        result = await_engineering_expiry(journey.ui, guard,
-            journey.activity_observations['activity-capture'],
-            expiry_at=expiry_at, boot_sha256=journey.boot)
+        result = journey.observe_expiry(guard, expiry_at)
         require(result['activity_actions'] > 0, 'expiry:no-original-app-input')
+        return result
+
+    def observe_expiry(self, guard, expiry_at):
+        """Share timed lock observation and its later functional-input budget."""
+        result = await_engineering_expiry(self.ui, guard,
+            self.activity_observations['activity-capture'],
+            expiry_at=expiry_at, boot_sha256=self.boot)
         # The observer above must establish protection by expiry + 15 seconds.
         # Subsequent guarded input/readback measures protection, not lock latency.
-        journey.lock_deadline = engineering_deadline(
+        self.lock_deadline = engineering_deadline(
             result['observed_monotonic'], LOCK_VERIFICATION_SECONDS)
         return result
 
@@ -345,12 +350,8 @@ class BrokerCrashJourney(SystemGraphicalExpiryJourney):
                 break
             time.sleep(SAMPLE_INTERVAL_SECONDS)
         _system_history_command(journey.transport, 'crash-inject')
-        result = await_engineering_expiry(journey.ui, guard,
-            journey.activity_observations['activity-capture'],
-            expiry_at=expiry_at, boot_sha256=journey.boot)
+        result = journey.observe_expiry(guard, expiry_at)
         require(result['activity_actions'] > 0, 'expiry:crash-no-outage-input')
-        journey.lock_deadline = engineering_deadline(
-            result['observed_monotonic'], LOCK_VERIFICATION_SECONDS)
         return result
 
     @staticmethod
@@ -516,12 +517,8 @@ class PolicyOrderJourney(SystemGraphicalExpiryJourney):
         # Restore limits and issue a fresh measured grant only
         # after all positive controls. Never reset a deadline being observed.
         expiry_at = _system_history_command(journey.transport, 'policy-restrict')
-        result = await_engineering_expiry(journey.ui, guard,
-            journey.activity_observations['activity-capture'],
-            expiry_at=expiry_at, boot_sha256=journey.boot)
+        result = journey.observe_expiry(guard, expiry_at)
         require(result['activity_actions'] > 0, 'expiry:no-original-app-input')
-        journey.lock_deadline = engineering_deadline(
-            result['observed_monotonic'], LOCK_VERIFICATION_SECONDS)
         return {**result, 'positive_policy_controls': controls}
 
 
@@ -761,12 +758,8 @@ class PendingApprovalJourney(SystemGraphicalExpiryJourney):
     @staticmethod
     def approval_natural(journey, guard):
         def observe(expiry_at):
-            result = await_engineering_expiry(journey.ui, guard,
-                journey.activity_observations['activity-capture'],
-                expiry_at=expiry_at, boot_sha256=journey.boot)
+            result = journey.observe_expiry(guard, expiry_at)
             require(result['activity_actions'] > 0, 'expiry:no-original-app-input')
-            journey.lock_deadline = engineering_deadline(
-                result['observed_monotonic'], LOCK_VERIFICATION_SECONDS)
             return result
         return journey.crossing(journey, guard, 'approval-natural', observe)
 

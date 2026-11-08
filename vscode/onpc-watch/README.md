@@ -190,8 +190,12 @@ sits within the divider line and matches **Session N** while a session is
 active; otherwise it shows **Launcher**.
 Session text uses the same simplified rendering even when the Session tab's
 Simplified switch is off. Launcher text uses the same terminal rendering and
-shows the latest nonempty block separated by blank lines. Both boxes show four
-lines at a time and scroll vertically to reveal the complete selected output.
+shows the latest nonempty block separated by blank lines. Both boxes initially show four
+lines and scroll vertically to reveal the complete selected output. Drag the labeled
+divider to resize the box, or focus it and use Up/Down (Home/End for the limits).
+The minimum is four output lines; the maximum leaves one task-history line above.
+The six-dot grip marks the draggable divider. Its right-hand chevron toggles
+between the minimum and maximum output heights.
 New output starts at the top; streaming additions preserve your scroll position.
 During task close-out, the title shows `[branch] launcher (Closing Task)`, with
 `Closing Task` in green. This includes processing the finished task response

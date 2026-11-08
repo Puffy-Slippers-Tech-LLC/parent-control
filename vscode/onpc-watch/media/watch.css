@@ -92,6 +92,18 @@ nav button { flex-shrink: 0; }
 .tile-title-text {
     overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
 }
+.run-launcher-label { cursor: text; min-width: 0; }
+.run-launcher-label[contenteditable="plaintext-only"] {
+    outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px;
+    background: var(--vscode-input-background); color: var(--vscode-input-foreground);
+    padding: 2px 4px; text-overflow: clip;
+}
+.run-label { position: relative; }
+.run-title-undo {
+    visibility: hidden; flex: 0 0 auto; padding: 0 3px;
+    border: 0; background: var(--vscode-editor-background); color: var(--vscode-foreground);
+}
+.run-label:hover .run-title-undo, .run-label:focus-within .run-title-undo { visibility: visible; }
 .run-controls { display: flex; flex-shrink: 0; margin-left: auto; }
 .run-controls-divider { align-self: stretch; width: 1px; margin: 3px 6px; background: var(--watch-title-divider); }
 .command-copied::after {

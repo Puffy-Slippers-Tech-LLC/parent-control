@@ -282,6 +282,11 @@ function activate(context) {
         let sessionRoots = new Set();
         let sessions = new Map();
         let runRoots = new Set();
+        let displayedRuns = new Map();
+        const titleStateKey = `watch.launcherTitles:${root}`;
+        const launcherTitles = new Map(context.workspaceState.get(titleStateKey, []));
+        const saveTitles = () => context.workspaceState.update(titleStateKey, [...launcherTitles])
+            .then(undefined, error => errors.report('Cannot save launcher title', error));
         const notifications = new Set();
         function desktopCommand(command, args, label, input) {
             const helper = spawn(command, args,
@@ -325,6 +330,16 @@ function activate(context) {
             try {
                 const current = bridge;
                 const snapshot = current.snapshot({ ...selection, reset });
+                displayedRuns = new Map(snapshot.runs.map(entry => [entry.id, entry.run]));
+                let titlesChanged = false;
+                for (const entry of snapshot.runs) {
+                    const saved = launcherTitles.get(entry.id);
+                    if (saved && saved.run !== entry.run) {
+                        launcherTitles.delete(entry.id);
+                        titlesChanged = true;
+                    } else if (saved) entry.custom_title = saved.title;
+                }
+                if (titlesChanged) void saveTitles();
                 selection = { scope: snapshot.scope, selected: snapshot.selected };
                 reset = false;
                 renderedRevision = current.revision;
@@ -383,6 +398,15 @@ function activate(context) {
             } else if (message?.type === 'launcherAction' && runRoots.has(message.root) &&
                        typeof message.run === 'string' && ['stop', 'cancel-stop', 'resume', 'reload'].includes(message.kind)) {
                 void launchControl(message);
+            } else if (message?.type === 'renameLauncher' && runRoots.has(message.root) &&
+                       displayedRuns.get(message.root) === message.run &&
+                       typeof message.title === 'string' && message.title.length <= 512) {
+                const title = message.title.trim();
+                if (title) launcherTitles.set(message.root, { run: message.run, title });
+                else launcherTitles.delete(message.root);
+                void saveTitles();
+                reset = true;
+                void publish();
             } else if (message?.type === 'screenshot' && typeof message.png === 'string' &&
                        message.png.length <= 45 * 1024 * 1024 &&
                        /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(message.png)) {

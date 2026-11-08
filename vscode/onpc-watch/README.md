@@ -29,6 +29,8 @@ dragged to resize adjacent sections, or focused
 and adjusted with Up/Down. A vertical divider separates each copy button from
 **Minimize** and **Maximize** / **Restore**, using the same controls as viewer tiles.
 Minimize leaves only the title row with its view dropdown and buttons, hiding content.
+Its button becomes **Restore tile layout** while minimized and restores the same
+stacked layout as the maximized tile's Restore button.
 Maximize expands the selected launcher and minimizes every other launcher.
 Restore expands all launchers into their stacked layout, retaining resized proportions
 and selected tabs. Inactive launchers (finished, failed or stopped) minimize by default,

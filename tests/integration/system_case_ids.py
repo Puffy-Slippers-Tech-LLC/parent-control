@@ -635,6 +635,8 @@ CASES = (
                  'Protect expired child input while parent approval remains pending'),
     CaseIdentity(305, 'session', 'test_policy_changes_before_expiry',
                  'Apply the latest parent time decision before the old deadline'),
+    CaseIdentity(306, 'session', 'test_session_replacement_before_expiry',
+                 'Keep old expiry work away from a replacement child session'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

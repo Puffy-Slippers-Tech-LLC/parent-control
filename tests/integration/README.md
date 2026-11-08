@@ -1236,6 +1236,25 @@ This history passed on session-selected `onpc-Ubuntu26.04-1` in
 owned cleanup and baseline restoration. Fedora remains unqualified, and this
 engineering result supplies no customer-case acceptance.
 
+System 306, `session::test_session_replacement_before_expiry`, uses
+`natural_expiry.SessionReplacementJourney` and
+`onpc_desktop_session::session_replacement` through the same fixture and attached
+worker. A changing actual countdown display witnesses scheduled work under a
+600-second original grant. Sign out, confirm the original desktop ended, then
+prepare a 1200-second grant before fresh entry to the same account. Pin fresh
+session identities after successful sign-in: the fresh-entry guard proves that
+no session exists yet. Require a different replacement session, unchanged account
+and grant, zero daily allowance, continuous replacement input and original work
+across the unchanged original deadline, and the peer's same session/work with
+usable input before and after it. Setup, replacement entry and the continuous
+observer retain at least 300, 180 and 120 seconds of original-deadline headroom,
+respectively. This qualifies pending scheduled expiry work, not a deliberately
+held asynchronous read or lock completion; existing callback/disposal checks
+retain their scope. The history passed on session-selected
+`onpc-Ubuntu26.04-1` in `20261108T013846Z-afcf0b18`, including collection,
+worker/callback closure, owned cleanup and baseline restoration. Fedora remains
+unqualified; this engineering result supplies no customer-case acceptance.
+
 The `extension` area (system ID 295) owns the standalone native GNOME monitor
 history in `system_extension_monitor.verify`. It uses a fresh autologin desktop
 with saved controls initially off, then stages saved-enabled policy through the

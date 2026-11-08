@@ -98,7 +98,7 @@ sub exchange {
         # Natural expiry can consume the complete real ten-minute grant, plus
         # observation/transport time. Its controller keeps the product deadline.
         : $stage eq 'minute-progression' || $stage eq 'natural-expiry' || $stage eq 'peer-expiry'
-            || $stage eq 'expiry-wait' ? 900
+            || $stage eq 'expiry-wait' || $stage eq 'replacement-cross' ? 900
         : $stage eq 'package-submitted' || $stage eq 'upgrade-submitted' ? 780
         : $stage eq 'reboot-installed-greeter' || $stage eq 'second-reboot-greeter'
             || $stage eq 'reboot-greeter' ? 780 : 420);
@@ -1482,6 +1482,13 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_desktop_session::foreground_revoke(\&exchange,
+            $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{system_session_replacement}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_desktop_session::session_replacement(\&exchange,
             $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }

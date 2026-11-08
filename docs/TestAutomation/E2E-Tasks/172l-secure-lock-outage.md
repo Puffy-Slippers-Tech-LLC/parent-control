@@ -1,4 +1,4 @@
-# 172l — Characterize unavailable secure locking
+# 172l — Check protection while locking is unavailable
 
 Required tasks: 172j, 172k.
 Estimate: 30–60 minutes.
@@ -13,7 +13,17 @@ callers, state and cleanup; discover actual selectors in area `session`.
 
 ## Scope and acceptance
 
-Attempt a bounded identity-recorded Shell/lock-service outage leaving an already unlocked desktop. Confirm it spans original exhaustion/revocation; observe actual input protection, retained work and peer outcomes, then supported restoration. A request, restart, heartbeat or denied later login is insufficient. Do not terminate ordinary work, relax policy or invent a fallback. Unsupported protection remains expected-versus-actual with a return condition under Screen time and the active brief; no skip/xfail or successful restoration supplies an earlier protection pass. This characterization may close only after actual attempts and owned cleanup on both targets; it grants no installed protection acceptance or waiver of a production regression.
+Attempt a bounded identity-recorded lock-action outage leaving the original
+Shell, session bus, unlocked desktop and ordinary applications alive. Confirm it
+spans original exhaustion/revocation; observe actual input protection, retained
+work and peer outcomes, then supported restoration of lock availability. A
+request, restart, heartbeat or denied later login is insufficient. Do not
+terminate ordinary work, relax policy or invent a fallback. Unsupported
+protection remains expected-versus-actual with a return condition under Screen
+time and the active brief; no skip/xfail or successful restoration supplies an
+earlier protection pass. This characterization may close only after actual
+attempts and owned cleanup on both targets; it grants no installed protection
+acceptance or waiver of a production regression.
 
 This is engineering characterization, with no passing protection or customer-case credit.
 Extend the existing system-282 owner only for these missing assertions; reuse

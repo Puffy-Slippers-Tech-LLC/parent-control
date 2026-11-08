@@ -13,7 +13,7 @@ Task queue: [Plan C ordered checklist](E2E-Task-QueueC.md).
 
 ## Next task
 
-Next task: **172i — [Check expiry after child bus replacement](E2E-Tasks/172i-session-bus-expiry.md)**.
+Next task: **172j — [Require confirmed secure lock completion](E2E-Tasks/172j-lock-completion.md)**.
 
 This plan owns its queue, unchanged task briefs and next-task pointer.
 It can run independently of all unfinished work in

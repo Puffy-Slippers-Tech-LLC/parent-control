@@ -59,7 +59,7 @@ defines the existing graphical session boundary. The remaining confinement
 improvements plan and its targeted test queue have been removed.
 New general feature automation remains in the selected queue. The
 [expiry coverage allocation](UI-and-E2E-Coverage.md#expiry-coverage-allocation)
-uses these same canonical rows; tasks 172a–172l contain only uncovered engineering
+uses these same canonical rows; tasks 172a–172h and 172j–172l contain only uncovered engineering
 deltas merged from the removed broker plan. Accepted work must not be implemented
 or run again under another task/selector. Distinct
 remaining customer outcomes and current pending status are preserved. The
@@ -192,7 +192,7 @@ its existing namespace and current task. Plan C starts with no copied checkpoint
 or suspended work from either plan. The three-way split preserves Plan A's task
 160 and Plan B's task 135a, their pointers and their pending prerequisite groups.
 Only later groups move: Flatpak fixtures/command/grid cases, package update/removal
-124/125, suspend 166a/167/166/168 and usage/expiry 172–172l from A;
+124/125, suspend 166a/167/166/168 and usage/expiry 172, 172a–172h and 172j–172l from A;
 169/170/171/173/174/175/178/179,
 143–149, 191/238/239/240/242/245 and 314/315 from B. IDs are labels, not ranges
 to execute implicitly. The original briefs and acceptance stay unchanged.
@@ -224,7 +224,10 @@ tools/write-e2e --planc --reconcile RUN
 Reconciliation preserves the original checkpoint, unfinished-task history,
 staging ownership and optimization ledger, then adopts the current queue and
 its first unchecked task. It refuses active owners and unresolved result,
-completion or optimization transactions. It starts no agent, VM or Git action
+completion or optimization transactions. A rejected response for a removed
+unfinished task is retained in the original checkpoint and needs no correction
+session; in-flight work and all pending acceptance or Git operations still block
+reconciliation. It starts no agent, VM or Git action
 and grants no acceptance. Current briefs and prerequisites govern resumed work;
 superseded handoffs cannot select another task or require replaying completed
 checks. Normal implementation still owns any required cleanup and acceptance.

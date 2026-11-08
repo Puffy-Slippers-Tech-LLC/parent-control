@@ -399,7 +399,8 @@
         const entry = section.entry;
         const session = entry.session && !(entry.session_inactive ?? !entry.session_active);
         const label = tabLabel(entry, session ? 'session' : 'launcher');
-        section.latestLabel.textContent = label;
+        section.latestTitle.textContent = label;
+        section.latestLabel.setAttribute('aria-label', `Resize ${label} output`);
         section.latest.setAttribute('aria-label', label);
         const rows = session ? entry.session_preview : entry.launcher_rows;
         const signature = JSON.stringify([entry.run, entry.session, Boolean(session), rows,
@@ -832,10 +833,82 @@
 
     function runMinimum(section) {
         const minimum = section.view === 'status' ? section.heading.offsetHeight +
-            section.summary.offsetHeight + section.preview.offsetHeight +
+            section.summary.offsetHeight + section.latestLabel.offsetHeight + 12 +
+            parseFloat(getComputedStyle(section.latest).minHeight) +
             parseFloat(getComputedStyle(section.history).minHeight) : 100;
         section.minimum = Math.max(100, minimum);
         section.body.style.minHeight = `${section.minimum}px`;
+    }
+
+    function previewDivider(section) {
+        const handle = section.latestLabel;
+        const toggle = element('button', 'run-latest-toggle', handle);
+        toggle.type = 'button';
+        handle.tabIndex = 0;
+        handle.setAttribute('role', 'separator');
+        handle.setAttribute('aria-orientation', 'horizontal');
+        const resize = height => {
+            if (section.view !== 'status' || !section.content.clientHeight) return;
+            const style = getComputedStyle(section.latest);
+            const line = parseFloat(style.minHeight) / 4;
+            const minimum = 4 * line;
+            const maximum = Math.max(minimum, section.content.clientHeight -
+                section.summary.offsetHeight - section.latestLabel.offsetHeight - 12 -
+                parseFloat(getComputedStyle(section.history).minHeight));
+            const value = Math.max(minimum, Math.min(maximum, height ??
+                (section.previewMaximized ? maximum : section.previewHeight) ?? minimum));
+            section.latest.style.height = `${value}px`;
+            const expanded = value >= maximum && maximum > minimum;
+            toggle.classList.toggle('expanded', expanded);
+            toggle.setAttribute('aria-label', expanded ? 'Minimize output height' : 'Maximize output height');
+            toggle.title = toggle.getAttribute('aria-label');
+            handle.setAttribute('aria-valuemin', '4');
+            handle.setAttribute('aria-valuemax', String(Math.floor(maximum / line)));
+            handle.setAttribute('aria-valuenow', String(Math.round(value / line)));
+            return value;
+        };
+        toggle.addEventListener('click', () => {
+            section.previewMaximized = !toggle.classList.contains('expanded');
+            section.previewHeight = undefined;
+            resize();
+        });
+        let drag;
+        handle.addEventListener('pointerdown', event => {
+            if (event.button !== 0 || toggle.contains(event.target)) return;
+            event.preventDefault();
+            handle.focus();
+            drag = { y: event.clientY, height: section.latest.offsetHeight };
+            handle.setPointerCapture(event.pointerId);
+            document.body.classList.add('resizing-runs');
+        });
+        handle.addEventListener('pointermove', event => {
+            if (!drag || !handle.hasPointerCapture(event.pointerId)) return;
+            section.previewMaximized = false;
+            section.previewHeight = resize(drag.height + drag.y - event.clientY);
+        });
+        const release = event => {
+            if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+        };
+        handle.addEventListener('pointerup', release);
+        handle.addEventListener('pointercancel', release);
+        handle.addEventListener('lostpointercapture', () => {
+            drag = undefined;
+            document.body.classList.remove('resizing-runs');
+        });
+        handle.addEventListener('keydown', event => {
+            if (event.target !== handle) return;
+            const line = parseFloat(getComputedStyle(section.latest).minHeight) / 4;
+            const height = { ArrowUp: section.latest.offsetHeight + line,
+                ArrowDown: section.latest.offsetHeight - line, Home: 0, End: Infinity }[event.key];
+            if (height === undefined) return;
+            event.preventDefault();
+            section.previewMaximized = false;
+            section.previewHeight = resize(height);
+        });
+        section.previewObserver = new ResizeObserver(() => resize());
+        section.previewObserver.observe(section.content);
+        section.previewObserver.observe(section.summary);
+        section.previewObserver.observe(handle);
     }
 
     function runDivider(section) {
@@ -906,6 +979,7 @@
             if (!ids.has(id)) {
                 section.inputObserver.disconnect();
                 section.statusObserver.disconnect();
+                section.previewObserver.disconnect();
                 section.body.remove();
                 section.divider.remove();
                 sections.delete(id);
@@ -924,7 +998,9 @@
                 const summary = element('pre', 'run-status run-summary', content);
                 const history = element('pre', 'run-status run-history', content);
                 const preview = element('div', 'run-latest', content);
-                const latestLabel = element('h3', 'run-latest-label', preview);
+                const latestLabel = element('div', 'run-latest-label', preview);
+                const latestTitle = element('span', 'run-latest-title', latestLabel);
+                element('span', 'run-latest-rule', latestLabel);
                 const latest = element('pre', 'run-status', preview);
                 latest.tabIndex = 0;
                 const launcher = element('pre', 'run-status', body);
@@ -932,9 +1008,10 @@
                 const errorStatus = element('pre', 'run-status', body);
                 errorStatus.setAttribute('aria-label', 'Last Error and Status');
                 section = Object.assign(sessionPanel(body), { body, divider, heading, content, summary, history,
-                    preview, latestLabel, latest, launcher, errorStatus,
+                    preview, latestLabel, latestTitle, latest, launcher, errorStatus,
                     view: 'status', weight: 1, followStatus: true });
                 const panel = section;
+                previewDivider(panel);
                 history.addEventListener('scroll', () => {
                     if (history.clientHeight) panel.followStatus =
                         history.scrollHeight - history.clientHeight - history.scrollTop < 24;

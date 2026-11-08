@@ -1712,6 +1712,16 @@ empty-state assertions remain active; a refusal is retained without advancing
 the boundary. Finish with `tools/test-vm --vm NAME stop`; this supplies no
 case 181 acceptance credit.
 
+`tools/test-vm --vm NAME reproduce-ineligible-approver` replays
+`account_changes.APPROVER_PLAN` with fresh Sam preparation and retains the
+reopened child overlay at `overlay-fallback`, after both remembered Sam
+selections, form closures and the guarded role change. Its boundary result is
+diagnostic only. `probe-ineligible-approver` remains the earlier station-only
+probe: from a retained station it closes and reopens through the shared entry
+helpers, then repeats the guarded Sam selection. Both routes retain the owned
+guest for `exec` inspection and require `tools/test-vm --vm NAME stop`; neither
+grants case 182 acceptance.
+
 `tools/test-vm --vm NAME reproduce-lock-denial` uses that same envelope with
 `RetainedDenialJourney` / `CHILD_DENIAL_PLAN`. It stops at the `time-denied`
 request after the child's guarded curtain reveal, before native restriction

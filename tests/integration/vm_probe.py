@@ -1594,6 +1594,53 @@ def reproduce_remove_last_child(lease, fixture_selection):
         boundary_operation='spare-parent-empty', fixture_selection=selection, timeout=1800)
 
 
+def reproduce_ineligible_approver(lease, fixture_selection):
+    """Retain Riley's reopened overlay after Sam's role change in case 182."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from account_changes import APPROVER_PLAN
+    from installed_journey import InstalledJourney
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, InstalledJourney, APPROVER_PLAN,
+        'overlay-fallback', 'ineligible-approver', assets=assets,
+        boundary_operation='approver-change-overlay-fallback', fixture_selection=selection, timeout=1800)
+
+
+def probe_ineligible_approver(lease):
+    """Reopen the retained station and exercise the same guarded Sam selection."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from kiosk_entry import enter_station
+    from ui_observations import UiObservations
+    from qualification_storage import recovery_session, allocate
+    with operation('Reopening the request station to check Sam selection'), recovery_session(
+            check='probe_ineligible_approver', lease=lease, live=True):
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-ineligible-approver-probe-'))
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
+        print('ineligible-approver-probe: evidence=' + str(directory), flush=True)
+        ui = UiObservations(connect(lease))
+        ui.boot_guard = ''
+        results = []
+
+        def observe(name):
+            lease.guard()
+            value = ui.observe(name)
+            results.append(value)
+            return value
+
+        observe('kiosk-request-cancel')
+        observe('gdm-station-returned')
+        enter_station(lease, ui, observe)
+        observe('station-default-entry')
+        observe('approver-change-kiosk-seed')
+        (directory / 'observed.json').write_text(json.dumps(results))
+        lease.guard()
+        print('ineligible-approver-probe: observation passed', flush=True)
+
+
 def reproduce_remembered_return(lease):
     """Retain the historical return scene, separate from current case 58."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1700,7 +1747,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
     reboot_context = False
     versioned_assets = False
     if selected_setup or surface == 'baseline-restoration' or timeout != 900:
-        from account_changes import AccountChangeJourney, PLAN as REMOVE_SELECTED_PLAN, LAST_CHILD_PLAN
+        from account_changes import AccountChangeJourney, PLAN as REMOVE_SELECTED_PLAN, LAST_CHILD_PLAN, APPROVER_PLAN
+        from installed_journey import InstalledJourney
         from baseline_journey import BaselineJourney, PLAN
         from natural_access import NaturalAccessJourney, PLAN as NATURAL_ACCESS_PLAN
         from countdown_grant import CountdownGrantJourney, PLAN as COUNTDOWN_GRANT_PLAN
@@ -1737,6 +1785,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         remove_last_child = (surface == 'remove-last-child'
             and journey_type is AccountChangeJourney and plan is LAST_CHILD_PLAN
             and boundary == 'parent-empty' and boundary_operation == 'spare-parent-empty')
+        ineligible_approver = (surface == 'ineligible-approver'
+            and journey_type is InstalledJourney and plan is APPROVER_PLAN
+            and boundary == 'overlay-fallback' and boundary_operation == 'approver-change-overlay-fallback')
         restoration = (surface == 'baseline-restoration'
             and journey_type is BaselineJourney and plan is PLAN
             and boundary == 'restore-saved' and boundary_operation == 'parent-save-disabled'
@@ -1815,7 +1866,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         versioned_assets = (surface == 'versioned-appimage-assets'
             and journey_type is VersionedAppImageAssetsJourney and plan is VERSIONED_ASSETS_PLAN
             and boundary == 'logout' and boundary_operation == 'system:parent-logout')
-        system.require(selected_setup and (remove_selected or remove_last_child or restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or expired_sign_out or daily_soft_balance or versioned_assets)
+        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or expired_sign_out or daily_soft_balance or versioned_assets)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1858,8 +1909,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if selected_setup:
             from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS
             context.fixture_selection = fixture_selection
-            context.fixture_subsets = ('native',) if surface in ('remove-selected', 'remove-last-child', 'native-denial', 'native-files', 'native-desktop', 'versioned-appimage-assets', 'grant-logout', 'match-editor', 'flatpak-grid', 'flatpak-temporary-access', 'native-temporary-access') else ACTIVITY_SUBSETS
-            context.fixture_caller = ({'remove-selected': None, 'remove-last-child': None, 'native-denial': None, 'flatpak-grid': None,
+            context.fixture_subsets = ('native',) if surface in ('ineligible-approver', 'remove-selected', 'remove-last-child', 'native-denial', 'native-files', 'native-desktop', 'versioned-appimage-assets', 'grant-logout', 'match-editor', 'flatpak-grid', 'flatpak-temporary-access', 'native-temporary-access') else ACTIVITY_SUBSETS
+            context.fixture_caller = ({'ineligible-approver': None, 'remove-selected': None, 'remove-last-child': None, 'native-denial': None, 'flatpak-grid': None,
                                        'native-files': None,
                                        'native-desktop': None,
                                        'versioned-appimage-assets': None,
@@ -1944,6 +1995,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                         observed['setup']['activity_fixture'] = prepared['activity_fixture']
                 if surface in ('remove-selected', 'remove-last-child'):
                     observed['spare_children'] = self.actions['prepare-spare-children'](self, guard)
+                if surface == 'ineligible-approver':
+                    observed['spare_approver'] = self.actions['prepare-spare-approver'](self, guard)
                 self.steps.append(observed)
                 self.progress(stage, observed)
                 pending = directory / 'setup-detached.reply.tmp'
@@ -1976,6 +2029,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             from account_fixture import SpareChildrenFixture
             fixture = SpareChildrenFixture(context, count=1 if surface == 'remove-last-child' else 2)
             actions = {'prepare-spare-children': fixture.prepare, 'remove-spare-child': fixture.remove}
+        if surface == 'ineligible-approver':
+            from account_fixture import SpareApproverFixture
+            fixture = SpareApproverFixture(context)
+            actions = {'prepare-spare-approver': fixture.prepare, 'demote-spare-approver': fixture.demote}
         journey = Reproduction(context, progress,
                                **({'plan': plan} if plan is not None else {}),
                                **({'actions': actions} if actions is not None else {}))

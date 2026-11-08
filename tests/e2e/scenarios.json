@@ -2299,7 +2299,7 @@
       "variants": [
         {"coverage_id": 180, "id": "remove-selected", "owner": "continuous-journeys", "parameters": {"change": "remove-selected"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/account_changes.py", "test_id": "remove-selected"}},
         {"coverage_id": 181, "id": "remove-last-child", "owner": "continuous-journeys", "parameters": {"change": "remove-last-child"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/account_changes.py", "test_id": "remove-last-child"}},
-        {"coverage_id": 182, "id": "ineligible-approver", "owner": "continuous-journeys", "parameters": {"change": "ineligible-approver"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 182, "id": "ineligible-approver", "owner": "continuous-journeys", "parameters": {"change": "ineligible-approver"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/account_changes.py", "test_id": "ineligible-approver"}}
       ]
     },
     {

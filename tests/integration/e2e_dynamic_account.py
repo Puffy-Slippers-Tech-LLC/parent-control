@@ -10,7 +10,9 @@ import sys
 import system_guest as guest
 from system_assertions import account_properties
 from system_accounts import (SPARE_CHILDREN, create_disposable_identity,
-                             delete_disposable_identity, require_logged_out)
+                             delete_disposable_identity, require_logged_out,
+                             SPARE_APPROVER, change_spare_approver_role)
+from system_caller import FixturePassword
 
 
 USERNAME = "onpc-e2e-new-child"
@@ -329,11 +331,53 @@ def remove_spare_child(uid):
     print('onpc-e2e: stage=spare-child outcome=removed', flush=True)
 
 
+def prepare_spare_approver():
+    """Create fresh Sam without borrowing or changing any baseline identity."""
+    guest.guard()
+    before = pwd.getpwall()
+    guest.require(len({entry.pw_name for entry in before}) == len(before)
+                  and len({entry.pw_uid for entry in before}) == len(before)
+                  and SPARE_APPROVER[0] not in {entry.pw_name for entry in before},
+                  'spare-approver:baseline-identity')
+    jamie = pwd.getpwnam(FIXED_APPROVERS[0])
+    jamie_before = property_values(account_path(jamie.pw_uid))
+    guest.require(jamie_before == {'Uid': str(jamie.pw_uid), 'UserName': jamie.pw_name,
+                  'LocalAccount': 'true', 'SystemAccount': 'false', 'AccountType': '1',
+                  'Locked': 'false', 'Shell': '/bin/bash'},
+                  'spare-approver:retained-administrator')
+    uid = create_disposable_identity('approver', lambda *_: None, surface='spare-approver')
+    guest.require(uid >= 1000 and uid not in {entry.pw_uid for entry in before},
+                  'spare-approver:new-identity')
+    guest.retain_identity_for_redaction(uid)
+    path = account_path(uid)
+    guest.require(property_values(path) == {'Uid': str(uid), 'UserName': SPARE_APPROVER[0],
+                  'LocalAccount': 'true', 'SystemAccount': 'false', 'AccountType': '1',
+                  'Locked': 'true', 'Shell': '/bin/bash'}, 'spare-approver:created-account')
+    guest.guard()
+    # Unlocking a password-disabled account can report success without changing
+    # its shadow lock. Reuse the system fixture's private, random credential so
+    # AccountsService's next OS reload retains Sam's eligibility.
+    FixturePassword().install(uid)
+    guest.run(['busctl', '--system', 'call', ACCOUNTS_NAME, path,
+               USER_INTERFACE, 'SetLocked', 'b', 'false'])
+    guest.require(property_values(path) == {'Uid': str(uid), 'UserName': SPARE_APPROVER[0],
+                  'LocalAccount': 'true', 'SystemAccount': 'false', 'AccountType': '1',
+                  'Locked': 'false', 'Shell': '/bin/bash'}, 'spare-approver:prepared-account')
+    guest.require({(entry.pw_name, entry.pw_uid, entry.pw_shell) for entry in pwd.getpwall()}
+                  == {(entry.pw_name, entry.pw_uid, entry.pw_shell) for entry in before}
+                  | {(SPARE_APPROVER[0], uid, '/bin/bash')}
+                  and property_values(account_path(jamie.pw_uid)) == jamie_before,
+                  'spare-approver:retained-identities')
+    guest.guard()
+    print(json.dumps({'sam': uid}), flush=True)
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     guest.require(argv in (["create"], ["prepare-empty"], ['prepare-no-approver'],
                           ['prepare-ineligible-approver'], ['prepare-one-spare-child'],
-                          ['prepare-two-spare-children'], ['remove-spare-child']),
+                          ['prepare-two-spare-children'], ['remove-spare-child'],
+                          ['prepare-spare-approver'], ['demote-spare-approver']),
                   "dynamic-account:operation")
     if argv == ["create"]:
         create()
@@ -341,6 +385,15 @@ def main(argv=None):
         prepare_empty()
     elif argv == ['prepare-ineligible-approver']:
         prepare_ineligible_approver()
+    elif argv == ['prepare-spare-approver']:
+        prepare_spare_approver()
+    elif argv == ['demote-spare-approver']:
+        raw = sys.stdin.buffer.read(65)
+        guest.require(re.fullmatch(rb'[1-9][0-9]{3,9}', raw) is not None,
+                      'spare-approver:role-input')
+        change_spare_approver_role(int(raw))
+        guest.guard()
+        print('onpc-e2e: stage=spare-approver outcome=standard', flush=True)
     elif argv in (['prepare-one-spare-child'], ['prepare-two-spare-children']):
         prepare_spare_children('one' if argv == ['prepare-one-spare-child'] else 'two')
     elif argv == ['remove-spare-child']:

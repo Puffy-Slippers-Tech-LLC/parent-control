@@ -420,6 +420,12 @@ sub run {
             $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{ineligible_approver}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_account_changes::ineligible_approver(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{remove_selected}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

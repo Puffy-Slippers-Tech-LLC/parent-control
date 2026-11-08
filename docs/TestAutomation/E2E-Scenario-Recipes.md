@@ -1820,7 +1820,10 @@ Implementation: case 180 uses `account_changes.AccountChangeJourney` /
 `PLAN`, `account_fixture.SpareChildrenFixture` and
 `onpc_account_changes::remove_selected`. Case 181 uses
 `account_changes.LAST_CHILD_PLAN` / `onpc_account_changes::remove_last_child`
-with the independent one-spare profile. Case 182 remains pending.
+with the independent one-spare profile. Case 182 uses
+`account_changes.APPROVER_PLAN` / `onpc_account_changes::ineligible_approver`
+and `account_fixture.SpareApproverFixture`; its complete two-form history passed
+on Fedora 44.
 
 **Refresh accounts and remembered selections after account changes.** Cases 180, 181, 182.
 
@@ -2620,8 +2623,12 @@ apps included before editing or requesting. Jordan's 30-minute allowance or
 request choices must not leak into either result. No reset or second removal
 separates the checks. For 182, both station and overlay remember Sam before
 ACCOUNT02 changes Sam to standard. Reopen both forms and independently require
-Sam excluded and Jamie automatically selected before any edit or manual
-selection. Case 181 independently prepares only spare Jordan, observes that
+Sam excluded and the first currently eligible parent automatically selected
+before any edit or manual selection, following the
+[selector-state rule](../SystemDesign/Frontends.md#request-selector-state).
+Require the complete offered set to match the independent OS eligibility read;
+Jamie remains eligible but need not be first (Casey precedes Jamie in this fixture).
+Case 181 independently prepares only spare Jordan, observes that
 exact eligible set and initial settings in Parent, and removes the logged-out
 spare once while retaining the administrator and the same Parent window.
 Without reopening, refreshing or activating the picker, require automatic

@@ -2,9 +2,9 @@
 
 from copy import deepcopy
 
-from account_fixture import SpareChildrenFixture
+from account_fixture import SpareChildrenFixture, SpareApproverFixture
 from installed_journey import InstalledJourney, JourneyPlan, record_installed_journey
-from journey_blocks import desktop_entry, fresh_desktop, prefixed_stages, station_entry
+from journey_blocks import desktop_entry, fresh_desktop, prefixed_stages, station_entry, parent_management
 from private_artifacts import require
 
 
@@ -66,6 +66,46 @@ LAST_CHILD_PLAN = JourneyPlan(
     challenges={'initial': ('parent', 'recipient-qualified', 'recipient-rechecked')},
 )
 
+APPROVER_SCREENS = {
+    **fresh_desktop('parent'), **parent_management(),
+    'riley-allowance': 'ui:time-explanation-setup-thirty-read',
+    'switch-user': 'system:parent-switch-user', 'gdm-switched': 'ui:gdm-returned',
+    **prefixed_stages('seed', station_entry()),
+    'station-seed': 'ui:approver-change-kiosk-seed',
+    'station-cancel': 'ui:kiosk-request-cancel', 'station-returned': 'ui:gdm-station-returned',
+    **prefixed_stages('child-entry', desktop_entry('child', source='gdm', entry='fresh')),
+    'overlay-launch': 'ui:child-command-launch',
+    'overlay-seed': 'ui:approver-change-overlay-seed',
+    'overlay-cancel': 'ui:overlay-request-cancel',
+    'forms-closed': 'ui:overlay-desktop',
+    'overlay-reopen': 'ui:child-command-launch',
+    'overlay-fallback': 'ui:approver-change-overlay-fallback',
+    'overlay-final-cancel': 'ui:overlay-request-cancel',
+    'child-returned': 'ui:overlay-desktop',
+    'child-switch': 'system:child-switch-user', 'child-greeter': 'ui:gdm-returned',
+    **prefixed_stages('reopen', station_entry()),
+    'station-fallback': 'ui:approver-change-kiosk-fallback',
+    'final-cancel': 'ui:kiosk-request-cancel', 'final-greeter': 'ui:gdm-station-returned',
+}
+APPROVER_LOGINS = (*fresh_desktop('parent'),
+                   *prefixed_stages('child-entry', fresh_desktop('child')))
+APPROVER_PLAN = JourneyPlan(
+    prefix='ineligible-approver', worker_mode='ineligible_approver', screen_tags=APPROVER_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' for stage in APPROVER_SCREENS}, 'installed-greeter': 'start',
+            'forms-closed': 'step-2',
+            **{stage: 'step-3' for stage in tuple(APPROVER_SCREENS)[
+                tuple(APPROVER_SCREENS).index('overlay-reopen'):]}},
+    advance_after={'installed-greeter': 'step-1', 'overlay-cancel': 'step-2',
+                   'forms-closed': 'step-3'},
+    stage_actions={'setup-detached': 'prepare-spare-approver', 'forms-closed': 'demote-spare-approver'},
+    invocations=tuple(stage for stage in APPROVER_SCREENS if stage in APPROVER_LOGINS),
+    challenges={'initial': ('parent', 'recipient-qualified', 'recipient-rechecked'),
+                'child-entry': ('child', 'child-entry-child-recipient-qualified',
+                                'child-entry-child-recipient-rechecked')},
+    child_bindings={'riley-allowance': 'child'},
+)
+
 
 class AccountChangeJourney(InstalledJourney):
     def __init__(self, context, progress, plan, *, actions=None):
@@ -114,4 +154,11 @@ def execute_last_child(recorder, context):
         journey_type=AccountChangeJourney)
 
 
-E2E_CASES = {'remove-selected': execute, 'remove-last-child': execute_last_child}
+def execute_ineligible_approver(recorder, context):
+    fixture = SpareApproverFixture(context)
+    record_installed_journey(recorder, context, APPROVER_PLAN, timeout=2400,
+        actions={'prepare-spare-approver': fixture.prepare, 'demote-spare-approver': fixture.demote})
+
+
+E2E_CASES = {'remove-selected': execute, 'remove-last-child': execute_last_child,
+             'ineligible-approver': execute_ineligible_approver}

@@ -223,17 +223,18 @@
             overflow.focus();
             vscode.postMessage({ type: 'launcherAction', root: entry.id, run: entry.run, kind: 'reload' });
         });
-        if (['Stop Requested', 'Stopping', 'Reload Requested', 'Closing Task'].includes(entry.status)) {
-            const suffix = ` (${entry.status})`;
-            if (entry.label.endsWith(suffix)) {
-                title.textContent = `${entry.server} ${entry.label.slice(0, -suffix.length)} (`;
+        const suffix = entry.status ? ` (${entry.status})` : '';
+        const defaultText = entry.custom_title || (suffix && title.textContent.endsWith(suffix) ?
+            title.textContent.slice(0, -suffix.length) : title.textContent);
+        if (entry.custom_title) title.textContent = defaultText + suffix;
+        if (['Stop Requested', 'Stopping', 'Reload Requested', 'Closing Task', 'Repairing', 'Verifying'].includes(entry.status)) {
+            if (title.textContent.endsWith(suffix)) {
+                title.textContent = `${title.textContent.slice(0, -suffix.length)} (`;
                 element('span', entry.status === 'Closing Task' ? 'closing-task' : 'stop-requested', title).textContent = entry.status;
                 title.append(')');
             }
         }
         if (entry.launcher_command) labels.title = entry.launcher_command;
-        if (entry.custom_title) title.textContent = entry.custom_title;
-        const defaultText = title.textContent;
         title.tabIndex = 0;
         title.setAttribute('role', 'textbox');
         title.setAttribute('aria-label', 'Launcher title');
@@ -253,6 +254,7 @@
         const editTitle = () => {
             if (section.editingTitle) return;
             section.editingTitle = { run: entry.run };
+            title.textContent = defaultText;
             title.contentEditable = 'plaintext-only';
             title.setAttribute('aria-readonly', 'false');
             title.focus();

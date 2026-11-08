@@ -303,7 +303,7 @@ def graphical_history(command):
     child = accounts['child']
     path = FIXTURE / 'graphical-history.json'
     if command in ('host-ready', 'revoke-ready', 'approval-ready', 'policy-ready',
-                   'replacement-ready', 'crash-ready', 'stop-ready', 'stall-ready'):
+                   'replacement-ready', 'crash-ready', 'stop-ready', 'stall-ready', 'timer-ready'):
         guest.require(not path.exists(), 'expiry:graphical-history-replayed')
         wait_for(lambda: (FIXTURE / 'seeded.json').is_file(), 'expiry:gdm-seed-not-observed')
         seeded = json.loads((FIXTURE / 'seeded.json').read_text())
@@ -324,6 +324,7 @@ def graphical_history(command):
                    'broker_crash': command == 'crash-ready',
                    'broker_stop': command == 'stop-ready',
                    'broker_stall': command == 'stall-ready',
+                   'timer_replacement': command == 'timer-ready',
                    'broker_invocation': guest.run(['systemctl', 'show', guest.BROKER,
                                                   '--property=InvocationID', '--value']),
                    'account': [pwd.getpwuid(child).pw_name, child,
@@ -342,6 +343,9 @@ def graphical_history(command):
         if command == 'stall-cleanup':
             guest.require(history.get('broker_stall') is True, 'expiry:stall-cleanup-kind')
             return stall_history(command, history, path, accounts)
+        if command == 'timer-cleanup':
+            guest.require(history.get('timer_replacement') is True, 'expiry:timer-cleanup-kind')
+            return timer_history(command, history, path, accounts)
         if history.get('session_replacement'):
             return replacement_history(command, history, path, accounts)
         current = child_session(child)
@@ -356,6 +360,8 @@ def graphical_history(command):
             return stop_history(command, history, path, accounts)
         if history.get('broker_stall'):
             return stall_history(command, history, path, accounts)
+        if history.get('timer_replacement'):
+            return timer_history(command, history, path, accounts)
         if history.get('policy_order') and command.startswith('policy-') and command != 'policy-complete':
             sequence = ('policy-renew-seed', 'policy-renew', 'policy-allowance-seed',
                         'policy-allowance', 'policy-disable-seed', 'policy-disable',
@@ -728,6 +734,125 @@ def stall_history(command, history, path, accounts):
     return result
 
 
+TIMER = 'org.freedesktop.MalcontentTimer1'
+TIMER_UNIT = 'malcontent-timerd.service'
+
+
+def timer_identity():
+    """Pin the native bus owner to its actual systemd process, not restart speed."""
+    from system_kiosk_confinement import process_identity
+    def bus(method, value):
+        return json.loads(guest.run(['busctl', '--system', '--json=short', 'call',
+            'org.freedesktop.DBus', '/org/freedesktop/DBus', 'org.freedesktop.DBus',
+            method, 's', value]))['data'][0]
+    owner = bus('GetNameOwner', TIMER)
+    pid = bus('GetConnectionUnixProcessID', owner)
+    properties = dict(line.split('=', 1) for line in guest.run([
+        'systemctl', 'show', TIMER_UNIT, '-p', 'MainPID', '-p', 'InvocationID',
+        '-p', 'ActiveState']).splitlines())
+    guest.require(re.fullmatch(r':[0-9]+\.[0-9]+', owner) is not None
+                  and type(pid) is int and pid > 1 and properties['MainPID'] == str(pid)
+                  and properties['ActiveState'] == 'active'
+                  and re.fullmatch(r'[0-9a-f]{32}', properties['InvocationID']) is not None
+                  and properties['InvocationID'] != '0' * 32, 'expiry:timer-owner-identity')
+    process = Path('/proc') / str(pid)
+    identity = process_identity(process)
+    guest.require(any(line.endswith('/' + TIMER_UNIT)
+                      for line in (process / 'cgroup').read_text().splitlines())
+                  and bus('GetNameOwner', TIMER) == owner, 'expiry:timer-process-owner')
+    return {'owner': owner, 'pid': pid, 'start': identity[0],
+            'invocation': properties['InvocationID']}
+
+
+def timer_history(command, history, path, accounts):
+    """Replace one real timer owner across expiry; never replay expired time."""
+    from system_kiosk_confinement import exited, user_command
+    child = accounts['child']
+    if command == 'timer-cleanup':
+        if history.get('timer_mask') is not None:
+            guest.remove_runtime_service_mask(TIMER_UNIT, tuple(history['timer_mask']),
+                                               category='expiry:timer')
+            history['timer_mask'] = None
+            path.write_text(json.dumps(history))
+            guest.run(['systemctl', 'start', TIMER_UNIT], timeout=30)
+        return {'completed': True}
+    sequence = ('timer-arm', 'timer-inject', 'timer-recovery', 'timer-complete')
+    index = history['grants']
+    guest.require(index < len(sequence) and command == sequence[index], 'expiry:timer-order')
+    if command == 'timer-arm':
+        history['original_expiry'] = grant(child, 180)
+        history['recover_by'] = time.monotonic() + history['original_expiry'] - time.time() + 300
+        history['original_grant'] = account_property(child, LIMITS, 'ActiveExtension')
+        history['child_state'] = hashlib.sha256(repr(account_state(child)).encode()).hexdigest()
+        accepted(call(accounts['parent'], 'GetTimeStatus', '(uu)', (child, 0)))
+        history['old_timer'] = timer_identity()
+        result = {'remaining_seconds': history['original_expiry'] - time.time()}
+    elif command == 'timer-inject':
+        guest.require(history['original_expiry'] - time.time() >= 120,
+                      'expiry:timer-insufficient-headroom')
+        old = history['old_timer']
+        descriptor = os.pidfd_open(old['pid'])
+        try:
+            guest.require(timer_identity() == old and not exited(descriptor),
+                          'expiry:timer-replaced-before-fault')
+            history['timer_mask'] = guest.runtime_service_mask(TIMER_UNIT, category='expiry:timer')
+            path.write_text(json.dumps(history))
+            guest.require(timer_identity() == old and not exited(descriptor),
+                          'expiry:timer-replaced-before-fault')
+            guest.run(['systemctl', 'stop', TIMER_UNIT])
+            wait_for(lambda: exited(descriptor), 'expiry:timer-old-process-not-exited', timeout=10)
+        finally:
+            os.close(descriptor)
+        guest.require(time.time() < history['original_expiry'], 'expiry:timer-fault-after-expiry')
+        result = {'remaining_seconds': history['original_expiry'] - time.time()}
+    elif command == 'timer-recovery':
+        mask = tuple(history['timer_mask'])
+        guest.runtime_service_mask(TIMER_UNIT, category='expiry:timer', identity=mask)
+        guest.require(time.time() >= history['original_expiry']
+                      and guest.run(['systemctl', 'show', TIMER_UNIT,
+                                     '--property=MainPID', '--value']) == '0'
+                      and guest.run(['busctl', '--system', 'call', 'org.freedesktop.DBus',
+                                     '/org/freedesktop/DBus', 'org.freedesktop.DBus',
+                                     'NameHasOwner', 's', TIMER]) == 'b false'
+                      and hashlib.sha256(repr(account_state(child)).encode()).hexdigest()
+                          == history['child_state'], 'expiry:timer-outage-not-retained')
+        guest.remove_runtime_service_mask(TIMER_UNIT, mask, category='expiry:timer')
+        history['timer_mask'] = None
+        path.write_text(json.dumps(history))
+        guest.run(['systemctl', 'start', TIMER_UNIT], timeout=30)
+        new = timer_identity()
+        old = history['old_timer']
+        guest.require(new['owner'] != old['owner'] and new['invocation'] != old['invocation']
+                      and (new['pid'], new['start']) != (old['pid'], old['start']),
+                      'expiry:timer-owner-not-replaced')
+        # Query as the real child, retaining the native API's authorization and
+        # reconstruction. Root cannot stand in for this client.
+        native = json.loads(user_command(pwd.getpwuid(child), [
+            '/usr/bin/busctl', '--system', '--json=short', 'call', TIMER,
+            '/org/freedesktop/MalcontentTimer1', TIMER + '.Child',
+            'GetEstimatedTimes', 's', 'login-session']).decode())
+        observed, estimates = native['data']
+        guest.require(set(estimates) == {''} and estimates[''][0] is True
+                      and estimates[''][2] <= observed
+                      and accepted(call(accounts['parent'], 'GetTimeStatus', '(uu)', (child, 0))) == [0, 0, 0, 0]
+                      and account_property(child, LIMITS, 'ActiveExtension') == history['original_grant']
+                      and hashlib.sha256(repr(account_state(child)).encode()).hexdigest()
+                          == history['child_state'] and timer_identity() == new
+                      and time.monotonic() < history['recover_by'], 'expiry:timer-reconstruction')
+        history['new_timer'] = new
+        history['recovered'] = True
+        deadline = grant(child, 1200)
+        result = {'remaining_seconds': deadline - time.time()}
+    else:
+        guest.require(history.get('recovered') is True and history.get('timer_mask') is None,
+                      'expiry:timer-history-incomplete')
+        history['complete'] = True
+        result = {'completed': True}
+    history['grants'] += 1
+    path.write_text(json.dumps(history))
+    return result
+
+
 def replacement_history(command, history, path, accounts):
     """Keep the original deadline while replacing only its owned desktop."""
     child = accounts['child']
@@ -933,13 +1058,27 @@ def verify_broker_stall(record):
            'outage-inclusive-work-recovery; original-session; foreground-peer-input-and-work')
 
 
+def verify_timer_replacement(record):
+    guest.guard()
+    history = json.loads((FIXTURE / 'graphical-history.json').read_text())
+    guest.require(history.get('timer_replacement') is True and history.get('complete') is True
+                  and history['grants'] == 4 and history.get('recovered') is True
+                  and history.get('timer_mask') is None, 'expiry:timer-history-incomplete')
+    record('onpc.expiry.timer-replacement',
+           'old-owner-process-exited; absent-through-original-expiry-and-protected-input; '
+           'distinct-new-bus-process-and-service-owner; native-child-exhausted-state; '
+           'zero-balance-unchanged-grant; outage-inclusive-work-recovery; '
+           'original-child-session-and-work; same-peer-input-and-work')
+
+
 def verify(record):
     guest.guard()
     history = json.loads((FIXTURE / 'graphical-history.json').read_text())
     guest.require(history.get('complete') is True and not history.get('foreground_revoke')
                   and not history.get('pending_approval') and not history.get('policy_order')
                   and not history.get('session_replacement') and not history.get('broker_crash')
-                  and not history.get('broker_stop') and not history.get('broker_stall'),
+                  and not history.get('broker_stop') and not history.get('broker_stall')
+                  and not history.get('timer_replacement'),
                   'expiry:graphical-history-incomplete')
     # Retain completed observations even if a native dependency later stalls
     # and pytest cannot finish its JUnit document. The outer collector already
@@ -1046,7 +1185,8 @@ if __name__ == '__main__':
                 'crash-natural-recovery', 'crash-peer-recovery', 'crash-complete',
                 'stop-ready', 'stop-arm', 'stop-inject', 'stop-recovery', 'stop-complete',
                 'stall-ready', 'stall-natural-arm', 'stall-peer-arm', 'stall-inject',
-                'stall-natural-recovery', 'stall-peer-recovery', 'stall-complete', 'stall-cleanup')
+                'stall-natural-recovery', 'stall-peer-recovery', 'stall-complete', 'stall-cleanup',
+                'timer-ready', 'timer-arm', 'timer-inject', 'timer-recovery', 'timer-complete', 'timer-cleanup')
     guest.require(len(sys.argv) == 2 and sys.argv[1] in (
         'prepare', 'broker-ready', 'host-observe', 'approval-natural', 'approval-peer',
         'approval-finish', *commands),

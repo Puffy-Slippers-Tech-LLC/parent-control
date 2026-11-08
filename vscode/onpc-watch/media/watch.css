@@ -8,14 +8,7 @@ body {
 button { font: inherit; color: inherit; cursor: pointer; }
 button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -2px; }
 nav { display: flex; overflow-x: auto; flex-shrink: 0; }
-nav button {
-    flex-shrink: 0; padding: 8px 12px; border: 0; border-bottom: 2px solid transparent;
-    background: var(--vscode-tab-inactiveBackground);
-}
-nav button[aria-pressed="true"] {
-    background: var(--vscode-tab-activeBackground); border-bottom-color: var(--vscode-focusBorder);
-    color: var(--vscode-tab-activeForeground);
-}
+nav button { flex-shrink: 0; }
 .idle { opacity: .6; }
 #watch {
     --watch-accent: #9b83bc;
@@ -79,7 +72,7 @@ nav button[aria-pressed="true"] {
 .tile-titlebar { min-height: 45px; }
 .run-heading { flex-wrap: wrap; }
 .run-titlebar { display: flex; flex: 1 1 0; min-width: min-content; align-items: flex-end; gap: 8px; }
-.run-label, .run-tab { font-size: var(--vscode-font-size); }
+.run-label, .run-tab, #viewers button { font-size: var(--vscode-font-size); }
 .run-label {
     flex: 1 1 8ch; width: 0; min-width: calc(8ch + 32px);
 }
@@ -116,7 +109,7 @@ nav button[aria-pressed="true"] {
 .run-heading.failed { color: var(--vscode-errorForeground, #f14c4c); }
 .run-heading.failed .run-launcher-label { color: inherit; }
 .session-link { color: #0066ff; text-decoration: underline; cursor: pointer; }
-.run-tab {
+.run-tab, #viewers button {
     display: inline-block; padding: 4px 10px;
     border: 1px solid color-mix(in srgb, var(--watch-accent) 45%, var(--vscode-editor-background));
     border-radius: 7px;
@@ -125,16 +118,16 @@ nav button[aria-pressed="true"] {
     box-shadow: 0 1px 2px color-mix(in srgb, var(--watch-accent) 25%, transparent);
     text-decoration: none; font-weight: normal;
 }
-.run-tab:hover { background: var(--watch-well); }
+.run-tab:hover, #viewers button:hover { background: var(--watch-well); }
 .run-links.wrapped .run-tab { width: var(--run-tab-width); text-align: center; }
 .run-tab.session-inactive { text-decoration: line-through; }
-.run-tab[aria-current="page"] {
+.run-tab[aria-current="page"], #viewers button[aria-pressed="true"] {
     color: var(--vscode-tab-activeForeground); background: var(--vscode-tab-activeBackground);
     border-bottom-color: var(--vscode-focusBorder); font-weight: bold;
     box-shadow: inset 0 -2px var(--vscode-focusBorder),
         0 1px 2px color-mix(in srgb, var(--watch-accent) 25%, transparent);
 }
-.run-tab:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -2px; }
+.run-tab:focus-visible, #viewers button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -2px; }
 .waiting-input { animation: waiting-input 1.2s ease-in-out infinite; }
 @keyframes waiting-input { 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .waiting-input { animation: none; } }
@@ -217,8 +210,11 @@ nav button[aria-pressed="true"] {
     margin: 6px; border: 1px solid var(--watch-border); border-radius: 9px; overflow: hidden;
     background: var(--vscode-editor-background);
 }
-#viewer-header { display: flex; flex-shrink: 0; min-width: 0; border-bottom: 1px solid var(--vscode-panel-border); }
-#viewers { flex: 1; min-width: 0; }
+#viewer-header {
+    display: flex; flex-shrink: 0; min-width: 0;
+    border-bottom: 1px solid var(--watch-rule); background: var(--watch-header);
+}
+#viewers { flex: 1; min-width: 0; align-items: center; gap: 4px; padding: 8px; }
 #tile-layout {
     display: flex; flex: 0 0 auto; align-items: center; gap: 2px; padding: 0 4px;
     border-left: 1px solid var(--vscode-panel-border); background: var(--vscode-editor-background);

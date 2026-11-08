@@ -409,6 +409,67 @@ def test_feedback_retry_recovers_without_another_send(
     assert "Traceback" not in log
 
 
+def test_feedback_retry_finishes_after_parent_closes_feedback(
+        launch_ui, automation, wait_for_accessible_state,
+        collect_application_logs, tmp_path):
+    from tests.support.feedback import attachment_choices
+    from tests.e2e.accessible_ui import BOUNDARY_FILES
+
+    ui, wait = automation, wait_for_accessible_state
+    release = tmp_path / "feedback-retry-release"
+    chooser_inputs, _paths = attachment_choices(tmp_path, ('single',))
+    editor, log_path = open_feedback(
+        launch_ui, ui, wait, status=503, retry_release=release,
+        chooser_inputs=chooser_inputs,
+    )
+    parent = ui.target("parent-window")
+    draft = "A parent's synthetic report awaiting background completion."
+    ui.reader.wait_feedback_collection()
+    ui.activate("feedback-add-files")
+    wait(lambda: ui.text("feedback-status") == "1 file attachment ready.",
+         "parent's synthetic customer file is attached")
+    assert ui.reader.feedback_snapshot(attachment_state=(
+        BOUNDARY_FILES['single'], "1 file attachment ready.", True,
+    ))['items'] == [['Synthetic note.txt', '26 bytes']]
+    type_feedback(ui, draft, wait)
+    ui.setText("feedback-reply-email", "first@example.invalid")
+    ui.activate("feedback-send")
+    try:
+        wait(lambda: ui.text("feedback-status").startswith(
+            "Could not confirm submission. Retrying in "),
+            "parent observes automatic retry before closing feedback")
+        ui.activate("feedback-close")
+        wait(lambda: ui.absent("feedback-dialog", within="parent-window"),
+             "only feedback closes while Parent remains open")
+    finally:
+        release.touch()
+
+    # Read the existing public status on the hidden surface. A released mock
+    # response or elapsed time alone does not prove the app handled completion.
+    wait(lambda: ui.text("feedback-status") == "Feedback submitted.",
+         "the closed feedback submission actually completes")
+    assert ui.target("parent-window") == parent
+    assert ui.showing("parent-window")
+    assert ui.absent("feedback-dialog", within="parent-window")
+    assert ui.absent("feedback-success-dialog", within="parent-window")
+    ui.activate("parent-feedback-button")
+    wait(lambda: ui.showing("feedback-dialog"), "parent reopens feedback")
+    feedback_editor(ui, wait)
+    ui.reader.wait_feedback_collection()
+    cleared = ui.reader.feedback_snapshot()
+    assert cleared['draft'] == 'initial-empty'
+    assert cleared['attachments'] == ['diagnostic-logs.zip']
+    assert not ui.content(editor).strip()
+    assert ui.content("feedback-reply-email") == ""
+    assert ui.absent("feedback-success-dialog", within="parent-window")
+    log = collect_application_logs(log_path)
+    assert log.count("component-feedback-post") == 2
+    assert log.count("component-feedback-frozen-retry") == 1
+    assert draft not in log
+    assert "first@example.invalid" not in log
+    assert "Traceback" not in log
+
+
 @pytest.mark.parametrize("status, reply_email", [
     pytest.param(202, "", id="anonymous-success"),
     pytest.param(202, "first@example.invalid", id="reply-success"),

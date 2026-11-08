@@ -25,6 +25,7 @@ use onpc_public_desktop_selection ();
 use onpc_station_shortcuts ();
 use onpc_kiosk_eligible_choices ();
 use onpc_kiosk_multiple ();
+use onpc_account_changes ();
 use onpc_restricted_station_about ();
 use onpc_kiosk_about ();
 use onpc_kiosk_preferences_confinement ();
@@ -417,6 +418,12 @@ sub run {
         exchange('setup-detached', undef);
         onpc_request_flow::qualify_cross_surface(\&exchange,
             $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{remove_selected}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_account_changes::remove_selected(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{choices_overlay_to_kiosk}) {

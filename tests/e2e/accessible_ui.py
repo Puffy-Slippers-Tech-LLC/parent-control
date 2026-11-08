@@ -676,6 +676,25 @@ CHILD_IDENTITIES = {CHILD: 'fixture-child', EXISTING_CHILD: 'existing-fixture-ch
                     NEW_CHILD: 'new-fixture-child'}
 CHILD_ACCOUNTS = {CHILD: 'onpc-child-riley', EXISTING_CHILD: 'onpc-child-jordan',
                   NEW_CHILD: 'onpc-e2e-new-child'}
+from account_registry import SPARE_CHILDREN
+
+for _role, (_username, _label) in SPARE_CHILDREN.items():
+    CHILD_IDENTITIES[_label] = 'spare-' + _role
+    CHILD_ACCOUNTS[_label] = _username
+SPARE_PARENT_OPERATIONS = {
+    'spare-parent-' + role + '-' + action: (role, action)
+    for role in ('jordan', 'riley') for action in ('select', 'allowance', 'read')
+}
+SPARE_PARENT_OPERATIONS['spare-parent-riley-fallback'] = ('riley', 'fallback')
+SPARE_PARENT_OPERATIONS['spare-parent-jordan-return'] = ('jordan', 'return')
+SPARE_REQUEST_OPERATIONS = {
+    'spare-kiosk-' + role + '-' + action: (role, action)
+    for role in ('jordan', 'riley') for action in ('seed', 'read')
+}
+SPARE_REQUEST_OPERATIONS['spare-kiosk-jordan-remember'] = ('jordan', 'remember')
+SPARE_REQUEST_OPERATIONS['spare-kiosk-riley-fallback'] = ('riley', 'fallback')
+SPARE_OPERATIONS = SPARE_PARENT_OPERATIONS.keys() | SPARE_REQUEST_OPERATIONS.keys()
+OPERATIONS |= SPARE_OPERATIONS
 PICKER_OPERATIONS = {
     'child-picker-opened': CHILD, 'new-child-picker-opened': NEW_CHILD,
     'existing-child-picker-opened': EXISTING_CHILD, 'discovery-child-picker-opened': EXISTING_CHILD,
@@ -1461,6 +1480,7 @@ for _surface, _overlay in (('overlay', True), ('kiosk', False)):
 OPERATIONS |= TRANSFER_OPERATIONS.keys()
 KIOSK_SESSION_OPERATIONS |= {operation for operation, (overlay, *_binding) in TRANSFER_OPERATIONS.items()
                             if not overlay}
+KIOSK_SESSION_OPERATIONS |= SPARE_REQUEST_OPERATIONS.keys()
 # Public-ID inventory for external applications on the maintained Ubuntu 26.04
 # host.  An observed Builder ID is recorded only when the installed provider
 # owns it; it is not usable until the application and surface roots are also
@@ -6227,6 +6247,76 @@ class AccessibleUI:
                 'limit_enabled': toggle.get_state_set().contains(self.api.StateType.CHECKED),
                 'allowance': labels}
 
+    def spare_account_operation(self, operation):
+        """ACCOUNT01/02 consumers share normal Parent and request operations."""
+        require(operation in SPARE_OPERATIONS, 'ui:spare-operation')
+        parent = operation in SPARE_PARENT_OPERATIONS
+        role, action = (SPARE_PARENT_OPERATIONS if parent else SPARE_REQUEST_OPERATIONS)[operation]
+        child = SPARE_CHILDREN[role][1]
+        roles = ('riley',) if action == 'fallback' else ('jordan', 'riley')
+        offered = {str(pwd.getpwnam(SPARE_CHILDREN[key][0]).pw_uid) for key in roles}
+        selected_uid = str(pwd.getpwnam(SPARE_CHILDREN[role][0]).pw_uid)
+        if parent:
+            def current():
+                selector = self.id_target('parent-child-selector')
+                if not self.has_state(selector, self.api.StateType.SENSITIVE):
+                    return False
+                choices = selector.getChoices()
+                if action == 'fallback':
+                    return (type(choices) is list and len(choices) == len(offered)
+                            and set(choices) == offered and selector.getValue() == selected_uid)
+                require(type(choices) is list and len(choices) == len(offered)
+                        and set(choices) == offered, 'ui:spare-eligible-set')
+                return True
+            self.wait(current, 'spare-parent-eligible-set')
+            if action in ('select', 'return'):
+                self.open_child_picker(child)
+                self.child_highlighted(child)
+                self.parent_save_snapshot(child, action == 'return')
+                self.activate_id('parent-page-screen-limits')
+            elif action == 'allowance':
+                self.configure_time_controls(child, initial_enabled=False,
+                    minutes=30 if role == 'jordan' else 15, final_enabled=True)
+            else:
+                self.parent_save_snapshot(child, True)
+            return {'settings': self.settings(child), 'window': self.window_switch_proof('parent')}
+
+        custom = '1.25' if role == 'jordan' else '2.5'
+        seconds = 75 if role == 'jordan' else 150
+        if action in ('seed', 'remember'):
+            self.select_kiosk_account('child', child,
+                expected=tuple(SPARE_CHILDREN[key][1] for key in roles),
+                duration_seconds=1800 if action == 'seed' else seconds,
+                custom_text=None if action == 'seed' else custom)
+        else:
+            # Observe the offered set and automatic selection without a setter.
+            selector, _form, _observation = self.kiosk_account_snapshot('child')
+            choices = selector.getChoices()
+            require(type(choices) is list and len(choices) == len(offered)
+                    and set(choices) == offered and selector.getValue() == selected_uid,
+                    'ui:spare-kiosk-fallback')
+        if action == 'seed':
+            self.select_kiosk_account('approver', PARENT, expected=(PARENT, OTHER_PARENT))
+            for identity, value in (('kiosk-duration-choices', 'custom'),
+                                    ('kiosk-custom-duration', custom),
+                                    ('kiosk-soft-apps-toggle', role == 'riley')):
+                target = self.wait(lambda: self.kiosk_valid_target(identity, child=child),
+                                   'spare-request-input', prompt_in_predicate=True)
+                self.input_uncertain = True
+                if identity == 'kiosk-custom-duration':
+                    target.setText(value)
+                else:
+                    target.setValue(value)
+                self.input_uncertain = False
+            return None
+        result = self.kiosk_request_form(enabled=True,
+            expected_selection=('child', CHILD_IDENTITIES[child]),
+            duration_seconds=seconds, custom_text=custom)
+        require(result['allow_soft'] is (role == 'riley')
+                and self.get_value('kiosk-custom-duration-units') == 'minutes',
+                'ui:spare-request-choices')
+        return {'request': result}
+
     def set_toggle(self, identity, desired, *, root, diagnostic=False, child=CHILD):
         """UI17: set a registered owned switch to an explicit state."""
         require(identity in ('parent-screen-limit-toggle', 'kiosk-soft-apps-toggle',
@@ -10217,7 +10307,8 @@ class AccessibleUI:
                            overlay=False):
         """Resolve a valid-choice input on the enabled, explicitly selected kiosk child."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(child in (CHILD, EXISTING_CHILD) and approver in (PARENT, OTHER_PARENT),
+        require(child in (CHILD, EXISTING_CHILD, *(value[1] for value in SPARE_CHILDREN.values()))
+                and approver in (PARENT, OTHER_PARENT),
                 'ui:kiosk-valid-binding')
         require(not awaiting_custom or identity == 'kiosk-custom-duration',
                 'ui:kiosk-valid-binding')
@@ -14421,7 +14512,11 @@ class AccessibleUI:
                                or operation == 'station-default-entry' else
                                None if operation in GREETER_OPERATIONS else 'desktop')
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
-        if operation in NATIVE_FILES_BINDINGS:
+        if operation in SPARE_OPERATIONS:
+            value = self.spare_account_operation(operation)
+            if value is not None:
+                result['account_change'] = value
+        elif operation in NATIVE_FILES_BINDINGS:
             value = self.native_files_operation(operation)
             if value is not None:
                 result['provider' if NATIVE_FILES_BINDINGS[operation][1] == 'launch' else 'activity'] = value

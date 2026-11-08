@@ -1784,7 +1784,9 @@ owns the two approval epochs, child identities and unchanged-access comparisons.
 
 ### E2E-040
 
-Implementation status: All cases pending.
+Implementation: case 180 uses `account_changes.AccountChangeJourney` /
+`PLAN`, `account_fixture.SpareChildrenFixture` and
+`onpc_account_changes::remove_selected`. Cases 181 and 182 remain pending.
 
 **Refresh accounts and remembered selections after account changes.** Cases 180, 181, 182.
 
@@ -2553,9 +2555,11 @@ profiles, then independently prepare and read them in each complete attempt:
 two eligible registered spares for 180 and
 one for 181, with the same guarded Parent/station bindings. Recipe role names
 Jordan/Riley identify those disposable inputs, never permission to delete the
-baseline accounts. No current callable supplies these profiles. Keep them
-planned until preparation and independent public eligible-set readback are
-available; an engineering empty-list mutation cannot replace the journey.
+baseline accounts. `SpareChildrenFixture(count=2)` supplies case 180's profile;
+`count=1` exposes the independent one-spare preparation for case 181. Preparation
+and both public eligible-set/fallback results are accepted in case 180 on
+Fedora 44; case 181 still needs its own complete journey and acceptance.
+An engineering empty-list mutation cannot replace either customer setup.
 Case 182 independently prepares and reads the registered spare Sam
 administrator before its role change, without a separate fixture qualification;
 retain Jamie and the last-administrator/station protections.

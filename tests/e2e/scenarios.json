@@ -2297,7 +2297,7 @@
         "rationale": "Owns app reactions to real account removals and role changes through shared system commands. Case 180 combines Parent and reopened-station fallback after one logged-out child removal; former case 183 is absorbed and its ID must not be reused. Last-child removal and approver eligibility loss remain independent. Completed E2E-003 case 3 already adds a child while Parent stays open, selects it and checks its settings; duplicate case 179 is removed and its ID must not be reused. Shared spare-account preparation remains for retained changes."
       },
       "variants": [
-        {"coverage_id": 180, "id": "remove-selected", "owner": "continuous-journeys", "parameters": {"change": "remove-selected"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 180, "id": "remove-selected", "owner": "continuous-journeys", "parameters": {"change": "remove-selected"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/account_changes.py", "test_id": "remove-selected"}},
         {"coverage_id": 181, "id": "remove-last-child", "owner": "continuous-journeys", "parameters": {"change": "remove-last-child"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 182, "id": "ineligible-approver", "owner": "continuous-journeys", "parameters": {"change": "ineligible-approver"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]

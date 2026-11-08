@@ -15,6 +15,7 @@ from tools.vm_source_snapshot import read_bytes as source_bytes
 
 
 UI_PROGRAM_SOURCES = {
+    'account_registry': 'tests/integration/account_registry.py',
     'common.oh_no_parent_control_ui.application_ui':
         'common/oh_no_parent_control_ui/application_ui.py',
     'common.oh_no_parent_control_ui.application_ui_client':
@@ -66,6 +67,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Checking the disposable child and its own saved choices'
+       for operation in accessible_ui.SPARE_OPERATIONS},
     **{operation: 'Checking approval for the chosen child and parent'
        for operation in accessible_ui.BOUND_MATE_ORDER},
     'kiosk-request-select': 'Choosing the child, parent and requested time at the station',
@@ -1681,6 +1684,37 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
+        if operation in accessible_ui.SPARE_OPERATIONS:
+            parent = operation in accessible_ui.SPARE_PARENT_OPERATIONS
+            role, action = (accessible_ui.SPARE_PARENT_OPERATIONS if parent else
+                            accessible_ui.SPARE_REQUEST_OPERATIONS)[operation]
+            if parent or action != 'seed':
+                value = result.get('account_change')
+                require(type(value) is dict and set(value) == (
+                    {'settings', 'window'} if parent else {'request'}), 'ui:spare-response')
+                if parent:
+                    settings = SettingsObservation.from_settings(value['settings'])
+                    require(settings.child == 'spare-' + role, 'ui:spare-child')
+                    window = value['window']
+                    require(type(window) is dict and set(window) == {
+                        'binding', 'pid', 'endpoint', 'available'} and window['binding'] == 'parent'
+                        and type(window['pid']) is int and window['pid'] > 0
+                        and window['available'] is True and type(window['endpoint']) is list
+                        and len(window['endpoint']) == 2
+                        and all(type(part) is str and 0 < len(part) <= 256 for part in window['endpoint'])
+                        and window['endpoint'][0].startswith(':') and window['endpoint'][1].startswith('/'),
+                        'ui:spare-window')
+                else:
+                    request = value['request']
+                    require(type(request) is dict and request == {
+                        'surface': 'kiosk', 'form_count': 1, 'child': 'spare-' + role,
+                        'approver': 'fixture-parent', 'duration_seconds': 75 if role == 'jordan' else 150,
+                        'custom_text': '1.25' if role == 'jordan' else '2.5',
+                        'allow_soft': role == 'riley', 'child_selector_enabled': True,
+                        'approver_selector_enabled': True, 'duration_enabled': True,
+                        'soft_choice_enabled': True, 'request_enabled': True,
+                        'cancel_enabled': True, 'message': '', 'mute': None}, 'ui:spare-request')
+                expected['account_change'] = value
         if operation in accessible_ui.SHORTCUT_OPERATIONS:
             account, route, phase = {**accessible_ui.SHORTCUT_BINDINGS,
                                       **accessible_ui.SHORTCUT_RESTRICTIONS}[operation]

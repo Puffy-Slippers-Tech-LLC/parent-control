@@ -8,8 +8,6 @@ from synthetic_files import SyntheticFiles
 
 def special_path_plan(profile):
     require(profile in ('space', 'comma'), 'files:profile')
-    # Space's two independent lifetimes are delivered scope. The new finite
-    # comma binding needs one copy/use/result, not the unchanged refusal matrix.
     entries = ('first', 'independent') if profile == 'space' else ('first',)
     screens = {
         **fresh_desktop('parent'),
@@ -66,16 +64,8 @@ def copy_actions(profile='space'):
             'source': files[prefix + directory + '/' + source]['sha256'],
             'nonmatching': files[prefix + 'PrismLauncher.AppImage']['sha256']})
         setattr(journey, attribute, controller)
-        before = controller.call('stage')
-        copied = controller.call('copy')
-        require(set(copied['files']) == {source, destination}
-                and copied['directory'] == before['directory']
-                and copied['files'][source] == before['files'][source]
-                and copied['files'][source]['sha256'] == copied['files'][destination]['sha256']
-                and copied['files'][source]['identity'] != copied['files'][destination]['identity']
-                and copied['destination'] == '/opt/onpc-test-fixtures/Applications/' + directory + '/' + destination,
-                'files:executable-copy-result')
-        return copied
+        return controller.copy_executable(source=source,
+            destination='/opt/onpc-test-fixtures/Applications/' + directory + '/' + destination)
 
     def cleanup(journey, guard):
         guard()

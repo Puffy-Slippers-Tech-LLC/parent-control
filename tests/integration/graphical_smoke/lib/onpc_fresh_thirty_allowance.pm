@@ -247,7 +247,8 @@ sub special_paths_case {
     for my $name ('hard', 'soft') {
         onpc_app_rows::access_choice($journey, "$name-$_-save", "$name-$_-row")
             for ('hard', 'comma');
-        $journey->seen($_) for ("$name-leave-desktop", "$name-leave-switch", "$name-leave-greeter");
+        my $leaving = $journey->scope("$name-leave");
+        onpc_desktop_session::switch_user($leaving, $leaving->seen('desktop'));
         onpc_desktop_session::enter_desktop(
             $journey, 'gdm', 'other-child', 'fresh', 'success', "$name-entry");
         for my $app (['space-original', 'H'], ['space-copy', 'SpaceCopy'],

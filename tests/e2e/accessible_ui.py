@@ -156,6 +156,18 @@ NATIVE_PRODUCT = 'ONPC Allowed Fixture'
 NATIVE_SOFT_PRODUCT = 'ONPC Soft Fixture'
 NATIVE_HARD_PRODUCT = 'ONPC Hard Fixture'
 NATIVE_ALIAS_PRODUCT = 'ONPC Shared Target Fixture'
+NATIVE_EXECUTABLES = {role: '/opt/onpc-test-fixtures/Applications/' + relative
+    for role, relative in {
+        'A': 'Exact Fixture.AppImage', 'H': 'Whitespace/Path With Spaces.AppImage',
+        'S': 'Versioned/Lunar Client-3.7.17.AppImage', 'N': 'PrismLauncher.AppImage',
+        'SpaceCopy': 'Whitespace/Copied Path With Spaces.AppImage',
+        'CommaCopy': 'Comma/Copied,Path,With,Commas.AppImage',
+        'VersionNext': 'Versioned/Lunar Client-3.8.0.AppImage',
+        'VersionExisting': 'Versioned/PrismLauncher.AppImage',
+        'VersionNonmatch': 'Versioned/NewPrismLauncher.AppImage',
+        'C': 'Comma/Path,With,Commas.AppImage',
+        'Update': 'Catalogue/Catalogue-new.AppImage',
+    }.items()}
 SNAP_SEARCH_PRODUCTS = {'A': 'ONPC Snap Allowed Fixture',
                         'H': 'ONPC Snap Hard Fixture', 'S': 'ONPC Snap Soft Fixture'}
 FLATPAK_SEARCH_PRODUCTS = {'A': 'ONPC Flatpak Allowed Fixture',
@@ -13125,16 +13137,7 @@ class AccessibleUI:
         self.input_uncertain = True
         executable = ('/usr/bin/flatpak' if flatpak else '/usr/bin/snap' if snap else
             '/opt/onpc-test-fixtures-activity/native-fixture' if fixture == 'activity' else
-            '/opt/onpc-test-fixtures/Applications/' + {
-                'A': 'Exact Fixture.AppImage', 'H': 'Whitespace/Path With Spaces.AppImage',
-                'S': 'Versioned/Lunar Client-3.7.17.AppImage', 'N': 'PrismLauncher.AppImage',
-                'SpaceCopy': 'Whitespace/Copied Path With Spaces.AppImage',
-                'CommaCopy': 'Comma/Copied,Path,With,Commas.AppImage',
-                'VersionNext': 'Versioned/Lunar Client-3.8.0.AppImage',
-                'VersionExisting': 'Versioned/PrismLauncher.AppImage',
-                'VersionNonmatch': 'Versioned/NewPrismLauncher.AppImage',
-                'C': 'Comma/Path,With,Commas.AppImage',
-                'Update': 'Catalogue/Catalogue-new.AppImage'}[role or 'A'])
+            NATIVE_EXECUTABLES[role or 'A'])
         result = subprocess.run([
             '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
             *(['--wait', '--pipe'] if blocked else []),
@@ -13505,13 +13508,7 @@ class AccessibleUI:
         require(len(fields) > 19 and fields[0] != 'Z', 'ui:native-owner')
         owner = Path('/proc/' + fields[1])
         owner_stat = (owner / 'stat').read_text()
-        expected = '/opt/onpc-test-fixtures/Applications/' + {
-            'A': 'Exact Fixture.AppImage', 'S': 'Versioned/Lunar Client-3.7.17.AppImage',
-            'N': 'PrismLauncher.AppImage', 'SpaceCopy': 'Whitespace/Copied Path With Spaces.AppImage',
-            'CommaCopy': 'Comma/Copied,Path,With,Commas.AppImage',
-            'VersionNext': 'Versioned/Lunar Client-3.8.0.AppImage',
-            'VersionExisting': 'Versioned/PrismLauncher.AppImage',
-            'VersionNonmatch': 'Versioned/NewPrismLauncher.AppImage'}[role]
+        expected = NATIVE_EXECUTABLES[role]
         require(process.stat().st_uid == owner.stat().st_uid == os.getuid()
                 and str((owner / 'exe').readlink()) == expected
                 and (owner / 'cmdline').read_bytes().split(b'\0') ==
@@ -15305,14 +15302,8 @@ def native_execution_journal_diagnostic(unit, *, executable='/opt/onpc-test-fixt
     step before returning a closed errno label. Missing evidence proves nothing.
     """
     diagnostic = {'status': 'unavailable', 'entries': 0, 'exec_errors': []}
-    if executable not in (
-            '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
-            '/opt/onpc-test-fixtures/Applications/Whitespace/Path With Spaces.AppImage',
-            '/opt/onpc-test-fixtures/Applications/Whitespace/Copied Path With Spaces.AppImage',
-            '/opt/onpc-test-fixtures/Applications/Comma/Path,With,Commas.AppImage',
-            '/opt/onpc-test-fixtures/Applications/Comma/Copied,Path,With,Commas.AppImage',
-            '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage',
-            '/opt/onpc-test-fixtures/Applications/Catalogue/Catalogue-new.AppImage'):
+    if executable not in tuple(NATIVE_EXECUTABLES[role]
+            for role in ('A', 'H', 'SpaceCopy', 'C', 'CommaCopy', 'S', 'Update')):
         return diagnostic
     if type(unit) is not str or re.fullmatch(r'onpc-test-native-[0-9a-f]{32}\.service', unit) is None:
         return diagnostic

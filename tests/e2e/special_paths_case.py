@@ -1,7 +1,7 @@
 """Case 188: Hard and Soft rules deny special-path originals and copies."""
 from accessible_ui import MATCH_APPS, NAMED_CHILD_OPERATIONS
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import (app_policy_entry, desktop_entry, native_blocked_app,
+from journey_blocks import (app_policy_entry, desktop_entry, desktop_return, native_blocked_app,
                             native_usable_app, prefixed_stages, retained_parent_entry)
 from native_fixtures import fixture_actions
 from native_space_path import copy_actions
@@ -23,9 +23,7 @@ for name, choice, phase in (('hard', 'permanent', 'step-2'),
         group.update({name + '-' + label + '-save': 'ui:access-' + label + '-' + choice,
                       name + '-' + label + '-row': 'ui:access-' + label + '-row'})
         ACCESS_CHECKS[name + '-' + label + '-row'] = (MATCH_APPS[role], choice)
-    group.update({name + '-leave-desktop': 'ui:desktop',
-                  name + '-leave-switch': 'system:parent-switch-user',
-                  name + '-leave-greeter': 'ui:gdm-returned'})
+    group.update(desktop_return(name + '-leave', account='parent'))
     for account, suffix in (('other-child', 'entry'), ('parent', 'return')):
         ENTRIES[name + '-' + suffix] = desktop_entry(account, source='gdm',
             entry='fresh' if account == 'other-child' else 'retained')

@@ -22,17 +22,9 @@ def versioned_copy_actions():
             'source': hashes[prefix + source]['sha256'],
             'nonmatching': hashes[prefix + other]['sha256']})
         setattr(journey, attribute, controller)
-        before = controller.call('stage')
-        copied = controller.call('copy')
         source_key = '../' + source if binding == 'next' else 'PrismLauncher.AppImage'
-        require(set(copied['files']) == {source_key, destination}
-                and copied['directory'] == before['directory']
-                and copied['files'][source_key] == before['files'][source_key]
-                and copied['files'][source_key]['sha256'] == copied['files'][destination]['sha256']
-                and copied['files'][source_key]['identity'] != copied['files'][destination]['identity']
-                and copied['destination'] == '/opt/onpc-test-fixtures/Applications/Versioned/' + destination,
-                'files:executable-copy-result')
-        return copied
+        return controller.copy_executable(source=source_key,
+            destination='/opt/onpc-test-fixtures/Applications/Versioned/' + destination)
 
     def cleanup(journey, guard):
         guard()

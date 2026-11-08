@@ -8,7 +8,6 @@ SCREENS = {
     **fresh_desktop('parent'),
     'logout': 'system:parent-logout',
     **{'child-' + stage: tag for stage, tag in fresh_desktop('other-child').items()},
-    'first-desktop': 'ui:native-desktop',
     **{'first-' + stage: tag for stage, tag in native_usable_app('files').items()},
     'first-dismiss': 'ui:native-files-allowed-dismiss',
     'first-close': 'ui:native-files-allowed-close',
@@ -16,7 +15,8 @@ SCREENS = {
     **{'earlier-' + stage: tag for stage, tag in native_usable_app('command', role='S').items()},
     'earlier-capture': 'ui:native-unmatched-soft-activity',
     'second-desktop': 'ui:standard-desktop',
-    **{'second-' + stage: tag for stage, tag in native_usable_app('files', role='S').items()},
+    **{'second-' + stage: tag for stage, tag in native_usable_app(
+        'files', role='S', desktop_observation=False).items()},
     'second-dismiss': 'ui:native-files-soft-dismiss',
     'second-capture': 'ui:native-files-soft-activity',
     'earlier-reread': 'ui:native-unmatched-soft-activity',

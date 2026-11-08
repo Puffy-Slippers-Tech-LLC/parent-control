@@ -233,9 +233,11 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
                 or child == 'child' and role is None)
                 and type(desktop_observation) is bool, 'journey:native-files-binding')
         name = 'soft' if role == 'S' else 'allowed'
-        return {stage: 'ui:' + ('overlay-' if child == 'child' else '')
-                + 'native-files-' + name + '-' + action for stage, action in (
-            ('files', 'launch'), ('opened', 'opened'), ('submit', 'submit'), ('submitted', 'submitted'))}
+        operation = 'ui:' + ('overlay-' if child == 'child' else '') + 'native-'
+        return {**({'desktop': operation + 'desktop'} if desktop_observation else {}),
+                **{stage: operation + 'files-' + name + '-' + action for stage, action in (
+                    ('files', 'launch'), ('opened', 'opened'),
+                    ('submit', 'submit'), ('submitted', 'submitted'))}}
     if kind == 'flatpak':
         require((route == 'command' or instance == 'primary') and (child == 'other-child'
                 or child == 'child' and role == 'A' and instance == 'primary') and role in ('A', 'H', 'S')

@@ -96,13 +96,11 @@ GRID_PLAN = replace(
 
 FILES_JORDAN = {
     'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
-    'jordan-use-desktop': 'ui:native-desktop',
     **prefixed_stages('jordan-use', native_usable_app('files', child='other-child')),
     'jordan-use-dismiss': 'ui:native-files-allowed-dismiss',
 }
 FILES_RILEY = {
     'jordan-logout': 'system:standard-logout', **RILEY_ENTRY,
-    'riley-use-desktop': 'ui:overlay-native-desktop',
     **prefixed_stages('riley-use', native_usable_app('files', child='child')),
     'riley-use-dismiss': 'ui:overlay-native-files-allowed-dismiss',
 }
@@ -132,7 +130,6 @@ def blocked_plan(rule, access, *, route='grid', control='enabled'):
     }
     riley = {
         'jordan-logout': 'system:standard-logout', **RILEY_ENTRY,
-        **({'riley-use-desktop': 'ui:overlay-native-desktop'} if route == 'files' else {}),
         **prefixed_stages('riley-use', native_usable_app(route, child='child')),
         **({'riley-use-dismiss': 'ui:overlay-native-files-allowed-dismiss'}
            if route == 'files' else {}),

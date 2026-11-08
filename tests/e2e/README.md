@@ -610,6 +610,12 @@ or an online snapshot older than 24 hours, forces replacement even with
 `--overwrite false`. Age uses libvirt's host UTC `creationTime`; missing, future
 or invalid online timestamps also require replacement. The standalone reuse
 probe does not compare source freshness. Exactly 24 hours remains reusable.
+If an installed attempt then refuses with `package contents changed`, the reuse
+probe has not established package equivalence. After that attempt finishes
+cleanup, refresh through `tools/prepare-appsnapshot --vm NAME --y --overwrite true`
+and release its maintenance guest with `tools/test-vm --vm NAME stop` before
+the next affected attempt. Preserve the content guard and the failed result;
+this is preparation recovery, not evidence of a product behavior failure.
 
 Suite preparation defaults to online `onpc-v[version]` snapshots and reuses one only when its
 recorded package-content fingerprint, baseline identity and installation recipe

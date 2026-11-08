@@ -12,7 +12,7 @@ for stage, tag in CLOSURE_PLAN.screen_tags.items():
     name = stage.split('-', 1)[0]
     if name in ('hard', 'soft') and stage.startswith(name + '-activity-'):
         if stage == name + '-activity-desktop':
-            activity = {'desktop': 'ui:native-desktop', **native_usable_app('files'),
+            activity = {**native_usable_app('files'),
                         'dismiss': 'ui:native-files-allowed-dismiss'}
             if name == 'hard':
                 activity['files'] = 'ui:native-files-allowed-launch-refusals'

@@ -173,7 +173,7 @@ def _system_history_command(transport, command):
     require(type(raw) is bytes and 0 < len(raw) < 1024, 'expiry:history-response')
     value = json.loads(raw)
     if command in ('host-complete', 'revoke-complete', 'approval-complete', 'policy-complete',
-                   'replacement-complete'):
+                   'replacement-complete', 'crash-complete'):
         require(value == {'completed': True}, 'expiry:history-incomplete')
         return value
     if command in ('policy-renew', 'policy-allowance', 'policy-disable'):
@@ -321,6 +321,52 @@ class SystemGraphicalExpiryJourney(InstalledJourney):
                         'real_input_after_child_expiry': True, 'expiry_at': expiry_at}
             previous = completed
             time.sleep(SAMPLE_INTERVAL_SECONDS)
+
+
+class BrokerCrashJourney(SystemGraphicalExpiryJourney):
+    """Keep both original expiry histories under a real, identity-owned outage."""
+
+    @staticmethod
+    def natural_lock(journey, guard):
+        guard()
+        expiry_at = _system_history_command(journey.transport, 'crash-natural-arm')
+        # Confirm the new deadline reached the actual child before taking its
+        # broker away. This also proves positive input and retained work.
+        while True:
+            guard()
+            value = journey.ui.observe('child-natural-expiry-activity')['natural_expiry']
+            require(journey.ui.boot_proof == journey.boot and value['state'] == 'desktop'
+                    and value['session_sha256'] == journey.original_session and value['acted'],
+                    'expiry:crash-positive-entry')
+            compare_app_activity(AppActivityObservation.from_value(value['activity']),
+                                 journey.activity_observations['activity-capture'])
+            require(expiry_at - time.monotonic() >= 120, 'expiry:crash-observer-headroom')
+            if 120 <= value['seconds'] <= 180:
+                break
+            time.sleep(SAMPLE_INTERVAL_SECONDS)
+        _system_history_command(journey.transport, 'crash-inject')
+        result = await_engineering_expiry(journey.ui, guard,
+            journey.activity_observations['activity-capture'],
+            expiry_at=expiry_at, boot_sha256=journey.boot)
+        require(result['activity_actions'] > 0, 'expiry:crash-no-outage-input')
+        journey.lock_deadline = engineering_deadline(
+            result['observed_monotonic'], LOCK_VERIFICATION_SECONDS)
+        return result
+
+    @staticmethod
+    def natural_recovery(journey, guard):
+        return journey._recover(journey, guard, 'crash-natural-recovery')
+
+    @staticmethod
+    def peer_expiry(journey, guard):
+        guard()
+        expiry_at = _system_history_command(journey.transport, 'crash-peer-arm')
+        _system_history_command(journey.transport, 'crash-inject')
+        return SystemGraphicalExpiryJourney.peer_expiry(journey, guard, expiry_at=expiry_at)
+
+    @staticmethod
+    def peer_recovery(journey, guard):
+        return journey._recover(journey, guard, 'crash-peer-recovery')
 
 
 REVOKE_SCREENS = {
@@ -733,12 +779,15 @@ class PendingApprovalJourney(SystemGraphicalExpiryJourney):
 
 def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected_inputs,
                                progress, context, credentials=None, foreground_revoke=False,
-                               pending_approval=False, policy_order=False, session_replacement=False):
+                               pending_approval=False, policy_order=False, session_replacement=False,
+                               broker_crash=False):
     """Compose engineering input checks before the installed PAM password tests."""
     from desktop_session import run_attached
-    require(sum((foreground_revoke, pending_approval, policy_order, session_replacement)) <= 1,
+    require(sum((foreground_revoke, pending_approval, policy_order, session_replacement, broker_crash)) <= 1,
             'expiry:ambiguous-history')
     plan, journey_type, ready, complete = (
+        (SYSTEM_PLAN, BrokerCrashJourney, 'crash-ready', 'crash-complete')
+        if broker_crash else
         (REPLACEMENT_PLAN, SessionReplacementJourney, 'replacement-ready', 'replacement-complete')
         if session_replacement else
         (POLICY_PLAN, PolicyOrderJourney, 'policy-ready', 'policy-complete')

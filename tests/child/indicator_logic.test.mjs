@@ -783,6 +783,40 @@ test('delayed and invalidated replies cannot restart time or replace newer polic
     assert.equal(indicator._deadlineUsec, 180_000_000, 'disposed indicators reject late replies');
 });
 
+test('broker replacement cannot duplicate or strand an already pending lock request', () => {
+    const callbacks = [];
+    const events = [];
+    let refreshes = 0;
+    const connection = {call_finish() {}};
+    const indicator = createIndicator({
+        Gio: {DBus: {session: {call(...args) { callbacks.push(args.at(-1)); }}},
+            DBusCallFlags: {NONE: 0}},
+        SCREEN_SAVER_NAME: 'org.gnome.ScreenSaver',
+        SCREEN_SAVER_PATH: '/org/gnome/ScreenSaver',
+        SCREEN_SAVER_INTERFACE: 'org.gnome.ScreenSaver',
+        logInfo: event => events.push(event), logWarning() {},
+    });
+    indicator.refreshEstimate = () => refreshes++;
+    indicator._brokerOwner = ':1.10';
+    indicator._lockSession();
+    assert.equal(indicator._lockPending, true);
+    indicator._brokerOwnerChanged('');
+    indicator._lockSession();
+    indicator._brokerOwnerChanged(':1.11');
+    indicator._lockSession();
+    assert.equal(callbacks.length, 1, 'owner loss and recovery cannot replay pending input');
+    assert.equal(refreshes, 2, 'both ownership changes demand fresh entitlement');
+    callbacks.shift()(connection, {});
+    assert.equal(indicator._lockPending, false, 'the original completion releases its request');
+    assert.deepEqual(events, ['child.lock-requested', 'child.locked']);
+    indicator._lockSession();
+    assert.equal(callbacks.length, 1, 'a later real expiry is not stranded');
+    indicator._destroyed = true;
+    callbacks.shift()(connection, {});
+    indicator._lockSession();
+    assert.equal(callbacks.length, 0, 'disposed sessions cannot receive another lock');
+});
+
 test('grant confirmation requests a fresh deadline without adding its original duration', () => {
     const indicator = createIndicator();
     Object.assign(indicator, {_deadlineUsec: 150_000_000});

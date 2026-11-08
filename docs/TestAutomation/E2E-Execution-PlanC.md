@@ -13,7 +13,7 @@ Task queue: [Plan C ordered checklist](E2E-Task-QueueC.md).
 
 ## Next task
 
-Next task: **172e — [Check expiry across a broker crash](E2E-Tasks/172e-broker-crash-expiry.md)**.
+Next task: **172f — [Check expiry while the broker is stopped](E2E-Tasks/172f-broker-stop-expiry.md)**.
 
 This plan owns its queue, unchanged task briefs and next-task pointer.
 It can run independently of all unfinished work in

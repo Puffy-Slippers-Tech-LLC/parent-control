@@ -455,12 +455,22 @@
         return node;
     }
 
+    function tileSelection(body, heading) {
+        body.addEventListener('click', event => {
+            const selected = !heading.contains(event.target) || Boolean(event.target.closest('a, button')) ||
+                !body.classList.contains('selected');
+            for (const tile of layout.querySelectorAll('.watch-tile')) {
+                tile.classList.toggle('selected', tile === body && selected);
+            }
+        }, true);
+    }
+
     function card(entry) {
         const body = document.createElement('article');
-        body.className = `card ${entry.kind}`;
-        const titlebar = element('div', 'tile-titlebar', body);
-        const title = element('button', 'title', titlebar);
-        title.addEventListener('click', () => select(state.scope, entry.id));
+        body.className = `watch-tile card ${entry.kind}`;
+        const titlebar = element('div', 'watch-tile-heading tile-titlebar', body);
+        tileSelection(body, titlebar);
+        const title = element('span', 'title', titlebar);
         const screenshot = element('button', 'tile-screenshot', titlebar);
         screenshot.type = 'button';
         screenshot.title = 'Take UI screenshot';
@@ -682,10 +692,11 @@
         entries.forEach((entry, index) => {
             let section = sections.get(entry.id);
             if (!section) {
-                const body = element('section', 'run', runs);
+                const body = element('section', 'watch-tile run', runs);
                 body.dataset.root = entry.id;
                 const divider = element('div', 'run-divider', runs);
-                const heading = element('h2', 'run-heading', body);
+                const heading = element('h2', 'watch-tile-heading run-heading', body);
+                tileSelection(body, heading);
                 const content = element('div', 'run-status-view', body);
                 const summary = element('pre', 'run-status run-summary', content);
                 const history = element('pre', 'run-status run-history', content);
@@ -701,13 +712,6 @@
                     preview, latestLabel, latest, launcher, errorStatus,
                     view: 'status', weight: 1, followStatus: true });
                 const panel = section;
-                body.addEventListener('click', event => {
-                    const selected = !heading.contains(event.target) || Boolean(event.target.closest('a, button')) ||
-                        !body.classList.contains('selected');
-                    for (const other of sections.values()) {
-                        other.body.classList.toggle('selected', other === panel && selected);
-                    }
-                }, true);
                 history.addEventListener('scroll', () => {
                     if (history.clientHeight) panel.followStatus =
                         history.scrollHeight - history.clientHeight - history.scrollTop < 24;

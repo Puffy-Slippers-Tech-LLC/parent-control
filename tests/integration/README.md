@@ -1255,6 +1255,27 @@ retain their scope. The history passed on session-selected
 worker/callback closure, owned cleanup and baseline restoration. Fedora remains
 unqualified; this engineering result supplies no customer-case acceptance.
 
+System 307, `session::test_broker_crash_before_expiry`, reuses the system-282
+worker through `natural_expiry.BrokerCrashJourney` and the same guest fixture.
+Each of two histories prepares a 180-second grant, then crashes only the
+root-owned broker main process pinned by service invocation, pidfd, process
+start, credentials and cgroup. Revalidation immediately precedes SIGKILL; the
+fault and process exit must be observed before original expiry, with at least
+120 seconds of injection headroom. An identity-owned runtime mask prevents
+D-Bus clients from shortening the declared outage. The foreground history
+requires the existing timely natural lock; both histories challenge protected
+input before removing the mask. Existing on-demand activation must produce a
+new broker owner, zero remaining balance and unchanged grant/account state
+before any declared recovery grant. Both original-work recoveries and the
+foreground peer's input/work remain independent assertions. The product's
+pending-lock callback under broker loss/replacement has controlled coverage in
+`tests/child/indicator_logic.test.mjs`; the live history does not deliberately
+hold that callback and adds no service supervision. The first live run passed
+on session-selected `onpc-Ubuntu26.04-1` in `20261108T022958Z-c6ddedd9`, including
+collection, worker/callback shutdown, owned cleanup and baseline restoration;
+the VM ended powered off. Fedora remains unqualified, and this engineering
+result supplies no customer-case acceptance.
+
 The `extension` area (system ID 295) owns the standalone native GNOME monitor
 history in `system_extension_monitor.verify`. It uses a fresh autologin desktop
 with saved controls initially off, then stages saved-enabled policy through the

@@ -2564,6 +2564,16 @@
     ],
     "expected": "Pending scheduled work is torn down with its original desktop; the same-account replacement has positive authoritative entitlement, accepts real input and retains its work past the old deadline, while peer input and work remain usable."
   },
+  "307": {
+    "summary": "Protect the child's original time limit when the background service crashes",
+    "steps": [
+      "Prepare the child's work and a three-minute grant, then crash the exact recorded service before expiry.",
+      "Keep the service unavailable through timely natural locking and a fresh protected-input challenge.",
+      "Activate a new service owner, confirm zero balance and the unchanged expired grant, then recover the original work.",
+      "Repeat with another user's work in front, preserving that user's input and challenging the child's retained lock before recovery."
+    ],
+    "expected": "Outage time consumes the original grant; both lock challenges protect input, service recovery replays no grant, original child work and peer input survive, and owned cleanup completes."
+  },
   "299": {
     "summary": "Restore the extension from Parent controls",
     "steps": [

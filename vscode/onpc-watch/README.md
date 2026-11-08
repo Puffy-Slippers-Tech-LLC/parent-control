@@ -33,11 +33,12 @@ selected tab. Inactive launchers (finished, failed or stopped) collapse by defau
 including when a running launcher exits. A new active run expands by default.
 Manual expansion, collapse and resizing survive live refreshes until the next
 run or activity transition. Sizes last while Watch is open.
-Click anywhere in a launcher tile to select it. Clicking empty space in its
-title bar toggles selection instead.
+Launcher and viewer tiles share their rounded borders, title-bar styling and
+selection highlight. Click anywhere in a tile to select it. Clicking empty space
+in its title bar toggles selection instead.
 The selected tile has a highlighted border and tinted background. Selecting
-another tile clears the previous selection. Title-bar links and buttons select
-their tile without unselecting it, while performing their usual action.
+another tile on either side clears the previous selection. Title-bar links and
+buttons select their tile without unselecting it, while performing their usual action.
 Dividers remain active beside collapsed sections; resizing expands them and
 restores their selected tabs.
 When a launcher exits for any reason, its
@@ -250,8 +251,9 @@ count is underlined; click it to open the cumulative `errors.md` in the editor.
 
 The right panel contains the shared All grid across checkouts, UI worker and VM tabs,
 VM progress, filtered command output and host resource usage. Screens are view
-only. Tiles and viewer tabs group by worktree in the left panel's current order,
-following changes on each refresh. Worktrees without a displayed run follow those
+only. Clicking a viewer title toggles tile selection; use its viewer tab to open
+that viewer on its own. Tiles and viewer tabs group by worktree in the left
+panel's current order, following changes on each refresh. Worktrees without a displayed run follow those
 shown on the left. Start tests through the usual launchers. Select an idle VM tab to wait for
 its next run. The Reconnect button restarts this tab's source connections.
 

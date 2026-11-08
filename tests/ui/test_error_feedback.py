@@ -27,7 +27,7 @@ def test_product_update_modal_reboot_and_dismissal(
     wait(lambda: ui.showing('update-required-dialog'), 'product update modal opens')
     binding = 'overlay' if surface == 'child-overlay' else surface
     # The preview's simulated session/UID supplies no installed ownership credit.
-    monkeypatch.setattr(ui.reader, 'require_child_overlay_session', lambda: None)
+    monkeypatch.setattr(ui.reader, 'require_child_overlay_session', lambda child=None: None)
     assert ui.reader.restart_notice(binding) == {'surface': binding,
         'texts': {'update-required-message':
             'Restart the computer for Oh No! Parent Control to work properly.',

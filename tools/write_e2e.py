@@ -154,6 +154,18 @@ def queue_state(root):
     return read_queue(root, PLAN, QUEUE)
 
 
+def task_scope(root, task):
+    from execution_plan import Plan
+    matches = Plan(root, PLAN, QUEUE).tasks(selected={task})
+    if len(matches) != 1:
+        raise ValueError('active task is missing from the queue')
+    return matches[0].scope
+
+
+def host_only(state):
+    return state['task_id'] == '192' or state.get('task_scope', '').startswith('UI obligation;')
+
+
 def fresh_state(task):
     return {'task_id': task, 'phase': 'implement', 'live_attempts': 0,
             'task_sessions': 0, 'failed_attempts': 0, 'model_tier': 0,
@@ -216,6 +228,8 @@ def select_task_state(task, state):
         selected['suspended_tasks'] = pending
     if 'optimization' in state:
         selected['optimization'] = state['optimization']
+    if 'vm_selector' in state:
+        selected['vm_selector'] = state['vm_selector']
     return selected
 
 
@@ -274,6 +288,8 @@ def defer_to_prerequisite(root, state, *, recovery_run=None):
         consumer['recovery_run'] = str(recovery_run)
     pending[state['task_id']] = consumer
     selected = fresh_state(current)
+    if 'vm_selector' in state:
+        selected['vm_selector'] = state['vm_selector']
     selected['suspended_tasks'] = pending
     if 'optimization' in state:
         selected['optimization'] = state['optimization']
@@ -356,7 +372,9 @@ def session_prompt(state, *, selection=None):
     if state.get('optimization_session'):
         return optimization_prompt(state, selection=selection)
     from vm_selection import execution_instructions
-    vm_instructions = execution_instructions()
+    vm_instructions = ('This is a host-only UI obligation. No VM selection, package preparation, '
+                       'VM operations or installed acceptance is required.' if host_only(state)
+                       else execution_instructions())
     task = state['task_id']
     model, effort = session_model(state, selection=selection)
     label = f'{model} {effort}'
@@ -453,7 +471,7 @@ dumps and repeated broad scans. Use bounded diagnostic output and evidence paths
 Keep handoffs concise, carrying decisions and remaining work rather than transcripts.
 Do not reduce required reading, assertions, validation or cleanup to save tokens.
 
-{LIVE_DIAGNOSIS_INSTRUCTIONS}
+{LIVE_DIAGNOSIS_INSTRUCTIONS if not host_only(state) else 'Use focused host checks; do not prepare or operate a VM for this UI obligation.'}
 
 Return the required structured result; only blockers requiring developer action
 return blocked so the launcher pauses for the user's answer. Keep summary under
@@ -517,6 +535,10 @@ that prerequisite in a fresh session without counting this task complete.
                    'to the current task while preserving its baseline and unrelated work. '
                    'Recheck the prerequisite before continuing; an answer alone is not '
                    'evidence that it passed.\n' + json.dumps(state['user_answer'], ensure_ascii=False) + '\n')
+    if host_only(state):
+        common += ('\nComplete focused host acceptance, normal checks and owned cleanup. '
+                   'After queue close-out return task_complete with host_validated true '
+                   'and live_result not_run; do not run installed acceptance.\n')
     if state.get('completion_recovery'):
         previous = state['recovery_run']
         return common + f"""
@@ -542,6 +564,19 @@ JSON alone is an automatic recovery operation, not a developer question.
 
 Last safe handoff:
 {state['handoff']}
+"""
+    if host_only(state):
+        handoff = state.get('handoff', '')
+        if handoff == INITIAL_PROMPT.format(plan=PLAN):
+            handoff = 'Implement the selected UI obligation through focused host acceptance and close-out.'
+        return common + f"""
+Implement or resume this task from its current brief and retained handoff:
+{handoff}
+Run the focused maintained host acceptance and normal checks, finish owned cleanup,
+then close only this queue row and advance the pointer. Return task_complete with
+host_validated true and live_result not_run. Report host checks with target "".
+Do not claim installed acceptance or live-delivery credit. Preserve incomplete
+work and failures; leave the next task to a fresh session.
 """
     if state['phase'] == 'implement':
         preparation = INITIAL_PROMPT.format(plan=PLAN) + common + "\nImplement this task and complete host validation.\n"
@@ -685,6 +720,9 @@ def start_optimization(state):
     if len(batch) != OPTIMIZATION_INTERVAL:
         raise ValueError('optimization checkpoint must contain exactly three completed tasks')
     selected = fresh_state(batch[-1])
+    for key in ('vm_selector', 'task_scope'):
+        if key in state:
+            selected[key] = state[key]
     selected.update(optimization=state['optimization'], optimization_session=True,
                     phase='optimize', commit_required=True,
                     handoff='Analyze this completed batch and audit its reusable E2E composition.')
@@ -830,9 +868,16 @@ def accept_result(root, state, result, before):
     if status != 'task_complete' and result['stage_paths']:
         raise ValueError('incomplete task requested staging')
     if status == 'task_complete':
+        scope = task_scope(root, task)
+        if scope.startswith('UI obligation;') != state.get('task_scope', '').startswith('UI obligation;'):
+            raise ValueError('task scope changed during acceptance')
+        host = host_only(dict(state, task_scope=scope))
         if (not after.get(task) or current == task or not result['host_validated']
-                or (task != '192' and (state['phase'] not in ('implement', 'live', 'recover')
-                                      or result['live_result'] != 'passed'))):
+                or outstanding_failure and result['live_result'] != 'passed'
+                or result['live_result'] == 'failed'
+                or (host and task != '192' and result['live_result'] != 'not_run')
+                or (not host and (state['phase'] not in ('implement', 'live', 'recover')
+                                  or result['live_result'] != 'passed'))):
             raise ValueError('task completion lacks acceptance or queue close-out')
     elif current != task or after.get(task):
         if not (status == 'blocked' and result['live_result'] == 'not_run'
@@ -1321,6 +1366,10 @@ def worker(root, run, owner, tasks, state_json):
                     break
             if task != state['task_id']:
                 raise ValueError('active task changed outside the workflow; inspect the checkpoint')
+            state['task_scope'] = task_scope(root, task)
+            from vm_selection import task_selection, save_binding
+            state['vm'] = task_selection(state.get('vm_selector'), host_only=host_only(state))
+            save_binding(run, state['vm'])
             selection = resolve_selection(root)
             session_model(state, selection=selection)
             count += 1
@@ -1671,14 +1720,16 @@ def reconcile_queue(root, identity, *, check=False):
 
 
 def select(root, argv):
-    from vm_selection import extract, check_binding, save_binding, execution_selection, execution_binding, BATCH, VARIABLE
-    argv, configured = extract(argv, required=False)
-    if any(option in argv for option in ('--stop', '--cancel-stop')) and configured is None:
+    from vm_selection import (extract_selector, check_binding, save_binding, task_selection,
+                              BATCH, VARIABLE)
+    argv, selector = extract_selector(argv)
+    if any(option in argv for option in ('--stop', '--cancel-stop')) and selector is None:
         os.environ.pop(BATCH, None)
         os.environ.pop(VARIABLE, None)
-    elif not any(option in argv for option in ('--help', '-h')):
-        execution_selection(configured.name if configured else None)
-    binding = execution_binding()
+    binding = None
+    if any(option in argv for option in ('--stop', '--cancel-stop')):
+        from vm_selection import execution_binding
+        binding = execution_binding()
     initial_limits = {}
     initial_checkpoint = {}
     initial_info = {}
@@ -1700,6 +1751,13 @@ def select(root, argv):
         parse()
 
     def attach(run):
+        nonlocal binding
+        saved = json.loads((run / 'checkpoint.json').read_text())
+        stopping = any(option in argv for option in ('--stop', '--cancel-stop'))
+        if not stopping or selector is not None:
+            if 'task_scope' not in saved:
+                saved['task_scope'] = task_scope(root, saved['task_id']) if saved['task_id'] else ''
+            binding = task_selection(selector, host_only=host_only(saved))
         check_binding(run, binding, stopping=any(option in argv for option in ('--stop', '--cancel-stop')))
         args = parse(attaching=True)
         if args.tasks is None:
@@ -1715,8 +1773,11 @@ def select(root, argv):
         print(f"write-e2e: limits now tasks={limit if limit is not None else 'all'}", flush=True)
 
     def command(run, owner):
+        nonlocal binding
         args = parse()
         state = initial_state(root, run.parent, defer_closeout=True)
+        state['task_scope'] = task_scope(root, state['task_id']) if state['task_id'] else ''
+        binding = task_selection(selector, host_only=host_only(state) or state['task_id'] is None)
         if args.closeout_only:
             if not state.get('pending_completion') or not state.get('closeout_recovery_run'):
                 raise ValueError('--closeout-only requires a retained accepted completion')
@@ -1726,6 +1787,7 @@ def select(root, argv):
         initial_limits.update(tasks=task_limit(args.tasks), started=0, completed=0, remaining=remaining)
         warn_remaining(task_limit(args.tasks), remaining, label='write-e2e')
         state['vm'] = binding
+        state['vm_selector'] = selector
         previous = launcher.current_run(run.parent)
         if previous is not None and (previous / 'task-info.json').exists():
             info = json.loads((previous / 'task-info.json').read_text())
@@ -1837,9 +1899,10 @@ if __name__ == '__main__':
                     'logical_tier': command.request.logical_tier}
         shell_environment = [('ONPC_WORKFLOW_DIRECTORY', str(run))]
         from vm_selection import selected, BATCH
-        vm = selected()
-        shell_environment.append(('ONPC_TEST_VM', vm.name))
-        if BATCH in os.environ:
+        vm = selected() if not host_only(state) else None
+        if vm is not None:
+            shell_environment.append(('ONPC_TEST_VM', vm.name))
+        if vm is not None and BATCH in os.environ:
             shell_environment.append((BATCH, os.environ[BATCH]))
         command = command.revised(shell_environment=tuple(shell_environment))
         sys.exit(launcher.supervise(root, run, int(owner), 'agent', command, nested=True,

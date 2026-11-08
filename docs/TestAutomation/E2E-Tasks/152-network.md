@@ -30,7 +30,7 @@ sensitivity and preserved frozen input through the existing owner, without
 repeating Privacy/attachment/collection matrices.
 
 This is a **UI obligation** under the developer's mock-sending decision.
-Reuse [150a's component boundary](150a-feedback-profile.md); production code
+Reuse the [component boundary](../UI-and-E2E-Coverage.md#feedback-sending-allocation); production code
 and endpoint remain unchanged. Tests must make no real network request.
 Numeric case IDs are allocation references only: no installed E2E pass,
 real-service acceptance or delivery credit. A real-send check is separate and

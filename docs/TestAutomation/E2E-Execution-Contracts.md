@@ -552,17 +552,14 @@ double equivalent. After a UI obligation passes, apply ordinary document
 close-out without claiming an E2E pass or changing scenario readiness.
 
 For the [feedback sending allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation),
-task 150a first implements missing launcher support for the explicit UI marker
-through selection, prompts and host-only completion. Current code exempts only
-historical task 192, so this paragraph is not a claim that the new route already
-works. Preserve installed-task and incomplete-result guards; qualify the
-affected existing launcher/parser path at its host unit layer. Routine mocked
-sending must not acquire a VM or claim a live result to satisfy an old prompt.
-The first 150a change is implemented from the brief in a normal coding-agent
-session before invoking the old launcher, whose selection/supervisor admission
-precedes the task session. After host checks and normal close-out, later rows
-use the updated driver. This is the explicit bootstrap route, not an existing
-no-VM switch or a developer-input gate.
+the launcher carries the explicit queue marker through selection, prompts and
+host-only completion. UI tasks need no VM configuration, package preparation or
+installed acceptance and return `task_complete` with `live_result=not_run` only
+after focused host acceptance, normal checks, owned cleanup and queue close-out.
+Historical task 192 retains its exception. Preserve installed-task,
+incomplete-result and outstanding-failure guards; qualify affected launcher/parser
+changes at the existing host unit layer. Routine mocked sending must not acquire
+a VM or claim a live result to satisfy an old prompt.
 
 ## Completion and document cleanup
 
@@ -622,7 +619,8 @@ implementation belongs to the current task's affected checks.
    retain their stable IDs and historical evidence without runnable E2E bindings.
    The [feedback allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation)
    also retains former IDs 156/157/213/216/218/219/220/221 without runnable E2E
-   bindings or installed acceptance; task 150a synchronizes their metadata.
+   bindings or installed acceptance; their metadata names the UI owners and
+   remaining assertions.
    Removed tasks 143–149 and 171 belong only to the open questions in
    [Two desktops](../Two_Desktops.md) and [Unlock desktop](../Unlock_Desktop.md).
    Do not recreate them from pending inventory records or historical references.

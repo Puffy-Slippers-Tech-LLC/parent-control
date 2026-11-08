@@ -1533,6 +1533,9 @@ class UiObservations:
             raise
 
     def _observe(self, operation, *, child=None):
+        if operation == 'native-files-allowed-denied':
+            require(self.last_operation == 'native-files-allowed-launch',
+                    'ui:native-files-denial-order')
         if operation in ('native-grid-denied', 'native-alias-grid-denied',
                          'native-hard-grid-denied', 'native-soft-grid-denied'):
             require(self.last_operation == operation.removesuffix('denied') + 'blocked',
@@ -2100,7 +2103,7 @@ class UiObservations:
         policy_bindings = {**accessible_ui.BASELINE_NATIVE_BINDINGS, **accessible_ui.NATIVE_DENIAL_BINDINGS}
         if operation in accessible_ui.NATIVE_FILES_BINDINGS:
             _role, action = accessible_ui.NATIVE_FILES_BINDINGS[operation]
-            if action == 'launch':
+            if action in ('launch', 'launch-refusals'):
                 expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
             elif action in ('opened', 'submitted'):
                 expected['activity'] = {'draft': 'ONPC fixture draft',

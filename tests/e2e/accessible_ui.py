@@ -327,6 +327,10 @@ NATIVE_FILES_BINDINGS = {
     for name, role in (('allowed', 'A'), ('soft', 'S'))
     for action in ('launch', 'opened', 'submit', 'submitted', 'activity', 'dismiss', 'close', 'closed')
 }
+NATIVE_FILES_BINDINGS.update({
+    'native-files-allowed-launch-refusals': ('A', 'launch-refusals'),
+    'native-files-allowed-denied': ('A', 'denied'),
+})
 NATIVE_APP_OPERATIONS |= frozenset(NATIVE_FILES_BINDINGS)
 OPERATIONS |= frozenset(NATIVE_FILES_BINDINGS)
 STANDARD_OPERATIONS |= frozenset(NATIVE_FILES_BINDINGS)
@@ -13169,7 +13173,7 @@ class AccessibleUI:
     def native_files_snapshot(self, role, *, child=EXISTING_CHILD, active=True):
         """FILE04/07: exact directory, selection and live Files owner; no geometry."""
         from gi.repository import Gio, GLib
-        require(child == EXISTING_CHILD and role in ('A', 'S')
+        require(child == EXISTING_CHILD and role in ('A', 'S', 'N')
                 or child == CHILD and role == 'A', 'ui:native-files-binding')
         require_active_launch_session(unlocked=True)
         require(os.getuid() == os.geteuid() == pwd.getpwnam(
@@ -13228,11 +13232,13 @@ class AccessibleUI:
                 'ui:native-files-wrong-file')
         return target, pid, windows[0]
 
-    def native_files_launch(self, role, *, child=EXISTING_CHILD):
+    def native_files_launch(self, role, *, child=EXISTING_CHILD, qualify_refusals=False):
         """Open Files at the declared fixture and qualify its Enter recipient."""
         from gi.repository import Gio, GLib
         require(child == EXISTING_CHILD and role in ('A', 'S')
                 or child == CHILD and role == 'A', 'ui:native-files-binding')
+        require(type(qualify_refusals) is bool and (not qualify_refusals
+                or child == EXISTING_CHILD and role == 'A'), 'ui:native-files-refusal-binding')
         require(not self.input_uncertain, 'ui:uncertain-input')
         require_active_launch_session(unlocked=True)
         require(os.getuid() == os.geteuid() == pwd.getpwnam(
@@ -13251,6 +13257,18 @@ class AccessibleUI:
         self.invalidate_observation()
         self.wait(lambda: self.native_files_snapshot(role, child=child), 'native-files-ready',
                   prompt_in_predicate=True)
+        if qualify_refusals:
+            # Read-only checks on this live selection. Neither refusal may
+            # release input; acquire the real recipient afresh afterward.
+            for wrong_role, wrong_child, expected in (
+                    ('N', child, 'ui:native-files-wrong-file'),
+                    (role, CHILD, 'ui:native-files-account')):
+                try:
+                    self.native_files_snapshot(wrong_role, child=wrong_child)
+                except UiError as error:
+                    require(str(error) == expected, 'ui:native-files-wrong-refusal')
+                else:
+                    require(False, 'ui:native-files-refusal-missing')
         target, pid, _window = self.native_files_snapshot(role, child=child)
         # ShowItems selects and focuses the file. GTK's virtual grid cell
         # exposes Component but refuses GrabFocus with NotSupported. Read the
@@ -13278,8 +13296,22 @@ class AccessibleUI:
         role, action = NATIVE_FILES_BINDINGS[operation]
         child = CHILD if operation.startswith('overlay-') else EXISTING_CHILD
         arguments = dict(role=role, child=child, implicit_instance=True)
-        if action == 'launch':
-            return self.native_files_launch(role, child=child)
+        if action in ('launch', 'launch-refusals'):
+            return self.native_files_launch(role, child=child,
+                                            qualify_refusals=action == 'launch-refusals')
+        if action == 'denied':
+            started = time.monotonic()
+            def denied():
+                require_active_launch_session(unlocked=True)
+                require(os.getuid() == os.geteuid() == pwd.getpwnam(
+                    CHILD_ACCOUNTS[child]).pw_uid, 'ui:native-files-account')
+                require(self.native_app_closed(desktop=False, complete_absence=True),
+                        'ui:native-files-blocked-window')
+                require(self.native_files_snapshot(role, child=child, active=False) is not None,
+                        'ui:native-files-denial-recipient')
+                return time.monotonic() - started >= 15
+            self.wait(denied, 'native-files-denied', prompt_in_predicate=True)
+            return None
         if action == 'dismiss':
             require(not self.input_uncertain, 'ui:uncertain-input')
             deadline = time.monotonic() + self.timeout
@@ -14519,7 +14551,8 @@ class AccessibleUI:
         elif operation in NATIVE_FILES_BINDINGS:
             value = self.native_files_operation(operation)
             if value is not None:
-                result['provider' if NATIVE_FILES_BINDINGS[operation][1] == 'launch' else 'activity'] = value
+                result['provider' if NATIVE_FILES_BINDINGS[operation][1] in (
+                    'launch', 'launch-refusals') else 'activity'] = value
         elif operation in SNAP_APP_OPERATIONS | FLATPAK_APP_OPERATIONS:
             value = self.snap_app_operation(operation)
             if value is not None:

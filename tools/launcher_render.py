@@ -429,7 +429,52 @@ class AgentRenderer:
             self.render(event)
         except (KeyError, TypeError, AttributeError, ValueError):
             # Malformed presentation remains inert and visible.
-            self.code(json.dumps(event.data, ensure_ascii=False), 'json')
+            self.heading('Agent activity')
+            self.details(event.data)
+
+    def details(self, value, indent=0):
+        """Present structured activity as labelled text, never a wire dump."""
+        if isinstance(value, dict):
+            for key, part in value.items():
+                label = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', str(key))
+                label = label.replace('_', ' ')
+                label = label[:1].upper() + label[1:]
+                if isinstance(part, (dict, list)):
+                    self.console.print(Text('  ' * (indent + 1) + clean(label) + ':'))
+                    self.details(part, indent + 1)
+                else:
+                    text = 'none' if part is None else str(part)
+                    self.console.print(Text('  ' * (indent + 1) + clean(label) + ': ' + clean(text)))
+        elif isinstance(value, list):
+            for part in value:
+                self.details(part, indent)
+        else:
+            self.console.print(Text('  ' * (indent + 1) + clean(value)))
+
+    def agent_activity(self, item, complete):
+        tool = item.get('tool') or item.get('kind') or 'Agent activity'
+        action = {
+            'wait': 'Wait for agents',
+            'spawn_agent': 'Start agent',
+            'send_input': 'Send message to agent',
+            'send_message': 'Send message to agent',
+            'resume_agent': 'Resume agent',
+            'close_agent': 'Close agent',
+        }.get(tool, str(tool).replace('_', ' ').capitalize())
+        status = item.get('status') or ('completed' if complete else 'in progress')
+        self.heading('Agent activity')
+        self.tree(f'{action} — {str(status).replace("_", " ")}')
+        # Omit transport IDs and empty placeholders; retain the actual message,
+        # recipients and per-agent outcomes when the provider supplies them.
+        for field in ('prompt', 'message'):
+            if item.get(field):
+                self.message(str(item[field]), 'Agent message')
+        details = {key: value for key, value in item.items()
+                   if value and key not in ('type', 'id', 'tool', 'kind', 'status',
+                                            'sender_thread_id', 'senderThreadId',
+                                            'prompt', 'message')}
+        if details:
+            self.details(details)
 
     def render(self, event):
         kind, data = event.kind, event.data
@@ -460,7 +505,7 @@ class AgentRenderer:
             self.console.print(Text(clean(data['text'])))
         else:
             self.heading('Agent activity')
-            self.code(json.dumps(data.get('value', data), ensure_ascii=False), 'json')
+            self.details(data.get('value', data))
 
     def item(self, item, complete):
         category = item['type']
@@ -532,11 +577,8 @@ class AgentRenderer:
             for task in item['items']:
                 self.console.print(Text(('  ✓ ' if task['completed'] else '  ○ ') +
                                         clean(task['text'])))
-        elif category == 'sub_agent_activity':
-            self.heading('Agent activity')
-            self.tree(' '.join(str(value) for value in (
-                item.get('kind'), item.get('agentPath') or item.get('agentThreadId')) if value))
-            self.code(json.dumps(item, ensure_ascii=False), 'json')
+        elif category in ('sub_agent_activity', 'collab_tool_call'):
+            self.agent_activity(item, complete)
         elif category in ('mcp_tool_call', 'web_search'):
             self.heading(('Tool' if category == 'mcp_tool_call' else 'Search') +
                          (' complete' if complete else ' working'))
@@ -546,7 +588,7 @@ class AgentRenderer:
                 self.console.print(Text(clean(item['server']) + '.' + clean(item['tool'])))
                 for field in ('arguments', 'result', 'error'):
                     if item.get(field) is not None:
-                        self.code(json.dumps(item[field], ensure_ascii=False, indent=2), 'json')
+                        self.details({field: item[field]})
         else:
             self.heading('Agent activity')
-            self.code(json.dumps(item, ensure_ascii=False), 'json')
+            self.details(item)

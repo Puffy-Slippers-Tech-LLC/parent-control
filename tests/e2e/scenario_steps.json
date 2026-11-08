@@ -318,6 +318,11 @@
     "summary": "Keep the child's request language when the approving parent changes.",
     "steps": ["Prepare a request at the station and switch its language to Hebrew.", "Choose a different approving parent and check the child's language and request choices remain.", "Restore English and cancel back to sign-in while station restrictions remain in place."]
   },
+  "E2E-062": {
+    "expected": "Riley's saved empty reminder list survives restart on both request screens, while Jordan's reminders and language stay unchanged and neither child receives extra time.",
+    "summary": "Keep each child's reminders after a restart.",
+    "steps": ["Give both children a daily allowance and read their untouched reminders.", "Add and edit Riley's reminder in her overlay, then check the saved text, time and identity at the station.", "Cancel a deletion and check it was discarded, then save an empty list.", "Restart normally and read both children's reminders on both request screens; check request choices, policies and no extra time."]
+  },
   "E2E-061": {
     "expected": "Language changes preserve work and the original countdown deadline, and the desktop locks when daily time expires.",
     "summary": "Keep the original countdown and work while changing the child's language.",

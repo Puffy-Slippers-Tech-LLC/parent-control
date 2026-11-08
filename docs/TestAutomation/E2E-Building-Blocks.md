@@ -832,6 +832,7 @@ and [ChildUI notification surface](Application-UI-API.md#child-panel).
 | --- | --- |
 | `check_e2e_overlay_reminder_editing` | Qualified Riley overlay CRUD, main Save/Cancel, saved empty list on Ubuntu 26.04/Fedora 44. |
 | `check_e2e_kiosk_reminder_binding` | Qualified selected-child kiosk saved-ID/overlay continuity, account/approver isolation and public restoration on both targets. |
+| `check_e2e_reminder_child_station_binding` | Qualified on Fedora 44: Jordan's own overlay defaults/language and Cancel; Riley's saved 90-second ID through kiosk deletion/Cancel/reopen and deletion/Save/reopened defaults, with Jordan/request/policy preservation and zero grant. |
 | `check_e2e_reminder_fullscreen_preference` | Qualified saved false, Cancel of true draft and reopened false on both targets; no delivery credit. |
 | Natural reminder | Pending maintained observer and installed qualification for owned body/live remaining seconds/urgency, independent saved-threshold binding and natural-lock removal. |
 | Fullscreen banner | Pending enabled delivery/disabled suppression with genuine fullscreen game, independently of urgency. |
@@ -853,6 +854,22 @@ endpoint and draft, preventing same-child replacement reuse.
 [Baseline renewal](#c04r-shared-reminder-persistence-renewal) restores only the
 created record through delete/Save/reopened-default comparison. No delivery,
 reboot or complete-case credit follows.
+
+`ReminderChildStationJourney` / `onpc_kiosk_reminders::child_station` share
+those finite saved-ID and policy comparisons. Reminder open/read/delete/commit
+carry explicit `surface` and `child`; overlay language scopes, Preferences
+entry, request ownership and guest dispatch retain the same child's real UID
+and active-session check. Jordan overlay bindings are
+`binding-reminder-jordan-overlay-open/cancel`; station deletion is
+`binding-reminder-riley-delete`. Both children's untouched defaults are read
+before Riley's edit; Cancel preserves the exact saved ID and Save restores her
+original defaults.
+
+`ReminderPersistenceJourney` / `onpc_kiosk_reminders::persistence` compose
+these bindings for case 263's saved-empty-list reboot history. The finite
+`binding-reminder-riley-delete-all` operation reuses guarded stable-ID deletion
+for every current draft row. Distinct station and overlay stage names keep
+the post-reboot request reads bound to the correct account and surface.
 
 `ReminderFullscreenJourney` /
 `onpc_request_flow::reminder_fullscreen_preference` require a nonempty default

@@ -6,17 +6,17 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5929</span>/<span style="color: gray">0</span>/5929 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5933</span>/<span style="color: gray">0</span>/5933 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">225</span>/<span style="color: gray">0</span>/225 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">295</span>/<span style="color: gray">0</span>/295 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">59</span>/<span style="color: gray">0</span>/59 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
+| Installed system | <span style="color: green">60</span>/<span style="color: gray">0</span>/60 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">133</span>/<span style="color: gray">63</span>/196 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6655</span>/<span style="color: gray">63</span>/6718** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">134</span>/<span style="color: gray">63</span>/197 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6661</span>/<span style="color: gray">63</span>/6724** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">132</span>/<span style="color: gray">63</span>/195 |
+| customer-journey | <span style="color: green">133</span>/<span style="color: gray">63</span>/196 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -168,6 +168,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [260](#scenario-260) | Keep a child's request and saved work across Hebrew approval and English restoration | `E2E-059/overlay-hebrew` | ready |
 | [261](#scenario-261) | Keep the child's request language when the approving parent changes | `E2E-060/kiosk-hebrew` | ready |
 | [262](#scenario-262) | Language changes preserve countdown and natural expiry | `E2E-061/panel-expiry` | ready |
+| [263](#scenario-263) | Each child's saved reminders survive a restart | `E2E-062/saved-empty-reboot` | ready |
 | <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[18](#scenario-18)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: zero; sessions: multiple)</span> | <span style="color: gray">`E2E-007/zero-multiple`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[20](#scenario-20)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: remaining; sessions: multiple)</span> | <span style="color: gray">`E2E-007/remaining-multiple`</span> | <span style="color: gray">pending</span> |
@@ -2119,6 +2120,21 @@ Variant: history: panel expiry
 - Riley saves Hebrew and cancels back to the same usable app and draft; the translated panel follows real elapsed time without resetting it.
 - Riley restores English and cancels back to the same work and request choices; the panel retains the original time deadline.
 - Riley uses the app through minute and final-second progression until natural locking; harmless input remains owned by the lock, and Jamie verifies unchanged policy with no remaining time or grant.
+
+### Scenario 263
+
+**Each child's saved reminders survive a restart**
+
+Case: `E2E-062/saved-empty-reboot` · Category: customer-journey · Status: **ready**
+
+Variant: history: saved empty reboot
+
+**Steps:**
+
+- Jamie gives both children a 30-minute daily allowance. At the station read both untouched four-reminder defaults and Jordan's English language.
+- In Riley's overlay add a 75-second reminder with literal Save \<work\>!, edit the same ID to 90 seconds and Save \<work\> & games!, then save main Preferences.
+- At the station independently read Riley's saved ID, exact text and trigger. Delete that row in a draft, Cancel, and reopen to prove preservation. Delete every row, Save and independently reopen the saved empty list.
+- Reboot normally and independently observe a changed boot. Read both children at the station and each own overlay before edits: Riley remains empty and Jordan retains the original reminders and language. Compare both saved policies, request choices and zero grants.
 
 <div style="color: gray">
 

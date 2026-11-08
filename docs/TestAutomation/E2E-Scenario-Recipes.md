@@ -15,6 +15,34 @@ a complete scenario result; the inventory owns readiness.
 
 <a id="c04b-baseline-public-use-slice"></a>
 
+## Saved child reminders after reboot
+
+Case **263**, `E2E-062/saved-empty-reboot`, composes
+`reminder_persistence.PLAN` / `ReminderPersistenceJourney` and
+`onpc_kiosk_reminders::persistence`. Use the installed snapshot, public Parent
+setup of 30 daily minutes for each child and no grants. Both children begin
+with the four untouched defaults: 15 seconds, 1 minute, 5 minutes and 10 minutes,
+all with empty custom text. Capture Jordan's complete reminder list and English
+language at the station before Riley's edits.
+
+In Riley's overlay add 75 seconds with literal `Save <work>!`, edit that same
+stored ID to 90 seconds with `Save <work> & games!`, and save main Preferences.
+At the station independently require the same ID, complete saved list, exact
+literal text and trigger. Delete only that custom row in the draft, cancel main
+Preferences, and reopen to require the entire saved list unchanged. Delete all
+rows through the same guarded stable-ID operation, save and independently reopen
+the empty list.
+
+Use one normal owned reboot from Jamie's desktop; independently observe the
+changed boot and usable GDM. Before any further preference edits, read Riley's
+empty list at the station and her own overlay, and Jordan's original list and
+language at the station and his own overlay. Preserve both children's request
+choices, saved policy and zero grants, comparing public daily time with elapsed
+use. Shared identity, draft, uncertainty, authentication and reboot guards remain
+active. The one-hour functional budget includes account transitions, observations
+and worker shutdown; no short measured countdown is part of this history.
+Notification delivery, fullscreen behavior and local editing matrices are separate.
+
 ## Baseline public-use slice
 
 The core baseline composes request, grant, app use, revocation and repeated entry

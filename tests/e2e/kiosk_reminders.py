@@ -91,6 +91,7 @@ PLAN = JourneyPlan(prefix='kiosk-reminders', worker_mode='kiosk_reminder_binding
 
 class KioskReminderJourney(InstalledJourney):
     """Finite public saved-value and child-isolation oracles before every reply."""
+    jordan_allowance = '0 minutes'
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan, actions=actions)
         self.captures = set()
@@ -114,7 +115,7 @@ class KioskReminderJourney(InstalledJourney):
     def check_policy(self, operation, policy):
         child = 'fixture-child' if operation == 'overlay-language-policy' else 'existing-fixture-child'
         require(policy['settings'] == {'child': child, 'limit_enabled': True,
-            'allowance': ['30 minutes' if child == 'fixture-child' else '0 minutes']}
+            'allowance': ['30 minutes' if child == 'fixture-child' else self.jordan_allowance]}
             and policy['balances']['one_time'] == 0
             and policy['balances']['total'] == policy['balances']['daily'],
             'binding-reminders:declared-policy')
@@ -125,7 +126,8 @@ class KioskReminderJourney(InstalledJourney):
         before, initial, earlier = self.policies[child]
         elapsed = (bounds[1] - earlier[0]) / 1e9
         require(projection == before and initial - elapsed - 2 <= daily <= initial + 2
-                and (child != 'existing-fixture-child' or daily == 0),
+                and (child != 'existing-fixture-child' or self.jordan_allowance != '0 minutes'
+                     or daily == 0),
                 'binding-reminders:policy-or-time-preservation')
 
     def check_settings(self, stage, observed):

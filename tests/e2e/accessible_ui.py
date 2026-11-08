@@ -190,7 +190,7 @@ NATIVE_APP_OPERATIONS = frozenset('native-' + suffix for suffix in (
     'grid-refusals', 'command-launch', 'command-refusals', 'wrong-entry',
     'opened', 'submit', 'resubmit', 'submitted', 'close', 'closed',
     'activity', 'activity-wrong-entry', 'command-blocked', 'activity-launch',
-    'grid-blocked', 'grid-denied', 'policy-activity', 'policy-closed',
+    'grid-blocked', 'grid-denied', 'desktop-denied', 'policy-activity', 'policy-closed',
     'policy-soft-activity', 'policy-soft-closed'))
 NATIVE_APP_OPERATIONS |= frozenset('native-alias-' + suffix for suffix in (
     'search-ready', 'search-focused', 'search-entered', 'grid', 'command-blocked',
@@ -14255,6 +14255,18 @@ class AccessibleUI:
         elif operation == 'native-grid-denied':
             require(child == EXISTING_CHILD, 'ui:native-child-binding')
             self.native_grid_denied()
+        elif operation == 'native-desktop-denied':
+            require(child == EXISTING_CHILD, 'ui:native-child-binding')
+            started = time.monotonic()
+            def denied():
+                require_active_launch_session(unlocked=True)
+                require(os.getuid() == os.geteuid() == pwd.getpwnam(
+                    CHILD_ACCOUNTS[child]).pw_uid, 'ui:native-desktop-account')
+                require(self.native_app_closed(desktop=False, complete_absence=True),
+                        'ui:native-desktop-blocked-window')
+                return time.monotonic() - started >= 15
+            self.wait(denied, 'native-desktop-denied', prompt_in_predicate=True)
+            self.standard_shell_desktop(no_prompt=True)
         elif operation in ('native-grid', 'native-grid-refusals'):
             if operation == 'native-grid-refusals' and child == CHILD:
                 # Wrong declared result and uncertain input refuse before any

@@ -364,6 +364,10 @@ controller checks the earlier capture before releasing the worker's reply.
 It requires both different processes and different public endpoints;
 the caller keeps the capture order and the later original-window preservation
 comparison. A replacement check alone cannot establish two distinct windows.
+`installed_journey.ACTIVITY_BINDINGS` supplies the common native, Files, Snap
+and Flatpak endpoint classification for plan validation and runtime capture.
+All use the same replay check, immutable decode and comparison before reply;
+new consumers declare their endpoints instead of copying `check_activity`.
 
 `product_logs.py` owns the guest reader and pytest snapshots;
 `vm_transport.Transport.capture_product_logs` owns host transfer before shutdown.

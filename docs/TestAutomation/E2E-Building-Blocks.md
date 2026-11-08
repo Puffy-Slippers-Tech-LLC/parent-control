@@ -6300,11 +6300,21 @@ dropping unused actions to make composition pass.
 
 Check the reused external-provider helper's supported action before composing
 its caller; a discovered launcher does not imply that the provider offers an
-activation action. Reuse the qualified search/input/result operation. Also match
+activation action. An exposed interface need not support every action; check
+the exact [Files binding](#native-files-launch-and-separate-windows) before
+adding focus or activation calls to a consumer.
+Reuse the qualified search/input/result operation. Also match
 every emitted recorder assertion ID to the scenario family's declaration. When
 the family declares only `visible-result`, keep the shared final assertion rather
 than inventing intermediate result names; preserve the ordered independent
 observations that establish that result.
+
+For copied or future-version apps, trace fixture source names through the builder,
+manifest, copy receipt and launch binding. Review other rule consumers sharing
+the directory before changing a preparation source, as in the
+[versioned-assets scope](#native-fixture-preparation). Keep each role's separate
+policy setup intact. Reuse FILE05 for placement and identity checks; the case
+keeps copy order, refresh interval and the child's independent access results.
 
 Inspect the final resolved phase map: merging a screen group's phases must not
 overwrite the initial greeter's `start` phase. For a language-changing history,

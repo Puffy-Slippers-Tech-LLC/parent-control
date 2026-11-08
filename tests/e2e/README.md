@@ -1823,6 +1823,14 @@ probes. It uses the selected native fixture closure
 and the same owned maintenance envelope, with no acceptance credit. Finish with
 `tools/test-vm --vm NAME stop` before clean qualification.
 
+`tools/test-vm --vm NAME reproduce-native-desktop` reuses
+`NativeDesktopJourney` through trusted placement, Jordan's exact icon focus and
+one selection shortcut. It stops at `first-selected`, records the shared
+selection observation and retains Jordan's desktop for guarded `exec` probes.
+The VM-bound native fixtures, owned maintenance envelope and input guards stay
+active. It supplies no acceptance credit; finish with
+`tools/test-vm --vm NAME stop` before clean qualification.
+
 Snap enforcement diagnosis is deferred by developer decision on 2026-11-05.
 The [shared Snap boundary](../../docs/TestAutomation/E2E-Execution-Instructions.md#snap-acceptance-boundary)
 excludes this reproduction from ordinary E2E tasks and regression gates. Consult

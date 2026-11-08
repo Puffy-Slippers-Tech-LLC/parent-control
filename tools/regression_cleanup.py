@@ -10,6 +10,8 @@ Unknown modules remain exclusive pending review.
 Native copy safety owns only private pytest files and real descriptors with
 local account/root doubles. It has no subprocess, shared cache, bus or VM;
 its cleanup guards can overlap the other private checks.
+Desktop-entry ownership checks share those private files with a local metadata
+double; no real session bus, desktop or additional cleanup owner is opened.
 
 Suspend safety checks use process-local domain/SSH/clock doubles only. They
 open no VM, socket, subprocess or shared path; existing compatible buckets apply.

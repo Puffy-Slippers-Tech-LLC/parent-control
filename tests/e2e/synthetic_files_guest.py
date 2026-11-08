@@ -80,6 +80,117 @@ NATIVE_VERSION_PARENT = Path('/opt/onpc-test-fixtures/Applications/Versioned')
 NATIVE_VERSION_SOURCE = 'LunarClient-3.8.0.AppImage'
 NATIVE_VERSION_NEXT = 'Lunar Client-3.8.0.AppImage'
 NATIVE_VERSION_NONMATCH = 'NewPrismLauncher.AppImage'
+DESKTOP_PROFILE = 'native-desktop'
+DESKTOP_ENTRY = 'com.puffyslippers.ONPCTest.A.desktop'
+
+
+def desktop_directory(home):
+    from gi.repository import GLib
+    path = Path(GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DESKTOP))
+    require(path == home / 'Desktop')
+    return path
+
+
+def desktop_trusted(path, value=None):
+    """Use the child's supported GVfs metadata API on the session bus."""
+    from gi.repository import Gio
+    runtime = Path('/run/user') / str(os.getuid())
+    require(stat.S_ISDIR(runtime.lstat().st_mode) and runtime.lstat().st_uid == os.getuid()
+            and stat.S_ISSOCK((runtime / 'bus').lstat().st_mode)
+            and (runtime / 'bus').lstat().st_uid == os.getuid())
+    os.environ['XDG_RUNTIME_DIR'] = str(runtime)
+    os.environ['DBUS_SESSION_BUS_ADDRESS'] = 'unix:path=' + str(runtime / 'bus')
+    file = Gio.File.new_for_path(str(path))
+    if value is not None:
+        require(type(value) is bool)
+        require(file.set_attribute_string('metadata::trusted', 'true' if value else 'false',
+                                          Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, None))
+    info = file.query_info('metadata::trusted', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, None)
+    return info.get_attribute_string('metadata::trusted') == 'true'
+
+
+def native_desktop_operate(home, operation, request):
+    """One exact child-owned desktop entry; never adopt or overwrite a collision."""
+    import pwd
+    child = pwd.getpwnam('onpc-child-jordan')
+    require(os.getuid() == os.geteuid() == child.pw_uid
+            and home == Path(child.pw_dir) == Path('/home/onpc-child-jordan'))
+    require(operation in ('stage', 'copy', 'read', 'cleanup', 'absent')
+            and type(request) is dict and set(request) == {'expected', 'previous'})
+    expected, previous = request['expected'], request['previous']
+    require(type(expected) is dict and set(expected) == {'source'}
+            and type(expected['source']) is str and len(expected['source']) == 64
+            and all(c in '0123456789abcdef' for c in expected['source']))
+    destination = desktop_directory(home) / DESKTOP_ENTRY
+    source = home / '.local/share/applications' / DESKTOP_ENTRY
+    with ExitStack() as stack:
+        chain = []
+
+        def pin(path):
+            parent = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            stack.callback(os.close, parent)
+            for name in path.parts[1:]:
+                fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+                stack.callback(os.close, fd)
+                info = os.fstat(fd)
+                require(info.st_uid in (0, child.pw_uid) and not info.st_mode & 0o022)
+                chain.append((parent, name, fd, identity(info)[:5]))
+                parent = fd
+            require(info.st_uid == child.pw_uid and info.st_gid == child.pw_gid)
+            return parent
+
+        source_fd, destination_fd = pin(source.parent), pin(destination.parent)
+        fcntl.flock(destination_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+        def guard():
+            for ancestor, name, fd, receipt in chain:
+                require(identity(os.fstat(fd))[:5] == receipt == identity(
+                    os.stat(name, dir_fd=ancestor, follow_symlinks=False))[:5])
+
+        def readback():
+            guard()
+            data, entry = read_regular(source_fd, source.name, owner=child.pw_uid,
+                                      mode=0o644, limit=4096)
+            require(entry.st_gid == child.pw_gid
+                    and hashlib.sha256(data).hexdigest() == expected['source'])
+            result = {'directory': identity(os.fstat(destination_fd))[:5],
+                      'source': identity(entry), 'sha256': expected['source'],
+                      'destination': str(destination), 'file': None}
+            if destination.name in os.listdir(destination_fd):
+                copied, target = read_regular(destination_fd, destination.name,
+                                              owner=child.pw_uid, mode=0o755, limit=4096)
+                require(copied == data and target.st_gid == child.pw_gid
+                        and desktop_trusted(destination))
+                result['file'] = identity(target)
+            guard()
+            return result, data
+
+        current, data = readback()
+        if operation == 'stage':
+            require(previous is None and current['file'] is None)
+        elif operation == 'absent':
+            require(previous == {'absent': True} and current['file'] is None)
+            return {'absent': True}
+        else:
+            require(current == previous)
+            if operation == 'copy':
+                require(current['file'] is None)
+                guard()
+                write_exclusive(destination_fd, destination.name, data,
+                                owner=child.pw_uid, group=child.pw_gid, mode=0o755)
+                guard()
+                require(desktop_trusted(destination, True))
+            elif operation == 'cleanup':
+                require(current['file'] is not None)
+                guard()
+                require(not desktop_trusted(destination, False))
+                guard()
+                require(identity(os.stat(destination.name, dir_fd=destination_fd,
+                                         follow_symlinks=False)) == current['file'])
+                os.unlink(destination.name, dir_fd=destination_fd)
+                require(readback()[0]['file'] is None)
+                return {'absent': True}
+        return readback()[0]
 
 
 def native_space_operate(home, operation, request, profile='native-space', *, administrative=False):
@@ -673,6 +784,8 @@ def save_operate(home, operation, previous):
 
 def operate(home, operation, previous, profile='standard'):
     """Validate everything before the first mutation; failures never clean up."""
+    if profile == DESKTOP_PROFILE:
+        return native_desktop_operate(home, operation, previous)
     if profile in NATIVE_PROFILES:
         return native_space_operate(home, operation, previous, profile)
     require(operation in ('stage', 'read', 'copy', 'rename', 'cleanup', 'absent', 'open-text', 'probe-text', 'open-zip', 'probe-zip', 'change-source', 'probe-source', 'saved'))
@@ -800,7 +913,7 @@ def main():
     administrative = len(sys.argv) == 5
     require(not administrative or sys.argv[4] == 'administrative' and sys.argv[3] in (
         'native-version-next', 'native-version-nonmatch'))
-    user = ('onpc-child-jordan' if len(sys.argv) >= 4 and sys.argv[3] in NATIVE_PROFILES
+    user = ('onpc-child-jordan' if len(sys.argv) >= 4 and sys.argv[3] in (*NATIVE_PROFILES, DESKTOP_PROFILE)
             else 'onpc-parent-jamie')
     account = pwd.getpwnam(user)
     require(os.getuid() == os.geteuid() == (0 if administrative else account.pw_uid)

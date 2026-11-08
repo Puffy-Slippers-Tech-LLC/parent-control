@@ -676,7 +676,7 @@ sub native_usable_app {
     $kind //= 'native';
     $gesture //= 'ret';
     die 'native:usable-binding' unless (@_ >= 3 && @_ <= 7) && ref($journey) eq 'onpc_journey'
-        && defined($route) && ($route eq 'command' || $route eq 'grid' || $route eq 'files')
+        && defined($route) && ($route eq 'command' || $route eq 'grid' || $route eq 'files' || $route eq 'desktop')
         && (defined($desktop) || $route eq 'command')
         && ($child eq 'child' || $child eq 'other-child' || $child eq 'parent' && $route eq 'command')
         && ($gesture eq 'ret' || ($kind eq 'snap' || $kind eq 'flatpak') && $route eq 'grid' && $gesture eq 'ctrl-ret')
@@ -695,7 +695,19 @@ sub native_usable_app {
         !($kind eq 'native' && ($child eq 'other-child' && (!defined($role) || $role eq 'S')
             || $child eq 'child' && !defined($role)));
     my $opened;
-    if ($route eq 'files') {
+    if ($route eq 'desktop') {
+        die 'native:desktop-binding' unless $kind eq 'native' && $child eq 'other-child' && !defined($role);
+        $journey->consume_observation('desktop', $desktop);
+        my $icon = $journey->consume_observation('icon', $journey->seen('icon'));
+        die 'native:desktop-selection' unless exists($icon->{desktop_icon_selected});
+        # Accessibility focus does not set DING's internal keyboard selection,
+        # which Ctrl+Space requires. The icon proof admits one ordinary entry;
+        # independently verify its sole selection before sending Enter.
+        testapi::send_key('ctrl-a') unless $icon->{desktop_icon_selected};
+        $journey->consume_observation('selected', $journey->seen('selected'));
+        testapi::send_key('ret');
+        $opened = $journey->seen('opened');
+    } elsif ($route eq 'files') {
         $journey->consume_observation('desktop', $desktop);
         $journey->consume_observation('files', $journey->seen('files'));
         testapi::send_key('ret');
@@ -1412,6 +1424,22 @@ sub snap_grid {
         native_finish_app($flow);
     }
     native_finish_app(_native_activity_scope($journey, 'earlier'));
+    $journey->finish();
+}
+
+sub native_desktop_usable {
+    onpc_progress::operation('Checking the child can open and use an app from its desktop icon');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'native:arguments' unless @_ == 3;
+    my $journey = native_child_entry($exchange, $declared, $challenges, 'native-desktop-usable');
+    for my $entry ('first', 'independent') {
+        my $flow = $journey->scope($entry);
+        $flow->seen('place');
+        native_usable_app($flow, 'desktop', $flow->seen('desktop'));
+        native_finish_app($flow);
+        $flow->seen('cleanup');
+    }
+    $journey->seen('child-logout');
     $journey->finish();
 }
 

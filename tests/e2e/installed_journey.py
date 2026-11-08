@@ -961,6 +961,8 @@ class InstalledJourney:
                 observed['desktop_preparation'] = session_control.observe(
                     self.transport, 'parent-continuous-activity')
             reply = {'observed': stage}
+            if tag in ('ui:native-desktop-icon', 'ui:native-desktop-icon-refusals'):
+                reply['desktop_icon_selected'] = observed['ui']['selected']
             if tag in ('ui:native-grid-blocked', 'ui:native-alias-grid-blocked',
                        'ui:native-hard-grid-blocked', 'ui:native-soft-grid-blocked'):
                 reply['grid_launch_required'] = observed['ui']['grid_launch_required']

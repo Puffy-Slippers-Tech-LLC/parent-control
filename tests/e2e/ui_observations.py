@@ -407,6 +407,8 @@ OPERATION_LABELS.update({operation: 'Replacing and reading a declared nonsecret 
                          for operation in accessible_ui.TEXT_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Checking native app launch and ordinary draft submission: ' + operation
                          for operation in accessible_ui.NATIVE_APP_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Selecting the child\'s exact desktop app icon'
+                         for operation in accessible_ui.NATIVE_DESKTOP_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Checking the declared Snap app and its public activity: ' + operation
                          for operation in accessible_ui.SNAP_APP_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Checking the child can use the declared Flatpak app: ' + operation
@@ -2105,6 +2107,10 @@ class UiObservations:
                 'submitted': 'No submitted draft' if operation.endswith('native-opened') else 'ONPC fixture draft',
                 'score': 'Moves: 0; token: 0'}
         policy_bindings = {**accessible_ui.BASELINE_NATIVE_BINDINGS, **accessible_ui.NATIVE_DENIAL_BINDINGS}
+        if operation in accessible_ui.NATIVE_DESKTOP_OPERATIONS and operation != 'native-desktop-selected':
+            expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
+            require(type(result.get('selected')) is bool, 'ui:native-desktop-selection-response')
+            expected['selected'] = result['selected']
         if operation in accessible_ui.NATIVE_FILES_BINDINGS:
             _role, action = accessible_ui.NATIVE_FILES_BINDINGS[operation]
             if action in ('launch', 'launch-refusals'):

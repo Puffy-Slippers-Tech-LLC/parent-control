@@ -88,6 +88,21 @@ def expected_install(package):
             'APT=apt-get -o DPkg::Lock::Timeout=120 --no-install-recommends -y', 'DNF=dnf -y']
 
 
+def test_kiosk_agent_fault_refuses_a_replacement_before_stopping_it(monkeypatch):
+    from types import SimpleNamespace
+    import system_kiosk_agent as agent
+    original = {'ActiveState': 'active', 'InvocationID': 'a' * 32,
+                'MainPID': '42', 'ControlGroup': '/owned-agent'}
+    monkeypatch.setattr(guest, 'guard', Mock())
+    monkeypatch.setattr(agent, 'user_unit', Mock(return_value={
+        **original, 'InvocationID': 'b' * 32}))
+    stop = Mock(side_effect=AssertionError('replacement service was stopped'))
+    monkeypatch.setattr(agent, 'user_command', stop)
+    with pytest.raises(guest.GuestError, match='kiosk-agent:agent-replaced'):
+        agent.stop_agent(SimpleNamespace(pw_uid=1001), original)
+    stop.assert_not_called()
+
+
 def test_fedora_installs_only_the_transferred_rpm_after_guard(tmp_path, monkeypatch):
     (tmp_path / 'package.rpm').write_bytes(b'package')
     monkeypatch.setattr(guest, 'PAYLOAD', tmp_path)

@@ -97,6 +97,7 @@ OPERATION_LABELS = {
         ('lock-ready', 'Checking the independently observed lock input recipient'),
         ('lock-result', 'Reading the same lock after harmless normal input'))},
     'kiosk-diagnostic-error': 'Observing a real kiosk request failure under the owned engineering fault',
+    'kiosk-agent-refused': 'Checking that losing the parent password prompt gives no approval and leaves a usable station',
     'kiosk-diagnostic-exit': 'Leaving the unavailable request safely without submission or replay',
     'kiosk-diagnostic-report': 'Opening the kiosk error report through its public dismissal action',
     'kiosk-diagnostic-editor': 'Editing the real kiosk report and waiting for diagnostics without Send',
@@ -1374,8 +1375,13 @@ class UiObservations:
                                 'ui:shell-stale-proof')
                     self.shell_approval_index = shell_index + 1
                     self.shell_approval_checked = time.monotonic()
+                if operation == 'kiosk-agent-refused':
+                    require(not self.challenge_failed
+                            and getattr(self, 'mate_approval_index', 0) == 1
+                            and previous_operation == 'kiosk-mate-open',
+                            'ui:mate-agent-loss-order')
                 if 0 < getattr(self, 'mate_approval_index', 0) < 4:
-                    if operation not in accessible_ui.MATE_APPROVAL_OPERATIONS:
+                    if operation not in accessible_ui.MATE_APPROVAL_OPERATIONS | {'kiosk-agent-refused'}:
                         self.challenge_failed = True
                         require(False, 'ui:mate-intervening-operation')
                 if operation in accessible_ui.MATE_APPROVAL_OPERATIONS:
@@ -1447,6 +1453,13 @@ class UiObservations:
                 read_started = time.monotonic_ns()
                 result = self._observe(operation, **({'child': child} if child else {}))
                 self.read_bounds = (read_started, time.monotonic_ns())
+                if operation == 'kiosk-agent-refused':
+                    # A proved denied, usable form ends the lost challenge only
+                    # before recipient qualification. Keep all used identities;
+                    # a fresh approval still needs both fresh recipient proofs.
+                    self.mate_approval_index = 0
+                    self.mate_approval_identity = None
+                    self.mate_request_binding = None
                 if operation == accessible_ui.PAUSE_MATE_ORDER[0]:
                     self.mate_approval_checked = time.monotonic()
                 if operation in ('revoke-balances', 'revoke-saved-balances', 'revoke-cleared-balances'):
@@ -1506,6 +1519,7 @@ class UiObservations:
                                  set(accessible_ui.LANGUAGE_HISTORY_REQUESTS) | {'kiosk-language-account-refusals'}):
                     self.language_failed = True
                 if operation in (accessible_ui.MATE_OPERATIONS | accessible_ui.MATE_APPROVAL_OPERATIONS
+                                 | {'kiosk-agent-refused'}
                                  | accessible_ui.SHELL_PROMPT_OPERATIONS | accessible_ui.SHELL_APPROVAL_OPERATIONS
                                  ) or 0 < getattr(self, 'shell_approval_index', 0) < len(accessible_ui.SHELL_APPROVAL_ORDER):
                     self.challenge_failed = True
@@ -2274,6 +2288,12 @@ class UiObservations:
                 require(self.last_operation == 'kiosk-reminder-preview' and value['source'] ==
                         getattr(self, 'kiosk_reminder_source', None), 'ui:kiosk-reminder-order')
             expected['reminder'] = value
+        if operation == 'kiosk-agent-refused':
+            value = result.get('agent_failure')
+            require(type(value) is dict and set(value) == {
+                'denied', 'form_usable', 'exit_available'} and
+                all(item is True for item in value.values()), 'ui:kiosk-agent-response')
+            expected['agent_failure'] = value
         if operation in accessible_ui.KIOSK_DIAGNOSTIC_OPERATIONS:
             fields = {'kiosk-diagnostic-error': {'error_shown': True, 'report_default': True},
                       'kiosk-diagnostic-exit': {'exit_initiated': True, 'reported': False},

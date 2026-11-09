@@ -170,6 +170,14 @@ def request_operation(surface, target, approver):
     }
 
 
+def test_kiosk_agent_failure_recovery(record_testsuite_property):
+    """The host composes real station input before these backend assertions."""
+    from system_kiosk_agent import verify
+    guest.require(verify() == {'actual_agent_failure_and_recovery': True},
+                  'kiosk-agent:qualification')
+    record_testsuite_property('kiosk_agent_failure_recovery', 'passed')
+
+
 def denied(reply, boundary):
     guest.require(reply.get('error') == DENIED, 'authorization:' + boundary)
 

@@ -1012,6 +1012,7 @@ KIOSK_OPERATIONS = frozenset({'kiosk-request-form',
 KIOSK_DIAGNOSTIC_OPERATIONS = frozenset({'kiosk-diagnostic-error',
     'kiosk-diagnostic-report', 'kiosk-diagnostic-editor', 'kiosk-diagnostic-privacy',
     'kiosk-diagnostic-exit'})
+OPERATIONS |= frozenset({'kiosk-agent-refused'})
 OPERATIONS |= KIOSK_DIAGNOSTIC_OPERATIONS
 KIOSK_REMINDER_OPERATIONS = frozenset({'kiosk-reminder-preview', 'kiosk-reminder-preview-cancel'})
 OPERATIONS |= KIOSK_REMINDER_OPERATIONS
@@ -1400,7 +1401,7 @@ OPERATIONS |= MATE_OPERATIONS | {'parent-mate-refused'}
 OPERATIONS |= frozenset(KIOSK_ACCOUNT_REQUESTS) | frozenset(KIOSK_DISABLED_REQUESTS) | KIOSK_ACCOUNT_REFUSALS
 KIOSK_EXIT_OPERATIONS = frozenset({'kiosk-request-cancel',
                                    'kiosk-request-escape-ready'})
-KIOSK_SESSION_OPERATIONS = (KIOSK_OPERATIONS | KIOSK_DIAGNOSTIC_OPERATIONS | KIOSK_REMINDER_OPERATIONS | KIOSK_EXIT_OPERATIONS | KIOSK_CHOICE_OPERATIONS
+KIOSK_SESSION_OPERATIONS = (KIOSK_OPERATIONS | {'kiosk-agent-refused'} | KIOSK_DIAGNOSTIC_OPERATIONS | KIOSK_REMINDER_OPERATIONS | KIOSK_EXIT_OPERATIONS | KIOSK_CHOICE_OPERATIONS
                             | frozenset(KIOSK_ACCOUNT_REQUESTS) | frozenset(KIOSK_DISABLED_REQUESTS)
                             | {'kiosk-choice-refusals'})
 KIOSK_SESSION_OPERATIONS |= KIOSK_VALID_OPERATIONS | frozenset(KIOSK_INVALID_OPERATIONS) | frozenset(
@@ -11026,6 +11027,31 @@ class AccessibleUI:
         self._invoke_target(request)
         return self.kiosk_unavailable_result()
 
+    def kiosk_agent_refused(self):
+        """Observe the real agent's lost challenge and a usable denied form."""
+        def ready():
+            observation = self.read_snapshot()
+            nodes, snapshot, _identities, facts = observation
+            if self.system_prompt_kind(observation=(nodes, snapshot, facts)) is not None:
+                return None
+            status = self.snapshot_owned_target('kiosk-request-status', observation=observation,
+                                                 check_prompt=True)
+            if status is None or status.get_name() != 'Request denied':
+                return None
+            form = self.kiosk_request_form(enabled=True,
+                expected_selection=('child', 'fixture-child'), duration_seconds=75,
+                custom_text='1.25')
+            require(form['approver'] == 'fixture-parent' and form['allow_soft'] is True,
+                    'ui:kiosk-agent-request-changed')
+            if not all(form[field] is True for field in (
+                    'child_selector_enabled', 'approver_selector_enabled',
+                    'duration_enabled', 'soft_choice_enabled', 'request_enabled',
+                    'cancel_enabled')):
+                return None
+            self.kiosk_exit_target()
+            return {'denied': True, 'form_usable': True, 'exit_available': True}
+        return self.wait(ready, 'kiosk-agent-refused', prompt_in_predicate=True)
+
     def kiosk_unavailable_result(self):
         """Read the explicit public failure after an already submitted request."""
         def ready():
@@ -14884,6 +14910,8 @@ class AccessibleUI:
                 'kiosk-diagnostic-privacy': self.kiosk_diagnostic_privacy,
                 'kiosk-diagnostic-exit': self.kiosk_diagnostic_exit,
             }[operation]()
+        elif operation == 'kiosk-agent-refused':
+            result['agent_failure'] = self.kiosk_agent_refused()
         elif operation in GDM_SESSION_OPERATIONS:
             result['session_choice'] = self.gdm_session_operation(operation)
         elif operation in GDM_STATION_DESKTOP_OPERATIONS:

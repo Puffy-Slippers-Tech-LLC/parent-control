@@ -72,9 +72,10 @@ sub optional_artwork {
 }
 
 sub service_recovery {
-    onpc_progress::operation('Recovering a request after one owned broker outage');
-    my ($exchange, $declared, $challenges) = @_;
-    die 'kiosk-service-recovery:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+    my ($exchange, $declared, $challenges, $agent) = @_;
+    onpc_progress::operation($agent ? 'Recovering a child request after the password agent stops'
+        : 'Recovering a request after one owned broker outage');
+    die 'kiosk-service-recovery:arguments' unless (@_ == 3 || @_ == 4 && $agent == 1) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'kiosk-service-recovery', review => 0);
     $journey->declare_invocations($declared);
@@ -86,8 +87,14 @@ sub service_recovery {
         allowance-15-read time-explanation-read setup-parent-closed
         switch-user gdm-switched);
     onpc_gdm::enter_station($journey, '');
-    $journey->seen($_) for qw(request-form child-selected approver-selected selections-read
-        kiosk-diagnostic-error kiosk-diagnostic-exit outage-returned);
+    $journey->seen($_) for qw(request-form child-selected approver-selected selections-read);
+    if ($agent) {
+        my $request = $journey->scope('fault');
+        $request->seen($_) for qw(new-duration new-text-focus new-text-selected
+            new-text-read new-apps new-estimate);
+        $journey->seen('agent-prompt-open');
+    }
+    $journey->seen($_) for qw(kiosk-diagnostic-error kiosk-diagnostic-exit outage-returned);
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'outage-parent');
     onpc_parent::named_management($journey, 'outage-supplied', 'child');
     $journey->seen($_) for qw(outage-balance outage-switch outage-greeter);

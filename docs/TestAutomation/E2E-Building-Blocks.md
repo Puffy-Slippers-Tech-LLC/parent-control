@@ -5191,7 +5191,21 @@ and collection, owned cleanup and baseline restoration passed. The stop uses
 the shared command budget to accommodate the daemon's normal inactivity exit.
 The engineering obligation number 143 is retained; the unrelated historical
 system numeric identity 143 remains retired and is not reused.
-Obligations 144–146 and 149–150 retain their specific missing fault/observation
+Obligation **144**'s actual kiosk authentication-agent residual is owned by
+`kiosk_agent_recovery.KioskAgentRecoveryJourney` and `system_kiosk_agent`,
+registered as `authorization::test_kiosk_agent_failure_recovery` (system **316**).
+The real parent password prompt opens before the owned agent stops, with no
+password delivered. Independent observations require denial, enabled request
+controls and safe exit; authoritative checks require no grant or control changes
+and unchanged other accounts. After restoring that exact agent route, one fresh
+75-second request succeeds and Parent independently reads the child's balance.
+Installed qualification passed on `onpc-Ubuntu26.04-1` in
+`20261109T045607Z-5cd33794`, including collection, worker closure, owned cleanup
+and baseline restoration; the VM was independently confirmed off. Existing
+component authentication outcomes and bounded startup refusal remain reused.
+This supplies Ubuntu engineering qualification only, with no Fedora or customer
+E2E acceptance credit.
+Obligations 145–146 and 149–150 retain their specific missing fault/observation
 or recovery assertions in the queue briefs; their existing system/component
 matrices are reused rather than implemented again. This mapping supplies no
 new installed result. Engineering obligation 142's stricter entry-exposure

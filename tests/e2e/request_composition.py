@@ -32,8 +32,8 @@ def _estimate_read_bounds(choice, error='grant-effects:negative-read-bounds'):
 class KioskRequestJourney(InstalledJourney):
     countdown_tolerance_seconds = 0
 
-    def __init__(self, context, progress, plan, *, actions=None):
-        super().__init__(context, progress, plan, actions=actions)
+    def __init__(self, context, progress, plan, *, actions=None, transport=None):
+        super().__init__(context, progress, plan, actions=actions, transport=transport)
         self.balance = None
         self.requests = {}
         self.transfer_requests = {}

@@ -306,6 +306,63 @@ def host_main(argv=None):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests/integration'))
     import vm_config
     argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ['--retire-domain-state']:
+        parser = argparse.ArgumentParser(allow_abbrev=False)
+        parser.add_argument('--retire-domain-state', required=True)
+        parser.add_argument('--expected-uuid')
+        args = parser.parse_args(argv)
+        name = vm_config.validate_name(args.retire_domain_state)
+        import prepare_baseline as base
+        directory = vm_config.STATE_ROOT / name
+        phase = directory / 'phase.json'
+        if not os.path.lexists(directory):
+            return 0
+        base.private_baseline_directory(directory)
+        expected = None
+        if os.path.lexists(phase):
+            base.identity(phase, private=True, mode=0o600)
+            expected = json.loads(phase.read_bytes())['source']['layout']['uuid']
+        elif set(path.name for path in directory.iterdir()) - {'.lock'}:
+            raise ValueError('vm-pool: missing baseline identity; preserve state')
+        import libvirt
+        connection = libvirt.open(vm_config.URI)
+        try:
+            current = identity(connection.lookupByName(name).UUIDString())
+        finally:
+            connection.close()
+        if args.expected_uuid is not None and identity(args.expected_uuid) != current:
+            raise ValueError('vm-pool: provisioning VM identity changed')
+        expected = identity(expected if expected is not None else current)
+        def retire():
+            connection = libvirt.open(vm_config.URI)
+            try:
+                domain = connection.lookupByName(name)
+                if domain.UUIDString() != current or domain.isActive():
+                    raise ValueError('vm-pool: state retirement requires the same powered-off VM')
+                if expected != current:
+                    try:
+                        connection.lookupByUUIDString(expected)
+                    except libvirt.libvirtError as error:
+                        if error.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
+                            raise
+                    else:
+                        raise ValueError('vm-pool: old VM still exists; preserve its state')
+                retire_domain_state(name, expected, checkout_uuid=current)
+            finally:
+                connection.close()
+        from types import SimpleNamespace
+        from e2e_watch import begin
+        from watch_activity import operation
+        vm_config.select(name)
+        with operation('Retiring completed state for a recreated VM'), checkout(current):
+            holder = SimpleNamespace(watch=None)
+            begin(holder)
+            try:
+                retire()
+            finally:
+                if holder.watch is not None:
+                    holder.watch.close()
+        return 0
     if argv[:1] == ['--provision-domain']:
         parser = argparse.ArgumentParser(allow_abbrev=False)
         parser.add_argument('--provision-domain', required=True)
@@ -355,7 +412,58 @@ def host_main(argv=None):
     return keep(vm_uuid, wait=not args.no_wait, ready=ready)
 
 
+def retire_domain_state(name, expected, *, checkout_uuid=None):
+    """Retire completed provenance, preserving it outside the active VM name.
+
+    Called only by the fixed provisioning dispatcher under the current VM checkout.
+    Keep the old directory intact for diagnosis; never delete test artifacts.
+    """
+    import prepare_baseline as base
+    import vm_config
+    directory = vm_config.STATE_ROOT / vm_config.validate_name(name)
+    if not os.path.lexists(directory):
+        return
+    original = base.private_baseline_directory(directory)
+    configured = vm_config.load(name)
+    vm_config.require_branch(configured, vm_config.current_branch())
+    compatibility = base.compatibility_lock(directory)
+    descriptor = None
+    try:
+        descriptor = base.open_controller_lock(directory / '.lock', vm_uuid=checkout_uuid or expected)
+        base.Capture(None, None, None, anchor=Path('/unused'),
+                     directory=directory).require_idle_attempt()
+        phase = directory / 'phase.json'
+        if os.path.lexists(phase):
+            base.identity(phase, private=True, mode=0o600)
+            state = json.loads(phase.read_bytes())
+            base.require(state.get('phase') == 'finalized' and
+                         state['source']['layout']['uuid'] == expected,
+                         'state:provisioning-baseline-identity')
+        else:
+            base.require(set(path.name for path in directory.iterdir()) <= {'.lock'},
+                         'state:provisioning-missing-baseline')
+        for path in directory.rglob('*'):
+            if path.is_dir() and not path.is_symlink():
+                base.private_baseline_directory(path)
+            else:
+                base.identity(path, private=True, mode=0o600)
+        base.require(base.private_baseline_directory(directory) == original,
+                     'state:provisioning-directory-changed')
+        retired = directory.with_name('.retired-newvm-' + name + '-' + uuid.uuid4().hex)
+        os.rename(directory, retired)
+        base.sync_directory(directory.parent)
+        print('vm-pool: retired old VM state to ' + str(retired), file=sys.stderr, flush=True)
+    finally:
+        if descriptor is not None:
+            base.close_controller_lock(descriptor)
+        if compatibility is not None:
+            os.close(compatibility)
+
+
 if __name__ == '__main__':
+    # Controller helpers import this module to borrow our in-process checkout.
+    # Share the running instance rather than creating a second set of ContextVars.
+    sys.modules['vm_pool'] = sys.modules[__name__]
     import signal
     def interrupted(_signal, _frame):
         raise KeyboardInterrupt

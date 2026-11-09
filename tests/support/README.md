@@ -1342,7 +1342,7 @@ after a product restart.
 Pending-approval cancellation uses
 `request_composition.CancelledRequestJourney` for immutable session captures and
 elapsed-time-aware unchanged balances with zero grant. Qualifications and cases
-171/172 declare their own ordered session endpoints, balance endpoints and elapsed
+171–173 declare their own ordered session endpoints, balance endpoints and elapsed
 budget. Keep subsequent fresh approval and app-access assertions in the case;
 do not inherit a qualification's plan or checkpoint assumptions to reuse its
 comparison mechanics. The workers share `onpc_parent::set_allowance` for Parent
@@ -1356,7 +1356,7 @@ including their fullscreen-request return observation, rather than adding anothe
 desktop check or copying session commands into a case.
 
 For approval balance comparisons, date the estimate's calculation rather than
-its cached label read. Cases 171/172 and failed-approval histories reuse
+its cached label read. Cases 171–173 and failed-approval histories reuse
 `overlay-fraction-estimate-refresh` and `request_composition._estimate_read_bounds`:
 equivalent public edits preserve the request choices and bracket a fresh
 calculation. Keep the final Parent read as the elapsed-time endpoint and retain

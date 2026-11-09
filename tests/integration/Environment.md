@@ -49,11 +49,17 @@ warns that overwriting recreates a blank VM and erases all data on its disk.
 Both prompts default to No, including end-of-input.
 Overwrite requires the same powered-off domain under the host's shared VM
 checkout, one regular disk at the requested destination, no NVRAM, snapshots
-or recorded test/baseline state, and no other domain referencing the disk
+and no other domain referencing the disk
 directly or through a backing chain. Unexpected layouts and unconfirmed existing
 disk files are refused, as are names colliding with another VM's ID.
-Overwrite uses the installed development helper; refresh it on the selected
-host with `./setup.sh --test-tools-only`. SSH overwrite also requires a configured
+Completed test/baseline state is retired under the current VM checkout before
+overwrite. Creation also retires stale completed state left by an already removed
+domain. The old private directory is preserved beside the active state directory
+as `.retired-newvm-NAME-UNIQUE`; interrupted work, unsafe files and an old UUID
+still used by another domain refuse retirement. Successful creation refreshes
+VM-host helpers to clear obsolete UUID pins before subsequent preparation.
+Creation uses the installed development helper; refresh it on the selected
+host with `./setup.sh --test-tools-only`. SSH creation also requires a configured
 branch checkout on that host so the helper can resolve its trusted sources.
 
 Creation defines but never starts the VM. Successful creation appends it to the

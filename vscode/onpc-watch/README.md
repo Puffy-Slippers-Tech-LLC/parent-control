@@ -129,7 +129,16 @@ While an active launcher's reload request awaits a safe boundary, its title
 shows `(Reload Requested)` in the same orange as **Stop Requested**. The suffix
 clears when the controller accepts the reload or the launcher exits; a stop
 request takes precedence.
-Immediately after Reload, **Kill** (red outlined octagon with an X) asks for
+After Reload, **Add 5 Sessions** invokes the displayed launcher's saved command
+with `--add-session 5`, after confirmation. It increases the current task/case
+allowance and both **Session x/y** labels refresh from the launcher's computed
+value. Repeated additions accumulate. It is disabled when no active allowance is
+published, while stopping or disconnected. A task change during confirmation
+refuses the action. Older running controllers need `--reload` before they can
+publish an adjustable allowance. See the shared
+[allowance contract](../../docs/Execution-Plans.md#common-launcher-interface).
+
+After Add 5 Sessions, **Kill** (red outlined octagon with an X) asks for
 confirmation with **Kill** and **Cancel**. It requests immediate cooperative
 cancellation of the displayed controller, current session and owned tests,
 including a running VM test. Normal cleanup still runs, including baseline
@@ -179,11 +188,15 @@ phases before VM startup; it does not wait for the command to finish.
 Each launcher's tab selection is independent: opening **Session** in another
 worktree leaves existing Session panels open and refreshing. Chat stays routed
 to the session displayed in its own panel.
-For `fix-tests`, the link shows **Session 1**, **Session 2**, and so on for
+For `fix-tests`, the link shows **Session 1/5**, **Session 2/5**, and so on for
 successive agent sessions repairing the same case. The number remains visible
 between sessions and during verification, with strikethrough while the session is
 inactive and its chatbox is disabled. Once the repair is accepted and closed,
-the link returns to struck-through **Session**; the next case starts at **Session 1**.
+the link returns to struck-through **Session**; the next case starts at **Session 1/5**.
+The denominator is the computed allowance, including explicit extra sessions.
+The Session selector and the Status pane's draggable divider use the same label
+formatter. Ordinary plans display usage for the current implementation or
+coordinator repair allowance, keeping those separate budgets distinct.
 While an agent repairs an integration check, its **Status** row ends with
 ` | Session x: <duration>`, using that session's elapsed time and the shared
 `01:25` / `3h 45m` duration format. The suffix disappears when the session finishes.

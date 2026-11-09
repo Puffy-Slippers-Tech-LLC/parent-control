@@ -168,7 +168,15 @@ def launcher_arguments(record, kind, *, execution_plan=False):
         return ['--resume']
     argv = record.get('stop_argv', record['argv']) if kind in ('stop', 'cancel-stop') else record['argv']
     # Replace lifecycle switches; never replay a destructive reset.
-    argv = [arg for arg in argv if arg not in ('--stop', '--cancel-stop', '--resume', '--reload', '--reset')]
+    tokens = iter(argv)
+    argv = []
+    for arg in tokens:
+        if arg == '--add-session':
+            next(tokens, None)
+        elif not arg.startswith('--add-session=') and arg not in ('--stop', '--cancel-stop', '--resume', '--reload', '--reset'):
+            argv.append(arg)
+    if kind == 'add-session':
+        return ['--add-session', '5', *argv]
     return argv if kind == 'resume' else [f'--{kind}', *argv]
 
 
@@ -233,6 +241,13 @@ class Viewer:
                     candidate == run for candidate, _name in active_launchers(output.root, JsonReader())):
                 raise ValueError('Launcher is no longer active; refresh before trying again.')
             record = read_json(run.parent / 'current.json')
+            allowance_key = None
+            if action['kind'] == 'add-session':
+                from launcher_runtime import SessionAllowance
+                allowance_key = SessionAllowance(run).read().get('key')
+                if (not any(candidate == run for candidate, _name in active_launchers(output.root, JsonReader()))
+                        or allowance_key is None):
+                    raise ValueError('No active session allowance; refresh before trying again.')
             name, argv = record.get('launcher'), record.get('argv')
             if action['kind'] in ('stop', 'cancel-stop'):
                 argv = record.get('stop_argv', argv)
@@ -243,6 +258,7 @@ class Viewer:
             if command.is_symlink() or not command.is_file():
                 raise ValueError('Public launcher is unavailable.')
             return dict(ok=True, root=str(output.root), run=str(run), launcher=name,
+                        allowance_key=allowance_key,
                         argv=([] if action['kind'] == 'kill' else
                               launcher_arguments(record, action['kind'], execution_plan=output.execution_plan)))
         except (OSError, ValueError, KeyError, TypeError) as error:
@@ -435,6 +451,7 @@ class Viewer:
                         pass
             session_run = session.run if session.active else None
             session_number = None
+            session_allowance = None
             # Retain the attempt number through verification, but mark the
             # transcript inactive when its agent and pending questions finish.
             session_inactive = not session.active
@@ -461,6 +478,13 @@ class Viewer:
                                 session_number = number
                 except (OSError, ValueError, KeyError, TypeError):
                     pass
+            try:
+                allowance = output.reader.read(output.run / 'session-allowance.json')
+                if (allowance.get('key') is not None
+                        and type(allowance.get('used')) is int and type(allowance.get('limit')) is int):
+                    session_number, session_allowance = allowance['used'], allowance['limit']
+            except (OSError, ValueError, KeyError, TypeError, AttributeError):
+                pass
             if (output.repair and session.active and session.owner == output.run
                     and session_number is not None and session.state.get('status') == 'running'
                     and len(session.state['repair_failure']) == 3
@@ -520,6 +544,7 @@ class Viewer:
                 session=session.identity,
                 session_active=session.active,
                 session_number=session_number, session_inactive=session_inactive,
+                session_allowance=session_allowance,
                 session_waiting=waiting, session_deadline=deadline, session_question=prompt_id,
                 session_preview=self.cached_spans(root, 'session-preview', preview),
                 session_view=session_view))
@@ -536,6 +561,9 @@ class Viewer:
                     sections[-1]['launcher_reload_command'] = shlex.join([f'tools/{name}',
                         *launcher_arguments(record, 'reload', execution_plan=output.execution_plan)])
                     sections[-1]['launcher_kill'] = active
+                    if active and session_allowance is not None and status not in ('Stopping', 'Stop Requested'):
+                        sections[-1]['launcher_add_session_command'] = shlex.join([f'tools/{name}',
+                            *launcher_arguments(record, 'add-session', execution_plan=output.execution_plan)])
             except (OSError, ValueError, AttributeError, TypeError):
                 sections[-1]['launcher_controls'] = False
         # Exiting one launcher must not remove its tabs while another checkout
@@ -798,7 +826,7 @@ def main():
                 if (set(request) - {'protocol', 'launcher_action'} or type(action) is not dict
                         or set(action) != {'root', 'run', 'kind'}
                         or any(type(value) is not str for value in action.values())
-                        or action['kind'] not in ('stop', 'cancel-stop', 'resume', 'reload', 'kill')):
+                        or action['kind'] not in ('stop', 'cancel-stop', 'resume', 'reload', 'kill', 'add-session')):
                     raise ValueError('watch: invalid launcher action')
                 print(json.dumps(dict(protocol=1, launcher_result=viewer.launcher_command(action))), flush=True)
                 continue

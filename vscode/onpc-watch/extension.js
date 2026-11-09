@@ -396,7 +396,7 @@ function activate(context) {
                     errors.show(panel);
                 }
             } else if (message?.type === 'launcherAction' && runRoots.has(message.root) &&
-                       typeof message.run === 'string' && ['stop', 'cancel-stop', 'resume', 'reload', 'kill'].includes(message.kind)) {
+                       typeof message.run === 'string' && ['stop', 'cancel-stop', 'resume', 'reload', 'kill', 'add-session'].includes(message.kind)) {
                 void launchControl(message);
             } else if (message?.type === 'renameLauncher' && runRoots.has(message.root) &&
                        displayedRuns.get(message.root) === message.run &&
@@ -471,7 +471,8 @@ function activate(context) {
             const current = bridge;
             try {
                 let command = await current.launcherCommand(message.root, message.run, message.kind);
-                const action = { stop: 'Stop', resume: 'Resume', reload: 'Reload', kill: 'Kill', 'cancel-stop': 'Cancel stop request' }[message.kind];
+                const allowanceKey = command.allowance_key;
+                const action = { stop: 'Stop', resume: 'Resume', reload: 'Reload', kill: 'Kill', 'cancel-stop': 'Cancel stop request', 'add-session': 'Add 5 Sessions' }[message.kind];
                 const commandText = message.kind === 'kill' ? `Cancel run ${command.run} immediately; allow normal cleanup.` :
                     [ `tools/${command.launcher}`, ...command.argv ].map(value =>
                     /^[\w@%+=:,./-]+$/.test(value) ? value : "'" + value.replace(/'/g, "'\\''") + "'").join(' ');
@@ -481,6 +482,9 @@ function activate(context) {
                 if (answer !== action) return;
                 if (disposed || current !== bridge) return;
                 command = await current.launcherCommand(message.root, message.run, message.kind);
+                if (message.kind === 'add-session' && allowanceKey !== command.allowance_key) {
+                    throw new Error('Session allowance changed; refresh before trying again.');
+                }
                 // Recheck the publication when the action actually starts, and
                 // pin dispatch to this checkout rather than a launcher default branch.
                 const bootstrap = `import json, os, subprocess, sys
@@ -500,11 +504,14 @@ branch = subprocess.check_output(['git', '-C', str(root), 'symbolic-ref', '--qui
 os.chdir(root)
 if '--cancel-stop' in c['argv']:
     os.environ['ONPC_CANCEL_STOP_RUN'] = str(run)
+if '--add-session' in c['argv']:
+    os.environ['ONPC_ADD_SESSION_RUN'] = str(run)
+    os.environ['ONPC_ADD_SESSION_KEY'] = c['allowance_key']
 os.environ['ONPC_LAUNCHER_DESTINATION'] = json.dumps(dict(root=str(root), branch=branch, launcher=c['launcher'], pid=os.getpid()))
 os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c['launcher']), *c['argv']])
 `;
                 const argv = ['/usr/bin/python3', '-IBu', '-c', bootstrap,
-                    JSON.stringify({ root: command.root, run: command.run, launcher: command.launcher, argv: command.argv, kind: message.kind })];
+                    JSON.stringify({ root: command.root, run: command.run, launcher: command.launcher, argv: command.argv, kind: message.kind, allowance_key: command.allowance_key })];
                 const remote = command.source.transport === 'ssh';
                 const background = message.kind === 'resume';
                 const quote = value => "'" + value.replace(/'/g, "'\\''") + "'";

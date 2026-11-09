@@ -7,6 +7,10 @@ Commit and push changes from the current session, then merge the exact pushed so
 every other configured branch and push each destination. Invoking this skill
 requests the full workflow, subject to existing execution permissions.
 
+For code changes required by this workflow, follow the coding mandate in AGENTS.md:
+
+> Simple, lean, robust; do not overengineer. Prefer solutions that simplify the resulting codebase as a whole, not merely minimize the patch. Keep refactoring within the task’s scope.
+
 1. Read AGENTS.md, the [Git development contract](../../../docs/Approval-Tools.md#git-development)
    and [shared worktree propagation contract](../../../docs/Execution-Plans.md#shared-worktree-propagation).
    Follow their branch placement, upstream and work-preservation rules. Do not

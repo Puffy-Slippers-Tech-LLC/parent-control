@@ -103,7 +103,7 @@ def wait_for_intervention(*args, **kwargs):
 
 def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
                     on_wait=lambda: None, on_poll=lambda: None, timeout=None,
-                    intervention=False):
+                    intervention=False, allowance=None):
     """Wait for an explicit answer, preserving the shared, extendable deadline."""
     from launcher_progress import publish_progress
     from launcher_render import AgentRenderer, SessionTranscript
@@ -150,6 +150,15 @@ def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
             if launcher.accept_stop(run):
                 return None
             on_poll()
+            if intervention and allowance is not None:
+                available = allowance.read()
+                if available.get('key') is not None and available['used'] < available['limit']:
+                    with launcher.lock(run / 'question-gate') as gate:
+                        fcntl.flock(gate, fcntl.LOCK_EX)
+                        saved = json.loads(path.read_text())
+                        if saved['answer'] is None:
+                            launcher.atomic(path, dict(saved, answer='Session allowance increased.',
+                                                      choice=None, allowance_added=True))
             question = json.loads(path.read_text())
             if question['answer'] is not None:
                 renderer.message(question['answer'], 'You')
@@ -160,7 +169,8 @@ def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
                 if view_path.exists():
                     launcher.atomic(view_path, dict(json.loads(view_path.read_text()),
                                                     continue_transcript=True))
-                return {'question': question['question'], 'answer': question['answer']}
+                return {'question': question['question'], 'answer': question['answer'],
+                        **({'allowance_added': True} if question.get('allowance_added') else {})}
             if timeout is not None and time.time() >= question['deadline']:
                 with launcher.lock(run / 'question-gate') as gate:
                     fcntl.flock(gate, fcntl.LOCK_EX)

@@ -247,6 +247,27 @@ verification `all` pass is one composite task.
 Repair sessions and retries do not complete additional tasks. Its existing
 `--resume` preserves passed categories and original selectors.
 
+`--add-session N` adds a positive integer to the running launcher's current
+task/case session allowance. Use the same plan, scope and VM selection as for
+attachment. For example, `tools/execute-plan 'docs/Example.md' --add-session 5`
+changes a five-session allowance to ten, and session admission uses ten immediately.
+It requires an active allowance; it does not start a launcher or reopen one
+that has committed to stopping. Repeated increments accumulate. Grants survive
+controller reloads and prerequisite suspension within the same run; a fresh run
+keeps its existing budget-renewal policy. Ordinary plans keep implementation and
+coordinator repair allowances separate: the increment applies to the currently
+displayed kind. It grants no acceptance or task completion credit.
+
+The shared launcher publishes the current used count and computed allowance in
+`session-allowance.json`, separately from its controller-owned checkpoint. The
+allowance gate serializes increments, publications and ordinary-plan exhaustion
+decisions. `fix-tests` publishes its serialized repair's allowance at the parent
+controller, including while verification or intervention is pending.
+ONPC: Watch uses these values for both **Session x/y** labels and offers
+**Add 5 Sessions** in the launcher actions menu. Adding sessions during an
+allowance intervention resumes that same task/case without a second grant;
+an unrelated developer decision still requires an answer.
+
 Plan launchers and `write-e2e` stop between sessions with `--stop`.
 `--cancel-stop` clears that queued request and exits immediately. The worker
 accepts the stop under the same run lock used to cancel it. Once accepted,
@@ -273,7 +294,8 @@ allowance. Report expiry causes no repair session. Normal task continuations
 consume only the implementation allowance. Both kinds retain unique turn identities
 and count toward total coordinator activity, but grant no task completion.
 The repair count survives reloads, fresh runs, prerequisite suspension and reviewed
-reconciliation; none resets or replenishes it. Capacity retries keep the original
+reconciliation; none resets or replenishes it. Only an explicit `--add-session`
+grant increases its allowance. Capacity retries keep the original
 session's kind and charge neither allowance again. An exhausted allowance stops
 with the exact retained handoff rather than skipping the task.
 This is a launcher failure: the unfinished task remains unchecked and later

@@ -1,7 +1,7 @@
 # Repository agent instructions
 
 ## Coding Mandates
-- Simple, lean, robust, do not overengineer. If a problem can be solved by simplier approaches, do not use more complex ones
+- Simple, lean, robust; do not overengineer. Prefer solutions that simplify the resulting codebase as a whole, not merely minimize the patch. Keep refactoring within the task’s scope.
 
 ## Environment and communication
 

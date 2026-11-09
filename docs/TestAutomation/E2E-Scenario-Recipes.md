@@ -2093,9 +2093,9 @@ needed just to run the shared system operation.
 
 ### E2E-044
 
-Implementation status: Cases 196/197 use `ordinary_daily_reset.PLAN` and
-`ordinary_rest_of_day.PLAN`, respectively, and passed their complete Ubuntu 26.04
-journeys. Other calendar bindings remain pending.
+Implementation status: Cases 196/197/198 use `ordinary_daily_reset.PLAN`,
+`ordinary_rest_of_day.PLAN` and `ordinary_fixed_grant.PLAN`, respectively, and
+passed their complete Ubuntu 26.04 journeys. Seasonal bindings remain pending.
 
 **Use time across local day and daylight-saving boundaries.** Cases 196, 197, 198, 200, 203.
 
@@ -2815,8 +2815,7 @@ restored guest's normal setup and before any parent/child input, the shared
 [`calendar_fixture.preset_ordinary_midnight`](../../tests/e2e/calendar_fixture.py)
 disables network time synchronization through `timedatectl` and sets the clock
 to 23:35 on the next future ordinary day in the unchanged timezone for implemented
-cases 196/197. Case 198 must reuse this preparation when implemented; seasonal
-cases 200/203 must extend the same fixture narrowly to their declared real
+cases 196/197/198. Seasonal cases 200/203 must extend the same fixture narrowly to their declared real
 timezone transition, with enough setup margin and independent transition
 readback. Their preparation is authorized, not implemented or qualified here.
 Declare and independently read back that date/window. Make no further clock adjustments:
@@ -2843,7 +2842,7 @@ while retaining the original UTC deadlines and the one-hour case bound.
 | --- | --- |
 | 196 daily-reset | Start before ordinary local midnight. Exhaust one minute naturally with no grant, read D=0, cross midnight and read the renewed daily allowance. Correct-password child entry works again. No full-day wait. |
 | 197 rest-of-day | Request shortly before ordinary midnight and observe grant expiry and time refusal there. |
-| 198 fixed-grant | Request a fixed duration spanning ordinary midnight. Observe continuing access and the original elapsed deadline; no restart or extra time is granted by midnight. |
+| 198 fixed-grant | Prepare a 1200-second request with zero daily allowance, then wait under the original attempt deadline until ten minutes before ordinary midnight before starting approval. Complete approval with at least five minutes left for child entry; require the first usable child/countdown witness at least two minutes before midnight. Read again near two minutes before and promptly after midnight, retain original submitted work and continued usable access, then observe natural lock and correct-password time refusal at the original elapsed deadline. No restart or extra time is granted by midnight. |
 | 200 spring-forward / 203 fall-back paired-grants | Use Jordan with Rest of the day and Riley with a fixed 10-minute grant, both with zero daily allowance. Approve both before the actual offset change; Riley's approval must be within five minutes before it so the grant spans the jump and expires within the attempt. Record each child's public remaining time, request estimate and usable access before the change. After the change, read each child's remaining time and confirm usable access while positive. Jordan's grant targets the next local midnight, including the timezone's 23/25-hour day arithmetic; Riley's grant retains its original elapsed deadline without an added or lost hour. Both balances decrease only by actual elapsed time within declared display precision. At Riley's original deadline, observe natural lock and correct-password time refusal with zero remaining grant, then revisit Jordan and verify positive remaining time and continued usable access. No full-day wait or midnight renewal claim. |
 | 40 / 43 replacement | Independently covers replacing a fixed grant extending past midnight with Rest of the day on both request surfaces. It does not need a calendar-window wait. |
 

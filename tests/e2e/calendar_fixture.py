@@ -45,7 +45,8 @@ def preset_ordinary_midnight(journey, guard):
     from private_artifacts import require
     import watch_activity
 
-    require(journey.plan.prefix in ('ordinary-daily-reset', 'ordinary-rest-of-day')
+    require(journey.plan.prefix in ('ordinary-daily-reset', 'ordinary-rest-of-day',
+                                   'ordinary-fixed-grant')
             and [step['stage'] for step in journey.steps] == ['ready']
             and journey.transport is not None
             and journey.transport.lease is journey.context.lease,

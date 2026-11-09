@@ -5329,8 +5329,21 @@ Existing simulated command/fault matrices remain reused; former selector 272
 remains retired into 267. This qualifies notification unavailability and recovery,
 not general daemon-generation acknowledgement, package-removal acknowledgement,
 Fedora or customer E2E acceptance.
-Obligation 150 retains its missing partial-termination/retry assertion in its
-queue brief; its existing system/component matrices remain reused.
+Obligation **150**'s irreversible partial-termination failure and retry belong
+to `system_enforcement.partial_termination_retry`, registered as
+`enforcement::test_partial_app_termination_retry` (system **318**). The installed
+production broker graph runs under the existing exclusive broker fault fixture;
+only its terminator's second signal is refused after the first actual child-app
+exit. Independent original-process and account observations retain the failed
+partial set, old time and strict policy. Removing that local fault permits the
+same revocation to close the surviving original app and clear the grant, without
+recreating the first app or disturbing other-child/parent apps and state.
+The first installed attempt passed on `onpc-Ubuntu26.04-1` in
+`20261109T095427Z-20b37118`, including collection, exact process/fault/policy
+cleanup, normal broker recovery and baseline restoration; the VM was confirmed
+off. Existing deterministic policy, UID/pidfd and discovery matrices remain
+reused. This supplies Ubuntu engineering qualification only, with no Fedora,
+new authentication or customer E2E acceptance credit.
 Engineering obligation 142's stricter entry-exposure
 question is removed from execution and retained only in
 [Unlock desktop](../Unlock_Desktop.md), with no completion claim or prerequisite.

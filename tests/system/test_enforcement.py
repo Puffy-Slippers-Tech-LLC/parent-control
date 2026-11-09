@@ -5,7 +5,7 @@ import pytest
 from system_enforcement import (
     broker_save_failure_recovery,
     native_policy_transition, native_probe_lifecycle, native_probe_storage_lifecycle,
-    observe_catalog, provision_catalog, provision_native,
+    observe_catalog, partial_termination_retry, provision_catalog, provision_native,
 )
 
 pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
@@ -14,6 +14,11 @@ pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
 def test_broker_save_failure_recovery(record_testsuite_property):
     """Retain prior child policy after a real storage fault, then retry."""
     broker_save_failure_recovery(record_testsuite_property)
+
+
+def test_partial_app_termination_retry(record_testsuite_property):
+    """Preserve real partial app closure and fail-closed state, then retry."""
+    partial_termination_retry(record_testsuite_property)
 
 
 def run_checks(record, checks):

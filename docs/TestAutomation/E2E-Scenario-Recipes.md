@@ -3307,6 +3307,15 @@ owner records Ubuntu qualification of restored prior account/rule state, actual
 child denial and peer allowance during failure, exact native-tool restoration,
 successful retry and unchanged other accounts. This does not acknowledge arbitrary
 daemon generations or package-removal activation and supplies no customer E2E credit.
+Obligation 150's real partial child-app closure and retry belong to
+`system_enforcement.partial_termination_retry`, registered as
+`enforcement::test_partial_app_termination_retry` (system 318). The same
+engineering owner records Ubuntu qualification of the original closed/surviving
+app set across a broker failure, preserved old time and strict policy, and a
+successful retry with no app recreation or other-child/parent process/state
+changes. The installed production graph uses one local signal refusal under the
+existing exclusive broker fixture; normal process discovery and policy writes
+remain real. This adds no customer scenario or authentication acceptance credit.
 Apply [system reuse](UI-and-E2E-Coverage.md#reuse-of-system-coverage)
 at case, step and acceptance level while keeping the complete public journeys.
 

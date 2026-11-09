@@ -2625,6 +2625,17 @@
     ],
     "expected": "A failed enforcement readiness command withholds sign-in. Explicit recovery restores the unchanged helper and a local greeter only after the real canary succeeds; account state and the boot remain unchanged. No automatic-restart or customer-journey acceptance is claimed."
   },
+  "318": {
+    "summary": "Retry closing the child's blocked apps after only some close",
+    "steps": [
+      "Prepare two original child apps and matching apps owned by the other child and parent, with an active soft-app exception.",
+      "Use the installed broker and real process discovery; close the first child app and refuse the second signal in this attempt's terminator.",
+      "Observe the broker failure, record which original app closed and which survived, and independently read the preserved time and strict app policy.",
+      "Remove the signal fault and retry the same revocation without relaunching any app.",
+      "Verify the remaining original app closes, the first stays closed, the grant clears, peer apps and accounts remain unchanged, and owned cleanup restores the normal broker and policy."
+    ],
+    "expected": "The first partial closure remains an irreversible failed result. Old time and strict policy survive the failure; retry closes only the remaining child app and clears the grant. Other users' original apps and state remain untouched. Engineering qualification only."
+  },
   "299": {
     "summary": "Restore the extension from Parent controls",
     "steps": [

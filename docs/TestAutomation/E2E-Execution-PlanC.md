@@ -21,7 +21,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **179 — [Preserve and qualify system obligation 150: partial termination](E2E-Tasks/179-system-150.md)**.
+Next task: **191 — [Read local date, time and timezone through SSH](E2E-Tasks/191-read-local-calendar-and-timezone.md)**.
 
 This plan owns its queue, remaining task briefs and next-task pointer.
 It can run independently of all unfinished work in

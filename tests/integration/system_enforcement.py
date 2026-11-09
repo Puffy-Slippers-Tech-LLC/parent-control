@@ -8,8 +8,11 @@ import os
 from pathlib import Path
 import pwd
 import re
+import select
 import shutil
+import signal
 import stat
+import subprocess
 import sys
 import threading
 import time
@@ -1096,6 +1099,196 @@ def broker_save_failure_recovery(record):
         require(request('GetPreferences', '(u)', (child,))[0] == original and
                 account_states(untouched) == peers, 'policy-restoration-mismatch')
         record('onpc.broker-save.cleanup', 'owned-mount-removed; original-policy-restored; peers-unchanged')
+
+
+def partial_termination_retry(record):
+    """Obligation 150: retain a real irreversible partial result across retry.
+
+    Use the installed production dependency graph under the existing exclusive
+    broker fault fixture. Only this terminator's second signal is refused; its
+    discovery, first kill, broker rollback, native policy and retry are real.
+    This is engineering fault injection, not a public approval journey.
+    """
+    from system_assertions import account_states
+    from system_session_expiry import isolated_broker_for_extension_faults
+
+    accounts = provision_native()
+    child, other, parent = (accounts[role] for role in ('child', 'other', 'parent'))
+
+    def require(condition, reason):
+        guest.require(condition, 'partial-termination:' + reason)
+
+    def stage(name, value):
+        record('onpc.partial-termination.' + name, value)
+        print(f'onpc-system: stage=partial-termination-{name} outcome=passed', flush=True)
+
+    peers = account_states((other, parent))
+    with PersistentCaller(parent) as caller:
+        def request(method, signature='()', args=()):
+            return accepted(caller.call(method, signature, args),
+                            category='partial-termination:broker-call-failed')
+
+        original = request('GetPreferences', '(u)', (child,))[0]
+        preferences = json.loads(original)
+        require(not preferences['apps'] and not preferences['parent_control_enabled'],
+                'requires-clean-policy')
+        request('SetParentControl', '(ubu)', (child, True, 30))
+        preferences.update(parent_control_enabled=True, daily_time_limit_minutes=30,
+                           apps={DESKTOP_ID: {'state': 'conditional', 'targets': [str(TARGET)],
+                                              'patterns': [], 'user_saved_match_rule': False}})
+        request('SetPreferences', '(us)', (child, json.dumps(preferences)))
+
+        # Reuse the installed composition, without changing shipped code or
+        # adding a service/fault protocol. The normal broker is stopped and
+        # runtime-masked so no second writer can reconcile our temporary grant.
+        with isolated_broker_for_extension_faults():
+            previous_path = sys.path[:]
+            sys.path[:0] = ['/usr/lib/oh-no-parent-control', '/usr/lib/oh-no-parent-control/broker']
+            try:
+                from gi.repository import Gio
+                from oh_no_parent_control.core import BackendFailure
+                from oh_no_parent_control.app_termination import AppTerminationError
+                from oh_no_parent_control.service import production_dependencies
+            finally:
+                sys.path[:] = previous_path
+            connection = Gio.DBusConnection.new_for_address_sync(
+                'unix:path=/run/dbus/system_bus_socket',
+                Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT |
+                Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION, None, None)
+            processes = []
+            descriptors = []
+            deadline = time.monotonic() + 600
+
+            def remaining():
+                budget = deadline - time.monotonic()
+                require(budget > 0, 'history-budget-exhausted')
+                return min(180, budget)
+
+            try:
+                dependencies = production_dependencies(connection)
+                native = dependencies.accounts
+                terminator = dependencies.running_apps
+                broker = dependencies.broker_factory(
+                    dependencies.config_loader, dependencies.authorizer, native,
+                    dependencies.preferences, dependencies.extensions,
+                    dependencies.timer_usage, dependencies.application_catalog, terminator)
+                # Engineering setup represents a previously approved soft-app
+                # exception with ample headroom; no approval is claimed here.
+                native.set_extension(child, (int(time.time()), 1200))
+                native.set_filter(child, (False, ()))
+                prior = account_states((child,))[child]
+                require(prior[1:3] == (2, 1800) and prior[3][1] == 1200 and
+                        prior[4] == [False, []], 'initial-time-and-policy')
+                require(account_states((other, parent)) == peers, 'setup-changed-peers')
+
+                # Every handle is created here and stays unreaped until its
+                # explicit observation/cleanup. Use the existing finite native
+                # fixture and its readiness protocol, never a process-name scan.
+                for uid in (child, child, other, parent):
+                    account = pwd.getpwuid(uid)
+                    process = subprocess.Popen(
+                        [str(TARGET), '--stay-alive'], user=uid, group=account.pw_gid,
+                        extra_groups=[], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                        stderr=subprocess.DEVNULL, env={'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8'})
+                    processes.append(process)
+                    descriptor = os.pidfd_open(process.pid)
+                    descriptors.append(descriptor)
+                    ready, _, _ = select.select([process.stdout], (), (), remaining())
+                    require(bool(ready) and process.stdout.readline() == READY and
+                            process.poll() is None, 'app-not-ready')
+                    entry = Path('/proc') / str(process.pid)
+                    require(terminator._process_uids(entry / 'status') == (uid,) * 4 and
+                            (entry / 'exe').resolve() == TARGET, 'app-identity')
+                child_pids = {process.pid for process in processes[:2]}
+                real_signal = terminator._pidfd_send_signal
+                signaled = []
+                refused = []
+
+                def partial_signal(descriptor, sig, info, flags):
+                    fields = dict(line.split(':', 1) for line in
+                                  (Path('/proc/self/fdinfo') / str(descriptor)).read_text().splitlines())
+                    pid = int(fields['Pid'].strip())
+                    require(pid in child_pids and pid not in signaled and not refused and
+                            sig == signal.SIGKILL, 'unexpected-signal-target')
+                    if signaled:
+                        refused.append(pid)
+                        raise PermissionError(errno.EPERM, 'owned partial-termination fault')
+                    real_signal(descriptor, sig, info, flags)
+                    signaled.append(pid)
+                    exited, _, _ = select.select([descriptor], (), (), remaining())
+                    require(bool(exited), 'first-app-did-not-exit')
+
+                stage('ready', 'two-child-apps; same-native-app-owned-by-other-child-and-parent')
+                terminator._pidfd_send_signal = partial_signal
+                failure = None
+                try:
+                    broker.revoke_one_time_grant(parent, child)
+                except BackendFailure as error:
+                    failure = error
+                finally:
+                    terminator._pidfd_send_signal = real_signal
+                require(isinstance(failure, BackendFailure) and
+                        isinstance(failure.__cause__, AppTerminationError) and
+                        isinstance(failure.__cause__.__cause__, PermissionError) and
+                        len(signaled) == len(refused) == 1, 'partial-fault-not-exposed')
+                closed = tuple(index + 1 for index, process in enumerate(processes[:2])
+                               if process.poll() == -signal.SIGKILL)
+                survivors = tuple(index + 1 for index, process in enumerate(processes[:2])
+                                  if process.poll() is None)
+                require(len(closed) == len(survivors) == 1 and
+                        processes[closed[0] - 1].pid == signaled[0] and
+                        processes[survivors[0] - 1].pid == refused[0], 'wrong-partial-app-set')
+                after_failure = account_states((child,))[child]
+                require(after_failure == (*prior[:4], [False, [str(TARGET)]]),
+                        'failed-revoke-time-or-strict-policy')
+                require(account_states((other, parent)) == peers and
+                        all(process.poll() is None for process in processes[2:]),
+                        'failure-disturbed-peers')
+                record_rules('partial-failed', child, True, record)
+                stage('failed-result', json.dumps({'closed_original_apps': closed,
+                                                  'surviving_original_apps': survivors,
+                                                  'old_time_preserved': True,
+                                                  'strict_policy': True, 'peers_unchanged': True}))
+
+                # The same broker retries the same revocation with the signal
+                # fault removed. No application is relaunched or substituted.
+                broker.revoke_one_time_grant(parent, child)
+                require(all(process.wait(timeout=30) == -signal.SIGKILL
+                            for process in processes[:2]), 'retry-did-not-close-original-apps')
+                after_retry = account_states((child,))[child]
+                require(after_retry == (*prior[:3], [0, 0], [False, [str(TARGET)]]),
+                        'retry-time-or-strict-policy')
+                require(not terminator.has_running(child, (str(TARGET),), ()) and
+                        account_states((other, parent)) == peers and
+                        all(process.poll() is None for process in processes[2:]),
+                        'retry-disturbed-peers-or-restored-apps')
+                record_rules('partial-retried', child, True, record)
+                stage('retry', 'remaining-original-app-closed; first-still-closed; grant-cleared; peers-unchanged')
+            finally:
+                # Attempt every directly owned child even if another cleanup
+                # fails. Never discover or signal an unrelated process.
+                cleanup_errors = []
+                for process in processes:
+                    try:
+                        if process.poll() is None:
+                            process.kill()
+                        process.wait(timeout=30)
+                    except Exception as error:
+                        cleanup_errors.append(error)
+                    finally:
+                        process.stdout.close()
+                for descriptor in descriptors:
+                    os.close(descriptor)
+                connection.close_sync(None)
+                if cleanup_errors and sys.exc_info()[0] is None:
+                    raise cleanup_errors[0]
+
+        request('SetParentControl', '(ubu)',
+                (child, False, json.loads(original)['daily_time_limit_minutes']))
+        request('SetPreferences', '(us)', (child, original))
+        require(request('GetPreferences', '(u)', (child,))[0] == original and
+                account_states((other, parent)) == peers, 'restoration-mismatch')
+        stage('cleanup', 'owned-apps-reaped; signal-fault-removed; normal-broker-and-policy-restored')
 
 
 def native_policy_transition(accounts, record, variant='command', *, caller=None):

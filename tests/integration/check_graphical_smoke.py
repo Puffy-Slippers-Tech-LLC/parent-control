@@ -1145,7 +1145,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                                     'native_fixtures', 'catalogue_search', 'catalogue_filters', 'policy_legend', 'match_save_cancel', 'match_editor', 'access_choices', 'policy_edit', 'named_app_set', 'rejected_parent_rule') and isinstance(value, bool)))),
         'smoke:native-fixtures-prerequisites')
     require(fixture_profile in ('native', 'snap', 'flatpak', 'game') and
-            (fixture_profile != 'game' or native_fixtures) and
+            (fixture_profile != 'game' or native_fixtures or native_app) and
             (fixture_profile != 'flatpak' or native_fixtures or native_app or native_grid_usable or native_policy_closure or flatpak_retained_work) and
             (fixture_profile == 'native' or (native_fixtures or native_app or native_grid_usable or flatpak_retained_work
              or native_policy_closure and fixture_profile == 'flatpak') and not any((catalogue_search,
@@ -1896,7 +1896,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         if riley_native_grid:
             result['scope'] = 'installed-riley-native-grid-qualification'
         if native_app:
-            result['scope'] = ('installed-snap-command-usable-qualification' if fixture_profile == 'snap'
+            result['scope'] = ('installed-game-activity-qualification' if fixture_profile == 'game'
+                               else 'installed-snap-command-usable-qualification' if fixture_profile == 'snap'
                                else 'installed-flatpak-command-usable-qualification' if fixture_profile == 'flatpak'
                                else 'installed-native-app-qualification')
         if native_denial:
@@ -2509,6 +2510,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     elif fixture_profile == 'flatpak':
                         from parent_setup_qualification import FlatpakCommandQualification
                         qualification_class = FlatpakCommandQualification
+                    elif fixture_profile == 'game':
+                        from parent_setup_qualification import GameActivityQualification
+                        qualification_class = GameActivityQualification
                 if native_denial:
                     from parent_setup_qualification import NativeDenialQualification
                     qualification_class = NativeDenialQualification

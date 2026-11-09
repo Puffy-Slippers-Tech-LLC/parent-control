@@ -390,6 +390,12 @@ def native_blocked_app(role, *, route='command', child='other-child'):
     return {'command': 'ui:native-' + name + '-command-blocked'}
 
 
+def game_usable_app(*, level=1):
+    """FLOW08: fixed offline level 1, one real move and independent effect."""
+    require(type(level) is int and level == 1, 'journey:game-level')
+    return {stage: 'ui:game-' + stage for stage in ('command', 'opened', 'move', 'moved')}
+
+
 def native_activity_entry(prefix, *, route='command', child='child', desktop_observation=True,
                           binding='activity'):
     """FLOW08 + APP04 capture; caller owns transition and comparison endpoints."""

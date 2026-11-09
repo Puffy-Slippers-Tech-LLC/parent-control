@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 SUBSETS = ('native',)
 GAME_SUBSETS = ('native', 'game')
 GAME_CALLER = 'check_e2e_game_fixture'
+GAME_CALLERS = (GAME_CALLER, 'check_e2e_game_activity')
 ACTIVITY_SUBSETS = ('native', 'activity', 'baseline-child')
 ACTIVITY_CALLER = 'check_e2e_baseline_journey'
 ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',
@@ -73,7 +74,7 @@ def qualified_subsets(subsets=SUBSETS, *, caller=None, product_free=False):
     if (type(subsets) is not tuple or
             (subsets != SUBSETS and not (subsets == ACTIVITY_SUBSETS
              and caller in ACTIVITY_CALLERS and not product_free)
-             and not (subsets == GAME_SUBSETS and caller == GAME_CALLER and not product_free)
+             and not (subsets == GAME_SUBSETS and caller in GAME_CALLERS and not product_free)
              and not (subsets == LIFECYCLE_SUBSETS
                       and ((caller == LIFECYCLE_CALLER and product_free)
                            or (caller == APP_SET_CALLER and not product_free))))):

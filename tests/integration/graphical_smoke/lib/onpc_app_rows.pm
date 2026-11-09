@@ -1281,6 +1281,57 @@ sub versioned_appimage_assets {
     $journey->finish();
 }
 
+# FLOW08 game branch, also usable after an independently opened level-1 window.
+sub game_use_app {
+    my ($journey, $opened) = @_;
+    die 'game:use-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
+    $journey->consume_observation('opened', $opened);
+    $journey->seen('move');
+    return $journey->seen('moved');
+}
+
+sub game_usable_app {
+    onpc_progress::operation('Opening level 1 and playing one move as [Child user]');
+    my ($journey) = @_;
+    die 'game:usable-binding' unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    return game_use_app($journey, native_open_command($journey, undef));
+}
+
+sub game_activity {
+    onpc_progress::operation('Preparing ample child time and checking recognizable offline play');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'game:arguments' unless @_ == 3;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'game-activity', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen('saved-settings');
+    $journey->seen('apps-page');
+    $journey->seen('parent-logout');
+    onpc_desktop_session::enter_desktop(
+        $journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan-entry');
+    $journey->seen('wrong-window');
+    for my $entry ('first', 'independent') {
+        my $flow = $journey->scope($entry);
+        # Refuse absent prior activity before any input can be released.
+        my $accepted = eval { $flow->consume_observation('capture', undef); 1; };
+        die 'game:missing-activity-accepted' if $accepted;
+        die 'game:missing-activity-refusal' unless $@ =~ /journey:stale-observation/;
+        if ($entry eq 'first') {
+            game_usable_app($flow);
+        } else {
+            game_use_app($flow, native_open_command($flow, undef));
+        }
+        native_read_activity($flow, 'capture');
+        native_read_activity($flow, 'reread');
+        $flow->seen('close');
+        $flow->seen('closed');
+    }
+    $journey->finish();
+}
+
 sub native_app {
     onpc_progress::operation('Qualifying guarded native command launch and ordinary use');
     my ($exchange, $declared, $challenges) = @_;

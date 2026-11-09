@@ -1396,6 +1396,22 @@ visit order and immutable comparison endpoints in its plan. Follow
 [composition preflight](../../docs/TestAutomation/E2E-Building-Blocks.md#composition-preflight)
 for declaration/worker order and refusal boundaries.
 
+Fresh kiosk approvals from GDM compose `kiosk_approved_flow.obtain_time` /
+`onpc_request_flow::obtain_time`, including `initial='observed'` for explicit
+child, parent, duration and soft-app choices. The worker supplies the required
+kiosk surface to preparation before the guarded approval; use this pair instead
+of copying `prepare` and `approve` into game, allowance or lifecycle workers.
+Keep open-form, interrupted and deliberately rejected requests on their separate
+operations. Each caller still owns its request binding, countdown, later child
+entry and retained-work assertions.
+
+For replacement time after natural expiry, the pre-play Parent balance is no
+longer a current estimate. As in `game_access_case`, first require the original
+natural-expiry result, independently check the replacement request's public
+estimate, and bind the return countdown to that fresh immutable estimate. Keep
+the original game capture and same-lock comparison through recovery; a fresh
+window or successful approval alone cannot prove that the child's play survived.
+
 Request, access-choice and match-rule comparison journeys use cooperative
 initialization. Forward the optional `transport` through each constructor to
 `InstalledJourney`, which validates an attached transport's lease and guest

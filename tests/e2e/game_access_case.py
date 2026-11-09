@@ -1,6 +1,6 @@
 """Case 126: approved windowed play, natural expiry and the same game recovered."""
 from accessible_ui import KIOSK_BOUND_OPERATIONS, NAMED_CHILD_OPERATIONS
-from game_expiry import CHOICES, GameExpiryJourney
+from game_expiry import GameExpiryJourney
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (desktop_entry, fresh_desktop, game_usable_app,
                             parent_management, prefixed_stages, rejected_gdm_return)
@@ -11,6 +11,8 @@ from request_flow import approval_and_return
 from ui_observations import AppRowsObservation, SettingsObservation
 
 
+CHOICES = dict(child='existing-fixture-child', approver='fixture-parent',
+               duration_seconds=600, allow_soft=True)
 SETUP = {**fresh_desktop('parent'), **parent_management(child='existing'),
          'profile-before': 'ui:revoke-balances',
          'allowance-configured': 'ui:time-explanation-setup-zero-read',

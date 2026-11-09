@@ -337,9 +337,8 @@ sub grant_work_recovery {
     onpc_desktop_session::verify_locked_input($journey, 'lock-input-ready', 'lock-result');
     onpc_desktop_session::enter_desktop($journey, 'locked', 'child', 'lock', 'time-denied', 'denial');
     $journey->seen($_) for qw(return-greeter denied-returned retained-before);
-    onpc_request_flow::prepare($journey, 'new', 'new', 'observed',
-        'fixture-child', 'fixture-parent', 1200, $allow_soft, 'kiosk');
-    onpc_request_flow::approve($journey, 'fixture-child', 'fixture-parent', 1200, $allow_soft, 'automatic');
+    onpc_request_flow::obtain_time($journey, 'observed',
+        'fixture-child', 'fixture-parent', 1200, $allow_soft, 'automatic');
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'retained');
     $journey->seen($_) for qw(countdown recovery-identity);
     onpc_app_rows::native_activity_resume($journey, 'resume');

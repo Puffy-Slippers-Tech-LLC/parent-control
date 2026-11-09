@@ -245,6 +245,44 @@ sub suspend_active_grant {
     $journey->finish();
 }
 
+sub ordinary_fixed_grant {
+    onpc_progress::operation('Checking that midnight preserves the child fixed extra time');
+    my ($exchange, $declared, $challenges, $binding) = @_;
+    die 'fixed-grant:plan' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && ref($binding) eq 'ARRAY' && join(',', @$binding) eq 'child,parent,1200,0';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'ordinary-fixed-grant', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    $journey->{kiosk_request} = $binding;
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('parent-selected',
+        onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child'));
+    $journey->seen($_) for qw(before-grant allowance-configured);
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    my $request = $journey->scope('request');
+    $request->{kiosk_request} = $binding;
+    onpc_request_flow::prepare($request, 'new', 'new', 'observed',
+        'fixture-child', 'fixture-parent', 1200, 0, 'kiosk');
+    $journey->seen('approval-wait-' . $_) for 1 .. 4;
+    onpc_request_flow::approve($request, 'fixture-child', 'fixture-parent', 1200, 0, 'automatic');
+    $journey->seen('approved-balance');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
+    $journey->invoke('initial-countdown');
+    $journey->invoke('midnight-wait-' . $_) for 1 .. 6;
+    $journey->invoke($_) for qw(before-countdown cross-midnight after-countdown);
+    onpc_app_rows::native_activity_resume($journey, 'continued-activity');
+    $journey->seen('continued-activity-capture');
+    $journey->invoke('natural-expiry');
+    onpc_desktop_session::verify_locked_input($journey, 'lock-input-ready', 'lock-result');
+    $journey->seen($_) for qw(return-greeter returned-gdm);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'return');
+    $journey->seen($_) for qw(parent-retained expired-balance parent-switch denied-greeter);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'retained', 'time-denied', 'denied');
+    $journey->finish();
+}
+
 sub ordinary_rest_of_day {
     onpc_progress::operation('Checking that a parent approval ends the child access at midnight');
     my ($exchange, $declared, $challenges, $binding) = @_;

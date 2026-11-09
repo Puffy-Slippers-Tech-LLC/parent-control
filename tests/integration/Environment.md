@@ -27,15 +27,17 @@ the program does not guess a newest image or download one.
 configuration, unrestricted host CPU placement, virtio graphics without 3D,
 sound and a guest-agent channel. The local template exports host `/Data` as a
 writable virtiofs share with mount tag `data`; the server template has no host
-folder share. After manually installing the local guest OS, create `/Data` in
-the guest and add this entry to the guest's `/etc/fstab` to mount it on boot:
-
-```fstab
-data /Data virtiofs defaults,nofail 0 0
-```
-
-Run `sudo mount /Data` in the guest to mount it immediately. The VM template
-exposes the share but does not configure the guest's mount table.
+folder share. During baseline preparation, `tools/prepare-vm` reads virtiofs
+filesystem mappings from the selected domain's inactive XML. Each source
+directory is also its guest mount path: a source `/Data/Code/PST` with target
+tag `pst` becomes `pst /Data/Code/PST virtiofs defaults,nofail 0 0` in the
+guest's `/etc/fstab`. Read-only exports use `ro,nofail` instead.
+Preparation creates missing mount directories, reuses matching entries without
+rewriting them, and verifies the actual mounts during each preparation boot
+before capturing the baseline. Unrelated fstab entries are preserved; conflicting
+entries, unsafe directories, overlapping mappings and new mounts hiding existing
+files are refused. Operating-system and preparation directories cannot be export
+mount points. A VM without virtiofs exports needs no guest share configuration.
 
 The new disk is `HOST.virt-manager/NAME.qcow2`; the selected ISO is attached
 with CD-ROM-first boot. The program assigns a fresh UUID and libvirt assigns

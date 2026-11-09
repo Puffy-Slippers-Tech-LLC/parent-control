@@ -168,6 +168,8 @@ def main(argv=None):
     if os.geteuid() != 0 or prepare_vm.CHECKOUT != root / 'checkout':
         print('baseline: [guard:entry-context]', flush=True)
         return 1
+    from baseline_mounts import mount_and_verify
+    mount_and_verify(prepare_vm.Runner())
     if args == ['--prepare-native']:
         os_id, _ = prepare_vm.release_identity(prepare_vm._read_os_release(Path('/etc/os-release')))
         prepare_vm.guest_tools.verify_installed(os_id, runner=prepare_vm.Runner(), root=Path('/'))

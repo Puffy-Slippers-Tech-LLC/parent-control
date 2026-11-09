@@ -273,6 +273,9 @@ def test_agent_loss_ends_only_an_unqualified_challenge_without_releasing_input()
     ('kiosk-fresh-return', '', 6, 1, False),
     ('ordinary-rest-of-day-request', 'request-', 0, 0, True),
     ('ordinary-rest-of-day-request', 'other-', 0, 0, False),
+    ('ordinary-fixed-grant-request', 'request-', 1200, 0, True),
+    ('ordinary-fixed-grant-request', 'other-', 1200, 0, False),
+    ('ordinary-fixed-grant-request', 'request-', 0, 0, False),
     ('kiosk-fresh-return', '', 0, 0, False),
 ])
 def test_short_and_calendar_approvals_keep_their_declared_secret_scope(prefix, scope, seconds, soft, accepted):

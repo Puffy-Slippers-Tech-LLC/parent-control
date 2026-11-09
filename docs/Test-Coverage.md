@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5965</span>/<span style="color: gray">0</span>/5965 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5969</span>/<span style="color: gray">0</span>/5969 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">225</span>/<span style="color: gray">0</span>/225 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">300</span>/<span style="color: gray">0</span>/300 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -15,8 +15,8 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">139</span>/<span style="color: gray">58</span>/197 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6710</span>/<span style="color: gray">58</span>/6768** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">140</span>/<span style="color: gray">57</span>/197 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6715</span>/<span style="color: gray">57</span>/6772** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">138</span>/<span style="color: gray">58</span>/196 |
+| customer-journey | <span style="color: green">139</span>/<span style="color: gray">57</span>/196 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -156,6 +156,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [194](#scenario-194) | Use local controls and approvals while offline | `E2E-043/both-surfaces` | ready |
 | [196](#scenario-196) | Use time across local day and daylight-saving boundaries (calendar: ordinary; time: daily reset) | `E2E-044/ordinary-daily-reset` | ready |
 | [197](#scenario-197) | Use time across local day and daylight-saving boundaries (calendar: ordinary; time: rest of day) | `E2E-044/ordinary-rest-of-day` | ready |
+| [198](#scenario-198) | Use time across local day and daylight-saving boundaries (calendar: ordinary; time: fixed grant) | `E2E-044/ordinary-fixed-grant` | ready |
 | [205](#scenario-205) | Review or decline an error report | `E2E-045/parent` | ready |
 | [231](#scenario-231) | Change temporary app permission on every supported launch route (route: native grid; surface: child overlay) | `E2E-049/native-grid-child-overlay` | ready |
 | [232](#scenario-232) | Change temporary app permission on every supported launch route (route: native grid; surface: kiosk) | `E2E-049/native-grid-kiosk` | ready |
@@ -210,7 +211,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[176](#scenario-176)</span> | <span style="color: gray">Leave a pending approval or request again too soon (flow: overlay cooldown)</span> | <span style="color: gray">`E2E-039/overlay-cooldown`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[178](#scenario-178)</span> | <span style="color: gray">Leave a pending approval or request again too soon (flow: kiosk cooldown other)</span> | <span style="color: gray">`E2E-039/kiosk-cooldown-other`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[190](#scenario-190)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: parent links)</span> | <span style="color: gray">`E2E-042/parent-links`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[198](#scenario-198)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: ordinary; time: fixed grant)</span> | <span style="color: gray">`E2E-044/ordinary-fixed-grant`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[200](#scenario-200)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: spring forward; time: paired grants)</span> | <span style="color: gray">`E2E-044/spring-forward-paired-grants`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[203](#scenario-203)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: fall back; time: paired grants)</span> | <span style="color: gray">`E2E-044/fall-back-paired-grants`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[208](#scenario-208)</span> | <span style="color: gray">Recover unavailable diagnostic collection (choice: retry; surface: parent)</span> | <span style="color: gray">`E2E-046/parent-retry`</span> | <span style="color: gray">pending</span> |
@@ -1950,6 +1950,20 @@ Variant: calendar: ordinary; time: rest of day
 - Cross the declared natural midnight or offset change without changing the clock or resetting state. Read balances and request estimates afterward. Seasonal cases read both children and verify continued usable access while positive; compare Jordan's next-local-midnight duration and Riley's original elapsed deadline within declared display precision.
 - Ordinary cases verify daily renewal, midnight grant expiry or fixed-grant continuation and the original deadline. Seasonal cases observe Riley's natural lock, zero grant and correct-password time refusal at the original deadline, then revisit Jordan with positive remaining time and continued usable access. Neither seasonal grant gains or loses an hour; no seasonal daily-renewal claim.
 
+### Scenario 198
+
+**Use time across local day and daylight-saving boundaries (calendar: ordinary; time: fixed grant)**
+
+Case: `E2E-044/ordinary-fixed-grant` · Category: customer-journey · Status: **ready**
+
+Variant: calendar: ordinary; time: fixed grant
+
+**Steps:**
+
+- Prepare the guest clock before customer input under the developer's calendar-case authorization, then start in the declared eligible window. Read date, time, UTC offset and timezone independently through TIME05; make no further clock changes. Ordinary cases prepare the selected daily-only or grant profile. Seasonal cases prepare two children with zero daily allowance: Jordan has Rest of the day and Riley a real fixed 10-minute approval within five minutes before the actual offset change. Record both public balances, request estimates and usable access before the jump.
+- Cross the declared natural midnight or offset change without changing the clock or resetting state. Read balances and request estimates afterward. Seasonal cases read both children and verify continued usable access while positive; compare Jordan's next-local-midnight duration and Riley's original elapsed deadline within declared display precision.
+- Ordinary cases verify daily renewal, midnight grant expiry or fixed-grant continuation and the original deadline. Seasonal cases observe Riley's natural lock, zero grant and correct-password time refusal at the original deadline, then revisit Jordan with positive remaining time and continued usable access. Neither seasonal grant gains or loses an hour; no seasonal daily-renewal claim.
+
 ### Scenario 205
 
 **Review or decline an error report**
@@ -2933,26 +2947,6 @@ Variant: surface: parent links
 - Close About and return to the unchanged unfinished request, retaining station restrictions where applicable. Command help must open no management or request window. Installed Parent information and return are owned by case 151.
 
 Pending: Excluded from E2E scheduling: local Parent Help/About link availability belongs to tests/ui/test\_about\_release.py::test\_about\_displays\_release\_notices and shared UI coverage. Installed product information and return to unchanged management are owned by E2E-030 case 151. Retain this stable ID and historical task; no duplicate customer journey or new E2E task.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 198
-
-**Use time across local day and daylight-saving boundaries (calendar: ordinary; time: fixed grant)**
-
-Case: `E2E-044/ordinary-fixed-grant` · Category: customer-journey · Status: **pending**
-
-Variant: calendar: ordinary; time: fixed grant
-
-**Steps:**
-
-- Prepare the guest clock before customer input under the developer's calendar-case authorization, then start in the declared eligible window. Read date, time, UTC offset and timezone independently through TIME05; make no further clock changes. Ordinary cases prepare the selected daily-only or grant profile. Seasonal cases prepare two children with zero daily allowance: Jordan has Rest of the day and Riley a real fixed 10-minute approval within five minutes before the actual offset change. Record both public balances, request estimates and usable access before the jump.
-- Cross the declared natural midnight or offset change without changing the clock or resetting state. Read balances and request estimates afterward. Seasonal cases read both children and verify continued usable access while positive; compare Jordan's next-local-midnight duration and Riley's original elapsed deadline within declared display precision.
-- Ordinary cases verify daily renewal, midnight grant expiry or fixed-grant continuation and the original deadline. Seasonal cases observe Riley's natural lock, zero grant and correct-password time refusal at the original deadline, then revisit Jordan with positive remaining time and continued usable access. Neither seasonal grant gains or loses an hour; no seasonal daily-renewal claim.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 

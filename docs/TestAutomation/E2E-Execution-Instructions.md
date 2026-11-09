@@ -108,6 +108,20 @@ and their proper suite; a customer pass supplies no engineering qualification.
 The queue's [deferred work](E2E-Task-Queue.md#deferred-future-work) has no active
 consumer and blocks no current-release task.
 
+### Failed usage saves: scope boundary
+
+On 2026-11-09 the developer moved the delayed-approval family E2E-048
+(cases 223, 224, 225, 227, 228 and 230) and unfinished tasks 269/270 out of E2E.
+[Failed usage saves](../Failed_Save.md) owns the open issue and preserved
+scenarios; it is not an execution plan. The inventory keeps these identities
+pending without executable bindings. Do not select them for regression,
+recreate tasks, run their maintenance reproductions or follow older diagnostic
+handoffs during ordinary execution in Plans A, B or C. Historical passes remain
+historical; the unresolved regression supplies no acceptance or blocker for
+remaining tasks. Shared profile and approval operations remain reusable by
+unrelated journeys. Resume this investigation only on an explicit separate
+developer request.
+
 ## Execute one task
 
 ### Snap acceptance boundary
@@ -202,6 +216,9 @@ the split, but the developer subsequently removed their two-desktop scenarios
 from execution. [Two desktops](../Two_Desktops.md) retains that open question
 without an execution plan. Do not recreate those rows or their prerequisites
 during reconciliation. IDs are labels, not ranges to execute implicitly.
+The later failed-save scope decision also removes tasks 269/270 and the entire
+E2E-048 family from execution; [Failed usage saves](../Failed_Save.md) retains
+the issue. Reconciliation must not restore their rows or diagnostic handoffs.
 Remaining briefs retain their acceptance unless an explicit scope decision
 in their owner says otherwise.
 Former task 171's stricter zero-time entry question was also removed from

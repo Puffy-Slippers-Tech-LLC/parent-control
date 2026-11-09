@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **269 — [E2E-048: daily-dominant-child-overlay](E2E-Tasks/269-case-227.md)**.
+Next task: **129 — [Play fullscreen to natural lock](E2E-Tasks/129-game-fullscreen.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

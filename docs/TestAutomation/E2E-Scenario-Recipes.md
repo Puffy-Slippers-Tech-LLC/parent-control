@@ -2205,67 +2205,11 @@ change, public-error trigger or real service prerequisite is required.
 
 ### E2E-048
 
-Implementation status: Complete daily-only cases 223/224, grant-only case 225
-and grant-dominant kiosk case 230 passed on Ubuntu 26.04. Other cases pending.
-
-**Approve after the displayed estimate has aged.** Cases 223–225, 227–228 and 230.
-
-Bindings: balance = daily-only / grant-only / daily-dominant / grant-dominant;
-surface = child-overlay / kiosk. Retain both surfaces for daily-only and
-daily-dominant, child-overlay only for grant-only, and kiosk only for
-grant-dominant: six independent journeys. Daily use continues on the desktop
-but pauses while the child is away at the station; grant time elapses on either
-surface. Removed cases 226 and 229 must not be reused. Every retained journey
-keeps the real 45-second prompt interval and the immediate second addition.
-
-Reuse TIME03 and the fresh-recipient mechanics under the
-[cross-plan map](E2E-Building-Blocks.md#cross-plan-baseline-reuse). Its fixed
-confinement lifetime check supplies neither these balance/arithmetic assertions
-nor the six complete scenario passes; add no second wait framework.
-
-1. FLOW13 with the delayed-approval table below → P → PARENT09(capture D,G) → G.
- Overlay C → REQUEST02; station REQUEST01. FLOW04(entry=open,custom=0.5,
- soft=false,approver=Jamie for daily-only/grant-only/grant-dominant,
- Sam otherwise) →
- REQUEST08(capture estimate and time) → REQUEST09 → AUTH01.
-2. TIME03(45 seconds, same requesting session and prompt) → AUTH01(fresh) →
- AUTH02(correct) → REQUEST11(success) → REQUEST12(automatic).
-3. C only for station → TIME01 → P → PARENT09 → UI12(expected interval from
- public starting balances and elapsed active/away time). After five seconds
- from success, return to the same form and use FLOW20 for an immediate
- second 0.5-minute request. Read its increment too; a waiting estimate must
- neither freeze the earlier balance nor extend a grant twice.
-
-| Balance | Retained surfaces and cases | Public preparation for this family | Expected effect while waiting |
-| --- | --- | --- | --- |
-| daily-only | child-overlay 223; kiosk 224 | Daily 10, no grant. | Overlay consumes daily time; station leaves that child's daily time unconsumed. |
-| grant-only | child-overlay 225 | Daily 0, approve 20 minutes, leaving room for slow navigation and authentication. | Grant elapses during the desktop prompt. |
-| daily-dominant | child-overlay 227; kiosk 228 | Daily 0, approve 20, then daily 40 while still enabled. Read both original operands positive before the first approval. | Daily dominates at the first prompt; active/away daily use follows the requesting surface. The first addition can make the new grant dominant. |
-| grant-dominant | kiosk 230 | Daily 30, request 20 additional minutes. | Grant remains dominant and elapses at the station. |
-
-At each prompt require at least 300 seconds of usable time. At the first prompt
-also require the named initial profile and a dominance gap exceeding 90 seconds
-where both balances are positive, with at least 300 seconds of the smaller
-balance. Before the second addition independently read current D/G and use
-max(D,G)+R with measured elapsed time; the first approval replaces the grant
-and may legitimately change which source dominates. Do not demand the original
-profile or gap again. Predeclare comparison intervals, including navigation,
-authentication and confirmation time. Prepare all fixtures and observers before
-issuing the setup grant; no natural-expiry wait is added to this family.
-The elapsed 45 seconds must be distinguishable from a frozen estimate with the
-available display precision. For daily-only kiosk case 224, daily time pauses
-while away: compare the issued grant against that unchanged daily operand plus
-30 seconds, subtracting only time since approval. Distinguish this from a grant
-incorrectly started at the earlier estimate. After returning to the original
-child activity, refresh Parent's actual D/G once; this read is both the first
-approval's independent result and the second request's starting operands.
-Do not reset the grant or add a settling wait after cooldown.
-No other user changes settings during the prompt.
-This is normal time spent deciding a request, not an artificially delayed
-authentication service. Zero-time overlay entry is impossible; zero-time station
-approval belongs to 50/126–127. Exact equal positive operands that cannot be
-distinguished publicly remain arithmetic unit coverage; both-zero is covered by
-those station cases.
+Removed from E2E execution and regression selection by developer decision on
+2026-11-09. The six former scenarios, finite inputs and outstanding save-failure
+investigation now belong to [Failed usage saves](../Failed_Save.md).
+This anchor preserves historical references; it schedules no journey and
+creates no prerequisite for another case.
 
 ### E2E-049
 

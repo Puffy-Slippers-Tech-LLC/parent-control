@@ -637,6 +637,9 @@ implementation belongs to the current task's affected checks.
    remaining assertions.
    Removed tasks 143–149 and 171 belong only to the open questions in
    [Two desktops](../Two_Desktops.md) and [Unlock desktop](../Unlock_Desktop.md).
+   Failed-save tasks 269/270 and E2E-048 cases 223/224/225/227/228/230 belong
+   only to [Failed usage saves](../Failed_Save.md), outside task and regression
+   selection.
    Do not recreate them from pending inventory records or historical references.
    Their shared
    provider routes still require qualification under the current mandate.

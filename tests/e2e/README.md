@@ -1775,7 +1775,13 @@ read bracket. `probe-revoke-balances` uses the same maintained reader on that
 Parent scene. Inspect the grant and session with guarded `exec`, then finish
 with `tools/test-vm stop`; neither route supplies acceptance credit.
 
-`tools/test-vm --vm NAME reproduce-delayed-approval` reuses case 225's
+The following delayed-approval diagnostic routes are retained only for the
+separate [failed-save issue](../../docs/Failed_Save.md). They are outside normal
+E2E execution, regression selection and launcher handoffs. Do not run them or
+resume their former probes without an explicit request for that investigation.
+Cases 223/224/225/227/228/230 have no executable inventory bindings.
+
+`tools/test-vm --vm NAME reproduce-delayed-approval` reuses former case 225's
 `GrantDelayedApprovalJourney` / `GRANT_PLAN` through the delayed first approval,
 Parent balances and second prompt qualification. It stops before replying to
 `second-approval-rechecked`, retaining that prompt and a read-only recheck with

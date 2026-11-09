@@ -649,8 +649,6 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 127 | Recover the child's game after time runs out | 126, 043a, 197k, 079b | Cases 126; Ubuntu 26.04 passed zero-time denial, real 10-minute approval, windowed level-1 play, natural lock and time restriction, real 20-minute recovery, original-game comparison and a second move. Shared `check_e2e_game`, host checks, collection, owned cleanup and baseline restoration passed; VM observed off. | 40–60 (exception) |
 | [x] | 132 | Compose a daily-dominant profile without clearing the grant | 065a | FLOW13 daily-dominant scope qualified on Ubuntu 26.04 through `check_e2e_time_profiles_dominant` in `20261109T124749Z-838b9335`: real ten-minute grant at zero daily time, enabled twenty-minute allowance save preserving the original grant, D>G>0 at Parent and the later 75-second request estimate with elapsed/rounding reserves, then Cancel and usable GDM. Scoped host credential/dispatcher safety, source/traceability and listing passed; collection, worker/callback shutdown, owned cleanup and baseline restoration passed. VM off. Shared finite inputs also bind grant-20/daily-40 for the delayed-approval consumers; those complete cases keep their own acceptance. [Delivered scope](E2E-Building-Blocks.md#daily-dominant-time-profile-qualification). | 20–30 |
 | [x] | 133 | Keep a child's game running after adding time | 126, 048b, 079b, 132 | Cases 128; Ubuntu 26.04 passed daily-dominant preparation, Always Allowed windowed play, Jamie's 75-second soft-excluded approval, extended countdown comparison, original-game retention, another real move and extended natural lock with protected input in `20261109T133836Z-624d6727`. Corrected resumed capture to require two moves while earlier captures retain one. Case 126 and the shared daily-dominant profile regression passed in `20261109T140708Z-6576c34a` and `20261109T142459Z-bae7a55a`. Scoped host checks, coverage refreshes, collection, owned cleanup and baseline restoration passed; VM off. | 40–60 (exception) |
-| [ ] | 269 | [E2E-048: daily-dominant-child-overlay](E2E-Tasks/269-case-227.md) | 197, 052c, 132 | Cases 227; gate in brief | 20–30 |
-| [ ] | 270 | [E2E-048: daily-dominant-kiosk](E2E-Tasks/270-case-228.md) | 197k, 052c, 132 | Cases 228; gate in brief | 20–30 |
 | [ ] | 129 | [Play fullscreen to natural lock](E2E-Tasks/129-game-fullscreen.md) | 126 | APP05/FLOW10 fullscreen play | 20–30 |
 | [ ] | 130 | [E2E-023: fullscreen](E2E-Tasks/130-case-127.md) | 043a, 197k, 079b, 129 | Cases 127 | 40–60 (exception) |
 | [ ] | 129a | [Reach an overlay request from fullscreen gameplay](E2E-Tasks/129a-fullscreen-request.md) | 129, 048a | DESK12 fullscreen panel API entry; REQUEST13 launch and overlay/game return | 20–30 |
@@ -696,6 +694,16 @@ acceptance. Completed task 305a retains only the
 [finite unrelated package operation and independent system result](E2E-Building-Blocks.md#genuine-unrelated-package-reboot-request),
 not the removed complete history. Shared modal and marker-edge matrices remain
 with their unit/host UI owners.
+
+## Failed usage saves: outside execution scheduling
+
+By developer decision on 2026-11-09, E2E-048 cases 223, 224, 225, 227,
+228 and 230 and unfinished tasks 269/270 are removed from execution scheduling.
+[Failed usage saves](../Failed_Save.md) owns the open issue, preserved scenarios
+and investigation. This is no passing result, task completion or prerequisite
+for any remaining queue. Do not recreate these tasks, select these cases as
+regressions, or continue their diagnostic handoffs during ordinary E2E work.
+Checked historical rows retain their delivered scope only.
 
 ## Deferred future work
 

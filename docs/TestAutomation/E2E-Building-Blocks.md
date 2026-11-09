@@ -1851,6 +1851,12 @@ recipes own their finite choices, policy effects and complete assertions;
 the [kiosk fresh-child binding](#explicit-kiosk-choices-and-fresh-child-return-qualification)
 is qualified separately. This qualification registers no complete scenario.
 
+The delayed-approval case results below are historical only. By developer
+decision, E2E-048 cases 223/224/225/227/228/230 belong to the separate
+[failed-save issue](../Failed_Save.md), with no executable bindings or E2E
+regression obligation. Shared operation qualifications remain reusable;
+historical case references must not recreate the removed family or its probes.
+
 Case **223** separately passed the complete delayed daily-only overlay history
 on Ubuntu 26.04 in `20261030T210453Z-adbeab0b`, through
 `delayed_approval.PLAN` / `DelayedApprovalJourney` and
@@ -1930,6 +1936,10 @@ off. The unchanged fresh-child bindings above remain qualified without replay.
 Together these qualify all four kiosk entry/destination bindings, with no
 additional choice matrix, expiry wait or complete-scenario registration.
 
+The following E2E-048 kiosk results are historical only under the
+[failed-save scope boundary](E2E-Execution-Instructions.md#failed-usage-saves-scope-boundary).
+They are not runnable cases, required regressions or pending E2E work.
+
 Complete daily-only kiosk case **224** passed on Ubuntu 26.04 in
 `20261102T183436Z-3b5a0d5f`, through `kiosk_delayed_approval.PLAN` /
 `KioskDelayedApprovalJourney` and `onpc_request_flow::kiosk_delayed_approval`.
@@ -1951,7 +1961,7 @@ original running grant arithmetic; independent countdowns and refreshed Parent
 balances distinguish both increments from omitted/doubled additions and a frozen
 estimate. Both retained-child returns preserve the original usable activity.
 Collection, worker shutdown, owned cleanup and baseline restoration passed;
-the VM was observed off. Other E2E-048 kiosk profiles remain separate cases.
+the VM was observed off. All E2E-048 profiles now remain outside execution.
 
 Grant-only recovery also passed in complete case **24** on Ubuntu 26.04 through
 `grant_work_recovery.INCLUDED_PLAN` and `onpc_challenges::grant_work_recovery`.

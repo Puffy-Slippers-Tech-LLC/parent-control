@@ -304,7 +304,7 @@ def graphical_history(command):
     path = FIXTURE / 'graphical-history.json'
     if command in ('host-ready', 'revoke-ready', 'approval-ready', 'policy-ready',
                    'replacement-ready', 'crash-ready', 'stop-ready', 'stall-ready', 'timer-ready',
-                   'reply-ready', 'retry-ready'):
+                   'reply-ready', 'retry-ready', 'outage-ready'):
         guest.require(not path.exists(), 'expiry:graphical-history-replayed')
         wait_for(lambda: (FIXTURE / 'seeded.json').is_file(), 'expiry:gdm-seed-not-observed')
         seeded = json.loads((FIXTURE / 'seeded.json').read_text())
@@ -328,6 +328,7 @@ def graphical_history(command):
                    'timer_replacement': command == 'timer-ready',
                    'lock_reply': command == 'reply-ready',
                    'lock_retry': command == 'retry-ready',
+                   'lock_outage': command == 'outage-ready',
                    'broker_invocation': guest.run(['systemctl', 'show', guest.BROKER,
                                                   '--property=InvocationID', '--value']),
                    'account': [pwd.getpwuid(child).pw_name, child,
@@ -371,6 +372,9 @@ def graphical_history(command):
         if history.get('lock_retry'):
             from system_lock_reply import retry_history
             return retry_history(command, history, path, accounts)
+        if history.get('lock_outage'):
+            from system_lock_reply import outage_history
+            return outage_history(command, history, path, accounts)
         if history.get('policy_order') and command.startswith('policy-') and command != 'policy-complete':
             sequence = ('policy-renew-seed', 'policy-renew', 'policy-allowance-seed',
                         'policy-allowance', 'policy-disable-seed', 'policy-disable',
@@ -1109,6 +1113,20 @@ def verify_lock_retry(record):
            'normal-lock-service-restored')
 
 
+def verify_lock_outage(record):
+    guest.guard()
+    history = json.loads((FIXTURE / 'graphical-history.json').read_text())
+    guest.require(history.get('lock_outage') is True and history.get('complete') is True
+                  and history.get('outage_protection') == 'unsupported-input-remained-usable'
+                  and (FIXTURE / 'lock-reply' / 'restored').is_file(),
+                  'expiry:lock-outage-history-incomplete')
+    record('onpc.expiry.lock-outage',
+           'characterization-only; protection-unsupported; real-lock-refusals; '
+           'original-expiry-and-revocation-crossed-with-usable-original-child-work; '
+           'same-shell-session-bus-and-child-session; same-parent-input-and-work; '
+           'normal-lock-availability-and-protected-input-restored; no-protection-or-customer-credit')
+
+
 def verify(record):
     guest.guard()
     history = json.loads((FIXTURE / 'graphical-history.json').read_text())
@@ -1228,7 +1246,9 @@ if __name__ == '__main__':
                 'reply-ready', 'reply-delayed-arm', 'reply-delayed-recovery',
                 'reply-missing-arm', 'reply-missing-wait', 'reply-missing-recovery', 'reply-complete',
                 'retry-ready', 'retry-renew-arm', 'retry-renew', 'retry-renew-check',
-                'retry-arm', 'retry-recovery', 'retry-complete')
+                'retry-arm', 'retry-recovery', 'retry-complete',
+                'outage-ready', 'outage-arm', 'outage-revoke', 'outage-restore',
+                'outage-recovery', 'outage-complete')
     guest.require(len(sys.argv) == 2 and sys.argv[1] in (
         'prepare', 'broker-ready', 'host-observe', 'approval-natural', 'approval-peer',
         'approval-finish', *commands),

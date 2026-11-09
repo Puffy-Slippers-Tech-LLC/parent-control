@@ -5179,6 +5179,21 @@ multiple desktops are removed from execution and retained only in
 a real public setup where an active case requires it; repeated GDM resume does
 not establish a second desktop.
 
+Persistent lock unavailability is characterized by
+`natural_expiry.LockOutageJourney` and `system_lock_reply.outage_history`,
+registered once as `session::test_persistent_lock_outage` (system **313**).
+It reuses system 282's attached worker, original work, protected-input and peer
+mechanics through `STOP_PLAN`; no customer journey or second fault framework
+is introduced. The characterization passed on session-selected
+`onpc-Ubuntu26.04-1` in `20261109T000907Z-148ad941`: original child input/work
+remained usable after original expiry and revocation while lock requests were
+unavailable. Restored locking/protected input, original child/parent work,
+normal facade/setting/native owner, collection and owned cleanup passed.
+Protection during the outage is unsupported; restoration grants no earlier
+protection pass. Fedora is unqualified. The
+[runtime boundary and return condition](../SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement)
+remain explicit; this supplies no customer-case credit.
+
 ### Bound recipe data before implementation
 
 Use the [finite data and budgets](E2E-Scenario-Recipes.md#finite-data-and-execution-budgets),

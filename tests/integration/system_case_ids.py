@@ -649,6 +649,8 @@ CASES = (
                  'Keep the child protected when the lock reply is delayed or missing'),
     CaseIdentity(312, 'session', 'test_transient_lock_recovery',
                  'Protect child work after a temporary lock interruption and cancel retries on renewal'),
+    CaseIdentity(313, 'session', 'test_persistent_lock_outage',
+                 'Characterize child input while locking stays unavailable and restore locking'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

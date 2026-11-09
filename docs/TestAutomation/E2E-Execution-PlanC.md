@@ -21,7 +21,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **172l — [Check protection while locking is unavailable](E2E-Tasks/172l-secure-lock-outage.md)**.
+Next task: **169 — [Preserve and qualify system obligation 140: startup enforcement](E2E-Tasks/169-system-140.md)**.
 
 This plan owns its queue, remaining task briefs and next-task pointer.
 It can run independently of all unfinished work in

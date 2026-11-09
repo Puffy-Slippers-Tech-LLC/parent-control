@@ -21,7 +21,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **169 — [Preserve and qualify system obligation 140: startup enforcement](E2E-Tasks/169-system-140.md)**.
+Next task: **170 — [Preserve and qualify system obligation 141: broker startup](E2E-Tasks/170-system-141.md)**.
 
 This plan owns its queue, remaining task briefs and next-task pointer.
 It can run independently of all unfinished work in

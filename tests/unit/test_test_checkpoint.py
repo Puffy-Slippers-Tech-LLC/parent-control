@@ -656,7 +656,8 @@ def test_repair_replays_the_specific_case_even_after_a_passing_diagnostic():
 
 def test_system_resume_excludes_completed_independent_cases_and_preserves_lifecycle():
     import system_runner
-    inventories = dict(package=('test_installed_package', system_runner.KIOSK_ACTIVATION_CASE),
+    inventories = dict(package=('test_installed_package', system_runner.KIOSK_ACTIVATION_CASE,
+                                system_runner.ENFORCEMENT_STARTUP_CASE),
                        removal=('test_remove_reboot_reinstall',), authorization=('test_a', 'test_b'),
                        enforcement=('test_enforcement',), session=('test_session',),
                        extension=('test_child_extension_monitor_native_recovery',),
@@ -673,7 +674,18 @@ def test_system_resume_excludes_completed_independent_cases_and_preserves_lifecy
     assert {item.case_id for item in prerequisites} == {'test_remove_reboot_reinstall'}
     installed = system_runner.resolve_selection('package', inventories=inventories)
     assert {item.case_id for item in installed.executions if not item.prerequisite} == {
-        system_runner.KIOSK_ACTIVATION_CASE}
+        system_runner.KIOSK_ACTIVATION_CASE, system_runner.ENFORCEMENT_STARTUP_CASE}
+    import system_snapshots
+    focused = system_runner.resolve_selection('package', system_runner.ENFORCEMENT_STARTUP_CASE,
+                                               inventories=inventories)
+    assert focused.phases == (system_runner.ENFORCEMENT_STARTUP_PHASE,)
+    assert system_snapshots.attempts(focused) == [(focused, True)]
+    with pytest.raises(system_runner.Error, match='history-package-format-mismatch'):
+        system_runner.resolve_selection('package', system_runner.ENFORCEMENT_STARTUP_CASE,
+                                        inventories=inventories, target_package_format='rpm')
+    rpm = system_runner.resolve_selection('package', inventories=inventories,
+                                          target_package_format='rpm')
+    assert system_runner.ENFORCEMENT_STARTUP_CASE not in {item.case_id for item in rpm.executions}
     full = system_runner.resolve_selection(inventories=inventories)
     retained = {item.phase + '::' + item.case_id for item in full.executions
                 if item.case_id != 'test_remove_reboot_reinstall'}

@@ -28,6 +28,13 @@ def test_installed_package(installed_readiness):
     verify_package_readiness(installed_readiness)
 
 
+def test_enforcement_startup_failure_recovery(record_testsuite_property):
+    from system_enforcement_startup import exercise
+    guest.require(os.environ['ONPC_SYSTEM_PHASE'] == 'enforcement-startup',
+                  'enforcement-startup:test-phase')
+    exercise(record_testsuite_property)
+
+
 def test_previous_package_policy_preservation(record_testsuite_property):
     from system_previous_upgrade import prepare, verify_updated, verify_reboot
     phase = os.environ['ONPC_SYSTEM_PHASE']

@@ -3247,6 +3247,11 @@ broker concurrency and private-bus owners under the
 [allocation record](UI-and-E2E-Coverage.md#reuse-of-system-coverage),
 with no duplicate E2E implementation tasks. The remaining
 engineering briefs target only missing assertions under their existing owners.
+Obligation 140's enforcement-readiness failure and explicit sign-in recovery
+belong to `package::test_enforcement_startup_failure_recovery` (system 314).
+Its Ubuntu qualification, same-boot canary ordering and unchanged parent/child
+state are recorded by the [engineering owner](E2E-Building-Blocks.md#inventory-reconciliation);
+it supplies no customer scenario acceptance credit.
 Obligation 143's real usage-service outage and identical-query recovery belong
 to `session::test_usage_reader_failure_recovery` (system 302), under the same
 [engineering owner](E2E-Building-Blocks.md#inventory-reconciliation). This has no

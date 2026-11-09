@@ -21,7 +21,15 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **239 — [E2E-044: ordinary-rest-of-day](E2E-Tasks/239-case-197.md)**.
+Next task: **240 — [E2E-044: ordinary-fixed-grant](E2E-Tasks/240-case-198.md)**.
+
+The developer authorized pre-test guest clock preparation for task **239** and all
+remaining calendar tasks (**240, 242, 245**), under the
+[calendar preparation contract](E2E-Scenario-Recipes.md#natural-calendar-windows).
+This replaces older scheduling-only gates in their briefs: prepare the declared
+eligible date/window before parent or child input, then let time advance normally.
+Preserve each case's full bound, natural boundary and public-result assertions.
+Future cases still own their fixture extension, implementation and acceptance.
 
 This plan owns its queue, remaining task briefs and next-task pointer.
 It can run independently of all unfinished work in

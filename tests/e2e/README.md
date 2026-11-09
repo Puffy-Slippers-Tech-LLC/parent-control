@@ -2301,6 +2301,10 @@ provides UTC nanoseconds, local date/time and numeric offset; `timedatectl show
 Python clock/localtime readback must agree with that timezone and advance within
 the controller's monotonic bracket (with 10 ms rate tolerance). The returned
 local text has one-second precision. Both reads must belong to the same boot.
+Each epoch read also has its own guest monotonic bracket. Calendar journeys
+project same-boot countdown and lock timestamps through that bracket directly;
+controller transport time and repeated uncertainty at a shared sample endpoint
+must not become product lock latency.
 Malformed, incomplete, stale or inconsistent output and transport/ownership
 failures latch refusal. Only read pairs crossing local midnight, an offset or
 timezone change, or the caller's declared UTC nanosecond boundary may repeat,
@@ -2308,6 +2312,13 @@ within the original 180-second deadline. No deliberate wait or clock/timezone
 write occurs. The fixed `check_e2e_read_local_calendar_and_timezone` selector
 uses the environment-only worker and normal collection/restoration; it provides
 no calendar-window or product-countdown acceptance.
+
+`tools/test-vm --vm NAME reproduce-rest-of-day` reuses case 197's real
+parent approval and child activity through the midnight lock comparison, then
+stops before the harmless input challenge. It uses the normal pre-input clock
+fixture and retains the owned guest for guarded `exec` timing probes, including
+when that comparison fails. This route supplies diagnostic evidence only;
+finish with `tools/test-vm --vm NAME stop` before clean case acceptance.
 
 The graphical controller keeps initial SSH readiness in its provisioning boundary,
 then exposes `ReadOnlyObservations` to stage/asset observation code. `read()`

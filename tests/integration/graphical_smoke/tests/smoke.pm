@@ -618,6 +618,13 @@ sub run {
         onpc_challenges::countdown_ticks(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{ordinary_rest_of_day}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_challenges::ordinary_rest_of_day(\&exchange, $ready->{invocations},
+            $ready->{challenge_bindings}, $ready->{kiosk_request});
+        return;
+    }
     if ($ready->{ordinary_daily_reset}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

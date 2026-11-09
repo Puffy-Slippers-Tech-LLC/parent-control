@@ -135,4 +135,5 @@ def await_natural_expiry(journey, guard, previous, activity, *, maximum_seconds=
         require(elapsed[1] >= low - 2, 'natural-expiry:premature-lock')
         require(0 <= elapsed[0] <= elapsed[1] < high + 15, 'natural-expiry:deadline')
         return {'initial_countdown': asdict(previous), 'lock': value['lock'],
+                'lock_read_bounds': value['lock_read_bounds'],
                 'elapsed_interval_seconds': elapsed, 'activity_before_wait': asdict(activity)}

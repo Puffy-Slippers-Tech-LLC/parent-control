@@ -418,9 +418,10 @@ def native_blocked_app(role, *, route='command', child='other-child'):
 def game_usable_app(*, level=1, mode=None):
     """FLOW08: fixed offline level 1, one real move and independent effect."""
     require(type(level) is int and level == 1, 'journey:game-level')
-    require(mode in (None, 'windowed'), 'journey:game-mode')
-    return {'command': 'ui:game-command', 'opened': 'ui:game-opened',
-            **({'mode': 'ui:game-windowed-level'} if mode is not None else {}),
+    require(mode in (None, 'windowed', 'fullscreen'), 'journey:game-mode')
+    return {'command': 'ui:game-fullscreen-command' if mode == 'fullscreen' else 'ui:game-command',
+            'opened': 'ui:game-opened',
+            **({'mode': f'ui:game-{mode}-level'} if mode is not None else {}),
             'move': 'ui:game-move', 'moved': 'ui:game-moved'}
 
 

@@ -1160,10 +1160,11 @@ sub run {
         onpc_app_rows::game_access(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, $ready->{kiosk_request});
         return;
     }
-    if ($ready->{game_expiry}) {
+    if ($ready->{game_expiry} || $ready->{game_fullscreen}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
-        onpc_app_rows::game_expiry(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, $ready->{kiosk_request});
+        onpc_app_rows::game_expiry(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
+            $ready->{kiosk_request}, $ready->{game_fullscreen} ? 'fullscreen' : 'windowed');
         return;
     }
     if ($ready->{game_activity}) {

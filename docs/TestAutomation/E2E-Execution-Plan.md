@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **129 — [Play fullscreen to natural lock](E2E-Tasks/129-game-fullscreen.md)**.
+Next task: **130 — [E2E-023: fullscreen](E2E-Tasks/130-case-127.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

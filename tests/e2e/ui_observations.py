@@ -2162,8 +2162,9 @@ class UiObservations:
             AppActivityObservation.from_value(result.get('activity'), binding='game-primary',
                 resumed=operation == 'game-resumed-activity')
             expected['activity'] = result['activity']
-        if operation == 'game-windowed-level':
-            expected['game_mode'] = {'mode': 'windowed', 'level': 1}
+        if operation in ('game-windowed-level', 'game-fullscreen-level'):
+            expected['game_mode'] = {'mode': 'fullscreen' if operation == 'game-fullscreen-level'
+                                     else 'windowed', 'level': 1}
         policy_bindings = {**accessible_ui.BASELINE_NATIVE_BINDINGS, **accessible_ui.NATIVE_DENIAL_BINDINGS}
         if operation in accessible_ui.NATIVE_DESKTOP_OPERATIONS and not operation.endswith(('-selected', '-denied')):
             expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))

@@ -1284,7 +1284,7 @@ sub versioned_appimage_assets {
 # FLOW08 game branch, also usable after an independently opened level-1 window.
 sub game_use_app {
     my ($journey, $opened, $mode) = @_;
-    die 'game:use-binding' unless (@_ == 2 || @_ == 3 && $mode eq 'windowed')
+    die 'game:use-binding' unless (@_ == 2 || @_ == 3 && $mode =~ /\A(?:windowed|fullscreen)\z/)
         && ref($journey) eq 'onpc_journey';
     $journey->consume_observation('opened', $opened);
     $journey->seen('mode') if defined($mode);
@@ -1295,7 +1295,7 @@ sub game_use_app {
 sub game_usable_app {
     onpc_progress::operation('Opening level 1 and playing one move as [Child user]');
     my ($journey, $mode) = @_;
-    die 'game:usable-binding' unless (@_ == 1 || @_ == 2 && $mode eq 'windowed')
+    die 'game:usable-binding' unless (@_ == 1 || @_ == 2 && $mode =~ /\A(?:windowed|fullscreen)\z/)
         && ref($journey) eq 'onpc_journey';
     return game_use_app($journey, native_open_command($journey, undef),
                         defined($mode) ? ($mode) : ());
@@ -1371,11 +1371,14 @@ sub game_access {
 }
 
 sub game_expiry {
-    onpc_progress::operation('Playing the windowed game until the child’s allowance expires');
-    my ($exchange, $declared, $challenges, $request) = @_;
-    die 'game-expiry:binding' unless @_ == 4 && ref($request) eq 'ARRAY'
+    onpc_progress::operation('Playing the game until the child’s allowance expires');
+    my ($exchange, $declared, $challenges, $request, $mode) = @_;
+    $mode //= 'windowed';
+    die 'game-expiry:binding' unless (@_ == 4 || @_ == 5) && ref($request) eq 'ARRAY'
+        && $mode =~ /\A(?:windowed|fullscreen)\z/
         && join(',', @$request) eq 'other-child,parent,600,1';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'game-expiry', review => 0);
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => $mode eq 'fullscreen' ? 'game-fullscreen' : 'game-expiry', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     $journey->{kiosk_request} = $request;
@@ -1394,7 +1397,7 @@ sub game_expiry {
     $journey->invoke('initial-countdown');
     for my $entry ('first', 'independent') {
         my $play = $journey->scope($entry);
-        game_usable_app($play, 'windowed');
+        game_usable_app($play, $mode);
         native_read_activity($play, 'capture');
         if ($entry eq 'first') {
             $play->seen('close');

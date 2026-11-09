@@ -163,7 +163,7 @@ sub enter_kiosk_mate_password {
             my $offline = ($journey->{prefix} // '') eq 'offline-approvals-station'
                 && ($journey->{stage_prefix} // '') eq 'station-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,180,1';
-            my $game = ($journey->{prefix} // '') eq 'game-expiry-request'
+            my $game = ($journey->{prefix} // '') =~ /\Agame-(?:expiry|fullscreen)-request\z/
                 && ($journey->{stage_prefix} // '') eq 'request-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,600,1';
             $game ||= ($journey->{prefix} // '') =~ /\Agame-access-(request|recovery)\z/

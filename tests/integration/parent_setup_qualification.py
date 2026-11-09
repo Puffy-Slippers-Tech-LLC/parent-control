@@ -2452,14 +2452,21 @@ class GameActivityQualification(KioskEntryQualification):
 
 class GameExpiryQualification(GameActivityQualification):
     fixture_caller = 'check_e2e_game'
+    game_mode = 'windowed'
 
-    @staticmethod
-    def journey(context, progress):
+    @classmethod
+    def journey(cls, context, progress):
         from app_snapshot import snapshot_name
-        from game_expiry import GameExpiryJourney
+        from game_expiry import GameExpiryJourney, PLAN, FULLSCREEN_PLAN
         version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
         context.installed_snapshot = snapshot_name(version)
-        return GameExpiryJourney(context, progress)
+        return GameExpiryJourney(context, progress,
+            FULLSCREEN_PLAN if cls.game_mode == 'fullscreen' else PLAN)
+
+
+class GameFullscreenQualification(GameExpiryQualification):
+    fixture_caller = 'check_e2e_game_fullscreen'
+    game_mode = 'fullscreen'
 
 
 class SnapFixtureQualification(KioskEntryQualification):

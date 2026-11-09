@@ -484,8 +484,11 @@ def main(plan):
                     try:
                         suite.close()
                         report['suite_cleanup'] = {'outcome': 'passed'}
-                    except BaseException:
-                        report['suite_cleanup'] = {'outcome': 'failed'}
+                    except BaseException as error:
+                        report['suite_cleanup'] = {
+                            'outcome': 'failed',
+                            'failure_location': failure_location(error),
+                        }
                         raise
                     finally:
                         if suite.lease is not None:

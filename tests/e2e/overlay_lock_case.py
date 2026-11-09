@@ -1,11 +1,13 @@
-"""Case 171: cancelled approval adds no access; a fresh approval still works."""
+"""Cases 171/172: interrupted approval adds no access; fresh approval works."""
 from copy import deepcopy
+from dataclasses import replace
 
 from access_choices import AccessChoiceJourney
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (desktop_entry, fresh_desktop, native_blocked_app,
-                            native_usable_app, overlay_entry, parent_management,
+                            native_usable_app, native_activity_entry, native_activity_resume,
+                            overlay_entry, parent_management,
                             prefixed_stages, retained_parent_entry)
 from named_app_set import APPS, named_app_set, saved_rows
 from native_fixtures import fixture_actions
@@ -81,11 +83,45 @@ PLAN = JourneyPlan(
 )
 
 
+# Keep both complete recipes together; only the interruption and retained-work
+# endpoints differ. Qualifications continue to own their independent plans.
+SWITCH_SCREENS = {}
+for stage, operation in SCREENS.items():
+    if stage == 'direct-launch':
+        SWITCH_SCREENS.update(native_activity_entry('activity', child='child'))
+    if stage == 'interruption-pending-approval':
+        SWITCH_SCREENS.update(overlay_authentication(result='switch-user', prefix='interruption'))
+    if stage.startswith('interruption-'):
+        continue
+    SWITCH_SCREENS[stage] = operation
+    if stage == 'countdown':
+        SWITCH_SCREENS.update(native_activity_resume('resumed', child='child'))
+        SWITCH_SCREENS.update({'activity-close': 'ui:overlay-native-close',
+                               'activity-closed': 'ui:overlay-native-closed'})
+SWITCH_STEP2 = tuple(SWITCH_SCREENS).index('interruption-pending-approval')
+SWITCH_STEP3 = tuple(SWITCH_SCREENS).index('form-returned')
+SWITCH_PLAN = replace(PLAN, prefix='overlay-switch-case', worker_mode='overlay_switch_case',
+    screen_tags=SWITCH_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' if index < SWITCH_STEP2 else 'step-2' if index < SWITCH_STEP3 else 'step-3'
+               for index, stage in enumerate(SWITCH_SCREENS)}, 'installed-greeter': 'start'},
+    invocations=tuple(stage for stage in SWITCH_SCREENS
+                      if stage in PLAN.invocations
+                      or stage in prefixed_stages('interruption', fresh_desktop('child'))),
+    challenges={**PLAN.challenges, 'interruption': ('child', 'interruption-child-recipient-qualified',
+                                                   'interruption-child-recipient-rechecked')},
+    child_bindings={stage: 'child' for stage, tag in SWITCH_SCREENS.items()
+                    if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
+    activity_checks={'resumed-opened': ('activity-capture', 'same')})
+
+
 class OverlayLockCaseJourney(CancelledRequestJourney, AccessChoiceJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan, actions=actions,
             session_checks={stage: 'child-session-before' for stage in (
-                'interruption-unlock-session', 'child-session-returned')},
+                ('interruption-desktop' if 'interruption-desktop' in plan.screen_tags
+                 else 'interruption-unlock-session'),
+                'child-session-returned')},
             balance_check=('allowance-configured', 'balance-returned', 1200))
         self.approval_estimate = None
 
@@ -118,4 +154,12 @@ def execute(recorder, context):
         actions=fixture_actions(include_refusal=False), journey_type=OverlayLockCaseJourney)
 
 
-E2E_CASES = {'overlay-lock': execute}
+def execute_switch(recorder, context):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    context.fixture_subsets = ACTIVITY_SUBSETS
+    context.fixture_caller = 'E2E-039/overlay-switch'
+    record_installed_journey(recorder, context, SWITCH_PLAN, timeout=2400,
+        actions=fixture_actions(include_refusal=False), journey_type=OverlayLockCaseJourney)
+
+
+E2E_CASES = {'overlay-lock': execute, 'overlay-switch': execute_switch}

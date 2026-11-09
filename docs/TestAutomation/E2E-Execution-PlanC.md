@@ -21,7 +21,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **178 — [Preserve and qualify system obligation 149: policy reload](E2E-Tasks/178-system-149.md)**.
+Next task: **179 — [Preserve and qualify system obligation 150: partial termination](E2E-Tasks/179-system-150.md)**.
 
 This plan owns its queue, remaining task briefs and next-task pointer.
 It can run independently of all unfinished work in

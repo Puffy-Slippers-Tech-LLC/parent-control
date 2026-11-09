@@ -596,7 +596,7 @@ def desktop_entry(account, *, source, entry, expected='success', source_account=
             (expected == 'success' or account in ('child', 'other-child')), 'journey:entry-result')
     require((entry == 'fresh' and source == 'gdm')
             or (entry == 'retained' and source in ('gdm', 'desktop'))
-            or (entry == 'retained' and source == 'pending-overlay'
+            or (entry in ('fresh', 'retained') and source == 'pending-overlay'
                 and account == 'child' and expected == 'success')
             or (entry == 'same' and source == 'desktop' and expected == 'success')
             or (entry == 'lock' and source == 'locked' and account == 'child'),
@@ -612,15 +612,17 @@ def desktop_entry(account, *, source, entry, expected='success', source_account=
                    'source-greeter': 'ui:gdm-returned'}
     elif source == 'pending-overlay':
         require(source_account is None, 'journey:entry-source-account')
-        screens = {'pending-approval': 'ui:overlay-shell-switch-user-ready',
-                   'source-switch': 'system:child-switch-user',
+        fresh = entry == 'fresh'
+        screens = {'pending-approval': ('ui:overlay-shell-sign-out-ready' if fresh
+                                        else 'ui:overlay-shell-switch-user-ready'),
+                   'source-switch': 'system:child-logout' if fresh else 'system:child-switch-user',
                    'source-greeter': 'ui:gdm-returned'}
     else:
         require(source_account is None, 'journey:entry-source-account')
     screens['entry-guard'] = 'system:' + role + '-entry-' + entry
     if entry in ('fresh', 'retained'):
         screens.update(fresh_desktop(account, expected))
-        if source == 'pending-overlay':
+        if source == 'pending-overlay' and entry == 'retained':
             # The retained fullscreen request hides Shell's Activities control.
             # Authenticate normally, then prove the active unlocked session;
             # the caller independently reads the usable preserved request.

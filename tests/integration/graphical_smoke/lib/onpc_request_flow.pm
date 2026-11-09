@@ -202,13 +202,17 @@ sub pending_overlay_switch {
     return pending_overlay_interruption('switch', @_);
 }
 
+sub pending_overlay_signout {
+    return pending_overlay_interruption('signout', @_);
+}
+
 sub pending_overlay_interruption {
     my $action = shift;
     onpc_progress::operation('Leaving and returning to the child during a pending parent approval');
     my ($exchange, $declared, $challenges) = @_;
     die 'pending-lock:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
-        && ($action eq 'lock' || $action eq 'switch');
+        && ($action eq 'lock' || $action eq 'switch' || $action eq 'signout');
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'pending-overlay-' . $action, review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
@@ -220,9 +224,18 @@ sub pending_overlay_interruption {
     $journey->seen('child-session-before');
     overlay_entry($journey, 'direct', 'command');
     prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1, 'overlay');
-    $action eq 'lock' ? overlay_lock($journey, 'interruption')
-                     : overlay_switch($journey, 'interruption');
-    $journey->seen($_) for qw(form-returned cancel returned);
+    if ($action eq 'lock') {
+        overlay_lock($journey, 'interruption');
+    } else {
+        overlay_switch($journey, 'interruption', $action eq 'signout' ? 'fresh' : 'retained');
+    }
+    if ($action eq 'signout') {
+        $journey->seen('child-session-after');
+        overlay_entry($journey, 'reopen', 'command');
+    } else {
+        $journey->seen('form-returned');
+    }
+    $journey->seen($_) for qw(cancel returned);
     onpc_parent::open_for_child($journey, 'desktop', 'retained', 'retained', 'child', 'return');
     $journey->seen('balance-returned');
     $journey->finish();
@@ -232,14 +245,16 @@ sub pending_overlay_interruption {
 # The root journey owns retained GDM credentials; the prompt grants none.
 sub overlay_switch {
     onpc_progress::operation('Switching users and returning to the child after cancelled approval');
-    my ($journey, $prefix) = @_;
-    die 'pending-switch:binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+    my ($journey, $prefix, $entry) = @_;
+    $entry //= 'retained';
+    die 'pending-switch:binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
+        && ($entry eq 'fresh' || $entry eq 'retained')
         && defined($prefix) && $prefix =~ /\A[a-z][a-z0-9-]*\z/;
     die 'pending-switch:replay' if $journey->{overlay_switch_started} || $journey->{invocation_failed};
     $journey->{overlay_switch_started} = 1;
     my $ok = eval {
         onpc_desktop_session::enter_desktop($journey, 'pending-overlay', 'child',
-            'retained', 'success', $prefix);
+            $entry, 'success', $prefix);
         my $section = $journey->scope($prefix);
         $section->seen('dismissed');
         1;

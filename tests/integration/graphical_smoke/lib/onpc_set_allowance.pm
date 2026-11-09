@@ -66,4 +66,24 @@ sub qualify_grant {
         $revoke ? 'selected' : 'default', 1, $daily_minutes);
     $journey->finish();
 }
+sub qualify_dominant {
+    onpc_progress::operation('Checking daily time and the original grant at a later request');
+    my ($exchange, $invocations, $challenges, $request) = @_;
+    die 'time-profile:arguments' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && ref($invocations) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,75,0';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'time-profiles-dominant', review => 0);
+    $journey->declare_invocations($invocations);
+    $journey->declare_challenges($challenges);
+    $journey->{kiosk_request} = $request;
+    onpc_gdm::reattach_functional();
+    onpc_parent::daily_dominant_time_profile($journey, 600, 20);
+    require onpc_request_flow;
+    my $scoped = $journey->scope('request');
+    $scoped->{kiosk_request} = $request;
+    onpc_request_flow::prepare($scoped, 'new', 'new', 'observed',
+        'fixture-child', 'fixture-parent', 75, 0, 'kiosk');
+    $journey->seen($_) for qw(request-cancel request-gdm);
+    $journey->finish();
+}
 1;

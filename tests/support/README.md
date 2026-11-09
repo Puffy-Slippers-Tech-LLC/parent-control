@@ -929,6 +929,18 @@ the actual daily remainder after the child leaves and before approval; the
 configured daily allowance is not that remainder. Compare the issued grant to
 that captured remainder plus the requested addition, then preserve its original
 deadline across later policy edits and child visits.
+FLOW13 daily dominance composes `journey_blocks.daily_dominant_time_profile` /
+`onpc_parent::daily_dominant_time_profile` directly from the zero-daily grant
+operation, with finite grant-10/daily-20 and grant-20/daily-40 inputs. The latter
+is for the delayed-approval recipes, without an expiry wait. Reuse
+`time_profiles_dominant.DailyDominantProfileJourney` for the original-grant
+comparison after the enabled allowance save, and `check_request_time` with the
+consumer's later public estimate and controller read bracket. Retain both
+Parent and request-time D>G>0 margins; cases keep their own requesting surface,
+elapsed arithmetic and complete outcomes. The
+[catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#daily-dominant-time-profile-qualification)
+owns the exact qualified entry and finite input scope.
+
 Failed-approval histories reuse `request_composition.GrantAppEffectsJourney`
 with caller-owned `negative_estimates` and `policy_reads`. Its default daily
 profile is zero; `daily_seconds=1800` supports the positive daily profile used

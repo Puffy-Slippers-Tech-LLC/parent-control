@@ -220,6 +220,9 @@ sub enter_kiosk_mate_password {
                 || ($journey->{prefix} // '') eq 'time-profiles-grant-profile-request'
                 && ($journey->{stage_prefix} // '') eq 'profile-request-'
                 && defined($wrong) && $wrong eq 'request-1200'
+                || ($journey->{prefix} // '') eq 'time-profiles-dominant-profile-request'
+                && ($journey->{stage_prefix} // '') eq 'profile-request-'
+                && ($long_request || defined($wrong) && $wrong eq 'request-1200')
                 || ($journey->{prefix} // '') eq 'panel-request-case-profile-request'
                 && ($journey->{stage_prefix} // '') eq 'profile-request-'
                 && defined($wrong) && $wrong eq 'request-1200'

@@ -495,6 +495,20 @@ sub grant_only_time_profile {
     $journey->seen($_) for qw(profile-balance profile-final-switch profile-final-gdm);
 }
 
+sub daily_dominant_time_profile {
+    onpc_progress::operation('Raising daily time while keeping the child\'s existing grant');
+    my ($journey, $seconds, $minutes) = @_;
+    die 'time-profile:daily-dominant-binding' unless @_ == 3
+        && ref($journey) eq 'onpc_journey'
+        && (($seconds eq '600' && $minutes eq '20') || ($seconds eq '1200' && $minutes eq '40'));
+    grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, $seconds, 'default', 0);
+    onpc_gdm::sign_in_challenge($journey, 'profile-return',
+        'profile-return-installed-greeter', 'profile-return-parent-focused', 'profile-return-desktop');
+    $journey->consume_observation('profile-result-parent-retained',
+        open_for_child($journey, 'desktop', 'same-user', 'retained', 'child', 'profile-result', 0));
+    $journey->seen($_) for qw(profile-balance dominant-configured dominant-settings dominant-switch dominant-gdm);
+}
+
 # PARENT02/UI15: canonical choice inventory -> API selection -> independent result.
 # The caller may already hold the inventory proof at a recorder phase boundary.
 sub select_child {

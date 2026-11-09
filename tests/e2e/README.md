@@ -2266,6 +2266,22 @@ Ordinary E2E-001 keeps its unchanged-boot assertion; the installed-system
 
 ### Read-only observation capability
 
+`ReadOnlyObservations.local_calendar(boundary_epoch_ns=None)` supplies TIME05
+through fixed `guest_observations.LOCAL_CALENDAR` and
+`LOCAL_CALENDAR_READBACK` programs. One locale-independent `date` projection
+provides UTC nanoseconds, local date/time and numeric offset; `timedatectl show
+--property=Timezone --value` supplies the named system property. Independent
+Python clock/localtime readback must agree with that timezone and advance within
+the controller's monotonic bracket (with 10 ms rate tolerance). The returned
+local text has one-second precision. Both reads must belong to the same boot.
+Malformed, incomplete, stale or inconsistent output and transport/ownership
+failures latch refusal. Only read pairs crossing local midnight, an offset or
+timezone change, or the caller's declared UTC nanosecond boundary may repeat,
+within the original 180-second deadline. No deliberate wait or clock/timezone
+write occurs. The fixed `check_e2e_read_local_calendar_and_timezone` selector
+uses the environment-only worker and normal collection/restoration; it provides
+no calendar-window or product-countdown acceptance.
+
 The graphical controller keeps initial SSH readiness in its provisioning boundary,
 then exposes `ReadOnlyObservations` to stage/asset observation code. `read()`
 accepts the fixed asset, session, boot, installation-layout, password-recipient

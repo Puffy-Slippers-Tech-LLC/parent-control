@@ -149,7 +149,7 @@ class Smoke:
     def __init__(self, directory, lease, commands, host_key, progress=None, transfer=None,
                  authenticate=False, serial=False, installation=None, vt6_prompt=False,
                  vt6_auth=False, verified=None, functional=False,
-                 fixture_selection=None, fixture_observer=None):
+                 fixture_selection=None, fixture_observer=None, local_calendar=False):
         self.directory, self.lease, self.commands = directory, lease, commands
         self.host_key = host_key
         self.steps = []
@@ -160,6 +160,7 @@ class Smoke:
         self.fixture_selection = fixture_selection
         self.fixture_observer = fixture_observer
         self.fixture_prepared = None
+        self.local_calendar = local_calendar
         require(type(functional) is bool and (not functional or
                 (serial and authenticate and installation is None and not vt6_auth and not vt6_prompt)),
                 'smoke:functional-prerequisites')
@@ -181,7 +182,7 @@ class Smoke:
         self._reboot_boot = None
         self._reboot_requested = False
         self._capture_protection = None
-        self.stages = (FUNCTIONAL_SERIAL_STAGES if functional else
+        self.stages = (('ready',) if local_calendar else FUNCTIONAL_SERIAL_STAGES if functional else
                        VT6_AUTH_STAGES if vt6_auth else VT6_PROMPT_STAGES if vt6_prompt else
                        INSTALL_REFUSAL_STAGES if installation is not None and installation.refusal else
                        INSTALL_STAGES if installation is not None else
@@ -254,6 +255,9 @@ class Smoke:
             self.vm = ReadOnlyObservations(transport, on_diagnostic=(
                 lambda condition: self.progress(self.stages[len(self.steps)],
                     {'recipient_refusal': condition})) if self.progress is not None else None)
+            if self.local_calendar:
+                with watch_operation('Reading the local date, time and timezone without changing them'):
+                    clock = self.vm.local_calendar()
             if self.fixture_selection is not None:
                 from smoke_fixture_preparation import prepare
                 context = {'vm': transport, 'lease': self.lease, 'directory': self.directory}
@@ -268,6 +272,8 @@ class Smoke:
                 if self.fixture_observer is not None:
                     self.fixture_observer('ready', self.fixture_prepared)
             reply = {'observation': 'active-greeter-no-user-session'}
+            if self.local_calendar:
+                reply = {'local_calendar': True, 'clock': clock}
             reply['authenticate'] = self.stages == AUTH_STAGES
             reply['serial'] = self.functional or self.stages == SERIAL_STAGES
             if self.functional:
@@ -394,7 +400,7 @@ class Smoke:
                 require((reply['width'], reply['height']) == (previous['width'], previous['height'])
                         and reply['sha256'] != previous['sha256'], 'smoke:unchanged-screen')
         # Corroborate each captured stage, not just SSH availability at boot.
-        if stage not in ('authenticated', 'gdm-return') and not stage.startswith(('serial-', 'install-', 'reboot-', 'vt6-')):
+        if not self.local_calendar and stage not in ('authenticated', 'gdm-return') and not stage.startswith(('serial-', 'install-', 'reboot-', 'vt6-')):
             harness_observation(self.vm, 'greeter')
         if stage == 'ready' and self.vt6_auth:
             # Advisory availability only; the ordered recipient gate below
@@ -450,11 +456,12 @@ class Smoke:
 def run_backend(directory, lease, commands, host_key, ledger, expected_inputs,
                 *, progress=None, on_failure=None, transfer=None, credentials=None, serial=False,
                 installation=None, vt6_prompt=False, vt6_auth=False, verified=None,
-                fixture_selection=None, fixture_observer=None):
+                fixture_selection=None, fixture_observer=None, local_calendar=False):
     smoke = Smoke(directory, lease, commands, host_key, progress, transfer,
                   authenticate=credentials is not None, serial=serial, installation=installation,
                   vt6_prompt=vt6_prompt, vt6_auth=vt6_auth, verified=verified,
-                  fixture_selection=fixture_selection, fixture_observer=fixture_observer)
+                  fixture_selection=fixture_selection, fixture_observer=fixture_observer,
+                  local_calendar=local_calendar)
     def validate():
         require(len(smoke.steps) == len(smoke.stages), 'smoke:missing-stages')
         module_result(directory)
@@ -504,6 +511,7 @@ class Qualification:
         self.vt6_auth = vt6_auth
         self.fixture_selection = None
         self.fixture_observer = None
+        self.local_calendar = False
 
     def checkpoint(self, event):
         self.sequence += 1
@@ -673,6 +681,7 @@ class Qualification:
                     self.verified.source_files, progress=self.progress, on_failure=self.failure,
                     transfer=self.transfer, credentials=self.credentials, serial=self.serial,
                     installation=installation, vt6_prompt=self.vt6_prompt,
+                    local_calendar=self.local_calendar,
                     **({'fixture_selection': selected, 'fixture_observer': self.fixture_observer}
                        if selected is not None else {}),
                     **({'vt6_auth': True, 'verified': self.verified} if self.vt6_auth else {})))
@@ -799,7 +808,14 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          chinese_current_install=False, parent_language_isolation=False,
          parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False,
          unrelated_reboot_request=False, lock_surface=None, parent_entry=None,
-         fixture_selection=None, transfer_qualification=False):
+         fixture_selection=None, transfer_qualification=False, local_calendar=False):
+    require(type(local_calendar) is bool and (not local_calendar or (
+        assets is None and fixture_selection is None and fresh_desktop is None
+        and lock_surface is None and parent_entry is None and approval_flow is None
+        and active_grant_disable is None and time_profiles_daily is None
+        and not any(value for name, value in locals().items()
+                    if name != 'local_calendar' and isinstance(value, bool)))),
+        'smoke:local-calendar-prerequisites')
     require((type(confinement_usability) is bool
              or confinement_usability in ('basic-locales', 'locale-discovery-failure',
                                          'child-isolation', 'service-recovery', 'optional-artwork'))
@@ -1751,6 +1767,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         result = {'scope': 'credential-free-graphical-feasibility', 'outcome': 'failed',
                   'raw_capture': 'root-private-not-approved-for-export',
                   'evidence_directory': str(directory), 'steps': []}
+        if local_calendar:
+            result['scope'] = 'read-only-local-calendar-qualification'
         if assets is not None:
             result['scope'] = 'credential-free-asset-transfer-qualification'
         if credentials is not None:
@@ -2784,6 +2802,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 qualification = qualification_class(directory, commands, ledger, collector, result, host_before,
                                               staged, credentials, serial, install, install_refusal, vt6_prompt,
                                               vt6_auth)
+                qualification.local_calendar = local_calendar
                 if parent_setup:
                     qualification.fixture_selection = fixture_selection
                 elif fixture_selection is not None:

@@ -151,11 +151,14 @@ def _compiled_retirement_record(g, identities):
     base = set(movable) | {TRUST_RECORD, TRUST_FILE}
     generated = {NATIVE_RULES_COMPILED, NATIVE_RULES_BACKUP}
     # Completed clean captures retain historical retirement receipts. These
-    # predate the version variants, C, the Alias launcher and H's move into
-    # Whitespace (tasks 035b, 035a, 229a and 227). Reconstruct those inventories in
+    # predate Riley's game launcher, the game, version variants, C, the Alias
+    # launcher and H's move into Whitespace. Reconstruct those inventories in
     # reverse order; new movable fixtures cannot invalidate clean witnesses.
     comma = assets.PREFIX + '/Comma/'
-    before_game = base - {
+    before_child_game = base - {
+        identities['child'].pw_dir + '/.local/share/applications/' + native_assets.GAME_DESKTOP_ID,
+    }
+    before_game = before_child_game - {
         native_assets.GAME_EXECUTABLE,
         identities['other'].pw_dir + '/.local/share/applications/' + native_assets.GAME_DESKTOP_ID,
     }
@@ -177,7 +180,8 @@ def _compiled_retirement_record(g, identities):
     before_whitespace = (before_alias - {
         whitespace + 'Path With Spaces.AppImage',
         *(whitespace + name for name in assets.GUI_FILES)}) | {old_h}
-    historical = (before_game, before_versions, before_comma, before_alias, before_whitespace,
+    historical = (before_child_game, before_game, before_versions, before_comma, before_alias, before_whitespace,
+                  before_child_game - set(native_assets.NATIVE_POLICY_PATHS),
                   before_game - set(native_assets.NATIVE_POLICY_PATHS),
                   before_versions - set(native_assets.NATIVE_POLICY_PATHS),
                   before_comma - set(native_assets.NATIVE_POLICY_PATHS),

@@ -1,9 +1,73 @@
 """Fixed guest observation programs; no caller-supplied code or arguments."""
 
+import datetime
+import json
+import re
+from zoneinfo import ZoneInfo
+
+from private_artifacts import require
+
 # A boot identity is continuity evidence, not a supplied scenario label. Only
 # its digest reaches the controller; raw machine identifiers remain in guest.
 from vm_transport import BOOT_SHA256_PROBE as BOOT
 from terminal_observations import SERIAL, VT6
+
+# date takes one timestamp for the entire projection. The second program uses
+# Python's clock/localtime instead, so accepting date output is not its oracle.
+_CLOCK_PROPERTY = '''import hashlib,json,os,pathlib,subprocess,time
+boot=hashlib.sha256(pathlib.Path('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest()
+environment={'LC_ALL':'C','PATH':'/usr/bin:/bin'}
+os.environ.pop('TZ',None)
+time.tzset()
+zone=subprocess.run(['/usr/bin/timedatectl','show','--property=Timezone','--value'],
+    env=environment,check=True,capture_output=True,text=True,timeout=5).stdout
+assert zone.endswith('\\n') and zone.count('\\n')==1
+zone=zone[:-1]
+'''
+LOCAL_CALENDAR = _CLOCK_PROPERTY + '''projection=subprocess.run(
+    ['/usr/bin/date','+%s.%N\\t%Y-%m-%dT%H:%M:%S\\t%::z'],
+    env=environment,check=True,capture_output=True,text=True,timeout=5).stdout
+assert projection.endswith('\\n') and projection.count('\\n')==1
+print(json.dumps({'projection':projection[:-1],'timezone':zone,'boot_sha256':boot},sort_keys=True))
+'''
+LOCAL_CALENDAR_READBACK = _CLOCK_PROPERTY + '''seconds,nanos=divmod(time.time_ns(),1000000000)
+local=time.localtime(seconds)
+offset=local.tm_gmtoff
+hours,remainder=divmod(abs(offset),3600)
+minutes,seconds_offset=divmod(remainder,60)
+numeric=('+' if offset>=0 else '-')+f'{hours:02d}:{minutes:02d}:{seconds_offset:02d}'
+projection=f'{seconds}.{nanos:09d}\\t'+time.strftime('%Y-%m-%dT%H:%M:%S',local)+'\\t'+numeric
+print(json.dumps({'projection':projection,'timezone':zone,'boot_sha256':boot},sort_keys=True))
+'''
+
+
+def parse_local_calendar(raw):
+    """Accept only complete, internally consistent system-clock observations."""
+    require(type(raw) is bytes and 0 < len(raw) <= 1024, 'calendar:invalid-output')
+    value = json.loads(raw)
+    require(type(value) is dict and set(value) == {'projection', 'timezone', 'boot_sha256'}
+            and all(type(item) is str for item in value.values())
+            and raw == (json.dumps(value, sort_keys=True) + '\n').encode(),
+            'calendar:invalid-output')
+    require(re.fullmatch(r'[0-9a-f]{64}', value['boot_sha256']) is not None
+            and 0 < len(value['timezone']) <= 128
+            and re.fullmatch(r'[A-Za-z0-9_+\-]+(?:/[A-Za-z0-9_+\-]+)*', value['timezone']) is not None,
+            'calendar:invalid-output')
+    match = re.fullmatch(r'([0-9]{1,12})\.([0-9]{9})\t'
+                        r'([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})\t'
+                        r'([+\-])([0-9]{2}):([0-9]{2}):([0-9]{2})', value['projection'])
+    require(match is not None, 'calendar:invalid-output')
+    seconds, nanos, local, sign, hours, minutes, offset_seconds = match.groups()
+    require(int(hours) < 24 and int(minutes) < 60 and int(offset_seconds) < 60,
+            'calendar:invalid-output')
+    offset = (1 if sign == '+' else -1) * (
+        int(hours) * 3600 + int(minutes) * 60 + int(offset_seconds))
+    actual = datetime.datetime.fromtimestamp(int(seconds), ZoneInfo(value['timezone']))
+    require(actual.strftime('%Y-%m-%dT%H:%M:%S') == local
+            and actual.utcoffset().total_seconds() == offset, 'calendar:inconsistent-output')
+    return {'epoch_ns': int(seconds) * 1000000000 + int(nanos),
+            'local_time': local, 'utc_offset_seconds': offset,
+            'timezone': value['timezone'], 'boot_sha256': value['boot_sha256']}
 
 # Fixed read-only probe. Only a count and digest leave the guest; no paths,
 # account data, source contents, or guest-supplied expected identities.

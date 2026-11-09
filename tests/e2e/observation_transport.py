@@ -8,6 +8,7 @@ stdin, timeout override, reboot, or copy operation is exposed to scenarios.
 import json
 import re
 import sys
+import time
 
 import guest_observations
 import installation_observations
@@ -31,6 +32,63 @@ class ReadOnlyObservations:
     def _guard(self):
         require(self._transport.config == self._config, 'observation:transport-replaced')
         self._transport.guard(self._config)
+
+    def local_calendar(self, *, boundary_epoch_ns=None):
+        """Read TIME05 and independent readback within one 180-second deadline.
+
+        UTC nanoseconds order a repeated local hour. The monotonic bracket is
+        controller time, never a claim that guest and controller share an epoch.
+        Retry only a read pair crossing midnight, an offset change or the
+        caller's declared UTC boundary; malformed/stale reads fail permanently.
+        """
+        require(not self._failed, 'observation:previous-failure')
+        try:
+            require(boundary_epoch_ns is None or
+                    (type(boundary_epoch_ns) is int and boundary_epoch_ns > 0),
+                    'calendar:invalid-boundary')
+            deadline = time.monotonic_ns() + 180_000_000_000
+            while True:
+                observations = []
+                for program in (guest_observations.LOCAL_CALENDAR,
+                                guest_observations.LOCAL_CALENDAR_READBACK):
+                    self._guard()
+                    before = time.monotonic_ns()
+                    require(before < deadline, 'calendar:deadline')
+                    raw = self._transport.call(['/usr/bin/python3', '-c', program],
+                                               timeout=(deadline - before) / 1_000_000_000)
+                    self._guard()
+                    after = time.monotonic_ns()
+                    require(after <= deadline, 'calendar:deadline')
+                    observations.append((guest_observations.parse_local_calendar(raw), before, after))
+                (first, start, first_end), (second, second_start, end) = observations
+                require(first['boot_sha256'] == second['boot_sha256']
+                        and (self._boot is None or first['boot_sha256'] == self._boot),
+                        'calendar:boot-changed')
+                elapsed = second['epoch_ns'] - first['epoch_ns']
+                # Ten milliseconds of rate/precision tolerance, without a
+                # deliberate wait or assuming equal network latency.
+                require(elapsed > 0 and second_start - first_end - 10_000_000 <= elapsed
+                        <= end - start + 10_000_000, 'calendar:stale-output')
+                crossed = (first['local_time'][:10] != second['local_time'][:10]
+                           or first['utc_offset_seconds'] != second['utc_offset_seconds']
+                           or first['timezone'] != second['timezone']
+                           or (boundary_epoch_ns is not None
+                               and first['epoch_ns'] < boundary_epoch_ns <= second['epoch_ns']))
+                if crossed:
+                    continue
+                self._boot = second['boot_sha256']
+                result = {**first, 'readback': second, 'monotonic_start_ns': start,
+                          'monotonic_end_ns': end, 'precision_ns': 1_000_000_000}
+                print('e2e:local-calendar-verified', file=sys.stderr, flush=True)
+                return result
+        except BaseException as error:
+            self._failed = True
+            print('e2e:local-calendar-rejected', file=sys.stderr, flush=True)
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                raise KeyboardInterrupt('observation:interrupted') from None
+            if isinstance(error, EvidenceError) and str(error).startswith(('calendar:', 'observation:')):
+                raise
+            raise EvidenceError('calendar:probe-failed') from None
 
     def wait_boot_change(self, previous_boot_sha256, *, on_diagnostic=None):
         """Corroborate a separately recorded customer action with fresh reads.

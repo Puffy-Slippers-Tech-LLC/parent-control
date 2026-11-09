@@ -96,6 +96,7 @@ sub exchange {
     close($request) or die 'smoke:request-close';
     rename("$stage.request.tmp", "$stage.request.json") or die 'smoke:request-publish';
     my $deadline = time + ($stage =~ /\Apublic-/ ? 120 : $stage eq 'setup-detached' ? 1500
+        : $stage eq 'ready' ? 600
         # Natural expiry can consume the complete real ten-minute grant, plus
         # observation/transport time. Its controller keeps the product deadline.
         : $stage eq 'minute-progression' || $stage eq 'natural-expiry' || $stage eq 'peer-expiry'
@@ -136,6 +137,14 @@ sub capture {
 
 sub run {
     my $ready = exchange('ready', undef);
+    if ($ready->{local_calendar}) {
+        console('sut')->disable();
+        record_info('clock', 'Read-only local clock and independent readback verified');
+        power('off');
+        die 'smoke:shutdown-unverified' unless check_shutdown(0);
+        record_info('shutdown', 'Owned VM shutdown verified');
+        return;
+    }
     if ($ready->{vt6_input_probe}) {
         onpc_password::seal_capture();
         onpc_vt6::select_boot_console();

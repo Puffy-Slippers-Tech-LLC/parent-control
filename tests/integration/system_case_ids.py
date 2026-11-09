@@ -651,6 +651,8 @@ CASES = (
                  'Protect child work after a temporary lock interruption and cancel retries on renewal'),
     CaseIdentity(313, 'session', 'test_persistent_lock_outage',
                  'Characterize child input while locking stays unavailable and restore locking'),
+    CaseIdentity(314, 'package', 'test_enforcement_startup_failure_recovery',
+                 'Withhold sign-in when enforcement startup fails and recover sign-in'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

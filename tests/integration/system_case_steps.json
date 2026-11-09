@@ -2614,6 +2614,17 @@
     ],
     "expected": "Characterization only: actual input remains usable during the outage, so protection is unsupported. The original desktop and work survive; normal locking, parent input and owned cleanup are restored. Successful restoration grants no earlier protection or customer-case credit."
   },
+  "314": {
+    "summary": "Keep child sign-in closed until app protections are ready",
+    "steps": [
+      "Start from the installed Ubuntu snapshot with no personal graphical session and preserve both children's and the parent's saved state.",
+      "Stop sign-in and enforcement, inject one owned readiness-command failure, and request sign-in through its normal service dependency.",
+      "Observe the real readiness failure before recovery, with no new display-manager process or graphical greeter and unchanged accounts.",
+      "Remove the owned fault, explicitly stop and reset the failed services, and start sign-in again.",
+      "Require an active local greeter, the real canary completing before display-manager startup on the same boot, unchanged accounts and owned cleanup."
+    ],
+    "expected": "A failed enforcement readiness command withholds sign-in. Explicit recovery restores the unchanged helper and a local greeter only after the real canary succeeds; account state and the boot remain unchanged. No automatic-restart or customer-journey acceptance is claimed."
+  },
   "299": {
     "summary": "Restore the extension from Parent controls",
     "steps": [

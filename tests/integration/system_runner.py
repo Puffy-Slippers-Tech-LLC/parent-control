@@ -54,6 +54,8 @@ PREVIOUS_POLICY_PHASES = ('previous-policy', 'installed', 'rebooted')
 TRUSTED_FIXTURES_CASE = 'test_trusted_native_upgrade_fixtures'
 TRUSTED_FIXTURES_PHASE = 'trusted-fixtures'
 NATIVE_UPDATE_CASE = 'test_native_dependency_update_retained_session'
+ENFORCEMENT_STARTUP_CASE = 'test_enforcement_startup_failure_recovery'
+ENFORCEMENT_STARTUP_PHASE = 'enforcement-startup'
 
 
 @dataclass(frozen=True)
@@ -113,7 +115,8 @@ PHASE_SEMANTICS = {phase: semantic for history in REMOVAL_HISTORIES[1:]
 PHASE_ORDER = (TRUSTED_FIXTURES_PHASE, 'previous-policy', 'installed', 'rebooted', *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *REMOVAL_PHASES,
                *(phase for history in REMOVAL_HISTORIES[1:]
                  for phase in (*history.prerequisites, *history.phases)),
-               'authorization', 'enforcement', 'session', 'extension', 'extension-login', 'startup')
+               'authorization', 'enforcement', 'session', 'extension', 'extension-login', 'startup',
+               ENFORCEMENT_STARTUP_PHASE)
 AREA_SOURCES = {
     'package': ROOT / 'tests/system/test_install_smoke.py',
     'removal': ROOT / 'tests/system/test_removal.py',
@@ -192,8 +195,10 @@ PHASE_DEPENDENCIES = {
     'extension': (),
     'extension-login': (),
     'startup': (),
+    ENFORCEMENT_STARTUP_PHASE: (),
 }
 PHASE_PREREQUISITES = {
+    ENFORCEMENT_STARTUP_PHASE: ('retained-app-snapshot', 'owned-enforcement-readiness-fault'),
     TRUSTED_FIXTURES_PHASE: ('genuine-earlier-package', 'previous-install-and-reboot',
                             'trusted-native-baseline-fixtures', 'fixture-passwords'),
     'previous-policy': ('genuine-earlier-package', 'previous-install-and-reboot',
@@ -443,6 +448,7 @@ def case_phases(area, case_id):
     if area in ('authorization', 'enforcement', 'session', 'extension', 'startup'):
         return (area,)
     package = {
+        ENFORCEMENT_STARTUP_CASE: (ENFORCEMENT_STARTUP_PHASE,),
         TRUSTED_FIXTURES_CASE: (TRUSTED_FIXTURES_PHASE,),
         PREVIOUS_POLICY_CASE: PREVIOUS_POLICY_PHASES,
         **{history.case_id: history.phases for history in PAM_HISTORIES},
@@ -489,10 +495,16 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
     incompatible_histories = {history.case_id for history in REMOVAL_HISTORIES
                              if target_package_format is not None and history.package_format
                              and history.package_format != target_package_format}
+    if target_package_format == 'rpm':
+        # This binding qualifies Ubuntu's ExecStartPost gate; Fedora's
+        # independent oneshot remains outside its installed acceptance scope.
+        incompatible_histories.add(ENFORCEMENT_STARTUP_CASE)
     require(test not in incompatible_histories, 'selection:history-package-format-mismatch')
     require(not any(identity.case_id in incompatible_histories for identity in identities),
             'selection:history-package-format-mismatch')
     inventories['removal'] = tuple(case for case in inventories['removal']
+                                  if case not in incompatible_histories)
+    inventories['package'] = tuple(case for case in inventories['package']
                                   if case not in incompatible_histories)
 
     family = REMOVAL_FAMILIES.get(test) if area == 'removal' else (
@@ -538,6 +550,8 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
             for history in REMOVAL_HISTORIES[1:]), 'selection:recovery-requires-current-package')
     require(not fresh_install or FIRST_CONFIGURE_CASE not in chosen.get('package', ()),
             'selection:first-configure-requires-current-package')
+    require(not fresh_install or ENFORCEMENT_STARTUP_CASE not in chosen.get('package', ()),
+            'selection:enforcement-startup-requires-current-package')
     require(not fresh_install or not any(history.case_id in chosen.get('package', ())
                                         for history in PAM_HISTORIES),
             'selection:pam-variants-require-current-package')
@@ -664,6 +678,9 @@ def announce_selection(selection):
 
 def verify_history_target(selection, capture):
     """Check restricted histories against accepted guest provenance, not VM names."""
+    if any(item.case_id == ENFORCEMENT_STARTUP_CASE for item in selection.executions):
+        require(package_format(capture.state['guest']) == 'deb',
+                'selection:history-package-format-mismatch')
     for history in REMOVAL_HISTORIES:
         if history.package_format and any(item.case_id == history.case_id
                                           for item in selection.executions):
@@ -1790,6 +1807,9 @@ def stage_selected_inputs(selection, destination):
     if any(item.area == 'package' and item.case_id == KIOSK_ACTIVATION_CASE and not item.prerequisite
            for item in selection.executions):
         identity['host_files'] = kiosk_activation_host_inputs()
+    if ENFORCEMENT_STARTUP_PHASE in selection.phases:
+        identity.setdefault('host_files', {}).update({path: baseline.digest(ROOT / path) for path in (
+            'tests/e2e/startup_observations.py', 'tests/e2e/private_artifacts.py')})
     if 'extension-login' in selection.phases or any(
             item.case_id in GRAPHICAL_EXPIRY_CASES for item in selection.executions) or any(
             item.case_id == 'test_child_extension_monitor_native_recovery'
@@ -2220,7 +2240,8 @@ def run_pytest(vm, run, phase, selection):
     # each finite invocation together; its guest threads share the admission.
     package_history = any(item.area == 'removal' or item.case_id == FIRST_CONFIGURE_CASE
                           or item.case_id.startswith(PAM_CASE + '[') for item in executions)
-    timeout = {'session': 1800, 'extension': 1200, 'startup': 1200}.get(phase, 900)
+    timeout = {'session': 1800, 'extension': 1200, 'startup': 1200,
+               ENFORCEMENT_STARTUP_PHASE: 1500}.get(phase, 900)
     if (phase in (*FIRST_CONFIGURE_PHASES, *PAM_PHASES, 'previous-policy', TRUSTED_FIXTURES_PHASE)
             or any(phase in history.phases for history in REMOVAL_HISTORIES)):
         timeout = 2400
@@ -2548,7 +2569,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                                          if phase.endswith('-rebooted'))
         for phase in (TRUSTED_FIXTURES_PHASE, *FIRST_CONFIGURE_PHASES, *PAM_PHASES,
                       *recovery_phases, 'authorization', 'enforcement', 'session', 'extension', 'extension-login',
-                      'startup'):
+                      'startup', ENFORCEMENT_STARTUP_PHASE):
             if phase not in selection.phases:
                 continue
             if phase in (*rebooted_recovery_phases, FIRST_CONFIGURE_PHASES[1],
@@ -2658,6 +2679,18 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     if already_installed:
                         require_fixture_ready()
                     run_pytest(vm, run, phase, selection)
+                    if phase == ENFORCEMENT_STARTUP_PHASE:
+                        sys.path.insert(0, str(ROOT / 'tests/e2e'))
+                        from startup_observations import ENFORCEMENT, parse_enforcement
+                        observed = parse_enforcement(vm.call(
+                            ['/usr/bin/python3', '-c', ENFORCEMENT], timeout=45))
+                        fault = json.loads(vm.call(['cat', PAYLOAD +
+                                                   '/results/enforcement-startup.json']))
+                        require(observed['boot_sha256'] == fault['boot_sha256'] and
+                                observed['policy_started_us'] > fault['refused_us'],
+                                'enforcement-startup:recovery-not-after-fault')
+                        (directory / 'enforcement-startup.json').write_bytes(
+                            baseline.encode({**fault, 'recovery': observed}))
                 except CommandError as error:
                     domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
                               else 'infrastructure')

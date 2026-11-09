@@ -5151,6 +5151,17 @@ Obligation 148 reuses the real threaded broker conflict/rollback/retry tests
 dispatch in [`test_private_dbus_service.py`](../../tests/component/test_private_dbus_service.py),
 and system 255's installed bus/agent Busy/release and authenticated recovery.
 No separate installed qualifier is scheduled for those covered assertions.
+Obligation **140**'s enforcement-startup residual is owned by
+`system_enforcement_startup.exercise`, registered as
+`package::test_enforcement_startup_failure_recovery` (system **314**). An owned
+readiness-command exit 79 withholds sign-in before recovery. The test removes
+that exact fault, explicitly stops and resets the failed services, then starts
+the display manager. It independently requires an active local greeter and the
+real canary completing before display-manager startup on the same boot. The
+parent's and both children's saved preferences, limits, grants and app filters
+remain unchanged. Installed qualification passed on Ubuntu 26.04; collection,
+owned cleanup and baseline restoration passed. This qualifies explicit recovery,
+with no automatic daemon-recovery, Fedora gate or customer E2E acceptance claim.
 Obligation **143**'s installed usage-reader residual is owned by
 `system_session_expiry.verify_usage_reader_recovery`, registered as
 `session::test_usage_reader_failure_recovery` (system **302**). It reads through
@@ -5166,7 +5177,7 @@ and collection, owned cleanup and baseline restoration passed. The stop uses
 the shared command budget to accommodate the daemon's normal inactivity exit.
 The engineering obligation number 143 is retained; the unrelated historical
 system numeric identity 143 remains retired and is not reused.
-Obligations 140–141, 144–146 and 149–150 retain their specific missing fault/observation
+Obligations 141, 144–146 and 149–150 retain their specific missing fault/observation
 or recovery assertions in the queue briefs; their existing system/component
 matrices are reused rather than implemented again. This mapping supplies no
 new installed result. Engineering obligation 142's stricter entry-exposure

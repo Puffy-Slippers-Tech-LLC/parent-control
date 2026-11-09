@@ -43,6 +43,7 @@ Requires:       accountsservice
 Requires:       authselect
 Requires:       dbus
 Requires:       fapolicyd
+Requires:       (fapolicyd >= 2.0.2 if fedora-release-common >= 45)
 Requires:       gdm
 Requires:       gjs
 Requires:       gnome-kiosk

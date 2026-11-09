@@ -231,6 +231,58 @@ def test_reproducible_rpm_sources_use_the_same_allowlist_as_ppa(tmp_path):
     assert outputs[0] == outputs[1]
 
 
+def test_fapolicyd_minimum_follows_installing_fedora_release(tmp_path):
+    """Exercise RPM's real dependency checks without installing any package."""
+    if not all(shutil.which(tool) for tool in ('rpm', 'rpmbuild', 'rpmspec')):
+        pytest.skip('RPM dependency checks require rpm, rpmbuild and rpmspec')
+
+    def run(arguments):
+        return subprocess.run(arguments, capture_output=True, text=True,
+                              timeout=120, pass_fds=scratch_descriptors())
+
+    spec = tmp_path / 'product.spec'
+    spec.write_text((ROOT / 'rpm/oh-no-parent-control.spec.in').read_text()
+                    .replace('@VERSION@', '1.0').replace('@RELEASE@', '1'))
+    # Our maintained builder targets Fedora 44; that artifact must still enforce
+    # the minimum when installed on Fedora 45 or during a distribution upgrade.
+    parsed = run(['rpmspec', '--define', 'fedora 44', '--parse', str(spec)])
+    assert parsed.returncode == 0, parsed.stdout + parsed.stderr
+    requirements = '\n'.join(line for line in parsed.stdout.splitlines()
+                             if line.startswith('Requires:') and 'fapolicyd' in line)
+    assert requirements
+
+    def build(name, dependencies):
+        directory = tmp_path / name
+        directory.mkdir()
+        source = directory / 'fixture.spec'
+        source.write_text(f'Name: {name}\nVersion: 1\nRelease: 1\n'
+                          'Summary: Dependency fixture\nLicense: MIT\nBuildArch: noarch\n'
+                          f'{dependencies}\n%description\nDependency fixture\n%files\n')
+        result = run(['rpmbuild', '--define', f'_topdir {directory}',
+                      '--define', f'_tmppath {directory}', '-bb', str(source)])
+        assert result.returncode == 0, result.stdout + result.stderr
+        package, = directory.glob('RPMS/noarch/*.rpm')
+        return str(package)
+
+    product = build('dependency-product', requirements)
+    for index, (fedora, fapolicyd, accepted) in enumerate((
+            ('44', '2.0.1', True), ('45', '2.0.1', False),
+            ('45', '2.0.2', True), ('46', '2.1', True),
+            (None, '2.0.1', True), ('44', None, False))):
+        provides = []
+        if fedora:
+            provides.append(f'Provides: fedora-release-common = {fedora}')
+        if fapolicyd:
+            provides.append(f'Provides: fapolicyd = {fapolicyd}')
+        environment = build(f'dependency-environment-{index}', '\n'.join(provides))
+        database = tmp_path / f'database-{index}'
+        database.mkdir()
+        result = run(['rpm', '--dbpath', str(database), '--test', '-U', product, environment])
+        assert (result.returncode == 0) == accepted, result.stdout + result.stderr
+        if not accepted:
+            assert 'fapolicyd' in result.stderr
+
+
 @pytest.mark.parametrize('release', ['../bad', '1;touch bad', '1%{evil}', '1-2', '', 'dev'])
 def test_invalid_rpm_release_is_refused(release):
     with pytest.raises(ValueError, match='RPM release'):

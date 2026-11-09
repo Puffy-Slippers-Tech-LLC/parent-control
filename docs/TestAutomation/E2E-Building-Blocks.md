@@ -4249,7 +4249,7 @@ Host launcher/access-guard and source checks, both live entry branches,
 recording, collection, owned shutdown and baseline restoration passed; the VM
 was independently observed off. This qualifies only the stated APP01/02/03/04
 and FLOW08 game slice. The following qualification adds windowed mode and natural
-expiry; fullscreen and complete customer scenarios remain pending.
+expiry; complete windowed recovery is qualified below. Fullscreen remains pending.
 
 ### Windowed game expiry
 
@@ -4278,8 +4278,17 @@ this result.
 Affected host safety/launcher checks, source validation, recording, collection,
 worker/callback shutdown and baseline restoration passed; the VM was observed off.
 This qualifies APP05/FLOW10 and TIME04 only for Jordan's windowed level-1 game
-binding on Ubuntu 26.04. Fullscreen, post-expiry recovery and complete E2E-023
-remain separate acceptance.
+binding on Ubuntu 26.04. Fullscreen remains pending.
+
+`game_access_case.PLAN` / `GameAccessJourney` and `onpc_app_rows::game_access`
+passed complete case 126 (`E2E-023/windowed`) on Ubuntu 26.04. The caller reuses
+`GameExpiryJourney` with its declared activity endpoint, the existing Jordan
+App Limits operations and retained kiosk return. After natural lock and the
+native time restriction, APP04 compares the returned original game with its
+immutable pre-expiry capture. `game-resume` uses the same guarded `FixtureUI.move`
+operation; `game-resumed` independently reads `Moves: 2; token: 2`. This qualifies
+the retained game comparison and continued use within the complete case, without
+a separate FLOW11 qualification. It does not qualify fullscreen play.
 
 ### Native fixture preparation
 

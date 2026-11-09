@@ -1136,6 +1136,12 @@ sub run {
         onpc_app_rows::flatpak_command_usable(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{game_access}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::game_access(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, $ready->{kiosk_request});
+        return;
+    }
     if ($ready->{game_expiry}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

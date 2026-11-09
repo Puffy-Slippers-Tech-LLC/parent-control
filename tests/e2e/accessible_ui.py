@@ -198,7 +198,8 @@ NATIVE_APP_OPERATIONS |= frozenset('native-alias-' + suffix for suffix in (
 OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 GAME_OPERATIONS = frozenset('game-' + action for action in (
-    'command', 'opened', 'move', 'moved', 'activity', 'close', 'closed', 'wrong-window', 'windowed-level'))
+    'command', 'opened', 'move', 'moved', 'resume', 'resumed', 'activity', 'close', 'closed',
+    'wrong-window', 'windowed-level'))
 OPERATIONS |= GAME_OPERATIONS
 STANDARD_OPERATIONS |= GAME_OPERATIONS
 NATIVE_DESKTOP_OPERATIONS = frozenset((
@@ -1705,6 +1706,8 @@ LOCK_SURFACE_OPERATIONS |= CHILD_LOCK_OPERATIONS
 LOCK_SURFACE_OPERATIONS |= frozenset(('child-lock-time-denied', 'child-lock-time-denial-ready'))
 CHILD_LOCK_OPERATIONS |= frozenset(('child-lock-time-denied', 'child-lock-time-denial-ready'))
 CHILD_DESKTOP_OPERATIONS |= CHILD_LOCK_OPERATIONS
+NAMED_CHILD_OPERATIONS |= frozenset(('child-lock-curtain', 'child-lock-reveal-ready',
+                                    'child-lock-time-denied', 'child-lock-time-denial-ready'))
 OPERATIONS |= LOCK_SURFACE_OPERATIONS
 
 
@@ -9075,12 +9078,13 @@ class AccessibleUI:
         require(self.require_lock_session(uid) == session, 'ui:lock-session-changed')
         return owner, window, field, observation
 
-    def lock_surface(self, operation):
+    def lock_surface(self, operation, *, child=CHILD):
         require(operation in LOCK_SURFACE_OPERATIONS, 'ui:lock-operation')
+        require(child in (CHILD, EXISTING_CHILD), 'ui:lock-child-binding')
         # Refusal projections, protected-field proofs and the final independent
         # read can also encounter retired AT-SPI objects. Reacquire the entire
         # read-only operation within one deadline, never just its initial tree.
-        return self.wait(lambda: self._lock_surface(operation), 'lock-surface',
+        return self.wait(lambda: self._lock_surface(operation, child=child), 'lock-surface',
                          prompt_in_predicate=True)
 
     def _lock_surface(self, operation, *, child=CHILD):
@@ -13825,7 +13829,7 @@ class AccessibleUI:
         """APP02/03: public owned window and finite independent activity projection."""
         require(submitted in ('No submitted draft', 'ONPC fixture draft'), 'ui:native-projection')
         require(kind in ('native', 'snap', 'flatpak', 'game'), 'ui:fixture-binding')
-        require(type(moves) is int and moves in (0, 1)
+        require(type(moves) is int and moves in (0, 1, 2)
                 and (kind == 'game' or moves == 0), 'ui:fixture-progress')
         require(kind != 'game' or role == 'Game' and child == EXISTING_CHILD
                 and instance == 'primary' and not implicit_instance
@@ -14161,9 +14165,9 @@ class AccessibleUI:
             else:
                 require(False, 'ui:game-wrong-window-accepted')
             return None
-        if operation in ('game-opened', 'game-moved', 'game-activity'):
+        if operation in ('game-opened', 'game-moved', 'game-resumed', 'game-activity'):
             return self.wait(lambda: snapshot(
-                0 if operation == 'game-opened' else 1, pending=True,
+                0 if operation == 'game-opened' else 2 if operation == 'game-resumed' else 1, pending=True,
                 with_window=operation == 'game-activity'), 'game-progress')
         if operation == 'game-closed':
             self.wait(lambda: self.native_app_closed(kind='game'), 'game-closed')
@@ -14172,7 +14176,7 @@ class AccessibleUI:
         snapshot(0 if operation == 'game-move' else 1)
         from fixture_ui import FixtureUI
         fixture = FixtureUI(self, 'game', require=require)
-        if operation == 'game-move':
+        if operation in ('game-move', 'game-resume'):
             fixture.move()
         else:
             self.activate_id(fixture.target_id('close'))
@@ -14972,7 +14976,7 @@ class AccessibleUI:
                 result['request_readiness' if TRANSFER_OPERATIONS[operation][2] == 'ready'
                        else 'request'] = value
         elif operation in LOCK_SURFACE_OPERATIONS:
-            result['lock'] = self.lock_surface(operation)
+            result['lock'] = self.lock_surface(operation, child=child)
         elif operation in RESTART_OPERATIONS:
             surface, action = RESTART_OPERATIONS[operation]
             value = self.restart_operation(surface, action)

@@ -1301,6 +1301,49 @@ sub game_usable_app {
                         defined($mode) ? ($mode) : ());
 }
 
+sub game_access {
+    onpc_progress::operation('Recovering the child’s original game after approved time runs out');
+    my ($exchange, $declared, $challenges, $request) = @_;
+    die 'game-access:binding' unless @_ == 4 && ref($request) eq 'ARRAY'
+        && join(',', @$request) eq 'other-child,parent,600,1';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'game-access', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    $journey->{kiosk_request} = $request;
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('parent-selected',
+        onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'existing'));
+    $journey->seen($_) for qw(profile-before allowance-configured saved-settings apps-page game-policy parent-logout);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'time-denied', 'denied');
+    onpc_gdm::return_from_time_denial($journey->scope('initial'),
+        'denied-return-ready', 'denied-return-state', 'denied-returned');
+    my $approval = $journey->scope('request');
+    $approval->{kiosk_request} = $request;
+    onpc_request_flow::prepare($approval, 'new', 'new', 'observed',
+        'existing-fixture-child', 'fixture-parent', 600, 1, 'kiosk');
+    onpc_request_flow::approve($approval, 'existing-fixture-child', 'fixture-parent', 600, 1, 'automatic');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan-entry');
+    $journey->invoke('initial-countdown');
+    my $play = $journey->scope('play');
+    game_usable_app($play, 'windowed');
+    native_read_activity($play, 'capture');
+    $journey->invoke('natural-expiry');
+    onpc_desktop_session::verify_locked_input($journey, 'lock-input-ready', 'lock-result');
+    $journey->consume_observation('time-denied',
+        onpc_desktop_session::reveal_lock($journey, 'time-denied'));
+    $journey->seen($_) for qw(return-greeter denied-returned);
+    my $recovery = $journey->scope('recovery');
+    $recovery->{kiosk_request} = ['other-child', 'parent', 1200, 1];
+    onpc_request_flow::prepare($recovery, 'new', 'new', 'observed',
+        'existing-fixture-child', 'fixture-parent', 1200, 1, 'kiosk');
+    onpc_request_flow::approve($recovery, 'existing-fixture-child', 'fixture-parent', 1200, 1, 'automatic');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained', 'success', 'recovery-retained');
+    $recovery->seen('countdown');
+    native_read_activity($journey, 'returned-game');
+    $journey->seen($_) for qw(resume resumed);
+    $journey->finish();
+}
+
 sub game_expiry {
     onpc_progress::operation('Playing the windowed game until the child’s allowance expires');
     my ($exchange, $declared, $challenges, $request) = @_;

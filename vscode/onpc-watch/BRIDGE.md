@@ -125,7 +125,10 @@ A run section has `id`, `label`, `active`, `status`, `run` (run identity or null
 `session_deadline` (Unix seconds or null), `session_question`, and `session_view`.
 `label`, `status` and `launcher_output` are strings. `active`, `session_active`,
 `session_inactive` and `session_waiting` are booleans. `session_number` is a
-positive integer or null; `session_question` is a question ID or null.
+nonnegative integer or null; zero means the allowance is published before its
+first session. Optional `session_allowance` is the computed positive integer
+limit or null. The shared webview formatter uses the count and limit for both
+**Session x/y** labels. `session_question` is a question ID or null.
 `session_inactive` marks a session with no live agent or pending question, even
 when `session_number` retains its last attempt number during verification.
 `session` identifies the exact input recipient, not just its run; it changes when
@@ -211,11 +214,14 @@ current stop, cancel-stop or resume button's hover tooltip.
 Optional `launcher_reload_command` contains the resolved reload command for its
 adjacent icon button and advertises support for the reload action. Older adapters
 omit it, leaving Reload disabled.
+Optional `launcher_add_session_command` contains the resolved command with
+`--add-session 5` and advertises the **Add 5 Sessions** action. It is published
+only for an active adjustable allowance. Older adapters omit it.
 Optional `launcher_kill: true` advertises immediate cooperative cancellation of
 an active run. Older adapters omit it, leaving Kill disabled.
 An explicit click requests
 `{"protocol":1,"launcher_action":{"root":"run-section-id","run":"run-identity","kind":"stop"}}`
-(or `kind: "resume"`, `"cancel-stop"`, `"reload"` or `"kill"`). The adapter checks the displayed run against its current,
+(or `kind: "resume"`, `"cancel-stop"`, `"reload"`, `"add-session"` or `"kill"`). The adapter checks the displayed run against its current,
 owner-checked publication and returns `launcher_result` with `ok: false, error`
 or `ok: true, root, run, launcher, argv`. Paths and argv stay within the extension
 host; the webview receives display IDs and command text only. The adapter uses
@@ -228,6 +234,12 @@ run after confirmation, and opens a terminal on the originating local/SSH
 host and rechecks the run identity before invoking the public launcher in its
 original checkout. Errors stay in that terminal. Requests are never retried;
 polling, reconnecting and closing Watch do not issue launcher commands.
+For Add 5 Sessions, the command response also includes `allowance_key`. The
+extension pins that key across confirmation and public launcher admission so a
+task/case change cannot receive a grant intended for its predecessor. The public
+command changes the shared allowance under its gate, and later snapshots publish
+the increased limit. It replaces earlier lifecycle and add-session options
+rather than replaying prior increments.
 For Kill, the adapter additionally requires a live owner and returns empty
 `argv`. The confirmation describes immediate cancellation and normal cleanup.
 After confirmation, the extension revalidates the source publication, then

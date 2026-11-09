@@ -150,7 +150,7 @@ def session_command(root, spec, run=None, *, selection=None, logical_tier=None):
         shell_environment=shell_environment, selection=selection, logical_tier=logical_tier)
 
 
-def session_prompt(plan, spec, state, *, selection=None):
+def session_prompt(plan, spec, state, *, selection=None, repair_limit=MAX_REPAIR_SESSIONS):
     worker = resolve_profile('worker', selection=selection)
     monitor = resolve_profile('monitor', selection=selection)
     return f"""Implement only task {state['task_id']}: {state['task']['title']}.
@@ -164,7 +164,7 @@ to their containing document; do not infer filenames from titles or launcher nam
 Your coordinator model for this session is {spec.model} {spec.effort}.
 This is a {state.get('session_kind', 'task')} session. Task implementation has used
 {task_session_usage(state)}/{state['session_limit']} sessions; coordinator repairs
-have used {state.get('repair_sessions', 0)}/{MAX_REPAIR_SESSIONS}. Driver repairs
+have used {state.get('repair_sessions', 0)}/{repair_limit}. Driver repairs
 use only the separate repair allowance and preserve this same task's acceptance.
 Capacity fallback applies only to this session and preserves reasoning effort;
 the next session uses the workflow's configured model again. There is no
@@ -779,11 +779,20 @@ def reload_controller(root, run, owner, spec):
 
 def worker(root, run, owner, spec, state, *, reloading=False):
     from launcher_chat import task_info_instructions
+    from launcher_runtime import SessionAllowance
+    allowance = SessionAllowance(run)
+
+    def session_allowance():
+        repair = coordinator_repair(state)
+        return allowance.publish(state['task_id'] + (':repair' if repair else ':task'),
+            state.get('repair_sessions', 0) if repair else task_session_usage(state),
+            MAX_REPAIR_SESSIONS if repair else state['session_limit'])
 
     def heading():
         return task_heading(state['task_id'], state['title'], Path(state['brief']))
 
     def completed_task():
+        allowance.clear()
         budget.complete()
         started = state.get('started_at')
         duration = time.time() - started if started is not None else None
@@ -886,6 +895,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                     selected['consolidation_obligations'] = state['consolidation_obligations']
                 selected['selected_tasks'] = state['selected_tasks']
                 state = selected
+            session_allowance()
             if state['phase'] == 'blocked':
                 launcher.atomic(run / 'chat-state.json', {'session': state.get('total_sessions'),
                     'task_id': state['task_id'], 'task_session': state['task_sessions'], 'status': 'blocked'})
@@ -897,7 +907,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                     break
                 state['answer'] = answer
                 state['phase'] = 'recover'
-                state['session_limit'] = max(state['session_limit'], task_session_usage(state) + 1)
+                limit = allowance.limit(state['task_id'] + ':task', state['session_limit'])
+                state['session_limit'] += max(0, task_session_usage(state) + 1 - limit)
                 # Waiting can outlive a repair; retain the answer for the fresh
                 # controller instead of starting a turn under the old imports.
                 if reload_request.pending():
@@ -911,12 +922,12 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 break
             if not retrying_capacity:
                 state['session_kind'] = 'repair' if coordinator_repair(state) else 'task'
-                used = task_session_usage(state)
+                session_allowance()
                 if state['session_kind'] == 'repair':
-                    if state.get('repair_sessions', 0) >= MAX_REPAIR_SESSIONS:
+                    if allowance.exhausted(close=True):
                         status, reason = 1, 'coordinator repair session limit reached; retain the task and repair handoff'
                         break
-                elif used >= state['session_limit']:
+                elif allowance.exhausted(close=True):
                     status, reason = 1, 'task session limit reached; resume with a fresh run'
                     break
             if state.get('git_reconciliation'):
@@ -953,10 +964,13 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             with (run / 'agent-commands.log').open('ab'):
                 pass
             state['in_flight'] = True
+            session_allowance()
             remaining = sum(not done for done in state['queue_before'].values())
             budget.update(lambda value: value.update(remaining=remaining + value['completed']))
             launcher.atomic(run / 'checkpoint.json', state)
-            (run / 'prompt.txt').write_text(session_prompt(plan, active_spec, state, selection=selection)
+            prompt_state = dict(state, session_limit=allowance.limit(state['task_id'] + ':task', state['session_limit']))
+            (run / 'prompt.txt').write_text(session_prompt(plan, active_spec, prompt_state, selection=selection,
+                repair_limit=allowance.limit(state['task_id'] + ':repair', MAX_REPAIR_SESSIONS))
                                            + task_info_instructions(run, state['task_id']))
             launcher.atomic(run / 'nested.json', [])
             (run / 'nested-closed').unlink(missing_ok=True)
@@ -1097,8 +1111,8 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
     parser.add_argument('--resume', action='store_true',
                         help='resume the saved execution plan (the default behavior)')
     args = parser.parse_args(argv)
-    if (args.reload or args.cancel_stop) and (args.check or args.reconcile):
-        parser.error('--reload and --cancel-stop cannot be combined with --check or --reconcile')
+    if (args.reload or args.cancel_stop or args.add_session is not None) and (args.check or args.reconcile):
+        parser.error('launcher control options cannot be combined with --check or --reconcile')
     run = None
     interrupted = False
 
@@ -1206,6 +1220,7 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                                        on_attach=attach, on_start=start,
                                        namespace=plan_namespace(path), resumable_start=True,
                                        launcher_name=spec.name,
+                                       add_session=args.add_session,
                                        **({'reload': True} if args.reload else {}))
         if run is None:
             print(f'{spec.name}: no active launcher.')

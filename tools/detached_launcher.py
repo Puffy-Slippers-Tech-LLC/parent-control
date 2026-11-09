@@ -694,7 +694,8 @@ def _audit_start(store, directory, pending):
 
 def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='cancel',
            on_attach=None, on_start=None, namespace=None, resumable_start=False,
-           reload=False, existing_only=False, launcher_name=None, public_argv=None, stop_argv=None):
+           reload=False, existing_only=False, launcher_name=None, public_argv=None, stop_argv=None,
+           add_session=None):
     """Attach before evaluating new options; only the lock grants ownership."""
     from test_storage import directory as storage_directory
     directory = storage_directory(name, root=root)
@@ -722,8 +723,16 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
             if not stop and name in ('fix-tests', 'write-e2e', 'plans'):
                 from vm_pool import check_attachment
                 check_attachment(record)
+            if add_session is not None:
+                expected = os.environ.get('ONPC_ADD_SESSION_RUN')
+                if expected is not None and expected != str(run):
+                    raise ValueError('Launcher changed; refresh before trying again.')
             if on_attach is not None:
                 on_attach(run)
+            if add_session is not None:
+                from launcher_runtime import SessionAllowance
+                limit = SessionAllowance(run).add(add_session)
+                print(f'{name}: session allowance is now {limit}.', flush=True)
             if not stop:
                 atomic(directory / 'current.json', dict(record, launcher=launcher_name or name))
             if stop:
@@ -735,6 +744,8 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
                 request(run)
                 print(f'{name}: reload requested; continuing the same run.', flush=True)
             return run, False
+        if add_session is not None:
+            raise ValueError('--add-session requires a running launcher')
         if stop or cancel_stop or existing_only:
             return None, False
         pending_path = directory / 'pending-start.json'

@@ -21,7 +21,7 @@ from launcher_progress import (format_duration, plan_progress as task_progress,
 from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
 from launcher_question import (BLOCKER_INSTRUCTIONS, allowance_blocker, validate_blocker,
                                wait_for_answer as wait_for_developer, wait_for_intervention)
-from launcher_runtime import (SessionResultRejected, TaskBudget, add_options, read_session_result,
+from launcher_runtime import (SessionAllowance, SessionResultRejected, TaskBudget, add_options, read_session_result,
                               retain_result_rejection, result_recovery_instructions, task_limit,
                               validate_session_result, warn_remaining)
 from launcher_git import (closeout_lock, commit_push_propagate,
@@ -394,7 +394,7 @@ different failures with verified progress keep {extra_high}. A reasoning stall
 at {maximum} stops the launcher early with retained evidence. Promotion persists
 across restarts and prerequisite suspension; a new task starts at {high}.
 Session counts, interruptions, external blockers and preparation alone do not
-promote. Keep all acceptance, cleanup and the five-session task cap intact.
+promote. Keep all acceptance, cleanup and the launcher-computed session allowance intact.
 """
     if effort == 'high':
         model_policy += f"""Investigate ordinary failures yourself. Delegate one bounded diagnosis
@@ -930,12 +930,12 @@ def retain_diagnostic_state(state, result):
     return state
 
 
-def recover_helper_context(state, result):
+def recover_helper_context(state, result, run=None):
     """Replace a stale agent once when the host independently accepts its helper."""
     from dev_privileges import OWNERSHIP_ERROR, check
     if (state['phase'] != 'blocked' or result['live_result'] != 'not_run'
             or state.get('optimization_session') or state.get('helper_context_retried')
-            or task_session_limit_reached(state)):
+            or task_session_limit_reached(state, run)):
         return state
     report = result['summary'] + '\n' + result['handoff']
     if '/usr/local/libexec/onpc-test-runner' not in report:
@@ -1012,7 +1012,10 @@ def stage_completion(root, state, result):
 
 def finish_completion(root, run, state, result, updated, *, selection=None):
     with closeout_lock(root, run, state):
-        return _finish_completion(root, run, state, result, updated, selection=selection)
+        completed = _finish_completion(root, run, state, result, updated, selection=selection)
+        if completed['phase'] == 'complete':
+            SessionAllowance(run).clear()
+        return completed
 
 
 def _finish_completion(root, run, state, result, updated, *, selection=None):
@@ -1144,9 +1147,13 @@ def show_completion(task, task_sessions, duration):
     sys.stdout.flush()
 
 
-def task_session_limit_reached(state):
+def task_session_limit_reached(state, run=None):
+    limit = state.get('task_session_limit', MAX_TASK_SESSIONS)
+    if run is not None and state['phase'] != 'complete':
+        key = str(state['task_id']) + (':optimization' if state.get('optimization_session') else '')
+        limit = SessionAllowance(run).publish(key, state.get('task_sessions', 0), limit)
     return (state['phase'] != 'complete'
-            and state.get('task_sessions', 0) >= state.get('task_session_limit', MAX_TASK_SESSIONS))
+            and state.get('task_sessions', 0) >= limit)
 
 
 def intervene_session_limit(root, run, state, progress_key, *, on_poll=lambda: None):
@@ -1159,12 +1166,15 @@ def intervene_session_limit(root, run, state, progress_key, *, on_poll=lambda: N
     heading = steps[-1]['lines'][0] if steps else f"Task {state['task_id']}"
     answer = wait_for_intervention(run, blocker, state['allowance_intervention'], progress_key,
         label='write-e2e', heading=heading, on_poll=on_poll,
+        allowance=SessionAllowance(run),
         on_wait=lambda: save_handoff(run, state, 'waiting for session intervention', display=False, root=root))
     if answer is None or json.loads((run / 'question.json').read_text())['choice'] == 1:
         return False
-    state['task_session_limit'] = state['task_sessions'] + MAX_TASK_SESSIONS
+    if not answer.get('allowance_added'):
+        SessionAllowance(run).add(MAX_TASK_SESSIONS)
+    task_session_limit_reached(state, run)
     state['user_answer'] = answer
-    if state['phase'] == 'blocked':
+    if state['phase'] == 'blocked' and not answer.get('allowance_added'):
         state.update(phase='recover', recovery_run=str(run))
         state.pop('blocker_id', None)
         state.pop('blocker', None)
@@ -1272,7 +1282,7 @@ def worker(root, run, owner, tasks, state_json):
                     if not state.get('optimization_session'):
                         completed += 1
                         budget.complete()
-                state = recover_helper_context(updated, result)
+                state = recover_helper_context(updated, result, run)
                 state.pop('source_changed_result', None)
                 state.pop('result_recovery', None)
                 state.pop('worktree_before', None)
@@ -1302,7 +1312,8 @@ def worker(root, run, owner, tasks, state_json):
                 reason = 'stopped at a session boundary'
                 break
             reload_request.check()
-            if (state['phase'] == 'blocked' and not task_session_limit_reached(state)
+            task_session_limit_reached(state, run)
+            if (state['phase'] == 'blocked' and not task_session_limit_reached(state, run)
                     and not state.get('allowance_intervention')):
                 if not wait_for_answer(run, state, str(count), on_poll=reload_request.check, root=root):
                     reason = 'paused at your request'
@@ -1310,11 +1321,13 @@ def worker(root, run, owner, tasks, state_json):
                 # An explicit answer authorizes a recovery session even when
                 # the automatic-work budget ended at the blocker. Waiting itself
                 # consumes no model session and never renews a budget.
-                state['task_session_limit'] = max(state.get('task_session_limit', MAX_TASK_SESSIONS),
-                                                  state['task_sessions'] + 1)
+                task_session_limit_reached(state, run)
+                limit = SessionAllowance(run).read()['limit']
+                state['task_session_limit'] = state.get('task_session_limit', MAX_TASK_SESSIONS) + max(
+                    0, state['task_sessions'] + 1 - limit)
                 launcher.atomic(run / 'checkpoint.json', state)
                 reload_request.check()
-            if state.get('allowance_intervention') or task_session_limit_reached(state):
+            if state.get('allowance_intervention') or task_session_limit_reached(state, run):
                 try:
                     continuing = intervene_session_limit(root, run, state, str(count),
                                                          on_poll=reload_request.check)
@@ -1328,6 +1341,10 @@ def worker(root, run, owner, tasks, state_json):
                         reason = 'task session allowance exhausted; stopped at developer intervention'
                     budget.close()
                     break
+                if state['phase'] == 'blocked':
+                    # A live grant only removes the allowance pause. Ask the
+                    # original product/authority question before more work.
+                    continue
             if not budget.admit(exempt=bool(state.get('optimization_session'))):
                 reason = 'task limit reached'
                 break
@@ -1361,7 +1378,7 @@ def worker(root, run, owner, tasks, state_json):
                 state = select_task_state(task, state)
                 state['commit_required'] = True
                 compact_completions()
-                if task_session_limit_reached(state):
+                if task_session_limit_reached(state, run):
                     status, reason = 1, 'task session limit reached'
                     break
             if task != state['task_id']:
@@ -1377,6 +1394,7 @@ def worker(root, run, owner, tasks, state_json):
             state['total_sessions'] = total
             state.setdefault('started_at', time.time())
             state['task_sessions'] = state.get('task_sessions', 0) + 1
+            task_session_limit_reached(state, run)
             state.setdefault('progress_keys', []).append(str(count))
             prompt = session_prompt(state, selection=selection)
             prompt += result_recovery_instructions(state.get('result_recovery'))
@@ -1432,7 +1450,7 @@ def worker(root, run, owner, tasks, state_json):
                 if not optimizing:
                     completed += 1
                     budget.complete()
-            state = recover_helper_context(updated, result)
+            state = recover_helper_context(updated, result, run)
             state.pop('worktree_before', None)
             if state['phase'] == 'complete':
                 state['completed_at'] = time.time()
@@ -1494,7 +1512,7 @@ def worker(root, run, owner, tasks, state_json):
             show_completion(task, task_sessions, duration)
         save_handoff(run, state, reason,
                      display=not (status == 0 and completed and state['phase'] == 'complete'), root=root)
-        if task_session_limit_reached(state) and state['phase'] != 'blocked':
+        if task_session_limit_reached(state, run) and state['phase'] != 'blocked':
             show_session_limit(state)
         if completions:
             from launcher_render import AgentRenderer
@@ -1816,6 +1834,7 @@ def select(root, argv):
                            stop_argv=COMMAND.split()[1:] + ['--stop'],
                            stop='--stop' in argv, stop_marker='stop',
                            cancel_stop=args.cancel_stop,
+                           add_session=args.add_session,
                            on_attach=attach, on_start=start,
                            **({'reload': True} if '--reload' in argv else {}))
 

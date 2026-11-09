@@ -214,7 +214,7 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'a repair claim. Its summary must state the hypothesis, changed paths, expected '
             'observations, evidence location and how to interpret the result. The launcher '
             'reruns only the original authorized selectors and returns the evidence in a fresh '
-            'session within the same five-session budget. Never supply commands or request '
+            'session within the current computed session budget. Never supply commands or request '
             'nested launchers or uncontrolled retries. Diagnostic edits are allowed before '
             'a proven corrective edit; uncertainty alone must not close this evidence-gathering path. '
             'Return "stalled" only when no useful authorized next step exists at this tier. '
@@ -242,7 +242,7 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'selection or invent a case. '
             'Include in summary the concrete new evidence supporting this correction or newly '
             'exposed failure. Rewording a diagnosis, editing code or rerunning a test is not '
-            'diagnostic progress. Each failing case has at most five agent sessions in this run, '
+            'diagnostic progress. Each failing case uses its launcher-reported session allowance, '
             'including classification and blocker continuations; failed verification, switching '
             'cases and later verification rounds do not renew that case budget. '
             'Do not read or resume previous agent sessions, histories, memories or repair '
@@ -769,6 +769,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
     from fix_tests_queue import RepairCoordinator, RepairGate, parent_run, repair_descriptors, RECOVERY_ONLY
     parent = parent_run(run)
     budget = TaskBudget(parent or run)
+    from launcher_runtime import SessionAllowance
+    allowance = SessionAllowance(parent or run)
     repair_gate = repair_gate or RepairGate(run, root=root)
     recovery_only = bool(os.environ.get(RECOVERY_ONLY))
     retained_failure = None
@@ -1353,7 +1355,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             raise CaseFailed(reason)
 
         def case_limit():
-            return commits.state.get('session_limits', {}).get(commits.key(failure_key), MAX_REPAIR_SESSIONS)
+            return allowance.publish(commits.key(failure_key), case_sessions.get(failure_key, 0),
+                commits.state.get('session_limits', {}).get(commits.key(failure_key), MAX_REPAIR_SESSIONS))
 
         def check_budget():
             sessions = case_sessions.get(failure_key, 0)
@@ -1400,7 +1403,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 wait = wait_for_intervention if intervention else wait_for_answer
                 answer = wait(run, result['blocker'], identity, progress_row['key'],
                     label=reattach_label(run), heading=progress_row['lines'][0], on_poll=check_controller,
-                    **({} if intervention else dict(timeout=developer_timeout())))
+                    **(dict(allowance=allowance) if intervention else dict(timeout=developer_timeout())))
             except TimeoutError:
                 reason = 'waiting for input: developer prompt timed out'
                 if intervention:
@@ -1408,14 +1411,13 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 fail_case(reason, blocker=result['blocker'])
             if answer is None:
                 raise Stopped()
-            if intervention:
+            if intervention and not answer.get('allowance_added'):
                 question = json.loads((run / 'question.json').read_text())
                 if question['choice'] == 1:
                     fail_case(result['summary'] + '; developer chose to continue with other tests',
                               blocker=result['blocker'])
-                commits.state.setdefault('session_limits', {})[commits.key(failure_key)] = (
-                    case_sessions.get(failure_key, 0) + MAX_REPAIR_SESSIONS)
-                commits.save()
+                allowance.add(MAX_REPAIR_SESSIONS)
+                case_limit()
             developer_answers.append(answer)
             atomic(run / 'developer-answers.json', developer_answers)
             blocker_summary = result['summary']
@@ -1428,6 +1430,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             check_controller(continuation=restart_continuation)
             print('Answer received. Continuing this repair.', flush=True)
 
+        case_limit()
         if repair_context is not None and repair_context.get('blocked'):
             blocked = repair_context['blocked']
             answer_blocker(blocked['result'], blocked['session'], blocked['id'],
@@ -1497,6 +1500,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 # An agent crash cannot reuse an earlier reply.
                 (run / 'agent-result.json').write_text('')
                 case_sessions[failure_key] = sessions
+                case_limit()
                 metadata = dict(repair_id=repair_id, attempt=attempt, round=round_number,
                                 repair_session=sessions, failure=target,
                                 session_id=uuid.uuid4().hex)
@@ -1606,6 +1610,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             retained_failure = None
             commits.save()
         if not commits.state['repairs']:
+            allowance.clear()
             retained_failure = None
             commits.state.pop('queued_failure', None)
             commits.save()
@@ -1906,7 +1911,7 @@ def select(root, **options):
 
 
 def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1, resume=False, tasks=None,
-           reload=False):
+           reload=False, add_session=None):
     from vm_selection import execution_binding, check_binding, save_binding
     from test_commands import repair_host_only_request
     name = execution_binding()
@@ -2090,6 +2095,7 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
         from vm_selection import execution_arguments
         public_argv.extend(execution_arguments())
     return detached_launcher.select(root, kind, command, stop=stop, public_argv=public_argv, stop_argv=stop_argv,
+        add_session=add_session,
         on_attach=attached, launcher_name='fix-tests',
         on_start=started, **({'reload': True} if reload else {}))
 
@@ -2147,9 +2153,9 @@ def main(argv=None):
     args, categories = parser.parse_known_args(argv)
     if args.reverse:
         categories.append('--reverse')
-    if args.reset and (args.resume or args.stop or args.cancel_stop or args.reload
+    if args.reset and (args.resume or args.stop or args.cancel_stop or args.reload or args.add_session is not None
                        or any(arg.startswith('--resume-') for arg in categories)):
-        parser.error('--reset conflicts with --resume, --stop and --reload')
+        parser.error('--reset conflicts with --resume, --stop, --reload and --add-session')
     root = Path(__file__).resolve().parents[1]
     if args.cancel_stop:
         # Cooperative cancellation is consumed immediately, unlike a plan's
@@ -2251,6 +2257,7 @@ def main(argv=None):
             return select(root, stop=requested, model=args.model, effort=args.effort,
                               categories=args.categories, rounds=args.rounds,
                               **({'tasks': args.tasks} if args.tasks is not None else {}),
+                              **({'add_session': args.add_session} if args.add_session is not None else {}),
                               **({'resume': True} if args.resume else {}),
                               **({'reload': True} if args.reload else {}))
         if args.reset:

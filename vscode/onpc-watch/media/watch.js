@@ -66,7 +66,8 @@
     }
 
     function tabLabel(entry, view) {
-        return view === 'session' && entry.session_number ? `Session ${entry.session_number}` :
+        return view === 'session' && Number.isInteger(entry.session_number) ?
+            `Session ${entry.session_number}${Number.isInteger(entry.session_allowance) ? `/${entry.session_allowance}` : ''}` :
             view === 'session' ? 'Session' : 'Launcher';
     }
 
@@ -116,7 +117,7 @@
         if (section.editingTitle && section.editingTitle.run === entry.run) return;
         section.editingTitle = undefined;
         const signature = JSON.stringify([entry.run, entry.custom_title, entry.server, entry.transport, entry.label, entry.status, entry.session, entry.session_active,
-            entry.session_number, entry.session_inactive, entry.launcher_controls, entry.launcher_command, entry.launcher_action_command, entry.launcher_reload_command, entry.launcher_kill, entry.active, section.view, section.collapsed, maximizedRun === entry.id]);
+            entry.session_number, entry.session_allowance, entry.session_inactive, entry.launcher_controls, entry.launcher_command, entry.launcher_action_command, entry.launcher_reload_command, entry.launcher_add_session_command, entry.launcher_kill, entry.active, section.view, section.collapsed, maximizedRun === entry.id]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
         section.heading.replaceChildren();
@@ -249,6 +250,17 @@
             menu.hidePopover();
             overflow.focus();
             vscode.postMessage({ type: 'launcherAction', root: entry.id, run: entry.run, kind: 'reload' });
+        });
+        const addSessions = element('button', 'run-copy run-launcher-action', menu);
+        addSessions.type = 'button';
+        addSessions.dataset.kind = 'add-session';
+        addSessions.textContent = 'Add 5 Sessions';
+        addSessions.title = entry.launcher_add_session_command || 'Add 5 Sessions';
+        addSessions.disabled = !entry.launcher_controls || !entry.launcher_add_session_command;
+        addSessions.addEventListener('click', () => {
+            menu.hidePopover();
+            overflow.focus();
+            vscode.postMessage({ type: 'launcherAction', root: entry.id, run: entry.run, kind: 'add-session' });
         });
         const kill = element('button', 'run-copy run-launcher-action', menu);
         kill.type = 'button';
@@ -533,7 +545,7 @@
     function latestOutput(section) {
         const entry = section.entry;
         const session = entry.session && !(entry.session_inactive ?? !entry.session_active);
-        const label = tabLabel(entry, session ? 'session' : 'launcher');
+        const label = tabLabel(entry, Number.isInteger(entry.session_number) ? 'session' : 'launcher');
         section.latestTitle.textContent = label;
         section.latestLabel.setAttribute('aria-label', `Resize ${label} output`);
         section.latest.setAttribute('aria-label', label);

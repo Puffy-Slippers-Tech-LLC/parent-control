@@ -7,6 +7,7 @@ Model sessions and test cases never consume this budget themselves.
 
 import fcntl
 import json
+import os
 
 import detached_launcher as launcher
 from agent_adapter import capacity_fallback
@@ -131,11 +132,83 @@ def add_options(parser, *, stop_help='stop at the next safe task/session boundar
                         help='maximum completed tasks; default: 0 (all remaining); '
                              'negative: all remaining; explicit value replaces an active limit')
     actions = parser.add_mutually_exclusive_group()
+    actions.add_argument('--add-session', type=positive_sessions, metavar='N',
+                         help='add N sessions to the active task/case allowance; requires a running launcher')
     actions.add_argument('--stop', action='store_true', help=stop_help)
     actions.add_argument('--cancel-stop', action='store_true',
                          help='undo a queued stop unless the launcher has already begun stopping')
     actions.add_argument('--reload', action='store_true',
                          help='reload a running launcher at safe boundaries; ignored when starting a new run')
+
+
+def positive_sessions(value):
+    import argparse
+    try:
+        count = int(value)
+    except ValueError:
+        count = 0
+    if count <= 0:
+        raise argparse.ArgumentTypeError('session increment must be a positive integer')
+    return count
+
+
+class SessionAllowance:
+    """Live grants separate from controller-owned checkpoints, under one gate."""
+    def __init__(self, run):
+        self.run = run
+
+    def read(self):
+        try:
+            return json.loads((self.run / 'session-allowance.json').read_text())
+        except FileNotFoundError:
+            return {}
+
+    def update(self, operation):
+        with launcher.lock(self.run / 'session-allowance-gate') as gate:
+            fcntl.flock(gate, fcntl.LOCK_EX)
+            value = self.read()
+            result = operation(value)
+            launcher.atomic(self.run / 'session-allowance.json', value)
+            return result
+
+    def publish(self, key, used, base):
+        def change(value):
+            added = value.setdefault('grants', {}).get(key, 0)
+            if value.get('key') != key:
+                value.pop('closed', None)
+            value.update(key=key, used=used, limit=base + added, base=base)
+            return base + added
+        return self.update(change)
+
+    def limit(self, key, base):
+        return base + self.read().get('grants', {}).get(key, 0)
+
+    def clear(self):
+        self.update(lambda value: value.update(key=None))
+
+    def exhausted(self, *, close=False):
+        def check(value):
+            exhausted = value['used'] >= value['limit']
+            if exhausted and close:
+                value['closed'] = True
+            return exhausted
+        return self.update(check)
+
+    def add(self, count):
+        if type(count) is not int or count <= 0:
+            raise ValueError('session increment must be a positive integer')
+        def change(value):
+            key = value.get('key')
+            expected = os.environ.get('ONPC_ADD_SESSION_KEY')
+            if expected is not None and expected != key:
+                raise ValueError('Session allowance changed; refresh before trying again.')
+            if key is None or value.get('closed') or any((self.run / marker).exists()
+                                  for marker in ('result.json', 'stopping', 'stop', 'cancel')):
+                raise ValueError('no active session allowance; reload an older launcher first')
+            value.setdefault('grants', {})[key] = value['grants'].get(key, 0) + count
+            value['limit'] += count
+            return value['limit']
+        return self.update(change)
 
 
 def warn_remaining(tasks, remaining, *, label):

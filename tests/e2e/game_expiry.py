@@ -1,4 +1,5 @@
-"""APP05/FLOW10: Jordan plays the windowed level, then time expires naturally."""
+"""APP05/FLOW10: Jordan plays the declared game mode until natural lock."""
+from dataclasses import replace
 from countdown import CountdownSample
 from installed_journey import JourneyPlan
 from journey_blocks import (desktop_entry, fresh_desktop, game_usable_app,
@@ -52,6 +53,11 @@ PLAN = JourneyPlan(
     activity_checks={'independent-capture': ('first-capture', 'replaced'),
                      'natural-expiry': ('independent-capture', 'same')},
 )
+
+FULLSCREEN_PLAN = replace(PLAN, prefix='game-fullscreen', worker_mode='game_fullscreen',
+    screen_tags={stage: operation.replace('ui:game-command', 'ui:game-fullscreen-command')
+                 .replace('ui:game-windowed-level', 'ui:game-fullscreen-level')
+                 for stage, operation in SCREENS.items()})
 
 
 class GameExpiryJourney(RequestFlowJourney):

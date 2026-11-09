@@ -40,6 +40,7 @@ main(int argc, char **argv)
     struct sigaction action = {0};
     const struct timespec pause = {.tv_sec = 0, .tv_nsec = 10000000};
     int stay_alive = 0;
+    int fullscreen = 0;
     const char *instance = "primary";
     /* Files executes the binary without arguments. Keep H/S separate from
      * the child's original Allowed window; explicit command/grid instances
@@ -52,6 +53,9 @@ main(int argc, char **argv)
     for (int index = 1; index < argc; index++) {
         if (strcmp(argv[index], "--stay-alive") == 0) {
             stay_alive = 1;
+        } else if (strcmp(argv[index], "--fullscreen") == 0 &&
+                   strcmp(FIXTURE_KIND, "game") == 0) {
+            fullscreen = 1;
         } else if (strcmp(argv[index], "--instance") == 0 && index + 1 < argc &&
                    (strcmp(argv[index + 1], "primary") == 0 || strcmp(argv[index + 1], "secondary") == 0 ||
                     (strcmp(FIXTURE_KIND, "flatpak") == 0 &&
@@ -97,7 +101,7 @@ main(int argc, char **argv)
                 _exit(1);
             }
             execl("/usr/bin/python3", "python3", "-B", script, "--kind", FIXTURE_KIND,
-                  "--instance", instance, (char *)NULL);
+                  "--instance", instance, fullscreen ? "--fullscreen" : NULL, (char *)NULL);
             _exit(1);
         }
         int status;

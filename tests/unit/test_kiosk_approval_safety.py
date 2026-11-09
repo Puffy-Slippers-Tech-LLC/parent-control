@@ -67,12 +67,13 @@ def test_expiry_lock_binding_refuses_another_account_before_session_read(monkeyp
     sessions.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['none', 'wrong-child', 'wrong-scope', 'replay'])
+@pytest.mark.parametrize('fault', ['none', 'fullscreen', 'wrong-child', 'wrong-scope', 'replay'])
 def test_game_approval_secret_stays_bound_to_its_request(fault):
     result = run_password_guard(r'''
 my $fault = shift @ARGV;
 my $journey = bless {prefix => 'game-expiry-request', stage_prefix => 'request-',
     kiosk_request => ['other-child', 'parent', 600, 1], review => 0}, 'onpc_journey';
+$journey->{prefix} = 'game-fullscreen-request' if $fault eq 'fullscreen';
 $journey->{kiosk_request}[0] = 'child' if $fault eq 'wrong-child';
 $journey->{stage_prefix} = 'other-' if $fault eq 'wrong-scope';
 my $ok = eval {
@@ -83,7 +84,7 @@ my $ok = eval {
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
 ''', fault)
     value = json.loads(result.stdout)
-    assert value['ok'] == (fault == 'none')
+    assert value['ok'] == (fault in ('none', 'fullscreen'))
     expected = [] if fault in ('wrong-child', 'wrong-scope') else [
         ['proof', 'request-approval-qualified'], ['proof', 'request-approval-rechecked'],
         ['delivery', 'parent', 'request-kiosk-mate-approval']]

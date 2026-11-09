@@ -24,7 +24,10 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--kind', choices=KINDS, required=True)
     parser.add_argument('--instance', choices=INSTANCES, default='primary')
+    parser.add_argument('--fullscreen', action='store_true', help='Open the fixed game level fullscreen')
     options = parser.parse_args(argv)
+    if options.fullscreen and options.kind != 'game':
+        parser.error('Fullscreen belongs to the game fixture')
     if options.kind not in ('native', 'flatpak') and options.instance in ('hard', 'soft'):
         parser.error('Hard and Soft instances belong to the native/Flatpak fixtures')
     if Gtk.get_major_version() != 4 or Gtk.get_minor_version() < 22:
@@ -83,6 +86,8 @@ def main(argv=None):
         close = set_automation_id(Gtk.Button(label='Close'), scope + '-close')
         close.connect('clicked', lambda _button: window.close())
         content.append(close)
+        if options.fullscreen:
+            window.fullscreen()
         window.present()
 
     app.connect('activate', activate)

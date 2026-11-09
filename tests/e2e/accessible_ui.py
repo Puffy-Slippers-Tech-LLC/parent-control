@@ -200,7 +200,7 @@ OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 GAME_OPERATIONS = frozenset('game-' + action for action in (
     'command', 'opened', 'move', 'moved', 'resume', 'resumed', 'activity', 'close', 'closed',
-    'wrong-window', 'windowed-level', 'resumed-activity'))
+    'wrong-window', 'windowed-level', 'fullscreen-command', 'fullscreen-level', 'resumed-activity'))
 OPERATIONS |= GAME_OPERATIONS
 STANDARD_OPERATIONS |= GAME_OPERATIONS
 NATIVE_DESKTOP_OPERATIONS = frozenset((
@@ -13679,7 +13679,7 @@ class AccessibleUI:
             'native-files-' + action, prompt_in_predicate=True)
 
     def native_launch_command(self, instance='primary', *, child=EXISTING_CHILD, blocked=False,
-                              fixture='policy', role=None, locked=False, kind='native'):
+                              fixture='policy', role=None, locked=False, kind='native', fullscreen=False):
         """APP01: one fixed native command in Jordan's active desktop session.
 
         FIX06 verifies the baseline inputs before this operation. Submission is
@@ -13687,6 +13687,7 @@ class AccessibleUI:
         """
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(kind in ('native', 'snap', 'flatpak', 'game'), 'ui:fixture-binding')
+        require(type(fullscreen) is bool and (not fullscreen or kind == 'game'), 'ui:game-mode')
         require(kind != 'game' or role == 'Game' and child in (CHILD, EXISTING_CHILD)
                 and instance == 'primary' and not blocked and not locked
                 and fixture == 'policy', 'ui:game-binding')
@@ -13782,6 +13783,7 @@ class AccessibleUI:
                 'H': 'com.puffyslippers.ONPCTestApplication.Hard',
                 'S': 'com.puffyslippers.ONPCTestApplication.Soft'}[role]] if flatpak else []),
             *(['--instance', instance] if role is not None else []),
+            *(['--fullscreen'] if fullscreen else []),
         ], stdin=subprocess.DEVNULL, capture_output=True, check=not blocked, timeout=15)
         if not blocked and unit is not None and self.timing is not None:
             # The next read runs in a separate observer process. Retain this
@@ -14152,11 +14154,13 @@ class AccessibleUI:
         owner_stat = (owner / 'stat').read_text()
         expected = ('/opt/onpc-test-fixtures/Applications/onpc-test-game' if role == 'Game'
                     else NATIVE_EXECUTABLES[role])
+        command = (owner / 'cmdline').read_bytes().split(b'\0')
+        ordinary_command = [expected.encode(), *([] if implicit_instance else
+                            [b'--instance', instance.encode()]), b'']
         require(process.stat().st_uid == owner.stat().st_uid == os.getuid()
                 and str((owner / 'exe').readlink()) == expected
-                and (owner / 'cmdline').read_bytes().split(b'\0') ==
-                    [expected.encode(), *([] if implicit_instance else
-                      [b'--instance', instance.encode()]), b''], 'ui:native-owner')
+                and (command == ordinary_command or role == 'Game'
+                     and command == [*ordinary_command[:-1], b'--fullscreen', b'']), 'ui:native-owner')
         fresh = (process / 'stat').read_text().rsplit(')', 1)[1].split()
         owner_fields = owner_stat.rsplit(')', 1)[1].split()
         fresh_owner = (owner / 'stat').read_text().rsplit(')', 1)[1].split()
@@ -14175,14 +14179,15 @@ class AccessibleUI:
         def snapshot(moves=0, **options):
             return self.native_app_snapshot('No submitted draft', moves=moves,
                                             **arguments, **options)
-        if operation == 'game-command':
-            return self.native_launch_command(**arguments)
-        if operation == 'game-windowed-level':
+        if operation in ('game-command', 'game-fullscreen-command'):
+            return self.native_launch_command(fullscreen=operation == 'game-fullscreen-command', **arguments)
+        if operation in ('game-windowed-level', 'game-fullscreen-level'):
             snapshot()
             from fixture_ui import FixtureUI
-            require(FixtureUI(self, 'game', require=require).text('mode') == 'Windowed; level: 1',
-                    'ui:game-mode-level')
-            return {'mode': 'windowed', 'level': 1}
+            mode = 'fullscreen' if operation == 'game-fullscreen-level' else 'windowed'
+            self.wait(lambda: FixtureUI(self, 'game', require=require).text('mode') ==
+                      mode.capitalize() + '; level: 1', 'game-mode-level')
+            return {'mode': mode, 'level': 1}
         if operation == 'game-wrong-window':
             try:
                 snapshot()
@@ -14199,7 +14204,10 @@ class AccessibleUI:
             self.wait(lambda: self.native_app_closed(kind='game'), 'game-closed')
             return None
         # A fresh complete window/owner/state proof precedes every action.
-        snapshot(0 if operation == 'game-move' else 1)
+        # Providers can disappear between enumeration and the read. Reacquire
+        # only this preflight, as for native Submit; never replay game input.
+        self.wait(lambda: snapshot(0 if operation == 'game-move' else 1),
+                  'game-action-ready', prompt_in_predicate=True)
         from fixture_ui import FixtureUI
         fixture = FixtureUI(self, 'game', require=require)
         if operation in ('game-move', 'game-resume'):
@@ -14988,7 +14996,7 @@ class AccessibleUI:
         elif operation in GAME_OPERATIONS:
             value = self.game_operation(operation, child=child)
             if value is not None:
-                result['game_mode' if operation == 'game-windowed-level' else 'activity'] = value
+                result['game_mode' if operation in ('game-windowed-level', 'game-fullscreen-level') else 'activity'] = value
         elif operation in SNAP_APP_OPERATIONS | FLATPAK_APP_OPERATIONS:
             value = self.snap_app_operation(operation)
             if value is not None:

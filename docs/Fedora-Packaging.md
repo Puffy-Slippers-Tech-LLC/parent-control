@@ -135,7 +135,13 @@ app on the calling machine and are not development build or validation commands.
 The RPM is the installation authority. Its `Requires` resolve runtime
 dependencies and its embedded scriptlets perform all product configuration,
 including service accounts, PAM, provisioning, service activation and reboot
-notices. The internal `installrpm` module only selects the local artifact, checks whether that
+notices. All RPMs require fapolicyd. An RPM rich dependency additionally requires
+fapolicyd 2.0.2 or newer when the transaction contains `fedora-release-common`
+version 45 or newer. DNF evaluates this against the customer's installed or
+upgrading Fedora release, independently of the RPM's build target, and resolves
+the minimum from enabled repositories while accepting newer versions. Fedora 44
+retains its unversioned dependency. This adds no distribution installation gate.
+The internal `installrpm` module only selects the local artifact, checks whether that
 exact version needs reinstalling and invokes DNF. Installing the same RPM
 directly with DNF or from COPR must perform the same setup without a checkout or
 any Make-side repair. Local same-version rebuilds explicitly use DNF reinstall;

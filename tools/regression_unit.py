@@ -39,6 +39,11 @@ in the existing bounded, waited child processes. No live VM, service or shared
 snapshot cache is opened; the module remains compatible with unit overlap.
 The attachment source-drift check adds only a process-local failing double to
 vm_control_cleanup_safety; its existing unit/cleanup classifications still apply.
+
+RPM dependency checks build empty noarch fixtures serially with private topdirs,
+temporary paths and databases. Bounded, waited RPM children forward scratch
+leases; transactions use --test and acquire no host RPM database, network or
+service. The existing rpm_packaging classification remains compatible.
 """
 
 from pathlib import PurePosixPath

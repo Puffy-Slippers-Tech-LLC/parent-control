@@ -132,12 +132,7 @@ def lifecycle_wait(pid, pidfd):
 
 
 def properties(output, names):
-    rows = output.splitlines()
-    guest.require(all('=' in row for row in rows), 'kiosk-session:invalid-properties')
-    values = dict(row.split('=', 1) for row in rows)
-    guest.require(len(rows) == len(values) and set(values) == set(names),
-                  'kiosk-session:invalid-properties')
-    return values
+    return guest.parse_properties(output, names, category='kiosk-session:invalid-properties')
 
 
 def graphical_session(account):

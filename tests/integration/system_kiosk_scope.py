@@ -74,9 +74,7 @@ def ordinary_process(process, account, backend, *, domain='unconfined_t'):
 def properties(account, service, names):
     raw = user_command(account, ['systemctl', '--user', 'show', service,
                                 '--property=' + ','.join(names)]).decode()
-    result = dict(line.split('=', 1) for line in raw.splitlines())
-    guest.require(set(result) == set(names), 'kiosk-collateral:unit-properties')
-    return result
+    return guest.parse_properties(raw, names, category='kiosk-collateral:unit-properties')
 
 
 def verify_units(account, backend):

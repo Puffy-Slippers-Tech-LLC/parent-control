@@ -417,6 +417,32 @@ masking it. Budget its native stop timeout plus transport headroom: the usage
 reader uses `system_guest.run`'s 120-second default rather than racing the
 daemon's normal inactivity exit with a 30-second deadline.
 
+System and station checks share `system_guest.parse_properties` for complete
+`systemctl` / `loginctl` property output. Callers retain their commands, account
+context, expected values and fixed diagnostic category. Missing, unknown,
+malformed or duplicate properties refuse; only a caller-declared repeated field,
+such as readiness's `ExecStartPost`, joins its rows in order. Keep identity fields
+single-valued rather than silently overwriting them with a dictionary conversion.
+This parser owns no commands, processes, storage or cleanup; existing host
+resource classifications remain applicable.
+
+Startup fault checks reuse `startup_observations` for boot- and invocation-bound
+readiness evidence. Use the permitted typed management call to establish broker
+publication; its bus policy does not expose introspection. Bind reconciliation
+timings to that same owner and the canary's actual completion to systemd's command
+result, rather than ordering startup by delayed journal receipt. Keep the two
+boundaries distinct: enforcement-readiness failure withholds sign-in, while a
+broker policy-write failure withholds management without restarting the healthy
+canary or greeter. These are engineering witnesses, not customer E2E acceptance.
+
+After losing the station's password agent, observe the actual product result
+before choosing a recovery control. `AccessibleUI.kiosk_agent_refused` reads the
+normal **Request denied** status and preserved usable form; broker-outage
+`kiosk_unavailable_result` instead reads **Request unavailable** and its safe-exit
+result. Do not assume both failures open the same error surface. Agent restoration
+precedes safe exit and a fresh approval in `kiosk_agent_recovery`; the stopped
+agent alone proves neither denial nor absence of a grant.
+
 Installed ordinary-account checks reuse
 `system_wellbeing_qualification.owned_manager` for temporary user-manager startup
 and cleanup. It refuses an already active manager, records a new invocation even
@@ -1336,6 +1362,14 @@ cases and qualifications share this pair; keep each consumer's choice values,
 visit order and immutable comparison endpoints in its plan. Follow
 [composition preflight](../../docs/TestAutomation/E2E-Building-Blocks.md#composition-preflight)
 for declaration/worker order and refusal boundaries.
+
+Request, access-choice and match-rule comparison journeys use cooperative
+initialization. Forward the optional `transport` through each constructor to
+`InstalledJourney`, which validates an attached transport's lease and guest
+identity. A combined `GrantAppEffectsJourney` passes through all three helpers;
+checking only a direct request journey misses a constructor mismatch in that
+composition. Keep the shared ownership check rather than assigning an attached
+transport separately in a consumer.
 
 FLOW12 overlay-to-kiosk declarations use `request_flow.overlay_to_kiosk` and
 `onpc_request_flow::overlay_to_kiosk`. The caller supplies a fresh source receipt,

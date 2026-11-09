@@ -305,7 +305,26 @@ def host_main(argv=None):
     import argparse
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests/integration'))
     import vm_config
-    argv, vm = vm_config.extract(sys.argv[1:] if argv is None else argv)
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ['--provision-domain']:
+        parser = argparse.ArgumentParser(allow_abbrev=False)
+        parser.add_argument('--provision-domain', required=True)
+        parser.add_argument('--expected-uuid', required=True)
+        args = parser.parse_args(argv)
+        name = vm_config.validate_name(args.provision_domain)
+        expected = identity(args.expected_uuid)
+        import libvirt
+        def ready():
+            connection = libvirt.open(vm_config.URI)
+            try:
+                domain = connection.lookupByName(name)
+                if domain.UUIDString() != expected or domain.isActive():
+                    raise ValueError('vm-pool: provisioning requires the same powered-off VM')
+            finally:
+                connection.close()
+        ready()
+        return keep(expected, ready=ready)
+    argv, vm = vm_config.extract(argv)
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--expected-uuid')
     parser.add_argument('--no-wait', action='store_true')

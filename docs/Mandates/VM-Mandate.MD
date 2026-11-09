@@ -83,10 +83,15 @@ see [the preparation contract](../Approval-Tools.md#one-time-setup).
 Explicit blank-VM provisioning uses
 [`tools/newvm`](../../tools/newvm) and the
 [creation contract](../../tests/integration/Environment.md#creating-a-blank-vm).
-It defines a fresh powered-off VM and registers it disabled, without booting,
-touching an existing VM, creating snapshots or adopting a disk. This provisioning
-route may target a disabled host; it is separate from registered maintenance
-and requires no running-guest display observation. Subsequent guest work uses
+It defines a fresh powered-off VM and registers it disabled, without booting
+or creating snapshots. Explicit red confirmation may replace an existing registry
+entry and, separately, recreate a powered-off libvirt VM and erase its disk under
+the creation contract's layout, reference and recorded-state guards. Replacement
+holds the host's shared UUID checkout through the finite operation; the fixed
+`pool-provision` helper grants only that checkout, with no guest execution or
+lifecycle authority. This provisioning route may target a disabled host or VM;
+it is separate from registered maintenance and requires no running-guest display
+observation. Subsequent guest work uses
 the normal selection, observation and ownership rules below.
 
 Operate the selected, individually pinned VM only through maintained

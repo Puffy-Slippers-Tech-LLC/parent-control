@@ -378,12 +378,16 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
 @pytest.mark.parametrize('mode,role', [
     ('excluded', 'parent'), ('included', 'other-parent'),
     ('wrong-choice', None), ('wrong-scope', None),
+    ('lock-recovery', 'parent'), ('lock-wrong-scope', None),
 ])
-def test_panel_approval_secret_requires_fresh_proofs_and_cannot_be_replayed(mode, role):
+def test_composed_overlay_secret_requires_fresh_proofs_and_cannot_be_replayed(mode, role):
     binding = ['child', 'parent', 30, False] if mode == 'excluded' else [
         'child', 'other-parent', 30, True]
     if mode == 'wrong-choice':
         binding[3] = False
+    lock = mode.startswith('lock-')
+    if lock:
+        binding = ['child', 'parent', 75, True]
     result = run_password_guard(r'''
 my $journey = bless {prefix => shift @ARGV, stage_prefix => '',
     overlay_request => decode_json(shift @ARGV), review => 0}, 'onpc_journey';
@@ -391,7 +395,8 @@ $journey->{stage_prefix} = 'later-' if shift(@ARGV) eq 'wrong-scope';
 my $first = eval { onpc_password::enter_overlay_shell_password($journey); 1; };
 my $replay = eval { onpc_password::enter_overlay_shell_password($journey); 1; };
 print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events => \@events});
-''', 'panel-request-case', json.dumps(binding), mode)
+''', 'overlay-lock-case' if lock else 'panel-request-case', json.dumps(binding),
+        'wrong-scope' if mode == 'lock-wrong-scope' else mode)
     if role is None:
         assert json.loads(result.stdout) == {'first': 0, 'replay': 0, 'events': []}
         return

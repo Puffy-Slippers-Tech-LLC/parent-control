@@ -33,7 +33,10 @@ class KioskRequestJourney(InstalledJourney):
     countdown_tolerance_seconds = 0
 
     def __init__(self, context, progress, plan, *, actions=None, transport=None):
-        super().__init__(context, progress, plan, actions=actions, transport=transport)
+        # Ordinary compositions also include comparison mixins, whose
+        # constructors do not accept an attached maintenance transport.
+        attached = {} if transport is None else {'transport': transport}
+        super().__init__(context, progress, plan, actions=actions, **attached)
         self.balance = None
         self.requests = {}
         self.transfer_requests = {}

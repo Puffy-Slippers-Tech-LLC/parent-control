@@ -87,9 +87,8 @@ sub grant_only {
             onpc_desktop_session::switch_user($leave, $leave->seen('desktop'));
             my $approval = $journey->scope('request');
             $approval->{kiosk_request} = [@$request];
-            onpc_request_flow::prepare($approval, 'new', 'new', 'observed',
-                'existing-fixture-child', 'fixture-parent', 1200, 1, 'kiosk');
-            onpc_request_flow::approve($approval, 'existing-fixture-child', 'fixture-parent', 1200, 1, 'automatic');
+            onpc_request_flow::obtain_time($approval, 'observed',
+                'existing-fixture-child', 'fixture-parent', 1200, 1, 'automatic');
             onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'approval-return');
         } elsif ($name eq 'positive') {
             onpc_allowance_boundaries::custom_value($journey, 'positive', $combined ? 40 : 30);

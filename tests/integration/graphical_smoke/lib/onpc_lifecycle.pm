@@ -101,9 +101,8 @@ sub app_restart_active {
     my $approval = $journey->scope('request');
     my $grant_seconds = $idle ? 600 : 1200;
     $approval->{kiosk_request} = ['other-child', 'parent', $grant_seconds, 1];
-    onpc_request_flow::prepare($approval, 'new', 'new', 'observed',
-        'existing-fixture-child', 'fixture-parent', $grant_seconds, 1, 'kiosk');
-    onpc_request_flow::approve($approval, 'existing-fixture-child', 'fixture-parent', $grant_seconds, 1, 'automatic');
+    onpc_request_flow::obtain_time($approval, 'observed',
+        'existing-fixture-child', 'fixture-parent', $grant_seconds, 1, 'automatic');
     unless ($idle) {
         $enter->('issued-return', 'parent', 'retained');
         $journey->seen('issued-policy');
@@ -399,9 +398,8 @@ sub app_restart_expired {
             'denied-return-ready', 'denied-return-state', 'denied-returned');
     }
     $journey->{kiosk_request} = [@$request];
-    onpc_request_flow::prepare($journey, 'new', 'new', 'observed',
-        'fixture-child', 'fixture-parent', 1200, 0, 'kiosk');
-    onpc_request_flow::approve($journey, 'fixture-child', 'fixture-parent', 1200, 0, 'automatic');
+    onpc_request_flow::obtain_time($journey, 'observed',
+        'fixture-child', 'fixture-parent', 1200, 0, 'automatic');
     $enter->('recovered-parent', 'parent', 'retained');
     $journey->seen('recovered-policy');
     $leave->('recovered-parent-leave');

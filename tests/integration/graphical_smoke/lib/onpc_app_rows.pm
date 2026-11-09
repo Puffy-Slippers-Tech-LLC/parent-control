@@ -1319,9 +1319,8 @@ sub game_access {
         'denied-return-ready', 'denied-return-state', 'denied-returned');
     my $approval = $journey->scope('request');
     $approval->{kiosk_request} = $request;
-    onpc_request_flow::prepare($approval, 'new', 'new', 'observed',
-        'existing-fixture-child', 'fixture-parent', 600, 1, 'kiosk');
-    onpc_request_flow::approve($approval, 'existing-fixture-child', 'fixture-parent', 600, 1, 'automatic');
+    onpc_request_flow::obtain_time($approval, 'observed',
+        'existing-fixture-child', 'fixture-parent', 600, 1, 'automatic');
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan-entry');
     $journey->invoke('initial-countdown');
     my $play = $journey->scope('play');
@@ -1334,9 +1333,8 @@ sub game_access {
     $journey->seen($_) for qw(return-greeter denied-returned);
     my $recovery = $journey->scope('recovery');
     $recovery->{kiosk_request} = ['other-child', 'parent', 1200, 1];
-    onpc_request_flow::prepare($recovery, 'new', 'new', 'observed',
-        'existing-fixture-child', 'fixture-parent', 1200, 1, 'kiosk');
-    onpc_request_flow::approve($recovery, 'existing-fixture-child', 'fixture-parent', 1200, 1, 'automatic');
+    onpc_request_flow::obtain_time($recovery, 'observed',
+        'existing-fixture-child', 'fixture-parent', 1200, 1, 'automatic');
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained', 'success', 'recovery-retained');
     $recovery->seen('countdown');
     native_read_activity($journey, 'returned-game');
@@ -1362,9 +1360,8 @@ sub game_expiry {
     $journey->seen('parent-logout');
     my $approval = $journey->scope('request');
     $approval->{kiosk_request} = $request;
-    onpc_request_flow::prepare($approval, 'new', 'new', 'observed',
-        'existing-fixture-child', 'fixture-parent', 600, 1, 'kiosk');
-    onpc_request_flow::approve($approval, 'existing-fixture-child', 'fixture-parent', 600, 1, 'automatic');
+    onpc_request_flow::obtain_time($approval, 'observed',
+        'existing-fixture-child', 'fixture-parent', 600, 1, 'automatic');
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan-entry');
     $journey->invoke('initial-countdown');
     for my $entry ('first', 'independent') {

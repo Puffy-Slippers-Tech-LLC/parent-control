@@ -177,7 +177,8 @@ class JourneyPlan:
                 and len(set(self.invocations)) == len(self.invocations)
                 and list(self.invocations) == [stage for stage in self.screen_tags
                                                if stage in self.invocations]
-                and all(self.screen_tags[stage].startswith('ui:')
+                and all((self.screen_tags[stage].startswith('ui:')
+                         or self.screen_tags[stage] == 'system:child-desktop-identity')
                         for stage in self.invocations), self.prefix + ':invocation-plan')
         require(set(self.assertions_after) <= set(self.screen_tags)
                 and all(type(value) is str and re.fullmatch(r'[a-z][a-z0-9-]*', value)

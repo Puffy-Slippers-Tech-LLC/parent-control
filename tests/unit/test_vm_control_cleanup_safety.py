@@ -1044,6 +1044,7 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri(monkeypatch):
                    'reproduce-countdown-minutes',
                    'reproduce-countdown-resume',
                    'reproduce-retained-unlock',
+                   'reproduce-pending-overlay-switch', 'probe-pending-overlay-switch',
                    'probe-retained-app-launch',
                    'probe-lock-curtain', 'reproduce-transfer-refusal', 'probe-transfer-refusal',
                    'reproduce-riley-native-grid', 'probe-riley-native-grid',

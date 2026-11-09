@@ -190,6 +190,8 @@ sub enter_desktop {
         && $prefix =~ /\A[a-z][a-z0-9-]*\z/
         && (($entry eq 'fresh' && $source eq 'gdm')
             || ($entry eq 'retained' && ($source eq 'gdm' || $source eq 'desktop'))
+            || ($entry eq 'retained' && $source eq 'pending-overlay'
+                && $account eq 'child' && $expected eq 'success')
             || ($entry eq 'same' && $source eq 'desktop' && $expected eq 'success')
             || ($entry eq 'lock' && $source eq 'locked' && $account eq 'child'));
     my $section = $journey->scope($prefix);
@@ -197,6 +199,10 @@ sub enter_desktop {
         die 'desk:entry-source' unless defined($source_account) && $source_account ne $account
             && ($source_account eq 'parent' || $source_account eq 'child' || $source_account eq 'other-child');
         $section->consume_observation('source-desktop', $section->seen('source-desktop'));
+        $section->seen($_) for qw(source-switch source-greeter);
+    } elsif ($source eq 'pending-overlay') {
+        die 'desk:entry-source' if defined($source_account);
+        $section->consume_observation('pending-approval', $section->seen('pending-approval'));
         $section->seen($_) for qw(source-switch source-greeter);
     } else {
         die 'desk:entry-source' if defined($source_account);

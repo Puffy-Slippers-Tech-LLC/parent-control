@@ -445,6 +445,7 @@ def main(argv=None):
                                           'reproduce-delayed-approval',
                                           'reproduce-countdown-minutes',
                                           'reproduce-pending-overlay-lock', 'probe-pending-overlay-lock',
+                                          'reproduce-pending-overlay-switch', 'probe-pending-overlay-switch',
                                           'reproduce-jordan-daily-access',
                                           'reproduce-natural-expiry',
                                           'reproduce-natural-access',
@@ -632,7 +633,7 @@ def main(argv=None):
                              'reproduce-revoke-cancel',
                              'reproduce-delayed-approval',
                              'reproduce-countdown-minutes',
-                             'reproduce-pending-overlay-lock',
+                             'reproduce-pending-overlay-lock', 'reproduce-pending-overlay-switch',
                              'reproduce-jordan-daily-access',
                              'reproduce-countdown-resume',
                              'reproduce-panel-language',
@@ -651,7 +652,7 @@ def main(argv=None):
             from vm_probe import reproduce_revoke_cancel
             from vm_probe import reproduce_delayed_approval
             from vm_probe import reproduce_countdown_minutes, reproduce_countdown_resume
-            from vm_probe import reproduce_pending_overlay_lock
+            from vm_probe import reproduce_pending_overlay_lock, reproduce_pending_overlay_switch
             from vm_probe import reproduce_jordan_daily_access
             from vm_probe import reproduce_panel_language
             from vm_probe import reproduce_retained_unlock
@@ -675,6 +676,7 @@ def main(argv=None):
              'reproduce-delayed-approval': reproduce_delayed_approval,
              'reproduce-countdown-minutes': reproduce_countdown_minutes,
              'reproduce-pending-overlay-lock': reproduce_pending_overlay_lock,
+             'reproduce-pending-overlay-switch': reproduce_pending_overlay_switch,
              'reproduce-jordan-daily-access': reproduce_jordan_daily_access,
              'reproduce-countdown-resume': reproduce_countdown_resume,
              'reproduce-panel-language': reproduce_panel_language,
@@ -749,6 +751,13 @@ def main(argv=None):
                 label='pending-overlay-lock-probe',
                 intention='Inspecting the child lock screen after pending approval',
                 ui_operation='child-lock-curtain')
+        elif args.action == 'probe-pending-overlay-switch':
+            from vm_probe import observe_maintenance
+            resume(lease)
+            observe_maintenance(lease, check='probe_pending_overlay_switch',
+                label='pending-overlay-switch-probe',
+                intention='Reading the child request after returning from Switch User',
+                ui_operation='overlay-valid-fraction-soft-read')
         elif args.action == 'probe-kiosk-latency':
             from vm_probe import probe_kiosk_latency
             resume(lease)

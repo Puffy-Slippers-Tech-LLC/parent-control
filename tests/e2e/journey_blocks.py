@@ -595,6 +595,8 @@ def desktop_entry(account, *, source, entry, expected='success', source_account=
             (expected == 'success' or account in ('child', 'other-child')), 'journey:entry-result')
     require((entry == 'fresh' and source == 'gdm')
             or (entry == 'retained' and source in ('gdm', 'desktop'))
+            or (entry == 'retained' and source == 'pending-overlay'
+                and account == 'child' and expected == 'success')
             or (entry == 'same' and source == 'desktop' and expected == 'success')
             or (entry == 'lock' and source == 'locked' and account == 'child'),
             'journey:entry-binding')
@@ -607,11 +609,21 @@ def desktop_entry(account, *, source, entry, expected='success', source_account=
         screens = {'source-desktop': fresh_desktop(source_account)['desktop'],
                    'source-switch': 'system:' + source_role + '-switch-user',
                    'source-greeter': 'ui:gdm-returned'}
+    elif source == 'pending-overlay':
+        require(source_account is None, 'journey:entry-source-account')
+        screens = {'pending-approval': 'ui:overlay-shell-switch-user-ready',
+                   'source-switch': 'system:child-switch-user',
+                   'source-greeter': 'ui:gdm-returned'}
     else:
         require(source_account is None, 'journey:entry-source-account')
     screens['entry-guard'] = 'system:' + role + '-entry-' + entry
     if entry in ('fresh', 'retained'):
         screens.update(fresh_desktop(account, expected))
+        if source == 'pending-overlay':
+            # The retained fullscreen request hides Shell's Activities control.
+            # Authenticate normally, then prove the active unlocked session;
+            # the caller independently reads the usable preserved request.
+            screens['desktop'] = 'system:child-desktop-identity'
     elif entry == 'same':
         screens['desktop'] = fresh_desktop(account)['desktop']
     else:

@@ -121,6 +121,7 @@ OPERATION_LABELS = {
     'chinese-standard-desktop': 'Observing the renewed Chinese child desktop',
     'overlay-shell-cancel-ready': 'Qualifying the real Shell request and fresh Cancel recipient',
     'overlay-shell-lock-ready': 'Observing the pending parent approval before locking the child screen',
+    'overlay-shell-switch-user-ready': 'Observing the pending parent approval before switching users',
     'overlay-shell-dismissed': 'Independently requiring Shell challenge disappearance',
     'overlay-shell-open': 'Opening and qualifying the declared Shell approval challenge',
     'overlay-shell-qualified': 'Freshly qualifying the Shell password recipient',
@@ -2994,7 +2995,7 @@ class UiObservations:
             projection = {'child': accessible_ui.CHILD_IDENTITIES[request_child],
                           'approver': accessible_ui.APPROVER_IDENTITIES[approver],
                           'duration_seconds': seconds, 'allow_soft': soft,
-                          ('lock_ready' if operation == 'overlay-shell-lock-ready' else 'cancel_ready'): True,
+                          operation.removeprefix('overlay-shell-').removesuffix('-ready') + '_ready': True,
                           'same_challenge_rechecked': True,
                           'rejected_proofs': list(accessible_ui.SHELL_PROMPT_REFUSALS)}
             require(type(value) is dict and set(value) == {*projection, 'provider', 'challenge_id'}

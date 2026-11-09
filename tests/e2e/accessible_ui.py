@@ -1283,7 +1283,8 @@ def chinese_mate_texts(provider_version=None):
             'explanation': ('一个程序正试图执行一个需要特权的动作。要求授权为超级用户以执行该动作。'
                             if version == '1.28.1' else
                             '一个程序正试图执行一个需要特权的动作。要求授权为超级用户来执行该动作。')}
-SHELL_PROMPT_OPERATIONS = frozenset({'overlay-shell-cancel-ready', 'overlay-shell-lock-ready'})
+SHELL_PROMPT_OPERATIONS = frozenset({'overlay-shell-cancel-ready', 'overlay-shell-lock-ready',
+                                    'overlay-shell-switch-user-ready'})
 SHELL_APPROVAL_ORDER = ('overlay-shell-open', 'overlay-shell-qualified',
                         'overlay-shell-rechecked', 'overlay-shell-submit-ready',
                         'overlay-approval-success')
@@ -12121,14 +12122,14 @@ class AccessibleUI:
         return list(SHELL_PROMPT_REFUSALS)
 
     def overlay_shell_cancel_ready(self, *, action='cancel'):
-        """Submit once and qualify one Cancel or system-lock transition.
+        """Submit once and qualify one Cancel, lock or Switch User transition.
 
         Shell St.Button has no public Action interface. Its documented Escape
         binding cancels the dialog; the worker owns that single keyboard input.
-        Lock uses the public session command instead of cancelling the prompt.
+        Lock and Switch User use the public session command with the prompt open.
         A separate form observation and immutable comparison prove the result.
         """
-        require(action in ('cancel', 'lock'), 'ui:shell-interruption-action')
+        require(action in ('cancel', 'lock', 'switch-user'), 'ui:shell-interruption-action')
         require(not self.input_uncertain, 'ui:uncertain-input')
         child, approver, seconds, soft = self.overlay_bound_values()
         self.kiosk_valid_choice('overlay-request-estimate' if getattr(self, 'overlay_request', None) is not None
@@ -15713,7 +15714,7 @@ class AccessibleUI:
                         raise UiError('ui:kiosk-wrong-choice-accepted')
         elif operation in SHELL_PROMPT_OPERATIONS:
             result['shell_prompt'] = self.overlay_shell_cancel_ready(
-                action='lock' if operation == 'overlay-shell-lock-ready' else 'cancel')
+                action=operation.removeprefix('overlay-shell-').removesuffix('-ready'))
         elif operation in SHELL_APPROVAL_OPERATIONS:
             result['approval'] = self.overlay_shell_approval(operation)
         elif operation == 'overlay-shell-dismissed':

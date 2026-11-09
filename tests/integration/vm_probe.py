@@ -701,6 +701,14 @@ def reproduce_pending_overlay_lock(lease):
                             boundary_operation='overlay-request-cancel')
 
 
+def reproduce_pending_overlay_switch(lease):
+    """Retain the child's authenticated return with the pending request history."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from pending_overlay_switch import PendingOverlaySwitchJourney, PLAN
+    return reproduce_denial(lease, PendingOverlaySwitchJourney, PLAN,
+                            'interruption-desktop', 'pending-overlay-switch')
+
+
 def reproduce_overlay_lock_case(lease, fixture_selection):
     """Retain case 171's final Parent balance before its comparison."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))

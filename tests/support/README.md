@@ -753,6 +753,31 @@ removes only the recorded mask. System 310 passed on session-selected
 worker shutdown, owned cleanup and baseline restoration. Fedora remains
 unqualified; existing retry and session-replacement owners retain their distinct
 stale-work assertions, without a new deliberately held-reply matrix here.
+
+Lock-service reply and availability faults reuse
+[system_lock_reply.py](../integration/system_lock_reply.py) through
+`natural_expiry._run_lock_reply_history`. Its synchronous command owns the
+facade through attached-worker shutdown and restoration. GNOME's automatic
+locking can otherwise protect the child before the product sends the request
+being tested. Reuse the fixture's writable public lock-setting gate, with its
+receipt recorded before mutation; held-reply histories restore that setting
+before forwarding the real request. Keep the captured request, native
+completion, reply/failure and unchanged original grant checks distinct so a
+missing fault is diagnosable even when protected input succeeds. Restoration
+must verify the normal facade and unchanged native owner, including on failure.
+
+For successive lock histories on the same recovered child desktop,
+`LockCompletionJourney.check_settings` retires the first lock observer after
+the original-work readback. Rebuild through `InstalledJourney` so the next
+history retains boot/trace guards without carrying a stale locked-surface proof.
+For renewal during an outage, `system_lock_reply.retry_history` waits for the
+child's positive estimate before restoring availability; the consuming journey
+then independently checks usable original work and absence of stale requests.
+Keep the finite fault order and assertions with each history. The outage
+characterization's later successful recovery supplies no protection credit for
+the interval when the child's input remained usable; its current limitation
+belongs to the [engineering coverage owner](../../docs/TestAutomation/E2E-Building-Blocks.md#engineering-coverage-boundary).
+
 The complete current-production system-282 history passed on Ubuntu 26.04 and
 Fedora 44, including both protected-input challenges and original-work recovery.
 This qualifies the shared engineering observations, not extension-free locking

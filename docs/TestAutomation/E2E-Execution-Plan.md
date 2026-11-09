@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **127 — [E2E-023: windowed](E2E-Tasks/127-case-126.md)**.
+Next task: **132 — [Compose a daily-dominant profile without clearing the grant](E2E-Tasks/132-time-profiles-dominant.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

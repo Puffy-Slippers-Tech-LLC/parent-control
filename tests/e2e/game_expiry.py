@@ -55,8 +55,8 @@ PLAN = JourneyPlan(
 
 
 class GameExpiryJourney(RequestFlowJourney):
-    def __init__(self, context, progress):
-        super().__init__(context, progress, PLAN, actions={
+    def __init__(self, context, progress, plan=PLAN, *, actions=None):
+        super().__init__(context, progress, plan, actions=actions if actions is not None else {
             **fixture_actions(include_refusal=False, profile='game'),
             'natural-expiry': self.natural_expiry})
         self.initial_countdown = None
@@ -76,6 +76,7 @@ class GameExpiryJourney(RequestFlowJourney):
         require(journey.initial_countdown is not None and journey.natural_expiry_result is None,
                 'game-expiry:missing-or-replayed-entry')
         result = await_natural_expiry(journey, guard, journey.initial_countdown,
-            journey.activity_observations['independent-capture'], maximum_seconds=600, child='existing')
+            journey.activity_observations[journey.plan.activity_entries['natural-expiry']],
+            maximum_seconds=600, child='existing')
         journey.natural_expiry_result = result
         return result

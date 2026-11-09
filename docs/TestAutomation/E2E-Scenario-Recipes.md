@@ -1509,7 +1509,9 @@ Case 122 uses one continuous preparation and the same original grant:
 
 ### E2E-023
 
-Implementation status: All cases pending.
+Implementation status: Windowed case 126 is implemented in
+`game_access_case.PLAN` / `GameAccessJourney` and `onpc_app_rows::game_access`.
+The complete customer journey passed on Ubuntu 26.04. Fullscreen case 127 remains pending.
 
 **Zero allowance to kiosk approval, real gameplay and expiry.** Cases 126, 127.
 
@@ -1521,6 +1523,14 @@ Bindings: gameplay = windowed / fullscreen.
 4. C(fresh) → TIME01 → FLOW08(game) → APP05(mode,level) → APP03 → APP04.
 5. TIME04(game natural lock).
 6. DESK08(time denial) → DESK11 → FLOW20(kiosk, retained child, 20-minute recovery, game preserved) → APP04(compare original pre-expiry activity) → APP03. Game-mode/activity and retained approval bindings remain required; no separate FLOW11 qualifier.
+
+The windowed case uses Jordan/Jamie, soft apps included, the exact Allowed/precise
+game row and fixed level 1. One move and immutable game capture precede expiry;
+after retained return, compare that same endpoint and progress before a second
+move and independently read `Moves: 2; token: 2`. No relaunch supplies retention.
+The 3600-second functional budget covers setup and recovery; countdown comparisons
+allow 300 seconds for each entry without extending
+the original countdown's natural-lock deadline.
 
 ### E2E-024
 

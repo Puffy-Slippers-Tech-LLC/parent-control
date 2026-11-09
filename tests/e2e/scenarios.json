@@ -1619,7 +1619,7 @@
           {"id": "step-3", "operation": "ui", "description": "Enter the station, choose the child and parent, request short time and obtain actual approval. Observe return to sign-in."},
           {"id": "step-4", "operation": "ui", "description": "Sign in as the child and read the countdown. Use shared supported commands or shortcuts to open the real game in the declared mode/level, then perform real gameplay input and observe its effects."},
           {"id": "step-5", "operation": "wait", "description": "Keep playing until the desktop locks naturally. Confirm normal input now reaches the lock screen and cannot continue the game."},
-          {"id": "step-6", "operation": "ui", "description": "Try the correct password and read the time restriction. Obtain replacement time normally, unlock, and continue the recognizable earlier game to check retention."}
+          {"id": "step-6", "operation": "ui", "description": "Read the native time restriction, which blocks password entry and desktop access. Obtain a real 20-minute replacement approval at the station, return to the retained child and continue the recognizable earlier game."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1637,7 +1637,7 @@
         "other_user": []
       },
       "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
-      "duration_seconds": 1800,
+      "duration_seconds": 3600,
       "matrix": {
         "dimensions": {
           "gameplay": ["windowed", "fullscreen"]
@@ -1646,7 +1646,7 @@
         "rationale": "Both windowed and fullscreen play are required. Hidden game/process inspection is replaced by a legitimate visible return."
       },
       "variants": [
-        {"coverage_id": 126, "id": "windowed", "owner": "continuous-journeys", "parameters": {"gameplay": "windowed"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 126, "id": "windowed", "owner": "continuous-journeys", "parameters": {"gameplay": "windowed"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/game_access_case.py", "test_id": "windowed"}},
         {"coverage_id": 127, "id": "fullscreen", "owner": "continuous-journeys", "parameters": {"gameplay": "fullscreen"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },

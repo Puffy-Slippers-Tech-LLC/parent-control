@@ -1882,6 +1882,9 @@ class UiObservations:
             value = result.get('lock')
             lock_operation = operation.replace('child-', 'parent-', 1)
             identity = 'fixture-' + operation.split('-', 1)[0]
+            if operation in accessible_ui.CHILD_LOCK_OPERATIONS:
+                identity = accessible_ui.CHILD_IDENTITIES[
+                    accessible_ui.NAMED_CUSTOM_CHILDREN[child or 'child']]
             if lock_operation in ('parent-lock-unlocked-refused', 'parent-lock-refusals',
                              'parent-lock-recipient-refusals'):
                 require(value == {'refused': ['unlocked-session'] if operation.endswith('unlocked-refused')
@@ -2147,9 +2150,10 @@ class UiObservations:
             expected['activity'] = {'draft': 'ONPC fixture draft',
                 'submitted': 'No submitted draft' if operation.endswith('native-opened') else 'ONPC fixture draft',
                 'score': 'Moves: 0; token: 0'}
-        if operation in ('game-opened', 'game-moved'):
+        if operation in ('game-opened', 'game-moved', 'game-resumed'):
             expected['activity'] = {'draft': 'ONPC fixture draft', 'submitted': 'No submitted draft',
-                'score': 'Moves: 0; token: 0' if operation == 'game-opened' else 'Moves: 1; token: 1'}
+                'score': {'game-opened': 'Moves: 0; token: 0', 'game-moved': 'Moves: 1; token: 1',
+                          'game-resumed': 'Moves: 2; token: 2'}[operation]}
         if operation == 'game-activity':
             AppActivityObservation.from_value(result.get('activity'), binding='game-primary')
             expected['activity'] = result['activity']

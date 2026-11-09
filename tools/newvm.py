@@ -17,12 +17,23 @@ sys.path.insert(0, str(ROOT / 'tests/integration'))
 import vm_config
 
 
+def confirm(message):
+    try:
+        answer = input(f'\033[31m{message} [y/N] \033[0m')
+    except EOFError:
+        answer = ''
+    if answer.strip().lower() not in ('y', 'yes'):
+        raise ValueError('Cancelled; registry and VM resources unchanged')
+
+
 def provision(request):
     # Self-contained so the identical implementation can be sent to an SSH host.
     import fnmatch
+    import json
     import os
     from pathlib import Path
     import shutil
+    import stat
     import subprocess
     import sys
     import xml.etree.ElementTree as ET
@@ -54,23 +65,82 @@ def provision(request):
     disk = root / (request['name'] + '.qcow2')
     # Check every domain, including inactive ones, before reserving any storage.
     names = virsh('list', '--all', '--name').splitlines()
+    existing = None
     if request['name'] in names:
-        raise ValueError(f'VM already exists in libvirt: {request["name"]}')
-    for name in filter(None, names):
-        domain = ET.fromstring(virsh('dumpxml', name))
-        for source in domain.findall('./devices/disk/source'):
-            if source.get('file') and Path(source.get('file')).resolve() == disk.resolve():
-                raise ValueError(f'Disk destination is referenced by existing VM {name}: {disk}')
+        existing = ET.fromstring(virsh('dumpxml', request['name'], '--inactive'))
+        if not request.get('overwrite_uuid'):
+            return {'existing_uuid': existing.findtext('uuid'), 'disk': str(disk)}
+        if existing.findtext('uuid') != request['overwrite_uuid']:
+            raise ValueError('Existing VM identity changed; run newvm again')
+        if request['name'] in virsh('list', '--name').splitlines():
+            raise ValueError('Existing VM must be powered off before overwrite')
+        sources = existing.findall('./devices/disk[@device="disk"]/source')
+        if (len(sources) != 1 or sources[0].get('file') != str(disk) or
+                existing.find('./os/nvram') is not None):
+            raise ValueError('Overwrite requires one disk at the requested destination and no NVRAM')
+        if virsh('snapshot-list', request['name'], '--name').strip():
+            raise ValueError('Existing VM has snapshots; remove them through the maintained workflow first')
+    def check_references():
+        for name in filter(None, virsh('list', '--all', '--name').splitlines()):
+            if existing is not None and name == request['name']:
+                continue
+            for options in ((), ('--inactive',)):
+                domain = ET.fromstring(virsh('dumpxml', name, *options))
+                for source in domain.findall('./devices/disk//source'):
+                    path = source.get('file')
+                    if path and Path(path).resolve() == disk.resolve():
+                        raise ValueError(f'Disk destination is referenced by existing VM {name}: {disk}')
+                if existing is not None:
+                    for source in domain.findall('./devices/disk[@device="disk"]/source'):
+                        if source.get('file'):
+                            chain = json.loads(run(['qemu-img', 'info', '--output=json',
+                                                    '--backing-chain', '--force-share', source.get('file')]))
+                            if any(Path(image['filename']).resolve() == disk.resolve() for image in chain):
+                                raise ValueError(f'Disk is in the backing chain of VM {name}: {disk}')
+    check_references()
     domain = ET.fromstring(request['xml'])
     domain.find('./devices/disk[@device="disk"]/source').set('file', str(disk))
     domain.find('./devices/disk[@device="cdrom"]/source').set('file', str(iso))
     xml = ET.tostring(domain, encoding='unicode')
-    # O_EXCL refuses existing files and dangling symlinks. Preserve the reserved
-    # file on any later failure: never delete something libvirt may have adopted.
-    descriptor = os.open(disk, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
-    os.close(descriptor)
+    keeper = None
+    descriptor = None
     try:
-        run(['qemu-img', 'create', '-f', 'qcow2', str(disk), request['size'] + 'G'])
+        if existing is not None:
+            keeper = subprocess.Popen(
+                ['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+                 '/usr/local/libexec/onpc-test-runner', 'pool-provision',
+                 request['name'], request['overwrite_uuid']],
+                cwd=request['checkout'], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+            receipt = keeper.stdout.readline(1024)
+            if not receipt:
+                raise ValueError(f'VM checkout failed (status {keeper.wait()}); '
+                                 'refresh VM-host helpers with ./setup.sh --test-tools-only')
+            if json.loads(receipt)['checkout'].split(':', 1)[0] != request['overwrite_uuid']:
+                raise ValueError('VM checkout returned a different identity')
+            # Queueing is not ownership: revalidate the exact domain definition.
+            if ET.tostring(ET.fromstring(virsh('dumpxml', request['name'], '--inactive'))) != ET.tostring(existing):
+                raise ValueError('VM definition changed while waiting for checkout; run newvm again')
+            if request['name'] in virsh('list', '--name').splitlines():
+                raise ValueError('Existing VM is active; overwrite refused')
+            state = Path(request['state'])
+            if state.is_symlink() or (state.exists() and any(state.iterdir())):
+                raise ValueError('Existing VM has recorded test/baseline state; '
+                                 'recover or retire that state through the maintained workflow first')
+            if virsh('snapshot-list', request['name'], '--name').strip():
+                raise ValueError('Existing VM acquired snapshots while waiting; overwrite refused')
+            check_references()
+            descriptor = os.open(disk, os.O_RDWR | os.O_NOFOLLOW)
+            info = os.fstat(descriptor)
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise ValueError('Overwrite requires a regular disk file with one hard link')
+            virsh('undefine', request['name'])
+        else:
+            if request.get('overwrite_uuid'):
+                raise ValueError('Confirmed VM disappeared; run newvm again')
+            # Never adopt an unconfirmed existing file or dangling symlink.
+            descriptor = os.open(disk, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o644)
+        run(['qemu-img', 'create', '-f', 'qcow2', f'/proc/self/fd/{descriptor}',
+             request['size'] + 'G'], pass_fds=(descriptor,))
         virsh('define', '/dev/stdin', '--validate', input=xml)
         actual = ET.fromstring(virsh('dumpxml', request['name'], '--inactive'))
         if actual.findtext('uuid') != request['uuid']:
@@ -79,6 +149,13 @@ def provision(request):
         print(f'newvm: creation interrupted/failed; preserve and inspect disk {disk} '
               f'and domain {request["name"]} before retrying', file=sys.stderr)
         raise
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        if keeper is not None:
+            keeper.stdin.close()
+            keeper.stdout.close()
+            keeper.wait()
     return {'disk': str(disk), 'iso': str(iso), 'uuid': request['uuid']}
 
 
@@ -93,8 +170,11 @@ def create(name, host_name, family_name, *, root=ROOT):
         registered = vm_config.registry(config)
         vm_config.validate_name(name)
         vm_config.validate_name(host_name)
-        if name in registered or any(vm.id == name for vm in registered.values()):
-            raise ValueError(f'VM name/ID already registered: {name}')
+        existing = registered.get(name)
+        if existing is None and any(vm.id == name for vm in registered.values()):
+            raise ValueError(f'VM ID already registered: {name}')
+        if existing is not None:
+            vm_config.require_branch(existing, vm_config.current_branch())
         host = next((h for h in document['hosts'] if h['name'] == host_name), None)
         family = next((f for f in document['families'] if f['family'] == family_name), None)
         if host is None:
@@ -124,8 +204,18 @@ def create(name, host_name, family_name, *, root=ROOT):
             for mac in interface.findall('mac'):
                 interface.remove(mac)  # libvirt allocates a fresh address
         request = dict(name=name, root=host['virt-manager'], iso=family['iso'],
-                       xml=ET.tostring(domain, encoding='unicode'), uuid=identifier, size=size)
-        entry = dict(id=str(max([int(vm.id) for vm in registered.values() if vm.id] + [0]) + 1),
+                       xml=ET.tostring(domain, encoding='unicode'), uuid=identifier, size=size,
+                       state=str(vm_config.STATE_ROOT / name))
+        request['checkout'] = (str(root) if host['transport'] == 'local' else next(
+            (b['repo_root'] for b in document.get('branches', []) if b['host'] == host_name), ''))
+        if existing is not None:
+            confirm(f'VM {name} is already registered on {existing.host.name} '
+                    f'in family {existing.family}. Overwrite its registry entry with '
+                    f'host {host_name}, family {family_name}, enabled=false?')
+            for group in document['families']:
+                group['vms'] = [vm for vm in group['vms'] if vm['name'] != name]
+        entry = dict(id=(existing.id if existing is not None and existing.id else
+                         str(max([int(vm.id) for vm in registered.values() if vm.id] + [0]) + 1)),
                      name=name, enabled='false', host=host_name,
                      disk_anchor=str(Path(host['virt-manager']) / (name + '.qcow2')), owning_branch='')
         family['vms'].append(entry)
@@ -140,9 +230,9 @@ def create(name, host_name, family_name, *, root=ROOT):
             os.chmod(staging, config.stat().st_mode & 0o777)
             vm_config.registry(Path(staging))
             print(f'newvm: creating {name} on {host_name}; powered off, registry disabled', flush=True)
-            if host['transport'] == 'local':
-                result = provision(request)
-            else:
+            def execute():
+                if host['transport'] == 'local':
+                    return provision(request)
                 source = ('import json\n' + inspect.getsource(provision) +
                           '\nprint(json.dumps(provision(' + repr(request) + ')))\n')
                 command = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=15',
@@ -153,7 +243,13 @@ def create(name, host_name, family_name, *, root=ROOT):
                 if completed.returncode:
                     raise ValueError('SSH creation failed; inspect remote resources before retrying: ' +
                                      completed.stderr.strip())
-                result = json.loads(completed.stdout)
+                return json.loads(completed.stdout)
+            result = execute()
+            if 'existing_uuid' in result:
+                confirm(f'VM {name} already exists in libvirt on {host_name}. '
+                        f'Overwrite it and ERASE ALL DATA on {result["disk"]}?')
+                request['overwrite_uuid'] = result['existing_uuid']
+                result = execute()
             print(f'newvm: domain {name} ({identifier}) and disk {result["disk"]} created; '
                   'publishing disabled registry entry', flush=True)
             if config.read_bytes() != original:
@@ -177,6 +273,7 @@ def main():
     args = parser.parse_args()
     try:
         create(args.name, args.host, args.family)
+        print(f'\033[32mnewvm: SUCCESS: {args.name} created; powered off, enabled=false\033[0m', flush=True)
         return 0
     except (OSError, ValueError, ET.ParseError, subprocess.SubprocessError) as error:
         print(f'newvm: {error}', file=sys.stderr)

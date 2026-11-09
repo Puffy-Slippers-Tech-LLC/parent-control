@@ -74,6 +74,16 @@ def confined_file(root, relative):
 
 
 def selection(root, argv, *, allow_missing_artifacts=False):
+    if argv[:1] == ['pool-provision']:
+        if len(argv) != 3:
+            raise ValueError('test-runner:pool-provision requires name and UUID')
+        from vm_pool import identity
+        sys.path.insert(0, str(root / 'tests/integration'))
+        import vm_config
+        name = vm_config.validate_name(argv[1])
+        identifier = identity(argv[2])
+        return ['/usr/bin/python3', '-B', str(confined_file(root, 'tools/vm_pool.py')),
+                '--provision-domain', name, '--expected-uuid', identifier]
     if argv == ['disk']:
         return ['/usr/bin/python3', '-B', str(confined_file(root, 'tools/host_disk.py'))]
     if argv[:1] in (['graphical-worker'], ['package-notice']):
@@ -546,7 +556,7 @@ def run(root, argv, caller):
                 Control().installed(pipe=argv[:1] == ['--unattended']) as control:
             environment.update(test_retention.environment())
             return control.run(command, cwd=root, env=environment, owned_group=True)
-    if argv[:1] in (['pool'], ['disk']):
+    if argv[:1] in (['pool'], ['pool-provision'], ['disk']):
         environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}
         if argv[:1] == ['pool']:
             environment['PKEXEC_UID'] = str(caller.pw_uid)

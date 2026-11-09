@@ -28,15 +28,28 @@ configuration, unrestricted host CPU placement, virtio graphics without 3D,
 sound and a guest-agent channel. They contain no host folder share.
 The new disk is `HOST.virt-manager/NAME.qcow2`; the selected ISO is attached
 with CD-ROM-first boot. The program assigns a fresh UUID and libvirt assigns
-fresh network MAC addresses. Existing domains, registry names/IDs, disk files
-and disk references are refused rather than overwritten.
+fresh network MAC addresses. An existing registry name prompts in red to confirm
+replacement, defaulting to No (including end-of-input). Confirmation retains its
+numeric ID and replaces the entry in the selected family only after successful
+provisioning. If the name also exists in libvirt, a separate red confirmation
+warns that overwriting recreates a blank VM and erases all data on its disk.
+Both prompts default to No, including end-of-input.
+Overwrite requires the same powered-off domain under the host's shared VM
+checkout, one regular disk at the requested destination, no NVRAM, snapshots
+or recorded test/baseline state, and no other domain referencing the disk
+directly or through a backing chain. Unexpected layouts and unconfirmed existing
+disk files are refused, as are names colliding with another VM's ID.
+Overwrite uses the installed development helper; refresh it on the selected
+host with `./setup.sh --test-tools-only`. SSH overwrite also requires a configured
+branch checkout on that host so the helper can resolve its trusted sources.
 
 Creation defines but never starts the VM. Successful creation appends it to the
 selected family with a unique numeric ID and `enabled: "false"`, leaving the
 host's availability unchanged. Concurrent newvm calls serialize registry
 updates; an unrelated editor's intervening changes are refused. A partial
 external failure preserves the disk/domain for operator inspection and reports
-the affected name/path; retrying never adopts or deletes those resources.
+the affected name/path; retrying requires confirmation again for existing domains
+and never adopts an orphaned disk file.
 After manual OS installation, enable the VM/host explicitly and follow the
 normal preparation workflow before scheduling tests. Local prerequisites are
 `python3`, `qemu-img`, `virsh`, and permission to define system-libvirt domains
@@ -79,7 +92,8 @@ remote execution path is separate work when the new host is available.
 
 Its `families` array groups equivalent VMs. Each family has an opaque literal
 `family` label, an explicit `package_format` (`deb` or `rpm`), a `fixture_path`
-relative to `tests/fixtures`, and a `vms` array. Family names are not parsed or
+relative to `tests/fixtures`, and a `vms` array, which may be empty before the
+first VM is created. Family names are not parsed or
 checked against guest OS metadata. Fixture directory composition follows the
 [fixture contract](../support/README.md#frozen-native-fixture-bundles).
 Each VM has a globally unique `name` and selector `id`, an absolute base QCOW2

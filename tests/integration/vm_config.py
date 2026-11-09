@@ -243,7 +243,7 @@ def fixture_targets(path=None):
 def validate_family(document):
     if (not isinstance(document, dict) or
             not {'family', 'package_format', 'fixture_path', 'vms'} <= set(document) or
-            not isinstance(document['vms'], list) or not document['vms']):
+            not isinstance(document['vms'], list)):
         raise ValueError('vm-config:family fields')
     family = document['family']
     if 'iso' in document:

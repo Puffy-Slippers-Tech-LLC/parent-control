@@ -477,8 +477,24 @@ separate scheduler, fallback lock, logout or termination policy. The installed
 transient-failure and renewal delta is `session::test_transient_lock_recovery`
 (system 312). This delta and the affected secure-lock-completion regression
 (system 311) passed on session-selected `onpc-Ubuntu26.04-1`, including original
-work and parent input continuity. Fedora and persistent lock-action outage
-protection remain unqualified.
+work and parent input continuity. Fedora remains unqualified.
+
+Persistent lock-action unavailability has no independent protection or fallback.
+The engineering characterization `session::test_persistent_lock_outage`
+(system 313) passed on session-selected `onpc-Ubuntu26.04-1` in
+`20261109T000907Z-148ad941`: an identity-recorded public lock-action outage
+kept the original Shell, session bus, child desktop and ordinary work alive.
+Actual original-window Submit/readback remained usable after the unchanged
+180-second grant expired plus its protection window, and again after explicit
+revocation plus its protection window. This records unsupported protection,
+not satisfaction of the expiry-lock requirement. Recovery time and restored
+availability subsequently allowed a supported lock and protected-input challenge;
+the original child session/work and parent input/work survived. The normal
+facade, public lock setting and same native owner were restored, followed by
+collection, worker closure and baseline restoration. Fedora characterization
+remains unqualified. Return to protection qualification only when a supported
+lock-availability contract can protect input by the original deadline without
+ending ordinary work; restoration alone cannot qualify the preceding outage.
 
 The `child.countdown-deadline` diagnostic records bounded operand durations and
 the broker result, never raw deadlines or identities. The older

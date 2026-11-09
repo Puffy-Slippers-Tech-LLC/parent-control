@@ -63,3 +63,8 @@ def test_secure_lock_completion(record_testsuite_property):
 def test_transient_lock_recovery(record_testsuite_property):
     from system_graphical_expiry import verify_lock_retry
     verify_lock_retry(record_testsuite_property)
+
+
+def test_persistent_lock_outage(record_testsuite_property):
+    from system_graphical_expiry import verify_lock_outage
+    verify_lock_outage(record_testsuite_property)

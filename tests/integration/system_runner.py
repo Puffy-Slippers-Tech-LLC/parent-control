@@ -149,9 +149,11 @@ BROKER_STALL_CASE = 'test_broker_stall_before_expiry'
 TIMER_REPLACEMENT_CASE = 'test_timer_replacement_before_expiry'
 LOCK_COMPLETION_CASE = 'test_secure_lock_completion'
 LOCK_RETRY_CASE = 'test_transient_lock_recovery'
+LOCK_OUTAGE_CASE = 'test_persistent_lock_outage'
 GRAPHICAL_EXPIRY_CASES = (GRAPHICAL_EXPIRY_CASE, FOREGROUND_REVOKE_CASE, PENDING_APPROVAL_CASE,
                         POLICY_ORDER_CASE, SESSION_REPLACEMENT_CASE, BROKER_CRASH_CASE, BROKER_STOP_CASE,
-                        BROKER_STALL_CASE, TIMER_REPLACEMENT_CASE, LOCK_COMPLETION_CASE, LOCK_RETRY_CASE)
+                        BROKER_STALL_CASE, TIMER_REPLACEMENT_CASE, LOCK_COMPLETION_CASE, LOCK_RETRY_CASE,
+                        LOCK_OUTAGE_CASE)
 PACKAGE_READINESS_CASES = ('test_installed_package',)
 # Host entry/transport and the public observer's embedded source closure. Keep
 # these identities separate from guest imports; no host module runs in the VM.
@@ -2235,7 +2237,8 @@ def run_pytest(vm, run, phase, selection):
 def observe_graphical_expiry(vm, lease, directory, ledger, fixture_context, fixture_selection,
                              *, foreground_revoke=False, pending_approval=False, policy_order=False,
                              session_replacement=False, broker_crash=False, broker_stop=False, broker_stall=False,
-                             timer_replacement=False, lock_completion=False, lock_retry=False):
+                             timer_replacement=False, lock_completion=False, lock_retry=False,
+                             lock_outage=False):
     """Extend system-282 under its existing lease, before PAM changes passwords."""
     sys.path.insert(0, str(ROOT / 'tests/e2e'))
     from types import SimpleNamespace
@@ -2261,7 +2264,7 @@ def observe_graphical_expiry(vm, lease, directory, ledger, fixture_context, fixt
         foreground_revoke=foreground_revoke, pending_approval=pending_approval, policy_order=policy_order,
         session_replacement=session_replacement, broker_crash=broker_crash, broker_stop=broker_stop,
         broker_stall=broker_stall, timer_replacement=timer_replacement,
-        lock_completion=lock_completion, lock_retry=lock_retry)
+        lock_completion=lock_completion, lock_retry=lock_retry, lock_outage=lock_outage)
     (output / 'result.json').write_bytes(baseline.encode(result))
 
 
@@ -2598,6 +2601,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                         lock_completion=any(item.case_id == LOCK_COMPLETION_CASE
                                                 for item in selection.executions),
                         lock_retry=any(item.case_id == LOCK_RETRY_CASE
+                                                for item in selection.executions),
+                        lock_outage=any(item.case_id == LOCK_OUTAGE_CASE
                                                 for item in selection.executions))
             if phase == 'extension':
                 if already_installed:

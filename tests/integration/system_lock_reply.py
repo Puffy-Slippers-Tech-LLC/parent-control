@@ -1,7 +1,7 @@
-"""Finite ScreenSaver reply faults inside system-282's owned guest history.
+"""Finite ScreenSaver reply/availability faults in system-282's owned history.
 
-The public lock setting gates GNOME's competing automatic action until the
-product request arrives. Restore it before forwarding to the real Shell lock.
+The public lock setting gates GNOME's competing automatic action. Reply faults
+restore it before forwarding; an outage holds it until declared recovery.
 The synchronous user_command owns the proxy until restoration.
 """
 
@@ -61,8 +61,8 @@ def proxy(directory, status):
         assert owner('org.gnome.Shell.ScreenShield') == native
         if member == 'Lock' and sender == native:
             record('requested', mode=mode)
-        if member == 'Lock' and mode in ('transient', 'renewal') and sender == native:
-            if mode == 'renewal' or rejected == 0:
+        if member == 'Lock' and mode in ('transient', 'renewal', 'outage') and sender == native:
+            if mode in ('renewal', 'outage') or rejected == 0:
                 rejected += 1
                 record('unavailable', mode=mode)
                 invocation.return_dbus_error('org.freedesktop.DBus.Error.Failed',
@@ -143,13 +143,13 @@ def proxy(directory, status):
         assert value['serial'] == serial + 1
         serial = value['serial']
         action = value['action']
-        if action in ('delayed', 'missing', 'transient', 'renewal'):
+        if action in ('delayed', 'missing', 'transient', 'renewal', 'outage'):
             assert held is None
             mode = action
             rejected = 0
             native_action(True)
         elif action == 'available':
-            assert mode == 'renewal' and rejected > 0
+            assert mode in ('renewal', 'outage') and rejected > 0
             native_action(False)
             mode = None
         elif action == 'release':
@@ -401,6 +401,69 @@ def retry_history(command, value, path, accounts):
     else:
         guest.require(value.get('renewal_cancelled_retry') and value.get('transient_recovered'),
                       'expiry:lock-retry-incomplete')
+        value['complete'] = True
+        result = {'completed': True}
+    value['grants'] += 1
+    path.write_text(json.dumps(value))
+    return result
+
+
+def outage_history(command, value, path, accounts):
+    """Characterize unavailable locking, without accepting absent protection."""
+    import system_guest as guest
+    from system_graphical_expiry import LIMITS, account_property, grant
+    from system_assertions import accepted, call
+
+    child = accounts['child']
+    sequence = ('outage-arm', 'outage-revoke', 'outage-restore',
+                'outage-recovery', 'outage-complete')
+    index = value['grants']
+    guest.require(index < len(sequence) and command == sequence[index], 'expiry:lock-outage-order')
+    if command == 'outage-arm':
+        control('outage')
+        value['outage_expiry'] = grant(child, 180)
+        value['outage_grant'] = account_property(child, LIMITS, 'ActiveExtension')
+        result = {'remaining_seconds': value['outage_expiry'] - time.time()}
+    elif command in ('outage-revoke', 'outage-restore'):
+        rows = records()
+        paused = [row for row in rows if row['event'] == 'native-action-paused'
+                  and row['mode'] == 'outage']
+        refused = [row for row in rows if row['event'] == 'unavailable'
+                   and row['mode'] == 'outage']
+        guest.require(len(paused) == 1 and refused
+                      and paused[0]['monotonic'] <= refused[0]['monotonic']
+                      and not any(row['event'] in ('available', 'native-action-restored') for row in rows)
+                      and time.time() >= value['outage_expiry'] + 15,
+                      'expiry:lock-outage-not-spanning-expiry')
+        guest.require(account_property(child, LIMITS, 'DailyLimit') == 0,
+                      'expiry:lock-outage-policy-changed')
+        if command == 'outage-revoke':
+            guest.require(account_property(child, LIMITS, 'ActiveExtension') == value['outage_grant'],
+                          'expiry:lock-outage-original-grant-changed')
+            value['outage_revoked_at'] = time.monotonic()
+            accepted(call(accounts['parent'], 'RevokeOneTimeGrant', '(u)', (child,)))
+            guest.require(account_property(child, LIMITS, 'ActiveExtension')[1] == 0,
+                          'expiry:lock-outage-revoke-not-observed')
+            result = {'completed': True}
+        else:
+            guest.require(time.monotonic() >= value['outage_revoked_at'] + 15
+                          and account_property(child, LIMITS, 'ActiveExtension')[1] == 0,
+                          'expiry:lock-outage-not-spanning-revocation')
+            # The host has independently submitted/read original work after
+            # each exhausted boundary. Record that unsupported result explicitly;
+            # restoring availability can never turn it into a protection pass.
+            value['outage_protection'] = 'unsupported-input-remained-usable'
+            value['outage_recovery_expiry'] = grant(child, 1200)
+            control('available')
+            result = {'remaining_seconds': value['outage_recovery_expiry'] - time.time()}
+    elif command == 'outage-recovery':
+        guest.require(value.get('outage_protection') == 'unsupported-input-remained-usable',
+                      'expiry:lock-outage-characterization-missing')
+        result = {'remaining_seconds': value['outage_recovery_expiry'] - time.time()}
+    else:
+        guest.require(value.get('outage_protection') == 'unsupported-input-remained-usable'
+                      and any(row['event'] == 'available' for row in records()),
+                      'expiry:lock-outage-incomplete')
         value['complete'] = True
         result = {'completed': True}
     value['grants'] += 1

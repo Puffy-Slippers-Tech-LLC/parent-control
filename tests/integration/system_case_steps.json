@@ -2604,6 +2604,16 @@
     ],
     "expected": "A real bounded retry protects the child by the original deadline plus fifteen seconds. Confirmed renewal cancels stale retries. Original child and parent work survive and owned cleanup restores normal locking."
   },
+  "313": {
+    "summary": "Check the child's input while locking remains unavailable",
+    "steps": [
+      "Keep the original child desktop, work, Shell and session bus alive while the owned public lock-action fault refuses real requests.",
+      "Cross the unchanged three-minute deadline and its protection window, then submit and independently read the original work.",
+      "Revoke the exhausted grant while the same outage remains active, cross its protection window and observe actual input again.",
+      "Record the unsupported protection result separately, restore lock availability with recovery time, verify a supported lock and protected input, then recover original child and parent work."
+    ],
+    "expected": "Characterization only: actual input remains usable during the outage, so protection is unsupported. The original desktop and work survive; normal locking, parent input and owned cleanup are restored. Successful restoration grants no earlier protection or customer-case credit."
+  },
   "299": {
     "summary": "Restore the extension from Parent controls",
     "steps": [

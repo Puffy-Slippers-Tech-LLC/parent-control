@@ -176,7 +176,7 @@ def _system_history_command(transport, command, *, timeout=120):
                    'replacement-complete', 'crash-complete', 'stop-complete',
                    'stall-complete', 'stall-cleanup', 'timer-complete', 'timer-cleanup',
                    'reply-complete', 'reply-missing-wait', 'retry-complete',
-                   'retry-renew', 'retry-renew-check'):
+                   'retry-renew', 'retry-renew-check', 'outage-revoke', 'outage-complete'):
         require(value == {'completed': True}, 'expiry:history-incomplete')
         return value
     if command in ('policy-renew', 'policy-allowance', 'policy-disable'):
@@ -195,7 +195,7 @@ def _system_history_command(transport, command, *, timeout=120):
     require(type(value) is dict and set(value) == {'remaining_seconds'}
             and type(value['remaining_seconds']) in (int, float)
             and 0 < value['remaining_seconds'] <= 1200, 'expiry:history-grant-response')
-    if command == 'replacement-arm':
+    if command in ('replacement-arm', 'outage-arm'):
         # Positive input must be after even the latest possible original expiry.
         return time.monotonic() + value['remaining_seconds']
     # Conservative controller lower endpoint: grant read latency never adds
@@ -556,6 +556,57 @@ REPLY_PLAN = replace(STOP_PLAN, screen_tags=_REPLY_SCREENS,
     activity_checks={**STOP_PLAN.activity_checks,
         'second-recovery-activity-opened': ('activity-capture', 'same'),
         'second-recovery-work': ('activity-capture', 'same')})
+
+
+class LockOutageJourney(BrokerStopJourney):
+    """Observe the unsupported boundary, then independently test restoration."""
+
+    @staticmethod
+    def natural_lock(journey, guard):
+        guard()
+        journey.original_expiry = _system_history_command(journey.transport, 'outage-arm')
+        # A later controller endpoint proves post-expiry input even with reply
+        # lag. This history claims no timely protection from a later lock.
+        for command, finish in (
+                ('outage-revoke', journey.original_expiry + 20),
+                ('outage-restore', None)):
+            if finish is None:
+                finish = time.monotonic() + 20
+            deadline = min(finish + LOCK_VERIFICATION_SECONDS,
+                           journey.original_expiry + RECOVERY_SECONDS)
+            while True:
+                guard()
+                require(time.monotonic() < deadline, 'expiry:lock-outage-observation-deadline')
+                value = journey.ui.observe('child-natural-expiry-engineering-observe')['natural_expiry']
+                require(journey.ui.boot_proof == journey.boot
+                        and value['session_sha256'] == journey.original_session
+                        and value['state'] == 'desktop', 'expiry:lock-outage-desktop-not-surviving')
+                compare_app_activity(AppActivityObservation.from_value(value['activity']),
+                                     journey.activity_observations['activity-capture'])
+                if time.monotonic() >= finish:
+                    value = journey.ui.observe('child-natural-expiry-engineering-activity')['natural_expiry']
+                    require(value['state'] == 'desktop' and value['acted']
+                            and value['session_sha256'] == journey.original_session
+                            and journey.ui.boot_proof == journey.boot
+                            and time.monotonic() < deadline,
+                            'expiry:lock-outage-input-not-observed')
+                    compare_app_activity(AppActivityObservation.from_value(value['activity']),
+                                         journey.activity_observations['activity-capture'])
+                    break
+                time.sleep(SAMPLE_INTERVAL_SECONDS)
+            _system_history_command(journey.transport, command)
+        # This explicit supported lock and the worker's fresh input challenge
+        # prove restored availability only, never protection during the outage.
+        session_control.observe(journey.transport, 'child-lock')
+        journey.lock_deadline = engineering_deadline(time.monotonic(), LOCK_VERIFICATION_SECONDS)
+        return {'characterization_only': True, 'protection': 'unsupported',
+                'input_after_original_expiry_and_revocation': True,
+                'original_child_work': True, 'availability_restored': True}
+
+    @staticmethod
+    def natural_recovery(journey, guard):
+        return journey._recover_after_outage(journey, guard,
+            'outage-recovery', expiry_at=journey.original_expiry)
 
 
 class LockRetryJourney(BrokerStopJourney):
@@ -1053,14 +1104,17 @@ def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected
                                progress, context, credentials=None, foreground_revoke=False,
                                pending_approval=False, policy_order=False, session_replacement=False,
                                broker_crash=False, broker_stop=False, broker_stall=False,
-                               timer_replacement=False, lock_completion=False, lock_retry=False):
+                               timer_replacement=False, lock_completion=False, lock_retry=False,
+                               lock_outage=False):
     """Compose engineering input checks before the installed PAM password tests."""
     from desktop_session import run_attached
     require(sum((foreground_revoke, pending_approval, policy_order, session_replacement,
                  broker_crash, broker_stop, broker_stall, timer_replacement, lock_completion,
-                 lock_retry)) <= 1,
+                 lock_retry, lock_outage)) <= 1,
             'expiry:ambiguous-history')
     plan, journey_type, ready, complete = (
+        (STOP_PLAN, LockOutageJourney, 'outage-ready', 'outage-complete')
+        if lock_outage else
         (STOP_PLAN, LockRetryJourney, 'retry-ready', 'retry-complete')
         if lock_retry else
         (REPLY_PLAN, LockCompletionJourney, 'reply-ready', 'reply-complete')
@@ -1083,7 +1137,7 @@ def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected
         if foreground_revoke else
         (SYSTEM_PLAN, SystemGraphicalExpiryJourney, 'host-ready', 'host-complete'))
     _system_history_command(transport, ready)
-    if lock_completion or lock_retry:
+    if lock_completion or lock_retry or lock_outage:
         return _run_lock_reply_history(directory, lease, transport, ledger,
             plan=plan, journey_type=journey_type, complete=complete,
             expected_inputs=expected_inputs, progress=progress, context=context,

@@ -205,7 +205,8 @@ class SSHBoundary:
         # persistent environment settings or changing checkout import routes.
         placement = ('from pathlib import Path\nfrom native_assets import ('
             'ASSETS,LAUNCHERS,GUI_FILES,GUI_DIRECTORIES,PREFIX,TRUSTED_NATIVE,ACTIVITY_PREFIX,ACTIVITY_EXECUTABLE,'
-            'trusted_file_modes,desktop_entry,desktop_id,legacy_executable_paths,NEXT_VERSION,VERSION_NONMATCH)\n')
+            'trusted_file_modes,desktop_entry,desktop_id,legacy_executable_paths,NEXT_VERSION,VERSION_NONMATCH,'
+            'GAME_EXECUTABLE,GAME_DESKTOP_ID,game_desktop_entry)\n')
         for name in ('MECHANICAL', 'NATIVE', 'CATALOG_PREFIX', 'CATALOG_ENTRIES'):
             placement += name + '=' + repr(getattr(baseline_assets, name)) + '\n'
         for name in ('native_files', 'catalogue_files'):

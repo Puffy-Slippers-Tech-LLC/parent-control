@@ -47,7 +47,7 @@ class CaptureGate:
                 self.resume_after_ns = at_ns
                 self.ready_ns = None
 
-    def masked(self, panels, at_ns):
+    def masked(self, panels, at_ns, *, image_ns):
         if self.tokens:
             return True
         if self.resume_after_ns is None:
@@ -63,7 +63,8 @@ class CaptureGate:
             self.ready_ns = at_ns
         # WidgetPaintable may retain the preceding rendered node until GTK's
         # next paint. Never snapshot immediately inside the unseal callback.
-        if at_ns - self.ready_ns < 1_000_000_000 // FPS:
+        if (at_ns - self.ready_ns < 1_000_000_000 // FPS
+                or image_ns <= self.ready_ns):
             return True
         self.resume_after_ns = self.ready_ns = None
         return False
@@ -300,7 +301,7 @@ class Encoder:
                     dropped_capture_frames=self.dropped_capture_frames, vm_spans=self.vm_spans)
 
 
-def widget_pixels(window, width=WIDTH, height=HEIGHT):
+def widget_pixels(window, paintable, width=WIDTH, height=HEIGHT):
     """Snapshot the existing GTK widget tree, including VTE and VM screens."""
     import gi
     gi.require_version('Gtk', '4.0')
@@ -308,7 +309,6 @@ def widget_pixels(window, width=WIDTH, height=HEIGHT):
     gi.require_version('Gdk', '4.0')
     from gi.repository import Gdk, Graphene, Gtk
     snapshot = Gtk.Snapshot()
-    paintable = Gtk.WidgetPaintable.new(window)
     paintable.snapshot(snapshot, width, height)
     node = snapshot.to_node()
     if node is None:
@@ -330,11 +330,12 @@ def widget_pixels(window, width=WIDTH, height=HEIGHT):
 def render(control, root, *, compositor=None, sources=None, vm_names=None):
     import gi
     gi.require_version('Gtk', '4.0')
-    from gi.repository import GLib
+    from gi.repository import GLib, Gtk
     from watch_recording_viewer import application
     from watch_checkouts import Discovery
     state = dict(ready=False, closing=False, error=None, render_ns=0, samples=0,
-                 last_render_ns=time.monotonic_ns(), skipped_render_frames=0)
+                 last_render_ns=time.monotonic_ns(), skipped_render_frames=0,
+                 image_ns=0, stale_image_ns=None, image_updates=0)
     gate = CaptureGate()
     # An independent application cannot forward to a user's live singleton.
     sources = sources or {root: {}}
@@ -343,10 +344,16 @@ def render(control, root, *, compositor=None, sources=None, vm_names=None):
     app = application(checkouts={root: root.name}, sources=sources,
                       window_size=(WIDTH, HEIGHT))
     encoders = {}
+    paintable = None
     control.setblocking(False)
 
     def reply(value):
         control.send(json.dumps(value, separators=(',', ':')).encode())
+
+    def image_changed(_paintable):
+        state['image_ns'] = time.monotonic_ns()
+        state['stale_image_ns'] = None
+        state['image_updates'] += 1
 
     def submit_frame():
         panels = {vm: view.vms[key] for view in app.checkouts.values() for vm, key in view.vm_keys.items()
@@ -354,8 +361,9 @@ def render(control, root, *, compositor=None, sources=None, vm_names=None):
         names = set(panels)
         # The omission visibly identifies these public panels. Keep the same
         # names with the encoded image even while all private pixels are sealed.
-        pixels = (secret_pixels(names=names) if gate.masked(panels.values(), time.monotonic_ns())
-                  else widget_pixels(app.window))
+        pixels = (secret_pixels(names=names) if gate.masked(
+                    panels.values(), time.monotonic_ns(), image_ns=state['image_ns'])
+                  else widget_pixels(app.window, paintable))
         if pixels is None:
             state['skipped_render_frames'] += 1
             return None
@@ -365,6 +373,7 @@ def render(control, root, *, compositor=None, sources=None, vm_names=None):
         return names
 
     def tick():
+        nonlocal paintable
         try:
             if _stop_requested.is_set():
                 state['error'] = 'Interrupted'
@@ -372,6 +381,12 @@ def render(control, root, *, compositor=None, sources=None, vm_names=None):
                 return False
             if app.window is None or app.window.get_width() < 2:
                 return True
+            if paintable is None:
+                # Observe completed GTK images across relayouts. A new paintable
+                # at each sample can see the widget's invalidated render node.
+                paintable = Gtk.WidgetPaintable.new(app.window)
+                paintable.connect('invalidate-contents', image_changed)
+            app.window.queue_draw()
             if not state['ready']:
                 # Qualify the public render/download route before reporting
                 # readiness; startup failure must never look like recording.
@@ -448,6 +463,13 @@ def render(control, root, *, compositor=None, sources=None, vm_names=None):
                 return True
             state['render_ns'] += time.monotonic_ns() - started
             state['samples'] += 1
+            if time.monotonic_ns() - state['image_ns'] > 3_000_000_000:
+                # A retained image cannot turn a sustained paint stall into a
+                # successful capture. Allow GTK to catch up after a blocked tick.
+                if state['stale_image_ns'] is None:
+                    state['stale_image_ns'] = time.monotonic_ns()
+                elif time.monotonic_ns() - state['stale_image_ns'] > 3_000_000_000:
+                    raise RuntimeError('recording window stopped painting')
             if any(encoder.error for encoder in encoders.values()):
                 raise RuntimeError('recording encoder failed')
             return True
@@ -475,7 +497,8 @@ def render(control, root, *, compositor=None, sources=None, vm_names=None):
         if errors:
             state['error'] = errors[0]
     summary = dict(event='closed', fps=FPS, render_ns=state['render_ns'], samples=state['samples'],
-                   skipped_render_frames=state['skipped_render_frames'])
+                   skipped_render_frames=state['skipped_render_frames'],
+                   image_updates=state['image_updates'])
     own = resource.getrusage(resource.RUSAGE_SELF)
     children = resource.getrusage(resource.RUSAGE_CHILDREN)
     cpu = own.ru_utime + own.ru_stime + children.ru_utime + children.ru_stime

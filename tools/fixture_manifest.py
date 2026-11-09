@@ -21,7 +21,7 @@ SCHEMA = 1
 MAX_MEMBER = 8 * 1024 * 1024
 MAX_TOTAL = 128 * 1024 * 1024
 MAX_MANIFEST = 1024 * 1024
-SUBSETS = ('native', 'riley-grid', 'baseline-child', 'activity', 'mechanical', 'trusted-hard',
+SUBSETS = ('native', 'game', 'riley-grid', 'baseline-child', 'activity', 'mechanical', 'trusted-hard',
            'trusted-soft', 'trusted-hard-launcher', 'trusted-soft-launcher',
            'command', 'whitespace', 'pattern', 'retention',
            'catalogue', 'controls', 'compatibility', 'legacy')
@@ -53,6 +53,8 @@ def declarations():
     catalogue = baseline_assets.catalogue_files(accounts)
     runtime = {destination for destination, _ in
                native_assets.source_destinations('@other@').values()}
+    game = {destination for destination, _ in
+            native_assets.game_source_destinations('@other@').values()}
     grid = {destination for destination, _ in
             native_assets.source_destinations('@child@').values()
             if destination.startswith(native_assets.PREFIX + '/')}
@@ -66,6 +68,8 @@ def declarations():
         subsets = {'legacy'}
         if destination in runtime:
             subsets.add('native')
+        if destination in game:
+            subsets.add('game')
         if destination in grid:
             subsets.add('riley-grid')
         if destination in baseline_child:
@@ -80,7 +84,7 @@ def declarations():
                 or destination in {native_assets.PREFIX + '/' + filename
                                    for filename in native_assets.GUI_FILES}):
             subsets.add('compatibility')
-        if destination in native and destination not in runtime | grid:
+        if destination in native and destination not in runtime | grid | game:
             if source in ('trusted-hard', 'trusted-soft'):
                 subsets.add(source)
             elif destination.startswith('/usr/share/applications/'):
@@ -100,8 +104,8 @@ def declarations():
                 subsets.add('controls')
         action = ('trust' if destination in trusted else
                   'native-execute' if mode == 0o755 and
-                  (destination in runtime or source == 'mechanical') else
-                  'native-open' if destination in runtime and mode == 0o644
+                  (destination in runtime | game or source == 'mechanical') else
+                  'native-open' if destination in runtime | game and mode == 0o644
                   and destination.startswith(native_assets.PREFIX + '/') else 'none')
         result[_digest(destination.encode())] = {
             'destination': destination, 'mode': mode, 'owner': owner,
@@ -379,7 +383,7 @@ def _check_payloads(payloads, declared, inputs):
     if total > MAX_TOTAL:
         _fail('total-length')
     executables = ('mechanical', 'A', 'H', 'S', 'S-update', 'N', 'C', 'trusted-hard',
-                   'trusted-soft', 'trusted-activity')
+                   'trusted-soft', 'trusted-activity', 'game')
     if len({_digest(sources[key]) for key in executables}) != len(executables):
         _fail('identity-collision')
     if sources['onpc-test-gui.py'] == sources['gtk_automation.py']:

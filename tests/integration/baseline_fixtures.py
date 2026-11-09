@@ -155,7 +155,11 @@ def _compiled_retirement_record(g, identities):
     # Whitespace (tasks 035b, 035a, 229a and 227). Reconstruct those inventories in
     # reverse order; new movable fixtures cannot invalidate clean witnesses.
     comma = assets.PREFIX + '/Comma/'
-    before_versions = base - {
+    before_game = base - {
+        native_assets.GAME_EXECUTABLE,
+        identities['other'].pw_dir + '/.local/share/applications/' + native_assets.GAME_DESKTOP_ID,
+    }
+    before_versions = before_game - {
         assets.PREFIX + '/' + native_assets.NEXT_VERSION,
         assets.PREFIX + '/' + native_assets.VERSION_NONMATCH,
     }
@@ -173,7 +177,8 @@ def _compiled_retirement_record(g, identities):
     before_whitespace = (before_alias - {
         whitespace + 'Path With Spaces.AppImage',
         *(whitespace + name for name in assets.GUI_FILES)}) | {old_h}
-    historical = (before_versions, before_comma, before_alias, before_whitespace,
+    historical = (before_game, before_versions, before_comma, before_alias, before_whitespace,
+                  before_game - set(native_assets.NATIVE_POLICY_PATHS),
                   before_versions - set(native_assets.NATIVE_POLICY_PATHS),
                   before_comma - set(native_assets.NATIVE_POLICY_PATHS),
                   before_alias - set(native_assets.NATIVE_POLICY_PATHS),
@@ -502,7 +507,7 @@ def require(value, category='unsafe-or-stale'):
 
 
 def build_payload():
-    """Compile only native inputs using the maintained builder and disk scratch."""
+    """Compile native/game inputs using the maintained builder and disk scratch."""
     import tempfile
     from tools.test_storage import scratch_directory
     from tests.fixtures.build_test_applications import _compile_native, GUI_SOURCE, GTK_AUTOMATION_SOURCE
@@ -511,6 +516,7 @@ def build_payload():
         result = {role: _compile_native(root, identity=role).read_bytes()
                   for role, *_ in assets.ASSETS}
         result['S-update'] = _compile_native(root, identity='S-update').read_bytes()
+        result['game'] = _compile_native(root, kind='game').read_bytes()
         result['mechanical'] = _compile_native(root, headless=True).read_bytes()
         for identity in assets.TRUSTED_NATIVE:
             result[identity] = _compile_native(root, headless=True, identity=identity).read_bytes()

@@ -14,7 +14,8 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from tests.fixtures.native_assets import (ASSETS, LAUNCHERS, desktop_id, sources, riley_grid_sources,
-                                         activity_sources, executable_sources)
+                                         activity_sources, executable_sources,
+                                         game_source_destinations, GAME_DESKTOP_ID)
 
 
 def guest_source():
@@ -69,7 +70,7 @@ class PackagedFixtures:
 
 class NativeFixtures:
     def __init__(self, transport, verified, *, profile='native'):
-        require(profile in ('native', 'chinese', 'riley-grid', 'activity', 'baseline-child'),
+        require(profile in ('native', 'game', 'chinese', 'riley-grid', 'activity', 'baseline-child'),
                 'native:profile')
         self.profile = profile
         self.transport, self.verified = transport, verified
@@ -82,7 +83,8 @@ class NativeFixtures:
         require(self.transport.config == self.attempt, 'native:wrong-attempt')
         self.transport.guard(self.attempt)
         self.verified.recheck()
-        names = (activity_sources() if self.profile == 'activity' else
+        names = (tuple(game_source_destinations('@other@')) if self.profile == 'game' else
+                 activity_sources() if self.profile == 'activity' else
                  riley_grid_sources() if self.profile == 'riley-grid' else
                  sources(alias=self.profile != 'baseline-child'))
         selection = getattr(self.verified, 'fixture_selection', None)
@@ -93,7 +95,8 @@ class NativeFixtures:
         if selection is not None:
             from e2e_fixture_preparation import (ACTIVITY_CALLERS, ACTIVITY_SUBSETS,
                                                  APP_SET_CALLER, LIFECYCLE_SUBSETS,
-                                                 SUBSETS, asset_hashes, qualified_subsets)
+                                                 SUBSETS, GAME_SUBSETS, GAME_CALLER,
+                                                 asset_hashes, qualified_subsets)
             prepared = getattr(self.verified, 'fixture_prepared', None)
             require(type(prepared) is dict, 'fixtures:readiness-required')
             subsets = qualified_subsets(prepared.get('subsets', SUBSETS),
@@ -104,7 +107,9 @@ class NativeFixtures:
                 subsets == ACTIVITY_SUBSETS and prepared.get('caller') in ACTIVITY_CALLERS
                 or subsets == LIFECYCLE_SUBSETS and prepared.get('caller') == APP_SET_CALLER
                 and not prepared.get('product_free', False)))
-            require(self.profile in ('native', 'chinese') or selected_activity or selected_child,
+            selected_game = (self.profile == 'game' and subsets == GAME_SUBSETS
+                             and prepared.get('caller') == GAME_CALLER)
+            require(self.profile in ('native', 'chinese') or selected_game or selected_activity or selected_child,
                     'fixtures:e2e-profile-not-qualified')
             require({'controller', 'receipt'} <= set(prepared)
                     and prepared['controller'] is not None and prepared['receipt'] is not None,
@@ -118,7 +123,7 @@ class NativeFixtures:
             files = self.verified.asset_files
         expected = ({name: files[name] for name in names}
                     if self.profile != 'chinese' else {})
-        if self.profile not in ('chinese', 'activity'):
+        if self.profile not in ('chinese', 'activity', 'game'):
             require(len({expected[name] for name in executable_sources()}) == len(ASSETS), 'native:identical-roles')
         raw = self.transport.call(['/usr/bin/python3', '-I', '-', action,
                                    ('baseline-child-selected' if selected_child else
@@ -149,6 +154,8 @@ class NativeFixtures:
                        if self.profile == 'chinese' else
                        'Verifying root-owned activity inputs and loaded native file trust'
                        if self.profile == 'activity' else
+                       'Verifying declared offline game files and launcher for [Child user]'
+                       if self.profile == 'game' else
                        'Verifying declared native launchers for [Child user]'):
             value = self.command('read')
             if self.profile == 'activity':
@@ -173,9 +180,11 @@ class NativeFixtures:
                 self.receipt = value
                 self.failed = False
                 return {**value, 'independent_readback': True}
-            names = (riley_grid_sources() if self.profile == 'riley-grid' else
+            names = (tuple(game_source_destinations('@other@')) if self.profile == 'game' else
+                     riley_grid_sources() if self.profile == 'riley-grid' else
                      sources(alias=self.profile != 'baseline-child'))
-            launchers = ([desktop_id('A')] if self.profile == 'riley-grid' else
+            launchers = ([GAME_DESKTOP_ID] if self.profile == 'game' else
+                         [desktop_id('A')] if self.profile == 'riley-grid' else
                          [desktop_id(asset[0]) for asset in
                           (ASSETS if self.profile == 'baseline-child' else LAUNCHERS)])
             require(set(value) == {'files', 'launchers'} |
@@ -254,9 +263,11 @@ def catalogue_rows(binding, rows, *, match_mask=3, access_mask=7):
                  and row[1] in accesses and row[2] in matches)
 
 
-def check_catalogue(rows, *, alias=False):
+def check_catalogue(rows, *, alias=False, profile='native'):
     """Require all declared public row identities/defaults; stock rows remain allowed."""
-    expected = expected_rows(alias=alias)
+    require(profile in ('native', 'game'), 'native:profile')
+    expected = ((('parent-app-' + hashlib.sha256(GAME_DESKTOP_ID.encode()).hexdigest()[:16],
+                  'allowed', 'precise'),) if profile == 'game' else expected_rows(alias=alias))
     selected = tuple(row for row in rows.rows if row[0] in {item[0] for item in expected})
     if selected != expected:
         # The failing stage is not persisted by InstalledJourney. Retain only

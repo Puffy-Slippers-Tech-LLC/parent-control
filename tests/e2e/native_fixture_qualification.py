@@ -29,8 +29,10 @@ PLAN = JourneyPlan(
 
 
 class NativeFixtureJourney(InstalledJourney):
-    def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan, actions=fixture_actions() if actions is None else actions)
+    def __init__(self, context, progress, plan=PLAN, *, actions=None, profile='native'):
+        self.profile = profile
+        super().__init__(context, progress, plan,
+                         actions=fixture_actions(profile=profile) if actions is None else actions)
         self.initial_rows = None
 
     def check_settings(self, stage, observed):
@@ -38,7 +40,7 @@ class NativeFixtureJourney(InstalledJourney):
         if stage not in ('app-rows', 'reopened-rows'):
             return
         rows = allowed_app_rows(self, observed)
-        observed['comparison'].update(check_catalogue(rows))
+        observed['comparison'].update(check_catalogue(rows, profile=self.profile))
         if stage == 'app-rows':
             require(self.initial_rows is None, 'native:catalogue-replay')
             self.initial_rows = rows

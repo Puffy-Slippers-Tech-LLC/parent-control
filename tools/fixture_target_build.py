@@ -24,7 +24,7 @@ import sys
 
 TARGETS = {'ubuntu': '26.04', 'fedora': '44'}
 IDENTITIES = ('mechanical', 'A', 'H', 'S', 'S-update', 'N', 'C', 'trusted-hard', 'trusted-soft',
-              'trusted-activity')
+              'trusted-activity', 'game')
 READY = b'ONPC_TEST_APPLICATION_READY\n'
 _LEASE_FDS = ContextVar('fixture_target_lease_fds', default=())
 
@@ -273,7 +273,8 @@ def _build(source: Path, output: Path, target: str):
         for identity in IDENTITIES:
             headless = identity in ('mechanical', 'trusted-hard', 'trusted-soft')
             compiled = builder._compile_native(
-                workspace, identity='default' if identity == 'mechanical' else identity,
+                workspace, identity='default' if identity in ('mechanical', 'game') else identity,
+                kind='game' if identity == 'game' else 'native',
                 headless=headless, source_root=source, linker_flags=(), run=_run)
             destination = output / identity
             shutil.copyfile(compiled, destination)

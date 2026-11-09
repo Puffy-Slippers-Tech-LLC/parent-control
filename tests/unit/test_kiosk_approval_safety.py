@@ -7,7 +7,49 @@ import pytest
 
 import ui_observations
 from private_artifacts import EvidenceError
-from tests.support.perl import run_password_guard
+from tests.support.perl import run_password_guard, run_perl
+
+
+@pytest.mark.parametrize('outside', ['product-modal', 'native-modal', 'product-focus'])
+def test_lock_input_ignores_app_local_modality_but_refuses_competing_recipients(outside):
+    import os
+    module = ui_observations.accessible_ui
+
+    class Node:
+        def __init__(self, *, focused=False):
+            self.focused = focused
+
+        def get_process_id(self):
+            return os.getpid()
+
+        def get_parent(self):
+            return root
+
+    root, owner, window, hint = Node(), Node(), Node(focused=True), Node()
+    other = Node(focused=outside == 'product-focus')
+    if outside.startswith('product-'):
+        other.ui_element = object()
+    nodes = [root, owner, window, hint, other]
+    edges = {root: [owner, other], owner: [window], window: [hint], hint: [], other: []}
+    facts = {node: {'role': role, 'name': name, 'showing': True, 'modal': False}
+             for node, role, name in (
+                 (root, 'desktop', ''), (owner, 'application', 'gnome-shell'),
+                 (window, 'window', ''),
+                 (hint, 'label', 'Click or press a key to unlock'),
+                 (other, 'window', ''))}
+    facts[other]['modal'] = outside != 'product-focus'
+    states = SimpleNamespace(DEFUNCT='defunct', FOCUSED='focused')
+    ui = module.AccessibleUI(SimpleNamespace(StateType=states, get_desktop=lambda index: root))
+    ui.require_lock_session = Mock(return_value='same-locked-session')
+    ui.has_state = lambda node, state: state == 'focused' and node.focused
+    observation = (nodes, edges, {}, facts)
+    if outside == 'product-modal':
+        assert ui.shell_lock_snapshot(os.getuid(), 'curtain', observation=observation)[:3] == (
+            owner, window, None)
+        assert ui.require_lock_session.call_count == 2
+    else:
+        with pytest.raises(module.UiError, match='ui:lock-other-surface'):
+            ui.shell_lock_snapshot(os.getuid(), 'curtain', observation=observation)
 
 
 def test_reminder_overlay_wrong_account_refuses_before_discovery(monkeypatch):
@@ -243,10 +285,11 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
                                                else '-overlay-shell-approval')])]
 
 
-def test_shell_cancel_proof_requires_the_bound_request_and_a_new_challenge():
-    operation = 'overlay-shell-cancel-ready'
+@pytest.mark.parametrize('action', ['cancel', 'lock'])
+def test_shell_interruption_proof_requires_the_bound_request_and_a_new_challenge(action):
+    operation = 'overlay-shell-' + action + '-ready'
     proof = {'child': 'fixture-child', 'approver': 'fixture-parent',
-             'duration_seconds': 30, 'allow_soft': False, 'cancel_ready': True,
+             'duration_seconds': 30, 'allow_soft': False, action + '_ready': True,
              'same_challenge_rechecked': True,
              'rejected_proofs': list(ui_observations.accessible_ui.SHELL_PROMPT_REFUSALS),
              'provider': {'version': '50.0', 'locale': 'en_US.UTF-8',
@@ -275,6 +318,33 @@ def test_shell_cancel_proof_requires_the_bound_request_and_a_new_challenge():
     with pytest.raises(EvidenceError, match='challenge-previous-failure'):
         wrong.observe(operation)
     assert wrong.call.call_count == calls
+
+
+def test_pending_approval_refusal_prevents_lock_unlock_and_replay():
+    result = run_perl(r'''
+use strict;
+use warnings;
+use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { die 'unexpected keyboard input'; }
+package main;
+require onpc_request_flow;
+my $journey = onpc_journey->new(prefix => 'pending-overlay-lock', review => 0,
+    exchange => sub { push @events, $_[0]; die 'fixture:prompt-refused'; });
+my $first = eval { onpc_request_flow::overlay_lock($journey, 'interruption'); 1; };
+my $first_error = "$@";
+my $second = eval { onpc_request_flow::overlay_lock($journey, 'interruption'); 1; };
+print encode_json({first => $first ? 1 : 0, second => $second ? 1 : 0,
+    first_error => $first_error, second_error => "$@", events => \@events});
+''')
+    value = json.loads(result.stdout)
+    assert not value['first'] and not value['second']
+    assert 'fixture:prompt-refused' in value['first_error']
+    assert 'pending-lock:replay' in value['second_error']
+    assert value['events'] == ['interruption-pending-approval']
 
 
 @pytest.mark.parametrize('mode', ['sequence', 'wrong-scope', 'replay'])

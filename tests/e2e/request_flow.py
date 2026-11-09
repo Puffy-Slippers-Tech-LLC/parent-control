@@ -201,18 +201,28 @@ def overlay_authentication(*, result, prefix, exit='automatic', language='en'):
 
     Requires the prepared fixed overlay request. Cancel returns prompt absence;
     approval returns explicit success; rejection proves denial before Cancel.
+    Lock returns through the same child's lock screen and proves prompt absence.
     The caller owns preserved choices,
     automatic desktop return and activity comparisons. Renaming checkpoints
     does not qualify another request or provider tuple.
     """
     import re
-    require(result in ('cancel', 'approval', 'rejection'), 'overlay-authentication:result')
+    require(result in ('cancel', 'approval', 'rejection', 'lock'), 'overlay-authentication:result')
     require(language == 'en' or language == 'he' and result == 'approval'
             and exit == 'automatic', 'overlay-authentication:language')
     require(exit in ('automatic', 'immediate') and (result == 'approval' or exit == 'automatic'),
             'overlay-authentication:exit')
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
             'overlay-authentication:prefix')
+    if result == 'lock':
+        from journey_blocks import lock_challenge, lock_recipient, prefixed_stages
+        return prefixed_stages(prefix, {
+            'pending-approval': 'ui:overlay-shell-lock-ready',
+            'lock': 'system:child-lock',
+            **lock_challenge(account='child'), **lock_recipient(account='child'),
+            'unlock-session': 'system:child-desktop-identity',
+            'dismissed': 'ui:overlay-shell-dismissed',
+        })
     if result == 'cancel':
         return {
             prefix + '-cancel-ready': 'ui:overlay-shell-cancel-ready',

@@ -408,6 +408,10 @@ immediately. Reads are asynchronous/serialized, discard superseded replies and
 refresh every 30 idle seconds. Rest-of-day says until midnight. Higher-priority
 validation/loading/approval messages win. Estimate failure never blocks submission;
 approval recalculates the real grant. Disposal removes timers and invalidates reads.
+Unavailable estimates stay in the footer and retain structured diagnostics without
+opening a modal error report. This also keeps cancellation quiet when locking
+temporarily makes native time unavailable. Normal refreshes recover the estimate;
+preference-save and approval errors retain their ordinary reporting.
 
 ## Request-selector state
 

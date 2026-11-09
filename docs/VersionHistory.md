@@ -4,6 +4,7 @@
 - **Child App**: Tamper-free child app - automatically restores the child extension when disabled, with retry backoff and standard error reporting for failures.
   
 ### Bug Fixes
+- **Child App**: Fixed an unnecessary error report blocking the time request after locking during parent approval.
 
 
 ## v1.5 - 2026-10-31

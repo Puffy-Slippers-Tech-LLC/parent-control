@@ -692,6 +692,15 @@ def reproduce_countdown_minutes(lease):
                             boundary_operation='child-countdown-present')
 
 
+def reproduce_pending_overlay_lock(lease):
+    """Retain the child scene after one post-unlock request Cancel call."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from pending_overlay_lock import PendingOverlayLockJourney, PLAN
+    return reproduce_denial(lease, PendingOverlayLockJourney, PLAN,
+                            'cancel', 'pending-overlay-lock',
+                            boundary_operation='overlay-request-cancel')
+
+
 def reproduce_panel_language(lease):
     """Retain the child's desktop after Hebrew Save, before its language assertion."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))

@@ -26,7 +26,7 @@ integration work and must not become a queue prerequisite.
 
 ## Next task
 
-Next task: **183a — [Lock during pending overlay approval](E2E-Tasks/183a-lock-during-pending-overlay-approval.md)**.
+Next task: **213 — [E2E-039: overlay-lock](E2E-Tasks/213-case-171.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

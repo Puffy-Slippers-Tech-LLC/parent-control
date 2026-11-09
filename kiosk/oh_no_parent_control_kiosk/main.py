@@ -1980,8 +1980,10 @@ class RequestWindow(Adw.ApplicationWindow):
         if error is not None:
             LOG.warning("kiosk.023", error_type=error_code(error))
             self._request_content.set_time_estimate(m.TIME_ESTIMATE_UNAVAILABLE)
-            self._errors.handle(error, m.TIME_ESTIMATE_UNAVAILABLE,
-                                m.THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED)
+            # Advisory refreshes must not put a modal over a cancelled request.
+            # Keep diagnostics and the footer; the existing refresh can recover.
+            self._errors.capture(error, m.TIME_ESTIMATE_UNAVAILABLE,
+                                 m.THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED)
         else:
             LOG.debug("kiosk.024", seconds=seconds)
             self._request_content.set_time_estimate(_time_estimate_label(seconds))

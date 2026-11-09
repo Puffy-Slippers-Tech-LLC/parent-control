@@ -197,6 +197,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reproduce-revoke-cancel', 'probe-revoke-balances',
                                       'reproduce-delayed-approval',
                                       'reproduce-countdown-minutes',
+                                      'reproduce-pending-overlay-lock', 'probe-pending-overlay-lock',
                                       'reproduce-jordan-daily-access',
                                       'reproduce-natural-expiry',
                                       'reproduce-natural-access',

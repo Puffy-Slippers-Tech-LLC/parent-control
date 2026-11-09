@@ -701,6 +701,20 @@ def reproduce_pending_overlay_lock(lease):
                             boundary_operation='overlay-request-cancel')
 
 
+def reproduce_overlay_lock_case(lease, fixture_selection):
+    """Retain case 171's final Parent balance before its comparison."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from overlay_lock_case import OverlayLockCaseJourney, PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, OverlayLockCaseJourney, PLAN,
+        'approved-balance', 'overlay-lock-case', assets=assets,
+        boundary_operation='time-explanation-refresh-read',
+        fixture_selection=selection, timeout=1800)
+
+
 def reproduce_panel_language(lease):
     """Retain the child's desktop after Hebrew Save, before its language assertion."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1829,6 +1843,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from policy_edits import AppPolicyJourney
         from app_rule_changes_case import AppRuleChangesJourney, DISABLED_PATTERN_PLAN
         from revocation_case import RevocationCaseJourney, PLAN as REVOCATION_PLAN
+        from overlay_lock_case import OverlayLockCaseJourney, PLAN as OVERLAY_LOCK_PLAN
         from panel_request_case import PanelRequestJourney, PLAN as PANEL_REQUEST_PLAN
         from app_restart_active import (AppRestartActiveJourney, PLAN as APP_RESTART_PLAN,
                                         REBOOT_PLAN)
@@ -1907,6 +1922,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             and journey_type is RevocationCaseJourney and plan is REVOCATION_PLAN
             and boundary == 'cancel-child-activity-opened'
             and boundary_operation == 'native-policy-activity')
+        overlay_lock_case = (surface == 'overlay-lock-case'
+            and journey_type is OverlayLockCaseJourney and plan is OVERLAY_LOCK_PLAN
+            and boundary == 'approved-balance'
+            and boundary_operation == 'time-explanation-refresh-read')
         app_restart_choices = (surface == 'app-restart-choices'
             and journey_type is AppRestartActiveJourney and plan is APP_RESTART_PLAN
             and boundary == 'jordan-custom'
@@ -1937,7 +1956,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         versioned_assets = (surface == 'versioned-appimage-assets'
             and journey_type is VersionedAppImageAssetsJourney and plan is VERSIONED_ASSETS_PLAN
             and boundary == 'logout' and boundary_operation == 'system:parent-logout')
-        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or native_desktop_access or expired_sign_out or daily_soft_balance or versioned_assets)
+        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or app_rule_return or revocation_return or overlay_lock_case or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or native_desktop_access or expired_sign_out or daily_soft_balance or versioned_assets)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1991,6 +2010,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                                        'native-desktop-access': None,
                                        'app-rule-return': 'E2E-006/disabled-pattern',
                                        'revocation-return': 'E2E-007/zero-single',
+                                       'overlay-lock-case': 'E2E-039/overlay-lock',
                                        'match-editor': None,
                                        'grant-logout': 'E2E-005/grant-only-new',
                                        'natural-access': 'E2E-008/fresh-login',
@@ -2118,7 +2138,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             for role in ('A', 'H', 'S'):
                 actions.update({'desktop-' + role + '-' + name.removeprefix('desktop-'): action
                                 for name, action in desktop_entry_actions(role=role).items()})
-        if surface in ('match-editor', 'panel-request', 'app-restart-choices', 'reboot-context', 'native-temporary-access'):
+        if surface in ('match-editor', 'panel-request', 'app-restart-choices', 'reboot-context', 'native-temporary-access', 'overlay-lock-case'):
             from native_fixtures import fixture_actions
             actions = fixture_actions(include_refusal=False)
             if surface == 'app-restart-choices':

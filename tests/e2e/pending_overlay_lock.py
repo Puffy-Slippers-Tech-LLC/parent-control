@@ -1,12 +1,9 @@
 """FLOW17 lock: cancel a real pending approval and preserve choices and time."""
-from copy import deepcopy
-
 from installed_journey import JourneyPlan
 from journey_blocks import (fresh_desktop, parent_management, overlay_entry,
                             prefixed_stages, retained_parent_entry)
 from request_flow import CHOICES, prepared_request, overlay_authentication
-from request_composition import KioskRequestJourney
-from private_artifacts import require
+from request_composition import CancelledRequestJourney
 
 
 RETURN = retained_parent_entry(source='child-desktop')
@@ -48,34 +45,8 @@ PLAN = JourneyPlan(
 )
 
 
-class PendingOverlayLockJourney(KioskRequestJourney):
+class PendingOverlayLockJourney(CancelledRequestJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan, actions=actions)
-        self.original_balance = None
-        self.child_session = None
-
-    def check_settings(self, stage, observed):
-        if stage == 'child-session-before':
-            self.child_session = observed['system']['session_sha256']
-        if stage == 'interruption-unlock-session':
-            require(self.child_session is not None
-                    and observed['system']['session_sha256'] == self.child_session,
-                    'pending-lock:child-session-replaced')
-        if stage == 'balance-returned':
-            before = self.original_balance
-            after = observed['ui']['time_explanation']
-            require(before is not None and after['child'] == before['child'],
-                    'pending-lock:balance-owner')
-            elapsed = (after['observed_monotonic_ns'] - before['observed_monotonic_ns']) / 1e9
-            require(0 <= elapsed <= 1200, 'pending-lock:balance-elapsed')
-            require(after['one_time']['seconds'] == 0, 'pending-lock:unexpected-grant')
-            for key in ('daily', 'total'):
-                precision = before[key]['precision_seconds'] + after[key]['precision_seconds']
-                require(max(0, before[key]['seconds'] - elapsed) - precision
-                        <= after[key]['seconds'] <= before[key]['seconds'] + precision,
-                        'pending-lock:changed-balance')
-        super().check_settings(stage, observed)
-        if stage == 'allowance-configured':
-            self.original_balance = deepcopy(observed['ui']['time_explanation'])
-        if stage == 'balance-returned':
-            observed.setdefault('comparison', {})['unchanged_balances_allowing_elapsed_time'] = True
+        super().__init__(context, progress, plan, actions=actions,
+            session_checks={'interruption-unlock-session': 'child-session-before'},
+            balance_check=('allowance-configured', 'balance-returned', 1200))

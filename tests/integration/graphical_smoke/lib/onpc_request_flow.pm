@@ -186,13 +186,7 @@ sub pending_overlay_lock {
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
-    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
-        'installed-greeter', 'parent-focused', 'desktop');
-    onpc_parent::launch($journey, $desktop, 'management');
-    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
-        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
-    $journey->consume_observation('parent-selected', $selected);
-    $journey->seen('allowance-configured');
+    onpc_parent::set_allowance($journey, 'gdm', 'parent', 'fresh', 'new', 'child', 0, 30, 1);
     onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
     onpc_gdm::sign_in_challenge($journey, 'child-login',
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');

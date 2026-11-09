@@ -3056,11 +3056,17 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'valid_choice'}, 'ui:response')
             value = result['valid_choice']
             fresh = operation in ('overlay-fraction-estimate-refresh', 'jordan-fraction-estimate-refresh')
+            overlay = operation in accessible_ui.OVERLAY_VALID_OPERATIONS
             require(type(value) is dict and set(value) == {
                     'request', 'estimate', 'observed_monotonic_ns',
+                    *({'seconds_until_midnight'} if overlay else set()),
                     *({'estimate_read_bounds'} if fresh else set())}
                     and type(value['observed_monotonic_ns']) is int
                     and value['observed_monotonic_ns'] > 0, 'ui:kiosk-valid-response')
+            if overlay:
+                require(type(value['seconds_until_midnight']) is int
+                        and 0 <= value['seconds_until_midnight'] <= 90000,
+                        'ui:kiosk-valid-day-bound')
             if fresh:
                 bounds = value['estimate_read_bounds']
                 require(type(bounds) is list and len(bounds) == 2

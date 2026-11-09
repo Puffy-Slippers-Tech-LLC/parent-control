@@ -1749,6 +1749,16 @@ earlier read-only child lock-screen probe; it requires a locked scene and does
 not repeat Cancel. Both use the existing maintenance envelope and supply no acceptance
 credit; finish with `tools/test-vm --vm NAME stop` before clean qualification.
 
+`tools/test-vm --vm NAME reproduce-overlay-lock-case` retains case 171 at
+`approved-balance`, recording one shared Parent balance read before the case's
+comparison. It uses `OverlayLockCaseJourney` / `PLAN`, including the pending
+approval cancellation, same-child return and fresh approval, with the same
+verified fixture selection and setup as the case, including the fresh request
+estimate's calculation bracket. Inspect the retained Parent and child sessions
+through `exec`; this route
+supplies no acceptance credit. Finish with the owned `stop` before clean case
+acceptance.
+
 `tools/test-vm --vm NAME reproduce-retained-entry` retains Task 044's actual
 two-child activity and Parent return history at `riley-restricted-curtain`,
 after the independently verified locked-child entry guard and before any

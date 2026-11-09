@@ -122,6 +122,7 @@ OPERATION_LABELS = {
     'overlay-shell-cancel-ready': 'Qualifying the real Shell request and fresh Cancel recipient',
     'overlay-shell-lock-ready': 'Observing the pending parent approval before locking the child screen',
     'overlay-shell-switch-user-ready': 'Observing the pending parent approval before switching users',
+    'overlay-shell-sign-out-ready': 'Observing the pending parent approval before signing out',
     'overlay-shell-dismissed': 'Independently requiring Shell challenge disappearance',
     'overlay-shell-open': 'Opening and qualifying the declared Shell approval challenge',
     'overlay-shell-qualified': 'Freshly qualifying the Shell password recipient',

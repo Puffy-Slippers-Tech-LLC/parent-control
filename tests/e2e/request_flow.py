@@ -201,23 +201,25 @@ def overlay_authentication(*, result, prefix, exit='automatic', language='en'):
 
     Requires the prepared fixed overlay request. Cancel returns prompt absence;
     approval returns explicit success; rejection proves denial before Cancel.
-    Lock and Switch User return to the same child and prove prompt absence.
+    Lock and Switch User return to the same child; sign-out enters a fresh
+    child session. Each independently proves prompt absence.
     The caller owns preserved choices,
     automatic desktop return and activity comparisons. Renaming checkpoints
     does not qualify another request or provider tuple.
     """
     import re
-    require(result in ('cancel', 'approval', 'rejection', 'lock', 'switch-user'), 'overlay-authentication:result')
+    require(result in ('cancel', 'approval', 'rejection', 'lock', 'switch-user', 'sign-out'), 'overlay-authentication:result')
     require(language == 'en' or language == 'he' and result == 'approval'
             and exit == 'automatic', 'overlay-authentication:language')
     require(exit in ('automatic', 'immediate') and (result == 'approval' or exit == 'automatic'),
             'overlay-authentication:exit')
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
             'overlay-authentication:prefix')
-    if result == 'switch-user':
+    if result in ('switch-user', 'sign-out'):
         from journey_blocks import desktop_entry, prefixed_stages
         return prefixed_stages(prefix, {
-            **desktop_entry('child', source='pending-overlay', entry='retained'),
+            **desktop_entry('child', source='pending-overlay',
+                            entry='fresh' if result == 'sign-out' else 'retained'),
             'dismissed': 'ui:overlay-shell-dismissed',
         })
     if result == 'lock':

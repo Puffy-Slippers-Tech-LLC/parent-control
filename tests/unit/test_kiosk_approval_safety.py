@@ -379,7 +379,7 @@ def test_shell_interruption_proof_requires_the_bound_request_and_a_new_challenge
     assert wrong.call.call_count == calls
 
 
-@pytest.mark.parametrize('action', ['lock', 'switch'])
+@pytest.mark.parametrize('action', ['lock', 'switch', 'signout'])
 def test_pending_approval_refusal_prevents_session_input_and_replay(action):
     result = run_perl(r'''
 use strict;
@@ -397,16 +397,17 @@ my $interrupt = $action eq 'lock' ? \&onpc_request_flow::overlay_lock
                                  : \&onpc_request_flow::overlay_switch;
 my $journey = onpc_journey->new(prefix => 'pending-overlay-lock', review => 0,
     exchange => sub { push @events, $_[0]; die 'fixture:prompt-refused'; });
-my $first = eval { $interrupt->($journey, 'interruption'); 1; };
+my @entry = $action eq 'signout' ? ('fresh') : ();
+my $first = eval { $interrupt->($journey, 'interruption', @entry); 1; };
 my $first_error = "$@";
-my $second = eval { $interrupt->($journey, 'interruption'); 1; };
+my $second = eval { $interrupt->($journey, 'interruption', @entry); 1; };
 print encode_json({first => $first ? 1 : 0, second => $second ? 1 : 0,
     first_error => $first_error, second_error => "$@", events => \@events});
 ''', action)
     value = json.loads(result.stdout)
     assert not value['first'] and not value['second']
     assert 'fixture:prompt-refused' in value['first_error']
-    assert 'pending-' + action + ':replay' in value['second_error']
+    assert 'pending-' + ('switch' if action == 'signout' else action) + ':replay' in value['second_error']
     assert value['events'] == ['interruption-pending-approval']
 
 

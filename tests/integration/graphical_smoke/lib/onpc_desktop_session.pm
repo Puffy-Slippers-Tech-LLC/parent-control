@@ -190,7 +190,7 @@ sub enter_desktop {
         && $prefix =~ /\A[a-z][a-z0-9-]*\z/
         && (($entry eq 'fresh' && $source eq 'gdm')
             || ($entry eq 'retained' && ($source eq 'gdm' || $source eq 'desktop'))
-            || ($entry eq 'retained' && $source eq 'pending-overlay'
+            || (($entry eq 'fresh' || $entry eq 'retained') && $source eq 'pending-overlay'
                 && $account eq 'child' && $expected eq 'success')
             || ($entry eq 'same' && $source eq 'desktop' && $expected eq 'success')
             || ($entry eq 'lock' && $source eq 'locked' && $account eq 'child'));

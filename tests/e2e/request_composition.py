@@ -150,7 +150,8 @@ class KioskRequestJourney(InstalledJourney):
 class CancelledRequestJourney(KioskRequestJourney):
     """Compare caller-owned session and balance endpoints after cancellation."""
 
-    def __init__(self, context, progress, plan, *, session_checks, balance_check, actions=None):
+    def __init__(self, context, progress, plan, *, session_checks, balance_check, actions=None,
+                 fresh_session=False):
         super().__init__(context, progress, plan, actions=actions)
         stages = list(plan.screen_tags)
         before, after, maximum_elapsed = balance_check
@@ -163,6 +164,8 @@ class CancelledRequestJourney(KioskRequestJourney):
                 == 'system:child-desktop-identity'
                 for later, earlier in session_checks.items()), 'pending-lock:session-plan')
         self.session_checks = dict(session_checks)
+        require(type(fresh_session) is bool, 'pending-lock:session-binding')
+        self.fresh_session = fresh_session
         self.session_captures = {}
         self.balance_check = (before, after, maximum_elapsed)
         self.original_balance = None
@@ -173,8 +176,10 @@ class CancelledRequestJourney(KioskRequestJourney):
             identity = observed['system']['session_sha256']
             if stage in self.session_checks:
                 earlier = self.session_checks[stage]
-                require(earlier in self.session_captures and self.session_captures[earlier] == identity,
-                        'pending-lock:child-session-replaced')
+                require(earlier in self.session_captures and
+                        (self.session_captures[earlier] != identity if self.fresh_session
+                         else self.session_captures[earlier] == identity),
+                        'pending-lock:child-session-transition')
             self.session_captures[stage] = identity
         before_stage, after_stage, maximum_elapsed = self.balance_check
         if stage == after_stage:

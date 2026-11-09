@@ -1284,7 +1284,7 @@ def chinese_mate_texts(provider_version=None):
                             if version == '1.28.1' else
                             '一个程序正试图执行一个需要特权的动作。要求授权为超级用户来执行该动作。')}
 SHELL_PROMPT_OPERATIONS = frozenset({'overlay-shell-cancel-ready', 'overlay-shell-lock-ready',
-                                    'overlay-shell-switch-user-ready'})
+                                    'overlay-shell-switch-user-ready', 'overlay-shell-sign-out-ready'})
 SHELL_APPROVAL_ORDER = ('overlay-shell-open', 'overlay-shell-qualified',
                         'overlay-shell-rechecked', 'overlay-shell-submit-ready',
                         'overlay-approval-success')
@@ -12123,14 +12123,14 @@ class AccessibleUI:
         return list(SHELL_PROMPT_REFUSALS)
 
     def overlay_shell_cancel_ready(self, *, action='cancel'):
-        """Submit once and qualify one Cancel, lock or Switch User transition.
+        """Submit once and qualify one Cancel, lock, switch or sign-out transition.
 
         Shell St.Button has no public Action interface. Its documented Escape
         binding cancels the dialog; the worker owns that single keyboard input.
-        Lock and Switch User use the public session command with the prompt open.
+        Session transitions use the public session command with the prompt open.
         A separate form observation and immutable comparison prove the result.
         """
-        require(action in ('cancel', 'lock', 'switch-user'), 'ui:shell-interruption-action')
+        require(action in ('cancel', 'lock', 'switch-user', 'sign-out'), 'ui:shell-interruption-action')
         require(not self.input_uncertain, 'ui:uncertain-input')
         child, approver, seconds, soft = self.overlay_bound_values()
         self.kiosk_valid_choice('overlay-request-estimate' if getattr(self, 'overlay_request', None) is not None

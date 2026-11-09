@@ -31,15 +31,9 @@ def require(condition, reason):
 def properties(unit, *names):
     raw = guest.run(['systemctl', 'show', unit, '--no-pager',
                      '--property=' + ','.join(names)])
-    rows = [line.split('=', 1) for line in raw.splitlines()]
-    result = {}
-    for name, value in rows:
-        require(name in names and (name not in result or name == 'ExecStartPost'),
-                'unit-observation')
-        # systemctl emits one ExecStartPost row per configured command.
-        result[name] = result[name] + '\n' + value if name in result else value
-    require(set(result) == set(names), 'unit-observation')
-    return result
+    # systemctl emits one ExecStartPost row per configured command.
+    return guest.parse_properties(raw, names, category='enforcement-startup:unit-observation',
+                                  repeated=('ExecStartPost',))
 
 
 def graphical_sessions():
@@ -48,8 +42,8 @@ def graphical_sessions():
         session = line.split()[0]
         raw = guest.run(['loginctl', 'show-session', session, '--property=Class',
                          '--property=Type', '--property=Active', '--property=Remote'])
-        values = dict(row.split('=', 1) for row in raw.splitlines())
-        require(set(values) == {'Class', 'Type', 'Active', 'Remote'}, 'session-observation')
+        values = guest.parse_properties(raw, ('Class', 'Type', 'Active', 'Remote'),
+                                        category='enforcement-startup:session-observation')
         if values['Type'] in ('wayland', 'x11'):
             require(values['Class'] == 'greeter', 'personal-session-active')
             result.append(values)

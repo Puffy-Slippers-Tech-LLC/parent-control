@@ -8,8 +8,8 @@ from private_artifacts import require
 
 
 class AccessChoiceJourney(MatchRuleJourney):
-    def __init__(self, context, progress, plan, *, actions=None):
-        super().__init__(context, progress, plan, actions=actions)
+    def __init__(self, context, progress, plan, *, actions=None, transport=None):
+        super().__init__(context, progress, plan, actions=actions, transport=transport)
         self.access_checks = dict(plan.access_checks)
         require(all(stage in plan.screen_tags and (choice in ACCESS_CHOICES or
                     type(choice) is tuple and len(choice) == 2

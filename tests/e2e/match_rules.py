@@ -39,8 +39,8 @@ def match_edit(draft, prefix, *, editor, row):
 
 
 class MatchRuleJourney(InstalledJourney):
-    def __init__(self, context, progress, plan, *, actions=None):
-        super().__init__(context, progress, plan, actions=actions)
+    def __init__(self, context, progress, plan, *, actions=None, transport=None):
+        super().__init__(context, progress, plan, actions=actions, transport=transport)
         stages = list(plan.screen_tags)
         self.match_checks = dict(plan.match_checks)
         for stage, expected in self.match_checks.items():

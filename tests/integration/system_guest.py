@@ -38,6 +38,22 @@ def require(condition, category):
         raise GuestError(category)
 
 
+def parse_properties(output, names, *, category, repeated=()):
+    """Read complete systemctl/loginctl properties without losing duplicates.
+
+    Callers own commands, identity checks and expected values. Only explicitly
+    repeated properties (such as ExecStartPost) may contain multiple rows.
+    """
+    values = {}
+    for row in output.splitlines():
+        require('=' in row, category)
+        name, value = row.split('=', 1)
+        require(name in names and (name not in values or name in repeated), category)
+        values[name] = values[name] + '\n' + value if name in values else value
+    require(set(values) == set(names), category)
+    return values
+
+
 def run(argv, timeout=120, *, diagnostic_stdout=None):
     if argv[0] not in ('apt-get', 'dnf'):
         options = {} if diagnostic_stdout is None else {'diagnostic_stdout': diagnostic_stdout}

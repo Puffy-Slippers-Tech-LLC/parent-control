@@ -46,6 +46,11 @@ RPM dependency checks build empty noarch fixtures serially with private topdirs,
 temporary paths and databases. Bounded, waited RPM children forward scratch
 leases; transactions use --test and acquire no host RPM database, network or
 service. The existing rpm_packaging classification remains compatible.
+
+VM provenance retirement checks use only pytest-private state and checkout
+locks, plus process-local registry doubles. They never open libvirt or host
+provenance; vm_pool remains compatible with ordinary unit overlap. It is not
+a cleanup or UI inventory module.
 """
 
 from pathlib import PurePosixPath

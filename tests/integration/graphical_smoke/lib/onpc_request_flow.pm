@@ -141,13 +141,17 @@ sub overlay_switch_case {
     return overlay_interruption_case('switch', @_);
 }
 
+sub overlay_signout_case {
+    return overlay_interruption_case('signout', @_);
+}
+
 sub overlay_interruption_case {
     my $action = shift;
     onpc_progress::operation('Checking cancelled access and fresh approval after the child returns');
     my ($exchange, $declared, $challenges) = @_;
     die 'overlay-lock:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
-        && ($action eq 'lock' || $action eq 'switch');
+        && ($action eq 'lock' || $action eq 'switch' || $action eq 'signout');
     my $journey = onpc_journey->new(exchange => $exchange, prefix => "overlay-$action-case", review => 0);
     $journey->{overlay_request} = ['child', 'parent', 75, 1];
     $journey->declare_invocations($declared);
@@ -168,8 +172,14 @@ sub overlay_interruption_case {
     overlay_entry($journey, 'direct', 'command');
     prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1, 'overlay');
     $action eq 'lock' ? overlay_lock($journey, 'interruption')
-                     : overlay_switch($journey, 'interruption');
-    $journey->seen($_) for qw(form-returned cancel cancel-returned);
+                     : overlay_switch($journey, 'interruption', $action eq 'signout' ? 'fresh' : 'retained');
+    if ($action eq 'signout') {
+        $journey->seen('child-session-after');
+        overlay_entry($journey, 'reopen', 'command');
+    } else {
+        $journey->seen('form-returned');
+    }
+    $journey->seen($_) for qw(cancel cancel-returned);
     onpc_parent::open_for_child($journey, 'desktop', 'retained', 'retained', 'child', 'return');
     $journey->seen($_) for qw(balance-returned returned-apps);
     onpc_app_rows::saved_rows($journey, $apps, 'returned');
@@ -705,7 +715,7 @@ sub shell_approve {
                 && ref($journey->{overlay_request}) eq 'ARRAY'
                 && join(',', @{$journey->{overlay_request}}) =~ /\Achild,(?:parent,30,0|other-parent,30,1)\z/
                 && $exit eq 'automatic'
-            || ($journey->{prefix} // '') =~ /\Aoverlay-(?:lock|switch)-case\z/
+            || ($journey->{prefix} // '') =~ /\Aoverlay-(?:lock|switch|signout)-case\z/
                 && ($journey->{stage_prefix} // '') eq ''
                 && ref($journey->{overlay_request}) eq 'ARRAY'
                 && join(',', @{$journey->{overlay_request}}) eq 'child,parent,75,1'

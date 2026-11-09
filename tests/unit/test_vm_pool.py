@@ -23,6 +23,45 @@ def pool(tmp_path, monkeypatch):
     return vm_pool.RUNTIME
 
 
+@pytest.mark.parametrize('invalid', [None, 'unfinished', 'foreign-uuid', 'symlink'])
+def test_provisioning_retires_only_completed_private_vm_state(pool, tmp_path, monkeypatch, invalid):
+    import prepare_baseline as baseline
+    import vm_config
+    from types import SimpleNamespace
+    state_root = tmp_path / 'state'
+    state_root.mkdir(mode=0o700)
+    directory = state_root / 'vm'
+    directory.mkdir(mode=0o700)
+    monkeypatch.setattr(vm_config, 'STATE_ROOT', state_root)
+    monkeypatch.setattr(vm_config, 'load', lambda name: SimpleNamespace(owning_branch=''))
+    phase = directory / 'phase.json'
+    phase.write_text(json.dumps({'phase': 'finalized', 'source': {'layout': {
+        'uuid': B if invalid == 'foreign-uuid' else A}}}))
+    phase.chmod(0o600)
+    attempt = directory / 'system-run.json'
+    attempt.write_text(json.dumps({'phase': 'running' if invalid == 'unfinished' else 'complete'}))
+    attempt.chmod(0o600)
+    unrelated = state_root / 'other-vm'
+    unrelated.mkdir(mode=0o700)
+    if invalid == 'symlink':
+        (directory / 'unexpected').symlink_to(unrelated, target_is_directory=True)
+    original = phase.read_bytes()
+    with vm_pool.checkout(A):
+        if invalid:
+            with pytest.raises(baseline.CaptureError):
+                vm_pool.retire_domain_state('vm', A)
+            assert phase.read_bytes() == original
+            assert not list(state_root.glob('.retired-newvm-*'))
+        else:
+            vm_pool.retire_domain_state('vm', A)
+            assert not directory.exists()
+            retired, = state_root.glob('.retired-newvm-vm-*')
+            assert (retired / 'phase.json').read_bytes() == original
+            # Retrying after retirement neither adopts nor touches another VM.
+            vm_pool.retire_domain_state('vm', A)
+    assert unrelated.is_dir()
+
+
 def launch(pool, vm=A, *, keeper=False, cwd=None, hold_fds=(), wait=True):
     code = '''import os,sys,pathlib
 sys.path.insert(0,sys.argv[1])

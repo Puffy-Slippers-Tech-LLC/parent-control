@@ -50,6 +50,10 @@ def provision(request):
     for command in ('virsh', 'qemu-img'):
         if shutil.which(command) is None:
             raise ValueError(f'Missing prerequisite on VM host: {command}')
+    # Check the finite retirement route before creating or erasing any resources.
+    run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+         '/usr/local/libexec/onpc-test-runner', 'pool-retire', '--help'],
+        cwd=request['checkout'])
     root = Path(request['root'])
     if not root.is_dir() or root.is_symlink():
         raise ValueError(f'VM directory must already exist and not be a symlink: {root}')
@@ -122,10 +126,6 @@ def provision(request):
                 raise ValueError('VM definition changed while waiting for checkout; run newvm again')
             if request['name'] in virsh('list', '--name').splitlines():
                 raise ValueError('Existing VM is active; overwrite refused')
-            state = Path(request['state'])
-            if state.is_symlink() or (state.exists() and any(state.iterdir())):
-                raise ValueError('Existing VM has recorded test/baseline state; '
-                                 'recover or retire that state through the maintained workflow first')
             if virsh('snapshot-list', request['name'], '--name').strip():
                 raise ValueError('Existing VM acquired snapshots while waiting; overwrite refused')
             check_references()
@@ -133,6 +133,10 @@ def provision(request):
             info = os.fstat(descriptor)
             if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
                 raise ValueError('Overwrite requires a regular disk file with one hard link')
+            run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+                 '/usr/local/libexec/onpc-test-runner',
+                 '--vm-checkout=' + json.loads(receipt)['checkout'],
+                 'pool-retire', request['name'], request['overwrite_uuid']], cwd=request['checkout'])
             virsh('undefine', request['name'])
         else:
             if request.get('overwrite_uuid'):
@@ -145,6 +149,13 @@ def provision(request):
         actual = ET.fromstring(virsh('dumpxml', request['name'], '--inactive'))
         if actual.findtext('uuid') != request['uuid']:
             raise ValueError('Created domain UUID does not match')
+        # A removed domain may still have completed provenance under its name.
+        # Retire it before accepting this new lifecycle, then clear installed pins.
+        run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+             '/usr/local/libexec/onpc-test-runner', 'pool-retire', request['name']],
+            cwd=request['checkout'])
+        run([str(Path(request['checkout']) / 'setup.sh'), '--test-tools-only'],
+            cwd=request['checkout'])
     except BaseException:
         print(f'newvm: creation interrupted/failed; preserve and inspect disk {disk} '
               f'and domain {request["name"]} before retrying', file=sys.stderr)
@@ -204,10 +215,11 @@ def create(name, host_name, family_name, *, root=ROOT):
             for mac in interface.findall('mac'):
                 interface.remove(mac)  # libvirt allocates a fresh address
         request = dict(name=name, root=host['virt-manager'], iso=family['iso'],
-                       xml=ET.tostring(domain, encoding='unicode'), uuid=identifier, size=size,
-                       state=str(vm_config.STATE_ROOT / name))
+                       xml=ET.tostring(domain, encoding='unicode'), uuid=identifier, size=size)
         request['checkout'] = (str(root) if host['transport'] == 'local' else next(
             (b['repo_root'] for b in document.get('branches', []) if b['host'] == host_name), ''))
+        if not request['checkout']:
+            raise ValueError('VM host requires a configured branch checkout and refreshed VM-host helpers')
         if existing is not None:
             confirm(f'VM {name} is already registered on {existing.host.name} '
                     f'in family {existing.family}. Overwrite its registry entry with '

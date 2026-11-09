@@ -479,6 +479,12 @@ sub run {
         onpc_request_flow::overlay_switch_case(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{overlay_signout_case}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::overlay_signout_case(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{pending_overlay_lock}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

@@ -1,4 +1,4 @@
-"""Cases 171/172: interrupted approval adds no access; fresh approval works."""
+"""Cases 171–173: interrupted approval adds no access; fresh approval works."""
 from copy import deepcopy
 from dataclasses import replace
 
@@ -83,7 +83,7 @@ PLAN = JourneyPlan(
 )
 
 
-# Keep both complete recipes together; only the interruption and retained-work
+# Keep the complete recipes together; only the interruption and retained-work
 # endpoints differ. Qualifications continue to own their independent plans.
 SWITCH_SCREENS = {}
 for stage, operation in SCREENS.items():
@@ -115,18 +115,55 @@ SWITCH_PLAN = replace(PLAN, prefix='overlay-switch-case', worker_mode='overlay_s
     activity_checks={'resumed-opened': ('activity-capture', 'same')})
 
 
+SIGNOUT_SCREENS = {}
+for stage, operation in SCREENS.items():
+    if stage == 'interruption-pending-approval':
+        SIGNOUT_SCREENS.update(overlay_authentication(result='sign-out', prefix='interruption'))
+    if stage.startswith('interruption-'):
+        continue
+    if stage == 'form-returned':
+        SIGNOUT_SCREENS['child-session-after'] = 'system:child-desktop-identity'
+        SIGNOUT_SCREENS.update(overlay_entry('reopen', 'command',
+            form_operation='overlay-valid-fraction-soft-read'))
+        continue
+    SIGNOUT_SCREENS[stage] = operation
+SIGNOUT_STEP2 = tuple(SIGNOUT_SCREENS).index('interruption-pending-approval')
+SIGNOUT_STEP3 = tuple(SIGNOUT_SCREENS).index('child-session-after')
+SIGNOUT_PLAN = replace(PLAN, prefix='overlay-signout-case', worker_mode='overlay_signout_case',
+    screen_tags=SIGNOUT_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' if index < SIGNOUT_STEP2 else 'step-2' if index < SIGNOUT_STEP3 else 'step-3'
+               for index, stage in enumerate(SIGNOUT_SCREENS)}, 'installed-greeter': 'start'},
+    invocations=tuple(stage for stage in SIGNOUT_SCREENS
+                      if stage in PLAN.invocations
+                      or stage in prefixed_stages('interruption', fresh_desktop('child'))
+                      or stage in overlay_entry('reopen', 'command')),
+    challenges={**PLAN.challenges, 'interruption': ('child', 'interruption-child-recipient-qualified',
+                                                   'interruption-child-recipient-rechecked')},
+    child_bindings={stage: 'child' for stage, tag in SIGNOUT_SCREENS.items()
+                    if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
+    request_checks={stage: ('open-estimate', 'overlay-signout:choices-changed', 'preserved_cancelled_choices')
+                    for stage in ('reopen-form', 'recovery-form')})
+
+
 class OverlayLockCaseJourney(CancelledRequestJourney, AccessChoiceJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
+        signed_out = plan.worker_mode == 'overlay_signout_case'
         super().__init__(context, progress, plan, actions=actions,
             session_checks={stage: 'child-session-before' for stage in (
-                ('interruption-desktop' if 'interruption-desktop' in plan.screen_tags
+                ('child-session-after' if signed_out else
+                 'interruption-desktop' if 'interruption-desktop' in plan.screen_tags
                  else 'interruption-unlock-session'),
                 'child-session-returned')},
+            fresh_session=signed_out,
             balance_check=('allowance-configured', 'balance-returned', 1200))
         self.approval_estimate = None
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
+        if stage == 'child-session-returned' and self.fresh_session:
+            require(self.session_captures[stage] == self.session_captures['child-session-after'],
+                    'overlay-signout:replacement-session-changed')
         if stage == 'recovery-form':
             _estimate_read_bounds(observed['ui']['valid_choice'], 'overlay-lock:approval-read-bounds')
             self.approval_estimate = deepcopy(observed['ui']['valid_choice'])
@@ -162,4 +199,13 @@ def execute_switch(recorder, context):
         actions=fixture_actions(include_refusal=False), journey_type=OverlayLockCaseJourney)
 
 
-E2E_CASES = {'overlay-lock': execute, 'overlay-switch': execute_switch}
+def execute_signout(recorder, context):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    context.fixture_subsets = ACTIVITY_SUBSETS
+    context.fixture_caller = 'E2E-039/overlay-signout'
+    record_installed_journey(recorder, context, SIGNOUT_PLAN, timeout=2400,
+        actions=fixture_actions(include_refusal=False), journey_type=OverlayLockCaseJourney)
+
+
+E2E_CASES = {'overlay-lock': execute, 'overlay-switch': execute_switch,
+             'overlay-signout': execute_signout}

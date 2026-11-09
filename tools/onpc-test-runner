@@ -74,6 +74,18 @@ def confined_file(root, relative):
 
 
 def selection(root, argv, *, allow_missing_artifacts=False):
+    if argv[:1] == ['pool-retire']:
+        if argv == ['pool-retire', '--help']:
+            return ['/usr/bin/python3', '-B', str(confined_file(root, 'tools/vm_pool.py')), '--help']
+        if len(argv) not in (2, 3):
+            raise ValueError('test-runner:pool-retire requires name and optional current UUID')
+        from vm_pool import identity
+        sys.path.insert(0, str(root / 'tests/integration'))
+        import vm_config
+        name = vm_config.validate_name(argv[1])
+        return ['/usr/bin/python3', '-B', str(confined_file(root, 'tools/vm_pool.py')),
+                '--retire-domain-state', name,
+                *(['--expected-uuid', identity(argv[2])] if len(argv) == 3 else [])]
     if argv[:1] == ['pool-provision']:
         if len(argv) != 3:
             raise ValueError('test-runner:pool-provision requires name and UUID')
@@ -557,9 +569,9 @@ def run(root, argv, caller):
                 Control().installed(pipe=argv[:1] == ['--unattended']) as control:
             environment.update(test_retention.environment())
             return control.run(command, cwd=root, env=environment, owned_group=True)
-    if argv[:1] in (['pool'], ['pool-provision'], ['disk']):
+    if argv[:1] in (['pool'], ['pool-provision'], ['pool-retire'], ['disk']):
         environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}
-        if argv[:1] == ['pool']:
+        if argv[:1] in (['pool'], ['pool-retire']):
             environment['PKEXEC_UID'] = str(caller.pw_uid)
         if vm_pool.VARIABLE in os.environ:
             environment[vm_pool.VARIABLE] = os.environ[vm_pool.VARIABLE]

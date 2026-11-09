@@ -1265,7 +1265,7 @@ def chinese_mate_texts(provider_version=None):
             'explanation': ('一个程序正试图执行一个需要特权的动作。要求授权为超级用户以执行该动作。'
                             if version == '1.28.1' else
                             '一个程序正试图执行一个需要特权的动作。要求授权为超级用户来执行该动作。')}
-SHELL_PROMPT_OPERATIONS = frozenset({'overlay-shell-cancel-ready'})
+SHELL_PROMPT_OPERATIONS = frozenset({'overlay-shell-cancel-ready', 'overlay-shell-lock-ready'})
 SHELL_APPROVAL_ORDER = ('overlay-shell-open', 'overlay-shell-qualified',
                         'overlay-shell-rechecked', 'overlay-shell-submit-ready',
                         'overlay-approval-success')
@@ -8986,10 +8986,14 @@ class AccessibleUI:
         require(all(node.get_process_id() == pid for node in controls), 'ui:lock-owner')
         # The focused recipient and all authentication controls must belong to
         # this lock window. A hidden desktop or an unrelated modal cannot guard input.
+        # Product API visibility/modality describes the app's own windows, even
+        # behind Shell's verified lock. It is not native keyboard-recipient proof.
+        # Keep every outside focus refusal and all external-provider checks.
         other_surfaces = [node for node in nodes if facts[node]['showing'] and node not in controls and (
             self.has_state(node, self.api.StateType.FOCUSED)
-            or facts[node]['role'] in ('password text', 'dialog', 'alert')
-            or facts[node]['modal'])]
+            or not hasattr(node, 'ui_element') and (
+                facts[node]['role'] in ('password text', 'dialog', 'alert')
+                or facts[node]['modal']))]
         if other_surfaces:
             # Failure-only protected structural facts; never UI text or input.
             try:
@@ -12067,13 +12071,15 @@ class AccessibleUI:
                 raise UiError('ui:shell-refusal-accepted')
         return list(SHELL_PROMPT_REFUSALS)
 
-    def overlay_shell_cancel_ready(self):
-        """Submit once and release one normal Escape/Cancel after a fresh proof.
+    def overlay_shell_cancel_ready(self, *, action='cancel'):
+        """Submit once and qualify one Cancel or system-lock transition.
 
         Shell St.Button has no public Action interface. Its documented Escape
         binding cancels the dialog; the worker owns that single keyboard input.
+        Lock uses the public session command instead of cancelling the prompt.
         A separate form observation and immutable comparison prove the result.
         """
+        require(action in ('cancel', 'lock'), 'ui:shell-interruption-action')
         require(not self.input_uncertain, 'ui:uncertain-input')
         child, approver, seconds, soft = self.overlay_bound_values()
         self.kiosk_valid_choice('overlay-request-estimate' if getattr(self, 'overlay_request', None) is not None
@@ -12098,7 +12104,7 @@ class AccessibleUI:
             self.input_uncertain = True
             return {'provider': provider, 'child': CHILD_IDENTITIES[child],
                     'approver': APPROVER_IDENTITIES[approver], 'duration_seconds': seconds,
-                    'allow_soft': soft, 'cancel_ready': True, 'same_challenge_rechecked': True,
+                    'allow_soft': soft, action + '_ready': True, 'same_challenge_rechecked': True,
                     'rejected_proofs': rejected, 'challenge_id': identity}
         except BaseException:
             self.input_uncertain = True
@@ -15580,8 +15586,9 @@ class AccessibleUI:
                         require(str(error) == 'ui:kiosk-account-choice', 'ui:kiosk-wrong-refusal')
                     else:
                         raise UiError('ui:kiosk-wrong-choice-accepted')
-        elif operation == 'overlay-shell-cancel-ready':
-            result['shell_prompt'] = self.overlay_shell_cancel_ready()
+        elif operation in SHELL_PROMPT_OPERATIONS:
+            result['shell_prompt'] = self.overlay_shell_cancel_ready(
+                action='lock' if operation == 'overlay-shell-lock-ready' else 'cancel')
         elif operation in SHELL_APPROVAL_OPERATIONS:
             result['approval'] = self.overlay_shell_approval(operation)
         elif operation == 'overlay-shell-dismissed':

@@ -1011,8 +1011,12 @@ def test_old_child_reply_is_discarded_and_latest_selection_is_fetched(error):
 def test_periodic_refresh_updates_estimate_and_recovers_after_failure():
     window = estimate_window()
     window._refresh_time_estimate()
-    reply(window, error=RuntimeError("private backend details"))
+    error = RuntimeError("private backend details")
+    reply(window, error=error)
     window._request_content.set_time_estimate.assert_called_with("Time estimate unavailable")
+    window._errors.capture.assert_called_once()
+    assert window._errors.capture.call_args.args[0] is error
+    window._errors.handle.assert_not_called()
     window._refresh_time_estimate()
     reply(window, seconds=1190)
     window._request_content.set_time_estimate.assert_called_with(

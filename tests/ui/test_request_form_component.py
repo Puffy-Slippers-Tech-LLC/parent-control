@@ -604,17 +604,14 @@ def test_footer_special_cases_keep_requests_available(
         launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay, scenario, expected):
     path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
                         overlay=overlay, scenario=scenario)
-    if scenario == "estimate-unavailable":
-        # Dismiss the normal error report before checking the underlying form's
-        # availability; the public API correctly blocks input behind a modal.
-        wait_for_accessible_state(lambda: request_ui.showing("feedback-dialog"),
-                                  "estimate error report opens")
-        request_ui.activate("feedback-close")
-        wait_for_accessible_state(
-            lambda: request_ui.absent("feedback-dialog", within="kiosk-request-window"),
-            "estimate error report closes")
     status(request_ui, wait_for_accessible_state, expected)
     assert request_ui.state("kiosk-request-submit", request_ui.api.StateType.SENSITIVE)
+    if scenario == "estimate-unavailable":
+        assert request_ui.absent("feedback-dialog", within="kiosk-request-window")
+        request_ui.activate("kiosk-request-cancel")
+        expected_exit = "close_overlay" if overlay else "logout"
+        wait_for_accessible_state(lambda: bool(events(path, expected_exit)),
+                                  "unavailable estimate leaves Cancel usable")
     if scenario == "rest-of-day":
         assert not calls(path, "GetTimeStatus")
 

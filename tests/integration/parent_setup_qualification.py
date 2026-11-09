@@ -1334,6 +1334,16 @@ class OverlayPromptQualification(ChallengesQualification):
         return OverlayPromptJourney(context, progress)
 
 
+class PendingOverlayLockQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from pending_overlay_lock import PendingOverlayLockJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return PendingOverlayLockJourney(context, progress)
+
+
 class OverlayApprovedExitQualification(ChallengesQualification):
     from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets
     fixture_caller = 'check_e2e_overlay_approved_exit'

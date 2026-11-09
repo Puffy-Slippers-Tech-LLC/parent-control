@@ -73,7 +73,7 @@ sub lock {
     my ($journey, $desktop, $stage) = @_;
     $stage //= 'desktop';
     die 'desk:lock-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
-        && ($stage eq 'desktop' || $stage eq 'lock-ready');
+        && ($stage eq 'desktop' || $stage eq 'lock-ready' || $stage eq 'pending-approval');
     $journey->consume_observation($stage, $desktop);
     $journey->seen('lock');
     return observe_lock($journey);
@@ -169,11 +169,13 @@ sub retained_gdm_unlock {
 # the independently observed unlocked desktop are separate from secret input.
 sub unlock_success {
     onpc_progress::operation('Unlocking the intended child desktop');
-    my ($journey) = @_;
-    die 'desk:unlock-binding' unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    my ($journey, $result) = @_;
+    $result //= 'unlock-desktop';
+    die 'desk:unlock-binding' unless (@_ == 1 || @_ == 2) && ref($journey) eq 'onpc_journey'
+        && ($result eq 'unlock-desktop' || $result eq 'unlock-session');
     onpc_password::enter_lock_password($journey, 'child');
     testapi::send_key('ret');
-    return $journey->seen('unlock-desktop');
+    return $journey->seen($result);
 }
 
 # FLOW15. The controller's read-only guard proves the declared source before

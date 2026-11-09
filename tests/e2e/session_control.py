@@ -41,7 +41,8 @@ LABELS['enter-locked-from-parent'] = 'Returning from Parent to the preserved loc
 BINDINGS['child-retained-locked'] = ('child', 'retained-locked')
 LABELS['retained-locked'] = 'Verifying the same preserved locked child session'
 BINDINGS['parent-desktop-identity'] = ('parent', 'desktop-identity')
-LABELS['desktop-identity'] = 'Verifying the preserved Parent desktop identity'
+BINDINGS['child-desktop-identity'] = ('child', 'desktop-identity')
+LABELS['desktop-identity'] = 'Verifying the preserved desktop identity'
 for _role in ACCOUNTS:
     for _mode in ('fresh', 'retained', 'same', 'lock', 'refusals'):
         BINDINGS[_role + '-entry-' + _mode] = (_role, 'entry-' + _mode)

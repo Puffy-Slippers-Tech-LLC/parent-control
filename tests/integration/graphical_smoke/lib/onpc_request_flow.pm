@@ -133,6 +133,57 @@ sub overlay_prompt {
     $journey->finish();
 }
 
+sub pending_overlay_lock {
+    onpc_progress::operation('Locking the child screen during a pending parent approval');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'pending-lock:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'pending-overlay-lock', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen('allowance-configured');
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    $journey->seen('child-session-before');
+    overlay_entry($journey, 'direct', 'command');
+    prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1, 'overlay');
+    overlay_lock($journey, 'interruption');
+    $journey->seen($_) for qw(form-returned cancel returned);
+    onpc_parent::open_for_child($journey, 'desktop', 'retained', 'retained', 'child', 'return');
+    $journey->seen('balance-returned');
+    $journey->finish();
+}
+
+# FLOW17 lock consumes a fresh prompt proof. It never cancels the prompt itself
+# or grants password authority for that approval; the child's unlock is separate.
+sub overlay_lock {
+    onpc_progress::operation('Returning through the child lock screen and observing cancelled approval');
+    my ($journey, $prefix) = @_;
+    die 'pending-lock:binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && defined($prefix) && $prefix =~ /\A[a-z][a-z0-9-]*\z/;
+    die 'pending-lock:replay' if $journey->{overlay_lock_started} || $journey->{invocation_failed};
+    $journey->{overlay_lock_started} = 1;
+    my $ok = eval {
+        my $section = $journey->scope($prefix);
+        onpc_desktop_session::lock($section, $section->seen('pending-approval'), 'pending-approval');
+        onpc_desktop_session::unlock_success($section, 'unlock-session');
+        $section->seen('dismissed');
+        1;
+    };
+    unless ($ok) {
+        $journey->{invocation_failed} = 1;
+        die $@;
+    }
+}
+
 sub overlay_language_history {
     onpc_progress::operation('Preserving the child request and saved activity across Hebrew approval and English restoration');
     my ($exchange, $declared, $challenges) = @_;

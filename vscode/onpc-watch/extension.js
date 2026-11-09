@@ -10,140 +10,6 @@ const { stripVTControlCharacters } = require('node:util');
 const { Bridge, configuration, resourceConfiguration } = require('./bridge');
 const { WatchErrors, errorDialog } = require('./errors');
 
-// A small stdlib PTY bridge keeps interactive launcher behavior while exposing
-// output and window-size changes to the extension. Input is newline-delimited
-// JSON; output is the unchanged terminal byte stream.
-const actionPty = `import errno, fcntl, json, os, pty, select, signal, struct, sys, termios
-command, size = json.loads(sys.argv[1]), json.loads(sys.argv[2])
-def resize(fd, size):
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack('HHHH', size['rows'], size['columns'], 0, 0))
-pid, master = pty.fork()
-if pid == 0:
-    resize(0, size)
-    os.environ['TERM'] = 'xterm-256color'
-    os.execvp(command[0], command)
-os.set_blocking(master, False)
-incoming, pending = b'', b''
-reaped = ended = False
-try:
-    while True:
-        readable, writable, _ = select.select([0, master], [master] if pending else [], [])
-        if master in readable:
-            try:
-                data = os.read(master, 65536)
-            except OSError as error:
-                if error.errno != errno.EIO:
-                    raise
-                ended = True
-                break
-            if not data:
-                ended = True
-                break
-            sys.stdout.buffer.write(data)
-            sys.stdout.buffer.flush()
-        if 0 in readable:
-            data = os.read(0, 65536)
-            if not data:
-                break
-            incoming += data
-            while b'\\n' in incoming:
-                line, incoming = incoming.split(b'\\n', 1)
-                message = json.loads(line)
-                if 'size' in message:
-                    resize(master, message['size'])
-                else:
-                    pending += message['input'].encode('utf-8')
-        if master in writable:
-            try:
-                pending = pending[os.write(master, pending):]
-            except BlockingIOError:
-                pass
-    if ended:
-        _, status = os.waitpid(pid, 0)
-        reaped = True
-        code = os.waitstatus_to_exitcode(status)
-        sys.exit(code if code >= 0 else 128 - code)
-finally:
-    if not reaped:
-        try:
-            os.kill(pid, signal.SIGHUP)
-        except ProcessLookupError:
-            pass
-    os.close(master)
-`;
-
-// Native terminal APIs do not expose stderr or full terminal-start failures.
-function actionTerminal({ name, shellPath, shellArgs, cwd, invocation, failed }) {
-    const write = new vscode.EventEmitter();
-    const close = new vscode.EventEmitter();
-    let child, cancelled = false, finished = false, transcript = '', omitted = false;
-    const limit = 1024 * 1024;
-    let size = { rows: 24, columns: 80 };
-    const dimensions = value => ({
-        rows: Math.min(65535, Math.max(1, Math.floor(value.rows))),
-        columns: Math.min(65535, Math.max(1, Math.floor(value.columns)))
-    });
-    const send = message => {
-        if (!finished && !cancelled && child?.stdin.writable) {
-            child.stdin.write(JSON.stringify(message) + '\n');
-        }
-    };
-    const capture = data => {
-        transcript += data;
-        if (transcript.length > limit) {
-            transcript = transcript.slice(-limit);
-            omitted = true;
-        }
-        write.fire(data);
-    };
-    const finish = (code, signal, error) => {
-        if (finished) return;
-        finished = true;
-        if (!cancelled && (error || code !== 0)) {
-            failed(`${invocation}\n\nExit code: ${code ?? 'unavailable'}\nSignal: ${signal || 'none'}\n` +
-                (error ? `\n${error.stack || error}\n` : '') +
-                `\nProcess output${omitted ? ' (last 1,048,576 characters; earlier output omitted)' : ''}:\n${stripVTControlCharacters(transcript)}`);
-        }
-        close.fire(Number.isInteger(code) && code >= 0 ? code : 1);
-    };
-    const terminal = vscode.window.createTerminal({ name, pty: {
-        onDidWrite: write.event,
-        onDidClose: close.event,
-        open(initialDimensions) {
-            try {
-                if (initialDimensions) size = dimensions(initialDimensions);
-                child = spawn('/usr/bin/python3', ['-IBu', '-c', actionPty,
-                    JSON.stringify([shellPath, ...shellArgs]), JSON.stringify(size)],
-                { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
-                for (const stream of [child.stdout, child.stderr]) {
-                    stream.setEncoding('utf8');
-                    stream.on('data', capture);
-                }
-                child.stdin.on('error', error => {
-                    if (error.code !== 'EPIPE') finish(null, null, error);
-                });
-                child.on('error', error => finish(null, null, error));
-                child.on('close', (code, signal) => finish(code, signal));
-            } catch (error) { finish(null, null, error); }
-        },
-        handleInput(data) { send({ input: data }); },
-        setDimensions(value) {
-            size = dimensions(value);
-            send({ size });
-        },
-        close() {
-            cancelled = true;
-            // EOF asks the bridge to hang up only its owned foreground process.
-            // Detached launcher work keeps its existing independent lifecycle.
-            if (!finished) child?.stdin.end();
-            write.dispose();
-            close.dispose();
-        }
-    } });
-    terminal.show(true);
-    return terminal;
-}
-
 function actionBackground({ shellPath, shellArgs, cwd, invocation, failed }) {
     const child = spawn(shellPath, shellArgs, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
     const limit = 1024 * 1024;
@@ -513,17 +379,14 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c
                 const argv = ['/usr/bin/python3', '-IBu', '-c', bootstrap,
                     JSON.stringify({ root: command.root, run: command.run, launcher: command.launcher, argv: command.argv, kind: message.kind, allowance_key: command.allowance_key })];
                 const remote = command.source.transport === 'ssh';
-                const background = message.kind === 'resume';
                 const quote = value => "'" + value.replace(/'/g, "'\\''") + "'";
                 // The destination launcher verifies its checkout and uses the
                 // shared adapter environment/readiness route at agent admission.
                 // Observation and stop actions need no coding CLI or NVM.
                 const shellPath = remote ? 'ssh' : argv[0];
-                const shellArgs = remote ? [background ? '-T' : '-t', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
+                const shellArgs = remote ? ['-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
                     '-o', 'ConnectTimeout=5', '--', command.source.host, argv.map(quote).join(' ')] : argv.slice(1);
-                const runAction = background ? actionBackground : actionTerminal;
-                runAction({
-                    name: `${command.launcher}: ${message.kind} (${command.source.label})`,
+                actionBackground({
                     shellPath, shellArgs,
                     ...(remote ? {} : { cwd: command.root }),
                     invocation: `Action: ${action}\nHost: ${command.source.label}\nCheckout: ${command.root}\nCommand: ${commandText}\n\nProcess invocation:\n${[shellPath, ...shellArgs].map(quote).join(' ')}`,

@@ -66,9 +66,9 @@ Click outside the dropdown or press Escape to close it. The launcher action is
 or **Resume** (play) while idle. It is disabled once stopping begins,
 while disconnected, or when saved command parameters are unavailable. Clicking
 asks for confirmation with **Stop**, **Resume** or **Cancel stop request**, and **Cancel**.
-Confirming Resume sends the command silently in the background on that same host
+All launcher menu commands run silently in the background on that same host
 and checkout, without opening a VS Code terminal. Follow progress in Watch.
-Stop and cancel-stop open a VS Code terminal. Watch uses its shared
+Watch uses its shared
 `Output.execution_plan` property to identify execution-plan runs: Resume reruns
 their saved command with the same parameters. Other launchers, including `fix-tests` and `run-tests`,
 receive only `--resume`, which restores their saved selection. Stop and cancel-stop
@@ -107,13 +107,11 @@ another editor tab preserves the Watch page while pausing observation.
 The Output channel timestamps reader starts, exits, failures and successful
 connections. Slow responses (at least two seconds) and failures include the
 operation, elapsed time and received byte count; request text is not logged.
-Watch owns action process streams through a Python standard-library PTY bridge
-that preserves interactive input and forwards terminal resizing. Start failures
+Watch captures background action process output without interactive input. Start failures
 and nonzero action exits light the error icon, including Python tracebacks and SSH diagnostics.
 The diagnostic includes the invocation, checkout, host, exit status and up to the
 last 1,048,576 characters of process output, with terminal control sequences
 removed; omitted earlier output is explicitly labelled.
-Closing an action terminal does not open an error dialog.
 Local and SSH actions load NVM's selected default when `codex` is
 missing from their inherited PATH, so GUI startup does not hide an NVM-installed
 CLI or its Node interpreter. Codex must already be installed and authenticated.

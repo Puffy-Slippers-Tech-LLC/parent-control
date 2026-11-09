@@ -358,6 +358,10 @@ Use the Application UI API for product controls, qualified external input for
 provider surfaces, and independent observations of required results.
 Backend product probes, synthetic grants, clock changes,
 internal faults and cosmetic/screenshot comparisons cannot pass customer cases.
+Task **238**, case **196**, has an explicit developer-authorized exception for
+[preset clock preparation](E2E-Scenario-Recipes.md#natural-calendar-windows)
+before customer input. Its elapsed usage, natural expiry and midnight crossing
+remain real; the exception does not apply to other cases.
 Reuse the existing [consumer path](E2E-Building-Blocks.md#add-a-consumer):
 `InstalledJourney/JourneyPlan`, `UiObservations`, `AccessibleUI` and the shared
 worker/dispatch. Locate only the relevant callables through the catalogue.

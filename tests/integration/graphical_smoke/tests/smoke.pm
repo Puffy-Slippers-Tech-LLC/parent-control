@@ -96,7 +96,7 @@ sub exchange {
     close($request) or die 'smoke:request-close';
     rename("$stage.request.tmp", "$stage.request.json") or die 'smoke:request-publish';
     my $deadline = time + ($stage =~ /\Apublic-/ ? 120 : $stage eq 'setup-detached' ? 1500
-        : $stage eq 'ready' ? 600
+        : $stage eq 'ready' || $stage =~ /\Amidnight-wait-[1-6]\z/ ? 600
         # Natural expiry can consume the complete real 25-minute balance, plus
         # observation/transport time. Its controller keeps the product deadline.
         : $stage eq 'minute-progression' || $stage eq 'natural-expiry' || $stage eq 'peer-expiry'
@@ -610,6 +610,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_challenges::countdown_ticks(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{ordinary_daily_reset}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_challenges::ordinary_daily_reset(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{countdown_daily}) {

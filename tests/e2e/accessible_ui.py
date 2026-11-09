@@ -662,7 +662,7 @@ TIME_EXPLANATION_OPERATIONS = frozenset({
     'time-explanation-setup-zero-read', 'time-explanation-setup-positive-read',
     'time-explanation-setup-thirty-read',
     *{f'time-explanation-daily-{minutes}-{state}-read'
-      for minutes in (2, 4, 6, 10) for state in ('off', 'on')},
+      for minutes in (1, 2, 4, 6, 10) for state in ('off', 'on')},
     'time-explanation-daily-20-on-read', 'time-explanation-daily-40-on-read',
 })
 OPERATIONS |= TIME_EXPLANATION_OPERATIONS
@@ -6988,7 +6988,7 @@ class AccessibleUI:
             'time-explanation-positive-read': (False, 15, True),
             'time-explanation-zero-read': (True, 0, True),
             **{f'time-explanation-daily-{minutes}-{state}-read': (state == 'on', minutes, True)
-               for minutes in (2, 4, 6, 10) for state in ('off', 'on')},
+               for minutes in (1, 2, 4, 6, 10) for state in ('off', 'on')},
             **{f'time-explanation-daily-{minutes}-on-read': (True, minutes, True)
                for minutes in (20, 40)},
         }
@@ -7063,7 +7063,7 @@ class AccessibleUI:
         require(type(initial_enabled) is bool and type(final_enabled) is bool
                 and type(minutes) is int
                 and (minutes in (0, 15) or
-                     minutes in (2, 4, 6, 10) and final_enabled or
+                     minutes in (1, 2, 4, 6, 10) and final_enabled or
                      minutes in (20, 40) and initial_enabled and final_enabled or
                      minutes == 30 and not initial_enabled and final_enabled), 'ui:time-binding')
         self.time_explanation_entry(child)
@@ -7078,7 +7078,7 @@ class AccessibleUI:
         if not initial_enabled:
             self.set_toggle('parent-screen-limit-toggle', True, root=self.parent())
             self.parent_save_snapshot(child, True)
-        if minutes in (2, 4, 6, 10, 20, 40):
+        if minutes in (1, 2, 4, 6, 10, 20, 40):
             self.custom_allowance(child, minutes, action='open')
             self.set_text('parent-custom-daily-limit', str(minutes), child=child, activate=True)
             self.custom_allowance(child, minutes, action='saved')

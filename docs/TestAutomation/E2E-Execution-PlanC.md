@@ -21,7 +21,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **238 — [E2E-044: ordinary-daily-reset](E2E-Tasks/238-case-196.md)**.
+Next task: **239 — [E2E-044: ordinary-rest-of-day](E2E-Tasks/239-case-197.md)**.
 
 This plan owns its queue, remaining task briefs and next-task pointer.
 It can run independently of all unfinished work in

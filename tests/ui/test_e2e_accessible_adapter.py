@@ -478,7 +478,7 @@ def test_short_daily_profile_saves_custom_allowances_through_shared_api(launch_u
     ui.run('child-picker-opened', version)
     ui.run('child-choice-highlighted', version)
     selected = ui.run('parent-selected', version)['settings']
-    for minutes in (2, 4):
+    for minutes in (1, 2, 4):
         state = 'on' if selected['limit_enabled'] else 'off'
         result = ui.run(f'time-explanation-daily-{minutes}-{state}-read', version)
         assert result['time_explanation']['child'] == 'fixture-child'

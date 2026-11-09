@@ -4,12 +4,75 @@ Binding creation/deletion are the public libvirt nwfilter APIs. Durable intent
 precedes each mutation; recovery only removes exact recorded resources.
 """
 import ipaddress
+import json
 import re
 import uuid
 import xml.etree.ElementTree as ET
 
 from owned_commands import require
 from watch_activity import observed
+
+
+# Two independent public DNS operators, with TCP and actual UDP DNS replies.
+# IP literals avoid conflating a broken resolver with Internet isolation.
+PROBE = '''import json,socket,struct,subprocess,time
+def read_exact(peer,count,deadline):
+ if not 0<count<=4096: raise OSError("invalid DNS frame size")
+ data=b""
+ while len(data)<count:
+  remaining=deadline-time.monotonic()
+  if remaining<=0: raise TimeoutError("DNS frame deadline")
+  peer.settimeout(remaining)
+  chunk=peer.recv(count-len(data))
+  if not chunk: raise OSError("incomplete DNS frame")
+  data+=chunk
+ return data
+routes=json.loads(subprocess.check_output(["ip","-j","-6","route","show","default"]))
+families=[(socket.AF_INET,["1.1.1.1","8.8.8.8"])]
+if routes: families.append((socket.AF_INET6,["2606:4700:4700::1111","2001:4860:4860::8888"]))
+query=b"\\x19\\x3a\\x01\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x07example\\x03com\\x00\\x00\\x01\\x00\\x01"
+result={"ipv6_default_route":bool(routes),"probes":[]}
+for family,addresses in families:
+ for address in addresses:
+  for protocol in ("tcp","udp-dns"):
+   success=False
+   with socket.socket(family,socket.SOCK_STREAM if protocol=="tcp" else socket.SOCK_DGRAM) as peer:
+    peer.settimeout(3)
+    try:
+     peer.connect((address,53))
+     if protocol=="tcp":
+      deadline=time.monotonic()+3
+      peer.sendall(struct.pack("!H",len(query))+query)
+      head=read_exact(peer,2,deadline)
+      data=read_exact(peer,struct.unpack("!H",head)[0],deadline)
+      success=len(data)>=12 and data[:2]==query[:2] and bool(data[2]&128)
+     else:
+      peer.send(query); data=peer.recv(4096)
+      success=len(data)>=12 and data[:2]==query[:2] and bool(data[2]&128)
+    except (OSError,TimeoutError): pass
+   result["probes"].append({"family":4 if family==socket.AF_INET else 6,"address":address,"protocol":protocol,"reachable":success})
+print(json.dumps(result))
+'''
+
+
+def internet_result(transport):
+    """Observe bounded TCP/UDP reachability through the caller's guarded transport."""
+    raw = transport.call(['/usr/bin/python3', '-I', '-c', PROBE], timeout=90)
+    require(type(raw) is bytes and len(raw) <= 4096, 'internet:probe-output')
+    value = json.loads(raw)
+    require(type(value) is dict and set(value) == {'ipv6_default_route', 'probes'}
+            and type(value['ipv6_default_route']) is bool, 'internet:probe-schema')
+    endpoints = [(4, '1.1.1.1'), (4, '8.8.8.8')]
+    if value['ipv6_default_route']:
+        endpoints += [(6, '2606:4700:4700::1111'), (6, '2001:4860:4860::8888')]
+    require(type(value['probes']) is list and len(value['probes']) == len(endpoints) * 2,
+            'internet:probe-schema')
+    for actual, expected in zip(value['probes'], [(family, address, protocol)
+            for family, address in endpoints for protocol in ('tcp', 'udp-dns')]):
+        require(type(actual) is dict and set(actual) == {'family', 'address', 'protocol', 'reachable'}
+                and (actual['family'], actual['address'], actual['protocol']) == expected
+                and type(actual['reachable']) is bool, 'internet:probe-schema')
+    return value
 
 
 def signature(xml):

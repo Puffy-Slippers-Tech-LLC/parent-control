@@ -1004,7 +1004,7 @@ def broker_save_failure_recovery(record):
     independently read the unchanged bytes and restored native state rather
     than treating that rollback error as proof of either loss or recovery.
     """
-    from product_logs import read_component
+    from product_logs import read_events
     from system_assertions import account_states
     from system_removal_faults import Fault, identity, mounted_fault
 
@@ -1014,10 +1014,6 @@ def broker_save_failure_recovery(record):
 
     def require(condition, reason):
         guest.require(condition, 'broker-save:' + reason)
-
-    def events():
-        return [json.loads(line) for line in read_component('broker').splitlines()
-                if line.startswith('{')]
 
     with PersistentCaller(parent) as caller:
         def request(method, signature='()', args=()):
@@ -1047,7 +1043,7 @@ def broker_save_failure_recovery(record):
         path = Path('/var/lib/oh-no-parent-control/preferences') / f'{child}.json'
         saved_identity = identity(path)
         fault = Fault('broker-save', path, saved_identity)
-        previous_segments = {row['segment'] for row in events()}
+        previous_segments = {row['segment'] for row in read_events('broker')}
         # Start under the fault so the service's private mount namespace sees
         # the pinned record. No product bytes or adapter behavior is replaced.
         guest.run(['systemctl', 'stop', guest.BROKER])
@@ -1057,7 +1053,8 @@ def broker_save_failure_recovery(record):
                 reply = caller.call('SetParentControl', '(ubu)', (child, True, 45))
                 require(reply.get('error') == guest.BUS + '.Error.RollbackFailure'
                         and 'result' not in reply, 'save-failure-not-exposed')
-                fresh = [row for row in events() if row['segment'] not in previous_segments]
+                fresh = [row for row in read_events('broker')
+                         if row['segment'] not in previous_segments]
                 require(len({row['segment'] for row in fresh}) == 1 and
                         any(row['event'] == 'preferences.005' for row in fresh) and
                         all(any(row['event'] == 'core.parent-control-stage' and
@@ -1185,16 +1182,15 @@ def _native_policy_transition(accounts, record, variant, caller):
                     # Obligation 149: fail the real notification while lifting
                     # an already witnessed denial. Keep the daemon running;
                     # restored files and command errors alone prove no safety.
-                    from product_logs import read_component
+                    from product_logs import read_events
                     from system_assertions import account_states
                     from system_removal_faults import identity, pinned_identity
 
                     prior = account_states(accounts.values())
                     early = RULES.with_name('01-oh-no-parent-control-deny.rules')
                     rule_bytes = tuple(path.read_bytes() for path in (early, RULES, COMPILED_RULES))
-                    previous_events = {(row['segment'], row['sequence']) for row in
-                                       (json.loads(line) for line in read_component('broker').splitlines()
-                                        if line.startswith('{'))}
+                    previous_events = {(row['segment'], row['sequence'])
+                                       for row in read_events('broker')}
                     tool = Path('/usr/sbin/fapolicyd-cli').resolve(strict=True)
                     original_tool = identity(tool)
                     mode = stat.S_IMODE(original_tool[4])
@@ -1217,9 +1213,7 @@ def _native_policy_transition(accounts, record, variant, caller):
                             guest.require(reply.get('error') == guest.BUS + '.Error.RollbackFailure'
                                           and 'result' not in reply,
                                           'enforcement:reload-failure-not-exposed')
-                            events = [row for row in
-                                      (json.loads(line) for line in read_component('broker').splitlines()
-                                       if line.startswith('{'))
+                            events = [row for row in read_events('broker')
                                       if (row['segment'], row['sequence']) not in previous_events]
                             guest.require(any(row['event'] == 'execution-policy.013' and
                                               row['fields'].get('stage') == 'notify'

@@ -13,8 +13,7 @@ from native_fixtures import fixture_actions
 from private_artifacts import require
 from request_composition import KioskRequestJourney
 from request_flow import approval_and_return
-from vm_internet import InternetIsolation, restore
-from vm_internet_qualification import internet_result
+from vm_internet import InternetIsolation, internet_result, restore
 from watch_activity import operation
 
 

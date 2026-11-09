@@ -2093,8 +2093,9 @@ needed just to run the shared system operation.
 
 ### E2E-044
 
-Implementation status: Case 196 uses `ordinary_daily_reset.PLAN` and passed its
-complete Ubuntu 26.04 journey. Other calendar bindings remain pending.
+Implementation status: Cases 196/197 use `ordinary_daily_reset.PLAN` and
+`ordinary_rest_of_day.PLAN`, respectively, and passed their complete Ubuntu 26.04
+journeys. Other calendar bindings remain pending.
 
 **Use time across local day and daylight-saving boundaries.** Cases 196, 197, 198, 200, 203.
 
@@ -2799,26 +2800,34 @@ qualifies no pending operation.
 Calendar cases run on an independently prepared computer in its declared
 timezone during a real eligible window. TIME05 only reads the clock. Scheduling
 waits happen before the case starts; no artificial clock or saved-usage change
-is allowed, except for task **238** / case **196** as authorized below.
+is allowed during the customer journey. The developer authorizes pre-test guest
+clock preparation for these calendar cases as described below.
 Every case has a 3600-second execution bound. Calendar work is the fixed final
 part of the queue; it does not select whichever case happens to fit today's date.
-Plan separate natural windows in queue order. Independent cases cannot reuse
+Prepare separate eligible windows in queue order. Independent cases cannot reuse
 an earlier case's state. Each seasonal case prepares both children before the
 same offset change and observes both within that one attempt; it does not
 schedule separate grant journeys at the same transition.
 
-For **238 / 196 only**, the developer explicitly authorized a preset guest
-clock instead of waiting for the host's midnight. After the restored guest's
-normal setup and before any parent/child input, the shared
+For cases **196, 197, 198, 200 and 203**, the developer explicitly authorized a
+preset guest clock instead of waiting for the host's calendar window. After the
+restored guest's normal setup and before any parent/child input, the shared
 [`calendar_fixture.preset_ordinary_midnight`](../../tests/e2e/calendar_fixture.py)
 disables network time synchronization through `timedatectl` and sets the clock
-to 23:35 on the next future ordinary day in the unchanged timezone. Declare and
-independently read back that date/window. Make no further clock adjustments:
-the child must consume the actual minute, reach zero and lock naturally, then
-cross midnight at normal speed and regain daily time and usable original work.
+to 23:35 on the next future ordinary day in the unchanged timezone for implemented
+cases 196/197. Case 198 must reuse this preparation when implemented; seasonal
+cases 200/203 must extend the same fixture narrowly to their declared real
+timezone transition, with enough setup margin and independent transition
+readback. Their preparation is authorized, not implemented or qualified here.
+Declare and independently read back that date/window. Make no further clock adjustments:
+each case must cross its real calendar boundary at normal speed and retain
+its own elapsed-use, deadline, access and denial assertions. Case 196 must
+consume the actual minute, reach zero and lock naturally, then regain daily
+time and usable original work after midnight; case 197 must expire naturally
+at midnight without renewed access.
 Keep clock-discontinuity checks and all public result assertions. Owned snapshot
 restoration removes the preparation; neither saved usage nor product state is
-edited. This exception supplies no other calendar case with acceptance credit.
+edited. Preparation alone supplies no calendar case with acceptance credit.
 
 Prepare identities, policies, assets, clock observations and both return routes
 before approaching the scheduled boundary. For the paired seasonal cases,

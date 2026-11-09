@@ -748,6 +748,19 @@ def reproduce_natural_expiry(lease, fixture_selection):
                             fixture_selection=selection, timeout=1800)
 
 
+def reproduce_rest_of_day(lease, fixture_selection):
+    """Retain the real midnight lock before the later input challenge."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from ordinary_rest_of_day import RestOfDayJourney, PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, RestOfDayJourney, PLAN,
+        'lock-input-ready', 'rest-of-day', assets=assets,
+        fixture_selection=selection, timeout=1800)
+
+
 def reproduce_retained_unlock(lease):
     """Diagnose the exact authenticated GDM return before advancing the journey."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1836,6 +1849,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from natural_access import NaturalAccessJourney, PLAN as NATURAL_ACCESS_PLAN
         from countdown_grant import CountdownGrantJourney, PLAN as COUNTDOWN_GRANT_PLAN
         from natural_expiry import NaturalExpiryJourney, PLAN as NATURAL_EXPIRY_PLAN
+        from ordinary_rest_of_day import RestOfDayJourney, PLAN as REST_OF_DAY_PLAN
         from suspend_active_grant import (SuspendActiveGrantJourney, PLAN as SUSPEND_ACTIVE_GRANT_PLAN,
                                          EXPIRED_PLAN as SUSPEND_EXPIRED_GRANT_PLAN)
         from overlay_approved_exit import OverlayApprovedExitJourney, TRANSLATED_PLAN
@@ -1889,6 +1903,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         natural_expiry = (surface == 'natural-expiry'
             and journey_type is NaturalExpiryJourney and plan is NATURAL_EXPIRY_PLAN
             and boundary == 'natural-expiry' and boundary_operation is None)
+        rest_of_day = (surface == 'rest-of-day'
+            and journey_type is RestOfDayJourney and plan is REST_OF_DAY_PLAN
+            and boundary == 'lock-input-ready' and boundary_operation is None)
         suspend_active_grant = (surface == 'suspend-active-grant'
             and journey_type is SuspendActiveGrantJourney and plan is SUSPEND_ACTIVE_GRANT_PLAN
             and boundary == 'unlock-desktop' and boundary_operation == 'fresh-child-desktop')
@@ -1964,7 +1981,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         versioned_assets = (surface == 'versioned-appimage-assets'
             and journey_type is VersionedAppImageAssetsJourney and plan is VERSIONED_ASSETS_PLAN
             and boundary == 'logout' and boundary_operation == 'system:parent-logout')
-        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or app_rule_return or revocation_return or overlay_lock_case or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or native_desktop_access or expired_sign_out or daily_soft_balance or versioned_assets)
+        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or rest_of_day or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or app_rule_return or revocation_return or overlay_lock_case or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or native_desktop_access or expired_sign_out or daily_soft_balance or versioned_assets)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -2023,6 +2040,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                                        'grant-logout': 'E2E-005/grant-only-new',
                                        'natural-access': 'E2E-008/fresh-login',
                                        'natural-expiry': 'check_e2e_natural_expiry',
+                                       'rest-of-day': 'E2E-044/ordinary-rest-of-day',
                                        'countdown-grant': 'E2E-011/grant-only',
                                        'suspend-active-grant': 'check_e2e_suspend_active_grant',
                                        'suspend-expired-grant': 'check_e2e_suspend',
@@ -2109,6 +2127,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                     observed['spare_children'] = self.actions['prepare-spare-children'](self, guard)
                 if surface == 'ineligible-approver':
                     observed['spare_approver'] = self.actions['prepare-spare-approver'](self, guard)
+                if surface == 'rest-of-day':
+                    observed['fixture'] = self.actions['calendar-window'](self, guard)
                 self.steps.append(observed)
                 self.progress(stage, observed)
                 pending = directory / 'setup-detached.reply.tmp'

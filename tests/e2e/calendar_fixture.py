@@ -1,4 +1,4 @@
-"""Attempt-owned clock preparation; task 238 explicitly permits this fixture.
+"""Developer-authorized, attempt-owned clock preparation for calendar cases.
 
 Set a future ordinary day before customer input, then let real seconds elapse.
 The normal owned snapshot restoration removes the clock/synchronization changes.
@@ -45,13 +45,13 @@ def preset_ordinary_midnight(journey, guard):
     from private_artifacts import require
     import watch_activity
 
-    require(journey.plan.prefix == 'ordinary-daily-reset'
+    require(journey.plan.prefix in ('ordinary-daily-reset', 'ordinary-rest-of-day')
             and [step['stage'] for step in journey.steps] == ['ready']
             and journey.transport is not None
             and journey.transport.lease is journey.context.lease,
             'calendar-fixture:entry')
     guard()
-    with watch_activity.operation('Preparing the test clock before the parent sets daily time'):
+    with watch_activity.operation('Preparing the test clock before parent or child actions'):
         raw = journey.transport.call(['/usr/bin/python3', '-I', '-c', ORDINARY_MIDNIGHT],
                                      timeout=120)
     guard()

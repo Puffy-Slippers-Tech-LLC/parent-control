@@ -38,6 +38,7 @@ class ReadOnlyObservations:
 
         UTC nanoseconds order a repeated local hour. The monotonic bracket is
         controller time, never a claim that guest and controller share an epoch.
+        Separate guest brackets bind each epoch read to same-boot UI timestamps.
         Retry only a read pair crossing midnight, an offset change or the
         caller's declared UTC boundary; malformed/stale reads fail permanently.
         """

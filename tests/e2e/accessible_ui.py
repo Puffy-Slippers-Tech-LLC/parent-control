@@ -1336,9 +1336,9 @@ def overlay_request_values(value):
             PARENT if parent == 'parent' else OTHER_PARENT, seconds, soft)
 
 
-KIOSK_REQUEST_MINUTES = {**OVERLAY_REQUEST_MINUTES, 6: '0.1', 240: '4', 600: '10',
+KIOSK_REQUEST_MINUTES = {**OVERLAY_REQUEST_MINUTES, 0: None, 6: '0.1', 240: '4', 600: '10',
                          1200: '20', 7200: '120'}
-KIOSK_REQUEST_DURATIONS = {**OVERLAY_REQUEST_DURATIONS, 6: '6 seconds', 240: '4 minutes',
+KIOSK_REQUEST_DURATIONS = {**OVERLAY_REQUEST_DURATIONS, 0: 'Rest of the day', 6: '6 seconds', 240: '4 minutes',
                           600: '10 minutes', 1200: '20 minutes', 7200: '2 hours'}
 BOUND_MATE_ORDER = tuple('kiosk-bound-mate-' + suffix for suffix in
                         ('open', 'qualified', 'rechecked', 'submit-success'))
@@ -10329,9 +10329,10 @@ class AccessibleUI:
         self.set_value('kiosk-approver-selector', str(pwd.getpwnam(APPROVER_ACCOUNTS[approver]).pw_uid))
         self.wait(lambda: self.kiosk_valid_target('kiosk-duration-custom', child=child,
             approver=approver), 'kiosk-request-ready')
-        self.set_value('kiosk-duration-choices', 'custom')
-        self.set_value('kiosk-custom-duration-units', 'minutes')
-        self.set_text('kiosk-custom-duration', KIOSK_REQUEST_MINUTES[seconds], child=child)
+        self.set_value('kiosk-duration-choices', '0' if seconds == 0 else 'custom')
+        if seconds != 0:
+            self.set_value('kiosk-custom-duration-units', 'minutes')
+            self.set_text('kiosk-custom-duration', KIOSK_REQUEST_MINUTES[seconds], child=child)
         self.set_value('kiosk-soft-apps-toggle', soft)
 
     def overlay_message_matches(self, text, language):

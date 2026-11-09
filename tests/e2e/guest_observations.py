@@ -24,20 +24,26 @@ zone=subprocess.run(['/usr/bin/timedatectl','show','--property=Timezone','--valu
 assert zone.endswith('\\n') and zone.count('\\n')==1
 zone=zone[:-1]
 '''
-LOCAL_CALENDAR = _CLOCK_PROPERTY + '''projection=subprocess.run(
+LOCAL_CALENDAR = _CLOCK_PROPERTY + '''before=time.monotonic_ns()
+projection=subprocess.run(
     ['/usr/bin/date','+%s.%N\\t%Y-%m-%dT%H:%M:%S\\t%::z'],
     env=environment,check=True,capture_output=True,text=True,timeout=5).stdout
+after=time.monotonic_ns()
 assert projection.endswith('\\n') and projection.count('\\n')==1
-print(json.dumps({'projection':projection[:-1],'timezone':zone,'boot_sha256':boot},sort_keys=True))
+print(json.dumps({'projection':projection[:-1],'timezone':zone,'boot_sha256':boot,
+    'guest_monotonic_start_ns':before,'guest_monotonic_end_ns':after},sort_keys=True))
 '''
-LOCAL_CALENDAR_READBACK = _CLOCK_PROPERTY + '''seconds,nanos=divmod(time.time_ns(),1000000000)
+LOCAL_CALENDAR_READBACK = _CLOCK_PROPERTY + '''before=time.monotonic_ns()
+seconds,nanos=divmod(time.time_ns(),1000000000)
+after=time.monotonic_ns()
 local=time.localtime(seconds)
 offset=local.tm_gmtoff
 hours,remainder=divmod(abs(offset),3600)
 minutes,seconds_offset=divmod(remainder,60)
 numeric=('+' if offset>=0 else '-')+f'{hours:02d}:{minutes:02d}:{seconds_offset:02d}'
 projection=f'{seconds}.{nanos:09d}\\t'+time.strftime('%Y-%m-%dT%H:%M:%S',local)+'\\t'+numeric
-print(json.dumps({'projection':projection,'timezone':zone,'boot_sha256':boot},sort_keys=True))
+print(json.dumps({'projection':projection,'timezone':zone,'boot_sha256':boot,
+    'guest_monotonic_start_ns':before,'guest_monotonic_end_ns':after},sort_keys=True))
 '''
 
 
@@ -45,8 +51,12 @@ def parse_local_calendar(raw):
     """Accept only complete, internally consistent system-clock observations."""
     require(type(raw) is bytes and 0 < len(raw) <= 1024, 'calendar:invalid-output')
     value = json.loads(raw)
-    require(type(value) is dict and set(value) == {'projection', 'timezone', 'boot_sha256'}
-            and all(type(item) is str for item in value.values())
+    require(type(value) is dict and set(value) == {'projection', 'timezone', 'boot_sha256',
+                'guest_monotonic_start_ns', 'guest_monotonic_end_ns'}
+            and all(type(value[key]) is str for key in ('projection', 'timezone', 'boot_sha256'))
+            and all(type(value[key]) is int and value[key] > 0 for key in
+                    ('guest_monotonic_start_ns', 'guest_monotonic_end_ns'))
+            and value['guest_monotonic_start_ns'] <= value['guest_monotonic_end_ns']
             and raw == (json.dumps(value, sort_keys=True) + '\n').encode(),
             'calendar:invalid-output')
     require(re.fullmatch(r'[0-9a-f]{64}', value['boot_sha256']) is not None
@@ -67,7 +77,9 @@ def parse_local_calendar(raw):
             and actual.utcoffset().total_seconds() == offset, 'calendar:inconsistent-output')
     return {'epoch_ns': int(seconds) * 1000000000 + int(nanos),
             'local_time': local, 'utc_offset_seconds': offset,
-            'timezone': value['timezone'], 'boot_sha256': value['boot_sha256']}
+            'timezone': value['timezone'], 'boot_sha256': value['boot_sha256'],
+            'guest_monotonic_start_ns': value['guest_monotonic_start_ns'],
+            'guest_monotonic_end_ns': value['guest_monotonic_end_ns']}
 
 # Fixed read-only probe. Only a count and digest leave the guest; no paths,
 # account data, source contents, or guest-supplied expected identities.

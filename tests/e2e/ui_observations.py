@@ -574,13 +574,15 @@ class AppActivityObservation:
     owner: tuple | None = None
 
     @classmethod
-    def from_value(cls, value, *, closed=False, binding='native-primary'):
+    def from_value(cls, value, *, closed=False, binding='native-primary', resumed=False):
         fields = {'binding', 'pid', 'endpoint', 'state'}
         require(type(closed) is bool and type(value) is dict and set(value) in (fields, fields | {'owner'})
                 and binding in ('native-primary', 'native-secondary', 'native-soft', 'snap-primary', 'snap-secondary',
                                 'flatpak-primary', 'flatpak-secondary', 'flatpak-hard', 'flatpak-soft',
                                 'game-primary')
-                and value['binding'] == binding, 'ui:app-activity')
+                and value['binding'] == binding
+                and type(resumed) is bool and (not resumed or binding == 'game-primary'),
+                'ui:app-activity')
         owner = value.get('owner')
         require('owner' not in value or type(owner) is list and len(owner) == 2
                 and type(owner[0]) is int and owner[0] >= 1000
@@ -597,7 +599,8 @@ class AppActivityObservation:
                 and type(value['state']) is dict and value['state'] == {
                     'draft': 'ONPC fixture draft',
                     'submitted': 'No submitted draft' if binding == 'game-primary' else 'ONPC fixture draft',
-                    'score': 'Moves: 1; token: 1' if binding == 'game-primary' else 'Moves: 0; token: 0'},
+                    'score': ('Moves: 2; token: 2' if resumed else 'Moves: 1; token: 1')
+                             if binding == 'game-primary' else 'Moves: 0; token: 0'},
                 'ui:app-activity')
         return cls(value['binding'], value['pid'], tuple(value['endpoint']),
                    tuple(value['state'][key] for key in ('draft', 'submitted', 'score')),
@@ -1112,9 +1115,9 @@ class UiObservations:
             # wait; the journey still owns one deadline for the whole challenge.
             timeout = 180 if operation.endswith(('lock-ready', 'lock-result')) else 15
         if operation == 'child-natural-expiry-wait-lock':
-            # Up to ten real minutes, original lock allowance, three minutes
-            # for delayed reply delivery, then transport margin; worker: 900s.
-            timeout = 810
+            # Up to 25 real minutes, original lock allowance, three minutes
+            # for delayed reply delivery, then transport margin; worker: 1800s.
+            timeout = 1710
         event_trace = operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events',
                                     'feedback-collection-events')
         if (self.system_prompt is None and not form_diagnostics and not event_trace
@@ -2154,8 +2157,9 @@ class UiObservations:
             expected['activity'] = {'draft': 'ONPC fixture draft', 'submitted': 'No submitted draft',
                 'score': {'game-opened': 'Moves: 0; token: 0', 'game-moved': 'Moves: 1; token: 1',
                           'game-resumed': 'Moves: 2; token: 2'}[operation]}
-        if operation == 'game-activity':
-            AppActivityObservation.from_value(result.get('activity'), binding='game-primary')
+        if operation in ('game-activity', 'game-resumed-activity'):
+            AppActivityObservation.from_value(result.get('activity'), binding='game-primary',
+                resumed=operation == 'game-resumed-activity')
             expected['activity'] = result['activity']
         if operation == 'game-windowed-level':
             expected['game_mode'] = {'mode': 'windowed', 'level': 1}

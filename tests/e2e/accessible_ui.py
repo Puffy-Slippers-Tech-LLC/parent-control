@@ -199,7 +199,7 @@ OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 GAME_OPERATIONS = frozenset('game-' + action for action in (
     'command', 'opened', 'move', 'moved', 'resume', 'resumed', 'activity', 'close', 'closed',
-    'wrong-window', 'windowed-level'))
+    'wrong-window', 'windowed-level', 'resumed-activity'))
 OPERATIONS |= GAME_OPERATIONS
 STANDARD_OPERATIONS |= GAME_OPERATIONS
 NATIVE_DESKTOP_OPERATIONS = frozenset((
@@ -904,6 +904,7 @@ GDM_DENIAL_OPERATIONS = frozenset({
 NAMED_CHILD_OPERATIONS = (NAMED_CUSTOM_OPERATIONS | NAMED_TIME_OPERATIONS
                           | ALLOWANCE_KEYBOARD_OPERATIONS.keys() | RETAINED_PARENT_OPERATIONS
                           | GDM_DENIAL_OPERATIONS | COUNTDOWN_OPERATIONS | PANEL_ANIMATION_OPERATIONS
+                          | GAME_OPERATIONS
                           | {'revoke-balances', 'revoke-saved-balances', 'revoke-cleared-balances',
                              'revoke-open', 'revoke-warning', 'revoke-cancel', 'revoke-confirm'}
                           | {'parent-toggle-enabled', 'parent-toggle-disabled'}
@@ -8700,7 +8701,7 @@ class AccessibleUI:
             deadline = getattr(self, 'natural_expiry_deadline_ns', None)
             require(type(deadline) is int and deadline > 0, 'ui:natural-expiry-deadline')
             remaining = (deadline - time.monotonic_ns()) / 1e9
-            require(-180 <= remaining <= 615, 'ui:natural-expiry-deadline')
+            require(-180 <= remaining <= 1515, 'ui:natural-expiry-deadline')
             # Complete lock observation and later reply delivery are separate.
             # No app or countdown read, and no input, occurs during this wait.
             self.timeout = max(0, remaining) + 180
@@ -13668,7 +13669,7 @@ class AccessibleUI:
         """
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(kind in ('native', 'snap', 'flatpak', 'game'), 'ui:fixture-binding')
-        require(kind != 'game' or role == 'Game' and child == EXISTING_CHILD
+        require(kind != 'game' or role == 'Game' and child in (CHILD, EXISTING_CHILD)
                 and instance == 'primary' and not blocked and not locked
                 and fixture == 'policy', 'ui:game-binding')
         snap = kind == 'snap'
@@ -13835,7 +13836,7 @@ class AccessibleUI:
         require(kind in ('native', 'snap', 'flatpak', 'game'), 'ui:fixture-binding')
         require(type(moves) is int and moves in (0, 1, 2)
                 and (kind == 'game' or moves == 0), 'ui:fixture-progress')
-        require(kind != 'game' or role == 'Game' and child == EXISTING_CHILD
+        require(kind != 'game' or role == 'Game' and child in (CHILD, EXISTING_CHILD)
                 and instance == 'primary' and not implicit_instance
                 and submitted == 'No submitted draft', 'ui:game-binding')
         snap = kind == 'snap'
@@ -14145,11 +14146,14 @@ class AccessibleUI:
                 and fresh_owner[0] != 'Z' and fresh_owner[19] == owner_fields[19],
                 'ui:native-owner-changed')
 
-    def game_operation(self, operation, *, level=1):
+    def game_operation(self, operation, *, level=1, child=EXISTING_CHILD):
         """APP01–04: the declared four-cell level, one normal move, public readback."""
-        require(operation in GAME_OPERATIONS and type(level) is int and level == 1,
+        require(operation in GAME_OPERATIONS and type(level) is int and level == 1
+                and child in (CHILD, EXISTING_CHILD),
                 'ui:game-binding')
-        arguments = {'role': 'Game', 'child': EXISTING_CHILD, 'kind': 'game'}
+        require(os.getuid() == os.geteuid() == pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid,
+                'ui:game-account')
+        arguments = {'role': 'Game', 'child': child, 'kind': 'game'}
         def snapshot(moves=0, **options):
             return self.native_app_snapshot('No submitted draft', moves=moves,
                                             **arguments, **options)
@@ -14169,10 +14173,10 @@ class AccessibleUI:
             else:
                 require(False, 'ui:game-wrong-window-accepted')
             return None
-        if operation in ('game-opened', 'game-moved', 'game-resumed', 'game-activity'):
+        if operation in ('game-opened', 'game-moved', 'game-resumed', 'game-activity', 'game-resumed-activity'):
             return self.wait(lambda: snapshot(
-                0 if operation == 'game-opened' else 2 if operation == 'game-resumed' else 1, pending=True,
-                with_window=operation == 'game-activity'), 'game-progress')
+                0 if operation == 'game-opened' else 2 if operation.startswith('game-resumed') else 1, pending=True,
+                with_window=operation.endswith('activity')), 'game-progress')
         if operation == 'game-closed':
             self.wait(lambda: self.native_app_closed(kind='game'), 'game-closed')
             return None
@@ -14918,7 +14922,8 @@ class AccessibleUI:
         try:
             with self.observation():
                 selected_child = (NAMED_CUSTOM_CHILDREN[child] if child else
-                    EXISTING_CHILD if operation in CATALOGUE_ROW_OPERATIONS else CHILD)
+                    EXISTING_CHILD if operation in CATALOGUE_ROW_OPERATIONS
+                    or operation in GAME_OPERATIONS else CHILD)
                 return self._run(operation, version, child=selected_child)
         finally:
             if self._timing is not None:
@@ -14963,7 +14968,7 @@ class AccessibleUI:
                 result['provider' if NATIVE_FILES_BINDINGS[operation][1] in (
                     'launch', 'launch-refusals') else 'activity'] = value
         elif operation in GAME_OPERATIONS:
-            value = self.game_operation(operation)
+            value = self.game_operation(operation, child=child)
             if value is not None:
                 result['game_mode' if operation == 'game-windowed-level' else 'activity'] = value
         elif operation in SNAP_APP_OPERATIONS | FLATPAK_APP_OPERATIONS:
@@ -16625,6 +16630,8 @@ def main():
             if sys.argv[1] in BINDING_REMINDER_OPERATIONS and not kiosk else
             (CHILD_ACCOUNTS[NAMED_CUSTOM_CHILDREN[child] if child else CHILD]
              if sys.argv[1] in CHILD_DESKTOP_OPERATIONS else
+             CHILD_ACCOUNTS[NAMED_CUSTOM_CHILDREN[child] if child else EXISTING_CHILD]
+             if sys.argv[1] in GAME_OPERATIONS else
              'onpc-child-jordan' if sys.argv[1] in STANDARD_OPERATIONS else 'onpc-parent-jamie'))
     require(account.pw_uid > 0 and (greeter or account.pw_uid >= 1000), 'ui:fixture-identity')
     # Station entry is qualified by its public form. Bind the observation

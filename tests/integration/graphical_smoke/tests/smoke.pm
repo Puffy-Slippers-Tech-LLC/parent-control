@@ -97,10 +97,10 @@ sub exchange {
     rename("$stage.request.tmp", "$stage.request.json") or die 'smoke:request-publish';
     my $deadline = time + ($stage =~ /\Apublic-/ ? 120 : $stage eq 'setup-detached' ? 1500
         : $stage eq 'ready' ? 600
-        # Natural expiry can consume the complete real ten-minute grant, plus
+        # Natural expiry can consume the complete real 25-minute balance, plus
         # observation/transport time. Its controller keeps the product deadline.
         : $stage eq 'minute-progression' || $stage eq 'natural-expiry' || $stage eq 'peer-expiry'
-            || $stage eq 'expiry-wait' || $stage eq 'replacement-cross' ? 900
+            || $stage eq 'expiry-wait' || $stage eq 'replacement-cross' ? 1800
         : $stage eq 'package-submitted' || $stage eq 'upgrade-submitted' ? 780
         : $stage eq 'reboot-installed-greeter' || $stage eq 'second-reboot-greeter'
             || $stage eq 'reboot-greeter' ? 780 : 420);
@@ -1134,6 +1134,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_app_rows::flatpak_command_usable(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{game_time_extension}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::game_time_extension(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, $ready->{overlay_request});
         return;
     }
     if ($ready->{game_access}) {

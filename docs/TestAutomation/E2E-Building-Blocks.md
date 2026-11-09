@@ -2229,14 +2229,17 @@ Await fresh public results within deadlines, accounting for observation latency.
 | APP02 | C | Observe exactly the expected usable window, named launch denial, hidden launcher, or closure of a previously observed window. Inputs include route, result and earlier window observation when required. | The [Jordan A/H/S Files qualification](#native-files-launch-and-separate-windows) adds A/S presence and closure, H/S denial and owner-bound temporary S closure with retained A work. `AccessibleUI.native_app_snapshot/native_app_closed` independently observe the owned primary native window and exact initial activity, then complete absence with the recognized desktop after `onpc_app_rows::native_close_app`; [native qualification](#native-fixture-preparation) includes Jordan/Riley and Jordan A/Alias grid bindings. [Distinct-user retention](#distinct-user-retained-app-qualification) adds Jamie's command-window presence. [Native denial qualification](#native-launch-denial-qualification) adds Jordan's H/S command denial and N command-window presence/closure. `native-grid-denied` and `native-command-blocked` add the independent [case-64/66/82/83/84 results](#application-routes-and-complete-customer-journeys). [Captured activity closure](#captured-native-activity-closure) compares Jordan's original A window after precise Hard/Soft saves. UI01 → UI03 for presence; FILE06 for command denial; UI11 for Flatpak hidden/closed surface with a recognized surrounding UI. Hidden launcher alone cannot prove blocked execution. [Jordan/Riley trusted desktop entries](#native-desktop-entry-and-usable-launch) add the scoped desktop binding. | [Jordan's A/H/S Files route](#native-files-launch-and-separate-windows) on Ubuntu 26.04 ready; Jordan/Riley and Jordan A/Alias Allowed grid presence/normal closure, stated command bindings, Jamie command presence, exact Jordan H/S command denial, Jordan hard/soft-blocked A command and grid denial and stated captured A closure on Ubuntu 26.04 ready; [Jordan Flatpak S hiding/restoration](#flatpak-grid-use) ready; [Jordan/Riley desktop use](#native-desktop-entry-and-usable-launch) ready; other bindings pending |
 | APP03 | C | Perform one declared normal app input and observe its customer-visible effect, proving usability. Repeated game actions are separate bounded invocations. | The [Jordan A/S Files qualification](#native-files-launch-and-separate-windows) adds normal Submit and independent readback. `onpc_app_rows::native_use_app` composes guarded public Submit draft through `AccessibleUI.native_app_submit` and separate exact submitted-label readback; [native qualification](#native-fixture-preparation) includes Jordan/Riley and Jordan A/Alias grid bindings. [Distinct-user retention](#distinct-user-retained-app-qualification) adds Jamie command submission and Jamie/Riley resumed submission on their original windows. UI01 → one of UI04, UI05 or UI06 according to the declared input mode → UI03 or UI02 according to the declared result projection. App action/expected effect is fixture data. [Jordan/Riley trusted desktop entries](#native-desktop-entry-and-usable-launch) add the scoped desktop binding. | [Jordan's A/S Files route](#native-files-launch-and-separate-windows) on Ubuntu 26.04 ready; Jordan/Riley native primary grid, Jordan A/Alias grid draft submission on Ubuntu 26.04 and stated Jamie/child command and retained-window bindings ready; [Jordan/Riley desktop use](#native-desktop-entry-and-usable-launch) ready; other actions/bindings pending |
 | APP04 | C | Read a recognizable public activity/window state, or compare it after legitimate return. Inputs declare capture/compare and the earlier immutable observation. | The [same-S Files qualification](#native-files-launch-and-separate-windows) adds separate-primary/secondary and unchanged-original comparisons; the [same-S desktop qualification](#native-desktop-entry-and-usable-launch) adds those comparisons after Jordan's desktop activation. `AccessibleUI.native_app_snapshot(with_window=True)` / `native-activity` read the owned public window endpoint and exact submitted draft. `AppActivityObservation`, `compare_app_activity` and `InstalledJourney.check_activity` copy immutable captures and compare explicit `JourneyPlan.activity_checks` endpoints; `onpc_app_rows::native_read_activity` supplies caller-owned invocation IDs. APP02(present) → UI03 → UI12 only for compare; [native activity qualification](#native-fixture-preparation). A newly launched window cannot satisfy retained-activity expectations. `overlay-native-activity` adds the fixed Riley command binding and two exact retained-window/draft comparisons after normal Cancel; see the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification). [Distinct-user retention](#distinct-user-retained-app-qualification) qualifies Jamie/Riley captures and original-window comparisons through Switch User. No hidden process/window inspection. | [Jordan's same-S Files activity](#native-files-launch-and-separate-windows) and [desktop activity](#native-desktop-entry-and-usable-launch) on Ubuntu 26.04 ready; native primary capture/same-window comparison, stated Jamie/Riley retention and case 17 Jordan A/S Cancel retention on Ubuntu ready; other bindings pending |
-| APP05 | C | Prepare the real offline game's declared windowed/fullscreen mode and reproducible level through shared supported commands or keyboard shortcuts, then observe active gameplay. Game settings menus are supporting setup. | Bind startup options in the preceding APP01 launch, or use a fixed supported command/UI05 shortcut on the observed game; do not relaunch retained activity. UI01/UI03 verifies the mode/level, then APP03 proves actual gameplay input/effect. `journey_blocks.game_usable_app(mode='windowed')` / `AccessibleUI.game_operation('game-windowed-level')` observe the actual GTK mode and fixed level independently before the real move; [qualified composition](#windowed-game-expiry). The selected game needs usable public observations; a menu or timer fixture is insufficient. | Jordan's windowed level 1 on Ubuntu 26.04 ready; fullscreen and other bindings pending |
+| APP05 | C | Prepare the real offline game's declared windowed/fullscreen mode and reproducible level through shared supported commands or keyboard shortcuts, then observe active gameplay. Game settings menus are supporting setup. | Bind startup options in the preceding APP01 launch, or use a fixed supported command/UI05 shortcut on the observed game; do not relaunch retained activity. UI01/UI03 verifies the mode/level, then APP03 proves actual gameplay input/effect. `journey_blocks.game_usable_app(mode='windowed')` / `AccessibleUI.game_operation('game-windowed-level')` observe the actual GTK mode and fixed level independently before the real move; [qualified composition](#windowed-game-expiry). The selected game needs usable public observations; a menu or timer fixture is insufficient. | Jordan's windowed level 1 and Riley's case-128 binding on Ubuntu 26.04 ready; fullscreen and other bindings pending |
 | APP06 | A | Read one complete, account-scoped public projection of Lunar's tray/background control, Lunar window and Minecraft activity, with the recognized surrounding desktop. Presence/absence is explicit input; do not launch, reveal or quit anything. | No callable yet. The [Lunar profile slices](#lunar-client-preparation-and-observation-gate) separately qualify Lunar/tray, Minecraft activity and login observations, including absence and incomplete/wrong-owner refusal. UI22 composes repeated observations across the declared login interval; one final absent window cannot establish blocked autostart. [Consumer gate](#lunar-client-preparation-and-observation-gate). | pending |
 
 APP01/02/03/04 and FLOW08 also include Jordan's fixed level-1
 [offline game activity](#offline-game-activity) command binding on Ubuntu 26.04.
 It qualifies one real move and fresh same-window progress, including an
 independently opened entry. [Windowed mode and natural expiry](#windowed-game-expiry)
-are also qualified; fullscreen and other game bindings remain pending.
+are also qualified. Complete case 128 adds Riley's windowed level-1 command,
+original-game comparison and second-move capture through soft-excluded approval
+under that same scoped qualification below. Fullscreen and other game bindings
+remain pending.
 
 The native command/station binding in [E2E-049, case 238](E2E-Scenario-Recipes.md#e2e-049)
 additionally qualifies Jordan's S/secondary command launch, usable draft submission,
@@ -3538,6 +3541,11 @@ comparison, game continuity and extended natural expiry. Reuse
 do not add an unchanged Parent balance read or relabel reversed dominance.
 Other children/entry bindings and complete customer cases remain separate.
 
+Case 128 uses the same profile with `finish='parent'` so it can read the game's
+Always Allowed policy before leaving for Riley's desktop. This adds only the
+retained Parent finish; it preserves the same grant, daily allowance and later
+request-time comparisons. The default GDM finish remains unchanged.
+
 #### Distinct-user retained app qualification
 
 `retained_app_visits.PLAN` / `RetainedAppVisitsJourney`,
@@ -4318,6 +4326,23 @@ immutable pre-expiry capture. `game-resume` uses the same guarded `FixtureUI.mov
 operation; `game-resumed` independently reads `Moves: 2; token: 2`. This qualifies
 the retained game comparison and continued use within the complete case, without
 a separate FLOW11 qualification. It does not qualify fullscreen play.
+
+`game_time_extension.GameTimeExtensionJourney` and
+`onpc_app_rows::game_time_extension` passed complete case 128
+(`E2E-024/daily-dominant-windowed`) on Ubuntu 26.04 in
+`20261109T133836Z-624d6727`. Riley's original ten-minute grant survives the
+enabled twenty-minute daily allowance save. The game stays Always Allowed;
+Jamie approves Custom 1.25 Minutes (75 seconds) with soft apps excluded.
+The public request and returned countdown preserve the daily-dominant operands
+and the required maximum-plus-addition calculation with elapsed-time bounds.
+APP04 compares the original window and one-move progress after approval;
+`game-resume` makes a second real move. `game-resumed-activity` and the shared
+immutable activity reader require exactly two moves, while earlier captures
+still require one. That activity remains unchanged at the start of the natural
+expiry wait. The original extended countdown bounds natural lock, followed by
+the same-lock protected-input check. Collection, owned cleanup and baseline
+restoration passed. This adds Riley's windowed level-1 APP01–05/FLOW08 and
+TIME04 binding in this complete journey; fullscreen remains pending.
 
 ### Native fixture preparation
 

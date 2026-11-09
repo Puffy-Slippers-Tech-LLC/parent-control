@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **133 — [E2E-024: daily-dominant-windowed](E2E-Tasks/133-case-128.md)**.
+Next task: **269 — [E2E-048: daily-dominant-child-overlay](E2E-Tasks/269-case-227.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

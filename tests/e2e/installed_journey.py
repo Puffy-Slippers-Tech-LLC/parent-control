@@ -31,6 +31,7 @@ from ui_observations import (
 # Cases retain their capture order and expected same/separate/closed result.
 ACTIVITY_BINDINGS = {
     'game-activity': ('game-primary', False),
+    'game-resumed-activity': ('game-primary', False),
     **{operation: ('native-' + instance, False)
        for operation, (instance, action) in accessible_ui.NATIVE_WINDOW_BINDINGS.items()
        if action == 'activity'},
@@ -217,7 +218,8 @@ class JourneyPlan:
                                                        'ui:overlay-native-policy-soft-activity',
                                                        'ui:flatpak-allowed-policy-activity',
                                                        'ui:flatpak-hard-policy-activity',
-                                                       'ui:flatpak-soft-policy-activity', 'ui:game-activity')
+                                                       'ui:flatpak-soft-policy-activity', 'ui:game-activity',
+                                                       'ui:game-resumed-activity')
                     for stage, capture in self.activity_entries.items()), self.prefix + ':activity-entry-plan')
         require(all(stage in stages and type(seconds) is int and seconds >= 0
                     for stage, seconds in self.balance_checks.items()),
@@ -631,7 +633,7 @@ class InstalledJourney:
         endpoint, closed = activity
         require(stage not in self.activity_observations, 'ui:app-activity-replay')
         current = AppActivityObservation.from_value(observed.get('ui', {}).get('activity'),
-            closed=closed, binding=endpoint)
+            closed=closed, binding=endpoint, resumed=operation == 'game-resumed-activity')
         binding = self.plan.activity_checks.get(stage)
         if binding is not None:
             earlier, result = binding

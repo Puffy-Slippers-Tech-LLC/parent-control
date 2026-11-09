@@ -223,6 +223,8 @@ sub enter_kiosk_mate_password {
                 || ($journey->{prefix} // '') eq 'time-profiles-dominant-profile-request'
                 && ($journey->{stage_prefix} // '') eq 'profile-request-'
                 && ($long_request || defined($wrong) && $wrong eq 'request-1200')
+                || ($journey->{prefix} // '') eq 'game-time-extension-profile-request'
+                && ($journey->{stage_prefix} // '') eq 'profile-request-' && $long_request
                 || ($journey->{prefix} // '') eq 'panel-request-case-profile-request'
                 && ($journey->{stage_prefix} // '') eq 'profile-request-'
                 && defined($wrong) && $wrong eq 'request-1200'
@@ -315,8 +317,12 @@ sub enter_overlay_shell_password {
             && ($journey->{stage_prefix} // '') eq 'overlay-'
             && ref($journey->{overlay_request}) eq 'ARRAY'
             && join(',', @{$journey->{overlay_request}}) eq 'child,parent,180,1';
+        my $game = ($journey->{prefix} // '') eq 'game-time-extension'
+            && ($journey->{stage_prefix} // '') eq ''
+            && ref($journey->{overlay_request}) eq 'ARRAY'
+            && join(',', @{$journey->{overlay_request}}) eq 'child,parent,75,0';
         my $composed = (($journey->{prefix} // '') eq 'overlay-approval-return'
-            || $delayed || $panel || $lock_recovery || $temporary_access || $offline) && !$reject;
+            || $delayed || $panel || $lock_recovery || $temporary_access || $offline || $game) && !$reject;
         my $role = 'parent';
         if ($composed) {
             my $binding = $journey->{overlay_request};

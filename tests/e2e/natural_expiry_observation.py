@@ -110,13 +110,14 @@ def await_natural_expiry(journey, guard, previous, activity, *, maximum_seconds=
     require(type(previous) is CountdownSample and type(activity) is AppActivityObservation,
             'natural-expiry:entry')
     low, high = countdown_seconds(previous.countdown.text)
-    require(type(maximum_seconds) is int and maximum_seconds in (240, 600)
+    require(type(maximum_seconds) is int and maximum_seconds in (240, 600, 1500)
             and 0 < low <= high <= maximum_seconds, 'natural-expiry:positive-time')
     require(child in (None, 'existing'), 'natural-expiry:child-binding')
     require(activity.pid is not None and activity.state is not None and (
             activity.binding == 'native-primary' and activity.state[1] == 'ONPC fixture draft'
-            or activity.binding == 'game-primary' and child == 'existing'
-            and activity.state[1:] == ('No submitted draft', 'Moves: 1; token: 1')),
+            or activity.binding == 'game-primary'
+            and activity.state[1] == 'No submitted draft'
+            and activity.state[2] in ('Moves: 1; token: 1', 'Moves: 2; token: 2')),
             'natural-expiry:submitted-work')
     original_start, original_end = previous.guest_read_bounds
     journey.ui.natural_expiry_deadline_ns = original_start + (high + 15) * 1_000_000_000

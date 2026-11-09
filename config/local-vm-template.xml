@@ -43,6 +43,11 @@
     <controller type="pci" model="pcie-root"/>
     <controller type="sata" index="0"/>
     <controller type="virtio-serial" index="0"/>
+    <filesystem type="mount" accessmode="passthrough">
+      <driver type="virtiofs"/>
+      <source dir="/Data"/>
+      <target dir="data"/>
+    </filesystem>
     <interface type="network"><source network="default"/><model type="virtio"/></interface>
     <serial type="pty"><target type="isa-serial" port="0"/></serial>
     <console type="pty"><target type="serial" port="0"/></console>

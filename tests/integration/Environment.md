@@ -25,7 +25,18 @@ the program does not guess a newest image or download one.
 `metadata/newvm:disk/@size-gib` supplies the sparse QCOW2 capacity (currently
 80 GiB). Both supplied templates use the shared 4.5 GiB/6-vCPU Q35 BIOS
 configuration, unrestricted host CPU placement, virtio graphics without 3D,
-sound and a guest-agent channel. They contain no host folder share.
+sound and a guest-agent channel. The local template exports host `/Data` as a
+writable virtiofs share with mount tag `data`; the server template has no host
+folder share. After manually installing the local guest OS, create `/Data` in
+the guest and add this entry to the guest's `/etc/fstab` to mount it on boot:
+
+```fstab
+data /Data virtiofs defaults,nofail 0 0
+```
+
+Run `sudo mount /Data` in the guest to mount it immediately. The VM template
+exposes the share but does not configure the guest's mount table.
+
 The new disk is `HOST.virt-manager/NAME.qcow2`; the selected ISO is attached
 with CD-ROM-first boot. The program assigns a fresh UUID and libvirt assigns
 fresh network MAC addresses. An existing registry name prompts in red to confirm

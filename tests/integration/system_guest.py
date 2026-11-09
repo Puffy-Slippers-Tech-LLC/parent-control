@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import hashlib
 import grp
 import json
@@ -110,6 +111,34 @@ def remove_runtime_service_mask(unit, identity, *, category):
     require(identity is not None, category + ':missing-mask-identity')
     runtime_service_mask(unit, category=category, identity=identity)
     run(['systemctl', 'unmask', '--runtime', unit], timeout=30)
+
+
+@contextmanager
+def isolated_broker_for_faults():
+    """Give direct fault injection sole policy ownership in this leased guest."""
+    guard()
+    mask = Path('/run/systemd/system') / BROKER
+    require(not mask.exists() and not mask.is_symlink(), 'expiry:foreign-broker-mask')
+    invocation = run(['systemctl', 'show', BROKER,
+                      '--property=InvocationID', '--value'])
+    require(run(['systemctl', 'is-active', BROKER]) == 'active'
+            and re.fullmatch(r'[0-9a-f]{32}', invocation) is not None
+            and invocation != '0' * 32, 'expiry:fault-broker-not-active')
+    identity = runtime_service_mask(BROKER, category='expiry:fault-broker')
+    try:
+        require(run(['systemctl', 'show', BROKER,
+                     '--property=InvocationID', '--value']) == invocation,
+                'expiry:fault-broker-replaced')
+        run(['systemctl', 'stop', BROKER], timeout=30)
+        require(run(['systemctl', 'show', BROKER,
+                     '--property=ActiveState', '--value']) == 'inactive',
+                'expiry:fault-broker-not-stopped')
+        yield
+    finally:
+        remove_runtime_service_mask(BROKER, identity, category='expiry:fault-broker')
+        # We already stopped this invocation under the mask. A second stop
+        # after unmasking can cancel a live client's newly queued activation.
+        activate_broker(restart=False)
 
 
 def sha(path):

@@ -15,7 +15,7 @@ from system_assertions import accepted, account_property, call, session_limits
 from system_extension_monitor import BrokerEvents, UUID, invocation, native_choices, state_digest
 from system_extension_parent import monitor_bus_identity, recovery_proof, set_monitor_bus_mode
 from system_graphical_expiry import child_session, screen_lock_observation, wait_for
-from system_session_expiry import identities, installed_manager, isolated_broker_for_extension_faults
+from system_session_expiry import identities, installed_manager
 
 HISTORY = guest.PAYLOAD / 'results' / 'extension-login.json'
 LIMITS = 'com.endlessm.ParentalControls.SessionLimits'
@@ -111,7 +111,7 @@ def begin():
     # restore either an unmodified original or the exact injected mode.
     with HISTORY.open('x') as stream:
         json.dump(history, stream)
-    with isolated_broker_for_extension_faults():
+    with guest.isolated_broker_for_faults():
         set_monitor_bus_mode(fault, fault['mode'], fault['mode'] & ~0o044)
     history['invocation'] = invocation()
     history['startup'] = accepted(call(parent, 'GetStartupTimings'))[0]

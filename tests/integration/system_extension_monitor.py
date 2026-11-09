@@ -613,7 +613,6 @@ def verify_lifecycle(publish):
     import pwd
     from contextlib import contextmanager
     from system_caller import PersistentCaller, TextAgent
-    from system_session_expiry import isolated_broker_for_extension_faults
 
     marker = guest.guard()
     guest.enable_diagnostics()
@@ -851,7 +850,7 @@ def verify_lifecycle(publish):
             time.sleep(1)
             guest.require(not attempts(events.since(pending)),
                           'extension:lifecycle-shutdown-recovery-not-pending')
-            with isolated_broker_for_extension_faults():
+            with guest.isolated_broker_for_faults():
                 agent.close()
                 stopped = time.monotonic()
                 guest.require(guest.run(['systemctl', 'show', guest.BROKER,
@@ -938,7 +937,6 @@ def verify_failure_reporting(publish):
     The outer installed-system owner restores autologin and the VM fixture.
     """
     from contextlib import contextmanager
-    from system_session_expiry import isolated_broker_for_extension_faults
 
     marker = guest.guard()
     guest.enable_diagnostics()
@@ -1166,7 +1164,7 @@ def verify_failure_reporting(publish):
             wait(lambda: shell.info().get('state') == 3, 'repeated-native-error')
             time.sleep(3)
             guest.require(report() == edited, 'extension:failure-repeat-overwrote-draft')
-            with isolated_broker_for_extension_faults():
+            with guest.isolated_broker_for_faults():
                 guest.require(report() == edited, 'extension:failure-stopped-broker-lost-draft')
             guest.require(invocation() != identity, 'extension:failure-broker-not-restarted')
             events = BrokerEvents(accepted(call(accounts['parent'], 'GetStartupTimings'))[0])

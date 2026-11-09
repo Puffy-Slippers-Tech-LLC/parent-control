@@ -217,7 +217,7 @@ class JourneyPlan:
                                                        'ui:overlay-native-policy-soft-activity',
                                                        'ui:flatpak-allowed-policy-activity',
                                                        'ui:flatpak-hard-policy-activity',
-                                                       'ui:flatpak-soft-policy-activity')
+                                                       'ui:flatpak-soft-policy-activity', 'ui:game-activity')
                     for stage, capture in self.activity_entries.items()), self.prefix + ':activity-entry-plan')
         require(all(stage in stages and type(seconds) is int and seconds >= 0
                     for stage, seconds in self.balance_checks.items()),

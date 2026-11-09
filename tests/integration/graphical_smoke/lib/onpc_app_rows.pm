@@ -1283,18 +1283,59 @@ sub versioned_appimage_assets {
 
 # FLOW08 game branch, also usable after an independently opened level-1 window.
 sub game_use_app {
-    my ($journey, $opened) = @_;
-    die 'game:use-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
+    my ($journey, $opened, $mode) = @_;
+    die 'game:use-binding' unless (@_ == 2 || @_ == 3 && $mode eq 'windowed')
+        && ref($journey) eq 'onpc_journey';
     $journey->consume_observation('opened', $opened);
+    $journey->seen('mode') if defined($mode);
     $journey->seen('move');
     return $journey->seen('moved');
 }
 
 sub game_usable_app {
     onpc_progress::operation('Opening level 1 and playing one move as [Child user]');
-    my ($journey) = @_;
-    die 'game:usable-binding' unless @_ == 1 && ref($journey) eq 'onpc_journey';
-    return game_use_app($journey, native_open_command($journey, undef));
+    my ($journey, $mode) = @_;
+    die 'game:usable-binding' unless (@_ == 1 || @_ == 2 && $mode eq 'windowed')
+        && ref($journey) eq 'onpc_journey';
+    return game_use_app($journey, native_open_command($journey, undef),
+                        defined($mode) ? ($mode) : ());
+}
+
+sub game_expiry {
+    onpc_progress::operation('Playing the windowed game until the child’s allowance expires');
+    my ($exchange, $declared, $challenges, $request) = @_;
+    die 'game-expiry:binding' unless @_ == 4 && ref($request) eq 'ARRAY'
+        && join(',', @$request) eq 'other-child,parent,600,1';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'game-expiry', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    $journey->{kiosk_request} = $request;
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('parent-selected',
+        onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'existing'));
+    $journey->seen('profile-before');
+    $journey->seen('allowance-configured');
+    $journey->seen('saved-settings');
+    $journey->seen('parent-logout');
+    my $approval = $journey->scope('request');
+    $approval->{kiosk_request} = $request;
+    onpc_request_flow::prepare($approval, 'new', 'new', 'observed',
+        'existing-fixture-child', 'fixture-parent', 600, 1, 'kiosk');
+    onpc_request_flow::approve($approval, 'existing-fixture-child', 'fixture-parent', 600, 1, 'automatic');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan-entry');
+    $journey->invoke('initial-countdown');
+    for my $entry ('first', 'independent') {
+        my $play = $journey->scope($entry);
+        game_usable_app($play, 'windowed');
+        native_read_activity($play, 'capture');
+        if ($entry eq 'first') {
+            $play->seen('close');
+            $play->seen('closed');
+        }
+    }
+    $journey->invoke('natural-expiry');
+    onpc_desktop_session::verify_locked_input($journey, 'lock-input-ready', 'lock-result');
+    $journey->finish();
 }
 
 sub game_activity {

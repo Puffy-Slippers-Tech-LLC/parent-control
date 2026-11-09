@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **126 — [Compose windowed gameplay through natural expiry](E2E-Tasks/126-game.md)**.
+Next task: **127 — [E2E-023: windowed](E2E-Tasks/127-case-126.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

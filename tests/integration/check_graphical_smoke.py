@@ -799,7 +799,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          feedback_formats=False, feedback_link_semantics=False, real_interval=False,
          independent_network=False, public_connectivity_controls=False, native_grid_usable=False,
          riley_native_grid=False, native_denial=False, native_space_path=False, native_comma_path=False, versioned_appimage_assets=False, native_policy_closure=False, shared_target_launchers=False,
-         native_app=False, native_desktop_route=False, native_desktop_new_window=False, native_desktop_usable=False, native_files_usable=False, native_files_routes=False, flatpak_retained_work=False, app_activity=False, retained_app_visits=False, chinese_language_assets=False, desktop_language=False,
+         native_app=False, game_expiry=False, native_desktop_route=False, native_desktop_new_window=False, native_desktop_usable=False, native_files_usable=False, native_files_routes=False, flatpak_retained_work=False, app_activity=False, retained_app_visits=False, chinese_language_assets=False, desktop_language=False,
          chinese_native_auth=False, parent_language=False, kiosk_language=False, overlay_language=False,
          panel_language_refresh=False,
          kiosk_language_restoration=False, overlay_reminder_editing=False, kiosk_reminder_binding=False,
@@ -1112,8 +1112,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(type(native_app) is bool and (not native_app or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
-            if name not in ('assets', 'provision_credentials', 'native_app')
+            if name not in ('assets', 'provision_credentials', 'native_app', 'game_expiry')
             and isinstance(value, bool)))), 'smoke:native-app-prerequisites')
+    require(type(game_expiry) is bool and (not game_expiry or native_app
+            and fixture_profile == 'game'), 'smoke:game-expiry-prerequisites')
     require(type(riley_native_grid) is bool and (not riley_native_grid or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1914,7 +1916,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         if riley_native_grid:
             result['scope'] = 'installed-riley-native-grid-qualification'
         if native_app:
-            result['scope'] = ('installed-game-activity-qualification' if fixture_profile == 'game'
+            result['scope'] = ('installed-game-expiry-qualification' if game_expiry else
+                              'installed-game-activity-qualification' if fixture_profile == 'game'
                                else 'installed-snap-command-usable-qualification' if fixture_profile == 'snap'
                                else 'installed-flatpak-command-usable-qualification' if fixture_profile == 'flatpak'
                                else 'installed-native-app-qualification')
@@ -2531,6 +2534,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     elif fixture_profile == 'game':
                         from parent_setup_qualification import GameActivityQualification
                         qualification_class = GameActivityQualification
+                        if game_expiry:
+                            from parent_setup_qualification import GameExpiryQualification
+                            qualification_class = GameExpiryQualification
                 if native_denial:
                     from parent_setup_qualification import NativeDenialQualification
                     qualification_class = NativeDenialQualification

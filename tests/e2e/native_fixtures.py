@@ -95,7 +95,7 @@ class NativeFixtures:
         if selection is not None:
             from e2e_fixture_preparation import (ACTIVITY_CALLERS, ACTIVITY_SUBSETS,
                                                  APP_SET_CALLER, LIFECYCLE_SUBSETS,
-                                                 SUBSETS, GAME_SUBSETS, GAME_CALLER,
+                                                 SUBSETS, GAME_SUBSETS, GAME_CALLERS,
                                                  asset_hashes, qualified_subsets)
             prepared = getattr(self.verified, 'fixture_prepared', None)
             require(type(prepared) is dict, 'fixtures:readiness-required')
@@ -108,7 +108,7 @@ class NativeFixtures:
                 or subsets == LIFECYCLE_SUBSETS and prepared.get('caller') == APP_SET_CALLER
                 and not prepared.get('product_free', False)))
             selected_game = (self.profile == 'game' and subsets == GAME_SUBSETS
-                             and prepared.get('caller') == GAME_CALLER)
+                             and prepared.get('caller') in GAME_CALLERS)
             require(self.profile in ('native', 'chinese') or selected_game or selected_activity or selected_child,
                     'fixtures:e2e-profile-not-qualified')
             require({'controller', 'receipt'} <= set(prepared)

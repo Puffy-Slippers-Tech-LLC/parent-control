@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **126a — [Launch and observe the prepared offline game](E2E-Tasks/126a-game-activity.md)**.
+Next task: **126 — [Compose windowed gameplay through natural expiry](E2E-Tasks/126-game.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

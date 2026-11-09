@@ -30,6 +30,7 @@ from ui_observations import (
 # Declaration validation and runtime capture must recognize the same endpoints.
 # Cases retain their capture order and expected same/separate/closed result.
 ACTIVITY_BINDINGS = {
+    'game-activity': ('game-primary', False),
     **{operation: ('native-' + instance, False)
        for operation, (instance, action) in accessible_ui.NATIVE_WINDOW_BINDINGS.items()
        if action == 'activity'},
@@ -518,13 +519,13 @@ class InstalledJourney:
         self.actions = actions or {}
         if getattr(context, 'fixture_selection', None) is not None:
             from e2e_fixture_preparation import (ACTIVITY_CALLERS, ACTIVITY_SUBSETS,
-                                                  GAME_CALLER, GAME_SUBSETS,
+                                                  GAME_CALLERS, GAME_SUBSETS,
                                                   SUBSETS, qualified_subsets)
             activity = (getattr(context, 'fixture_subsets', SUBSETS) == ACTIVITY_SUBSETS
                 and getattr(context, 'fixture_caller', None) in ACTIVITY_CALLERS
                 and not getattr(context, 'product_free', False))
             game = (getattr(context, 'fixture_subsets', SUBSETS) == GAME_SUBSETS
-                and getattr(context, 'fixture_caller', None) == GAME_CALLER
+                and getattr(context, 'fixture_caller', None) in GAME_CALLERS
                 and not getattr(context, 'product_free', False))
             qualified_subsets(getattr(context, 'fixture_subsets', SUBSETS),
                 caller=getattr(context, 'fixture_caller', None),

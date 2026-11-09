@@ -419,6 +419,8 @@ OPERATION_LABELS.update({operation: 'Checking the declared Snap app and its publ
                          for operation in accessible_ui.SNAP_APP_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Checking the child can use the declared Flatpak app: ' + operation
                          for operation in accessible_ui.FLATPAK_APP_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Opening, playing or reading the child\'s offline game: ' + operation
+                         for operation in accessible_ui.GAME_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Checking declared baseline native access and usable results'
                          for operation in accessible_ui.BASELINE_NATIVE_BINDINGS})
 OPERATION_LABELS.update({operation: 'Using and independently reading the Parent native activity'
@@ -576,7 +578,8 @@ class AppActivityObservation:
         fields = {'binding', 'pid', 'endpoint', 'state'}
         require(type(closed) is bool and type(value) is dict and set(value) in (fields, fields | {'owner'})
                 and binding in ('native-primary', 'native-secondary', 'native-soft', 'snap-primary', 'snap-secondary',
-                                'flatpak-primary', 'flatpak-secondary', 'flatpak-hard', 'flatpak-soft')
+                                'flatpak-primary', 'flatpak-secondary', 'flatpak-hard', 'flatpak-soft',
+                                'game-primary')
                 and value['binding'] == binding, 'ui:app-activity')
         owner = value.get('owner')
         require('owner' not in value or type(owner) is list and len(owner) == 2
@@ -592,8 +595,10 @@ class AppActivityObservation:
                 and all(type(part) is str and 0 < len(part) <= 256 for part in value['endpoint'])
                 and value['endpoint'][0].startswith(':') and value['endpoint'][1].startswith('/')
                 and type(value['state']) is dict and value['state'] == {
-                    'draft': 'ONPC fixture draft', 'submitted': 'ONPC fixture draft',
-                    'score': 'Moves: 0; token: 0'}, 'ui:app-activity')
+                    'draft': 'ONPC fixture draft',
+                    'submitted': 'No submitted draft' if binding == 'game-primary' else 'ONPC fixture draft',
+                    'score': 'Moves: 1; token: 1' if binding == 'game-primary' else 'Moves: 0; token: 0'},
+                'ui:app-activity')
         return cls(value['binding'], value['pid'], tuple(value['endpoint']),
                    tuple(value['state'][key] for key in ('draft', 'submitted', 'score')),
                    tuple(owner) if owner is not None else None)
@@ -2141,6 +2146,12 @@ class UiObservations:
             expected['activity'] = {'draft': 'ONPC fixture draft',
                 'submitted': 'No submitted draft' if operation.endswith('native-opened') else 'ONPC fixture draft',
                 'score': 'Moves: 0; token: 0'}
+        if operation in ('game-opened', 'game-moved'):
+            expected['activity'] = {'draft': 'ONPC fixture draft', 'submitted': 'No submitted draft',
+                'score': 'Moves: 0; token: 0' if operation == 'game-opened' else 'Moves: 1; token: 1'}
+        if operation == 'game-activity':
+            AppActivityObservation.from_value(result.get('activity'), binding='game-primary')
+            expected['activity'] = result['activity']
         policy_bindings = {**accessible_ui.BASELINE_NATIVE_BINDINGS, **accessible_ui.NATIVE_DENIAL_BINDINGS}
         if operation in accessible_ui.NATIVE_DESKTOP_OPERATIONS and not operation.endswith(('-selected', '-denied')):
             expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))

@@ -197,6 +197,10 @@ NATIVE_APP_OPERATIONS |= frozenset('native-alias-' + suffix for suffix in (
     'grid-blocked', 'grid-denied'))
 OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
+GAME_OPERATIONS = frozenset('game-' + action for action in (
+    'command', 'opened', 'move', 'moved', 'activity', 'close', 'closed', 'wrong-window'))
+OPERATIONS |= GAME_OPERATIONS
+STANDARD_OPERATIONS |= GAME_OPERATIONS
 NATIVE_DESKTOP_OPERATIONS = frozenset((
     'native-desktop-icon', 'native-desktop-icon-refusals', 'native-desktop-selected'))
 OPERATIONS |= NATIVE_DESKTOP_OPERATIONS
@@ -13644,7 +13648,10 @@ class AccessibleUI:
         never window acceptance; APP02 independently reads the public result.
         """
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(kind in ('native', 'snap', 'flatpak'), 'ui:fixture-binding')
+        require(kind in ('native', 'snap', 'flatpak', 'game'), 'ui:fixture-binding')
+        require(kind != 'game' or role == 'Game' and child == EXISTING_CHILD
+                and instance == 'primary' and not blocked and not locked
+                and fixture == 'policy', 'ui:game-binding')
         snap = kind == 'snap'
         flatpak = kind == 'flatpak'
         require(not flatpak or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
@@ -13654,7 +13661,7 @@ class AccessibleUI:
         require(not snap or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
                 or child == CHILD and role == 'A' and instance == 'primary')
                 and not blocked and not locked and fixture == 'policy', 'ui:snap-binding')
-        require(snap or flatpak or role is None or role in ('A', 'H', 'S', 'N', 'Update', 'SpaceCopy', 'CommaCopy', 'C', 'VersionNext', 'VersionNonmatch', 'VersionExisting') and child in (CHILD, EXISTING_CHILD)
+        require(kind == 'game' or snap or flatpak or role is None or role in ('A', 'H', 'S', 'N', 'Update', 'SpaceCopy', 'CommaCopy', 'C', 'VersionNext', 'VersionNonmatch', 'VersionExisting') and child in (CHILD, EXISTING_CHILD)
                 and fixture == 'policy' and (role != 'H' or blocked)
                 and (role != 'Update' or child == EXISTING_CHILD and blocked)
                 and (role not in ('SpaceCopy', 'CommaCopy') or child == EXISTING_CHILD)
@@ -13722,6 +13729,7 @@ class AccessibleUI:
         self.input_uncertain = True
         executable = ('/usr/bin/flatpak' if flatpak else '/usr/bin/snap' if snap else
             '/opt/onpc-test-fixtures-activity/native-fixture' if fixture == 'activity' else
+            '/opt/onpc-test-fixtures/Applications/onpc-test-game' if kind == 'game' else
             NATIVE_EXECUTABLES[role or 'A'])
         result = subprocess.run([
             '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
@@ -13802,10 +13810,15 @@ class AccessibleUI:
                                        else 'operation-not-permitted')})
 
     def native_app_snapshot(self, submitted, *, pending=False, with_window=False,
-                            instance='primary', role=None, child=CHILD, implicit_instance=False, kind='native'):
+                            instance='primary', role=None, child=CHILD, implicit_instance=False, kind='native', moves=0):
         """APP02/03: public owned window and finite independent activity projection."""
         require(submitted in ('No submitted draft', 'ONPC fixture draft'), 'ui:native-projection')
-        require(kind in ('native', 'snap', 'flatpak'), 'ui:fixture-binding')
+        require(kind in ('native', 'snap', 'flatpak', 'game'), 'ui:fixture-binding')
+        require(type(moves) is int and moves in (0, 1)
+                and (kind == 'game' or moves == 0), 'ui:fixture-progress')
+        require(kind != 'game' or role == 'Game' and child == EXISTING_CHILD
+                and instance == 'primary' and not implicit_instance
+                and submitted == 'No submitted draft', 'ui:game-binding')
         snap = kind == 'snap'
         flatpak = kind == 'flatpak'
         require(not flatpak or role in ('A', 'H', 'S') and (child == EXISTING_CHILD
@@ -13817,7 +13830,7 @@ class AccessibleUI:
                 or child == CHILD and role == 'A' and instance == 'primary')
                 and instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'),
                 'ui:snap-binding')
-        require(snap or flatpak or role is None and instance == 'primary' or role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting')
+        require(kind == 'game' or snap or flatpak or role is None and instance == 'primary' or role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting')
                 and (instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary')
                      or role == 'S' and instance == 'soft' and implicit_instance
                      or role == 'S' and instance == 'primary' and child == EXISTING_CHILD), 'ui:native-binding')
@@ -13882,7 +13895,7 @@ class AccessibleUI:
         require(fixture.text('status') == 'Ready', 'ui:native-status')
         value = fixture.snapshot()
         expected = {'draft': 'ONPC fixture draft', 'submitted': submitted,
-                    'score': 'Moves: 0; token: 0'}
+                    'score': f'Moves: {moves}; token: {moves % 4}'}
         if diagnostic is not None:
             diagnostic['activity_matches'] = {key: value[key] == expected[key] for key in expected}
         if pending and value != expected:
@@ -14084,7 +14097,7 @@ class AccessibleUI:
 
     def native_app_owner(self, root, role, instance, *, implicit_instance=False):
         """Bind the GUI child to its live native policy executable and account."""
-        require(role in ('A', 'S', 'N', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') and (instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary')
+        require(role in ('A', 'S', 'N', 'Game', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') and (instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary')
                 or role == 'S' and instance in ('primary', 'soft')
                 and (instance == 'primary' or implicit_instance)),
                 'ui:native-binding')
@@ -14099,7 +14112,8 @@ class AccessibleUI:
         require(len(fields) > 19 and fields[0] != 'Z', 'ui:native-owner')
         owner = Path('/proc/' + fields[1])
         owner_stat = (owner / 'stat').read_text()
-        expected = NATIVE_EXECUTABLES[role]
+        expected = ('/opt/onpc-test-fixtures/Applications/onpc-test-game' if role == 'Game'
+                    else NATIVE_EXECUTABLES[role])
         require(process.stat().st_uid == owner.stat().st_uid == os.getuid()
                 and str((owner / 'exe').readlink()) == expected
                 and (owner / 'cmdline').read_bytes().split(b'\0') ==
@@ -14111,6 +14125,41 @@ class AccessibleUI:
         require(fresh[0] != 'Z' and fresh[1] == fields[1] and fresh[19] == fields[19]
                 and fresh_owner[0] != 'Z' and fresh_owner[19] == owner_fields[19],
                 'ui:native-owner-changed')
+
+    def game_operation(self, operation, *, level=1):
+        """APP01–04: the declared four-cell level, one normal move, public readback."""
+        require(operation in GAME_OPERATIONS and type(level) is int and level == 1,
+                'ui:game-binding')
+        arguments = {'role': 'Game', 'child': EXISTING_CHILD, 'kind': 'game'}
+        def snapshot(moves=0, **options):
+            return self.native_app_snapshot('No submitted draft', moves=moves,
+                                            **arguments, **options)
+        if operation == 'game-command':
+            return self.native_launch_command(**arguments)
+        if operation == 'game-wrong-window':
+            try:
+                snapshot()
+            except UiError as error:
+                require(str(error) == 'ui:native-entry', 'ui:game-wrong-refusal')
+            else:
+                require(False, 'ui:game-wrong-window-accepted')
+            return None
+        if operation in ('game-opened', 'game-moved', 'game-activity'):
+            return self.wait(lambda: snapshot(
+                0 if operation == 'game-opened' else 1, pending=True,
+                with_window=operation == 'game-activity'), 'game-progress')
+        if operation == 'game-closed':
+            self.wait(lambda: self.native_app_closed(kind='game'), 'game-closed')
+            return None
+        # A fresh complete window/owner/state proof precedes every action.
+        snapshot(0 if operation == 'game-move' else 1)
+        from fixture_ui import FixtureUI
+        fixture = FixtureUI(self, 'game', require=require)
+        if operation == 'game-move':
+            fixture.move()
+        else:
+            self.activate_id(fixture.target_id('close'))
+        return None
 
     def native_app_submit(self, instance='primary', *, submitted='No submitted draft', role=None, child=CHILD,
                           kind='native', implicit_instance=False):
@@ -14155,7 +14204,8 @@ class AccessibleUI:
 
     def native_app_closed(self, instance='primary', *, desktop=True, complete_absence=False, kind='native'):
         """Complete owned absence; closure also recognizes the stable desktop."""
-        require(kind in ('native', 'snap', 'flatpak')
+        require(kind in ('native', 'snap', 'flatpak', 'game')
+                and (kind != 'game' or instance == 'primary')
                 and (instance in ('primary', 'secondary') or kind in ('native', 'flatpak') and instance in ('hard', 'soft'))
                 and type(desktop) is bool
                 and type(complete_absence) is bool, 'ui:native-binding')
@@ -14887,6 +14937,10 @@ class AccessibleUI:
             if value is not None:
                 result['provider' if NATIVE_FILES_BINDINGS[operation][1] in (
                     'launch', 'launch-refusals') else 'activity'] = value
+        elif operation in GAME_OPERATIONS:
+            value = self.game_operation(operation)
+            if value is not None:
+                result['activity'] = value
         elif operation in SNAP_APP_OPERATIONS | FLATPAK_APP_OPERATIONS:
             value = self.snap_app_operation(operation)
             if value is not None:

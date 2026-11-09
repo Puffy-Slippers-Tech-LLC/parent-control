@@ -2232,6 +2232,11 @@ Await fresh public results within deadlines, accounting for observation latency.
 | APP05 | C | Prepare the real offline game's declared windowed/fullscreen mode and reproducible level through shared supported commands or keyboard shortcuts, then observe active gameplay. Game settings menus are supporting setup. | Bind startup options in the preceding APP01 launch, or use a fixed supported command/UI05 shortcut on the observed game; do not relaunch retained activity. UI01/UI03 verifies the mode/level, then APP03 proves actual gameplay input/effect. The selected game needs usable public observations; a menu or timer fixture is insufficient. | pending |
 | APP06 | A | Read one complete, account-scoped public projection of Lunar's tray/background control, Lunar window and Minecraft activity, with the recognized surrounding desktop. Presence/absence is explicit input; do not launch, reveal or quit anything. | No callable yet. The [Lunar profile slices](#lunar-client-preparation-and-observation-gate) separately qualify Lunar/tray, Minecraft activity and login observations, including absence and incomplete/wrong-owner refusal. UI22 composes repeated observations across the declared login interval; one final absent window cannot establish blocked autostart. [Consumer gate](#lunar-client-preparation-and-observation-gate). | pending |
 
+APP01/02/03/04 and FLOW08 also include Jordan's fixed level-1
+[offline game activity](#offline-game-activity) command binding on Ubuntu 26.04.
+It qualifies one real move and fresh same-window progress, including an
+independently opened entry. Mode, expiry and other game bindings remain pending.
+
 The native command/station binding in [E2E-049, case 238](E2E-Scenario-Recipes.md#e2e-049)
 additionally qualifies Jordan's S/secondary command launch, usable draft submission,
 immutable activity capture and closure after replacement exclusion on Ubuntu 26.04.
@@ -4218,6 +4223,32 @@ readback. Riley's policy and disabled limits remained untouched. Complete case 8
 collection, worker/callback shutdown, owned cleanup and baseline restoration passed
 in `scenario-051222608a89418780acc16f8aeaf746`. This supplies no Snap denial,
 policy-driven closure or deferred-case acceptance.
+
+### Offline game activity
+
+`game_activity.PLAN` / `GameActivityJourney` passed `check_e2e_game_activity`
+on Ubuntu 26.04. The existing FIX06 game profile is verified without repair;
+Parent prepares Jordan's public 30-minute allowance before fresh child entry.
+`journey_blocks.game_usable_app(level=1)` and
+`onpc_app_rows::game_usable_app/game_use_app` compose APP01 → APP02 → APP03.
+The fixed game has one starting four-cell level and no level selector.
+
+`AccessibleUI.game_operation` reuses the native command, public window and
+executable/account ownership checks with the declared game identity. APP03
+activates `onpc-fixture-game-primary-move` through `FixtureUI.move`; a separate
+read requires `Moves: 1; token: 1` from `onpc-fixture-game-primary-score`.
+APP04 uses `game-activity`, `AppActivityObservation` and the existing immutable
+`JourneyPlan.activity_checks` to compare a fresh reading of the same public
+window endpoint. An independently opened window is playable and distinguished
+from the closed first window. Missing prior observations and absent game windows
+refuse before input. No private game state, timer substitute, score target or
+level-completion assertion is used.
+
+Host launcher/access-guard and source checks, both live entry branches,
+recording, collection, owned shutdown and baseline restoration passed; the VM
+was independently observed off. This qualifies only the stated APP01/02/03/04
+and FLOW08 game slice. APP05 mode observation, FLOW10 natural expiry and complete
+customer scenarios remain pending.
 
 ### Native fixture preparation
 

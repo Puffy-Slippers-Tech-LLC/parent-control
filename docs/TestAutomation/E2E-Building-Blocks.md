@@ -5283,10 +5283,24 @@ Former selectors 257–262 remain retired into 28; deletion and other mutation
 assertions reuse that history without another authentication matrix.
 This supplies Ubuntu engineering qualification only, with no Fedora or customer
 E2E acceptance credit.
-Obligations 149–150 retain their specific missing fault/observation
-or recovery assertions in the queue briefs; their existing system/component
-matrices are reused rather than implemented again. This mapping supplies no
-new installed result. Engineering obligation 142's stricter entry-exposure
+Obligation **149**'s real policy-notification failure and identical-save retry
+belong to `system_enforcement._native_policy_transition`'s command history,
+within `enforcement::test_kiosk_execution_confinement` (system **267**).
+Removing execute permission from the pinned native notification tool exposes
+`RollbackFailure` while both source rule layers, compiled rules, preferences,
+limits, grant and filter return to their prior values. Independent native
+execution still denies Riley and allows Jordan. Restoring the exact tool mode
+permits the identical restriction-removal transaction and Riley's actual launch;
+the parent and Jordan remain unchanged. The first installed attempt passed on
+`onpc-Ubuntu26.04-1` in `onpc-system-oxszcwr6`, including policy/tool restoration,
+collection, owned cleanup and baseline restoration; the VM was confirmed off.
+Existing simulated command/fault matrices remain reused; former selector 272
+remains retired into 267. This qualifies notification unavailability and recovery,
+not general daemon-generation acknowledgement, package-removal acknowledgement,
+Fedora or customer E2E acceptance.
+Obligation 150 retains its missing partial-termination/retry assertion in its
+queue brief; its existing system/component matrices remain reused.
+Engineering obligation 142's stricter entry-exposure
 question is removed from execution and retained only in
 [Unlock desktop](../Unlock_Desktop.md), with no completion claim or prerequisite.
 Unsupported OS/reserved-account failures, conversion/rollback, all-account

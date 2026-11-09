@@ -3300,6 +3300,13 @@ refusal without writes, exact eligibility restoration, a fresh authenticated
 300-second grant on the same caller, unchanged other accounts and owned cleanup.
 Existing deletion/approver/preference assertions remain in that history; retired
 selectors are not restored. This supplies no customer scenario acceptance credit.
+Obligation 149's real policy-notification unavailability and identical-save retry
+belong to `system_enforcement._native_policy_transition`, within
+`enforcement::test_kiosk_execution_confinement` (system 267). The same engineering
+owner records Ubuntu qualification of restored prior account/rule state, actual
+child denial and peer allowance during failure, exact native-tool restoration,
+successful retry and unchanged other accounts. This does not acknowledge arbitrary
+daemon generations or package-removal activation and supplies no customer E2E credit.
 Apply [system reuse](UI-and-E2E-Coverage.md#reuse-of-system-coverage)
 at case, step and acceptance level while keeping the complete public journeys.
 

@@ -1180,7 +1180,73 @@ def _native_policy_transition(accounts, record, variant, caller):
             if stage == 'allowed':
                 saved = json.loads(original)
             else:
-                request('SetPreferences', '(us)', (child, json.dumps(preferences)))
+                transaction = (child, json.dumps(preferences))
+                if variant == 'command' and stage == 'restored':
+                    # Obligation 149: fail the real notification while lifting
+                    # an already witnessed denial. Keep the daemon running;
+                    # restored files and command errors alone prove no safety.
+                    from product_logs import read_component
+                    from system_assertions import account_states
+                    from system_removal_faults import identity, pinned_identity
+
+                    prior = account_states(accounts.values())
+                    early = RULES.with_name('01-oh-no-parent-control-deny.rules')
+                    rule_bytes = tuple(path.read_bytes() for path in (early, RULES, COMPILED_RULES))
+                    previous_events = {(row['segment'], row['sequence']) for row in
+                                       (json.loads(line) for line in read_component('broker').splitlines()
+                                        if line.startswith('{'))}
+                    tool = Path('/usr/sbin/fapolicyd-cli').resolve(strict=True)
+                    original_tool = identity(tool)
+                    mode = stat.S_IMODE(original_tool[4])
+                    guest.require(mode & 0o111 and original_tool[2:4] == (0, 0),
+                                  'enforcement:reload-tool-identity')
+                    descriptor = os.open(tool, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+                    try:
+                        guest.require(pinned_identity(descriptor) == original_tool == identity(tool),
+                                      'enforcement:reload-tool-changed')
+                        # Remove execute permission on the pinned original,
+                        # including in the broker's private mount namespace.
+                        # No native executable or daemon behavior is replaced.
+                        os.fchmod(descriptor, mode & ~0o111)
+                        disabled = (*original_tool[:4],
+                                    original_tool[4] & ~0o111, *original_tool[5:])
+                        try:
+                            guest.require(pinned_identity(descriptor) == disabled == identity(tool),
+                                          'enforcement:reload-fault-not-installed')
+                            reply = caller.call('SetPreferences', '(us)', transaction)
+                            guest.require(reply.get('error') == guest.BUS + '.Error.RollbackFailure'
+                                          and 'result' not in reply,
+                                          'enforcement:reload-failure-not-exposed')
+                            events = [row for row in
+                                      (json.loads(line) for line in read_component('broker').splitlines()
+                                       if line.startswith('{'))
+                                      if (row['segment'], row['sequence']) not in previous_events]
+                            guest.require(any(row['event'] == 'execution-policy.013' and
+                                              row['fields'].get('stage') == 'notify'
+                                              for row in events),
+                                          'enforcement:notification-failure-not-observed')
+                            guest.require(account_states(accounts.values()) == prior and
+                                          tuple(path.read_bytes() for path in
+                                                (early, RULES, COMPILED_RULES)) == rule_bytes,
+                                          'enforcement:reload-rollback-mismatch')
+                            record_rules('reload-failed', child, True, record)
+                            observe_launch(child, False)
+                            observe_launch(other, True)
+                            record(f'{prefix}.reload-failure',
+                                   'notify-failed; prior-rules-and-accounts-restored; child-denied; peer-allowed')
+                            print('onpc-system: stage=native-command-reload-failure outcome=passed', flush=True)
+                        finally:
+                            guest.require(pinned_identity(descriptor) == disabled == identity(tool),
+                                          'enforcement:reload-cleanup-identity-changed')
+                            os.fchmod(descriptor, mode)
+                            guest.require(pinned_identity(descriptor) == original_tool == identity(tool),
+                                          'enforcement:reload-tool-not-restored')
+                    finally:
+                        os.close(descriptor)
+                # This is also the identical transaction's retry after removing
+                # the fault. The rule and child launch observations below are
+                # independent of compilation/notification command completion.
+                request('SetPreferences', '(us)', transaction)
                 saved = json.loads(request('GetPreferences', '(u)', (child,))[0])
             guest.require(saved['parent_control_enabled'] is enabled and
                           saved['daily_time_limit_minutes'] == original_limit and
@@ -1208,6 +1274,13 @@ def _native_policy_transition(accounts, record, variant, caller):
                 record(f'{prefix}.future.fixture.sha256', guest.sha(future))
             observe_launch(child, not blocked, variant=variant)
             record(f'{prefix}.{stage}.child', 'denied' if blocked else 'allowed')
+            if variant == 'command' and stage == 'restored':
+                observe_launch(other, True)
+                guest.require(account_states((other, accounts['parent'])) ==
+                              {uid: prior[uid] for uid in (other, accounts['parent'])},
+                              'enforcement:reload-retry-changed-other-accounts')
+                record(f'{prefix}.reload-retry',
+                       'identical-save-committed; child-allowed; peers-unchanged; native-tool-restored')
             # The initial control and each denied policy prove UID isolation.
             # Repeating the other user's allow after clearing this child's
             # denial adds no new result; the child's own recovery stays live.

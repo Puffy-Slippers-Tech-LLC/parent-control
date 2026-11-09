@@ -15,6 +15,11 @@ except ImportError:
         ACTIVITY_PREFIX, ACTIVITY_EXECUTABLE, trusted_file_modes, desktop_entry, desktop_id,
         legacy_executable_paths, NEXT_VERSION, VERSION_NONMATCH)
 
+try:
+    from native_assets import GAME_EXECUTABLE, GAME_DESKTOP_ID, game_desktop_entry
+except ImportError:
+    from tests.fixtures.native_assets import GAME_EXECUTABLE, GAME_DESKTOP_ID, game_desktop_entry
+
 MECHANICAL = '/opt/onpc-baseline-assets/onpc-test-application'
 NATIVE = {
     'command': ('/opt/onpc-test-fixtures-command/native-fixture', 'Command'),
@@ -40,6 +45,9 @@ def native_files(accounts):
         files[path] = ('S', 0o755, 'other')
     files[PREFIX + '/' + NEXT_VERSION] = ('S-update', 0o755, 'other')
     files[PREFIX + '/' + VERSION_NONMATCH] = ('N', 0o755, 'other')
+    files[GAME_EXECUTABLE] = ('game', 0o755, 'other')
+    files[accounts['other'].pw_dir + '/.local/share/applications/' + GAME_DESKTOP_ID] = (
+        game_desktop_entry().encode(), 0o644, 'other')
     for directory in GUI_DIRECTORIES:
         for filename in GUI_FILES:
             files[PREFIX + '/' + directory + filename] = (filename, 0o644, 'other')

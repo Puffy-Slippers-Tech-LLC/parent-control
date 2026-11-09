@@ -26,6 +26,8 @@ SHARED_ALIAS = ('Alias', ASSETS[0][1], 'ONPC Shared Target Fixture',
                 'Second launcher for the exact native fixture', 'precise')
 LAUNCHERS = (*ASSETS, SHARED_ALIAS)
 GUI_FILES = ('onpc-test-gui.py', 'gtk_automation.py')
+GAME_EXECUTABLE = PREFIX + '/onpc-test-game'
+GAME_DESKTOP_ID = 'com.puffyslippers.ONPCTest.Game.desktop'
 # Keep unrepresentable whitespace nonmatches outside A and S wildcard groups.
 GUI_DIRECTORIES = ('', 'Versioned/', 'Whitespace/', 'Comma/')
 # Keep the earlier generated/baseline S file as an untrusted compatibility
@@ -53,6 +55,20 @@ def trusted_file_modes():
 def activity_sources():
     return ('fixtures/native/identity-trusted-activity',
             'fixtures/native/onpc-test-gui.py', 'fixtures/native/gtk_automation.py')
+
+
+def game_desktop_entry():
+    return ('[Desktop Entry]\nType=Application\nName=ONPC Test Game\n'
+            'Icon=applications-system\n' + f'Exec="{GAME_EXECUTABLE}"\nTerminal=false\n')
+
+
+def game_source_destinations(home):
+    """One offline four-cell level, existing adjacent GUI runtime and launcher."""
+    return {'fixtures/image-root' + GAME_EXECUTABLE: (GAME_EXECUTABLE, 0o755),
+            **{'fixtures/image-root' + PREFIX + '/' + name: (PREFIX + '/' + name, 0o644)
+               for name in GUI_FILES},
+            'fixtures/image-root/usr/share/applications/' + GAME_DESKTOP_ID:
+                (home + '/.local/share/applications/' + GAME_DESKTOP_ID, 0o644)}
 
 
 def desktop_id(role):

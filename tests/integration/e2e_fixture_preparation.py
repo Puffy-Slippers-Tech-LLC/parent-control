@@ -4,6 +4,8 @@ from system_fixture_preparation import attempt_id, guest_target, provision
 import xml.etree.ElementTree as ET
 
 SUBSETS = ('native',)
+GAME_SUBSETS = ('native', 'game')
+GAME_CALLER = 'check_e2e_game_fixture'
 ACTIVITY_SUBSETS = ('native', 'activity', 'baseline-child')
 ACTIVITY_CALLER = 'check_e2e_baseline_journey'
 ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',
@@ -71,6 +73,7 @@ def qualified_subsets(subsets=SUBSETS, *, caller=None, product_free=False):
     if (type(subsets) is not tuple or
             (subsets != SUBSETS and not (subsets == ACTIVITY_SUBSETS
              and caller in ACTIVITY_CALLERS and not product_free)
+             and not (subsets == GAME_SUBSETS and caller == GAME_CALLER and not product_free)
              and not (subsets == LIFECYCLE_SUBSETS
                       and ((caller == LIFECYCLE_CALLER and product_free)
                            or (caller == APP_SET_CALLER and not product_free))))):
@@ -139,6 +142,8 @@ def asset_hashes(selection, *, subsets=SUBSETS, caller=None, child=False, produc
     manifest = fixture_execution.verify(selection_record(selection))
     from tests.fixtures import native_assets
     destinations = native_assets.source_destinations('@child@' if child else '@other@', alias=not child)
+    if subsets == GAME_SUBSETS:
+        destinations.update(native_assets.game_source_destinations('@other@'))
     if subsets == ACTIVITY_SUBSETS:
         destinations.update(zip(native_assets.activity_sources(), (
             (native_assets.ACTIVITY_EXECUTABLE, 0o755),

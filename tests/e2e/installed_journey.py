@@ -429,7 +429,7 @@ def prepare_installed_setup(context, transport, guard, *, observer=None):
             options['observer'] = observer
     with timed_stage('setup-helper-validation-and-provisioning'):
         prepared = InstalledSetup(context.directory, context.verified, transport).provision(guard, **options)
-    if clean and subsets != SUBSETS:
+    if clean and 'baseline-child' in subsets:
         from native_fixtures import NativeFixtures
         guard()
         with timed_stage('setup-child-fixture-verification'):
@@ -518,15 +518,20 @@ class InstalledJourney:
         self.actions = actions or {}
         if getattr(context, 'fixture_selection', None) is not None:
             from e2e_fixture_preparation import (ACTIVITY_CALLERS, ACTIVITY_SUBSETS,
+                                                  GAME_CALLER, GAME_SUBSETS,
                                                   SUBSETS, qualified_subsets)
             activity = (getattr(context, 'fixture_subsets', SUBSETS) == ACTIVITY_SUBSETS
                 and getattr(context, 'fixture_caller', None) in ACTIVITY_CALLERS
+                and not getattr(context, 'product_free', False))
+            game = (getattr(context, 'fixture_subsets', SUBSETS) == GAME_SUBSETS
+                and getattr(context, 'fixture_caller', None) == GAME_CALLER
                 and not getattr(context, 'product_free', False))
             qualified_subsets(getattr(context, 'fixture_subsets', SUBSETS),
                 caller=getattr(context, 'fixture_caller', None),
                 product_free=getattr(context, 'product_free', False))
             require(all(getattr(action, 'fixture_profile', 'native') in
-                        (('native', 'chinese', 'activity') if activity else ('native', 'chinese'))
+                        (('native', 'chinese', 'activity') if activity else
+                         ('native', 'chinese', 'game') if game else ('native', 'chinese'))
                         for action in self.actions.values())
                     and (activity or not any(tag.endswith('native-activity-launch')
                                             for tag in plan.screen_tags.values())),

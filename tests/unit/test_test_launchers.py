@@ -659,6 +659,7 @@ def test_e2e_qualification_freezes_input_and_source_proof(monkeypatch, frozen_fi
     ('system', ['check_e2e_approval_flow']),
     ('system', ['check_e2e_time_profiles_daily']),
     ('system', ['check_e2e_native_fixtures']),
+    ('system', ['check_e2e_game_fixture']),
     ('e2e', ['--ready']),
 ])
 @pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)

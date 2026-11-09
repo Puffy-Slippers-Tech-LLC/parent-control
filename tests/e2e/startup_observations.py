@@ -97,7 +97,6 @@ BROKER_REFUSALS = ('boot', 'activation', 'unit', 'owner', 'witness', 'object', '
 # The record is written by the broker after successful object registration.
 # Neither log receipt time nor a later introspection alone proves phase order.
 BROKER = r'''import hashlib,json,os,pathlib,re,stat,subprocess,time
-import xml.etree.ElementTree as ET
 from gi.repository import Gio, GLib
 deadline = time.monotonic() + 30
 name = 'com.puffyslippers.OhNoParentControl1'
@@ -153,11 +152,11 @@ try:
     before = boot()
     stage = 'activation'
     bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
-    # A static D-Bus service need not already run at GDM. One normal read-only
-    # request activates it; subsequent evidence cannot activate a replacement.
+    # Use the permitted product interface, as Parent does. The bus policy does
+    # not expose Introspectable. Later reads cannot activate a replacement.
     bus.call_sync(name,'/com/puffyslippers/OhNoParentControl1',
-        'org.freedesktop.DBus.Introspectable','Introspect',None,
-        GLib.VariantType.new('(s)'),Gio.DBusCallFlags.NONE,20000,None)
+        name,'ListManagedUsers',None,
+        GLib.VariantType.new('(a(uss))'),Gio.DBusCallFlags.NONE,20000,None)
     stage = 'unit'
     service = unit()
     stage = 'owner'
@@ -165,13 +164,10 @@ try:
     stage = 'witness'
     record = witness()
     stage = 'object'
-    xml = call(identity[0],'/com/puffyslippers/OhNoParentControl1',
-        'org.freedesktop.DBus.Introspectable','Introspect',None,'(s)')
-    assert len(xml) <= 65536
-    interfaces = [item for item in ET.fromstring(xml).findall('interface')
-                  if item.get('name') == name]
-    assert len(interfaces) == 1
-    assert any(item.get('name') == 'ListManagedUsers' for item in interfaces[0].findall('method'))
+    # Require a real, typed management read from that same published object.
+    # Keep returned account labels inside the guest.
+    call(identity[0],'/com/puffyslippers/OhNoParentControl1',
+        name,'ListManagedUsers',None,'(a(uss))')
     stage = 'continuity'
     assert owner() == identity and unit() == service and boot() == before
     stage = 'timestamps'

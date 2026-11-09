@@ -254,7 +254,20 @@
         const addSessions = element('button', 'run-copy run-launcher-action', menu);
         addSessions.type = 'button';
         addSessions.dataset.kind = 'add-session';
-        addSessions.textContent = 'Add 5 Sessions';
+        const clockIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        clockIcon.setAttribute('viewBox', '0 0 20 20');
+        clockIcon.setAttribute('aria-hidden', 'true');
+        clockIcon.style.strokeWidth = '2';
+        clockIcon.style.strokeLinecap = 'round';
+        clockIcon.style.strokeLinejoin = 'round';
+        const clockFace = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        clockFace.setAttribute('cx', '10');
+        clockFace.setAttribute('cy', '10');
+        clockFace.setAttribute('r', '8.5');
+        const clockHands = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        clockHands.setAttribute('d', 'M10 4.5V10h4');
+        clockIcon.append(clockFace, clockHands);
+        addSessions.append(clockIcon, 'Add 5 Sessions');
         addSessions.title = entry.launcher_add_session_command || 'Add 5 Sessions';
         addSessions.disabled = !entry.launcher_controls || !entry.launcher_add_session_command;
         addSessions.addEventListener('click', () => {

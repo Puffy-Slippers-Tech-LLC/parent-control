@@ -35,7 +35,7 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
     from rich.console import Console
     from rich.style import Style
     from document_checks import references
-    from launcher_render import COMPACT_LINE, SESSION_LINE, clean, compact_text
+    from launcher_render import BLUE, COMPACT_LINE, SESSION_LINE, clean, compact_text
     console = Console()
     rows = []
     waiting_heading = False
@@ -63,7 +63,7 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
                 start, end = indent + reference.start, indent + reference.end
                 linked.append_text(text[position:start])
                 label = text[indent + reference.label_start:indent + reference.label_end]
-                label.stylize(Style(color='#0066ff', underline=True, link=reference.destination))
+                label.stylize(Style(color=BLUE, underline=True, link=reference.destination))
                 linked.append_text(label)
                 position = end
             linked.append_text(text[position:])
@@ -74,6 +74,10 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
             for segment in text.render(console):
                 style = segment.style
                 color = style.color if style else None
+                # Match the Status session blue for launcher command emphasis,
+                # including retained output using ANSI bright blue.
+                if color and color.type.name == 'STANDARD' and color.number == 12:
+                    color = Style(color=BLUE).color
                 themed = color and (color.type.name == 'DEFAULT' or
                                    (color.type.name == 'STANDARD' and color.number in (0, 7, 15)))
                 spans.append(dict(text=clean(segment.text), bold=bool(style and style.bold),

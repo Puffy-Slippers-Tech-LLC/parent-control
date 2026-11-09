@@ -52,6 +52,8 @@ def progress_keys(state):
 
 def task_recap(run, steps, *, reader=None, now=None):
     """Project plan task timing and suspension without changing durable rows."""
+    from rich.color import Color
+    from launcher_render import BLUE
     checkpoint = run / 'checkpoint.json'
     if not steps:
         return steps
@@ -74,7 +76,7 @@ def task_recap(run, steps, *, reader=None, now=None):
     from launcher_session import clock_duration
     duration = state.get('completed_at', time.time() if now is None else now) - state['started_at']
     summary = ' | ' + clock_duration(duration)
-    color = '\033[38;2;0;102;255m' if state['phase'] != 'complete' else ''
+    color = '\033[' + ';'.join(Color.parse(BLUE).get_ansi_codes()) + 'm' if state['phase'] != 'complete' else ''
     reset = '\033[39m' if color else ''
     return [dict(step, lines=[color + line + reset
                              for line in [step['lines'][0] + summary, *step['lines'][1:]]])

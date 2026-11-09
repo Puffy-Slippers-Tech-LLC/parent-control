@@ -302,8 +302,6 @@
             event.preventDefault();
             title.textContent = defaultText;
             finishTitle(false);
-            if (entry.launcher_command) vscode.postMessage({ type: 'copy', root: entry.id,
-                text: entry.launcher_command, command: true });
         });
         title.addEventListener('blur', () => finishTitle(true));
         title.addEventListener('keydown', event => {
@@ -363,6 +361,22 @@
             }
             runDividers();
         };
+        const toggleMaximize = () => {
+            if (maximizedRun === entry.id) {
+                restore();
+                return;
+            }
+            maximizedRun = entry.id;
+            for (const panel of sections.values()) {
+                panel.collapsed = panel.entry.id !== maximizedRun;
+                sessionHeading(panel);
+            }
+            runDividers();
+        };
+        section.resizeTitle = () => {
+            if (section.collapsed) restore();
+            else toggleMaximize();
+        };
         const resizing = tileResizeControls(controls, entry.label, () => {
             if (section.collapsed) {
                 restore();
@@ -372,18 +386,7 @@
             section.collapsed = true;
             sessionHeading(section);
             runDividers();
-        }, () => {
-            if (maximizedRun === entry.id) {
-                restore();
-                return;
-            }
-            maximizedRun = entry.id;
-            for (const panel of sections.values()) {
-                panel.collapsed = Boolean(maximizedRun && panel.entry.id !== maximizedRun);
-                sessionHeading(panel);
-            }
-            runDividers();
-        });
+        }, toggleMaximize);
         tileActionState(resizing.minimize, resizing.minimizeShape, Boolean(section.collapsed),
             'Minimize tile', 'M5 10h10', entry.label);
         tileMaximizeState(resizing, maximizedRun === entry.id, entry.label);
@@ -666,9 +669,13 @@
                 const heading = element('span', 'watch-tile-heading tile-titlebar', button);
                 tileTitle(element('span', 'title', heading), entry);
                 button.title = entry.label;
-                button.addEventListener('click', () => {
+                tileSelection(button, heading, () => {
                     tileOverflow.open = false;
-                    maximizeTile(entry.id);
+                    if (state.selected === entry.id || minimized.has(entry.id) ||
+                            !['all', 'run-time'].includes(state.selected)) {
+                        arrangeTiles(tileLayout);
+                        select(state.scope, 'all');
+                    } else maximizeTile(entry.id);
                 });
                 return button;
             };
@@ -745,14 +752,18 @@
         return node;
     }
 
-    function tileSelection(body, heading) {
-        body.addEventListener('click', event => {
-            const selected = !heading.contains(event.target) || Boolean(event.target.closest('a, button, select, [role="textbox"]')) ||
-                !body.classList.contains('selected');
+    function tileSelection(body, heading, resizeTitle) {
+        body.addEventListener('click', () => {
             for (const tile of layout.querySelectorAll('.watch-tile')) {
-                tile.classList.toggle('selected', tile === body && selected);
+                tile.classList.toggle('selected', tile === body);
             }
         }, true);
+        heading.addEventListener('dblclick', event => {
+            const control = event.target.closest('a, button, select, input, textarea');
+            if (control && control !== body) return;
+            event.preventDefault();
+            resizeTitle();
+        });
     }
 
     function tileResizeControls(titlebar, label, onMinimize, onMaximize) {
@@ -798,7 +809,13 @@
         const body = document.createElement('article');
         body.className = `watch-tile card ${entry.kind}`;
         const titlebar = element('div', 'watch-tile-heading tile-titlebar', body);
-        tileSelection(body, titlebar);
+        const toggleMaximize = () => {
+            if (state.selected === entry.id) {
+                arrangeTiles(tileLayout);
+                select(state.scope, 'all');
+            } else maximizeTile(entry.id);
+        };
+        tileSelection(body, titlebar, toggleMaximize);
         const title = element('span', 'title', titlebar);
         const screenshot = element('button', 'tile-action tile-screenshot', titlebar);
         screenshot.type = 'button';
@@ -813,12 +830,7 @@
         icon.append(shape);
         screenshot.append(icon);
         const { maximize, maximizeShape } = tileResizeControls(titlebar, entry.label,
-            () => minimizeTile(entry.id), () => {
-            if (state.selected === entry.id) {
-                arrangeTiles(tileLayout);
-                select(state.scope, 'all');
-            } else maximizeTile(entry.id);
-        });
+            () => minimizeTile(entry.id), toggleMaximize);
         const heading = element('div', 'heading', body);
         const step = element('div', 'step', body);
         const display = element('div', 'display', body);
@@ -1112,7 +1124,7 @@
                 body.dataset.root = entry.id;
                 const divider = element('div', 'run-divider', runs);
                 const heading = element('h2', 'watch-tile-heading run-heading', body);
-                tileSelection(body, heading);
+                tileSelection(body, heading, () => section.resizeTitle());
                 const content = element('div', 'run-status-view', body);
                 const summary = element('pre', 'run-status run-summary', content);
                 const history = element('pre', 'run-status run-history', content);

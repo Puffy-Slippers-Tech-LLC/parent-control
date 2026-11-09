@@ -39,8 +39,10 @@ Manual minimization and resizing survive live refreshes until the next
 run or activity transition. Maximization survives those transitions until a tile
 control or divider changes the layout. Sizes last while Watch is open.
 Launcher and viewer tiles share their rounded borders, title-bar styling and
-selection highlight. Click anywhere in a tile to select it. Clicking empty space
-in its title bar toggles selection instead.
+selection highlight. Click anywhere in a tile to select it. Clicking its title
+bar keeps it selected and does not change its size, including while minimized.
+Double-click the title bar to restore a minimized tile to the normal layout,
+maximize a normal tile, or restore a maximized tile to the normal layout.
 The selected tile has a highlighted border and tinted background. Selecting
 another tile on either side clears the previous selection. Title-bar links and
 buttons select their tile without unselecting it, while performing their usual action.
@@ -140,13 +142,9 @@ Long titles truncate with an ellipsis before the dropdown and right-aligned acti
 buttons. The left panel's minimum width fits the shortened title, dropdown and
 action buttons. Hover over a
 launcher title to see its saved command with all parameters, including
-argument quoting. The title uses normal bold text. Double-clicking
-copies the full runnable command with its saved parameters, such as
-`tools/write-e2e --branch worktree <parameters>`, relative to the repository root.
-The explicit branch selects the displayed launcher's checkout even when run from
-`main`. A successful copy briefly shows **Launcher command copied** over the tile
-and in the VS Code status bar. Older runs without
-saved parameters show only the plain title.
+argument quoting. The title uses normal bold text. Double-clicking changes the
+tile size as described above. Older runs without saved parameters show only
+the plain title.
 Single-click the title to edit its display text without changing the command.
 Press Enter or click elsewhere to save; Escape cancels. Clearing the text restores
 the default title. Renamed titles show an Undo button at the right end on hover
@@ -278,7 +276,7 @@ count is underlined; click it to open the cumulative `errors.md` in the editor.
 
 The right panel contains the shared VM Viewer grid across checkouts, UI worker and VM tiles,
 VM progress, filtered command output and host resource usage. Screens are view
-only. Clicking a viewer title toggles tile selection. Tiles group by worktree in the left
+only. Clicking a viewer title selects the tile. Tiles group by worktree in the left
 panel's current order, following changes on each refresh. Worktrees without a displayed run follow those
 shown on the left. Start tests through the usual launchers.
 The Reconnect button restarts this tab's source connections.
@@ -358,9 +356,9 @@ It excludes the viewer's headings, command text and footers. Long titles truncat
 the buttons, keeping them visible. The camera is disabled without a frame.
 
 Immediately after the camera, **Minimize tile** (a short line) moves the viewer
-to a title-only bar at the bottom of the right canvas. Click that title to
-maximize the viewer. When those titles cannot fit, **>>** opens a flyout of all
-tile titles; selecting one maximizes it.
+to a title-only bar at the bottom of the right canvas. Single-click selects it;
+double-click restores the normal viewer layout. When those titles cannot fit,
+**>>** opens a flyout of all tile titles with the same click behavior.
 
 After Minimize, **Maximize tile** fills the remaining right tab body with that
 viewer and minimizes the other tiles into the footer. The button becomes

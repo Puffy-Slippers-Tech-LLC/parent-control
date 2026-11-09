@@ -697,9 +697,10 @@ sub native_usable_app {
     my $opened;
     if ($route eq 'desktop') {
         die 'native:desktop-binding' unless $kind eq 'native'
-            && ($child eq 'other-child' || $child eq 'child') && !defined($role);
+            && (($child eq 'other-child' || $child eq 'child') && !defined($role)
+                || $child eq 'other-child' && $role eq 'S');
         $journey->consume_observation('desktop', $desktop);
-        $opened = native_open_desktop($journey);
+        $opened = native_open_desktop($journey, 'opened', defined($role) ? 1 : 0);
     } elsif ($route eq 'files') {
         $journey->consume_observation('desktop', $desktop);
         $journey->consume_observation('files', $journey->seen('files'));
@@ -739,10 +740,10 @@ sub native_blocked_app {
         && ($route eq 'command' && $role =~ /\A(?:A|H|S|Alias|C|SpaceCopy|CommaCopy|VersionNext)\z/
             || $route eq 'grid' && $role =~ /\A(?:A|Alias|H|S)\z/
             || $route eq 'files' && $role =~ /\A(?:A|H|S)\z/
-            || $route eq 'desktop' && $role eq 'A');
+            || $route eq 'desktop' && $role =~ /\A(?:A|H|S)\z/);
     if ($route eq 'desktop') {
         $journey->consume_observation('desktop', $journey->seen('desktop'));
-        return native_open_desktop($journey, 'denied');
+        return native_open_desktop($journey, 'denied', $role eq 'A' ? 0 : 1);
     }
     if ($route eq 'files') {
         $journey->consume_observation('files', $journey->seen('files'));
@@ -1437,8 +1438,7 @@ sub native_open_desktop {
     $focus_desktop //= 0;
     die 'native:desktop-arguments' unless (@_ >= 1 && @_ <= 3)
         && ref($journey) eq 'onpc_journey' && ($result eq 'opened' || $result eq 'denied')
-        && ($focus_desktop eq '0' || $focus_desktop eq '1')
-        && (!$focus_desktop || $result eq 'opened');
+        && ($focus_desktop eq '0' || $focus_desktop eq '1');
     # With original work open, GNOME's panel-cycle shortcut transfers keyboard
     # focus to DING without closing that work. AT-SPI icon focus alone cannot
     # transfer compositor focus. Select this route before input, never as a retry;

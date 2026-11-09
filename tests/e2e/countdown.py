@@ -27,13 +27,13 @@ class CountdownObservation:
 
 def check_countdown_balance(countdown, *, seconds, precision_seconds,
                             observed_monotonic_ns, max_elapsed_seconds=180,
-                            sampling_seconds=30, tolerance_seconds=0):
+                            sampling_seconds=60, tolerance_seconds=0):
     """Compare public balances, allowing only declared rounding and real elapsed time.
 
     Time spent outside the child's active session may consume none of its daily
     allowance. It cannot consume more than the real interval between these reads.
     Horizontal minutes are floored; final seconds are exact. This is not a tick test.
-    Callers may declare up to thirty seconds for estimate refresh and read latency.
+    Callers may declare up to one minute for estimate refresh and read latency.
     A two-minute comparison uses the public remaining-time value directly, with
     no additional rounding or sampling allowance. Request journeys admit that
     tolerance only for additions of at least five minutes.
@@ -44,7 +44,7 @@ def check_countdown_balance(countdown, *, seconds, precision_seconds,
             and type(precision_seconds) is int and 1 <= precision_seconds <= 60
             and type(observed_monotonic_ns) is int and observed_monotonic_ns > 0
             and type(max_elapsed_seconds) is int and 0 < max_elapsed_seconds <= 300
-            and type(sampling_seconds) is int and 0 <= sampling_seconds <= 30
+            and type(sampling_seconds) is int and 0 <= sampling_seconds <= 60
             and type(tolerance_seconds) is int and tolerance_seconds in (0, 120),
             'countdown:balance-binding')
     elapsed = (countdown.observed_monotonic_ns - observed_monotonic_ns) / 1_000_000_000

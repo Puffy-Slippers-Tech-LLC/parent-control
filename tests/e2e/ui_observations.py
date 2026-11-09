@@ -2142,7 +2142,7 @@ class UiObservations:
                 'submitted': 'No submitted draft' if operation.endswith('native-opened') else 'ONPC fixture draft',
                 'score': 'Moves: 0; token: 0'}
         policy_bindings = {**accessible_ui.BASELINE_NATIVE_BINDINGS, **accessible_ui.NATIVE_DENIAL_BINDINGS}
-        if operation in accessible_ui.NATIVE_DESKTOP_OPERATIONS and not operation.endswith('-selected'):
+        if operation in accessible_ui.NATIVE_DESKTOP_OPERATIONS and not operation.endswith(('-selected', '-denied')):
             expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
             require(type(result.get('selected')) is bool, 'ui:native-desktop-selection-response')
             expected['selected'] = result['selected']

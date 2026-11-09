@@ -458,7 +458,7 @@ def main(argv=None):
                                           'probe-retained-app-launch',
                                           'reproduce-transfer-refusal', 'probe-transfer-refusal',
                                           'reproduce-riley-native-grid', 'probe-riley-native-grid',
-                                          'reproduce-snap-grid', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'probe-native-temporary-access', 'reproduce-flatpak-command', 'probe-flatpak-command',
+                                          'reproduce-snap-grid', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access', 'probe-native-temporary-access', 'reproduce-flatpak-command', 'probe-flatpak-command',
                                           'reproduce-update-no-action',
                                           'reproduce-native-denial', 'reproduce-native-files', 'reproduce-native-desktop', 'reproduce-native-desktop-new-window', 'probe-native-desktop-new-window', 'reproduce-versioned-appimage-assets', 'reproduce-grant-logout', 'reproduce-match-editor',
                                           'reproduce-app-rule-return', 'reproduce-revocation-return',
@@ -503,7 +503,7 @@ def main(argv=None):
                                        'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-native-files', 'reproduce-native-desktop', 'reproduce-native-desktop-new-window', 'reproduce-versioned-appimage-assets', 'reproduce-grant-logout',
                                        'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
                                        'reproduce-panel-request', 'reproduce-app-restart-choices',
-                                       'reproduce-reboot-context', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access',
+                                       'reproduce-reboot-context', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access',
                                        'reproduce-expired-sign-out', 'reproduce-daily-soft-balance'))
                        == (args.fixture_selection is not None),
                        'vm-control:arguments')
@@ -559,14 +559,14 @@ def main(argv=None):
                              'reproduce-system-graphical-expiry', 'reproduce-grant-logout',
                              'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-panel-request',
                              'reproduce-app-restart-choices', 'reproduce-reboot-context',
-                             'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-expired-sign-out',
+                             'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access', 'reproduce-expired-sign-out',
                              'reproduce-daily-soft-balance'):
             from vm_probe import (reproduce_ineligible_approver, reproduce_remove_selected, reproduce_remove_last_child, reproduce_baseline_restoration, reproduce_natural_access, reproduce_natural_expiry,
                                   reproduce_countdown_grant, reproduce_suspend_active_grant, reproduce_suspend_expired_grant, reproduce_overlay_activity, reproduce_overlay_return,
                                   reproduce_system_graphical_expiry, reproduce_grant_logout,
                                   reproduce_app_rule_return, reproduce_revocation_return, reproduce_panel_request,
                                   reproduce_app_restart_choices, reproduce_reboot_context,
-                                  reproduce_flatpak_grid, reproduce_flatpak_temporary_access, reproduce_native_temporary_access, reproduce_expired_sign_out,
+                                  reproduce_flatpak_grid, reproduce_flatpak_temporary_access, reproduce_native_temporary_access, reproduce_native_desktop_access, reproduce_expired_sign_out,
                                   reproduce_daily_soft_balance)
             resume(lease)
             try:
@@ -591,6 +591,7 @@ def main(argv=None):
                              'reproduce-flatpak-grid': reproduce_flatpak_grid,
                              'reproduce-flatpak-temporary-access': reproduce_flatpak_temporary_access,
                              'reproduce-native-temporary-access': reproduce_native_temporary_access,
+                             'reproduce-native-desktop-access': reproduce_native_desktop_access,
                              'reproduce-expired-sign-out': reproduce_expired_sign_out,
                              'reproduce-daily-soft-balance': reproduce_daily_soft_balance}[args.action]
                 reproduce(lease, fixture_selection)

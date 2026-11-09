@@ -2271,6 +2271,8 @@ def test_foreground_dispatch_runs_only_owned_operation_without_test_gate(tmp_pat
     root = Path(__file__).resolve().parents[2]
     dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
     dispatcher['run'].__globals__['selection'] = lambda *args: ['selected-operation']
+    snapshot_command = Mock(side_effect=lambda root, argv, command: command)
+    dispatcher['run'].__globals__['vm_snapshot_command'] = snapshot_command
     monkeypatch.setattr(dispatcher['runpy'], 'run_path', lambda _: {
         'safety_command': lambda root: ['shared-qualified-gate']})
     monkeypatch.setattr(dispatcher['os'], 'getgrouplist', lambda *args: [])
@@ -2288,6 +2290,7 @@ def test_foreground_dispatch_runs_only_owned_operation_without_test_gate(tmp_pat
         return SimpleNamespace(returncode=status)
     monkeypatch.setattr(dispatcher['subprocess'], 'run', execute)
     assert dispatcher['run'](root, [*argv, *VM_ARGS], caller) == status
+    snapshot_command.assert_called_once_with(root, argv, ['selected-operation'])
     assert len(calls) == 1
 
 

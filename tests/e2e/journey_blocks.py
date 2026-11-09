@@ -246,8 +246,14 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
     require(kind in ('native', 'snap', 'flatpak') and (kind != 'native' or instance == 'primary'),
             'journey:fixture-binding')
     if route == 'desktop':
-        require(kind == 'native' and child in ('other-child', 'child') and role is None
+        require(kind == 'native' and (child in ('other-child', 'child') and role is None
+                or child == 'other-child' and role == 'S')
                 and desktop_observation is True, 'journey:native-desktop-binding')
+        if role == 'S':
+            return {'desktop': 'ui:native-soft-desktop',
+                    'icon': 'ui:native-desktop-soft-icon',
+                    'selected': 'ui:native-desktop-soft-selected',
+                    **{action: 'ui:native-soft-' + action for action in ('opened', 'submit', 'submitted')}}
         stages = {'desktop': 'ui:native-desktop', 'icon': 'ui:native-desktop-icon',
                 'selected': 'ui:native-desktop-selected', 'opened': 'ui:native-opened',
                 'submit': 'ui:native-submit', 'submitted': 'ui:native-submitted'}
@@ -347,7 +353,12 @@ def native_blocked_app(role, *, route='command', child='other-child'):
         name = 'hard' if role == 'H' else 'soft'
         return {'command': 'ui:overlay-native-' + name + '-command-blocked'}
     if route == 'desktop':
-        require(role == 'A', 'journey:native-desktop-denial-binding')
+        require(role in ('A', 'H', 'S'), 'journey:native-desktop-denial-binding')
+        if role != 'A':
+            name = 'hard' if role == 'H' else 'soft'
+            return {'desktop': 'ui:native-' + name + '-desktop',
+                    **{action: 'ui:native-desktop-' + name + '-' + action
+                       for action in ('icon', 'selected', 'denied')}}
         return {'desktop': 'ui:native-desktop', 'icon': 'ui:native-desktop-icon',
                 'selected': 'ui:native-desktop-selected', 'denied': 'ui:native-desktop-denied'}
     if route == 'files':

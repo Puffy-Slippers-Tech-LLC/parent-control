@@ -292,10 +292,10 @@ sub enter_overlay_shell_password {
             && ($journey->{stage_prefix} // '') eq ''
             && ref($journey->{overlay_request}) eq 'ARRAY'
             && join(',', @{$journey->{overlay_request}}) eq 'child,parent,75,1';
-        my $temporary_access = ($journey->{prefix} // '') =~ /\A(flatpak|native)-grid-temporary-access-(first|included|replacement)\z/;
+        my $temporary_access = ($journey->{prefix} // '') =~ /\A(flatpak-grid|native-(?:grid|desktop))-temporary-access-(first|included|replacement)\z/;
         if ($temporary_access) {
             my ($kind, $row) = ($1, $2);
-            my $seconds = $kind eq 'native' ? 30 : 300;
+            my $seconds = $kind =~ /\Anative-/ ? 30 : 300;
             die 'secret:challenge' unless ($journey->{stage_prefix} // '') eq "$row-"
                 && ref($journey->{overlay_request}) eq 'ARRAY'
                 && join(',', @{$journey->{overlay_request}}) eq

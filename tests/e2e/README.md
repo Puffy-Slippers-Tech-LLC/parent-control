@@ -1633,6 +1633,15 @@ the outer collector, worker collector and variable staging.
 
 ### Credential staging and password capture boundary
 
+`tools/test-vm --vm NAME reproduce-native-desktop-access` reuses case 233's
+shared desktop/overlay journey through Jamie's first approval. It reads Jordan's
+countdown once at `first-countdown`, before its comparison, closes the worker
+and retains the same desktop for guarded `exec` probes. This diagnostic restarts
+GDM after fixture setup to obtain a fresh greeter before the first login. Its
+existing owned timer trace records calls and replies in `timer-trace.json`.
+The shared fixture, entry, credential and maintenance guards remain active. Finish with
+`tools/test-vm --vm NAME stop`; this diagnostic supplies no customer acceptance.
+
 `tools/test-vm --vm NAME reproduce-native-temporary-access` reuses case 238's
 shared command/station journey through Sam's approval and Jordan's retained
 Allowed work. At `included-soft-command` it observes the same single Soft

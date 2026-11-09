@@ -20,7 +20,7 @@ def baseline_restoration(args, configured):
                'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-native-files', 'reproduce-native-desktop', 'reproduce-native-desktop-new-window', 'reproduce-grant-logout',
                'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
                'reproduce-panel-request', 'reproduce-app-restart-choices', 'reproduce-reboot-context',
-               'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-expired-sign-out',
+               'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access', 'reproduce-expired-sign-out',
                'reproduce-daily-soft-balance', 'reproduce-versioned-appimage-assets')
     if not args or args[0] not in actions:
         return None
@@ -41,7 +41,7 @@ def baseline_restoration(args, configured):
                            'reproduce-native-denial', 'reproduce-native-files', 'reproduce-native-desktop', 'reproduce-native-desktop-new-window', 'reproduce-grant-logout', 'reproduce-match-editor',
                            'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-panel-request',
                            'reproduce-app-restart-choices', 'reproduce-reboot-context',
-                           'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-expired-sign-out',
+                           'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access', 'reproduce-expired-sign-out',
                            'reproduce-daily-soft-balance', 'reproduce-versioned-appimage-assets'):
                 from test_storage import named_input
                 assets = named_input(vm_source=True, package_source=True, fixture_source=True)

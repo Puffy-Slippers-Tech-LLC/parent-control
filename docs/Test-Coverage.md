@@ -10,13 +10,13 @@
 | Private D-Bus component | <span style="color: green">225</span>/<span style="color: gray">0</span>/225 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">300</span>/<span style="color: gray">0</span>/300 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">64</span>/<span style="color: gray">0</span>/64 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
+| Installed system | <span style="color: green">65</span>/<span style="color: gray">0</span>/65 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">137</span>/<span style="color: gray">60</span>/197 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6685</span>/<span style="color: gray">60</span>/6745** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">138</span>/<span style="color: gray">59</span>/197 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6687</span>/<span style="color: gray">59</span>/6746** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">136</span>/<span style="color: gray">60</span>/196 |
+| customer-journey | <span style="color: green">137</span>/<span style="color: gray">59</span>/196 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -158,6 +158,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [230](#scenario-230) | Approve after the displayed estimate has aged (balance: grant dominant; surface: kiosk) | `E2E-048/grant-dominant-kiosk` | ready |
 | [231](#scenario-231) | Change temporary app permission on every supported launch route (route: native grid; surface: child overlay) | `E2E-049/native-grid-child-overlay` | ready |
 | [232](#scenario-232) | Change temporary app permission on every supported launch route (route: native grid; surface: kiosk) | `E2E-049/native-grid-kiosk` | ready |
+| [233](#scenario-233) | Change temporary app permission on every supported launch route (route: native desktop; surface: child overlay) | `E2E-049/native-desktop-child-overlay` | ready |
 | [236](#scenario-236) | Change temporary app permission on every supported launch route (route: native file manager; surface: kiosk) | `E2E-049/native-file-manager-kiosk` | ready |
 | [238](#scenario-238) | Change temporary app permission on every supported launch route (route: native command; surface: kiosk) | `E2E-049/native-command-kiosk` | ready |
 | [243](#scenario-243) | Change temporary app permission on every supported launch route (route: flatpak grid; surface: child overlay) | `E2E-049/flatpak-grid-child-overlay` | ready |
@@ -225,7 +226,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[221](#scenario-221)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: kiosk success)</span> | <span style="color: gray">`E2E-047/kiosk-success`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[227](#scenario-227)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: daily dominant; surface: child overlay)</span> | <span style="color: gray">`E2E-048/daily-dominant-child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[228](#scenario-228)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: daily dominant; surface: kiosk)</span> | <span style="color: gray">`E2E-048/daily-dominant-kiosk`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[233](#scenario-233)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: native desktop; surface: child overlay)</span> | <span style="color: gray">`E2E-049/native-desktop-child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[239](#scenario-239)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: snap grid; surface: child overlay)</span> | <span style="color: gray">`E2E-049/snap-grid-child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[242](#scenario-242)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: snap command; surface: kiosk)</span> | <span style="color: gray">`E2E-049/snap-command-kiosk`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[247](#scenario-247)</span> | <span style="color: gray">Alternate homework, games and time sources over repeated sessions (departure: retained; surface order: overlay first)</span> | <span style="color: gray">`E2E-050/overlay-first-retained`</span> | <span style="color: gray">pending</span> |
@@ -1975,6 +1975,20 @@ Variant: route: native grid; surface: kiosk
 - For active native/Flatpak cases, on the declared request surface approve three additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Flatpak requests add five minutes and allow a two-minute countdown difference from the estimate, accounting for elapsed time; that tolerance requires an addition of at least five minutes and adds no further rounding or sampling allowance. Other routes retain 0.5-minute additions. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
+### Scenario 233
+
+**Change temporary app permission on every supported launch route (route: native desktop; surface: child overlay)**
+
+Case: `E2E-049/native-desktop-child-overlay` · Category: customer-journey · Status: **ready**
+
+Variant: route: native desktop; surface: child overlay
+
+**Steps:**
+
+- For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
+- For active native/Flatpak cases, on the declared request surface approve three additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Flatpak requests add five minutes and allow a two-minute countdown difference from the estimate, accounting for elapsed time; that tolerance requires an addition of at least five minutes and adds no further rounding or sampling allowance. Other routes retain 0.5-minute additions. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
+- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
+
 ### Scenario 236
 
 **Change temporary app permission on every supported launch route (route: native file manager; surface: kiosk)**
@@ -3243,26 +3257,6 @@ Variant: balance: daily dominant; surface: kiosk
 - Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
 - Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
 - Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
-
-Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 233
-
-**Change temporary app permission on every supported launch route (route: native desktop; surface: child overlay)**
-
-Case: `E2E-049/native-desktop-child-overlay` · Category: customer-journey · Status: **pending**
-
-Variant: route: native desktop; surface: child overlay
-
-**Steps:**
-
-- For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
-- For active native/Flatpak cases, on the declared request surface approve three additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Flatpak requests add five minutes and allow a two-minute countdown difference from the estimate, accounting for elapsed time; that tolerance requires an addition of at least five minutes and adds no further rounding or sampling allowance. Other routes retain 0.5-minute additions. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
-- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
 

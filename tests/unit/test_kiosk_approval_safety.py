@@ -240,7 +240,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
 @pytest.mark.parametrize('mode,surface,kind', [
     (mode, surface, 'flatpak') for surface in ('kiosk', 'overlay')
     for mode in ('sequence', 'wrong-scope', 'crossed-request', 'replay')
-] + [('sequence', 'overlay', 'native'), ('wrong-duration', 'overlay', 'native'),
+] + [('sequence', 'overlay', 'native-desktop'), ('wrong-duration', 'overlay', 'native'),
      ('sequence', 'kiosk', 'native'), ('wrong-duration', 'kiosk', 'native'),
      ('sequence', 'kiosk', 'native-command'), ('sequence', 'kiosk', 'native-files')])
 def test_temporary_access_secret_binds_each_parent_and_requires_fresh_proofs(mode, surface, kind):
@@ -251,6 +251,7 @@ def test_temporary_access_secret_binds_each_parent_and_requires_fresh_proofs(mod
                 'included': ('other-child', 'other-parent', seconds, True),
                 'replacement': ('other-child', 'parent', seconds, False)}
     prefix = (kind + '-kiosk-temporary-access' if kind in ('native-command', 'native-files') else
+              'native-desktop-temporary-access' if kind == 'native-desktop' else
               'native-grid-kiosk-temporary-access' if (kind, surface) == ('native', 'kiosk') else
               kind + ('-temporary-access' if surface == 'kiosk' else '-grid-temporary-access'))
     result = run_password_guard(r'''

@@ -209,6 +209,14 @@ NATIVE_DESKTOP_SOFT_OPERATIONS = frozenset(('native-soft-desktop-icon', 'native-
 NATIVE_DESKTOP_OPERATIONS |= NATIVE_DESKTOP_SOFT_OPERATIONS
 OPERATIONS |= NATIVE_DESKTOP_SOFT_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_DESKTOP_SOFT_OPERATIONS
+NATIVE_DESKTOP_POLICY_BINDINGS = {
+    'native-desktop-' + name + '-' + action: (role, action)
+    for name, role in (('hard', 'H'), ('soft', 'S'))
+    for action in ('icon', 'selected', 'denied')
+}
+NATIVE_DESKTOP_OPERATIONS |= NATIVE_DESKTOP_POLICY_BINDINGS.keys()
+OPERATIONS |= NATIVE_DESKTOP_POLICY_BINDINGS.keys()
+STANDARD_OPERATIONS |= NATIVE_DESKTOP_POLICY_BINDINGS.keys()
 NATIVE_WINDOW_BINDINGS = {
     'native-soft-' + instance + '-' + action: (instance, action)
     for instance in ('primary', 'secondary')
@@ -13296,7 +13304,7 @@ class AccessibleUI:
         """
         from gi.repository import Gio, GLib
         require(child in (EXISTING_CHILD, CHILD) and (product == NATIVE_PRODUCT
-                or child == EXISTING_CHILD and product in (NATIVE_SOFT_PRODUCT, 'ONPC Nonmatching Fixture')),
+                or child == EXISTING_CHILD and product in (NATIVE_SOFT_PRODUCT, NATIVE_HARD_PRODUCT, 'ONPC Nonmatching Fixture')),
                 'ui:native-desktop-binding')
         require_active_launch_session(unlocked=True)
         require(os.getuid() == os.geteuid() == pwd.getpwnam(
@@ -13328,7 +13336,7 @@ class AccessibleUI:
                  and facts[node]['showing'] and node.get_component_iface() is not None]
         require(len(icons) <= 1, 'ui:native-desktop-ambiguous-icon')
         if not icons:
-            require(product in (NATIVE_PRODUCT, NATIVE_SOFT_PRODUCT), 'ui:native-desktop-wrong-icon')
+            require(product in (NATIVE_PRODUCT, NATIVE_SOFT_PRODUCT, NATIVE_HARD_PRODUCT), 'ui:native-desktop-wrong-icon')
             return None
         target = icons[0]
         # Ctrl+A selects ordinary files, excluding DING's Home/Trash shortcuts.
@@ -13352,21 +13360,37 @@ class AccessibleUI:
         require(operation in NATIVE_DESKTOP_OPERATIONS, 'ui:native-desktop-operation')
         child = CHILD if operation in RILEY_NATIVE_DESKTOP_OPERATIONS else EXISTING_CHILD
         separate = operation in NATIVE_DESKTOP_SOFT_OPERATIONS
+        policy = NATIVE_DESKTOP_POLICY_BINDINGS.get(operation)
+        if policy and policy[1] == 'denied':
+            started = time.monotonic()
+            def denied():
+                require_active_launch_session(unlocked=True)
+                require(os.getuid() == os.geteuid() == pwd.getpwnam(
+                    CHILD_ACCOUNTS[child]).pw_uid, 'ui:native-desktop-account')
+                require(self.native_app_closed('secondary', desktop=False, complete_absence=True),
+                        'ui:native-desktop-blocked-window')
+                return time.monotonic() - started >= 15
+            self.wait(denied, 'native-desktop-denied', prompt_in_predicate=True)
+            self.standard_shell_desktop(no_prompt=True)
+            return None
         operation = operation.removeprefix('overlay-')
         def snapshot(**arguments):
             return self.native_desktop_snapshot(child=child,
-                **({'product': NATIVE_SOFT_PRODUCT} if separate else {}), **arguments)
+                **({'product': NATIVE_HARD_PRODUCT if policy[0] == 'H' else NATIVE_SOFT_PRODUCT}
+                   if policy else {'product': NATIVE_SOFT_PRODUCT} if separate else {}), **arguments)
         require(not self.input_uncertain, 'ui:uncertain-input')
         def closed():
             # Unrelated providers can exit between enumeration and GetItems.
             # Reacquire the complete read, preserving a real window's refusal;
             # focus and keyboard input remain outside this read-only wait.
-            require(self.native_app_closed('secondary' if separate else 'primary',
+            require(self.native_app_closed('secondary' if separate or policy else 'primary',
                     desktop=False, complete_absence=True),
                     'ui:native-window-exists')
             if separate:
                 self.native_app_snapshot('ONPC fixture draft', instance='primary',
                                          role='S', child=EXISTING_CHILD)
+            if policy:
+                self.native_app_snapshot('ONPC fixture draft', child=EXISTING_CHILD)
             return True
         self.wait(closed, 'native-desktop-preflight', prompt_in_predicate=True)
         if operation.endswith('-selected'):

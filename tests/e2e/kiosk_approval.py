@@ -42,8 +42,8 @@ QUALIFICATION_PLAN = replace(PLAN,
 
 class KioskApprovalJourney(RequestFlowJourney):
     def __init__(self, context, progress, plan=QUALIFICATION_PLAN, *, actions=None,
-                 daily_seconds=900):
-        super().__init__(context, progress, plan=plan, actions=actions)
+                 daily_seconds=900, transport=None):
+        super().__init__(context, progress, plan=plan, actions=actions, transport=transport)
         self.daily_seconds = daily_seconds
         self.grant_estimate = None
         self.grant_observed = False

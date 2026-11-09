@@ -1313,6 +1313,12 @@ sub run {
         onpc_confinement_usability::optional_artwork(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{kiosk_agent_recovery}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_confinement_usability::service_recovery(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, 1);
+        return;
+    }
     if ($ready->{kiosk_service_recovery}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

@@ -325,5 +325,5 @@ PLAN = JourneyPlan(
 
 
 class RequestFlowJourney(KioskRequestJourney):
-    def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan=plan, actions=actions)
+    def __init__(self, context, progress, plan=PLAN, *, actions=None, transport=None):
+        super().__init__(context, progress, plan=plan, actions=actions, transport=transport)

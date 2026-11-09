@@ -655,6 +655,8 @@ CASES = (
                  'Withhold sign-in when enforcement startup fails and recover sign-in'),
     CaseIdentity(315, 'package', 'test_broker_policy_startup_failure_recovery',
                  'Keep sign-in protected while parent management cannot start and recover management'),
+    CaseIdentity(316, 'authorization', 'test_kiosk_agent_failure_recovery',
+                 'Recover a child request after the password agent stops'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

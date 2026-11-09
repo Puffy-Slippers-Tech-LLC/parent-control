@@ -3261,6 +3261,12 @@ Obligation 143's real usage-service outage and identical-query recovery belong
 to `session::test_usage_reader_failure_recovery` (system 302), under the same
 [engineering owner](E2E-Building-Blocks.md#inventory-reconciliation). This has no
 customer countdown or scenario acceptance credit.
+Obligation 144's actual kiosk password-agent loss and fresh authenticated retry
+belong to `authorization::test_kiosk_agent_failure_recovery` (system 316).
+The same engineering owner records Ubuntu qualification of denial with usable
+request controls, no grant/control changes, unchanged other accounts, exact
+agent restoration, safe exit and independent Parent balance readback after one
+fresh approval. This supplies no customer scenario acceptance credit.
 Apply [system reuse](UI-and-E2E-Coverage.md#reuse-of-system-coverage)
 at case, step and acceptance level while keeping the complete public journeys.
 

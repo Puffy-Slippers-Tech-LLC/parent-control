@@ -21,7 +21,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **173 — [Preserve and qualify system obligation 144: kiosk authentication agent](E2E-Tasks/173-system-144.md)**.
+Next task: **174 — [Preserve and qualify system obligation 145: failed save](E2E-Tasks/174-system-145.md)**.
 
 This plan owns its queue, remaining task briefs and next-task pointer.
 It can run independently of all unfinished work in

@@ -147,6 +147,32 @@ def test_bound_prompt_refuses_changed_request_before_another_recipient_read():
     assert ui._observe.call_count == 1
 
 
+def test_agent_loss_ends_only_an_unqualified_challenge_without_releasing_input():
+    ui = ui_observations.UiObservations(None)
+    ui._observe = Mock(return_value={})
+    ui.challenges.add('lost-challenge')
+    ui.observe('kiosk-mate-open')
+    ui.observe('kiosk-agent-refused')
+    assert ui.mate_approval_index == 0
+    assert ui.mate_approval_identity is None
+    assert ui.challenges == {'lost-challenge'}
+    calls = ui._observe.call_count
+    with pytest.raises(EvidenceError, match='mate-order'):
+        ui.observe('kiosk-mate-qualified')
+    assert ui._observe.call_count == calls
+
+    ui = ui_observations.UiObservations(None)
+    ui._observe = Mock(return_value={})
+    ui.observe('kiosk-mate-open')
+    ui.observe('kiosk-mate-qualified')
+    with pytest.raises(EvidenceError, match='mate-agent-loss-order'):
+        ui.observe('kiosk-agent-refused')
+    assert ui._observe.call_count == 2
+    with pytest.raises(EvidenceError, match='challenge-previous-failure'):
+        ui.observe('kiosk-mate-rechecked')
+    assert ui._observe.call_count == 2
+
+
 @pytest.mark.parametrize('prefix,scope,accepted', [
     ('daily-soft-profile-profile-request', 'profile-request-', True),
     ('daily-soft-profile-profile-request', 'request-', False),

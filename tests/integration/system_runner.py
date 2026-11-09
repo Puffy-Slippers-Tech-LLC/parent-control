@@ -142,6 +142,7 @@ COMMON_SELECTED_INPUTS = (
     ('tools/regression_events.py', 'system_progress.py'),
 )
 KIOSK_ACTIVATION_CASE = 'test_kiosk_account_classification_survives_reboot'
+KIOSK_AGENT_CASE = 'test_kiosk_agent_failure_recovery'
 EXTENSION_LOGIN_CASE = 'test_child_extension_login_unlock_recovery'
 GRAPHICAL_EXPIRY_CASE = 'test_kiosk_expiry_graphical_runtime'
 FOREGROUND_REVOKE_CASE = 'test_foreground_revocation'
@@ -606,8 +607,10 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
     available = {name: inventories[name] for name in chosen_areas}
     if any(item.case_id in GRAPHICAL_EXPIRY_CASES for item in executions):
         prerequisites.append('one-shot-gdm-grant-fixture-and-second-reboot')
-    if any(item.area == 'authorization' for item in executions):
+    if any(item.area == 'authorization' and item.case_id != KIOSK_AGENT_CASE for item in executions):
         prerequisites.extend(('fixture-passwords', 'remote-ldap-nss-fixtures'))
+    if any(item.case_id == KIOSK_AGENT_CASE for item in executions):
+        prerequisites.extend(('fixture-passwords', 'actual-kiosk-agent-loss-and-recovery'))
     return Selection(area, test, 'full' if area is None and recording_ids is None else 'partial', phases,
                      tuple(prerequisites), tuple(executions), available, qualification_failure)
 
@@ -1829,7 +1832,7 @@ def stage_selected_inputs(selection, destination):
             'sha256': baseline.digest(adapter),
             'sources': {'tests/e2e/startup_observations.py':
                         baseline.digest(ROOT / 'tests/e2e/startup_observations.py')}}
-    if 'extension-login' in selection.phases or any(
+    if any(item.case_id == KIOSK_AGENT_CASE for item in selection.executions) or 'extension-login' in selection.phases or any(
             item.case_id in GRAPHICAL_EXPIRY_CASES for item in selection.executions) or any(
             item.case_id == 'test_child_extension_monitor_native_recovery'
             for item in selection.executions):
@@ -2308,6 +2311,26 @@ def observe_graphical_expiry(vm, lease, directory, ledger, fixture_context, fixt
     (output / 'result.json').write_bytes(baseline.encode(result))
 
 
+def observe_kiosk_agent(vm, lease, directory, ledger, fixture_context, fixture_selection):
+    """Keep one actual station-agent fault and fresh approval in its system attempt."""
+    sys.path.insert(0, str(ROOT / 'tests/e2e'))
+    from types import SimpleNamespace
+    from kiosk_agent_recovery import run
+    from provenance import VerifiedInputs
+
+    require(fixture_context is not None, 'kiosk-agent:fixture-context-required')
+    fixture_context['controller'].require_ready(fixture_context['receipt'])
+    verified = VerifiedInputs(lease=lease, root=ROOT)
+    verified.fixture_selection = fixture_selection
+    verified.fixture_prepared = fixture_context
+    context = SimpleNamespace(lease=lease, verified=verified, fixture_selection=fixture_selection)
+    output = directory / 'kiosk-agent'
+    output.mkdir(mode=0o700)
+    result = run(output, lease, vm, ledger, expected_inputs=verified.source_files,
+        progress=lambda stage, observed: log('stage:kiosk-agent-' + stage), context=context)
+    (output / 'result.json').write_bytes(baseline.encode(result))
+
+
 def prepare_extension_parent(vm, lease, directory, ledger, fixture_context, fixture_selection):
     """Attach only long enough to enter the real parent desktop for pytest."""
     sys.path.insert(0, str(ROOT / 'tests/e2e'))
@@ -2388,6 +2411,9 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         fixture_selection = (installed_selection(fixture_selection) if already_installed else
                              selection_record(fixture_selection))
         subsets = SUBSETS
+        if any(item.case_id == KIOSK_AGENT_CASE for item in selection.executions):
+            # Shared station/Parent operations verify their native fixture closure.
+            subsets += ('native',)
         if graphical_expiry or 'extension-login' in selection.phases:
             from e2e_fixture_preparation import ACTIVITY_SUBSETS
             subsets += ACTIVITY_SUBSETS
@@ -2608,6 +2634,13 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 log('stage:reboot-' + phase)
                 with ledger.measure('reboot'):
                     vm.reboot()
+            if phase == 'authorization' and any(item.case_id == KIOSK_AGENT_CASE
+                                               for item in selection.executions):
+                require_fixture_ready()
+                log('stage:kiosk-agent')
+                with ledger.measure('test'):
+                    observe_kiosk_agent(vm, lease, directory, ledger,
+                                        fixture_context, fixture_selection)
             if phase == 'session' and graphical_expiry:
                 if already_installed:
                     require_fixture_ready()

@@ -1702,6 +1702,14 @@ sub run {
                 : $ready->{daily_soft_revoke} ? ('revoke') : ());
         return;
     }
+    if ($ready->{time_profiles_dominant}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        require onpc_set_allowance;
+        onpc_set_allowance::qualify_dominant(\&exchange, $ready->{invocations},
+            $ready->{challenge_bindings}, $ready->{kiosk_request});
+        return;
+    }
     if ($ready->{grant_only_profile} || $ready->{grant_only_revoke} || $ready->{time_profiles_grant}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

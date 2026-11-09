@@ -56,8 +56,11 @@ exits. Retention uses existing run files and reader memory; it adds no disk pers
 Launcher and viewer titles use the same bold text and single-line content:
 local/remote icon, host (`local` or the SSH host), `[branch]`, and launcher or VM name.
 Launcher titles occupy the first row with one three-line menu button at its right.
-The menu opens a dropdown with **Copy** first, followed by the launcher action,
-**Reload** and **Kill**.
+The menu opens a dropdown with **Copy tab content** first, then **Copy Command**
+(terminal icon), followed by the launcher action, **Reload** and **Kill**.
+**Copy Command** copies the full saved command with all parameters and argument
+quoting. It is disabled for older runs without saved parameters. Double-clicking
+the title does not copy the command.
 Click outside the dropdown or press Escape to close it. The launcher action is
 **Stop** (solid square) while active, **Undo** while a cancellable stop is pending,
 or **Resume** (play) while idle. It is disabled once stopping begins,
@@ -190,7 +193,7 @@ For `fix-tests`, Last Error includes the failing check, the runner's error text
 (or a readable summary of a structured failure, falling back to a bounded text
 output tail), and its output-log path. Full JSON results remain in that log. Reload launcher
 changes with `tools/fix-tests --reload`; `./setup.sh --watch` updates the extension.
-The links remain available in every view, including while idle. **Copy** in the
+The links remain available in every view, including while idle. **Copy tab content** in the
 three-line menu copies the current tab's body as plain text to the clipboard;
 in **Session**, it copies the displayed transcript.
 For every execution-plan launcher, including `write-e2e`, **Status**

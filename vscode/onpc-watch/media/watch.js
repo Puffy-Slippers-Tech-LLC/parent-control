@@ -333,7 +333,7 @@
         section.body.classList.toggle('collapsed', Boolean(section.collapsed));
         const copy = element('button', 'run-copy run-launcher-action', menu);
         copy.type = 'button';
-        copy.title = 'Copy current tab content';
+        copy.title = 'Copy tab content';
         copy.setAttribute('aria-label', copy.title);
         const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         icon.setAttribute('viewBox', '0 0 20 20');
@@ -341,7 +341,7 @@
         const shape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         shape.setAttribute('d', 'M7 7h10v10H7z M4 13H3V3h10v1');
         icon.append(shape);
-        copy.append(icon, 'Copy');
+        copy.append(icon, 'Copy tab content');
         copy.addEventListener('click', () => {
             menu.hidePopover();
             overflow.focus();
@@ -351,7 +351,25 @@
                 `\n${section.activity.innerText}` : '';
             vscode.postMessage({ type: 'copy', root: entry.id, text: body.innerText + activity });
         });
-        menu.prepend(copy);
+        const copyCommand = element('button', 'run-copy run-launcher-action', menu);
+        copyCommand.type = 'button';
+        copyCommand.title = 'Copy Command';
+        copyCommand.setAttribute('aria-label', copyCommand.title);
+        copyCommand.disabled = !entry.launcher_command;
+        const commandIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        commandIcon.setAttribute('viewBox', '0 0 20 20');
+        commandIcon.setAttribute('aria-hidden', 'true');
+        const commandShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        commandShape.setAttribute('d', 'M2 3h16v14H2z M5 7l3 3-3 3 M10 13h5');
+        commandIcon.append(commandShape);
+        copyCommand.append(commandIcon, 'Copy Command');
+        copyCommand.addEventListener('click', () => {
+            menu.hidePopover();
+            overflow.focus();
+            vscode.postMessage({ type: 'copy', root: entry.id,
+                text: entry.launcher_command, command: true });
+        });
+        menu.prepend(copy, copyCommand);
         element('span', 'run-controls-divider', controls).setAttribute('aria-hidden', 'true');
         const restore = () => {
             maximizedRun = undefined;

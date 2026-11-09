@@ -659,6 +659,8 @@ CASES = (
                  'Recover a child request after the password agent stops'),
     CaseIdentity(317, 'enforcement', 'test_broker_save_failure_recovery',
                  'Keep a child’s previous rules when a parent save fails and retry'),
+    CaseIdentity(318, 'enforcement', 'test_partial_app_termination_retry',
+                 'Retry closing a child’s blocked apps after only some close'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

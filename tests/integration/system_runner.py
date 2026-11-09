@@ -2451,7 +2451,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             subsets = (('command',) if fixture_selection['target'] == 'ubuntu'
                        else (*subsets, 'command'))
         if any(item.area == 'enforcement'
-               and item.case_id == 'test_broker_save_failure_recovery'
+               and item.case_id in ('test_broker_save_failure_recovery',
+                                    'test_partial_app_termination_retry')
                for item in selection.executions) and 'command' not in subsets:
             subsets += ('command',)
         if any(item.area == 'enforcement'

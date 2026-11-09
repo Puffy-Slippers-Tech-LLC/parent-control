@@ -245,6 +245,33 @@ sub suspend_active_grant {
     $journey->finish();
 }
 
+sub ordinary_daily_reset {
+    onpc_progress::operation('Checking that a child can use renewed daily time after midnight');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'daily-reset:plan' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'ordinary-daily-reset', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::daily_time_profile($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0, 1);
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
+    $journey->invoke('natural-expiry');
+    $journey->seen($_) for qw(return-greeter returned-gdm);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'return');
+    $journey->seen($_) for qw(parent-retained exhausted-balance);
+    $journey->seen('midnight-wait-' . $_) for 1 .. 6;
+    $journey->seen($_) for qw(renewed-balance parent-switch renewed-greeter);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'renewed');
+    $journey->invoke('renewed-countdown');
+    onpc_app_rows::native_activity_resume($journey, 'renewed-activity');
+    $journey->seen('renewed-activity-capture');
+    $journey->finish();
+}
+
 sub countdown_daily {
     onpc_progress::operation('Following daily time and original child work through unlock and natural lock');
     my ($exchange, $declared, $challenges) = @_;

@@ -1067,6 +1067,7 @@ def _authenticated_request_revalidates_live_state(accounts, callers, passwords, 
     interface = 'org.freedesktop.Accounts.User'
     path = f'/org/freedesktop/Accounts/User{changed_uid}'
     role_changed = False
+    granted_at = None
     try:
         with PersistentCaller(accounts[surface]) as caller, TextAgent(
                 caller, record_diagnostic=authentication_diagnostics) as agent:
@@ -1101,12 +1102,46 @@ def _authenticated_request_revalidates_live_state(accounts, callers, passwords, 
                           boundary + ':write')
             print(f'onpc-system: stage=inflight-revalidation surface={surface} '
                   f'mutation={mutation} outcome=denied-state-preserved', flush=True)
+            if surface == 'child1' and mutation == 'child-role':
+                # One representative recovery owns obligation 146. Restore the
+                # real eligibility predicate, then require a new password
+                # challenge on the same caller after the stale request failed.
+                guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
+                           path, interface, 'SetAccountType', 'i', str(original_role)])
+                guest.require(account_property(changed_uid, interface, 'AccountType') ==
+                              original_role, boundary + ':recovery-role-not-visible')
+                role_changed = False
+                recovered_before = snapshot_accounts(accounts)
+                guest.require(recovered_before['child1'][3] == [0, 0],
+                              boundary + ':recovery-existing-grant')
+                caller.send(request_operation(surface, target, selected))
+                agent.prompt(selected, other)
+                agent.authenticate(passwords['parent1'])
+                result = accepted(caller.receive())
+                guest.require(result[1] == 'approved' and result[2] > 0,
+                              boundary + ':recovery-not-approved')
+                granted_at = time.monotonic()
+                grant = account_property(target,
+                    'com.endlessm.ParentalControls.SessionLimits', 'ActiveExtension')
+                guest.require(grant[0] > 0 and grant[1] == 300,
+                              boundary + ':recovery-no-fresh-grant')
+                guest.require(accounts_unchanged(accounts, {
+                    key: state for key, state in recovered_before.items() if key != 'child1'}),
+                              boundary + ':recovery-other-account-write')
+                print(f'onpc-system: stage=inflight-recovery surface={surface} '
+                      f'mutation={mutation} outcome=authenticated-approved-isolated', flush=True)
     finally:
         if role_changed:
             guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
                        path, interface, 'SetAccountType', 'i', str(original_role)])
         accepted(manager.call('SetPreferences', '(us)', (target, original_preferences)))
         accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
+        if granted_at is not None:
+            # Preserve the next transaction's real cooldown boundary, as in
+            # requester-disconnect recovery; never reset broker state.
+            interval = json.loads(Path('/etc/oh-no-parent-control/config.json').read_text())[
+                'minimum_request_interval_seconds']
+            time.sleep(max(0, granted_at + interval - time.monotonic()))
 
 
 def _request_rejects_locked_approver_during_authentication(

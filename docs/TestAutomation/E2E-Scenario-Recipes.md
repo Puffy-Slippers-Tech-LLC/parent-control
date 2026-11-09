@@ -3292,6 +3292,14 @@ records Ubuntu qualification of restored prior time/app policy, real native
 denial, unchanged other accounts, exact fault removal and a successful retry.
 The existing deterministic rollback and extension-manager cases remain reused;
 this engineering history supplies no customer scenario acceptance credit.
+Obligation 146's stale-identity recovery belongs to
+`test_authorization._authenticated_request_revalidates_live_state`, within
+`authorization::test_method_role_matrix[ListManagedUsers-parent1]` (system 28).
+The same engineering owner records Ubuntu qualification of stale child-role
+refusal without writes, exact eligibility restoration, a fresh authenticated
+300-second grant on the same caller, unchanged other accounts and owned cleanup.
+Existing deletion/approver/preference assertions remain in that history; retired
+selectors are not restored. This supplies no customer scenario acceptance credit.
 Apply [system reuse](UI-and-E2E-Coverage.md#reuse-of-system-coverage)
 at case, step and acceptance level while keeping the complete public journeys.
 

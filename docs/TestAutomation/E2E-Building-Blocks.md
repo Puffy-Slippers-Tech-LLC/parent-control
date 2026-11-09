@@ -3269,8 +3269,9 @@ and their own earlier activity comparisons; additional app/game bindings remain
 with their owners rather than being assumed from this qualification.
 
 FLOW17 overlay lock uses `request_flow.overlay_authentication(result='lock')` /
-`onpc_request_flow::overlay_lock`, composed by
-`pending_overlay_lock.PendingOverlayLockJourney`.
+`onpc_request_flow::overlay_lock`. Qualification and case 171 compose
+`request_composition.CancelledRequestJourney` with their own session comparison
+endpoints and before/after balance reads; neither imports the other's journey.
 `check_e2e_lock_during_pending_overlay_approval` qualified the fixed Riley/Jamie,
 75-second, soft-included binding on Fedora 44: real pending approval, system lock,
 authenticated return to the same child session, old-prompt absence, unchanged
@@ -6827,6 +6828,12 @@ one mapping before the first live attempt. Changing the declared operation alone
 does not rename the worker's checkpoint; preserve its surface, child and
 independent result through both sides of the exchange.
 
+Give repeated results on the same surface distinct checkpoints too. For example,
+Cancel's desktop return and a later successful approval's desktop return need
+separate names. Check the final merged stage map against the worker sequence;
+reusing a dictionary key can silently replace the earlier result while leaving
+both worker visits intact.
+
 For a composed approval, trace the actual scoped journey prefix and request
 duration through the shared credential binding before the first VM attempt.
 Renaming checkpoints does not authorize that secret route. Use the existing
@@ -6879,6 +6886,12 @@ Receipt mismatch, replay, failed readiness and concurrent observation checks
 belong to those shared owners when affected; they are not a per-case checklist.
 Ordinary case data, assertions and composition run through the actual product
 test, without a synthetic scenario replay or a new test of the test.
+
+For journeys that combine comparison classes, trace the complete cooperative
+constructor chain as well as their result callbacks. Forward an optional keyword
+only when it supplies a value the next constructor supports; passing an unused
+`transport=None` can break an otherwise valid composition before any VM input.
+Keep attached maintenance transport on its existing supported seam.
 
 Complete the selected live acceptance in its declared guarded attempts. Preserve
 immutable comparison endpoints, observation readiness for transient results,

@@ -1339,6 +1339,36 @@ after a product restart.
 
 ## Extend without hiding the scenario
 
+Pending-approval cancellation uses
+`request_composition.CancelledRequestJourney` for immutable session captures and
+elapsed-time-aware unchanged balances with zero grant. Qualification and case
+171 declare their own ordered session endpoints, balance endpoints and elapsed
+budget. Keep subsequent fresh approval and app-access assertions in the case;
+do not inherit a qualification's plan or checkpoint assumptions to reuse its
+comparison mechanics. The workers share `onpc_parent::set_allowance` for Parent
+setup and `onpc_request_flow::overlay_lock` for the pending prompt interruption.
+
+For approval balance comparisons, date the estimate's calculation rather than
+its cached label read. Case 171 and failed-approval histories reuse
+`overlay-fraction-estimate-refresh` and `request_composition._estimate_read_bounds`:
+equivalent public edits preserve the request choices and bracket a fresh
+calculation. Keep the final Parent read as the elapsed-time endpoint and retain
+the existing precision and grant-addition assertions; a larger tolerance does
+not correct an undated estimate.
+
+After lock cancellation, the shared request estimate reader waits through the
+documented advisory unavailability for the form's normal refresh, within its
+existing deadline. It still requires the numeric/midnight estimate; do not
+accept the warning as that result or replay a selector edit to clear it. See
+the [estimate lifecycle](../../docs/SystemDesign/Frontends.md#remaining-time-explanations).
+
+Overlay estimate comparisons also retain the guest clock's seconds until local
+midnight. Native daily time can end there while Parent still displays a larger
+unused daily allowance. Cap only the daily lower bound at that boundary; keep
+the grant's elapsed bound and the independent Parent upper bound. Do not widen
+the tolerance or use the development computer's date/timezone. See the
+[native daily operand](../../docs/SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities).
+
 When composing a named-child observer call, inspect the complete controller-to-guest
 argument list, including padded optional slots. An empty trace-source slot means
 no trace request, as in the named-child Parent toggle; normalize it at the shared

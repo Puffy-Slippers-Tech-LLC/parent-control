@@ -9,7 +9,7 @@ from journey_blocks import (desktop_entry, fresh_desktop, native_blocked_app,
                             prefixed_stages, retained_parent_entry)
 from named_app_set import APPS, named_app_set, saved_rows
 from native_fixtures import fixture_actions
-from pending_overlay_lock import PendingOverlayLockJourney
+from request_composition import CancelledRequestJourney, _estimate_read_bounds
 from private_artifacts import require
 from request_flow import CHOICES, overlay_authentication, overlay_approved_request, prepared_request
 
@@ -36,7 +36,7 @@ SCREENS = {
     'child-session-returned': 'system:child-desktop-identity',
     **prefixed_stages('cancelled-hard', native_blocked_app('H', child='child')),
     **prefixed_stages('cancelled-soft', native_blocked_app('S', child='child')),
-    **overlay_entry('recovery', 'command', form_operation='overlay-valid-fraction-soft-read'),
+    **overlay_entry('recovery', 'command', form_operation='overlay-fraction-estimate-refresh'),
     **overlay_approved_request(exit='automatic', **CHOICES),
     'countdown': 'ui:child-countdown-present',
     **prefixed_stages('approved-hard', native_blocked_app('H', child='child')),
@@ -81,27 +81,29 @@ PLAN = JourneyPlan(
 )
 
 
-class OverlayLockCaseJourney(PendingOverlayLockJourney, AccessChoiceJourney):
+class OverlayLockCaseJourney(CancelledRequestJourney, AccessChoiceJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan, actions=actions)
+        super().__init__(context, progress, plan, actions=actions,
+            session_checks={stage: 'child-session-before' for stage in (
+                'interruption-unlock-session', 'child-session-returned')},
+            balance_check=('allowance-configured', 'balance-returned', 1200))
         self.approval_estimate = None
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
-        if stage == 'child-session-returned':
-            require(observed['system']['session_sha256'] == self.child_session,
-                    'overlay-lock:child-session-replaced')
         if stage == 'recovery-form':
+            _estimate_read_bounds(observed['ui']['valid_choice'], 'overlay-lock:approval-read-bounds')
             self.approval_estimate = deepcopy(observed['ui']['valid_choice'])
         if stage == 'approved-balance':
             after = observed['ui']['time_explanation']
             before = self.approval_estimate
             require(before is not None and after['child'] == before['request']['child'],
                     'overlay-lock:approved-balance-owner')
-            elapsed = (after['observed_monotonic_ns'] - before['observed_monotonic_ns']) / 1e9
+            start, end = _estimate_read_bounds(before, 'overlay-lock:approval-read-bounds')
+            elapsed = (after['observed_monotonic_ns'] - start) / 1e9
             grant = after['one_time']['seconds']
             precision = after['one_time']['precision_seconds'] + before['estimate']['precision_seconds']
-            require(0 <= elapsed <= 600 and grant > 0
+            require(after['observed_monotonic_ns'] >= end and 0 <= elapsed <= 600 and grant > 0
                     and before['estimate']['seconds'] - elapsed - precision <= grant
                     <= before['estimate']['seconds'] + precision,
                     'overlay-lock:approved-time-addition')

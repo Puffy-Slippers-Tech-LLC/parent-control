@@ -18,7 +18,7 @@ def baseline_restoration(args, configured):
     actions = ('reproduce-ineligible-approver', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-baseline-restoration', 'reproduce-natural-access', 'reproduce-natural-expiry',
                'reproduce-countdown-grant', 'reproduce-suspend-active-grant', 'reproduce-suspend-expired-grant', 'reproduce-overlay-activity', 'reproduce-overlay-return',
                'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-native-files', 'reproduce-native-desktop', 'reproduce-native-desktop-new-window', 'reproduce-grant-logout',
-               'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
+               'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-overlay-lock-case',
                'reproduce-panel-request', 'reproduce-app-restart-choices', 'reproduce-reboot-context',
                'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access', 'reproduce-expired-sign-out',
                'reproduce-daily-soft-balance', 'reproduce-versioned-appimage-assets')
@@ -39,7 +39,7 @@ def baseline_restoration(args, configured):
         with store.session():
             if args[0] in ('reproduce-ineligible-approver', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-suspend-active-grant', 'reproduce-suspend-expired-grant', 'reproduce-overlay-return', 'reproduce-system-graphical-expiry', 'reproduce-natural-expiry',
                            'reproduce-native-denial', 'reproduce-native-files', 'reproduce-native-desktop', 'reproduce-native-desktop-new-window', 'reproduce-grant-logout', 'reproduce-match-editor',
-                           'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-panel-request',
+                           'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-overlay-lock-case', 'reproduce-panel-request',
                            'reproduce-app-restart-choices', 'reproduce-reboot-context',
                            'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access', 'reproduce-expired-sign-out',
                            'reproduce-daily-soft-balance', 'reproduce-versioned-appimage-assets'):

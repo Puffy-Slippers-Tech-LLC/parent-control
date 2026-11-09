@@ -187,7 +187,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reproduce-snap-grid', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access', 'probe-native-temporary-access', 'reproduce-flatpak-command', 'probe-flatpak-command',
                                       'reproduce-update-no-action',
                                       'reproduce-native-denial', 'reproduce-native-files', 'reproduce-native-desktop', 'reproduce-native-desktop-new-window', 'probe-native-desktop-new-window', 'reproduce-versioned-appimage-assets', 'reproduce-grant-logout', 'reproduce-match-editor',
-                                      'reproduce-app-rule-return', 'reproduce-revocation-return',
+                                      'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-overlay-lock-case',
                                       'probe-app-rule-return',
                                       'reproduce-overlay-activity', 'probe-overlay-activity',
                                       'reproduce-overlay-return', 'reproduce-panel-request', 'probe-panel-request',
@@ -253,7 +253,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                            'reproduce-suspend-expired-grant',
                            'reproduce-overlay-activity', 'reproduce-overlay-return',
                            'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-native-files', 'reproduce-native-desktop', 'reproduce-native-desktop-new-window', 'reproduce-versioned-appimage-assets', 'reproduce-grant-logout',
-                           'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
+                           'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-overlay-lock-case',
                            'reproduce-panel-request', 'reproduce-app-restart-choices',
                            'reproduce-reboot-context', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access',
                            'reproduce-expired-sign-out', 'reproduce-daily-soft-balance')) != (args.fixture_selection is not None):
@@ -265,7 +265,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                                       'reproduce-suspend-expired-grant',
                                                       'reproduce-overlay-activity', 'reproduce-overlay-return',
                                                       'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-native-files', 'reproduce-native-desktop', 'reproduce-native-desktop-new-window', 'reproduce-versioned-appimage-assets', 'reproduce-grant-logout',
-                                                      'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return',
+                                                      'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-overlay-lock-case',
                                                       'reproduce-panel-request', 'reproduce-app-restart-choices',
                                                       'reproduce-reboot-context', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access',
                                                       'reproduce-expired-sign-out', 'reproduce-daily-soft-balance'):

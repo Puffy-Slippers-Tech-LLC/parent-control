@@ -7,6 +7,7 @@ Only fixed operation names and sanitized results cross the controller boundary.
 """
 
 from contextlib import contextmanager, nullcontext
+from datetime import datetime, timedelta
 from types import MappingProxyType
 import hashlib
 import json
@@ -11440,6 +11441,13 @@ class AccessibleUI:
             if message == ('חישוב הערכת הזמן…' if language == 'he' else
                            '正在估算可用时间…' if chinese else 'Calculating time estimate…'):
                 return None
+            if message == ('הערכת הזמן אינה זמינה' if language == 'he' else
+                           '无法估算时间' if chinese else 'Time estimate unavailable'):
+                # Locking can temporarily make native time unavailable. The
+                # form remains usable and refreshes itself every 30 seconds.
+                # Reacquire only this read within the existing deadline; the
+                # caller still needs a parsed estimate before it can proceed.
+                return None
             prefix = ('יתרת הזמן המשוערת: ' if language == 'he' else
                       '预计剩余时间：' if chinese else 'Estimated remaining time: ')
             # Every duration, including rest of day, first clears the old
@@ -11457,7 +11465,16 @@ class AccessibleUI:
                     if message == 'Request denied' else 'ui:kiosk-estimate')
             return {'kind': 'fixed', **duration_projection(message.removeprefix(prefix), language=language)}
         value = self.wait(estimate, 'kiosk-estimate')
-        return {'request': request, 'estimate': value, 'observed_monotonic_ns': time.monotonic_ns()}
+        result = {'request': request, 'estimate': value, 'observed_monotonic_ns': time.monotonic_ns()}
+        if overlay:
+            # Native daily time cannot extend beyond this local day. Parent's
+            # recorded-use balance can still show the full unused allowance.
+            # Read the guest's public clock; never use the controller's zone.
+            now = time.time()
+            midnight = (datetime.fromtimestamp(now).replace(
+                hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)).timestamp()
+            result['seconds_until_midnight'] = max(0, math.floor(midnight - now))
+        return result
 
     def transfer_choices(self, operation):
         """FLOW12 leaves: fixed child binding, single inputs and independent reads."""

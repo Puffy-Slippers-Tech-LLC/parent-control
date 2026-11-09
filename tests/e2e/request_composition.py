@@ -97,7 +97,14 @@ class KioskRequestJourney(InstalledJourney):
             requested = choice['request']['duration_seconds']
             actual = choice['estimate']['seconds']
             precision = max(self.balance[key]['precision_seconds'] for key in ('daily', 'one_time'))
-            require(max(0, max(daily, grant) - elapsed) + requested - precision <= actual
+            lower = max(0, max(daily, grant) - elapsed)
+            if choice['request'].get('surface', 'kiosk') == 'child-overlay':
+                # Native daily time ends at local midnight; a live one-time
+                # grant can continue past it. Keep the independent Parent
+                # upper bound and the grant's ordinary elapsed lower bound.
+                lower = max(min(max(0, daily - elapsed), choice['seconds_until_midnight']),
+                            max(0, grant - elapsed))
+            require(lower + requested - precision <= actual
                     <= max(daily, grant) + requested + precision, 'kiosk-valid:estimate-bounds')
             if choice['request'].get('surface', 'kiosk') == 'kiosk':
                 require(abs(actual - (max(daily, grant) + requested)) <= precision,
@@ -138,6 +145,56 @@ class KioskRequestJourney(InstalledJourney):
                     'request-transfer:changed-child-choices')
             observed.setdefault('comparison', {})['shared_child_choices_local_approver'] = True
         self.transfer_requests[stage] = request
+
+
+class CancelledRequestJourney(KioskRequestJourney):
+    """Compare caller-owned session and balance endpoints after cancellation."""
+
+    def __init__(self, context, progress, plan, *, session_checks, balance_check, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
+        stages = list(plan.screen_tags)
+        before, after, maximum_elapsed = balance_check
+        require(before in stages and after in stages and stages.index(before) < stages.index(after)
+                and type(maximum_elapsed) is int and maximum_elapsed > 0,
+                'pending-lock:balance-plan')
+        require(bool(session_checks) and all(earlier in stages and later in stages
+                and stages.index(earlier) < stages.index(later)
+                and plan.screen_tags[earlier] == plan.screen_tags[later]
+                == 'system:child-desktop-identity'
+                for later, earlier in session_checks.items()), 'pending-lock:session-plan')
+        self.session_checks = dict(session_checks)
+        self.session_captures = {}
+        self.balance_check = (before, after, maximum_elapsed)
+        self.original_balance = None
+
+    def check_settings(self, stage, observed):
+        if stage in self.session_checks or stage in self.session_checks.values():
+            require(stage not in self.session_captures, 'pending-lock:session-replay')
+            identity = observed['system']['session_sha256']
+            if stage in self.session_checks:
+                earlier = self.session_checks[stage]
+                require(earlier in self.session_captures and self.session_captures[earlier] == identity,
+                        'pending-lock:child-session-replaced')
+            self.session_captures[stage] = identity
+        before_stage, after_stage, maximum_elapsed = self.balance_check
+        if stage == after_stage:
+            before = self.original_balance
+            after = observed['ui']['time_explanation']
+            require(before is not None and after['child'] == before['child'],
+                    'pending-lock:balance-owner')
+            elapsed = (after['observed_monotonic_ns'] - before['observed_monotonic_ns']) / 1e9
+            require(0 <= elapsed <= maximum_elapsed, 'pending-lock:balance-elapsed')
+            require(after['one_time']['seconds'] == 0, 'pending-lock:unexpected-grant')
+            for key in ('daily', 'total'):
+                precision = before[key]['precision_seconds'] + after[key]['precision_seconds']
+                require(max(0, before[key]['seconds'] - elapsed) - precision
+                        <= after[key]['seconds'] <= before[key]['seconds'] + precision,
+                        'pending-lock:changed-balance')
+        super().check_settings(stage, observed)
+        if stage == before_stage:
+            self.original_balance = deepcopy(observed['ui']['time_explanation'])
+        if stage == after_stage:
+            observed.setdefault('comparison', {})['unchanged_balances_allowing_elapsed_time'] = True
 
 
 class GrantAppEffectsJourney(KioskRequestJourney, AccessChoiceJourney):

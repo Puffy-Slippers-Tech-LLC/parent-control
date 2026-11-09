@@ -15,7 +15,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **275 — [E2E-049: native-desktop-child-overlay](E2E-Tasks/275-case-233.md)**.
+Next task: **126p — [Prepare the declared offline game in the baseline](E2E-Tasks/126p-game-fixture.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

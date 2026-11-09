@@ -190,6 +190,16 @@ implemented and qualified; these rules do not qualify additional distros or DEs.
 | Establish absence or closure | Use a complete, current observation scoped to the required owner/surface and the earlier activity identity when testing closure. An unavailable observer, incomplete list, timeout or generic launch error cannot prove absence or policy denial. Do not inventory unrelated desktop contents. |
 | Observe a short-lived result | Ready the shared observer before the triggering action and await the actual owned result. Use the existing trace lifecycle only when the assertion concerns an interval or a transient that snapshots cannot establish; preserve gap detection and secret sealing. Persistent results need no pre-entry trace. |
 
+All three plans use the shared
+[countdown comparison allowances](E2E-Building-Blocks.md#child-desktop-countdown-qualification).
+Apply the ordinary sampling and display margins to balance readback instead of
+requiring exact seconds or rejecting every upward refresh. Select finer public
+observations for a case that measures a small increment or elapsed interval;
+predeclare a margin that still distinguishes the required effect. Diagnostic
+stress inputs do not extend a customer task's acceptance scope, and differences
+inside its declared allowance pass. Keep deliberately injected fault histories
+in their existing engineering owners, following the test scope mandate.
+
 Recipes retain real elapsed-time inputs: delayed approval, natural expiry,
 cooldown, refresh intervals and calendar transitions. Their start/end public
 observations and finite bounds remain distinct from the functional budgets in

@@ -1,4 +1,4 @@
-"""Cases 231/232/236/238: three approvals replace temporary native app access."""
+"""Cases 231/232/233/236/238: three approvals replace temporary native app access."""
 from accessible_ui import (KIOSK_BOUND_OPERATIONS, MATCH_APPS, NAMED_CHILD_OPERATIONS,
                            OVERLAY_BOUND_OPERATIONS)
 from access_choices import AccessChoiceJourney
@@ -10,6 +10,7 @@ from native_fixtures import fixture_actions
 from private_artifacts import require
 from request_composition import KioskRequestJourney
 from request_flow import approval_and_return
+from synthetic_files import desktop_entry_actions
 from ui_observations import SettingsObservation
 
 
@@ -22,8 +23,14 @@ REQUESTS = {'first': ('other-child', 'parent', 30, False),
 
 def temporary_access_plan(surface, route='grid'):
     require(surface in ('overlay', 'kiosk'), 'temporary-access:surface')
-    require(route == 'grid' or route in ('command', 'files') and surface == 'kiosk',
+    require(route == 'grid' or route == 'desktop' and surface == 'overlay'
+            or route in ('command', 'files') and surface == 'kiosk',
             'temporary-access:route')
+    def launch(role, usable=False):
+        stages = (native_usable_app(route, role=None if role == 'A' else role) if usable
+                  else native_blocked_app(role, route=route))
+        return ({'place': 'ui:standard-desktop', **stages, 'cleanup': 'ui:standard-desktop'}
+                if route == 'desktop' else stages)
     screens = app_policy_entry(child='existing', initial_rows=False,
                                allowance='time-explanation-setup-thirty-read')
     access = {}
@@ -35,12 +42,12 @@ def temporary_access_plan(surface, route='grid'):
     screens.update({
         **desktop_return('leave-parent', account='parent'),
         **prefixed_stages('initial', desktop_entry('other-child', source='gdm', entry='fresh')),
-        **prefixed_stages('allowed', native_usable_app(route)),
+        **prefixed_stages('allowed', launch('A', True)),
         **({'allowed-dismiss': 'ui:native-files-allowed-dismiss'} if route == 'files' else {}),
         'allowed-capture': 'ui:native-policy-activity',
-        **prefixed_stages('initial-hard', native_blocked_app('H', route=route)),
+        **prefixed_stages('initial-hard', launch('H')),
         **({'initial-hard-dismiss': 'ui:native-files-hard-dismiss'} if route == 'files' else {}),
-        **prefixed_stages('initial-soft', native_blocked_app('S', route=route)),
+        **prefixed_stages('initial-soft', launch('S')),
         **({'initial-soft-dismiss': 'ui:native-files-soft-dismiss'} if route == 'files' else {})})
     step2 = len(screens)
     activities, countdowns, bindings, entries = {}, {}, {}, {}
@@ -60,15 +67,15 @@ def temporary_access_plan(surface, route='grid'):
             'allowed-submit': 'ui:native-resubmit',
             'allowed-submitted': 'ui:native-submitted',
             'allowed-original': 'ui:native-policy-activity',
-            **prefixed_stages('hard', native_blocked_app('H', route=route)),
+            **prefixed_stages('hard', launch('H')),
             **({'hard-dismiss': 'ui:native-files-hard-dismiss'} if route == 'files' else {}),
             **({**({'soft-desktop': 'ui:standard-desktop'} if route == 'files' else {}),
-                **prefixed_stages('soft', native_usable_app(route, role='S',
-                                  desktop_observation=route != 'files')),
+                **prefixed_stages('soft', launch('S', True) if route == 'desktop' else
+                    native_usable_app(route, role='S', desktop_observation=route != 'files')),
                 **({'soft-dismiss': 'ui:native-files-soft-dismiss'} if route == 'files' else {}),
                 'soft-capture': 'ui:native-files-soft-policy-activity' if route == 'files'
                                 else 'ui:native-policy-soft-activity'} if soft else
-               prefixed_stages('soft', native_blocked_app('S', route=route))),
+               prefixed_stages('soft', launch('S'))),
             **({'soft-dismiss': 'ui:native-files-soft-dismiss'}
                if route == 'files' and not soft else {}),
         }
@@ -93,15 +100,18 @@ def temporary_access_plan(surface, route='grid'):
         access['final-' + name + '-row'] = (MATCH_APPS[role], choice)
     login_stages = {prefix + stage for account, prefix in logins.values() for stage in fresh_desktop(account)}
     return JourneyPlan(
-        prefix=f'native-{route}-kiosk-temporary-access' if surface == 'kiosk' else 'native-grid-temporary-access',
-        worker_mode=f'native_{route}_kiosk_temporary_access' if surface == 'kiosk' else 'native_grid_temporary_access',
+        prefix=f'native-{route}-kiosk-temporary-access' if surface == 'kiosk' else f'native-{route}-temporary-access',
+        worker_mode=f'native_{route}_kiosk_temporary_access' if surface == 'kiosk' else f'native_{route}_temporary_access',
         screen_tags=screens,
         phases={'ready': 'setup', 'setup-detached': 'setup',
                 **{stage: 'step-1' if index < step2 else 'step-2' if index < step3 else 'step-3'
                    for index, stage in enumerate(screens)}, 'installed-greeter': 'start'},
-        advance_after={f'initial-soft-{"dismiss" if route == "files" else "denied" if route == "grid" else "command"}': 'step-2',
-                       f'replacement-soft-{"dismiss" if route == "files" else "denied" if route == "grid" else "command"}': 'step-3'},
-        stage_actions={'desktop': 'native-verify'},
+        advance_after={f'initial-soft-{"cleanup" if route == "desktop" else "dismiss" if route == "files" else "denied" if route == "grid" else "command"}': 'step-2',
+                       f'replacement-soft-{"cleanup" if route == "desktop" else "dismiss" if route == "files" else "denied" if route == "grid" else "command"}': 'step-3'},
+        stage_actions={'desktop': 'native-verify',
+            **({stage: 'desktop-' + ('A' if stage.startswith('allowed-') else
+                                    'H' if '-hard-' in stage else 'S') + '-' + stage.rsplit('-', 1)[1]
+                for stage in screens if stage.endswith(('-place', '-cleanup'))} if route == 'desktop' else {})},
         child_bindings={stage: 'existing' for stage, tag in screens.items()
                         if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
         settings_checks={
@@ -123,6 +133,7 @@ def temporary_access_plan(surface, route='grid'):
 
 
 PLAN = temporary_access_plan('overlay')
+DESKTOP_PLAN = temporary_access_plan('overlay', 'desktop')
 KIOSK_PLAN = temporary_access_plan('kiosk')
 COMMAND_KIOSK_PLAN = temporary_access_plan('kiosk', 'command')
 FILES_KIOSK_PLAN = temporary_access_plan('kiosk', 'files')
@@ -150,6 +161,15 @@ def execute_kiosk(recorder, context):
         actions=fixture_actions(include_refusal=False), journey_type=TemporaryAccessJourney)
 
 
+def execute_desktop(recorder, context):
+    actions = fixture_actions(include_refusal=False)
+    for role in ('A', 'H', 'S'):
+        actions.update({'desktop-' + role + '-' + name.removeprefix('desktop-'): action
+                        for name, action in desktop_entry_actions(role=role).items()})
+    record_installed_journey(recorder, context, DESKTOP_PLAN, timeout=1800,
+        actions=actions, journey_type=TemporaryAccessJourney)
+
+
 def execute_command_kiosk(recorder, context):
     record_installed_journey(recorder, context, COMMAND_KIOSK_PLAN, timeout=1800,
         actions=fixture_actions(include_refusal=False), journey_type=TemporaryAccessJourney)
@@ -161,5 +181,6 @@ def execute_files_kiosk(recorder, context):
 
 
 E2E_CASES = {'native-grid-child-overlay': execute, 'native-grid-kiosk': execute_kiosk,
+             'native-desktop-child-overlay': execute_desktop,
              'native-command-kiosk': execute_command_kiosk,
              'native-file-manager-kiosk': execute_files_kiosk}

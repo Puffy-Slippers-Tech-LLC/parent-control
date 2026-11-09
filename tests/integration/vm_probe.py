@@ -1450,6 +1450,19 @@ def reproduce_native_temporary_access(lease, fixture_selection):
         boundary_operation='native-soft-command-launch', fixture_selection=selection, timeout=1800)
 
 
+def reproduce_native_desktop_access(lease, fixture_selection):
+    """Retain Jordan's first desktop approval before its countdown comparison."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from native_temporary_access import TemporaryAccessJourney, DESKTOP_PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, TemporaryAccessJourney, DESKTOP_PLAN,
+        'first-countdown', 'native-desktop-access', assets=assets,
+        boundary_operation='child-countdown-present', fixture_selection=selection, timeout=1800)
+
+
 TIMER_TRACE = '''import hashlib,json,os,pathlib,signal,time
 from gi.repository import Gio,GLib
 boot=lambda:hashlib.sha256(pathlib.Path('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest()
@@ -1825,6 +1838,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             from flatpak_temporary_access import TemporaryAccessJourney, GRID_PLAN
         if surface == 'native-temporary-access':
             from native_temporary_access import TemporaryAccessJourney as NativeTemporaryAccessJourney, COMMAND_KIOSK_PLAN
+        if surface == 'native-desktop-access':
+            from native_temporary_access import TemporaryAccessJourney as NativeDesktopAccessJourney, DESKTOP_PLAN as NATIVE_DESKTOP_ACCESS_PLAN
         from app_restart_expired import AppRestartExpiredJourney, SIGN_OUT_PLAN
         from daily_soft_expiry import DailySoftExpiryJourney, PLAN as DAILY_SOFT_PLAN
         if surface == 'versioned-appimage-assets':
@@ -1909,6 +1924,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         native_temporary_access = (surface == 'native-temporary-access'
             and journey_type is NativeTemporaryAccessJourney and plan is COMMAND_KIOSK_PLAN
             and boundary == 'included-soft-command' and boundary_operation == 'native-soft-command-launch')
+        native_desktop_access = (surface == 'native-desktop-access'
+            and journey_type is NativeDesktopAccessJourney and plan is NATIVE_DESKTOP_ACCESS_PLAN
+            and boundary == 'first-countdown' and boundary_operation == 'child-countdown-present')
         expired_sign_out = (surface == 'expired-sign-out'
             and journey_type is AppRestartExpiredJourney and plan is SIGN_OUT_PLAN
             and boundary == 'boundary-child-gdm-logged-out'
@@ -1919,7 +1937,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         versioned_assets = (surface == 'versioned-appimage-assets'
             and journey_type is VersionedAppImageAssetsJourney and plan is VERSIONED_ASSETS_PLAN
             and boundary == 'logout' and boundary_operation == 'system:parent-logout')
-        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or expired_sign_out or daily_soft_balance or versioned_assets)
+        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or app_rule_return or revocation_return or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or native_desktop_access or expired_sign_out or daily_soft_balance or versioned_assets)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -1962,7 +1980,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if selected_setup:
             from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS
             context.fixture_selection = fixture_selection
-            context.fixture_subsets = ('native',) if surface in ('ineligible-approver', 'remove-selected', 'remove-last-child', 'native-denial', 'native-files', 'native-desktop-new-window', 'versioned-appimage-assets', 'grant-logout', 'match-editor', 'flatpak-grid', 'flatpak-temporary-access', 'native-temporary-access') else ACTIVITY_SUBSETS
+            context.fixture_subsets = ('native',) if surface in ('ineligible-approver', 'remove-selected', 'remove-last-child', 'native-denial', 'native-files', 'native-desktop-new-window', 'versioned-appimage-assets', 'grant-logout', 'match-editor', 'flatpak-grid', 'flatpak-temporary-access', 'native-temporary-access', 'native-desktop-access') else ACTIVITY_SUBSETS
             context.fixture_caller = ({'ineligible-approver': None, 'remove-selected': None, 'remove-last-child': None, 'native-denial': None, 'flatpak-grid': None,
                                        'native-files': None,
                                        'native-desktop': 'E2E-019/native-desktop-allowed-enabled',
@@ -1970,6 +1988,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                                        'versioned-appimage-assets': None,
                                        'flatpak-temporary-access': None,
                                        'native-temporary-access': None,
+                                       'native-desktop-access': None,
                                        'app-rule-return': 'E2E-006/disabled-pattern',
                                        'revocation-return': 'E2E-007/zero-single',
                                        'match-editor': None,
@@ -2018,6 +2037,17 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
 
             def _step(self, guard):
                 stage = self.plan.stages[len(self.steps)]
+                if (surface == 'native-desktop-access' and stage == 'installed-greeter'
+                        and (directory / (stage + '.request.json')).exists()
+                        and not getattr(self, 'diagnostic_greeter_restarted', False)):
+                    transport.call(['/usr/bin/systemctl', 'restart', 'gdm'], timeout=60)
+                    self.diagnostic_greeter_restarted = True
+                    guard()
+                    # A restart can replace the greeter account. Reacquire its
+                    # usable read-only surface before any account navigation.
+                    from ui_observations import UiObservations
+                    UiObservations(transport).observe('gdm-returned')
+                    guard()
                 if (capture is not None and stage == 'retained-recipient-qualified'
                         and (directory / (stage + '.request.json')).exists()):
                     # Capture is ready before either fresh credential proof.
@@ -2081,6 +2111,13 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             from native_fixtures import fixture_actions
             from synthetic_files import desktop_entry_actions
             actions = {**fixture_actions(include_refusal=False), **desktop_entry_actions(role='S')}
+        if surface == 'native-desktop-access':
+            from native_fixtures import fixture_actions
+            from synthetic_files import desktop_entry_actions
+            actions = fixture_actions(include_refusal=False)
+            for role in ('A', 'H', 'S'):
+                actions.update({'desktop-' + role + '-' + name.removeprefix('desktop-'): action
+                                for name, action in desktop_entry_actions(role=role).items()})
         if surface in ('match-editor', 'panel-request', 'app-restart-choices', 'reboot-context', 'native-temporary-access'):
             from native_fixtures import fixture_actions
             actions = fixture_actions(include_refusal=False)
@@ -2163,7 +2200,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             with (kiosk_native_evidence(lease, transport, directory) if native_log else nullcontext()), (
                     memory_samples(lease, transport, directory) if surface == 'grant-logout' else nullcontext()), (
                     timer_trace(lease, transport, directory)
-                    if surface == 'flatpak-temporary-access' else nullcontext()):
+                    if surface in ('flatpak-temporary-access', 'native-desktop-access') else nullcontext()):
                 result = e2e_worker.run_distribution(directory, lease, system.RunLedger(),
                     expected_inputs=expected_inputs, observe=lambda: None, validate=validate,
                     guarded_observe=observe, credentials=credentials, maintenance=True, timeout=timeout)

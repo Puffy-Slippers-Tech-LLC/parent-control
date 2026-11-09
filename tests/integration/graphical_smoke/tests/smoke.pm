@@ -1051,18 +1051,21 @@ sub run {
         return;
     }
     if ($ready->{flatpak_temporary_access} || $ready->{flatpak_grid_temporary_access}
-            || $ready->{native_grid_temporary_access} || $ready->{native_grid_kiosk_temporary_access}
+            || $ready->{native_grid_temporary_access} || $ready->{native_desktop_temporary_access}
+            || $ready->{native_grid_kiosk_temporary_access}
             || $ready->{native_command_kiosk_temporary_access} || $ready->{native_files_kiosk_temporary_access}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_request_flow::flatpak_temporary_access(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
             $ready->{flatpak_grid_temporary_access} || $ready->{native_grid_temporary_access}
                 || $ready->{native_grid_kiosk_temporary_access} ? 'grid'
+                : $ready->{native_desktop_temporary_access} ? 'desktop'
                 : $ready->{native_files_kiosk_temporary_access} ? 'files' : 'command',
             $ready->{native_grid_temporary_access} || $ready->{native_grid_kiosk_temporary_access}
                 || $ready->{native_command_kiosk_temporary_access}
-                || $ready->{native_files_kiosk_temporary_access} ? 'native' : 'flatpak',
-            $ready->{native_grid_temporary_access} || $ready->{flatpak_grid_temporary_access} ? 'overlay' : 'kiosk');
+                || $ready->{native_files_kiosk_temporary_access} || $ready->{native_desktop_temporary_access} ? 'native' : 'flatpak',
+            $ready->{native_grid_temporary_access} || $ready->{flatpak_grid_temporary_access}
+                || $ready->{native_desktop_temporary_access} ? 'overlay' : 'kiosk');
         return;
     }
     if ($ready->{flatpak_retained_work}) {

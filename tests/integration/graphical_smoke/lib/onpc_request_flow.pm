@@ -367,11 +367,12 @@ sub flatpak_temporary_access {
         && ($kind eq 'flatpak' && ($route eq 'command' && $surface eq 'kiosk'
                                   || $route eq 'grid' && $surface eq 'overlay')
             || $kind eq 'native' && ($route eq 'grid' && ($surface eq 'overlay' || $surface eq 'kiosk')
+                                    || $route eq 'desktop' && $surface eq 'overlay'
                                     || ($route eq 'command' || $route eq 'files') && $surface eq 'kiosk'));
     my $seconds = $kind eq 'native' ? 30 : 300;
     my $journey = onpc_journey->new(exchange => $exchange,
         prefix => $kind eq 'native' ? ($surface eq 'kiosk' ? "native-$route-kiosk-temporary-access"
-                                                                       : 'native-grid-temporary-access')
+                                                                       : "native-$route-temporary-access")
             : $route eq 'grid' ? 'flatpak-grid-temporary-access' : 'flatpak-temporary-access', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
@@ -383,11 +384,22 @@ sub flatpak_temporary_access {
     onpc_desktop_session::switch_user($leaving, $leaving->seen('desktop'));
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'initial');
     my $allowed = $journey->scope('allowed');
+    $allowed->seen('place') if $route eq 'desktop';
     onpc_app_rows::native_usable_app($allowed, $route, $allowed->seen('desktop'), 'other-child',
                                    $kind eq 'native' ? undef : 'A', $kind);
+    $allowed->seen('cleanup') if $route eq 'desktop';
     $journey->seen('allowed-dismiss') if $route eq 'files';
     $journey->seen('allowed-capture');
-    my $blocked = $kind eq 'native' ? \&onpc_app_rows::native_blocked_app : \&onpc_app_rows::flatpak_blocked_app;
+    my $blocked = sub {
+        my ($section, $role, $launch_route) = @_;
+        $section->seen('place') if $launch_route eq 'desktop';
+        if ($kind eq 'native') {
+            onpc_app_rows::native_blocked_app($section, $role, $launch_route);
+        } else {
+            onpc_app_rows::flatpak_blocked_app($section, $role, $launch_route);
+        }
+        $section->seen('cleanup') if $launch_route eq 'desktop';
+    };
     $blocked->($journey->scope('initial-hard'), 'H', $route);
     $journey->seen('initial-hard-dismiss') if $route eq 'files';
     $blocked->($journey->scope('initial-soft'), 'S', $route);
@@ -419,8 +431,10 @@ sub flatpak_temporary_access {
         $request->seen('hard-dismiss') if $route eq 'files';
         if ($soft) {
             my $activity = $request->scope('soft');
+            $activity->seen('place') if $route eq 'desktop';
             onpc_app_rows::native_usable_app($activity, $route, $activity->seen('desktop'),
                                            'other-child', 'S', $kind);
+            $activity->seen('cleanup') if $route eq 'desktop';
             $request->seen('soft-dismiss') if $route eq 'files';
             $request->seen('soft-capture');
         } else {
@@ -639,7 +653,7 @@ sub shell_approve {
                 && $exit eq 'automatic'
             || ($journey->{prefix} // '') =~ /\Adelayed-approval-(?:first|second)\z/
                 && ref($journey->{overlay_request}) eq 'ARRAY' && $exit eq 'automatic'
-            || ($journey->{prefix} // '') =~ /\A(?:flatpak|native)-grid-temporary-access-(?:first|included|replacement)\z/
+            || ($journey->{prefix} // '') =~ /\A(?:flatpak-grid|native-(?:grid|desktop))-temporary-access-(?:first|included|replacement)\z/
                 && ref($journey->{overlay_request}) eq 'ARRAY' && $exit eq 'automatic'
             || ($journey->{prefix} // '') eq 'baseline-journey-overlay-approval'
                 && $exit eq 'immediate')

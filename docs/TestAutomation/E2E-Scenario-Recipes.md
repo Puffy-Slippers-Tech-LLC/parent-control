@@ -294,7 +294,13 @@ D and G are displayed daily and grant balances; R is the requested duration.
 Record their display precision and elapsed navigation time. For a fixed request,
 the new usable interval is max(D,G)+R minus elapsed time; do not add D and G.
 Compare bounded intervals using one display unit per observation plus measured
-elapsed time. If bounds overlap so widely that an incorrect result would pass,
+elapsed time and the shared
+[balance sampling allowance](E2E-Building-Blocks.md#child-desktop-countdown-qualification).
+Small upward refreshes inside that interval pass; do not compare a later
+countdown to an earlier estimate with exact equality. For an explicitly measured
+small addition or decision delay, choose sufficiently precise public operands
+and a declared margin that can distinguish the required effect. If bounds
+overlap so widely that an incorrect result would pass,
 choose a more precise public display or retain the assertion as unqualified.
 Large durations test selection and displayed arithmetic without waiting to expire.
 
@@ -2253,6 +2259,12 @@ those station cases.
 
 The native grid/child-overlay binding uses `native_temporary_access.PLAN`; the
 native grid/station binding uses the same module's `KIOSK_PLAN` / `execute_kiosk`.
+The native desktop/child-overlay binding uses `DESKTOP_PLAN` / `execute_desktop`.
+It places one trusted A, H or S desktop entry per launch and removes that entry
+after the independently observed result. H/S retain their distinct executable
+and secondary window, preserving A's original activity. The same guarded DING
+icon selection/Enter route proves each launch and a 15-second complete window
+absence proves denial; no launcher-visibility assertion is added.
 The native command/station binding uses `COMMAND_KIOSK_PLAN` /
 `execute_command_kiosk`, with the same finite approvals and app assertions.
 The native Files/station binding uses `FILES_KIOSK_PLAN` /
@@ -2329,6 +2341,9 @@ their stable case IDs must not be reused.
  request of at least five minutes and adds no further sampling or rounding
  allowance. The developer explicitly selected this coarser comparison on
  2026-11-06; the app effects and authentication results remain required.
+ Native bindings use the shared one-minute sampling allowance, display
+ precision and real elapsed time; a small upward refresh within those bounds
+ passes. Artificial stress inputs are not part of these app-access journeys.
  Every row requires fresh authentication in a real prompt identifying the
  selected approver, including Jamie's later repeat. Initial exclusion keeps
  S unavailable; inclusion opens S and records a new activity; replacement

@@ -9,6 +9,7 @@ from watch_activity import operation
 
 NATIVE_PROFILES = ('native-space', 'native-comma', 'native-version-next', 'native-version-nonmatch')
 DESKTOP_PROFILES = {'native-desktop': 'onpc-child-jordan',
+                    'native-desktop-hard': 'onpc-child-jordan',
                     'native-desktop-soft': 'onpc-child-jordan',
                     'native-desktop-riley': 'onpc-child-riley'}
 
@@ -108,13 +109,13 @@ class SyntheticFiles:
 def desktop_entry_actions(*, child='other-child', role='A'):
     """Finite FILE05 desktop-entry binding shared by cases and qualifications."""
     require(child in ('other-child', 'child') and (role == 'A'
-            or role == 'S' and child == 'other-child'), 'files:desktop-child')
+            or role in ('H', 'S') and child == 'other-child'), 'files:desktop-child')
     def place(journey, guard):
         guard()
         require(not hasattr(journey, 'desktop_entry_files'), 'files:desktop-replay')
         source = 'fixtures/native-launchers/com.puffyslippers.ONPCTest.' + role + '.desktop'
         controller = SyntheticFiles(journey.transport,
-            'native-desktop-soft' if role == 'S' else
+            'native-desktop-hard' if role == 'H' else 'native-desktop-soft' if role == 'S' else
             'native-desktop' if child == 'other-child' else 'native-desktop-riley', expected={
             'source': journey.native_fixtures.receipt['files'][source]['sha256']})
         journey.desktop_entry_files = controller

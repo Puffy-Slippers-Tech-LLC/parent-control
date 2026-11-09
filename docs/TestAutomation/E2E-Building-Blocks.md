@@ -2773,13 +2773,35 @@ progression, restoration and natural expiry remain separate.
 `countdown.check_countdown_balance` takes explicit public seconds, precision
 and monotonic timestamp. Allow at most 180 real elapsed seconds, reported
 precision (one second in this qualifier), minute flooring above 60 seconds and
-30 seconds of estimate/sampling tolerance by default. The developer explicitly
+60 seconds of estimate/sampling tolerance by default. The developer explicitly
 extended this allowance to all balance-to-countdown comparisons; a caller may
 declare a smaller `sampling_seconds` value. Historical qualifications used two
 seconds. This does not change countdown-progress tolerances, original expiry
 deadlines or required denied-access results. No private clock/usage/grant/policy
 manipulation supplies results. Independently repeated desktop reads and
 wrong-account refusal require no observer preparation/input.
+
+Apply this balance comparison to remaining tasks in all three execution plans.
+A native refresh may move the displayed balance slightly in either direction;
+an increase within the declared comparison interval passes. In particular, a
+ten-second refresh difference is within the ordinary one-minute sampling
+allowance. Do not add exact equality, a separate always-decreasing assertion or
+a second raw-seconds comparison that rejects a result accepted by the shared
+interval check. Declare any smaller allowance before execution only when the
+case specifically measures that finer behavior and its public observations can
+distinguish it reliably. Keep both reads' precision and actual elapsed time.
+
+Ordinary balance readback, measured active progression, approval arithmetic and
+expiry have different purposes. Choose the public observation and margin for
+that purpose: a coarse comparison must not hide a missing requested increment,
+and a sampling allowance must not move the original enforcement deadline.
+Ready observers before short measured events and give later navigation and
+result collection their own functional budgets. Synthetic contention or an
+oversized diagnostic input establishes only the behavior actually reproduced;
+it adds no stress requirement to a normal customer case. A diagnostic difference
+within that case's allowance is not an acceptance failure or a reason to add a
+product workaround. Explicit engineering fault/recovery obligations retain
+their own finite inputs and assertions under the test scope mandate.
 
 The original installed provider tuple is Ubuntu 26.04, Shell
 `50.1-0ubuntu1.2`, GDM `50.1-0ubuntu0.1`, `en_US.UTF-8`, `[["xkb", "us"]]`.
@@ -4664,6 +4686,18 @@ The DING tuple remains `50.26.04.8ubuntu`, `en_US.UTF-8`, `xkb/us`.
 This qualifies APP01/02/03 for these precise policy results; other children,
 icon populations, temporary approval and complete customer cases remain separate.
 
+Case 233 (`native_temporary_access.DESKTOP_PLAN` / `execute_desktop`) passed on
+Ubuntu 26.04 in run `645c89c728694094946485d077849a7e`. Jordan's A/H/S desktop
+launches use one trusted entry per attempt, with H/S secondary windows preserving
+A's original work. Jamie/exclude, Sam/include and Jamie/exclude approvals verified
+each real approver, the countdown comparison, S denial/use/captured closure,
+retained A work, fresh H denial and unchanged saved choices. The affected
+`check_e2e_native_desktop_usable` qualification and app-grid case 231 passed in
+`80c214926c53479d898ec8b04197990e` and `3c9fda15dc374ec68b50582e03a32701`.
+Collection, worker/callback closure, owned entry cleanup and baseline restoration
+passed. This qualifies the declared child-overlay temporary-access binding;
+other children and icon populations remain separate.
+
 #### Native launch denial qualification
 
 Task 079d's `native_denial.PLAN` / `NativeDenialJourney`,
@@ -5623,7 +5657,7 @@ Generic pointer, image, positional and graphical-reattachment routes remain reti
 | Portal/Nautilus chooser | `chooser_snapshot` plus `validate_chooser_portal_owner` bind unique modal and sole delegated D-Bus request. Missing/ambiguous/replaced/contradictory relations refuse. Imported Wayland parents need no GTK CONTROLLED_BY. Scoped Close cancels portal; native GTK uses Cancel; `button`/`push button` roles supported. Parent Open/Cancel qualified on `1:50.2.2-0ubuntu0.1` and `1:50.2.2-0ubuntu0.2`, `en_US.UTF-8`, `xkb/us`; named Save/Cancel, unwritable-save recovery and export on `1:50.2.2-0ubuntu0.2`, caller `parent-feedback`. Save restores collapsed `filename_label` before exact-name proof. [Handoff](#attachment-chooser-handoff). | Fixed Parent Open/Cancel, Save/Cancel, save-error recovery and FEED08 export ready; other profiles/tuples pending. |
 | Document viewer | `license_viewer_snapshot`/`check_e2e_license_viewer`: Ubuntu 26.04 Text Editor `50.1-0ubuntu0.1`, `en_US.UTF-8`, `[["xkb", "us"]]`. Owned active viewer, bounded GPL content, close/absence and unchanged caller state; ambiguous/unrelated/hidden content refuses. [DESK10](#same-desktop-window-activation) additionally covers direct LICENSE launch/repeated activation. | DESK10 only; About links and FILE08/FEED08 inspection require no viewer. |
 | Terminal; Settings Users/Date & Time | Retired supporting GUI routes. Fixed guarded commands own files, account fixtures and date/time reads; observe product effects independently. | FILE01/02/06, INFO02, ACCOUNT01/02, AUTH04, TIME05 helpers; no Terminal GUI consumer. |
-| DING desktop icons | Ubuntu 26.04 DING `50.26.04.8ubuntu`, `en_US.UTF-8`, `xkb/us`: `native_desktop_snapshot` / `native_desktop_operation`, `native_usable_app('desktop')` and `check_e2e_native_desktop_usable` qualify exact owner/icon focus, sole selection, Enter activation and independently usable work. `native_desktop_new_window` / `check_e2e_native_desktop_new_window` add Jordan's same-S primary/secondary windows with retained original work and normal panel-cycle navigation. `native_blocked_app('A', route='desktop')` / `check_e2e_native_desktop_route` add captured closure and desktop relaunch denial after precise Hard/Soft saves. [Exact scope](#native-desktop-entry-and-usable-launch). | Jordan's and Riley's sole ordinary Allowed fixture entry and APP01/02/03/FLOW08 use, Jordan's same-S desktop second window and APP04 original-work comparison, and Jordan's precise A Hard/Soft closure and desktop denial ready; other children, icon populations and temporary-access bindings pending. |
+| DING desktop icons | Ubuntu 26.04 DING `50.26.04.8ubuntu`, `en_US.UTF-8`, `xkb/us`: `native_desktop_snapshot` / `native_desktop_operation`, `native_usable_app('desktop')` and `check_e2e_native_desktop_usable` qualify exact owner/icon focus, sole selection, Enter activation and independently usable work. `native_desktop_new_window` / `check_e2e_native_desktop_new_window` add Jordan's same-S primary/secondary windows with retained original work and normal panel-cycle navigation. `native_blocked_app('A', route='desktop')` / `check_e2e_native_desktop_route` add captured closure and desktop relaunch denial after precise Hard/Soft saves. `native_temporary_access.DESKTOP_PLAN` / `execute_desktop` add Jordan's three-approval A/H/S child-overlay history. [Exact scope](#native-desktop-entry-and-usable-launch). | Jordan's and Riley's sole ordinary Allowed fixture entry and APP01/02/03/FLOW08 use, Jordan's same-S desktop second window and APP04 original-work comparison, Jordan's precise A Hard/Soft closure and desktop denial, and Jordan's A/H/S desktop/child-overlay temporary-access sequence ready; other children and icon populations pending. |
 | Nautilus Files | Qualify only the tested file-manager enforcement launch; supporting file preparation uses commands. | FILE04/declared APP01/02 routes individually gated. |
 | File Roller | No GUI consumer; bounded FILE08 archive API reads customer exports. | FILE08/FEED08 readers ready; no archive viewer needed. |
 | Registered editor | Direct handler launch only for declared preview/information integration or retained-work activity. Source mutation/export reads use FILE05/08/09. | FILE08 work/APP03/04; no FEED08 viewer dependency. |

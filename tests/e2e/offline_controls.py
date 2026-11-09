@@ -2,8 +2,7 @@
 from copy import deepcopy
 
 from private_artifacts import require
-from vm_internet import InternetIsolation
-from vm_internet_qualification import internet_result
+from vm_internet import InternetIsolation, internet_result
 from watch_activity import operation
 
 

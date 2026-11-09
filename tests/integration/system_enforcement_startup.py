@@ -14,7 +14,7 @@ import tempfile
 import time
 
 import system_guest as guest
-from product_logs import read_component
+from product_logs import read_events
 from system_assertions import accepted, account_state, call
 from system_removal_faults import Fault, WITNESS, identity, mounted_fault
 
@@ -88,11 +88,7 @@ def verify_broker_reconciliation(record):
     guest.run(['systemctl', 'stop', guest.BROKER])
     healthy = gate('before')
 
-    def broker_events():
-        return [json.loads(line) for line in read_component('broker').splitlines()
-                if line.startswith('{')]
-
-    previous_segments = {row['segment'] for row in broker_events()}
+    previous_segments = {row['segment'] for row in read_events('broker')}
     try:
         with mounted_fault(fault, policy, record, readonly=True):
             try:
@@ -114,7 +110,7 @@ def verify_broker_reconciliation(record):
                 }
                 deadline = time.monotonic() + 30
                 while True:
-                    events = [row for row in broker_events()
+                    events = [row for row in read_events('broker')
                               if row['component'] == 'broker' and row['segment'] not in previous_segments]
                     if len({row['segment'] for row in events}) == 1 and all(
                             any(row['event'] == event and row['fields'] == fields

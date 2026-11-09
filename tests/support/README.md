@@ -359,6 +359,14 @@ The helper reuses `session` and `allocate`; it adds no VM, process or cleanup
 owner and reports success only after the proof and retention session finish.
 Recovery diagnostics keep their separate `recovery_session` route.
 
+Offline system qualifications and customer journeys share
+`vm_internet.internet_result(transport)` for bounded TCP/UDP DNS observations,
+alongside `InternetIsolation` and `restore` in that module. Keep required
+reachable paths, offline/online comparisons and product outcomes in each caller;
+the probe supplies no verdict or resource owner. Consumers import the shared
+network helper directly rather than obtaining mechanics from the finite
+`vm_internet_qualification.online_offline_online` journey.
+
 Inventory subprocesses must keep the checkout being documented after environment
 sanitization. `generate_test_coverage.capture` uses the launcher's existing
 `ONPC_LAUNCHER_CONTROLLER_ROOT` binding; a working directory alone does not
@@ -414,6 +422,13 @@ Preparation that directly shuts down a guest must first consume
 live, as in offline app-snapshot capture. A recorded collection failure must
 still fail the final verdict after cleanup, even when product assertions pass.
 
+Engineering fault checks reuse `product_logs.read_events(component)` to decode
+that same bounded, guarded snapshot. It preserves event order and duplicates,
+ignores reader diagnostics and fails on malformed event JSON. Keep event names,
+fields and freshness assertions in the test: capture prior segments before a
+broker restart, or prior `(segment, sequence)` pairs when the same broker stays
+running. Old incident context must not satisfy the current fault witness.
+
 Installed service-outage fixtures reuse `system_guest.runtime_service_mask` and
 `remove_runtime_service_mask` for creation and unchanged root-owned symlink
 verification before unmasking. Keep invocation checks, stop/start order and
@@ -465,6 +480,17 @@ reversal in `finally`; restore only that recorded process or mask. This keeps
 partial-failure cleanup usable without signalling a replacement service or
 adopting changed state. Keep the fault sequence and recovery assertions with
 the consuming history.
+
+Failed-save recovery checks must distinguish the exposed error from the state
+left behind. The storage-failure and policy-notification histories independently
+read prior preferences, time/grants and native rules, then check the child's
+actual denial and another account's allowed launch. Remove only the recorded
+fault before retrying the identical transaction; a failed rollback reply alone
+proves neither policy loss nor preservation. Eligibility recovery similarly
+restores the actual account role and requires a fresh password challenge on the
+same caller, preserving the real request cooldown. Reuse these existing
+histories rather than adding a second failure/recovery journey for the same
+boundary.
 
 Native policy workers reuse `onpc_app_rows::fixture_app(role)` for the fixed
 Allowed/Hard/Soft fixture app IDs, matching the controller's `MATCH_APPS`.

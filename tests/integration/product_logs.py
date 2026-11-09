@@ -5,6 +5,7 @@ controller can run the same reader over the existing guarded SSH transport.
 """
 
 import hashlib
+import json
 import os
 import re
 import stat
@@ -69,6 +70,17 @@ def read_component(component):
             os.close(directory)
     # Put the freshest incident/ordinary files at the end for bounded readers.
     return ''.join(reversed(output))
+
+
+def read_events(component):
+    """Decode structured rows from the same bounded, guarded log snapshot.
+
+    Reader diagnostics are not events. Preserve row order and duplicates;
+    callers bind fresh segments/sequences and own their event assertions.
+    Malformed event JSON still fails rather than disappearing from evidence.
+    """
+    return [json.loads(line) for line in read_component(component).splitlines()
+            if line.startswith('{')]
 
 
 def pytest_runtest_logreport(report):

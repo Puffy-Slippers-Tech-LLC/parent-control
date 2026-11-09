@@ -8,8 +8,7 @@ from functools import partial
 
 from installed_journey import InstalledJourney
 from private_artifacts import require
-from vm_internet import InternetIsolation, restore
-from vm_internet_qualification import internet_result
+from vm_internet import InternetIsolation, internet_result, restore
 from watch_activity import operation
 
 

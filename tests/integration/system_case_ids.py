@@ -653,6 +653,8 @@ CASES = (
                  'Characterize child input while locking stays unavailable and restore locking'),
     CaseIdentity(314, 'package', 'test_enforcement_startup_failure_recovery',
                  'Withhold sign-in when enforcement startup fails and recover sign-in'),
+    CaseIdentity(315, 'package', 'test_broker_policy_startup_failure_recovery',
+                 'Keep sign-in protected while parent management cannot start and recover management'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

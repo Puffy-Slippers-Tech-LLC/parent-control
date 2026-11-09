@@ -23,6 +23,7 @@ def attempts(selection, *, fresh_install=False):
     groups[2:2] = [(history.phases, False) for history in system.PAM_HISTORIES]
     groups.append(((system.TRUSTED_FIXTURES_PHASE,), False))
     groups.append(((system.ENFORCEMENT_STARTUP_PHASE,), True))
+    groups.append(((system.BROKER_STARTUP_PHASE,), True))
     # Real password login has a different initial session from the monitor's
     # autologin fixture. Keep it isolated for both current and fresh installs.
     groups.append((('extension-login',), not fresh_install))

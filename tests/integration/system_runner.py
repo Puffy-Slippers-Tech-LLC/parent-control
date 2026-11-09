@@ -56,6 +56,8 @@ TRUSTED_FIXTURES_PHASE = 'trusted-fixtures'
 NATIVE_UPDATE_CASE = 'test_native_dependency_update_retained_session'
 ENFORCEMENT_STARTUP_CASE = 'test_enforcement_startup_failure_recovery'
 ENFORCEMENT_STARTUP_PHASE = 'enforcement-startup'
+BROKER_STARTUP_CASE = 'test_broker_policy_startup_failure_recovery'
+BROKER_STARTUP_PHASE = 'broker-startup'
 
 
 @dataclass(frozen=True)
@@ -116,7 +118,7 @@ PHASE_ORDER = (TRUSTED_FIXTURES_PHASE, 'previous-policy', 'installed', 'rebooted
                *(phase for history in REMOVAL_HISTORIES[1:]
                  for phase in (*history.prerequisites, *history.phases)),
                'authorization', 'enforcement', 'session', 'extension', 'extension-login', 'startup',
-               ENFORCEMENT_STARTUP_PHASE)
+               ENFORCEMENT_STARTUP_PHASE, BROKER_STARTUP_PHASE)
 AREA_SOURCES = {
     'package': ROOT / 'tests/system/test_install_smoke.py',
     'removal': ROOT / 'tests/system/test_removal.py',
@@ -196,9 +198,11 @@ PHASE_DEPENDENCIES = {
     'extension-login': (),
     'startup': (),
     ENFORCEMENT_STARTUP_PHASE: (),
+    BROKER_STARTUP_PHASE: (),
 }
 PHASE_PREREQUISITES = {
     ENFORCEMENT_STARTUP_PHASE: ('retained-app-snapshot', 'owned-enforcement-readiness-fault'),
+    BROKER_STARTUP_PHASE: ('retained-app-snapshot', 'owned-broker-policy-write-fault'),
     TRUSTED_FIXTURES_PHASE: ('genuine-earlier-package', 'previous-install-and-reboot',
                             'trusted-native-baseline-fixtures', 'fixture-passwords'),
     'previous-policy': ('genuine-earlier-package', 'previous-install-and-reboot',
@@ -448,6 +452,7 @@ def case_phases(area, case_id):
     if area in ('authorization', 'enforcement', 'session', 'extension', 'startup'):
         return (area,)
     package = {
+        BROKER_STARTUP_CASE: (BROKER_STARTUP_PHASE,),
         ENFORCEMENT_STARTUP_CASE: (ENFORCEMENT_STARTUP_PHASE,),
         TRUSTED_FIXTURES_CASE: (TRUSTED_FIXTURES_PHASE,),
         PREVIOUS_POLICY_CASE: PREVIOUS_POLICY_PHASES,
@@ -499,6 +504,7 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
         # This binding qualifies Ubuntu's ExecStartPost gate; Fedora's
         # independent oneshot remains outside its installed acceptance scope.
         incompatible_histories.add(ENFORCEMENT_STARTUP_CASE)
+        incompatible_histories.add(BROKER_STARTUP_CASE)
     require(test not in incompatible_histories, 'selection:history-package-format-mismatch')
     require(not any(identity.case_id in incompatible_histories for identity in identities),
             'selection:history-package-format-mismatch')
@@ -552,6 +558,8 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
             'selection:first-configure-requires-current-package')
     require(not fresh_install or ENFORCEMENT_STARTUP_CASE not in chosen.get('package', ()),
             'selection:enforcement-startup-requires-current-package')
+    require(not fresh_install or BROKER_STARTUP_CASE not in chosen.get('package', ()),
+            'selection:broker-startup-requires-current-package')
     require(not fresh_install or not any(history.case_id in chosen.get('package', ())
                                         for history in PAM_HISTORIES),
             'selection:pam-variants-require-current-package')
@@ -678,7 +686,8 @@ def announce_selection(selection):
 
 def verify_history_target(selection, capture):
     """Check restricted histories against accepted guest provenance, not VM names."""
-    if any(item.case_id == ENFORCEMENT_STARTUP_CASE for item in selection.executions):
+    if any(item.case_id in (ENFORCEMENT_STARTUP_CASE, BROKER_STARTUP_CASE)
+           for item in selection.executions):
         require(package_format(capture.state['guest']) == 'deb',
                 'selection:history-package-format-mismatch')
     for history in REMOVAL_HISTORIES:
@@ -1807,9 +1816,19 @@ def stage_selected_inputs(selection, destination):
     if any(item.area == 'package' and item.case_id == KIOSK_ACTIVATION_CASE and not item.prerequisite
            for item in selection.executions):
         identity['host_files'] = kiosk_activation_host_inputs()
-    if ENFORCEMENT_STARTUP_PHASE in selection.phases:
+    if any(phase in selection.phases for phase in (ENFORCEMENT_STARTUP_PHASE, BROKER_STARTUP_PHASE)):
         identity.setdefault('host_files', {}).update({path: baseline.digest(ROOT / path) for path in (
             'tests/e2e/startup_observations.py', 'tests/e2e/private_artifacts.py')})
+    if BROKER_STARTUP_PHASE in selection.phases:
+        sys.path.insert(0, str(ROOT / 'tests/e2e'))
+        from startup_observations import ENFORCEMENT
+        adapter = destination / 'startup-enforcement.py'
+        require(not adapter.exists(), 'selection:duplicate-input-target')
+        adapter.write_text(ENFORCEMENT)
+        identity.setdefault('generated_files', {})['startup-enforcement.py'] = {
+            'sha256': baseline.digest(adapter),
+            'sources': {'tests/e2e/startup_observations.py':
+                        baseline.digest(ROOT / 'tests/e2e/startup_observations.py')}}
     if 'extension-login' in selection.phases or any(
             item.case_id in GRAPHICAL_EXPIRY_CASES for item in selection.executions) or any(
             item.case_id == 'test_child_extension_monitor_native_recovery'
@@ -2241,7 +2260,7 @@ def run_pytest(vm, run, phase, selection):
     package_history = any(item.area == 'removal' or item.case_id == FIRST_CONFIGURE_CASE
                           or item.case_id.startswith(PAM_CASE + '[') for item in executions)
     timeout = {'session': 1800, 'extension': 1200, 'startup': 1200,
-               ENFORCEMENT_STARTUP_PHASE: 1500}.get(phase, 900)
+               ENFORCEMENT_STARTUP_PHASE: 1500, BROKER_STARTUP_PHASE: 900}.get(phase, 900)
     if (phase in (*FIRST_CONFIGURE_PHASES, *PAM_PHASES, 'previous-policy', TRUSTED_FIXTURES_PHASE)
             or any(phase in history.phases for history in REMOVAL_HISTORIES)):
         timeout = 2400
@@ -2569,7 +2588,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                                          if phase.endswith('-rebooted'))
         for phase in (TRUSTED_FIXTURES_PHASE, *FIRST_CONFIGURE_PHASES, *PAM_PHASES,
                       *recovery_phases, 'authorization', 'enforcement', 'session', 'extension', 'extension-login',
-                      'startup', ENFORCEMENT_STARTUP_PHASE):
+                      'startup', ENFORCEMENT_STARTUP_PHASE, BROKER_STARTUP_PHASE):
             if phase not in selection.phases:
                 continue
             if phase in (*rebooted_recovery_phases, FIRST_CONFIGURE_PHASES[1],
@@ -2691,6 +2710,22 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                                 'enforcement-startup:recovery-not-after-fault')
                         (directory / 'enforcement-startup.json').write_bytes(
                             baseline.encode({**fault, 'recovery': observed}))
+                    if phase == BROKER_STARTUP_PHASE:
+                        sys.path.insert(0, str(ROOT / 'tests/e2e'))
+                        from startup_observations import BROKER, parse_broker, parse_enforcement
+                        fault = json.loads(vm.call(['cat', PAYLOAD + '/results/broker-startup.json']))
+                        gates = {key: parse_enforcement(fault[key].encode())
+                                 for key in ('before', 'during', 'after')}
+                        recovered = parse_broker(vm.call(
+                            ['/usr/bin/python3', '-c', BROKER], timeout=45))
+                        require(gates['before'] == gates['during'] == gates['after'] and
+                                recovered['boot_sha256'] == gates['before']['boot_sha256'] and
+                                recovered['started_ns'] > fault['refused_ns'] and
+                                all(fault[key] is True for key in (
+                                    'owned_fault_removed', 'accounts_unchanged', 'parent_query_recovered')),
+                                'broker-startup:recovery-or-independent-gate-unverified')
+                        (directory / 'broker-startup.json').write_bytes(
+                            baseline.encode({**fault, 'login_gate': gates, 'recovery': recovered}))
                 except CommandError as error:
                     domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
                               else 'infrastructure')

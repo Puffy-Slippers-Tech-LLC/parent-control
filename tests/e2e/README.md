@@ -2187,11 +2187,13 @@ registration. Diagnostic-write failure leaves readiness and this direct timing
 observation unchanged. Automatic diagnostics contain only elapsed phase lengths.
 
 The broker is a static D-Bus-activated service, so one normal read-only
-introspection request may activate it after GDM. This tests broker startup
-independently; it neither requires nor establishes broker readiness before GDM.
+`ListManagedUsers` request may activate it after GDM. This uses the permitted
+product interface; the bus policy does not expose introspection. This tests broker
+startup independently; it neither requires nor establishes broker readiness before GDM.
 The probe then pins the current unique bus owner/PID and systemd invocation,
 requires active/running state without automatic restarts, reads the six exact
-timing fields, and introspects that unique owner with autoactivation disabled.
+timing fields, and repeats the typed management read against that unique owner
+with autoactivation disabled. Account labels remain inside the guest.
 Boot, owner and unit reads bracket collection. Phase timestamps must be ordered
 inside the current process start/service activation bounds; systemd comparisons
 use microsecond precision. Systemd defines the

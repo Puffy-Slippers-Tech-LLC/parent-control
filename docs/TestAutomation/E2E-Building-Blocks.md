@@ -5162,6 +5162,20 @@ parent's and both children's saved preferences, limits, grants and app filters
 remain unchanged. Installed qualification passed on Ubuntu 26.04; collection,
 owned cleanup and baseline restoration passed. This qualifies explicit recovery,
 with no automatic daemon-recovery, Fedora gate or customer E2E acceptance claim.
+Obligation **141**'s policy-reconciliation startup residual is owned by
+`system_enforcement_startup.verify_broker_reconciliation`, registered as
+`package::test_broker_policy_startup_failure_recovery` (system **315**). The owned
+read-only mount pins the original generated policy file; an actual write failure
+in a fresh broker log segment leaves the broker unpublished and the real Parent
+query unavailable. The original healthy canary and local greeter remain unchanged.
+Removing the exact mount restores the same Parent query, and the shared
+`startup_observations.BROKER` observer independently correlates completed
+reconciliation/publication timings with the recovered service. It uses the
+permitted product interface with pinned owner/process/invocation and boot continuity;
+introspection is not exposed by the bus policy. The parent's and both children's
+saved state and policy remain unchanged. Installed qualification, collection,
+owned cleanup and baseline restoration passed on Ubuntu 26.04. This supplies no
+Fedora or customer E2E acceptance credit.
 Obligation **143**'s installed usage-reader residual is owned by
 `system_session_expiry.verify_usage_reader_recovery`, registered as
 `session::test_usage_reader_failure_recovery` (system **302**). It reads through
@@ -5177,7 +5191,7 @@ and collection, owned cleanup and baseline restoration passed. The stop uses
 the shared command budget to accommodate the daemon's normal inactivity exit.
 The engineering obligation number 143 is retained; the unrelated historical
 system numeric identity 143 remains retired and is not reused.
-Obligations 141, 144–146 and 149–150 retain their specific missing fault/observation
+Obligations 144–146 and 149–150 retain their specific missing fault/observation
 or recovery assertions in the queue briefs; their existing system/component
 matrices are reused rather than implemented again. This mapping supplies no
 new installed result. Engineering obligation 142's stricter entry-exposure

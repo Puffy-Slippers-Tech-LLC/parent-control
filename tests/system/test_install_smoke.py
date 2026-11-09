@@ -35,6 +35,13 @@ def test_enforcement_startup_failure_recovery(record_testsuite_property):
     exercise(record_testsuite_property)
 
 
+def test_broker_policy_startup_failure_recovery(record_testsuite_property):
+    from system_enforcement_startup import verify_broker_reconciliation
+    guest.require(os.environ['ONPC_SYSTEM_PHASE'] == 'broker-startup',
+                  'broker-startup:test-phase')
+    verify_broker_reconciliation(record_testsuite_property)
+
+
 def test_previous_package_policy_preservation(record_testsuite_property):
     from system_previous_upgrade import prepare, verify_updated, verify_reboot
     phase = os.environ['ONPC_SYSTEM_PHASE']

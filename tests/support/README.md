@@ -21,6 +21,7 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Guest fixture file receipts and bounded I/O | [guest_files.py](../e2e/guest_files.py) | Fixture provisioning, native readiness and synthetic file operations share `identity`, `read_regular` and `write_exclusive`. Callers keep finite paths, owner/mode/size expectations, exact-content assertions and cleanup receipts; do not copy descriptor/read loops into another suite. |
 | Checkout paths and script imports | [paths.py](paths.py), [modules.py](modules.py) | Normal imports use `pyproject.toml`'s `pythonpath`. `load_module(name, path)` loads a fresh standalone script with a unique test-only name; failures restore the registry. |
 | Broker configuration and recording adapters | [configuration.py](configuration.py), [broker.py](broker.py) | Fresh mutable state, explicit clocks/callbacks/failures and no OS calls. |
+| Exclusive installed broker faults | [system_guest.py](../integration/system_guest.py) `isolated_broker_for_faults` | Reuse the held guest lease, pin the active service invocation, stop it under an identity-owned runtime mask, then remove only that mask and restore normal activation. Enforcement, expiry and extension histories share this owner; callers retain their finite faults, assertions and policy restoration. |
 | Unit orchestration without GTK construction | [objects.py](objects.py) | Bind actual class methods to explicit state instead of copying method source. |
 | Private D-Bus broker | [dbus.py](dbus.py) | Import `private_service` and call/wait helpers; real Gio serialization on the component suite's private buses, with recording adapters. |
 | Preview process lifecycle | [preview.py](preview.py) | `preview_applications` owns only its Popen handles/logs, enables Python's fault handler before startup imports, cleans up failed discovery, attempts every owned child and reports cleanup failures. Fatal Python/native signals leave Python thread tracebacks in the existing preview log; Python 3.14 also emits the current native stack when supported by the runtime build. `tests/ui/conftest.py` owns the compositor, accessibility and `request_display_scale` fixtures; layout/overflow tests discover scaling there instead of importing a collected case. |
@@ -410,6 +411,14 @@ comparison. A replacement check alone cannot establish two distinct windows.
 and Flatpak endpoint classification for plan validation and runtime capture.
 All use the same replay check, immutable decode and comparison before reply;
 new consumers declare their endpoints instead of copying `check_activity`.
+
+For a retained-work comparison after Submit, use the capture taken after the
+independent submission result. Submit changes the fixture's public state, so
+the capture from before Submit cannot be the unchanged-work oracle. Keep that
+post-submit capture before a lock or desktop transition, then compare the
+original work on return before submitting again. The daily-midnight journey in
+[ordinary_daily_reset.py](../e2e/ordinary_daily_reset.py) composes this ordering
+with `native_activity_entry`, `native_activity_resume` and plan activity checks.
 
 `product_logs.py` owns the guest reader and pytest snapshots;
 `vm_transport.Transport.capture_product_logs` owns host transfer before shutdown.

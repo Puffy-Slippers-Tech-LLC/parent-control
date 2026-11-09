@@ -7,7 +7,6 @@ outer VM lease restores the guest; no process or session is discovered for killi
 
 import ctypes
 import configparser
-from contextlib import contextmanager
 import json
 from pathlib import Path
 import pwd
@@ -289,34 +288,6 @@ def wait_for_extension_recovery(manager, account, category):
         time.sleep(0.25)
 
 
-@contextmanager
-def isolated_broker_for_extension_faults():
-    """Give direct fault injection sole policy ownership in this leased guest."""
-    guest.guard()
-    mask = Path('/run/systemd/system') / guest.BROKER
-    guest.require(not mask.exists() and not mask.is_symlink(), 'expiry:foreign-broker-mask')
-    invocation = guest.run(['systemctl', 'show', guest.BROKER,
-                            '--property=InvocationID', '--value'])
-    guest.require(guest.run(['systemctl', 'is-active', guest.BROKER]) == 'active'
-                  and re.fullmatch(r'[0-9a-f]{32}', invocation) is not None
-                  and invocation != '0' * 32, 'expiry:fault-broker-not-active')
-    identity = guest.runtime_service_mask(guest.BROKER, category='expiry:fault-broker')
-    try:
-        guest.require(guest.run(['systemctl', 'show', guest.BROKER,
-                                 '--property=InvocationID', '--value']) == invocation,
-                      'expiry:fault-broker-replaced')
-        guest.run(['systemctl', 'stop', guest.BROKER], timeout=30)
-        guest.require(guest.run(['systemctl', 'show', guest.BROKER,
-                                 '--property=ActiveState', '--value']) == 'inactive',
-                      'expiry:fault-broker-not-stopped')
-        yield
-    finally:
-        guest.remove_runtime_service_mask(guest.BROKER, identity, category='expiry:fault-broker')
-        # We already stopped this invocation under the mask. A second stop
-        # after unmasking can cancel a live client's newly queued activation.
-        guest.activate_broker(restart=False)
-
-
 def pam_password_status(uid, password, *, account_only=False):
     """Bound each installed PAM transaction in its own recorded process.
 
@@ -567,7 +538,7 @@ def verify_runtime_rollback(record):
                 raise RuntimeError('injected extension activation failure')
 
     before = {uid: account_state(uid) for uid in (accounts['child'], accounts['other'])}
-    with isolated_broker_for_extension_faults():
+    with guest.isolated_broker_for_faults():
         if live:
             manager._set_version_check(account, False, live=True)
             guest.require(not manager._boolean(account, 'disable-extension-version-validation'),

@@ -1110,7 +1110,6 @@ def partial_termination_retry(record):
     This is engineering fault injection, not a public approval journey.
     """
     from system_assertions import account_states
-    from system_session_expiry import isolated_broker_for_extension_faults
 
     accounts = provision_native()
     child, other, parent = (accounts[role] for role in ('child', 'other', 'parent'))
@@ -1141,7 +1140,7 @@ def partial_termination_retry(record):
         # Reuse the installed composition, without changing shipped code or
         # adding a service/fault protocol. The normal broker is stopped and
         # runtime-masked so no second writer can reconcile our temporary grant.
-        with isolated_broker_for_extension_faults():
+        with guest.isolated_broker_for_faults():
             previous_path = sys.path[:]
             sys.path[:0] = ['/usr/lib/oh-no-parent-control', '/usr/lib/oh-no-parent-control/broker']
             try:

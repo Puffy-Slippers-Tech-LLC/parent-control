@@ -19,7 +19,7 @@ from system_extension_monitor import (
     invocation, native_choices, state_digest,
 )
 from system_graphical_expiry import child_session, prepare_broker_boot, wait_for
-from system_session_expiry import grant, identities, installed_manager, isolated_broker_for_extension_faults
+from system_session_expiry import grant, identities, installed_manager
 
 FIXTURE = guest.PAYLOAD / 'results' / 'extension-startup'
 BOOT_ID = Path('/proc/sys/kernel/random/boot_id')
@@ -156,7 +156,7 @@ def prepare():
                 'accounts': {**other_accounts, 'child': state_digest(child)},
                 'choices': {**other_choices, 'child': expected}}
     identity = invocation()
-    with isolated_broker_for_extension_faults():
+    with guest.isolated_broker_for_faults():
         fault(manager, account, expected, individual=True, global_switch=True)
     offline = startup_proof(accounts['parent'], live=False, writes=True)
     guest.require(offline['broker_invocation'] != identity,
@@ -293,7 +293,7 @@ def verify(publish):
                 ('live-individual', True, False), ('live-global', False, True),
                 ('healthy-restart', False, False)):
             identity = invocation()
-            with isolated_broker_for_extension_faults():
+            with guest.isolated_broker_for_faults():
                 if individual or global_switch:
                     fault(manager, account, expected, individual=individual, global_switch=global_switch)
                     wait(lambda: not healthy(), name + '-fault-not-active')

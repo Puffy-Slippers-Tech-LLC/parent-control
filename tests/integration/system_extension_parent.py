@@ -20,9 +20,7 @@ from system_extension_monitor import (
     invocation, native_choices, state_digest,
 )
 from system_graphical_expiry import child_session, wait_for
-from system_session_expiry import (
-    grant, identities, installed_manager, isolated_broker_for_extension_faults,
-)
+from system_session_expiry import grant, identities, installed_manager
 
 
 def monitor_bus_identity():
@@ -68,7 +66,7 @@ def isolated_monitor_bus():
 
     changed = False
     try:
-        with isolated_broker_for_extension_faults():
+        with guest.isolated_broker_for_faults():
             set_monitor_bus_mode(identity, mode, injected)
             changed = True
         yield

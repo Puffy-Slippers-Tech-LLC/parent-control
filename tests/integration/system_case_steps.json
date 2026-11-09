@@ -312,7 +312,7 @@
     "expected": "The operation is refused for this account's role."
   },
   "28": {
-    "execution_revision": 2,
+    "execution_revision": 3,
     "summary": "Validate broker authorization, account isolation and real authentication in one bounded live-guest history, with shared account setup and final owned cleanup.",
     "steps": [
       "Prepare the fixture accounts and real caller connections, then check the declared child, parent, kiosk and locked-administrator permissions for discovery, own-account lookup, preferences, applications, time, sessions, requests, policy management and diagnostics.",
@@ -325,7 +325,7 @@
       "Change one child's controls and request choices while comparing other accounts; change parent and child roles on persistent connections, test immediate authority loss and restore each role.",
       "On both child and kiosk surfaces, disconnect a requester while approval is pending, verify cancellation and unchanged state, then authenticate a fresh request and revoke the resulting grant.",
       "On both request surfaces, delete a disposable child while the real parent authentication prompt is pending, finish authentication and verify the original requester connection and surviving account state.",
-      "For the child request surface, independently change the target child's role and the selected parent's role during authentication; finish authentication and restore each mutation.",
+      "For the child request surface, independently change the target child's role and the selected parent's role during authentication; finish authentication and restore each mutation. After restoring the child's role, submit one fresh authenticated request on the same connection and compare the new grant and other accounts.",
       "For the kiosk request surface, independently change the target child's role and saved request preferences during authentication; finish authentication and restore each mutation.",
       "Begin a child request, lock its selected parent while authentication is pending, retry discovery and authentication, then restore the parent's lock state and original child settings.",
       "Repeat the pending-authentication parent-lock refusal from the kiosk request surface with independent state observations and restoration.",
@@ -343,7 +343,7 @@
       "Management changes affect only the selected child. Existing parent and child connections immediately lose their previous authority after role changes, preserve policy state and recover after exact role restoration.",
       "Requester loss cancels the pending approval without reaching the write pipeline or granting time; the authentication agent survives, the transaction is released, and a fresh authenticated connection can receive a grant independently.",
       "Both authenticated requests reject the deleted target with InvalidRequest while their original bus connections remain owned by the requester; no deleted record is recreated and all surviving account state is preserved.",
-      "Child-surface requests authenticated against stale target or approver roles are denied without granting time or writing account state; each exact role mutation is restored.",
+      "Child-surface requests authenticated against stale target or approver roles are denied without granting time or writing account state; each exact role mutation is restored. Restored child eligibility permits a fresh password challenge and one approved 300-second grant, while every other account remains unchanged; cleanup restores policy and respects the real cooldown.",
       "Kiosk requests authenticated against a stale child role or changed preferences are denied without granting time or writing account state; each exact mutation is restored.",
       "The parent locked during a child request disappears from approver discovery and cannot authenticate a grant; account state is unchanged and the original lock state and child settings are restored.",
       "The same pending-lock boundary holds independently for kiosk requests: no grant or account-state change occurs and original settings are restored.",

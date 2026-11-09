@@ -5268,7 +5268,22 @@ Installed qualification passed on `onpc-Ubuntu26.04-1` in
 removal, policy restoration and outer baseline restoration; the VM was confirmed
 off. Existing deterministic time/app-policy rollback tests remain reused. This
 supplies no extension-manager fault matrix, Fedora or customer E2E credit.
-Obligations 146 and 149–150 retain their specific missing fault/observation
+Obligation **146**'s stale-identity recovery is owned by
+`test_authorization._authenticated_request_revalidates_live_state`, within
+`authorization::test_method_role_matrix[ListManagedUsers-parent1]` (system **28**).
+The child1/child-role transaction retains successful authentication followed by
+stale-role refusal and no writes, restores the child's exact account type, then
+requires a fresh password challenge on the same caller and one new 300-second
+grant. Every other account's preferences, limits, grant and app filter remain
+unchanged. Existing role/policy cleanup and the real successful-request cooldown
+finish before later transactions. Installed qualification, collection, owned
+cleanup and baseline restoration passed on `onpc-Ubuntu26.04-1` in
+`20261109T073940Z-87117ec8`; the VM was independently confirmed off.
+Former selectors 257–262 remain retired into 28; deletion and other mutation
+assertions reuse that history without another authentication matrix.
+This supplies Ubuntu engineering qualification only, with no Fedora or customer
+E2E acceptance credit.
+Obligations 149–150 retain their specific missing fault/observation
 or recovery assertions in the queue briefs; their existing system/component
 matrices are reused rather than implemented again. This mapping supplies no
 new installed result. Engineering obligation 142's stricter entry-exposure

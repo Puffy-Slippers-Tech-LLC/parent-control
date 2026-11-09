@@ -6,17 +6,17 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5957</span>/<span style="color: gray">0</span>/5957 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5961</span>/<span style="color: gray">0</span>/5961 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">225</span>/<span style="color: gray">0</span>/225 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">300</span>/<span style="color: gray">0</span>/300 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">67</span>/<span style="color: gray">0</span>/67 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
+| Installed system | <span style="color: green">68</span>/<span style="color: gray">0</span>/68 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">141</span>/<span style="color: gray">56</span>/197 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6704</span>/<span style="color: gray">56</span>/6760** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">137</span>/<span style="color: gray">60</span>/197 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6705</span>/<span style="color: gray">60</span>/6765** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">140</span>/<span style="color: gray">56</span>/196 |
+| customer-journey | <span style="color: green">136</span>/<span style="color: gray">60</span>/196 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -155,10 +155,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [194](#scenario-194) | Use local controls and approvals while offline | `E2E-043/both-surfaces` | ready |
 | [196](#scenario-196) | Use time across local day and daylight-saving boundaries (calendar: ordinary; time: daily reset) | `E2E-044/ordinary-daily-reset` | ready |
 | [205](#scenario-205) | Review or decline an error report | `E2E-045/parent` | ready |
-| [223](#scenario-223) | Approve after the displayed estimate has aged (balance: daily only; surface: child overlay) | `E2E-048/daily-only-child-overlay` | ready |
-| [224](#scenario-224) | Approve after the displayed estimate has aged (balance: daily only; surface: kiosk) | `E2E-048/daily-only-kiosk` | ready |
-| [225](#scenario-225) | Approve after the displayed estimate has aged (balance: grant only; surface: child overlay) | `E2E-048/grant-only-child-overlay` | ready |
-| [230](#scenario-230) | Approve after the displayed estimate has aged (balance: grant dominant; surface: kiosk) | `E2E-048/grant-dominant-kiosk` | ready |
 | [231](#scenario-231) | Change temporary app permission on every supported launch route (route: native grid; surface: child overlay) | `E2E-049/native-grid-child-overlay` | ready |
 | [232](#scenario-232) | Change temporary app permission on every supported launch route (route: native grid; surface: kiosk) | `E2E-049/native-grid-kiosk` | ready |
 | [233](#scenario-233) | Change temporary app permission on every supported launch route (route: native desktop; surface: child overlay) | `E2E-049/native-desktop-child-overlay` | ready |
@@ -224,8 +220,12 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[219](#scenario-219)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: kiosk stop)</span> | <span style="color: gray">`E2E-047/kiosk-stop`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[220](#scenario-220)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: overlay success)</span> | <span style="color: gray">`E2E-047/overlay-success`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[221](#scenario-221)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: kiosk success)</span> | <span style="color: gray">`E2E-047/kiosk-success`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[223](#scenario-223)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: daily only; surface: child overlay)</span> | <span style="color: gray">`E2E-048/daily-only-child-overlay`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[224](#scenario-224)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: daily only; surface: kiosk)</span> | <span style="color: gray">`E2E-048/daily-only-kiosk`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[225](#scenario-225)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: grant only; surface: child overlay)</span> | <span style="color: gray">`E2E-048/grant-only-child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[227](#scenario-227)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: daily dominant; surface: child overlay)</span> | <span style="color: gray">`E2E-048/daily-dominant-child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[228](#scenario-228)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: daily dominant; surface: kiosk)</span> | <span style="color: gray">`E2E-048/daily-dominant-kiosk`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[230](#scenario-230)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: grant dominant; surface: kiosk)</span> | <span style="color: gray">`E2E-048/grant-dominant-kiosk`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[239](#scenario-239)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: snap grid; surface: child overlay)</span> | <span style="color: gray">`E2E-049/snap-grid-child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[242](#scenario-242)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: snap command; surface: kiosk)</span> | <span style="color: gray">`E2E-049/snap-command-kiosk`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[247](#scenario-247)</span> | <span style="color: gray">Alternate homework, games and time sources over repeated sessions (departure: retained; surface order: overlay first)</span> | <span style="color: gray">`E2E-050/overlay-first-retained`</span> | <span style="color: gray">pending</span> |
@@ -1936,62 +1936,6 @@ Variant: surface: parent
 - Review the report, edit synthetic text and read Privacy and available Parent actions. Close without sending and check return to management with the last confirmed policy.
 - Repeat the rejected Save and close its automatic report directly without editing or sending. Parent offers no report-choice toggle. Compare the exact last confirmed rule again.
 
-### Scenario 223
-
-**Approve after the displayed estimate has aged (balance: daily only; surface: child overlay)**
-
-Case: `E2E-048/daily-only-child-overlay` · Category: customer-journey · Status: **ready**
-
-Variant: balance: daily only; surface: child overlay
-
-**Steps:**
-
-- Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
-- Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
-- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
-
-### Scenario 224
-
-**Approve after the displayed estimate has aged (balance: daily only; surface: kiosk)**
-
-Case: `E2E-048/daily-only-kiosk` · Category: customer-journey · Status: **ready**
-
-Variant: balance: daily only; surface: kiosk
-
-**Steps:**
-
-- Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
-- Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
-- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
-
-### Scenario 225
-
-**Approve after the displayed estimate has aged (balance: grant only; surface: child overlay)**
-
-Case: `E2E-048/grant-only-child-overlay` · Category: customer-journey · Status: **ready**
-
-Variant: balance: grant only; surface: child overlay
-
-**Steps:**
-
-- Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
-- Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
-- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
-
-### Scenario 230
-
-**Approve after the displayed estimate has aged (balance: grant dominant; surface: kiosk)**
-
-Case: `E2E-048/grant-dominant-kiosk` · Category: customer-journey · Status: **ready**
-
-Variant: balance: grant dominant; surface: kiosk
-
-**Steps:**
-
-- Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
-- Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
-- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
-
 ### Scenario 231
 
 **Change temporary app permission on every supported launch route (route: native grid; surface: child overlay)**
@@ -3206,6 +3150,66 @@ Pending: Excluded from E2E scheduling: UI allocation to tests/ui/test\_error\_fe
 
 <div style="color: gray">
 
+### Scenario 223
+
+**Approve after the displayed estimate has aged (balance: daily only; surface: child overlay)**
+
+Case: `E2E-048/daily-only-child-overlay` · Category: customer-journey · Status: **pending**
+
+Variant: balance: daily only; surface: child overlay
+
+**Steps:**
+
+- Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
+- Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+
+Pending: Excluded from E2E scheduling and regression selection by developer decision on 2026-11-09. Open issue and preserved scenarios: docs/Failed\_Save.md. No automatic investigation, task recreation or acceptance credit.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 224
+
+**Approve after the displayed estimate has aged (balance: daily only; surface: kiosk)**
+
+Case: `E2E-048/daily-only-kiosk` · Category: customer-journey · Status: **pending**
+
+Variant: balance: daily only; surface: kiosk
+
+**Steps:**
+
+- Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
+- Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+
+Pending: Excluded from E2E scheduling and regression selection by developer decision on 2026-11-09. Open issue and preserved scenarios: docs/Failed\_Save.md. No automatic investigation, task recreation or acceptance credit.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 225
+
+**Approve after the displayed estimate has aged (balance: grant only; surface: child overlay)**
+
+Case: `E2E-048/grant-only-child-overlay` · Category: customer-journey · Status: **pending**
+
+Variant: balance: grant only; surface: child overlay
+
+**Steps:**
+
+- Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
+- Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+
+Pending: Excluded from E2E scheduling and regression selection by developer decision on 2026-11-09. Open issue and preserved scenarios: docs/Failed\_Save.md. No automatic investigation, task recreation or acceptance credit.
+
+</div>
+
+<div style="color: gray">
+
 ### Scenario 227
 
 **Approve after the displayed estimate has aged (balance: daily dominant; surface: child overlay)**
@@ -3220,7 +3224,7 @@ Variant: balance: daily dominant; surface: child overlay
 - Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
 - Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
 
-Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+Pending: Excluded from E2E scheduling and regression selection by developer decision on 2026-11-09. Open issue and preserved scenarios: docs/Failed\_Save.md. No automatic investigation, task recreation or acceptance credit.
 
 </div>
 
@@ -3240,7 +3244,27 @@ Variant: balance: daily dominant; surface: kiosk
 - Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
 - Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
 
-Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+Pending: Excluded from E2E scheduling and regression selection by developer decision on 2026-11-09. Open issue and preserved scenarios: docs/Failed\_Save.md. No automatic investigation, task recreation or acceptance credit.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 230
+
+**Approve after the displayed estimate has aged (balance: grant dominant; surface: kiosk)**
+
+Case: `E2E-048/grant-dominant-kiosk` · Category: customer-journey · Status: **pending**
+
+Variant: balance: grant dominant; surface: kiosk
+
+**Steps:**
+
+- Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
+- Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+
+Pending: Excluded from E2E scheduling and regression selection by developer decision on 2026-11-09. Open issue and preserved scenarios: docs/Failed\_Save.md. No automatic investigation, task recreation or acceptance credit.
 
 </div>
 

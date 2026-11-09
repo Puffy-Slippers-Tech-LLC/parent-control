@@ -43,6 +43,7 @@ diagnostic files do not govern task progression.
 | `E2E-Tasks/` | Temporary brief for one unfinished queue item | Enduring policy or history after the task closes |
 | [Two desktops](../Two_Desktops.md) | Open question and unscheduled same-child/two-desktop scenario descriptions | An execution plan, prerequisite, passing result or permission to recreate former tasks 143–149 |
 | [Unlock desktop](../Unlock_Desktop.md) | Open zero-time entry question and unscheduled exposure scenarios | An execution plan, prerequisite, passing result or permission to recreate former task 171 |
+| [Failed usage saves](../Failed_Save.md) | Open usage-save issue, causal findings and unscheduled former E2E-048 scenarios | An execution plan, passing result, regression gate or permission to recreate tasks 269/270 |
 | [Fixture design](Fixture-Design.md) | Immutable host inputs, minimal guest closure, provisioning/readiness and compatibility boundaries; runtime guides own current target availability | New runner capability or customer acceptance merely from the design |
 | [Evidence/export design](Export-Design.md) | Test evidence identity, capture, export and lifetime design; runtime contracts remain authoritative | Product acceptance, VM operations or new passing results |
 | [VM scheduling plan](VM-Scheduling-Design.md), [queue](VM-Scheduling-Task-Queue.md) and `VM-Scheduling-Tasks/` | Unified scheduling deliverables, order, scoped validation and replacement boundaries | Implemented scheduling behavior, completed tasks or VM authorization from planning alone |

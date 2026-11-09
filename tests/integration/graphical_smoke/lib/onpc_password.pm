@@ -288,6 +288,10 @@ sub enter_overlay_shell_password {
             && ($journey->{stage_prefix} // '') eq ''
             && ref($journey->{overlay_request}) eq 'ARRAY'
             && join(',', @{$journey->{overlay_request}}) =~ /\Achild,(?:parent,30,0|other-parent,30,1)\z/;
+        my $lock_recovery = ($journey->{prefix} // '') eq 'overlay-lock-case'
+            && ($journey->{stage_prefix} // '') eq ''
+            && ref($journey->{overlay_request}) eq 'ARRAY'
+            && join(',', @{$journey->{overlay_request}}) eq 'child,parent,75,1';
         my $temporary_access = ($journey->{prefix} // '') =~ /\A(flatpak|native)-grid-temporary-access-(first|included|replacement)\z/;
         if ($temporary_access) {
             my ($kind, $row) = ($1, $2);
@@ -302,7 +306,7 @@ sub enter_overlay_shell_password {
             && ref($journey->{overlay_request}) eq 'ARRAY'
             && join(',', @{$journey->{overlay_request}}) eq 'child,parent,180,1';
         my $composed = (($journey->{prefix} // '') eq 'overlay-approval-return'
-            || $delayed || $panel || $temporary_access || $offline) && !$reject;
+            || $delayed || $panel || $lock_recovery || $temporary_access || $offline) && !$reject;
         my $role = 'parent';
         if ($composed) {
             my $binding = $journey->{overlay_request};

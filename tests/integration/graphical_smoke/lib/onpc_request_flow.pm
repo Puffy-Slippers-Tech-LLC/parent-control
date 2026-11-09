@@ -133,6 +133,50 @@ sub overlay_prompt {
     $journey->finish();
 }
 
+sub overlay_lock_case {
+    onpc_progress::operation('Checking cancelled access and fresh approval after the child unlocks');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'overlay-lock:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'overlay-lock-case', review => 0);
+    $journey->{overlay_request} = ['child', 'parent', 75, 1];
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_parent::set_allowance($journey, 'gdm', 'parent', 'fresh', 'new', 'child', 0, 30, 1);
+    my $apps = [['A', 'match-precise', 'allowed'], ['H', 'match-hard-precise', 'permanent'],
+                ['S', 'match-soft-wildcard', 'conditional']];
+    onpc_app_rows::named_app_set($journey, 'desktop', 'same-user', 'retained', 'child', $apps, 'rules');
+    onpc_gdm::sign_in_challenge($journey, 'fresh',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    $journey->seen('child-session-before');
+    for my $role ('H', 'S') {
+        onpc_app_rows::native_blocked_app($journey->scope($role eq 'H' ? 'initial-hard' : 'initial-soft'), $role);
+    }
+    overlay_entry($journey, 'direct', 'command');
+    prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1, 'overlay');
+    overlay_lock($journey, 'interruption');
+    $journey->seen($_) for qw(form-returned cancel cancel-returned);
+    onpc_parent::open_for_child($journey, 'desktop', 'retained', 'retained', 'child', 'return');
+    $journey->seen($_) for qw(balance-returned returned-apps);
+    onpc_app_rows::saved_rows($journey, $apps, 'returned');
+    onpc_desktop_session::enter_desktop($journey, 'desktop', 'child', 'retained', 'success', 'child-return', 'parent');
+    $journey->seen('child-session-returned');
+    for my $role ('H', 'S') {
+        onpc_app_rows::native_blocked_app($journey->scope($role eq 'H' ? 'cancelled-hard' : 'cancelled-soft'), $role);
+    }
+    overlay_entry($journey, 'recovery', 'command');
+    overlay_approve($journey, 'automatic');
+    $journey->seen('countdown');
+    onpc_app_rows::native_blocked_app($journey->scope('approved-hard'), 'H');
+    my $soft = $journey->scope('approved-soft');
+    onpc_app_rows::native_usable_app($soft, 'command', $soft->seen('desktop'), 'child', 'S');
+    $journey->seen($_) for qw(soft-close soft-closed);
+    onpc_parent::open_for_child($journey, 'desktop', 'retained', 'retained', 'child', 'final');
+    $journey->seen('approved-balance');
+    $journey->finish();
+}
+
 sub pending_overlay_lock {
     onpc_progress::operation('Locking the child screen during a pending parent approval');
     my ($exchange, $declared, $challenges) = @_;
@@ -587,6 +631,11 @@ sub shell_approve {
             || ($journey->{prefix} // '') eq 'panel-request-case'
                 && ref($journey->{overlay_request}) eq 'ARRAY'
                 && join(',', @{$journey->{overlay_request}}) =~ /\Achild,(?:parent,30,0|other-parent,30,1)\z/
+                && $exit eq 'automatic'
+            || ($journey->{prefix} // '') eq 'overlay-lock-case'
+                && ($journey->{stage_prefix} // '') eq ''
+                && ref($journey->{overlay_request}) eq 'ARRAY'
+                && join(',', @{$journey->{overlay_request}}) eq 'child,parent,75,1'
                 && $exit eq 'automatic'
             || ($journey->{prefix} // '') =~ /\Adelayed-approval-(?:first|second)\z/
                 && ref($journey->{overlay_request}) eq 'ARRAY' && $exit eq 'automatic'

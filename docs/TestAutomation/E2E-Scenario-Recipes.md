@@ -1845,7 +1845,10 @@ Bindings: restore = none / unlock / fresh-login / allowance-edit / toggle / app-
 
 ### E2E-039
 
-Implementation status: All cases pending.
+The `overlay-lock` composition uses
+`overlay_lock_case.OverlayLockCaseJourney` and
+`onpc_request_flow::overlay_lock_case`. Runtime bindings belong to the
+[inventory](../../tests/e2e/scenarios.json).
 
 **Leave a pending approval or request again too soon.** Cases 171, 172, 173, 174, 175, 176, 178.
 

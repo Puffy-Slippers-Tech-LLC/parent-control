@@ -134,11 +134,21 @@ sub overlay_prompt {
 }
 
 sub overlay_lock_case {
-    onpc_progress::operation('Checking cancelled access and fresh approval after the child unlocks');
+    return overlay_interruption_case('lock', @_);
+}
+
+sub overlay_switch_case {
+    return overlay_interruption_case('switch', @_);
+}
+
+sub overlay_interruption_case {
+    my $action = shift;
+    onpc_progress::operation('Checking cancelled access and fresh approval after the child returns');
     my ($exchange, $declared, $challenges) = @_;
     die 'overlay-lock:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
-        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'overlay-lock-case', review => 0);
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && ($action eq 'lock' || $action eq 'switch');
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => "overlay-$action-case", review => 0);
     $journey->{overlay_request} = ['child', 'parent', 75, 1];
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
@@ -153,9 +163,12 @@ sub overlay_lock_case {
     for my $role ('H', 'S') {
         onpc_app_rows::native_blocked_app($journey->scope($role eq 'H' ? 'initial-hard' : 'initial-soft'), $role);
     }
+    my $activity = onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child')
+        if $action eq 'switch';
     overlay_entry($journey, 'direct', 'command');
     prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1, 'overlay');
-    overlay_lock($journey, 'interruption');
+    $action eq 'lock' ? overlay_lock($journey, 'interruption')
+                     : overlay_switch($journey, 'interruption');
     $journey->seen($_) for qw(form-returned cancel cancel-returned);
     onpc_parent::open_for_child($journey, 'desktop', 'retained', 'retained', 'child', 'return');
     $journey->seen($_) for qw(balance-returned returned-apps);
@@ -168,6 +181,10 @@ sub overlay_lock_case {
     overlay_entry($journey, 'recovery', 'command');
     overlay_approve($journey, 'automatic');
     $journey->seen('countdown');
+    if ($activity) {
+        onpc_app_rows::native_activity_resume($journey, 'resumed');
+        onpc_app_rows::native_finish_app($activity);
+    }
     onpc_app_rows::native_blocked_app($journey->scope('approved-hard'), 'H');
     my $soft = $journey->scope('approved-soft');
     onpc_app_rows::native_usable_app($soft, 'command', $soft->seen('desktop'), 'child', 'S');
@@ -673,7 +690,7 @@ sub shell_approve {
                 && ref($journey->{overlay_request}) eq 'ARRAY'
                 && join(',', @{$journey->{overlay_request}}) =~ /\Achild,(?:parent,30,0|other-parent,30,1)\z/
                 && $exit eq 'automatic'
-            || ($journey->{prefix} // '') eq 'overlay-lock-case'
+            || ($journey->{prefix} // '') =~ /\Aoverlay-(?:lock|switch)-case\z/
                 && ($journey->{stage_prefix} // '') eq ''
                 && ref($journey->{overlay_request}) eq 'ARRAY'
                 && join(',', @{$journey->{overlay_request}}) eq 'child,parent,75,1'

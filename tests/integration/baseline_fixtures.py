@@ -754,9 +754,10 @@ def verify_native_rules(g):
 
 
 def declared_files(g, identities, source_hashes=None, *, include_native_policy=True):
+    from tests.fixtures.baseline_environment import automatic_update_files
     os_id, _ = prepare_vm.release_identity(prepare_vm.parse_os_release(
         g.read_file('/etc/os-release').decode('utf-8')))
-    declaration = assets.files(identities) | assets.automatic_update_files(os_id)
+    declaration = assets.files(identities) | automatic_update_files(os_id)
     if os_id == 'fedora' and include_native_policy:
         if source_hashes is None:
             recorded = json.loads(g.read_file(RECORD))['files']

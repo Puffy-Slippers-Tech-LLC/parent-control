@@ -200,18 +200,8 @@ class SSHBoundary:
         # The helper imports these shared finite declarations/primitives. Install
         # modules in memory, keeping source and build tools off the guest disk.
         modules = [(name, inspect.getsource(module)) for name, module in (
-            ('guest_files', guest_files), ('native_assets', native_assets))]
-        # Ship only movable placement declarations, without importing the
-        # persistent environment settings or changing checkout import routes.
-        placement = ('from pathlib import Path\nfrom native_assets import ('
-            'ASSETS,LAUNCHERS,GUI_FILES,GUI_DIRECTORIES,PREFIX,TRUSTED_NATIVE,ACTIVITY_PREFIX,ACTIVITY_EXECUTABLE,'
-            'trusted_file_modes,desktop_entry,desktop_id,legacy_executable_paths,NEXT_VERSION,VERSION_NONMATCH,'
-            'GAME_EXECUTABLE,GAME_DESKTOP_ID,game_desktop_entry)\n')
-        for name in ('MECHANICAL', 'NATIVE', 'CATALOG_PREFIX', 'CATALOG_ENTRIES'):
-            placement += name + '=' + repr(getattr(baseline_assets, name)) + '\n'
-        for name in ('native_files', 'catalogue_files'):
-            placement += inspect.getsource(getattr(baseline_assets, name)) + '\n'
-        modules.extend((('baseline_assets', placement), ('native_trust', inspect.getsource(native_trust))))
+            ('guest_files', guest_files), ('native_assets', native_assets),
+            ('baseline_assets', baseline_assets), ('native_trust', native_trust))]
         finite = ('import hashlib\nfrom pathlib import Path\nfrom types import SimpleNamespace\nimport native_assets,baseline_assets\n'
                   + 'SUBSETS=' + repr(fixture_manifest.SUBSETS) + '\n'
                   + 'ABSENCES=' + repr(fixture_manifest.ABSENCES) + '\n')

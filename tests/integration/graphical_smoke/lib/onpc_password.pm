@@ -163,7 +163,10 @@ sub enter_kiosk_mate_password {
             my $offline = ($journey->{prefix} // '') eq 'offline-approvals-station'
                 && ($journey->{stage_prefix} // '') eq 'station-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,180,1';
-            die 'secret:challenge' unless ($temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily || $daily_soft || $offline ||
+            my $game = ($journey->{prefix} // '') eq 'game-expiry-request'
+                && ($journey->{stage_prefix} // '') eq 'request-'
+                && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,600,1';
+            die 'secret:challenge' unless ($temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily || $daily_soft || $offline || $game ||
                     ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
                     && ($journey->{stage_prefix} // '') eq '')
                 && ref($request) eq 'ARRAY' && @$request == 4

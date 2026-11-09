@@ -1864,7 +1864,8 @@ class UiObservations:
                     and set(lock) == {'entry', 'owner', 'locked', 'desktop_input_available',
                         'recipient', 'surface_id', 'provider'} | (
                         {'reason', 'authentication_blocked'} if lock['entry'] == 'restriction' else set())
-                    and lock['owner'] == 'fixture-child' and lock['locked'] is True
+                    and lock['owner'] == ('existing-fixture-child' if child == 'existing'
+                                          else 'fixture-child') and lock['locked'] is True
                     and lock['desktop_input_available'] is False and lock['recipient'] is None
                     and type(lock['surface_id']) is str
                     and re.fullmatch(r'[0-9a-f]{64}', lock['surface_id']), 'ui:natural-expiry-lock')
@@ -2152,6 +2153,8 @@ class UiObservations:
         if operation == 'game-activity':
             AppActivityObservation.from_value(result.get('activity'), binding='game-primary')
             expected['activity'] = result['activity']
+        if operation == 'game-windowed-level':
+            expected['game_mode'] = {'mode': 'windowed', 'level': 1}
         policy_bindings = {**accessible_ui.BASELINE_NATIVE_BINDINGS, **accessible_ui.NATIVE_DENIAL_BINDINGS}
         if operation in accessible_ui.NATIVE_DESKTOP_OPERATIONS and not operation.endswith(('-selected', '-denied')):
             expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))

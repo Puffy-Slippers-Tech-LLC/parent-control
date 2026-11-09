@@ -52,6 +52,44 @@ def test_lock_input_ignores_app_local_modality_but_refuses_competing_recipients(
             ui.shell_lock_snapshot(os.getuid(), 'curtain', observation=observation)
 
 
+@pytest.mark.parametrize('child', ['child', 'existing'])
+def test_expiry_lock_binding_refuses_another_account_before_session_read(monkeypatch, child):
+    module = ui_observations.accessible_ui
+    child = module.CHILD if child == 'child' else module.EXISTING_CHILD
+    ui = object.__new__(module.AccessibleUI)
+    ui.lock_role, ui.lock_child = 'child', child
+    monkeypatch.setattr(module.pwd, 'getpwnam', lambda name: SimpleNamespace(pw_uid=1234))
+    monkeypatch.setattr(module.os, 'getuid', lambda: 5678)
+    sessions = Mock(side_effect=AssertionError('wrong account reached session discovery'))
+    monkeypatch.setattr(module.session_control, 'sessions', sessions)
+    with pytest.raises(module.UiError, match='ui:lock-session'):
+        ui.require_lock_session(5678)
+    sessions.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['none', 'wrong-child', 'wrong-scope', 'replay'])
+def test_game_approval_secret_stays_bound_to_its_request(fault):
+    result = run_password_guard(r'''
+my $fault = shift @ARGV;
+my $journey = bless {prefix => 'game-expiry-request', stage_prefix => 'request-',
+    kiosk_request => ['other-child', 'parent', 600, 1], review => 0}, 'onpc_journey';
+$journey->{kiosk_request}[0] = 'child' if $fault eq 'wrong-child';
+$journey->{stage_prefix} = 'other-' if $fault eq 'wrong-scope';
+my $ok = eval {
+    onpc_password::enter_kiosk_mate_password($journey, 'bound-request');
+    onpc_password::enter_kiosk_mate_password($journey, 'bound-request') if $fault eq 'replay';
+    1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+''', fault)
+    value = json.loads(result.stdout)
+    assert value['ok'] == (fault == 'none')
+    expected = [] if fault in ('wrong-child', 'wrong-scope') else [
+        ['proof', 'request-approval-qualified'], ['proof', 'request-approval-rechecked'],
+        ['delivery', 'parent', 'request-kiosk-mate-approval']]
+    assert value['events'] == expected
+
+
 def test_reminder_overlay_wrong_account_refuses_before_discovery(monkeypatch):
     module = ui_observations.accessible_ui
     ui = object.__new__(module.AccessibleUI)

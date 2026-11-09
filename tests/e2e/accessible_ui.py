@@ -198,7 +198,7 @@ NATIVE_APP_OPERATIONS |= frozenset('native-alias-' + suffix for suffix in (
 OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 GAME_OPERATIONS = frozenset('game-' + action for action in (
-    'command', 'opened', 'move', 'moved', 'activity', 'close', 'closed', 'wrong-window'))
+    'command', 'opened', 'move', 'moved', 'activity', 'close', 'closed', 'wrong-window', 'windowed-level'))
 OPERATIONS |= GAME_OPERATIONS
 STANDARD_OPERATIONS |= GAME_OPERATIONS
 NATIVE_DESKTOP_OPERATIONS = frozenset((
@@ -904,7 +904,9 @@ NAMED_CHILD_OPERATIONS = (NAMED_CUSTOM_OPERATIONS | NAMED_TIME_OPERATIONS
                           | GDM_DENIAL_OPERATIONS | COUNTDOWN_OPERATIONS | PANEL_ANIMATION_OPERATIONS
                           | {'revoke-balances', 'revoke-saved-balances', 'revoke-cleared-balances',
                              'revoke-open', 'revoke-warning', 'revoke-cancel', 'revoke-confirm'}
-                          | {'parent-toggle-enabled', 'parent-toggle-disabled'})
+                          | {'parent-toggle-enabled', 'parent-toggle-disabled'}
+                          | {'child-natural-expiry-' + action for action in
+                             ('wait-lock', 'lock-ready', 'lock-result')})
 OPERATIONS |= NAMED_CUSTOM_OPERATIONS
 PARENT_SAVE_OPERATIONS = {
     'multiple-other-saved': {
@@ -8651,10 +8653,11 @@ class AccessibleUI:
         finally:
             with_catalog.close()
 
-    def natural_expiry_session(self):
+    def natural_expiry_session(self, *, child=CHILD):
         """Observe one active child desktop, retaining its identity across Lock."""
         uid = os.getuid()
-        require(uid == pwd.getpwnam(CHILD_ACCOUNTS[CHILD]).pw_uid == os.geteuid(),
+        require(child in (CHILD, EXISTING_CHILD)
+                and uid == pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid == os.geteuid(),
                 'ui:natural-expiry-account')
         current = session_control.sessions()
         source = session_control.source_identity(current, uid)
@@ -8676,12 +8679,15 @@ class AccessibleUI:
                 continue
             return identity, locked
 
-    def natural_expiry(self, operation):
+    def natural_expiry(self, operation, *, child=CHILD):
         """TIME04: observe before app input; never inspect the app below a lock."""
         require(operation in NATURAL_EXPIRY_OPERATIONS, 'ui:natural-expiry-operation')
         require(not self.input_uncertain, 'ui:uncertain-input')
         engineering = operation in ENGINEERING_EXPIRY_OPERATIONS
         action = operation.removeprefix('child-natural-expiry-').removeprefix('engineering-')
+        require(child == CHILD or child == EXISTING_CHILD
+                and action in ('wait-lock', 'lock-ready', 'lock-result') and not engineering,
+                'ui:natural-expiry-binding')
         waiting = action == 'wait-lock'
         if waiting:
             deadline = getattr(self, 'natural_expiry_deadline_ns', None)
@@ -8702,7 +8708,7 @@ class AccessibleUI:
                     'ui:natural-expiry-source')
         def read_session():
             try:
-                return self.natural_expiry_session()
+                return self.natural_expiry_session(child=child)
             except subprocess.TimeoutExpired:
                 if not waiting:
                     raise
@@ -8733,8 +8739,8 @@ class AccessibleUI:
                 if waiting:
                     require(after < deadline, 'ui:natural-expiry-late-lock')
                 self.lock_role = 'child'
-                lock = (self._lock_surface('child-lock-time-denied')
-                        or self._lock_surface('child-lock-curtain'))
+                lock = (self._lock_surface('child-lock-time-denied', child=child)
+                        or self._lock_surface('child-lock-curtain', child=child))
                 if lock is None:
                     return None
                 confirmed = read_session()
@@ -8766,7 +8772,7 @@ class AccessibleUI:
                 require(type(seconds) is int and 0 <= seconds < 86400, 'ui:natural-expiry-countdown')
             # Recheck the session after discovery and immediately before input.
             # Near expiry, retain read-only observation instead of racing an action.
-            identity, is_locked = self.natural_expiry_session()
+            identity, is_locked = self.natural_expiry_session(child=child)
             require(identity == session, 'ui:natural-expiry-session-changed')
             if is_locked:
                 return None
@@ -8781,7 +8787,7 @@ class AccessibleUI:
                 # its public lock surface; an uncertain mutation still refuses.
                 if (str(error) not in ('ui:native-entry', 'ui:natural-expiry-countdown')
                         or self.input_uncertain
-                        or self.natural_expiry_session() != (session, True)):
+                        or self.natural_expiry_session(child=child) != (session, True)):
                     raise
                 return observe()
         value = self.wait(transition_read, 'natural-expiry', prompt_in_predicate=True)
@@ -8800,7 +8806,7 @@ class AccessibleUI:
         target = self.snapshot_owned_target('onpc-fixture-native-primary-submit',
                                            root=root, showing=False, check_prompt=True)
         require(target is not None, 'ui:native-entry')
-        if self.natural_expiry_session() == (session, False):
+        if self.natural_expiry_session(child=child) == (session, False):
             # One mutation outside every read-only retry predicate.
             self._invoke_target(target)
             acted = True
@@ -8858,8 +8864,10 @@ class AccessibleUI:
     def require_lock_session(self, uid):
         """Bind a lock read to the sole active, local, locked fixture desktop."""
         role = getattr(self, 'lock_role', 'parent')
+        account = (CHILD_ACCOUNTS[getattr(self, 'lock_child', CHILD)] if role == 'child'
+                   else session_control.ACCOUNTS['parent'])
         require(role in ('parent', 'child') and uid == os.getuid()
-                == pwd.getpwnam(session_control.ACCOUNTS[role]).pw_uid,
+                == pwd.getpwnam(account).pw_uid,
                 'ui:lock-session')
         try:
             return session_control.source_session(session_control.sessions(), uid, locked=True)
@@ -9041,7 +9049,7 @@ class AccessibleUI:
                 if message not in texts:
                     return None
             identities = [text for text in texts if text in GREETER_IDENTITIES]
-            require(not identities or identities == [CHILD], 'ui:lock-recipient')
+            require(not identities or identities == [getattr(self, 'lock_child', CHILD)], 'ui:lock-recipient')
             require(self.require_lock_session(uid) == session, 'ui:lock-session-changed')
             return owner, window, None, observation
         if entry == 'curtain':
@@ -9059,7 +9067,8 @@ class AccessibleUI:
         field = fields[0]
         labels = [facts[node]['name'] for node in controls if facts[node]['role'] == 'label'
                   and facts[node]['showing'] and facts[node]['name'] in GREETER_IDENTITIES]
-        require(labels == [CHILD if getattr(self, 'lock_role', 'parent') == 'child' else PARENT],
+        require(labels == [getattr(self, 'lock_child', CHILD)
+                          if getattr(self, 'lock_role', 'parent') == 'child' else PARENT],
                 'ui:lock-recipient')
         require(focused == [field] and self.has_state(field, self.api.StateType.SENSITIVE)
                 and self.has_state(field, self.api.StateType.EDITABLE), 'ui:lock-field')
@@ -9074,10 +9083,12 @@ class AccessibleUI:
         return self.wait(lambda: self._lock_surface(operation), 'lock-surface',
                          prompt_in_predicate=True)
 
-    def _lock_surface(self, operation):
+    def _lock_surface(self, operation, *, child=CHILD):
         self.lock_role = 'child' if operation in CHILD_LOCK_OPERATIONS else 'parent'
-        name = CHILD if self.lock_role == 'child' else PARENT
-        identity = 'fixture-' + self.lock_role
+        require(child in (CHILD, EXISTING_CHILD), 'ui:lock-child-binding')
+        self.lock_child = child
+        name = child if self.lock_role == 'child' else PARENT
+        identity = CHILD_IDENTITIES[child] if self.lock_role == 'child' else 'fixture-parent'
         operation = operation.replace('child-', 'parent-', 1)
         uid = os.getuid()
         if operation == 'parent-lock-unlocked-refused':
@@ -14136,6 +14147,12 @@ class AccessibleUI:
                                             **arguments, **options)
         if operation == 'game-command':
             return self.native_launch_command(**arguments)
+        if operation == 'game-windowed-level':
+            snapshot()
+            from fixture_ui import FixtureUI
+            require(FixtureUI(self, 'game', require=require).text('mode') == 'Windowed; level: 1',
+                    'ui:game-mode-level')
+            return {'mode': 'windowed', 'level': 1}
         if operation == 'game-wrong-window':
             try:
                 snapshot()
@@ -14940,7 +14957,7 @@ class AccessibleUI:
         elif operation in GAME_OPERATIONS:
             value = self.game_operation(operation)
             if value is not None:
-                result['activity'] = value
+                result['game_mode' if operation == 'game-windowed-level' else 'activity'] = value
         elif operation in SNAP_APP_OPERATIONS | FLATPAK_APP_OPERATIONS:
             value = self.snap_app_operation(operation)
             if value is not None:
@@ -15106,7 +15123,7 @@ class AccessibleUI:
             else:
                 self.greeter_list()
         elif operation in NATURAL_EXPIRY_OPERATIONS:
-            result['natural_expiry'] = self.natural_expiry(operation)
+            result['natural_expiry'] = self.natural_expiry(operation, child=child)
         elif operation == 'child-natural-expiry-wrong-account-refused':
             try:
                 self.natural_expiry('child-natural-expiry-observe')
@@ -16664,7 +16681,7 @@ def main():
     ui.expected_natural_expiry_source = (sys.argv[4] if len(sys.argv) == 5
                                          and natural_expiry_binding else None)
     if sys.argv[1] == 'child-natural-expiry-wait-lock':
-        require(len(sys.argv) == 5 and re.fullmatch(r'[1-9][0-9]{0,19}', sys.argv[4]),
+        require(len(sys.argv) in (5, 6) and re.fullmatch(r'[1-9][0-9]{0,19}', sys.argv[4]),
                 'ui:natural-expiry-deadline')
         ui.natural_expiry_deadline_ns = int(sys.argv[4])
         ui.expected_natural_expiry_source = None

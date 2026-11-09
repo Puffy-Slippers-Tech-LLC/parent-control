@@ -2430,6 +2430,18 @@ class GameActivityQualification(KioskEntryQualification):
         return GameActivityJourney(context, progress)
 
 
+class GameExpiryQualification(GameActivityQualification):
+    fixture_caller = 'check_e2e_game'
+
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from game_expiry import GameExpiryJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return GameExpiryJourney(context, progress)
+
+
 class SnapFixtureQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

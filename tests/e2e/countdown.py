@@ -87,8 +87,8 @@ class CountdownSample:
                     <= self.guest_read_bounds[1], 'countdown:guest-read-bounds')
 
     @classmethod
-    def from_ui(cls, value, *, boot_sha256):
-        countdown = CountdownObservation.from_value(value.get('countdown'), present=True)
+    def from_ui(cls, value, *, boot_sha256, child='fixture-child'):
+        countdown = CountdownObservation.from_value(value.get('countdown'), present=True, child=child)
         bounds = value.get('countdown_read_bounds')
         guest_bounds = value.get('countdown_guest_read_bounds')
         require(type(bounds) in (list, tuple) and len(bounds) == 2

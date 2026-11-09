@@ -43,6 +43,15 @@ def main(argv=None):
                            scope + '-content')
         window.set_child(content)
         content.append(set_automation_id(Gtk.Label(label='Ready'), scope + '-status'))
+        if options.kind == 'game':
+            # The game has one fixed starting level. Publish the actual window
+            # mode, rather than inferring it from launch success or geometry.
+            mode = set_automation_id(Gtk.Label(), scope + '-mode')
+            def read_mode(*_args):
+                mode.set_label(('Fullscreen' if window.is_fullscreen() else 'Windowed') + '; level: 1')
+            window.connect('notify::fullscreened', read_mode)
+            read_mode()
+            content.append(mode)
         # GtkText is an internal delegate with accessibility role NONE. Publish
         # the GtkEntry itself; Edit draft focuses it through normal GTK input.
         draft = set_automation_id(Gtk.Entry(), scope + '-draft')

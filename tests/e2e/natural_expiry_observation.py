@@ -99,7 +99,7 @@ def await_engineering_expiry(ui, guard, activity, *, expiry_at, boot_sha256):
             time.sleep(SAMPLE_INTERVAL_SECONDS)
 
 
-def await_natural_expiry(journey, guard, previous, activity, *, maximum_seconds=240):
+def await_natural_expiry(journey, guard, previous, activity, *, maximum_seconds=240, child=None):
     """Observe Lock locally after submitted work; no last-second app input.
 
     The existing activity capture proves normal Submit and its independent
@@ -112,15 +112,20 @@ def await_natural_expiry(journey, guard, previous, activity, *, maximum_seconds=
     low, high = countdown_seconds(previous.countdown.text)
     require(type(maximum_seconds) is int and maximum_seconds in (240, 600)
             and 0 < low <= high <= maximum_seconds, 'natural-expiry:positive-time')
-    require(activity.pid is not None and activity.state is not None
-            and activity.state[1] == 'ONPC fixture draft', 'natural-expiry:submitted-work')
+    require(child in (None, 'existing'), 'natural-expiry:child-binding')
+    require(activity.pid is not None and activity.state is not None and (
+            activity.binding == 'native-primary' and activity.state[1] == 'ONPC fixture draft'
+            or activity.binding == 'game-primary' and child == 'existing'
+            and activity.state[1:] == ('No submitted draft', 'Moves: 1; token: 1')),
+            'natural-expiry:submitted-work')
     original_start, original_end = previous.guest_read_bounds
     journey.ui.natural_expiry_deadline_ns = original_start + (high + 15) * 1_000_000_000
     with watch_activity.operation('Observing natural lock after the child’s submitted work'):
         attempt_deadline = guard()
         require(journey.ui.boot_proof == previous.boot_sha256, 'natural-expiry:wrong-boot')
         require(time.monotonic() < attempt_deadline, 'natural-expiry:deadline')
-        value = journey.ui.observe('child-natural-expiry-wait-lock')['natural_expiry']
+        value = journey.ui.observe('child-natural-expiry-wait-lock',
+            **({'child': child} if child is not None else {}))['natural_expiry']
         attempt_deadline = guard()
         require(journey.ui.boot_proof == previous.boot_sha256, 'natural-expiry:wrong-boot')
         require(time.monotonic() < attempt_deadline, 'natural-expiry:deadline')

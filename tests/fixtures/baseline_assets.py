@@ -2,23 +2,15 @@
 from pathlib import Path
 
 try:
-    from baseline_environment import desktop_settings_files, automatic_update_files
-except ImportError:
-    from tests.fixtures.baseline_environment import desktop_settings_files, automatic_update_files
-
-try:
     from native_assets import (ASSETS, LAUNCHERS, GUI_FILES, GUI_DIRECTORIES, PREFIX, TRUSTED_NATIVE, ACTIVITY_PREFIX,
                                ACTIVITY_EXECUTABLE, trusted_file_modes, desktop_entry, desktop_id,
-                               legacy_executable_paths, NEXT_VERSION, VERSION_NONMATCH)
+                               legacy_executable_paths, NEXT_VERSION, VERSION_NONMATCH,
+                               GAME_EXECUTABLE, GAME_DESKTOP_ID, game_desktop_entry)
 except ImportError:
     from tests.fixtures.native_assets import (ASSETS, LAUNCHERS, GUI_FILES, GUI_DIRECTORIES, PREFIX, TRUSTED_NATIVE,
         ACTIVITY_PREFIX, ACTIVITY_EXECUTABLE, trusted_file_modes, desktop_entry, desktop_id,
-        legacy_executable_paths, NEXT_VERSION, VERSION_NONMATCH)
-
-try:
-    from native_assets import GAME_EXECUTABLE, GAME_DESKTOP_ID, game_desktop_entry
-except ImportError:
-    from tests.fixtures.native_assets import GAME_EXECUTABLE, GAME_DESKTOP_ID, game_desktop_entry
+        legacy_executable_paths, NEXT_VERSION, VERSION_NONMATCH,
+        GAME_EXECUTABLE, GAME_DESKTOP_ID, game_desktop_entry)
 
 MECHANICAL = '/opt/onpc-baseline-assets/onpc-test-application'
 NATIVE = {
@@ -115,4 +107,10 @@ def catalogue_files(accounts, *, root=None, system_dir='/usr/share/applications'
 
 
 def files(accounts):
+    # Persistent settings belong only to baseline preparation. Movable fixture
+    # callers can load this declaration module without that environment module.
+    try:
+        from baseline_environment import desktop_settings_files
+    except ImportError:
+        from tests.fixtures.baseline_environment import desktop_settings_files
     return native_files(accounts) | catalogue_files(accounts) | desktop_settings_files(accounts)

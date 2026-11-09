@@ -182,6 +182,13 @@ transport. The caller holds the exclusive VM lease and registers the staging
 intent with its existing attempt owner before the first guest write. The
 provisioner owns no VM restoration, retention journal or rollback mechanism.
 
+Ship the shared placement declaration module with its imports rather than
+rebuilding its import list, constants and function bodies in the SSH boundary.
+`baseline_assets` loads persistent environment settings only when baseline
+preparation requests `files`; movable provisioning uses `native_files` and
+`catalogue_files` from that same module. A new asset must not require a second
+hand-maintained copy of its declaration dependencies in the guest transport.
+
 The host account owns its fixture input folder. Privileged controllers read
 that folder through the existing authenticated input boundary; SSH copies the
 selected files and assigns ownership from accepted guest roles. Host and guest

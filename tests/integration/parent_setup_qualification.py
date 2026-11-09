@@ -2401,25 +2401,20 @@ class CatalogueSearchQualification(KioskEntryQualification):
 
 
 class NativeFixtureQualification(KioskEntryQualification):
-    @staticmethod
-    def journey(context, progress):
+    fixture_profile = 'native'
+
+    @classmethod
+    def journey(cls, context, progress):
         from app_snapshot import snapshot_name
         from native_fixture_qualification import NativeFixtureJourney
         version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
         context.installed_snapshot = snapshot_name(version)
-        return NativeFixtureJourney(context, progress)
+        return NativeFixtureJourney(context, progress, profile=cls.fixture_profile)
 
 
-class GameFixtureQualification(KioskEntryQualification):
+class GameFixtureQualification(NativeFixtureQualification):
     from e2e_fixture_preparation import GAME_SUBSETS as fixture_subsets, GAME_CALLER as fixture_caller
-
-    @staticmethod
-    def journey(context, progress):
-        from app_snapshot import snapshot_name
-        from native_fixture_qualification import NativeFixtureJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
-        return NativeFixtureJourney(context, progress, profile='game')
+    fixture_profile = 'game'
 
 
 class SnapFixtureQualification(KioskEntryQualification):

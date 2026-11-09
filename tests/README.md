@@ -68,6 +68,11 @@ an explicit `args` array; executing each entry with those arguments covers the
 same suites as `all`. It starts with unit and UI and ends with system and E2E.
 Raw test output remains in the linked report streams.
 
+`run-tests` uses its configured `default_branch`, which can select a different
+checkout from the command's working directory. When validating edits in another
+configured checkout, pass `--branch NAME` explicitly for execution and attachment;
+retain the enclosing `ONPC_WORKFLOW_DIRECTORY` so nested results reach its owner.
+
 Readiness and leaf/composite status are registered with each command in
 `tools/test_commands.py`. New implemented leaves join the inventory and the
 aggregate automatically; pending commands join when their registration becomes

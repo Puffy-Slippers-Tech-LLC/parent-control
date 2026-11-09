@@ -230,10 +230,10 @@ platform={'os':release['ID'].strip('"'),'release':release['VERSION_ID'].strip('"
 assert platform['os'] in ('ubuntu','fedora') and platform['architecture']=='x86_64','audit-platform'
 fedora=platform['os']=='fedora'
 cli=('/usr/bin' if fedora else '/usr/sbin')+'/fapolicyd-cli'
-def command(argv):
+def command(argv, *, limit=33554432):
  raw=subprocess.run(argv,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
                     check=True,timeout=60).stdout
- assert len(raw)<=33554432,'audit-command-size'
+ assert len(raw)<=limit,'audit-command-size'
  return raw.decode()
 accounts={'system':{'uid':0,'gid':0,'home':'/root'}}
 for role,name in (('child','onpc-child-riley'),('other','onpc-child-jordan'),('parent','onpc-parent-jamie')):
@@ -263,8 +263,9 @@ for key,m in data['members'].items():
   else:unselected.append(key)
 for item in data['absences']:assert not os.path.lexists(item['destination']),'required-absence'
 native_rows={key:[] for key in selected};by_path={path_for(m):k for k,m in data['members'].items()};vendor=[]
-raw=command([cli,'--dump-db']).encode()
-assert len(raw)<=33554432,'native-database-size'
+# Match the existing native readers' 64 MiB ceiling: the supported Ubuntu
+# vendor database exceeds 32 MiB. Keep every row in the preservation digest.
+raw=command([cli,'--dump-db'],limit=64*1024*1024).encode()
 for line in raw.decode().splitlines():
  first=line.split(None,1)
  fields=[first[0],*first[1].rsplit(None,2)] if len(first)==2 else []

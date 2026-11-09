@@ -1341,15 +1341,22 @@ after a product restart.
 
 Pending-approval cancellation uses
 `request_composition.CancelledRequestJourney` for immutable session captures and
-elapsed-time-aware unchanged balances with zero grant. Qualification and case
-171 declare their own ordered session endpoints, balance endpoints and elapsed
+elapsed-time-aware unchanged balances with zero grant. Qualifications and cases
+171/172 declare their own ordered session endpoints, balance endpoints and elapsed
 budget. Keep subsequent fresh approval and app-access assertions in the case;
 do not inherit a qualification's plan or checkpoint assumptions to reuse its
 comparison mechanics. The workers share `onpc_parent::set_allowance` for Parent
-setup and `onpc_request_flow::overlay_lock` for the pending prompt interruption.
+setup, `onpc_request_flow::overlay_lock` for locking and
+`onpc_request_flow::overlay_switch` for switching users or signing out.
+The latter composes the existing desktop-entry helper: retained entry for
+Switch User, fresh entry for sign-out. The caller checks whether the session
+was retained or replaced and whether the form stayed open or was reopened. Reuse the
+[qualified FLOW17 bindings](../../docs/TestAutomation/E2E-Building-Blocks.md#reusable-journey-fragments),
+including their fullscreen-request return observation, rather than adding another
+desktop check or copying session commands into a case.
 
 For approval balance comparisons, date the estimate's calculation rather than
-its cached label read. Case 171 and failed-approval histories reuse
+its cached label read. Cases 171/172 and failed-approval histories reuse
 `overlay-fraction-estimate-refresh` and `request_composition._estimate_read_bounds`:
 equivalent public edits preserve the request choices and bracket a fresh
 calculation. Keep the final Parent read as the elapsed-time endpoint and retain

@@ -5250,7 +5250,25 @@ and baseline restoration; the VM was independently confirmed off. Existing
 component authentication outcomes and bounded startup refusal remain reused.
 This supplies Ubuntu engineering qualification only, with no Fedora or customer
 E2E acceptance credit.
-Obligations 145–146 and 149–150 retain their specific missing fault/observation
+Obligation **145**'s installed broker-save residual is owned by
+`system_enforcement.broker_save_failure_recovery`, registered as
+`enforcement::test_broker_save_failure_recovery` (system **317**). An owned
+read-only mount pins Riley's original preference record while the real parent
+caller changes the enabled allowance from 30 to 45 minutes. Fresh broker events
+prove the actual storage failure and native account rollback; independent reads
+require identical prior preference bytes, limits, grant and app filter. The
+original native app remains denied to Riley and allowed to Jordan, and Jordan's
+and the parent's account state remains unchanged. The persistent mount also
+refuses preference rollback, so the exposed `RollbackFailure` is checked
+separately from independently verified preservation. Exact fault removal and a
+fresh broker instance permit the identical 45-minute transaction to commit to
+disk and AccountsService without changing app policy or other accounts.
+Installed qualification passed on `onpc-Ubuntu26.04-1` in
+`20261109T070926Z-6fd7a2d1`, including collection, caller closure, owned mount
+removal, policy restoration and outer baseline restoration; the VM was confirmed
+off. Existing deterministic time/app-policy rollback tests remain reused. This
+supplies no extension-manager fault matrix, Fedora or customer E2E credit.
+Obligations 146 and 149–150 retain their specific missing fault/observation
 or recovery assertions in the queue briefs; their existing system/component
 matrices are reused rather than implemented again. This mapping supplies no
 new installed result. Engineering obligation 142's stricter entry-exposure

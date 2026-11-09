@@ -657,6 +657,8 @@ CASES = (
                  'Keep sign-in protected while parent management cannot start and recover management'),
     CaseIdentity(316, 'authorization', 'test_kiosk_agent_failure_recovery',
                  'Recover a child request after the password agent stops'),
+    CaseIdentity(317, 'enforcement', 'test_broker_save_failure_recovery',
+                 'Keep a child’s previous rules when a parent save fails and retry'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

@@ -995,6 +995,112 @@ def native_probe_storage_lifecycle(record):
     guest.require(_broker_storage_identity() == restarted, 'probe:broker-replaced')
 
 
+def broker_save_failure_recovery(record):
+    """Obligation 145: real broker time/policy writes cross a failed disk save.
+
+    Pin the selected child's original record with the existing owned mount
+    fixture. Atomic replacement fails in the actual broker, after its native
+    time/filter writes. The persistent fault also refuses preference rollback;
+    independently read the unchanged bytes and restored native state rather
+    than treating that rollback error as proof of either loss or recovery.
+    """
+    from product_logs import read_component
+    from system_assertions import account_states
+    from system_removal_faults import Fault, identity, mounted_fault
+
+    accounts = provision_native()
+    child, parent = accounts['child'], accounts['parent']
+    untouched = (accounts['other'], parent)
+
+    def require(condition, reason):
+        guest.require(condition, 'broker-save:' + reason)
+
+    def events():
+        return [json.loads(line) for line in read_component('broker').splitlines()
+                if line.startswith('{')]
+
+    with PersistentCaller(parent) as caller:
+        def request(method, signature='()', args=()):
+            return accepted(caller.call(method, signature, args), category='broker-save:call-failed')
+
+        original = request('GetPreferences', '(u)', (child,))[0]
+        preferences = json.loads(original)
+        require(not preferences['parent_control_enabled'] and not preferences['apps'],
+                'requires-clean-policy')
+        peers = account_states(untouched)
+        request('SetParentControl', '(ubu)', (child, True, 30))
+        preferences.update(parent_control_enabled=True, daily_time_limit_minutes=30,
+                           apps={DESKTOP_ID: {'state': 'permanent', 'targets': [str(TARGET)],
+                                              'patterns': [], 'user_saved_match_rule': False}})
+        request('SetPreferences', '(us)', (child, json.dumps(preferences)))
+        prior = account_states((child,))[child]
+        require(prior[1:4] == (2, 1800, [0, 0]) and
+                json.loads(request('GetPreferences', '(u)', (child,))[0]) == preferences,
+                'setup-readback')
+        record_rules('save-before', child, True, record)
+        observe_launch(child, False)
+        observe_launch(accounts['other'], True)
+        require(account_states(untouched) == peers, 'setup-changed-other-accounts')
+        record('onpc.broker-save.prior', '30-minutes; blocked-native-app; peer-allowed')
+        print('onpc-system: stage=broker-save-prior-policy outcome=passed', flush=True)
+
+        path = Path('/var/lib/oh-no-parent-control/preferences') / f'{child}.json'
+        saved_identity = identity(path)
+        fault = Fault('broker-save', path, saved_identity)
+        previous_segments = {row['segment'] for row in events()}
+        # Start under the fault so the service's private mount namespace sees
+        # the pinned record. No product bytes or adapter behavior is replaced.
+        guest.run(['systemctl', 'stop', guest.BROKER])
+        with mounted_fault(fault, path, record, readonly=True):
+            try:
+                guest.activate_broker(restart=False)
+                reply = caller.call('SetParentControl', '(ubu)', (child, True, 45))
+                require(reply.get('error') == guest.BUS + '.Error.RollbackFailure'
+                        and 'result' not in reply, 'save-failure-not-exposed')
+                fresh = [row for row in events() if row['segment'] not in previous_segments]
+                require(len({row['segment'] for row in fresh}) == 1 and
+                        any(row['event'] == 'preferences.005' for row in fresh) and
+                        all(any(row['event'] == 'core.parent-control-stage' and
+                                row['fields'] == {'stage': stage, 'outcome': outcome}
+                                for row in fresh) for stage, outcome in (
+                                    ('preferences', 'failed'), ('rollback-account', 'accepted'))),
+                        'storage-failure-and-account-rollback-not-observed')
+                require(account_states((child,))[child] == prior and
+                        account_states(untouched) == peers, 'failed-save-changed-account-state')
+                record_rules('save-failed', child, True, record)
+                observe_launch(child, False)
+                observe_launch(accounts['other'], True)
+                record('onpc.broker-save.failure',
+                       'storage-replacement-refused; error-exposed; prior-time-policy-and-peers-preserved')
+                print('onpc-system: stage=broker-save-fault-rollback outcome=passed', flush=True)
+            finally:
+                # Drain the faulted service before removing only our mount.
+                guest.run(['systemctl', 'stop', guest.BROKER])
+        require(identity(path) == saved_identity, 'original-record-not-restored')
+        guest.activate_broker(restart=False)
+        request('SetParentControl', '(ubu)', (child, True, 45))
+        expected = {**preferences, 'daily_time_limit_minutes': 45}
+        after = account_states((child,))[child]
+        require(json.loads(request('GetPreferences', '(u)', (child,))[0]) == expected and
+                json.loads(after[0]) == expected and after[1:] == (prior[1], 2700, *prior[3:]),
+                'retry-not-committed')
+        require(account_states(untouched) == peers, 'retry-changed-other-accounts')
+        record_rules('save-retried', child, True, record)
+        observe_launch(child, False)
+        observe_launch(accounts['other'], True)
+        record('onpc.broker-save.retry', 'same-45-minute-save-committed; app-policy-and-peers-preserved')
+        print('onpc-system: stage=broker-save-retry outcome=passed', flush=True)
+
+        # Existing outer baseline restoration owns failure recovery. On success
+        # also restore the logical policy through the same real parent caller.
+        request('SetParentControl', '(ubu)',
+                (child, False, json.loads(original)['daily_time_limit_minutes']))
+        request('SetPreferences', '(us)', (child, original))
+        require(request('GetPreferences', '(u)', (child,))[0] == original and
+                account_states(untouched) == peers, 'policy-restoration-mismatch')
+        record('onpc.broker-save.cleanup', 'owned-mount-removed; original-policy-restored; peers-unchanged')
+
+
 def native_policy_transition(accounts, record, variant='command', *, caller=None):
     """Representative hard/soft transitions, with UID isolation throughout."""
     # One real caller owns this continuous history, including restoration. Keep

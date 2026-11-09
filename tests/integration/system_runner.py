@@ -2451,6 +2451,10 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             subsets = (('command',) if fixture_selection['target'] == 'ubuntu'
                        else (*subsets, 'command'))
         if any(item.area == 'enforcement'
+               and item.case_id == 'test_broker_save_failure_recovery'
+               for item in selection.executions) and 'command' not in subsets:
+            subsets += ('command',)
+        if any(item.area == 'enforcement'
                and item.case_id == 'test_kiosk_execution_confinement'
                for item in selection.executions):
             # The single enforcement case owns all live validations, including

@@ -198,6 +198,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reproduce-delayed-approval',
                                       'reproduce-countdown-minutes',
                                       'reproduce-pending-overlay-lock', 'probe-pending-overlay-lock',
+                                      'reproduce-pending-overlay-switch', 'probe-pending-overlay-switch',
                                       'reproduce-jordan-daily-access',
                                       'reproduce-natural-expiry',
                                       'reproduce-natural-access',

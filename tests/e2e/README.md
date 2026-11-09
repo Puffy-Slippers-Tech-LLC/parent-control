@@ -1830,6 +1830,17 @@ maintenance envelope.
 Inspect that live guest through guarded `exec`, then finish with `stop`;
 the retained scene supplies diagnostic evidence only.
 
+`tools/test-vm --vm NAME reproduce-pending-overlay-switch` replays the shared
+`PendingOverlaySwitchJourney` through the child's fresh retained-GDM credential
+proofs and submission. It stops at `interruption-desktop`, without replying
+or advancing the journey, then closes
+the worker and retains the owned child scene for guarded `exec` inspection.
+`probe-pending-overlay-switch` independently reads that retained request through
+the shared public form reader without input. The journey uses the public active,
+unlocked session identity at return because the fullscreen form hides Shell's
+Activities control; preserved choices and prompt absence remain separate reads.
+It supplies diagnostic evidence only; finish with `tools/test-vm --vm NAME stop`.
+
 `tools/test-vm --vm NAME reproduce-countdown-grant` retains case 28's original
 ten-minute station approval, fresh child entry, original work, legitimate
 unlock, bounded minute-edge progression, minute-to-seconds comparison and both

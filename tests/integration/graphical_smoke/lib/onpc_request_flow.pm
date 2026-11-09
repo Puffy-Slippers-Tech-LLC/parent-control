@@ -178,11 +178,21 @@ sub overlay_lock_case {
 }
 
 sub pending_overlay_lock {
-    onpc_progress::operation('Locking the child screen during a pending parent approval');
+    return pending_overlay_interruption('lock', @_);
+}
+
+sub pending_overlay_switch {
+    return pending_overlay_interruption('switch', @_);
+}
+
+sub pending_overlay_interruption {
+    my $action = shift;
+    onpc_progress::operation('Leaving and returning to the child during a pending parent approval');
     my ($exchange, $declared, $challenges) = @_;
     die 'pending-lock:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
-        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'pending-overlay-lock', review => 0);
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && ($action eq 'lock' || $action eq 'switch');
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'pending-overlay-' . $action, review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -193,11 +203,34 @@ sub pending_overlay_lock {
     $journey->seen('child-session-before');
     overlay_entry($journey, 'direct', 'command');
     prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1, 'overlay');
-    overlay_lock($journey, 'interruption');
+    $action eq 'lock' ? overlay_lock($journey, 'interruption')
+                     : overlay_switch($journey, 'interruption');
     $journey->seen($_) for qw(form-returned cancel returned);
     onpc_parent::open_for_child($journey, 'desktop', 'retained', 'retained', 'child', 'return');
     $journey->seen('balance-returned');
     $journey->finish();
+}
+
+# FLOW17 Switch User keeps the approval pending until the shared session command.
+# The root journey owns retained GDM credentials; the prompt grants none.
+sub overlay_switch {
+    onpc_progress::operation('Switching users and returning to the child after cancelled approval');
+    my ($journey, $prefix) = @_;
+    die 'pending-switch:binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && defined($prefix) && $prefix =~ /\A[a-z][a-z0-9-]*\z/;
+    die 'pending-switch:replay' if $journey->{overlay_switch_started} || $journey->{invocation_failed};
+    $journey->{overlay_switch_started} = 1;
+    my $ok = eval {
+        onpc_desktop_session::enter_desktop($journey, 'pending-overlay', 'child',
+            'retained', 'success', $prefix);
+        my $section = $journey->scope($prefix);
+        $section->seen('dismissed');
+        1;
+    };
+    unless ($ok) {
+        $journey->{invocation_failed} = 1;
+        die $@;
+    }
 }
 
 # FLOW17 lock consumes a fresh prompt proof. It never cancels the prompt itself

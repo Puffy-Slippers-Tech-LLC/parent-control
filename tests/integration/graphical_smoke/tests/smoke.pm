@@ -478,6 +478,12 @@ sub run {
         onpc_request_flow::pending_overlay_lock(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{pending_overlay_switch}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::pending_overlay_switch(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{overlay_prompt}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

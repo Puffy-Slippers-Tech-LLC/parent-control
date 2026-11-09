@@ -26,7 +26,7 @@ integration work and must not become a queue prerequisite.
 
 ## Next task
 
-Next task: **183b — [Switch User during pending overlay approval](E2E-Tasks/183b-switch-user-during-pending-overlay-approval.md)**.
+Next task: **214 — [E2E-039: overlay-switch](E2E-Tasks/214-case-172.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

@@ -33,6 +33,7 @@ SCROLLBACK_CHARACTERS = 256 * 1024
 SESSION_LINE = '\033]777;onpc-session\007'
 # Simplified activity rows stay on one physical line at every viewport width.
 COMPACT_LINE = '\033]777;onpc-compact\007'
+BLUE = '#0066ff'
 
 
 def retained_tail(lines):
@@ -67,7 +68,7 @@ def style_task_counts(text):
         text.stylize('not bold default', counter.start(1), counter.end())
         text.stylize('green', *counter.span(1))
         if counter.group(3) is not None:
-            text.stylize('#808080', *counter.span(2))
+            text.stylize(BLUE, *counter.span(2))
 
 
 class SessionCodeBlock(CodeBlock):
@@ -79,7 +80,7 @@ class SessionCodeBlock(CodeBlock):
             text = syntax.highlight(code)
             text.rstrip()
             for match in re.finditer(r'(?m)^\s*(?:\$ )?([^\s#]+)', code):
-                text.stylize('#0066ff', *match.span(1))
+                text.stylize(BLUE, *match.span(1))
             for match in re.finditer(r'(?<!\S)--[\w-]+', code):
                 text.stylize('#ff0000', *match.span())
             yield text

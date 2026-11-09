@@ -55,6 +55,7 @@ def declarations():
                native_assets.source_destinations('@other@').values()}
     game = {destination for destination, _ in
             native_assets.game_source_destinations('@other@').values()}
+    game.add('@child@/.local/share/applications/' + native_assets.GAME_DESKTOP_ID)
     grid = {destination for destination, _ in
             native_assets.source_destinations('@child@').values()
             if destination.startswith(native_assets.PREFIX + '/')}

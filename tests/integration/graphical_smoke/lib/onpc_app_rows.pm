@@ -1301,6 +1301,34 @@ sub game_usable_app {
                         defined($mode) ? ($mode) : ());
 }
 
+sub game_time_extension {
+    onpc_progress::operation('Extending the child’s time while preserving the original windowed game');
+    my ($exchange, $declared, $challenges, $request) = @_;
+    die 'game-time-extension:binding' unless @_ == 4 && ref($request) eq 'ARRAY'
+        && join(',', @$request) eq 'child,parent,75,0';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'game-time-extension', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    $journey->{overlay_request} = $request;
+    onpc_gdm::reattach_functional();
+    onpc_parent::daily_dominant_time_profile($journey, 600, 20, 'parent');
+    $journey->seen($_) for qw(game-apps game-policy dominant-switch dominant-gdm);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'child-entry');
+    $journey->seen('before-countdown');
+    my $play = $journey->scope('play');
+    game_usable_app($play, 'windowed');
+    native_read_activity($play, 'capture');
+    onpc_request_flow::prepare($journey, 'new', 'new', 'observed',
+        'fixture-child', 'fixture-parent', 75, 0, 'overlay');
+    onpc_request_flow::overlay_approve($journey, 'automatic');
+    $journey->seen('countdown');
+    native_read_activity($journey, 'returned-game');
+    $journey->seen($_) for qw(resume resumed resumed-capture);
+    $journey->invoke('natural-expiry');
+    onpc_desktop_session::verify_locked_input($journey, 'lock-input-ready', 'lock-result');
+    $journey->finish();
+}
+
 sub game_access {
     onpc_progress::operation('Recovering the child’s original game after approved time runs out');
     my ($exchange, $declared, $challenges, $request) = @_;

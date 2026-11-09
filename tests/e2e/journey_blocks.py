@@ -139,7 +139,7 @@ def grant_only_time_profile(*, source, entry, window, initial_enabled, revoke_fi
     }
 
 
-def daily_dominant_time_profile(*, grant_seconds, daily_minutes):
+def daily_dominant_time_profile(*, grant_seconds, daily_minutes, finish='gdm'):
     """FLOW13: approve at daily zero, then raise daily time without revocation.
 
     Cases retain both the Parent comparison and their later request-time check.
@@ -148,6 +148,7 @@ def daily_dominant_time_profile(*, grant_seconds, daily_minutes):
     require(type(grant_seconds) is int and type(daily_minutes) is int
             and (grant_seconds, daily_minutes) in ((600, 20), (1200, 40)),
             'time-profile:daily-dominant-binding')
+    require(finish in ('parent', 'gdm'), 'time-profile:daily-dominant-finish')
     return {
         **grant_only_time_profile(source='gdm', entry='fresh', window='new',
             initial_enabled=False, revoke_first=False, duration_seconds=grant_seconds,
@@ -158,8 +159,8 @@ def daily_dominant_time_profile(*, grant_seconds, daily_minutes):
         'profile-balance': 'ui:revoke-balances',
         'dominant-configured': f'ui:time-explanation-daily-{daily_minutes}-on-read',
         'dominant-settings': 'ui:parent-selected',
-        'dominant-switch': 'system:parent-switch-user',
-        'dominant-gdm': 'ui:gdm-returned',
+        **({'dominant-switch': 'system:parent-switch-user',
+            'dominant-gdm': 'ui:gdm-returned'} if finish == 'gdm' else {}),
     }
 
 

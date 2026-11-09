@@ -90,6 +90,19 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
     assert value['events'] == expected
 
 
+@pytest.mark.parametrize('child', ['child', 'existing'])
+def test_game_input_refuses_another_account_before_window_discovery(monkeypatch, child):
+    module = ui_observations.accessible_ui
+    ui = object.__new__(module.AccessibleUI)
+    ui.native_app_snapshot = Mock(side_effect=AssertionError('wrong child reached window discovery'))
+    monkeypatch.setattr(module.pwd, 'getpwnam', lambda name: SimpleNamespace(pw_uid=1234))
+    monkeypatch.setattr(module.os, 'getuid', lambda: 5678)
+    monkeypatch.setattr(module.os, 'geteuid', lambda: 5678)
+    with pytest.raises(module.UiError, match='ui:game-account'):
+        ui.game_operation('game-move', child=module.NAMED_CUSTOM_CHILDREN[child])
+    ui.native_app_snapshot.assert_not_called()
+
+
 def test_reminder_overlay_wrong_account_refuses_before_discovery(monkeypatch):
     module = ui_observations.accessible_ui
     ui = object.__new__(module.AccessibleUI)
@@ -418,6 +431,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
     ('excluded', 'parent'), ('included', 'other-parent'),
     ('wrong-choice', None), ('wrong-scope', None),
     ('lock-recovery', 'parent'), ('lock-wrong-scope', None),
+    ('game-extension', 'parent'), ('game-wrong-choice', None),
 ])
 def test_composed_overlay_secret_requires_fresh_proofs_and_cannot_be_replayed(mode, role):
     binding = ['child', 'parent', 30, False] if mode == 'excluded' else [
@@ -427,6 +441,9 @@ def test_composed_overlay_secret_requires_fresh_proofs_and_cannot_be_replayed(mo
     lock = mode.startswith('lock-')
     if lock:
         binding = ['child', 'parent', 75, True]
+    game = mode.startswith('game-')
+    if game:
+        binding = ['child', 'parent', 75, mode == 'game-wrong-choice']
     result = run_password_guard(r'''
 my $journey = bless {prefix => shift @ARGV, stage_prefix => '',
     overlay_request => decode_json(shift @ARGV), review => 0}, 'onpc_journey';
@@ -434,7 +451,7 @@ $journey->{stage_prefix} = 'later-' if shift(@ARGV) eq 'wrong-scope';
 my $first = eval { onpc_password::enter_overlay_shell_password($journey); 1; };
 my $replay = eval { onpc_password::enter_overlay_shell_password($journey); 1; };
 print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events => \@events});
-''', 'overlay-lock-case' if lock else 'panel-request-case', json.dumps(binding),
+''', 'game-time-extension' if game else 'overlay-lock-case' if lock else 'panel-request-case', json.dumps(binding),
         'wrong-scope' if mode == 'lock-wrong-scope' else mode)
     if role is None:
         assert json.loads(result.stdout) == {'first': 0, 'replay': 0, 'events': []}

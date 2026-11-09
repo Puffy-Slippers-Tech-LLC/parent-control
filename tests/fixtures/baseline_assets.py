@@ -38,8 +38,9 @@ def native_files(accounts):
     files[PREFIX + '/' + NEXT_VERSION] = ('S-update', 0o755, 'other')
     files[PREFIX + '/' + VERSION_NONMATCH] = ('N', 0o755, 'other')
     files[GAME_EXECUTABLE] = ('game', 0o755, 'other')
-    files[accounts['other'].pw_dir + '/.local/share/applications/' + GAME_DESKTOP_ID] = (
-        game_desktop_entry().encode(), 0o644, 'other')
+    for child_role in ('child', 'other'):
+        files[accounts[child_role].pw_dir + '/.local/share/applications/' + GAME_DESKTOP_ID] = (
+            game_desktop_entry().encode(), 0o644, child_role)
     for directory in GUI_DIRECTORIES:
         for filename in GUI_FILES:
             files[PREFIX + '/' + directory + filename] = (filename, 0o644, 'other')

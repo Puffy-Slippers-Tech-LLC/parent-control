@@ -3285,6 +3285,13 @@ The same engineering owner records Ubuntu qualification of denial with usable
 request controls, no grant/control changes, unchanged other accounts, exact
 agent restoration, safe exit and independent Parent balance readback after one
 fresh approval. This supplies no customer scenario acceptance credit.
+Obligation 145's installed broker storage failure and identical-save retry belong
+to `enforcement::test_broker_save_failure_recovery` (system 317), implemented by
+`system_enforcement.broker_save_failure_recovery`. The same engineering owner
+records Ubuntu qualification of restored prior time/app policy, real native
+denial, unchanged other accounts, exact fault removal and a successful retry.
+The existing deterministic rollback and extension-manager cases remain reused;
+this engineering history supplies no customer scenario acceptance credit.
 Apply [system reuse](UI-and-E2E-Coverage.md#reuse-of-system-coverage)
 at case, step and acceptance level while keeping the complete public journeys.
 

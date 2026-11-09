@@ -36,9 +36,15 @@ def case_inventory(root, category, options, *, vm=None, pass_fds=()):
             # The sanitized test environment drops its admission marker; without
             # restoring it, the public launcher can route to its default branch.
             environment['ONPC_LAUNCHER_CONTROLLER_ROOT'] = str(root)
-            result = subprocess.run(command, cwd=root, env=environment,
-                                    capture_output=True, text=True, check=True,
-                                    pass_fds=tuple(dict.fromkeys((*scratch_descriptors(), *pass_fds))))
+            try:
+                result = subprocess.run(command, cwd=root, env=environment,
+                                        capture_output=True, text=True, check=True,
+                                        pass_fds=tuple(dict.fromkeys((*scratch_descriptors(), *pass_fds))))
+            except subprocess.CalledProcessError as error:
+                # Keep the original refusal and status visible in the owning
+                # runner output; a generic child exit hides preparation causes.
+                print((error.stdout or '')[-8000:] + (error.stderr or '')[-8000:], flush=True)
+                raise
             cases.extend(match[1] for line in result.stdout.splitlines()
                          if (match := re.fullmatch(r'    (\S+::\S+) \[selected\](?: \[system-\d+\])?', line)))
     elif category == 'e2e':

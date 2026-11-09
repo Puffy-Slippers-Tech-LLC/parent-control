@@ -21,7 +21,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **174 — [Preserve and qualify system obligation 145: failed save](E2E-Tasks/174-system-145.md)**.
+Next task: **175 — [Preserve and qualify system obligation 146: stale identity](E2E-Tasks/175-system-146.md)**.
 
 This plan owns its queue, remaining task briefs and next-task pointer.
 It can run independently of all unfinished work in

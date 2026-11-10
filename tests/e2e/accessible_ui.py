@@ -11320,6 +11320,9 @@ class AccessibleUI:
         chinese = operation in CHINESE_VALID_BINDINGS
         jordan = operation in JORDAN_VALID_BINDINGS
         require(operation in KIOSK_VALID_OPERATIONS or overlay or chinese, 'ui:kiosk-valid-binding')
+        # Approval helpers call this directly, outside the top-level text
+        # dispatch. Keep equivalent-duration edits on this request surface.
+        self.text_overlay = overlay
         bound = operation in ('overlay-request-estimate', 'kiosk-request-estimate')
         bound_values = (self.overlay_bound_values() if overlay else self.kiosk_bound_values()) if bound else None
         child, approver = (bound_values[:2] if bound else

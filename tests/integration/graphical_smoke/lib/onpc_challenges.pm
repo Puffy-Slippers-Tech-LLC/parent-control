@@ -207,6 +207,23 @@ sub natural_expiry {
     $journey->finish();
 }
 
+sub natural_reminder {
+    onpc_progress::operation('Riley uses approved time until the saved warning and natural lock');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'natural-reminder:plan' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'natural-reminder', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 600, 'default', 0);
+    $journey->seen('profile-balance');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
+    $journey->invoke('natural-reminder');
+    $journey->finish();
+}
+
 sub suspend_active_grant {
     my ($exchange, $declared, $challenges, $request) = @_;
     die 'suspend-active-grant:plan' unless (@_ == 3 || @_ == 4) && ref($exchange) eq 'CODE'

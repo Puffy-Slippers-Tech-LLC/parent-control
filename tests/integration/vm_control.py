@@ -433,7 +433,7 @@ def main(argv=None):
     parser.add_argument('action', choices=('status', 'xml', 'snapshots', 'start', 'stop', 'reset',
                                           'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk', 'exec', 'sync-fixtures',
                                           'reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
-                                          'reproduce-kiosk-preferences', 'probe-vt6-input', 'probe-vt6-reboot-input', 'probe-vt6-authentication',
+                                          'reproduce-kiosk-preferences', 'reproduce-natural-reminder', 'probe-vt6-input', 'probe-vt6-reboot-input', 'probe-vt6-authentication',
                                           'reproduce-station-shortcuts',
                                           'reproduce-baseline-app-effects',
                                           'reproduce-baseline-auth-pause',
@@ -498,7 +498,7 @@ def main(argv=None):
         runner.require(args.action != 'exec' or probe is not None, 'vm-control:arguments')
         runner.require(not args.fixture_maintenance or args.action == 'start', 'vm-control:arguments')
         runner.require((args.action in ('sync-fixtures', 'reproduce-baseline-restoration', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-ineligible-approver',
-                                       'reproduce-natural-access', 'reproduce-natural-expiry', 'reproduce-fullscreen-return', 'reproduce-fullscreen-request', 'reproduce-rest-of-day', 'reproduce-countdown-grant',
+                                       'reproduce-natural-access', 'reproduce-natural-expiry', 'reproduce-natural-reminder', 'reproduce-fullscreen-return', 'reproduce-fullscreen-request', 'reproduce-rest-of-day', 'reproduce-countdown-grant',
                                        'reproduce-suspend-active-grant',
                                        'reproduce-suspend-expired-grant',
                                        'reproduce-overlay-activity', 'reproduce-overlay-return',
@@ -556,14 +556,14 @@ def main(argv=None):
         elif args.action == 'rename-disk':
             from vm_disk_rename import rename_disk
             rename_disk(lease)
-        elif args.action in ('reproduce-rest-of-day', 'reproduce-ineligible-approver', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-baseline-restoration', 'reproduce-natural-access', 'reproduce-natural-expiry',
+        elif args.action in ('reproduce-rest-of-day', 'reproduce-ineligible-approver', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-baseline-restoration', 'reproduce-natural-access', 'reproduce-natural-expiry', 'reproduce-natural-reminder',
                              'reproduce-countdown-grant', 'reproduce-suspend-active-grant', 'reproduce-suspend-expired-grant', 'reproduce-overlay-activity', 'reproduce-overlay-return',
                              'reproduce-system-graphical-expiry', 'reproduce-grant-logout',
                              'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-overlay-lock-case', 'reproduce-panel-request',
                              'reproduce-app-restart-choices', 'reproduce-reboot-context',
                              'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access', 'reproduce-expired-sign-out',
                              'reproduce-daily-soft-balance', 'reproduce-fullscreen-return', 'reproduce-fullscreen-request'):
-            from vm_probe import (reproduce_rest_of_day, reproduce_ineligible_approver, reproduce_remove_selected, reproduce_remove_last_child, reproduce_baseline_restoration, reproduce_natural_access, reproduce_natural_expiry,
+            from vm_probe import (reproduce_rest_of_day, reproduce_ineligible_approver, reproduce_remove_selected, reproduce_remove_last_child, reproduce_baseline_restoration, reproduce_natural_access, reproduce_natural_expiry, reproduce_natural_reminder,
                                   reproduce_countdown_grant, reproduce_suspend_active_grant, reproduce_suspend_expired_grant, reproduce_overlay_activity, reproduce_overlay_return,
                                   reproduce_system_graphical_expiry, reproduce_grant_logout,
                                   reproduce_app_rule_return, reproduce_revocation_return, reproduce_overlay_lock_case, reproduce_panel_request,
@@ -578,6 +578,7 @@ def main(argv=None):
                              'reproduce-remove-last-child': reproduce_remove_last_child,
                              'reproduce-natural-access': reproduce_natural_access,
                              'reproduce-natural-expiry': reproduce_natural_expiry,
+                             'reproduce-natural-reminder': reproduce_natural_reminder,
                              'reproduce-baseline-restoration': reproduce_baseline_restoration,
                              'reproduce-countdown-grant': reproduce_countdown_grant,
                              'reproduce-suspend-active-grant': reproduce_suspend_active_grant,

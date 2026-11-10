@@ -312,6 +312,8 @@ ENGINEERING_EXPIRY_OPERATIONS = frozenset('child-natural-expiry-engineering-' + 
 NATURAL_EXPIRY_OPERATIONS = frozenset('child-natural-expiry-' + action for action in (
     'observe', 'activity', 'wait-lock', 'lock-ready', 'lock-result')) | ENGINEERING_EXPIRY_OPERATIONS
 OPERATIONS |= NATURAL_EXPIRY_OPERATIONS
+NATURAL_REMINDER_OPERATIONS = frozenset({'child-natural-reminder-wait'})
+OPERATIONS |= NATURAL_REMINDER_OPERATIONS
 OPERATIONS |= {'child-natural-expiry-wrong-account-refused'}
 PANEL_ANIMATION_OPERATIONS = frozenset({'child-countdown-animation-read',
     'child-countdown-animation-on', 'child-countdown-animation-off'})
@@ -321,6 +323,7 @@ OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-grant-form', 'o
     'overlay-panel-launch', 'overlay-panel-reveal-ready', 'overlay-panel-overview',
     'overlay-qualification-cancel', 'overlay-desktop'})
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | NATURAL_EXPIRY_OPERATIONS | frozenset({'child-command-launch'})
+CHILD_DESKTOP_OPERATIONS |= {'child-natural-reminder-wait'}
 CHILD_DESKTOP_OPERATIONS |= RILEY_SNAP_OPERATIONS
 CHILD_DESKTOP_OPERATIONS |= RILEY_FLATPAK_OPERATIONS
 CHILD_DESKTOP_OPERATIONS |= RILEY_NATIVE_DESKTOP_OPERATIONS
@@ -1065,7 +1068,7 @@ BINDING_REMINDER_OPERATIONS = {
     for binding, surface, child, actions in (
         ('overlay', 'overlay', CHILD, ('open', 'create', 'delete', 'save', 'cancel')),
         ('jordan-overlay', 'overlay', EXISTING_CHILD, ('open', 'cancel')),
-        ('riley', 'kiosk', CHILD, ('open', 'edit', 'delete', 'delete-all', 'save', 'cancel')),
+        ('riley', 'kiosk', CHILD, ('open', 'edit', 'delete', 'delete-all', 'create-warning', 'save', 'cancel')),
         ('jordan', 'kiosk', EXISTING_CHILD, ('open', 'cancel')))
     for action in actions
 }
@@ -8950,6 +8953,118 @@ class AccessibleUI:
             self.invalidate_observation()
         return self.wait(transition_read, 'natural-expiry-result', prompt_in_predicate=True)
 
+    def natural_reminder_wait(self, record):
+        """Continuously bind public delivery, live balance and removal at Lock.
+
+        A lost endpoint, replacement or missed sample fails this observation;
+        neither reacquisition nor another warning can supply absence evidence.
+        """
+        require(type(record) is dict and set(record) == {'id', 'value', 'unit', 'text'}
+                and type(record['id']) is str and re.fullmatch(r'[a-z][a-z0-9-]*', record['id'])
+                and record['value'] == 30 and record['unit'] == 'second'
+                and record['text'] == 'Save your game now', 'ui:natural-reminder-binding')
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        session, locked = self.natural_expiry_session()
+        require(not locked, 'ui:natural-reminder-locked-entry')
+        require(self.application_ui is not None, 'ui:natural-reminder-observer-lost')
+        applications = self.application_ui.applications(
+            owner_pids=self.owner_pids, application_owners=self.application_owners,
+            application_ids=(CHILD_PANEL_APPLICATION,))
+        require(len(applications) == 1, 'ui:natural-reminder-observer-lost')
+        application = applications[0]
+        initial = emission = delivery_id = endpoint = None
+        previous_end = time.monotonic_ns()
+        maximum_gap = samples = actions = 0
+        next_activity = previous_end
+        while True:
+            started = time.monotonic_ns()
+            require(started - previous_end <= 15_000_000_000, 'ui:natural-reminder-observation-gap')
+            identity, locked = self.natural_expiry_session()
+            require(identity == session, 'ui:natural-reminder-session-changed')
+            self.invalidate_observation()
+            # Keep the original product owner pinned through Lock. An unrelated
+            # desktop app retiring during discovery must not interrupt this
+            # notification observation; the lock provider is read separately.
+            observation = self.read_snapshot(application)
+            panel = self.snapshot_owned_target('child-screen-time-indicator', showing=False,
+                                               observation=observation)
+            require(panel is not None, 'ui:natural-reminder-observer-lost')
+            current_endpoint = [panel.get_process_id(), panel.bus, panel.path]
+            require(endpoint is None or endpoint == current_endpoint, 'ui:natural-reminder-endpoint-changed')
+            endpoint = current_endpoint
+            remaining = self.snapshot_owned_target('child-remaining-time', showing=False,
+                                                   observation=observation)
+            require(remaining is not None, 'ui:natural-reminder-observer-lost')
+            seconds = remaining.getValue()
+            require(type(seconds) is int and 0 <= seconds <= 600, 'ui:natural-reminder-balance')
+            warning = self.snapshot_owned_target('child-time-notification', showing=False,
+                                                 observation=observation)
+            if initial is None:
+                require(not locked and seconds >= 300 and warning is None,
+                        'ui:natural-reminder-arm-margin')
+                initial = {'seconds': seconds, 'read_bounds': [started, time.monotonic_ns()]}
+                deadline = started + (seconds + 15) * 1_000_000_000
+                print('natural-reminder:armed seconds=' + str(seconds), file=sys.stderr, flush=True)
+            require(time.monotonic_ns() < deadline, 'ui:natural-reminder-deadline')
+            if locked:
+                require(emission is not None and warning is None, 'ui:natural-reminder-lock-removal')
+                lock = self.natural_expiry('child-natural-expiry-lock-ready')
+                require(lock['session_sha256'] == session and lock['state'] == 'locked',
+                        'ui:natural-reminder-session-changed')
+                completed = time.monotonic_ns()
+                require(completed < deadline and completed - previous_end <= 15_000_000_000,
+                        'ui:natural-reminder-observation-gap')
+                return {'record': record, 'initial': initial, 'emission': emission,
+                        'session_sha256': session, 'endpoint': endpoint, 'lock': lock['lock'],
+                        'lock_read_bounds': [started, completed], 'samples': samples + 1,
+                        'maximum_gap_ns': max(maximum_gap, completed - previous_end),
+                        'activity_actions': actions, 'removed': True}
+            if warning is None:
+                require(emission is None or seconds == 0, 'ui:natural-reminder-disappeared')
+                require(emission is not None or seconds > record['value'] - 15,
+                        'ui:natural-reminder-delivery-deadline')
+            else:
+                require(self.showing(warning), 'ui:natural-reminder-hidden')
+                current_id = warning.getValue()
+                require(type(current_id) is str and re.fullmatch(
+                    r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', current_id),
+                    'ui:natural-reminder-delivery-identity')
+                require(delivery_id is None or current_id == delivery_id,
+                        'ui:natural-reminder-replaced')
+                message = self.snapshot_owned_target('child-time-notification-message',
+                                                     observation=observation)
+                urgency = self.snapshot_owned_target('child-time-notification-urgency',
+                                                     observation=observation)
+                require(message is not None and urgency is not None, 'ui:natural-reminder-incomplete')
+                body, live, priority = message.getText(), message.getValue(), urgency.getValue()
+                require(warning.getValue() == current_id, 'ui:natural-reminder-replaced')
+                after = remaining.getValue()
+                require(body == record['text'] and priority == 'critical'
+                        and type(live) is int and 0 < live <= record['value']
+                        and after - 2 <= live <= seconds + 2,
+                        'ui:natural-reminder-content-or-balance')
+                delivery_id = current_id
+                if emission is None:
+                    emission = {'delivery_id': current_id, 'body': body, 'urgency': priority,
+                                'seconds': live, 'panel_seconds': [after, seconds],
+                                'read_bounds': [started, time.monotonic_ns()]}
+                    print('natural-reminder:delivered seconds=' + str(live), file=sys.stderr, flush=True)
+            # Real normal Submit/result work continues well before the short
+            # warning interval; no last-second input races the natural lock.
+            if seconds > 90 and started >= next_activity:
+                activity = self.natural_expiry('child-natural-expiry-observe')
+                self.expected_natural_expiry_source = activity['source']
+                activity = self.natural_expiry('child-natural-expiry-activity')
+                require(activity['acted'], 'ui:natural-reminder-real-activity')
+                actions += 1
+                next_activity = time.monotonic_ns() + 30_000_000_000
+            completed = time.monotonic_ns()
+            maximum_gap = max(maximum_gap, completed - previous_end)
+            require(maximum_gap <= 15_000_000_000, 'ui:natural-reminder-observation-gap')
+            previous_end = completed
+            samples += 1
+            time.sleep(1)
+
     def child_countdown_animation(self, desired=None, *, child=CHILD):
         """PANEL01/02: owned canonical preference, without popup navigation."""
         require(desired is None or type(desired) is bool, 'ui:panel-animation-binding')
@@ -11193,6 +11308,9 @@ class AccessibleUI:
                                      text='Save <work> & games!')
             return {'reminders': self.overlay_reminder_delete(row['id'], expected_source=source,
                                                              **binding)}
+        if action == 'create-warning':
+            return {'reminders': self.overlay_reminder_editor(seconds=30, text='Save your game now',
+                expected_source=source, **binding)}
         record_id = (self._reminder_row(records, seconds=90, text='Save <work> & games!')['id']
                      if action == 'edit' else None)
         return {'reminders': self.overlay_reminder_editor(seconds=75 if action == 'edit' else 90,
@@ -15384,6 +15502,8 @@ class AccessibleUI:
             result.update(self.binding_reminder_operation(operation))
         elif operation in OVERLAY_REMINDER_OPERATIONS:
             result.update(self.overlay_reminder_operation(operation))
+        elif operation == 'child-natural-reminder-wait':
+            result['natural_reminder'] = self.natural_reminder_wait(self.natural_reminder_record)
         elif operation in KIOSK_REMINDER_OPERATIONS:
             result['reminder'] = (self.kiosk_reminder_preview() if operation ==
                                   'kiosk-reminder-preview' else self.kiosk_reminder_preview_cancel())
@@ -16976,6 +17096,8 @@ def main():
     require(child is None or (child in NAMED_CUSTOM_CHILDREN and
             sys.argv[1] in NAMED_CHILD_OPERATIONS), 'ui:custom-child-binding')
     overlay_reminder_binding = sys.argv[1] in OVERLAY_REMINDER_MUTATIONS
+    natural_reminder_record = (json.loads(sys.argv[4]) if len(sys.argv) == 5
+                              and sys.argv[1] == 'child-natural-reminder-wait' else None)
     overlay_reminder_source = (sys.argv[4] if len(sys.argv) == 5
                               and overlay_reminder_binding else None)
     if overlay_reminder_binding:
@@ -17073,6 +17195,7 @@ def main():
     ui.branch_owner = branch_owner
     ui.overlay_request = overlay_request
     ui.kiosk_request = kiosk_request
+    ui.natural_reminder_record = natural_reminder_record
     if sys.argv[1] == 'overlay-native-opened':
         ui.native_open_diagnostic = {'event': 'ui-native-public-observation', 'complete_reads': 0}
     trace_argument = (sys.argv[1] in ACCESSIBILITY_TRACE_OPERATIONS or
@@ -17108,7 +17231,7 @@ def main():
     ui.expected_mate_challenge = (sys.argv[4] if len(sys.argv) == 5 and not trace_argument
         and not diagnostic_binding and not reminder_binding and not overlay_reminder_binding
         and not binding_reminder_binding and not natural_expiry_binding
-        and not countdown_session_binding else None)
+        and not countdown_session_binding and sys.argv[1] != 'child-natural-reminder-wait' else None)
     require(ui.expected_mate_challenge is None or (
         sys.argv[1] in MATE_APPROVAL_OPERATIONS | SHELL_APPROVAL_OPERATIONS | {'overlay-pending-close', 'kiosk-pending-close'} and
         re.fullmatch(r'[0-9a-f]{64}', ui.expected_mate_challenge)), 'ui:mate-binding')

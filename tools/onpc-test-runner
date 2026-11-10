@@ -223,7 +223,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reproduce-pending-overlay-lock', 'probe-pending-overlay-lock',
                                       'reproduce-pending-overlay-switch', 'probe-pending-overlay-switch',
                                       'reproduce-jordan-daily-access',
-                                      'reproduce-natural-expiry', 'reproduce-fullscreen-return', 'probe-fullscreen-return', 'reproduce-fullscreen-request',
+                                      'reproduce-natural-expiry', 'reproduce-natural-reminder', 'reproduce-fullscreen-return', 'probe-fullscreen-return', 'reproduce-fullscreen-request',
                                       'reproduce-rest-of-day',
                                       'reproduce-natural-access',
                                       'reproduce-countdown-grant',
@@ -275,7 +275,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         if args.fixture_maintenance and args.action != 'start':
             raise ValueError('test-runner:fixture-maintenance-requires-start')
         if (args.action in ('sync-fixtures', 'reproduce-baseline-restoration', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-ineligible-approver',
-                           'reproduce-natural-access', 'reproduce-natural-expiry', 'reproduce-fullscreen-return', 'reproduce-fullscreen-request', 'reproduce-rest-of-day', 'reproduce-countdown-grant',
+                           'reproduce-natural-access', 'reproduce-natural-expiry', 'reproduce-natural-reminder', 'reproduce-fullscreen-return', 'reproduce-fullscreen-request', 'reproduce-rest-of-day', 'reproduce-countdown-grant',
                            'reproduce-suspend-active-grant',
                            'reproduce-suspend-expired-grant',
                            'reproduce-overlay-activity', 'reproduce-overlay-return',
@@ -287,7 +287,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             raise ValueError('test-runner:fixture-sync-requires-selection')
         fixture_options = []
         if args.fixture_maintenance or args.action in ('sync-fixtures', 'reproduce-baseline-restoration', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-ineligible-approver',
-                                                      'reproduce-natural-access', 'reproduce-natural-expiry', 'reproduce-fullscreen-return', 'reproduce-fullscreen-request', 'reproduce-rest-of-day', 'reproduce-countdown-grant',
+                                                      'reproduce-natural-access', 'reproduce-natural-expiry', 'reproduce-natural-reminder', 'reproduce-fullscreen-return', 'reproduce-fullscreen-request', 'reproduce-rest-of-day', 'reproduce-countdown-grant',
                                                       'reproduce-suspend-active-grant',
                                                       'reproduce-suspend-expired-grant',
                                                       'reproduce-overlay-activity', 'reproduce-overlay-return',

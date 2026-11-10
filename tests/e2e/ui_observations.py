@@ -842,6 +842,12 @@ def compare_settings(observed, expected):
     return {'fields': ['child', 'limit_enabled', 'allowance'], 'outcome': 'passed'}
 
 
+OPERATION_LABELS.update({
+    'child-natural-reminder-wait': 'Using Riley’s app through the natural warning and lock',
+})
+RESPONSE_BYTE_LIMITS.update({operation: 8192 for operation in accessible_ui.NATURAL_REMINDER_OPERATIONS})
+
+
 class UiObservations:
     def __init__(self, transport, *, system_prompt=None, progress=None):
         self.transport = transport
@@ -1137,6 +1143,8 @@ class UiObservations:
             # Leave transport margin around the guest's 150-second verification
             # wait; the journey still owns one deadline for the whole challenge.
             timeout = 180 if operation.endswith(('lock-ready', 'lock-result')) else 15
+        if operation == 'child-natural-reminder-wait':
+            timeout = 810
         if operation == 'child-natural-expiry-wait-lock':
             # Up to 25 real minutes, original lock allowance, three minutes
             # for delayed reply delivery, then transport margin; worker: 1800s.
@@ -1664,6 +1672,9 @@ class UiObservations:
             require(type(self.boot_guard) is str and (self.boot_guard == '' or
                     re.fullmatch(r'[0-9a-f]{64}', self.boot_guard)), 'ui:boot-binding')
             binding = [self.boot_guard]
+        if operation == 'child-natural-reminder-wait':
+            require(hasattr(self, 'natural_reminder_record'), 'ui:natural-reminder-saved-record')
+            binding = [self.boot_guard or '', json.dumps(self.natural_reminder_record)]
         if operation in accessible_ui.MATE_APPROVAL_OPERATIONS and operation not in (
                 'kiosk-mate-open', 'kiosk-mate-rejection-open', 'chinese-mate-open', 'kiosk-long-mate-open',
                 'kiosk-pause-mate-open', 'jordan-mate-open', 'kiosk-bound-mate-open') and not (
@@ -1771,6 +1782,17 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
+        if operation == 'child-natural-reminder-wait':
+            value = result.get('natural_reminder')
+            require(type(value) is dict and set(value) == {
+                'record', 'initial', 'emission', 'session_sha256', 'endpoint', 'lock',
+                'lock_read_bounds', 'samples', 'maximum_gap_ns', 'activity_actions', 'removed'}
+                and value['record'] == self.natural_reminder_record
+                and value['removed'] is True and type(value['samples']) is int and value['samples'] > 1
+                and type(value['activity_actions']) is int and value['activity_actions'] > 0
+                and type(value['maximum_gap_ns']) is int and 0 < value['maximum_gap_ns'] <= 15_000_000_000,
+                'ui:natural-reminder-response')
+            expected['natural_reminder'] = value
         if operation in accessible_ui.APPROVER_CHANGE_OPERATIONS:
             overlay, action = accessible_ui.APPROVER_CHANGE_OPERATIONS[operation]
             value = result.get('approver_change')

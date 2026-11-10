@@ -15,6 +15,7 @@ export class GnomeApplicationUiAdapter {
     constructor(indicator, reminderPreview = null) {
         this._indicator = indicator;
         this._reminderPreview = reminderPreview;
+        this._deliveryIds = new WeakMap();
     }
 
     _state() {
@@ -89,11 +90,21 @@ export class GnomeApplicationUiAdapter {
         if (surfaceId === 'child-time-notification' && state.available) {
             const current = this._indicator._notifications?.current;
             if (!current) return null;
+            if (!this._deliveryIds.has(current.notification))
+                this._deliveryIds.set(current.notification, GLib.uuid_string_random());
+            const deliveryId = this._deliveryIds.get(current.notification);
             const visible = this._notificationVisible(current);
             const element = (id, type, operations) =>
                 ({id, type, visible, enabled: visible, ...operations});
             return [
-                element(surfaceId, 'notification', {getText: () => current.notification.title}),
+                element(surfaceId, 'notification', {
+                    getText: () => current.notification.title,
+                    getValue: () => {
+                        if (this._indicator?._notifications?.current?.notification !== current.notification)
+                            throw new Error('Notification delivery is no longer current');
+                        return deliveryId;
+                    },
+                }),
                 element('child-time-notification-message', 'label', {
                     getText: () => current.notification.body,
                     getValue: () => current.seconds,

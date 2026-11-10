@@ -654,19 +654,20 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
                    ['delivery', 'parent', 'kiosk-mate-approval']] if fault == 'none' else []}
 
 
-@pytest.mark.parametrize('scope,binding,accepted', [
-    ('profile-request-', 'long-request', True),
-    ('first-', 'long-request', False),
-    ('profile-request-', 'request-1200', False),
+@pytest.mark.parametrize('prefix,scope,binding,accepted', [
+    ('suspend-wake-expired', 'profile-request-', 'long-request', True),
+    ('suspend-wake-expired', 'first-', 'long-request', False),
+    ('suspend-wake-expired', 'profile-request-', 'request-1200', False),
+    ('natural-reminder', 'profile-request-', 'long-request', True),
 ])
-def test_expired_suspend_approval_keeps_its_secret_scope(scope, binding, accepted):
+def test_expired_suspend_approval_keeps_its_secret_scope(prefix, scope, binding, accepted):
     result = run_password_guard(r'''
-my ($scope, $request) = @ARGV;
-my $journey = bless {prefix => 'suspend-wake-expired-profile-request',
+my ($prefix, $scope, $request) = @ARGV;
+my $journey = bless {prefix => $prefix . '-profile-request',
     stage_prefix => $scope, review => 0}, 'onpc_journey';
 my $ok = eval { onpc_password::enter_kiosk_mate_password($journey, $request); 1 };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
-''', scope, binding)
+''', prefix, scope, binding)
     value = json.loads(result.stdout)
     assert bool(value['ok']) is accepted
     assert value['events'] == ([

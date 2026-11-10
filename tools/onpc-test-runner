@@ -180,6 +180,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     appsnapshot.add_argument('--probe', action='store_true')
     appsnapshot.add_argument('--resume', action='store_true')
     appsnapshot.add_argument('--artifacts', type=Path)
+    appsnapshot.add_argument('--release-notes-upgrade', action='store_true')
     appsnapshot.add_argument('--overwrite', choices=('true', 'false'), default='true',
                             nargs='?', const='true')
     vm = categories.add_parser('vm', allow_abbrev=False,
@@ -252,6 +253,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         target = confined_file(root, 'tests/e2e/prepare_snapshot.py')
         command = ['/usr/bin/python3', '-B', str(target),
                    '--expected-uuid', identity, *vm_args]
+        if args.release_notes_upgrade:
+            command.append('--release-notes-upgrade')
         if args.probe or args.resume:
             if args.artifacts is not None:
                 raise ValueError('test-runner:probe-does-not-use-artifacts')

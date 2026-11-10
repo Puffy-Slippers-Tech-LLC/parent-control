@@ -122,6 +122,8 @@ def _validate_inventory(document, *, root):
         require(installed or lifecycle or product_free_harness,
                 'scenario:installed-snapshot-required')
         require(not (installed and lifecycle), 'scenario:conflicting-snapshot-prerequisites')
+        require('installed-release-notes-upgrade' not in scenario['preconditions'] or installed,
+                'scenario:upgrade-installed-snapshot-required')
         require(all(re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*', owner) for owner in scenario['owners']),
                 'scenario:owner')
         strings(scenario['requirements'], 'scenario:requirements', empty=True)

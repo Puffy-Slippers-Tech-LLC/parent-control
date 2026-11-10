@@ -1,9 +1,12 @@
 """Package identity: private archives and bounded read-only dpkg children only."""
 
 import hashlib
+import json
 import tarfile
 import time
+from types import SimpleNamespace
 from unittest.mock import Mock
+import xml.etree.ElementTree as ET
 
 import pytest
 
@@ -125,3 +128,53 @@ def test_package_sized_comparison_reports_elapsed_time(tmp_path):
     started = time.monotonic()
     assert package_content.digest(first, Commands()) == package_content.digest(second, Commands())
     print(f'Normalized comparison of two 5 MiB packages: {time.monotonic() - started:.3f}s')
+
+
+def snapshot_xml(identity):
+    tree = ET.Element('domainsnapshot')
+    ET.SubElement(tree, 'description').text = identity
+    return ET.tostring(tree, encoding='unicode')
+
+
+def test_snapshot_identity_refuses_crossed_preparation_and_changed_upgrade_inputs(tmp_path, monkeypatch):
+    import app_snapshot
+    import build_test_artifacts
+    package = write_package(tmp_path / 'package.deb')
+    lease = SimpleNamespace(capture=SimpleNamespace(state={'guest': {'ubuntu_version': '26.04'}}),
+                            state={'baseline_sha256': 'a' * 64})
+    bundle = SimpleNamespace(root=tmp_path, digest=lambda _: 'b' * 64)
+    pair = {'packages': {'previous': {'sha256': 'c' * 64}}}
+    monkeypatch.setattr(build_test_artifacts, 'verify_upgrade', Mock(return_value=pair))
+    fresh = app_snapshot.input_identity(lease, tmp_path, bundle, Commands())
+    upgraded = app_snapshot.input_identity(lease, tmp_path, bundle, Commands(),
+                                           release_notes_upgrade=True)
+    assert app_snapshot.mismatch(snapshot_xml(fresh), fresh) is None
+    assert app_snapshot.mismatch(snapshot_xml(upgraded), upgraded) is None
+    assert app_snapshot.mismatch(snapshot_xml(fresh), upgraded) == 'snapshot preparation changed'
+    assert app_snapshot.mismatch(snapshot_xml(upgraded), fresh) == 'snapshot preparation changed'
+    for key in ('previous_package_sha256', 'package_sha256'):
+        changed = json.loads(upgraded)
+        changed[key] = 'd' * 64
+        assert app_snapshot.mismatch(snapshot_xml(json.dumps(changed)), upgraded) == 'upgrade package inputs changed'
+    # Ordinary captures keep their established installed-content equivalence.
+    changed = json.loads(fresh)
+    changed['package_sha256'] = 'd' * 64
+    assert app_snapshot.mismatch(snapshot_xml(json.dumps(changed)), fresh) is None
+    assert package.is_file()
+
+
+def test_suite_prepares_fresh_state_when_an_ordinary_case_follows_upgrade():
+    from suite_lease import Suite
+    suite = Suite(Mock())
+    suite.lease = Mock()
+    suite.lease.capture.state = {'proof': {'name': 'onpc_baseline'}}
+    suite.lease._restored_name = 'onpc_baseline'
+    suite.lease.installed_online = True
+    suite.prepared = True
+    suite.prepared_release_notes_upgrade = True
+    suite.prepare_installed = Mock(return_value=True)
+    suite.prepare_case({'preconditions': ['installed-digest-verified-product']},
+                       Mock(), Mock(), {}, root=Mock())
+    assert suite.prepare_installed.call_args.kwargs['release_notes_upgrade'] is False
+    assert suite.prepared_release_notes_upgrade is False
+    assert suite.lease.online_pending is True

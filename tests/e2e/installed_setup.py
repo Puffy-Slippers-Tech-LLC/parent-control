@@ -63,9 +63,14 @@ def stage(directory, assets, selection, *, bundle=None, snapshot=False, package_
     require(not destination.exists(), 'setup:input-exists')
     if package_only:
         from build_test_artifacts import verify
-        require(not snapshot and not (assets / 'fixtures').exists(), 'setup:package-only-scope')
+        require(not (assets / 'fixtures').exists(), 'setup:package-only-scope')
         verify(assets, package_only=True)
     bundle = bundle if bundle is not None else inputs(system.ROOT)
+    pair = None
+    if upgrade:
+        from build_test_artifacts import verify_upgrade
+        pair = verify_upgrade(assets, staged=True, repository=system.ROOT,
+                              package_only=package_only)
     if snapshot:
         # Clean captures retain the package and installation metadata,
         # never artifact fixtures, their build sources or unused guest helpers.
@@ -86,17 +91,13 @@ def stage(directory, assets, selection, *, bundle=None, snapshot=False, package_
     else:
         shutil.copytree(assets, destination)
     if upgrade:
-        from build_test_artifacts import verify_upgrade
-        require(not snapshot, 'setup:upgrade-scope')
-        pair = verify_upgrade(destination, staged=True, repository=system.ROOT,
-                              package_only=package_only)
         previous = pair['packages']['previous']
         package = next(name for name in ('package.deb', 'package.rpm')
                        if (destination / name).is_file())
         target = destination / ('previous-' + package)
         require(not target.exists() and not (destination / 'previous-inputs.json').exists(),
                 'setup:previous-input-exists')
-        shutil.copyfile(destination / 'previous' / package, target)
+        shutil.copyfile((assets if snapshot else destination) / 'previous' / package, target)
         target.chmod(0o600)
         (destination / 'previous-inputs.json').write_bytes(system.baseline.encode({
             'sha256': previous['sha256'], 'source': pair['sources']['previous']}))
@@ -166,7 +167,7 @@ class InstalledSetup:
             self.verified.fixture_prepared = prepared
             return prepared
 
-    def run(self, guard, *, verify=True):
+    def run(self, guard, *, verify=True, upgrade=False):
         """Install and verify after reboot, or stage a powered-off suite snapshot."""
         self.provision(guard)
         run = self.verified.lease.state['run']
@@ -177,11 +178,19 @@ class InstalledSetup:
         # Suite snapshots shut down after package verification. Their next boot
         # supplies the required restart; live feature setup needs it here.
         try:
-            recipe['prepare'](self.transport,
-                system.guest_command(run, 'install-setup' if verify else 'install-suite'), guard,
-                reboot=verify)
-            if verify:
-                self.transport.call(system.guest_command(run, 'verify-setup'), timeout=660)
+            if upgrade:
+                require(verify, 'setup:upgrade-online-required')
+                from fixture_credentials import ACCOUNTS
+                result = recipe['prepare_upgrade'](self.transport,
+                    lambda stage: system.guest_command(run, stage), guard, self.directory,
+                    tuple(account.username for account in ACCOUNTS.values()), system.operation,
+                    system.PAYLOAD)
+            else:
+                recipe['prepare'](self.transport,
+                    system.guest_command(run, 'install-setup' if verify else 'install-suite'), guard,
+                    reboot=verify)
+                if verify:
+                    self.transport.call(system.guest_command(run, 'verify-setup'), timeout=660)
         except Exception as error:
             # Package commands keep their streams in the guest's existing
             # private stage artifacts. Preserve them before the caller restores
@@ -194,4 +203,5 @@ class InstalledSetup:
                 error.add_note('setup:diagnostics-unavailable')
             raise
         self.verified.recheck()
-        return {'package_verified': verify, 'setup_reboot_verified': verify}
+        return ({'update_activation': result} if upgrade else
+                {'package_verified': verify, 'setup_reboot_verified': verify})

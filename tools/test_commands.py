@@ -88,7 +88,7 @@ INSTALLED_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_installed'} | {
     give_repeated_public_operations_distinct_stages independent_network_management kiosk_approval
     kiosk_admission_contention kiosk_approved_flow kiosk_configuration_recovery kiosk_eligible_choices kiosk_entry kiosk_feedback_confinement kiosk_fixtures
     kiosk_fresh_return kiosk_approval_return kiosk_identity_helper kiosk_language kiosk_language_restoration kiosk_lease_variation kiosk_multiple kiosk_no_child kiosk_notification_wellbeing kiosk_optional_artwork
-    kiosk_preferences_confinement kiosk_rejection kiosk_reminder_binding kiosk_routing_variation kiosk_service_recovery kiosk_service_route kiosk_service_variation kiosk_valid_duration
+    kiosk_preferences_confinement kiosk_rejection kiosk_reminder_binding kiosk_routing_variation kiosk_service_recovery kiosk_service_route kiosk_service_variation kiosk_valid_duration kiosk_whats_new
     license_viewer locale_discovery_auth lock_recipient lock_surface lock_during_pending_overlay_approval match_editor match_save_cancel mate_prompt
     switch_user_during_pending_overlay_approval
     sign_out_during_pending_overlay_approval
@@ -105,7 +105,7 @@ INSTALLED_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_installed'} | {
     parent_search_launch parent_support parent_website policy policy_legend public_desktop_selection
     read_an_expanded_time_explanation read_overlay_about_and_links read_parent_information_links
     read_restricted_station_about reminder_child_station_binding reminder_fullscreen_preference request_choices request_duration
-    request_exit request_flow retained_app_visits retained_entry retained_parent retained_unlock
+    request_exit request_flow request_preset_controls retained_app_visits retained_entry retained_parent retained_unlock
     retained_unlock_success review_a_rejected_parent_rule_s_report revocation revoke_cancel
     riley_native_grid save_chooser set_an_allowance_for_a_named_child set_fresh_thirty_minute_allowance
     set_jordan_thirty_minute_allowance shell_panel shell_search shell_search_results station_shortcuts terminal_provider
@@ -573,6 +573,9 @@ def vm_preparation_flags(category, argv):
         root = Path(__file__).resolve().parents[1]
         runner = runpy.run_path(str(root / 'tests/e2e/runner.py'))
         plan = runner['preflight'](list(argv), root=root, allow_missing_artifacts=True)
+        if any('installed-release-notes-upgrade' in case['preconditions']
+               for case in plan.get('cases', [])):
+            return ['--upgrade-inputs']
         if any(case['case_id'] == 'E2E-026/reboot' for case in plan.get('cases', [])):
             return ['--reboot-inputs']
         if any(case['case_id'] == 'E2E-026/session' for case in plan.get('cases', [])):

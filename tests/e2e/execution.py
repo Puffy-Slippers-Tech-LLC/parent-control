@@ -212,9 +212,13 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
             from suite_lease import needs_installed
             installed_consumer = needs_installed(case)
             product_free_consumer = 'declared-package-lifecycle-fixture' in case['preconditions']
-            upgrade_consumer = 'digest-verified-activation-packages' in case['preconditions']
-            require(not upgrade_consumer or product_free_consumer,
+            lifecycle_upgrade = 'digest-verified-activation-packages' in case['preconditions']
+            notes_upgrade = 'installed-release-notes-upgrade' in case['preconditions']
+            upgrade_consumer = lifecycle_upgrade or notes_upgrade
+            require(not lifecycle_upgrade or product_free_consumer,
                     'execution:upgrade-product-free-required')
+            require(not notes_upgrade or installed_consumer,
+                    'execution:upgrade-installed-snapshot-required')
             fixture_selection = plan.get('fixture_selection')
             from serial_harness import recorded_serial_case, validate_fixture_input
             recorded_serial_consumer = recorded_serial_case(case)

@@ -46,6 +46,7 @@ def guest_ui_program():
 # Collection replies need room for their full bounded semantic projection.
 # App rows still validate at most 256 fixed-format ID/access/match triples.
 RESPONSE_BYTE_LIMITS = {
+    'kiosk-whats-new-read': 262144,
     'revoke-saved-balances': 327680,
     'revoke-cleared-balances': 327680,
     **{operation: 8192 for operation in accessible_ui.CHINESE_MATE_ORDER},
@@ -193,6 +194,10 @@ OPERATION_LABELS = {
        for operation in accessible_ui.BOUNDARY_OPERATIONS},
     **{operation: 'Qualifying feedback file selection: ' + operation.removeprefix('chooser-')
        for operation in accessible_ui.CHOOSER_OPERATIONS},
+    'parent-kiosk-whats-new-refused': 'Refusing station release notes from the parent window',
+    'kiosk-whats-new-open': 'Opening Riley’s release notes at the request station',
+    'kiosk-whats-new-read': 'Reading the installed child release notes',
+    'kiosk-whats-new-close': 'Returning to Riley’s unchanged request',
     'parent-kiosk-about-refused': 'Refusing station About entry from Parent management',
     'kiosk-about-open': 'Opening About from the request station',
     'kiosk-about-read': 'Reading station product and legal information without external actions',
@@ -2422,6 +2427,15 @@ class UiObservations:
                     and type(result['count']) is int and result['count'] == 1,
                     'ui:parent-window-count')
             expected['count'] = 1
+        if operation == 'kiosk-whats-new-read':
+            value = result.get('whats_new')
+            require(type(value) is dict and set(value) == {'title', 'blocks'}
+                    and type(value['title']) is str and 0 < len(value['title']) <= 128
+                    and type(value['blocks']) is list and 0 < len(value['blocks']) <= 256
+                    and all(type(text) is str and len(text) <= 65536 for text in value['blocks'])
+                    and 0 < sum(map(len, value['blocks'])) <= 65536,
+                    'ui:kiosk-whats-new-response')
+            expected['whats_new'] = value
         if operation == 'about-interval-read':
             value = result.get('about_interval')
             require(type(result) is dict and set(result) == {*expected, 'about_interval'}

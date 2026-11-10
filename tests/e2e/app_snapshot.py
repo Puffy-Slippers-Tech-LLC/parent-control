@@ -70,15 +70,22 @@ def recipe_digest(bundle):
         bundle.digest('install-source/Makefile')).encode()).hexdigest()
 
 
-def input_identity(lease, assets, bundle, commands):
+def input_identity(lease, assets, bundle, commands, *, release_notes_upgrade=False):
     """Only installed state invalidates the cache; test payload is replaceable."""
     package = assets / ('package.' + system.package_format(lease.capture.state['guest']))
-    return json.dumps({'schema_version': 2,
+    identity = {'schema_version': 2,
         'package_sha256': system.baseline.digest(package),
         'package_content_sha256': package_content.digest(package, commands),
         'baseline_sha256': lease.state['baseline_sha256'],
-        'recipe_sha256': recipe_digest(bundle)},
-        sort_keys=True, separators=(',', ':'))
+        'recipe_sha256': recipe_digest(bundle)}
+    if release_notes_upgrade:
+        from build_test_artifacts import PACKAGE_INPUT_NAME, verify_upgrade
+        pair = verify_upgrade(assets, staged=True, repository=bundle.root,
+                              package_only=(assets / PACKAGE_INPUT_NAME).exists())
+        system.require('activation' not in pair, 'suite:genuine-release-upgrade-required')
+        identity.update(schema_version=3, preparation='release-notes-upgrade',
+                        previous_package_sha256=pair['packages']['previous']['sha256'])
+    return json.dumps(identity, sort_keys=True, separators=(',', ':'))
 
 
 def mismatch(xml, expected):
@@ -90,13 +97,21 @@ def mismatch(xml, expected):
         if not isinstance(previous, dict) or type(previous.get('schema_version')) is not int:
             return 'missing or invalid snapshot metadata'
         version = previous['schema_version']
-        if version == 2:
+        if version in (2, 3):
             keys.add('package_content_sha256')
-        if (version not in (1, 2) or set(previous) != keys
+        if version == 3:
+            keys.update(('preparation', 'previous_package_sha256'))
+        if (version not in (1, 2, 3) or set(previous) != keys
+                or (version == 3 and previous['preparation'] != 'release-notes-upgrade')
                 or any(not isinstance(previous[key], str)
                        or re.fullmatch('[0-9a-f]{64}', previous[key]) is None
-                       for key in keys - {'schema_version'})):
+                       for key in keys - {'schema_version', 'preparation'})):
             return 'missing or invalid snapshot metadata'
+        if previous.get('preparation') != current.get('preparation'):
+            return 'snapshot preparation changed'
+        if version == 3 and any(previous[key] != current.get(key) for key in (
+                'previous_package_sha256', 'package_sha256')):
+            return 'upgrade package inputs changed'
         for key, reason in (('baseline_sha256', 'baseline changed'),
                             ('recipe_sha256', 'installation recipe changed')):
             if previous[key] != current[key]:
@@ -124,7 +139,7 @@ def refresh_hint(xml, expected, *, missing_scope='local'):
         scope = 'local'
         if reason != 'missing or invalid snapshot metadata':
             previous = json.loads(ET.fromstring(xml).findtext('description'))
-            key = 'package_content_sha256' if previous['schema_version'] == 2 else 'package_sha256'
+            key = 'package_content_sha256' if previous['schema_version'] in (2, 3) else 'package_sha256'
             if previous[key] != current[key]:
                 scope = 'product'
             elif reason == 'installation recipe changed':
@@ -150,7 +165,8 @@ def preparation(message):
         system.watch_progress.suite_preparation(message)
 
 
-def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='offline'):
+def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='offline',
+            release_notes_upgrade=False):
     """Ensure a current snapshot; overwrite forces even a matching rebuild."""
     from installed_setup import stage, InstalledSetup
     from provenance import VerifiedInputs
@@ -158,6 +174,7 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
     from build_test_artifacts import PACKAGE_INPUT_NAME, verify
     system.require(type(overwrite) is bool, 'suite:invalid-overwrite')
     system.require(mode in ('online', 'offline'), 'suite:invalid-snapshot-mode')
+    system.require(not release_notes_upgrade or mode == 'online', 'suite:upgrade-online-required')
     lease = suite.lease
     clean = lease.capture.state['guest'].get('fixture_boundary') == 'clean'
     profile = assets / PACKAGE_INPUT_NAME
@@ -178,7 +195,8 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
     name = snapshot_name(version)
     bundle = suite.input_bundle(root)
     with system.operation('Comparing app package contents'):
-        expected = input_identity(lease, assets, bundle, suite.commands)
+        expected = input_identity(lease, assets, bundle, suite.commands,
+                                  release_notes_upgrade=release_notes_upgrade)
     if name in lease.source.domain.snapshotListNames(0) and not overwrite:
         # The lease is validated but not prepared yet; guard()'s snapshot XML
         # is initialized by prepare(). Revalidate acquisition ownership here.
@@ -218,8 +236,10 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
     setup = directory / 'suite-setup'
     setup.mkdir(mode=0o700)
     if clean:
-        stage(setup, assets, selection, bundle=bundle, snapshot=True)
+        stage(setup, assets, selection, bundle=bundle, snapshot=True,
+              upgrade=release_notes_upgrade, package_only=package_only)
     else:
+        system.require(not release_notes_upgrade, 'suite:upgrade-clean-snapshot-required')
         stage(setup, assets, selection, bundle=bundle)
     if package_only:
         system.stage_asset_inventory(setup / 'input', package_manifest, package_only=True)
@@ -240,7 +260,8 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
     transport.probe_ready()
     # Both modes verify activated services after the installation's required
     # reboot. Offline snapshots then shut down before disk-only capture.
-    InstalledSetup(setup, verified, transport).run(lease.guard, verify=mode == 'online')
+    InstalledSetup(setup, verified, transport).run(lease.guard, verify=mode == 'online',
+                                                upgrade=release_notes_upgrade)
     if mode == 'offline':
         transport.reboot()
     transport.call(system.guest_command(lease.state['run'], 'verify-snapshot'), timeout=660)

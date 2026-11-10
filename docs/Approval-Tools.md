@@ -517,6 +517,45 @@ before the subcommand. It does not authorize product publication.
 Restart Codex with this
 checkout trusted to load the updated rules.
 
+### Isolated staging with existing grants
+
+The commit skill uses direct Git commands for the entire transaction, including
+when unrelated hunks are already staged. Environment-prefixed commands such as
+`GIT_INDEX_FILE=... git commit` do not match the direct Git grant and can run in
+the read-only sandbox. Do not use them for routine close-out or request new
+environment/shell grants to compensate.
+
+Preserve unrelated index work with reversible index-only patches:
+
+1. Record the current HEAD and staged diff. Save the full staged diff with
+   `git diff --cached --binary --full-index --output='/tmp/UNIQUE-staged.patch'`.
+   Inspect session ownership and prepare a patch containing only the unrelated
+   staged changes, preserving binary data and file modes where applicable.
+2. Check and reverse that unrelated patch with direct
+   `git apply --cached --check --reverse '/tmp/UNIQUE-unrelated.patch'` and
+   `git apply --cached --reverse '/tmp/UNIQUE-unrelated.patch'`. Stage only the
+   session hunks using `git apply --cached '/tmp/UNIQUE-session.patch'` or
+   explicit owned paths. Review the entire staged diff before committing.
+3. Commit, then check and reapply the unrelated patch with
+   `git apply --cached --check '/tmp/UNIQUE-unrelated.patch'` and
+   `git apply --cached '/tmp/UNIQUE-unrelated.patch'`. Verify that the saved
+   unrelated staged content and all working files remain intact. Restore this
+   work even if the commit fails; retain patches until restoration is verified.
+
+Use caller-owned, unique temporary paths; `UNIQUE` above is a placeholder.
+Create text patches with native `apply_patch` and let `git diff --output` save
+Git-generated patches without shell redirection. The tracked grants for
+`git diff`, `git apply --cached` and other approved Git operations accept their
+trailing file operands, including random temporary names. No per-filename rule,
+personal approval or rule refresh is needed. These grants are maintained in
+`config/codex-tests.rules` and `.codex/rules/tests.rules` and travel with Git;
+normal setup/trust activation still applies on a new host.
+
+Keep these writes sequential. Recheck HEAD and staged content before mutating
+the index; if another agent changes either, reconcile ownership against the new
+state before continuing. Do not overwrite concurrent work with a stale index.
+A restoration conflict follows the commit skill's conflict-resolution route.
+
 ## Publishing
 
 Run `make publish` from the dedicated `releases/vX.Y` checkout to invoke the

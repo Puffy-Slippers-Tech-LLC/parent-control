@@ -156,10 +156,10 @@ The host rechecks the exact run and holds its idle owner lock while saving the
 dismissal; a running or replaced launcher cannot be closed. A new run appears normally.
 
 The **Status**, **Launcher**, **Error** and **Session** views are selected from
-a dropdown in the single title row, with a vertical divider on each side.
+a dropdown at the right end of the pinned task summary row below the title.
 The dropdown and action buttons fit their contents, leaving the remaining width for the title.
 The dropdown, menu and resize controls use equal spacing beside their dividers.
-Long titles truncate with an ellipsis before the dropdown and right-aligned action
+Long titles truncate with an ellipsis before the right-aligned action
 buttons. The left panel's minimum width fits the shortened title, dropdown and
 action buttons. Hover over a
 launcher title to see its saved command with all parameters, including
@@ -218,7 +218,7 @@ changes with `tools/fix-tests --reload`; `./setup.sh --watch` updates the extens
 The links remain available in every view, including while idle. **Copy tab content** in the
 three-line menu copies the current tab's body as plain text to the clipboard;
 in **Session**, it copies the displayed transcript.
-For every execution-plan launcher, including `write-e2e`, **Status**
+For every execution-plan launcher, including `write-e2e`, every view
 starts with **Total Tasks: completed/unfinished/total | duration**
 on one pinned line, using the shared launcher counters and colors. Narrow panels
 scroll the summary horizontally instead of wrapping it. A divider
@@ -229,20 +229,20 @@ and the launcher title, including `(finished)`, turns green.
 An accepted safe-boundary stop shows **Stopped** in red, even when cleanup
 succeeds with exit code zero. **Finished** is reserved for a completed plan;
 an incomplete plan never receives that label.
-The summary stays pinned at the top. Only the task/session history between the
-full-width dividers scrolls, following the bottom until you scroll up.
-Below it, a pinned read-only box shows the latest text output. Its bold label
+The summary belongs to the tile and stays pinned above all tab bodies.
+In Status, the task/session history scrolls, following the bottom until you scroll up.
+Below it, a resizable panel embeds the entire Session or Launcher tab body. Its bold label
 sits within the divider line and matches **Session N** while a session is
 active; otherwise it shows **Launcher**.
-Session text uses the same simplified rendering even when the Session tab's
-Simplified switch is off. Launcher text uses the same terminal rendering and
-shows the latest nonempty block separated by blank lines. The output box starts at
-its maximum height and scrolls vertically to reveal the complete selected output. Drag the labeled
+Session includes its transcript, chat input, model and Simplified switch, sharing
+state with its own tab. Launcher includes its complete terminal output.
+The output panel starts maximized, completely hiding task history. Drag the labeled
 divider to resize the box, or focus it and use Up/Down (Home/End for the limits).
-The minimum is four output lines; the maximum leaves two task-history lines above.
+Minimizing completely hides the output and leaves the divider below task history;
+maximizing leaves only the divider and output below the pinned summary.
 The six-dot grip marks the draggable divider. Its right-hand chevron toggles
-between the minimum and maximum output heights.
-New output starts at the top; streaming additions preserve your scroll position.
+between the minimum and maximum output heights. Intermediate heights show both panes.
+Output follows the same scrolling behavior in Status and its own tab.
 During task close-out, the title shows `[branch] launcher (Closing Task)`, with
 `Closing Task` in green. This includes processing the finished task response
 while **Session** is struck through, validation, and the commit skill's commit,

@@ -54,15 +54,35 @@
         const section = sections.get(root);
         if (!section) return;
         section.view = view;
-        section.content.hidden = view !== 'status';
-        section.launcher.hidden = view !== 'launcher';
-        section.errorStatus.hidden = view !== 'error';
-        section.session.hidden = view !== 'session';
+        runBody(section);
         sessionHeading(section);
         runMinimum(section);
         if (view === 'status' && section.followStatus) section.history.scrollTop = section.history.scrollHeight;
-        vscode.postMessage({ type: 'sessionView', roots: [...sections]
-            .filter(([, section]) => section.view === 'session').map(([id]) => id) });
+        sessionViews();
+    }
+
+    function sessionViews() {
+        const roots = [...sections].filter(([, section]) => section.view === 'session' ||
+            section.view === 'status' && section.embeddedView === 'session').map(([id]) => id);
+        const signature = JSON.stringify(roots);
+        if (sessionViews.signature === signature) return;
+        sessionViews.signature = signature;
+        vscode.postMessage({ type: 'sessionView', roots });
+    }
+
+    function runBody(section) {
+        const embedded = section.entry.session &&
+            !(section.entry.session_inactive ?? !section.entry.session_active) ? 'session' : 'launcher';
+        section.embeddedView = embedded;
+        section.latestTitle.textContent = tabLabel(section.entry, embedded);
+        section.latestLabel.setAttribute('aria-label', `Resize ${section.latestTitle.textContent} output`);
+        section.content.hidden = section.view !== 'status';
+        section.errorStatus.hidden = section.view !== 'error';
+        for (const [view, node] of [['session', section.session], ['launcher', section.launcher]]) {
+            const parent = section.view === 'status' && embedded === view ? section.latest : section.body;
+            if (node.parentElement !== parent) parent.append(node);
+            node.hidden = section.view !== view && !(section.view === 'status' && embedded === view);
+        }
     }
 
     function tabLabel(entry, view) {
@@ -126,7 +146,8 @@
         const title = tileTitle(labels, entry);
         title.classList.add('run-launcher-label');
         const defaultText = launcherTitle(title, entry);
-        const views = element('span', 'run-view-control', titlebar);
+        section.summaryRow.querySelector('.run-view-control')?.remove();
+        const views = element('span', 'run-view-control', section.summaryRow);
         const select = element('button', 'run-view-select', views);
         select.type = 'button';
         select.setAttribute('aria-label', 'Run view');
@@ -151,7 +172,7 @@
             option.addEventListener('click', () => {
                 viewMenu.hidePopover();
                 runView(entry.id, view);
-                section.heading.querySelector('.run-view-select').focus();
+                section.summaryRow.querySelector('.run-view-select').focus();
             });
         }
         select.setAttribute('aria-label', `Run view: ${select.textContent}`);
@@ -512,7 +533,7 @@
             requestAnimationFrame(() => { if (input.isConnected) fitInput(); });
         });
         inputObserver.observe(input);
-        const error = element('div', 'session-error', body);
+        const error = element('div', 'session-error', session);
         error.setAttribute('role', 'status');
         const footer = element('div', 'session-footer', session);
         const model = element('span', 'session-model', footer);
@@ -536,8 +557,7 @@
     }
 
     function transcriptRows(output, rows) {
-        // Streaming usually changes only the final row. Both transcript views
-        // share this renderer, including blank lines, links and styled spans.
+        // Streaming usually changes only the final row.
         if (!output.children.length) output.textContent = '';
         rows.forEach((row, index) => {
             const signature = JSON.stringify(row);
@@ -554,52 +574,15 @@
         if (!rows.length) output.textContent = '';
     }
 
-    function launcherRows(output, entry, latest = false) {
-        let rows = entry.launcher_output && entry.launcher_rows ||
+    function launcherRows(output, entry) {
+        const rows = entry.launcher_output && entry.launcher_rows ||
             terminal(entry.launcher_output || 'Waiting for launcher output…').split('\n')
                 .map(text => [{ text }]);
-        if (latest) {
-            let end = rows.length;
-            const blank = row => row.every(part => !terminal(part.text).trim());
-            while (end && blank(rows[end - 1])) end--;
-            let start = end - 1;
-            while (start > 0 && !blank(rows[start - 1])) start--;
-            rows = rows.slice(Math.max(0, start), end);
-        }
         output.replaceChildren();
         rows.forEach((row, index) => {
             if (index) output.appendChild(document.createTextNode('\n'));
             for (const part of row) runSpan(output, { ...part, text: terminal(part.text) });
         });
-    }
-
-    function latestOutput(section) {
-        const entry = section.entry;
-        const session = entry.session && !(entry.session_inactive ?? !entry.session_active);
-        const label = tabLabel(entry, session ? 'session' : 'launcher');
-        section.latestTitle.textContent = label;
-        section.latestLabel.setAttribute('aria-label', `Resize ${label} output`);
-        section.latest.setAttribute('aria-label', label);
-        const rows = session ? entry.session_preview : entry.launcher_rows;
-        const signature = JSON.stringify([entry.run, entry.session, Boolean(session), rows,
-            session ? null : entry.launcher_output]);
-        if (section.latestSignature === signature) return;
-        section.latestSignature = signature;
-        const source = JSON.stringify([entry.run, entry.session, Boolean(session)]);
-        const previousText = section.latestText || '';
-        const scrollTop = section.latest.scrollTop;
-        if (source !== section.latestSource) section.latest.replaceChildren();
-        if (session) {
-            transcriptRows(section.latest, rows || []);
-            if (!rows?.length) section.latest.textContent = 'Waiting for session output…';
-        } else launcherRows(section.latest, entry, true);
-        const text = section.latest.textContent.trimEnd();
-        // Appending streamed text is still the same output. Keep the reader's
-        // position; a replacement message or source starts at its first line.
-        section.latest.scrollTop = source === section.latestSource && previousText &&
-            text.startsWith(previousText) ? scrollTop : 0;
-        section.latestSource = source;
-        section.latestText = text;
     }
 
     function sessionRows(section, view) {
@@ -1024,10 +1007,8 @@
     }
 
     function runMinimum(section) {
-        const minimum = section.view === 'status' ? section.heading.offsetHeight +
-            section.summary.offsetHeight + section.latestLabel.offsetHeight + 12 +
-            parseFloat(getComputedStyle(section.latest).minHeight) +
-            parseFloat(getComputedStyle(section.history).minHeight) : 100;
+        const minimum = section.heading.offsetHeight + section.summaryRow.offsetHeight +
+            (section.view === 'status' ? section.latestLabel.offsetHeight : 0) + 80;
         section.minimum = Math.max(100, minimum);
         section.body.style.minHeight = `${section.minimum}px`;
     }
@@ -1041,22 +1022,19 @@
         handle.setAttribute('aria-orientation', 'horizontal');
         const resize = height => {
             if (section.view !== 'status' || !section.content.clientHeight) return;
-            const style = getComputedStyle(section.latest);
-            const line = parseFloat(style.minHeight) / 4;
-            const minimum = 4 * line;
-            const maximum = Math.max(minimum, section.content.clientHeight -
-                section.summary.offsetHeight - section.latestLabel.offsetHeight - 12 -
-                parseFloat(getComputedStyle(section.history).minHeight));
-            const value = Math.max(minimum, Math.min(maximum, height ??
-                (section.previewMaximized ? maximum : section.previewHeight) ?? minimum));
+            const maximum = Math.max(0, section.content.clientHeight - section.latestLabel.offsetHeight);
+            const value = Math.max(0, Math.min(maximum, height ??
+                (section.previewMaximized ? maximum : section.previewHeight) ?? 0));
             section.latest.style.height = `${value}px`;
-            const expanded = value >= maximum && maximum > minimum;
+            section.latest.hidden = value === 0;
+            section.history.hidden = value >= maximum;
+            const expanded = value >= maximum;
             toggle.classList.toggle('expanded', expanded);
             toggle.setAttribute('aria-label', expanded ? 'Minimize output height' : 'Maximize output height');
             toggle.title = toggle.getAttribute('aria-label');
-            handle.setAttribute('aria-valuemin', '4');
-            handle.setAttribute('aria-valuemax', String(Math.floor(maximum / line)));
-            handle.setAttribute('aria-valuenow', String(Math.round(value / line)));
+            handle.setAttribute('aria-valuemin', '0');
+            handle.setAttribute('aria-valuemax', String(Math.round(maximum)));
+            handle.setAttribute('aria-valuenow', String(Math.round(value)));
             return value;
         };
         toggle.addEventListener('click', () => {
@@ -1089,7 +1067,7 @@
         });
         handle.addEventListener('keydown', event => {
             if (event.target !== handle) return;
-            const line = parseFloat(getComputedStyle(section.latest).minHeight) / 4;
+            const line = parseFloat(getComputedStyle(section.history).lineHeight) || 20;
             const height = { ArrowUp: section.latest.offsetHeight + line,
                 ArrowDown: section.latest.offsetHeight - line, Home: 0, End: Infinity }[event.key];
             if (height === undefined) return;
@@ -1099,7 +1077,6 @@
         });
         section.previewObserver = new ResizeObserver(() => resize());
         section.previewObserver.observe(section.content);
-        section.previewObserver.observe(section.summary);
         section.previewObserver.observe(handle);
     }
 
@@ -1186,20 +1163,20 @@
                 const divider = element('div', 'run-divider', runs);
                 const heading = element('h2', 'watch-tile-heading run-heading', body);
                 tileSelection(body, heading, () => section.resizeTitle());
+                const summaryRow = element('div', 'run-summary-row', body);
+                const summary = element('pre', 'run-status run-summary', summaryRow);
                 const content = element('div', 'run-status-view', body);
-                const summary = element('pre', 'run-status run-summary', content);
                 const history = element('pre', 'run-status run-history', content);
                 const preview = element('div', 'run-latest', content);
                 const latestLabel = element('div', 'run-latest-label', preview);
                 const latestTitle = element('span', 'run-latest-title', latestLabel);
                 element('span', 'run-latest-rule', latestLabel);
-                const latest = element('pre', 'run-status', preview);
-                latest.tabIndex = 0;
+                const latest = element('div', 'run-embedded', preview);
                 const launcher = element('pre', 'run-status', body);
                 launcher.setAttribute('aria-label', 'Launcher terminal output');
                 const errorStatus = element('pre', 'run-status', body);
                 errorStatus.setAttribute('aria-label', 'Last Error and Status');
-                section = Object.assign(sessionPanel(body), { body, divider, heading, content, summary, history,
+                section = Object.assign(sessionPanel(body), { body, divider, heading, summaryRow, content, summary, history,
                     preview, latestLabel, latestTitle, latest, launcher, errorStatus,
                     view: 'status', weight: 1, followStatus: true, previewMaximized: true });
                 const panel = section;
@@ -1214,14 +1191,14 @@
                 });
                 panel.statusObserver.observe(history);
                 panel.statusObserver.observe(heading);
-                panel.statusObserver.observe(summary);
+                panel.statusObserver.observe(summaryRow);
                 panel.statusObserver.observe(preview);
                 sections.set(entry.id, section);
                 runDivider(section);
             }
             const previous = section.entry;
             if (previous && previous.run === entry.run && previous.session === entry.session) {
-                for (const field of ['rows', 'error_rows', 'launcher_output', 'launcher_rows', 'session_preview']) {
+                for (const field of ['rows', 'error_rows', 'launcher_output', 'launcher_rows']) {
                     if (!Object.hasOwn(entry, field) && Object.hasOwn(previous, field)) entry[field] = previous[field];
                 }
                 if (entry.session_view && previous.session_view && !Object.hasOwn(entry.session_view, 'rows')) {
@@ -1243,10 +1220,7 @@
                 section.toggle.disabled = true;
             }
             sessionHeading(section);
-            section.content.hidden = section.view !== 'status';
-            section.launcher.hidden = section.view !== 'launcher';
-            section.errorStatus.hidden = section.view !== 'error';
-            section.session.hidden = section.view !== 'session';
+            runBody(section);
             if (entry.session_view) sessionRows(section, entry.session_view);
             else if (!entry.session) {
                 section.output.textContent = 'No active session';
@@ -1265,7 +1239,6 @@
                 launcherRows(section.launcher, entry);
                 if (follow) section.launcher.scrollTop = section.launcher.scrollHeight;
             }
-            latestOutput(section);
             // The adapter owns retained state, including late final status updates.
             if (section.errorRows !== entry.error_rows) {
                 section.errorRows = entry.error_rows;
@@ -1335,11 +1308,11 @@
             }
             section.summary.hidden = !hasSummary;
             section.summary.replaceChildren(...(hasSummary ? [rows[0]] : []));
-            section.history.classList.toggle('has-summary', hasSummary);
             section.history.replaceChildren(...(hasSummary ? rows.slice(summaryEnd + 1) : rows));
             if (section.followStatus) section.history.scrollTop = section.history.scrollHeight;
         });
         runDividers();
+        sessionViews();
     }
 
     function serverStatus(values) {

@@ -303,6 +303,28 @@ class Suite:
             self._input_bundle = inputs(root)
         return self._input_bundle
 
+    def baseline_transport(self, directory, selection):
+        """Boot the restored baseline with observation-only SSH inputs.
+
+        The caller owns the private directory, finite selection and assertions;
+        this suite retains the existing lease, watch and restoration lifetime.
+        """
+        from vm_transport import Transport
+
+        (directory / 'input').mkdir(mode=0o700)
+        (directory / 'input/selected-inputs.json').write_bytes(system.baseline.encode(selection))
+        host_key = system.bootstrap(self.commands, self.lease, directory, self.guestfs,
+                                    observation_only=True, environment_only=True)
+        self.lease.start()
+        hostname = system.address(self.source)
+        (directory / 'known-hosts').write_text(f'{hostname} {host_key}\n')
+        transport = Transport({'directory': str(directory), 'hostname': hostname,
+            'domain_uuid': self.source.uuid, 'domain_id': self.lease.view.domain_id,
+            'run': self.lease.state['run']}, self.commands,
+            guard=lambda _: self.lease.guard(), lease=self.lease)
+        transport.probe_ready()
+        return transport
+
     def prepare_installed(self, directory, assets, selection, *, root, overwrite=True,
                           mode='offline'):
         from app_snapshot import prepare

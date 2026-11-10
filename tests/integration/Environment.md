@@ -27,17 +27,12 @@ the program does not guess a newest image or download one.
 configuration, unrestricted host CPU placement, virtio graphics without 3D,
 sound and a guest-agent channel. The local template exports host `/Data` as a
 writable virtiofs share with mount tag `data`; the server template has no host
-folder share. During baseline preparation, `tools/prepare-vm` reads virtiofs
-filesystem mappings from the selected domain's inactive XML. Each source
-directory is also its guest mount path: a source `/Data/Code/PST` with target
-tag `pst` becomes `pst /Data/Code/PST virtiofs defaults,nofail 0 0` in the
-guest's `/etc/fstab`. Read-only exports use `ro,nofail` instead.
-Preparation creates missing mount directories, reuses matching entries without
-rewriting them, and verifies the actual mounts during each preparation boot
-before capturing the baseline. Unrelated fstab entries are preserved; conflicting
-entries, unsafe directories, overlapping mappings and new mounts hiding existing
-files are refused. Operating-system and preparation directories cannot be export
-mount points. A VM without virtiofs exports needs no guest share configuration.
+folder share. These developer shares are optional and unrelated to test inputs.
+Under the [shared-folder boundary](../../docs/Mandates/VM-Mandate.MD#vm-host-setup-and-baseline),
+baseline preparation and tests leave their guest mount configuration, directories,
+ownership and contents alone. They neither require a working share nor reconcile
+old share records. Maintained guest modules and attempt inputs are staged
+privately through their existing owners, independently of developer shares.
 
 The new disk is `HOST.virt-manager/NAME.qcow2`; the selected ISO is attached
 with CD-ROM-first boot. The program assigns a fresh UUID and libvirt assigns

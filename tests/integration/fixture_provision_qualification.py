@@ -72,6 +72,12 @@ def expected_admissions(members, accounts, os_id):
     by_path = {m['destination']: m for m in members.values()}
     executables = [by_path[native_assets.executable_path(role)]['sha256']
                    for role in ('A', 'H', 'S', 'N')]
+    executables.append(by_path[native_assets.PREFIX + '/' + native_assets.NEXT_VERSION]['sha256'])
+    runtime_paths = {path for source, (path, _) in
+                     native_assets.source_destinations(accounts['other']['home']).items()
+                     if source in native_assets.runtime_sources()}
+    executables.extend(sorted({m['sha256'] for m in members.values()
+        if m['native_action'] == 'native-execute' and m['destination'] not in runtime_paths}))
     gui = [by_path[native_assets.PREFIX + '/' + name]['sha256']
            for name in native_assets.GUI_FILES]
     for directory in native_assets.GUI_DIRECTORIES:
@@ -410,19 +416,8 @@ print(json.dumps({'paths':data['paths'],'denied':data['denied'],'ready':True}))
 
 
 def baseline_transport(suite, directory):
-    (directory / 'input').mkdir(mode=0o700)
-    (directory / 'input/selected-inputs.json').write_bytes(system.baseline.encode({
-        'schema_version': 1, 'scope': 'fixture-provisioning-engineering'}))
-    host_key = system.bootstrap(suite.commands, suite.lease, directory, suite.guestfs,
-                               observation_only=True, environment_only=True)
-    suite.lease.start()
-    hostname = system.address(suite.source)
-    (directory / 'known-hosts').write_text(f'{hostname} {host_key}\n')
-    transport = Transport({'directory': str(directory), 'hostname': hostname,
-        'domain_uuid': suite.source.uuid, 'domain_id': suite.lease.view.domain_id,
-        'run': suite.lease.state['run']}, suite.commands, guard=lambda _: suite.lease.guard(), lease=suite.lease)
-    transport.probe_ready()
-    return transport
+    return suite.baseline_transport(directory, {
+        'schema_version': 1, 'scope': 'fixture-provisioning-engineering'})
 
 
 def installed_transport(suite, directory, assets):

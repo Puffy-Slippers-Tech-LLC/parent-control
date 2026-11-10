@@ -362,6 +362,13 @@ The helper reuses `session` and `allocate`; it adds no VM, process or cleanup
 owner and reports success only after the proof and retention session finish.
 Recovery diagnostics keep their separate `recovery_session` route.
 
+Installed graphical qualifications inherit snapshot context preparation from
+`KioskEntryQualification.prepare_context` in
+[parent_setup_qualification.py](../integration/parent_setup_qualification.py).
+Journey factories select their finite plan and inputs; they do not repeat the
+snapshot-name calculation. Product-free lifecycle qualifications retain their
+separate setup and installation histories.
+
 Offline system qualifications and customer journeys share
 `vm_internet.internet_result(transport)` for bounded TCP/UDP DNS observations,
 alongside `InternetIsolation` and `restore` in that module. Keep required
@@ -1108,7 +1115,10 @@ including Jordan's Custom text input, belong to `KIOSK_SESSION_OPERATIONS`;
 overlay operations retain their child-desktop account. Qualify account routing
 through the standalone observer entry, not only direct calls on a preview reader.
 Both surfaces emit the existing form diagnostics, which `UiObservations.call`
-decodes separately from its single final reply.
+decodes separately from its single final reply. Include panel readiness and
+launch operations in that route when they can discover an already open form;
+otherwise progress messages can be mistaken for the final result. Carry the
+explicit child through both the panel operation and its form readback.
 
 Parent, kiosk and child-overlay entry use
 `AccessibleUI.complete_language_setup` through the parent/request wrappers.

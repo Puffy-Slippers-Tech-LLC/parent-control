@@ -245,11 +245,12 @@ sub suspend_active_grant {
     $journey->finish();
 }
 
-sub spring_forward_paired_grants {
-    onpc_progress::operation('Checking both children keep their granted time across the spring clock change');
-    my ($exchange, $declared, $challenges) = @_;
-    die 'spring-grants:plan' unless @_ == 3 && ref($exchange) eq 'CODE';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'spring-forward-paired-grants', review => 0);
+sub seasonal_paired_grants {
+    onpc_progress::operation('Checking both children keep their granted time across the seasonal clock change');
+    my ($exchange, $declared, $challenges, $direction) = @_;
+    die 'seasonal-grants:plan' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && defined($direction) && $direction =~ /\A(?:spring-forward|fall-back)\z/;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => $direction . '-paired-grants', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();

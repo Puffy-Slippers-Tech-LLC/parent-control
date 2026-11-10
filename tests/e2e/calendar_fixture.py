@@ -64,9 +64,11 @@ def preset_ordinary_midnight(journey, guard):
     return value
 
 
-SPRING_FORWARD = '''import datetime,json,os,subprocess,time
+SEASONAL_TRANSITION = '''import datetime,json,os,subprocess,sys,time
 from zoneinfo import ZoneInfo
 assert os.geteuid()==0
+change=int(sys.argv[1])
+assert change in (-3600,3600)
 def clock_property(name):
     return subprocess.run(['timedatectl','show','--property='+name,'--value'],
         check=True,capture_output=True,text=True,timeout=15).stdout.strip()
@@ -77,7 +79,7 @@ start=before//1000000000+3600
 offset=lambda epoch: int(datetime.datetime.fromtimestamp(epoch,tz).utcoffset().total_seconds())
 previous=start
 for current in range(start+3600,start+370*86400,3600):
-    if offset(current)-offset(previous)==3600:
+    if offset(current)-offset(previous)==change:
         low,high=previous,current
         while high-low>1:
             middle=(low+high)//2
@@ -87,12 +89,12 @@ for current in range(start+3600,start+370*86400,3600):
         break
     previous=current
 else:
-    raise RuntimeError('calendar-fixture:no-spring-forward-window')
+    raise RuntimeError('calendar-fixture:no-seasonal-window')
 target=boundary-1800
 local=datetime.datetime.fromtimestamp(target,tz)
 midnight=datetime.datetime.combine(local.date()+datetime.timedelta(days=1),datetime.time(),tz)
 day_start=datetime.datetime.combine(local.date(),datetime.time(),tz)
-assert midnight.timestamp()-day_start.timestamp()==23*3600
+assert midnight.timestamp()-day_start.timestamp()==86400-change
 previous_ntp=clock_property('NTP')
 assert previous_ntp in ('yes','no') and target*1000000000>before
 subprocess.run(['timedatectl','set-ntp','false'],check=True,timeout=30)
@@ -111,24 +113,35 @@ print(json.dumps({'timezone':zone,'before_epoch_ns':before,'target_epoch_ns':tar
 
 def preset_spring_forward(journey, guard):
     """Prepare the next actual one-hour spring jump in the unchanged guest zone."""
+    return _preset_seasonal(journey, guard, 'spring-forward', 3600)
+
+
+def preset_fall_back(journey, guard):
+    """Prepare the next actual one-hour fall jump in the unchanged guest zone."""
+    return _preset_seasonal(journey, guard, 'fall-back', -3600)
+
+
+def _preset_seasonal(journey, guard, direction, change):
     import json
     from private_artifacts import require
     import watch_activity
 
-    require(journey.plan.prefix == 'spring-forward-paired-grants'
+    require((direction, change) in (('spring-forward', 3600), ('fall-back', -3600))
+            and journey.plan.prefix == direction + '-paired-grants'
             and [step['stage'] for step in journey.steps] == ['ready']
             and journey.transport is not None
             and journey.transport.lease is journey.context.lease,
             'calendar-fixture:entry')
     guard()
-    with watch_activity.operation('Preparing the spring clock change before parent or child actions'):
-        raw = journey.transport.call(['/usr/bin/python3', '-I', '-c', SPRING_FORWARD], timeout=120)
+    with watch_activity.operation('Preparing the seasonal clock change before parent or child actions'):
+        raw = journey.transport.call(['/usr/bin/python3', '-I', '-c', SEASONAL_TRANSITION, str(change)],
+                                     timeout=120)
     guard()
     value = json.loads(raw)
     require(value['ntp_enabled'] is False
             and value['before_epoch_ns'] < value['target_epoch_ns']
             <= value['readback_epoch_ns'] < value['target_epoch_ns'] + 30_000_000_000
-            and value['offset_after_seconds'] - value['offset_before_seconds'] == 3600
+            and value['offset_after_seconds'] - value['offset_before_seconds'] == change
             and value['transition_epoch_ns'] - value['target_epoch_ns'] == 1800_000_000_000,
             'calendar-fixture:readback')
     return value

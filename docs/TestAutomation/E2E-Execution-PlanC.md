@@ -34,7 +34,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **245 — [E2E-044: fall-back-paired-grants](E2E-Tasks/245-case-203.md)**.
+Next task: **314 — [Saved request presets and units persist](E2E-Tasks/314-request-presets.md)**.
 
 The developer authorized pre-test guest clock preparation for task **239** and all
 remaining calendar tasks (**240, 242, 245**), under the

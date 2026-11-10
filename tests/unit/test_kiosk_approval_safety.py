@@ -277,12 +277,18 @@ def test_agent_loss_ends_only_an_unqualified_challenge_without_releasing_input()
     ('ordinary-fixed-grant-request', 'other-', 1200, 0, False),
     ('ordinary-fixed-grant-request', 'request-', 0, 0, False),
     ('kiosk-fresh-return', '', 0, 0, False),
+    ('spring-forward-paired-grants-riley-request', 'riley-request-', 600, 0, True),
+    ('fall-back-paired-grants-jordan-request', 'jordan-request-', 0, 0, True),
+    ('fall-back-paired-grants-riley-request', 'riley-request-', 600, 0, True),
+    ('fall-back-paired-grants-jordan-request', 'riley-request-', 0, 0, False),
+    ('fall-back-paired-grants-riley-request', 'riley-request-', 0, 0, False),
 ])
 def test_short_and_calendar_approvals_keep_their_declared_secret_scope(prefix, scope, seconds, soft, accepted):
     result = run_password_guard(r'''
 my ($prefix, $scope, $seconds, $soft) = @ARGV;
+my $child = $prefix =~ /-jordan-request\z/ ? 'other-child' : 'child';
 my $journey = bless {prefix => $prefix, stage_prefix => $scope, review => 0,
-    kiosk_request => ['child', 'parent', $seconds, $soft]}, 'onpc_journey';
+    kiosk_request => [$child, 'parent', $seconds, $soft]}, 'onpc_journey';
 my $ok = eval { onpc_password::enter_kiosk_mate_password($journey, 'bound-request'); 1 };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
 ''', prefix, scope, str(seconds), str(soft))

@@ -658,8 +658,15 @@ sub run {
     if ($ready->{spring_forward_paired_grants}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
-        onpc_challenges::spring_forward_paired_grants(\&exchange, $ready->{invocations},
-            $ready->{challenge_bindings});
+        onpc_challenges::seasonal_paired_grants(\&exchange, $ready->{invocations},
+            $ready->{challenge_bindings}, 'spring-forward');
+        return;
+    }
+    if ($ready->{fall_back_paired_grants}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_challenges::seasonal_paired_grants(\&exchange, $ready->{invocations},
+            $ready->{challenge_bindings}, 'fall-back');
         return;
     }
     if ($ready->{ordinary_fixed_grant}) {

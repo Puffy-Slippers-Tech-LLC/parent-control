@@ -1364,6 +1364,19 @@ was retained or replaced and whether the form stayed open or was reopened. Reuse
 including their fullscreen-request return observation, rather than adding another
 desktop check or copying session commands into a case.
 
+Retained fullscreen destinations can hide Shell's Activities control.
+`session_control`'s `child-desktop-identity` and `standard-desktop-identity`
+reuse the same account-bound observer to require one active local graphical
+session and independently confirm that its ScreenSaver is unlocked on that
+child's bus. The caller still compares and uses the original public app activity;
+session identity alone does not prove preserved work or usable gameplay.
+
+When fullscreen work hides the countdown, `standard-overview-open` and
+`standard-overview-close` use Shell's public `OverviewActive` property in that
+same verified, unlocked child session. Case 127 brackets its unchanged public
+countdown read with those shared system operations, then compares and uses the
+original game. Opening the overview supplies no countdown or gameplay result.
+
 For approval balance comparisons, date the estimate's calculation rather than
 its cached label read. Cases 171–173 and failed-approval histories reuse
 `overlay-fraction-estimate-refresh` and `request_composition._estimate_read_bounds`:

@@ -1,4 +1,5 @@
-"""Case 126: approved windowed play, natural expiry and the same game recovered."""
+"""Cases 126/127: approved play, natural expiry and the same game recovered."""
+from dataclasses import replace
 from accessible_ui import KIOSK_BOUND_OPERATIONS, NAMED_CHILD_OPERATIONS
 from game_expiry import GameExpiryJourney
 from installed_journey import JourneyPlan, record_installed_journey
@@ -74,6 +75,23 @@ PLAN = JourneyPlan(
     assertions_after={'resumed': 'visible-result'},
 )
 
+FULLSCREEN_SCREENS = {}
+for stage, operation in SCREENS.items():
+    # Fullscreen hides Activities and the panel. Read the preserved unlocked
+    # session, reveal the ordinary panel, then return to the same game.
+    if stage == 'recovery-countdown':
+        FULLSCREEN_SCREENS['recovery-panel'] = 'system:standard-overview-open'
+    FULLSCREEN_SCREENS[stage] = (
+        'system:standard-desktop-identity' if stage == 'recovery-retained-desktop'
+        else operation.replace('ui:game-command', 'ui:game-fullscreen-command')
+        .replace('ui:game-windowed-level', 'ui:game-fullscreen-level'))
+    if stage == 'recovery-countdown':
+        FULLSCREEN_SCREENS['recovery-game'] = 'system:standard-overview-close'
+
+FULLSCREEN_PLAN = replace(PLAN, worker_mode='game_access_fullscreen',
+    screen_tags=FULLSCREEN_SCREENS,
+    phases={**PLAN.phases, 'recovery-panel': 'step-6', 'recovery-game': 'step-6'})
+
 
 class GameAccessJourney(GameExpiryJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
@@ -103,11 +121,19 @@ class GameAccessJourney(GameExpiryJourney):
                         self.natural_expiry_result['lock']['surface_id'], 'game-access:changed-expired-lock')
 
 
-def execute(recorder, context):
+def _execute(recorder, context, plan, mode):
     from e2e_fixture_preparation import GAME_SUBSETS
     context.fixture_subsets = GAME_SUBSETS
-    context.fixture_caller = 'E2E-023/windowed'
-    record_installed_journey(recorder, context, PLAN, timeout=3600, journey_type=GameAccessJourney)
+    context.fixture_caller = 'E2E-023/' + mode
+    record_installed_journey(recorder, context, plan, timeout=3600, journey_type=GameAccessJourney)
 
 
-E2E_CASES = {'windowed': execute}
+def execute(recorder, context):
+    _execute(recorder, context, PLAN, 'windowed')
+
+
+def execute_fullscreen(recorder, context):
+    _execute(recorder, context, FULLSCREEN_PLAN, 'fullscreen')
+
+
+E2E_CASES = {'windowed': execute, 'fullscreen': execute_fullscreen}

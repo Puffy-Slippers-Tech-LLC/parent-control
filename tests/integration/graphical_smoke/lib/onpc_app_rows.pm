@@ -1331,8 +1331,10 @@ sub game_time_extension {
 
 sub game_access {
     onpc_progress::operation('Recovering the child’s original game after approved time runs out');
-    my ($exchange, $declared, $challenges, $request) = @_;
-    die 'game-access:binding' unless @_ == 4 && ref($request) eq 'ARRAY'
+    my ($exchange, $declared, $challenges, $request, $mode) = @_;
+    $mode //= 'windowed';
+    die 'game-access:binding' unless (@_ == 4 || @_ == 5) && ref($request) eq 'ARRAY'
+        && $mode =~ /\A(?:windowed|fullscreen)\z/
         && join(',', @$request) eq 'other-child,parent,600,1';
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'game-access', review => 0);
     $journey->declare_invocations($declared);
@@ -1352,7 +1354,7 @@ sub game_access {
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan-entry');
     $journey->invoke('initial-countdown');
     my $play = $journey->scope('play');
-    game_usable_app($play, 'windowed');
+    game_usable_app($play, $mode);
     native_read_activity($play, 'capture');
     $journey->invoke('natural-expiry');
     onpc_desktop_session::verify_locked_input($journey, 'lock-input-ready', 'lock-result');
@@ -1364,7 +1366,9 @@ sub game_access {
     onpc_request_flow::obtain_time($recovery, 'observed',
         'existing-fixture-child', 'fixture-parent', 1200, 1, 'automatic');
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained', 'success', 'recovery-retained');
+    $recovery->seen('panel') if $mode eq 'fullscreen';
     $recovery->seen('countdown');
+    $recovery->seen('game') if $mode eq 'fullscreen';
     native_read_activity($journey, 'returned-game');
     $journey->seen($_) for qw(resume resumed);
     $journey->finish();

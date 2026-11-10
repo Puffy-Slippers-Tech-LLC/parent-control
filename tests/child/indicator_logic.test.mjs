@@ -550,7 +550,7 @@ test('panel API becomes unavailable at lock or greeter before actors are hidden'
         container: {visible: true},
         _settings: {is_writable: () => true},
         _requestButton: {visible: true, reactive: true, checked: false,
-            get_parent: () => null, get_accessible: () => ({get_description: () => ''})},
+            get_parent: () => indicator.container, get_accessible: () => ({get_description: () => ''})},
     };
     const adapter = new context.GnomeApplicationUiAdapter(indicator);
     const assertAvailability = available => {

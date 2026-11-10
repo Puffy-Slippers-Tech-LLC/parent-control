@@ -406,6 +406,15 @@ replacement. It does not authorize adopting an unknown file or bypassing the
 lease, provenance, ownership or product-free gates. The governing rule is the
 [VM mandate](../../docs/Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
 
+Preparation uses the shared VM executor for both single and multiple selections.
+Each isolated worker holds its own selected VM reservation; occupied VM waiters
+use no execution slot. Source admission precedes execution capacity, and nested
+baseline/app stages borrow the same receipt. Individual failures do not stop
+other queued preparation. Cancellation prevents new operations, waits for active
+baseline replacement, and preserves app-snapshot cooperative cleanup and journals.
+Baseline helper refresh runs once, after every worker and reservation has closed,
+when at least one baseline succeeded. Preparation adds no durable scheduling state.
+
 ### Ubuntu clean snapshots
 
 Ubuntu 26.04 preparation writes marker schema 4. Its baseline and derived app

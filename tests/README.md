@@ -336,6 +336,17 @@ to retain an investigation reservation between commands. One request chain owns
 one VM at a time; batches use independent workers. Checkout-local activity and
 retained results do not constitute a VM reservation.
 
+Ordinary test and preparation workers share `tools/vm_queue.py` for reservation,
+source admission, execution capacity and joined cleanup. Busy VM waiters use no
+slot or source reader; source waits use no execution slot. Test workers claim
+only after admission and release spare reservations when capacity fills. Source
+waits release idle reservations before waiting and recheck after checkout. Workers
+cancel unused waiters when their family's work drains.
+Failed workers release capacity but retain their reservation until the executor
+closes after the worker join. Preparation uses one finite per-VM operation and
+continues after individual failures. These rules also cover explicit single-VM
+selections; legacy repair keeps its existing resource path until its cutover.
+
 Expensive disk stages additionally share the host-wide
 [FIFO disk queue](../docs/Mandates/VM-Mandate.MD#host-disk-queue).
 Package builds, guest product transactions, snapshot creation/restoration and

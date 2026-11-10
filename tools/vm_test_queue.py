@@ -21,11 +21,11 @@ import test_launcher
 import test_retention
 from regression_process import Control, FRAME_PREFIX
 from vm_selection import BATCH, VARIABLE, WORKER, vm_config
-from vm_queue import dispatch
+from vm_queue import Executor
 from vm_pool import reservation
 import launcher_reload
 from vm_case_queue import (case_inventory, work_items, work_key, claim, arguments,
-                           family_binding, available_worker)
+                           family_binding)
 
 if __name__ == '__main__':
     _source_imports.__exit__(None, None, None)
@@ -251,8 +251,7 @@ def run(root, argv, *, reloading=False):
                     frames[vm.name] = ['Starting worker']
                     publish_frames()
                 try:
-                    with test_source.reader(root, stopped=control.stopped.is_set):
-                        result = execute_worker(vm, work, inherited, receipt)
+                    result = execute_worker(vm, work, inherited, receipt)
                 except (ValueError, OSError):
                     with output_lock:
                         frames[vm.name] = ['Failed (worker error)']
@@ -267,7 +266,6 @@ def run(root, argv, *, reloading=False):
                 return result
 
             queue_lock = threading.Lock()
-            slots = threading.Semaphore(snapshot['concurrency'])
 
             def completed(family):
                 checkpoint = family['checkpoint']
@@ -276,85 +274,79 @@ def run(root, argv, *, reloading=False):
                 return {work_key(work) for work in items if work_key(work) in saved
                         and set(work['cases']) <= checkpoint.passed(work['category'])}
 
-            def execute_claims(vm, receipt):
+            def execute_claims(worker):
+                vm, receipt = worker.vm, worker.receipt
                 family = families[vm.family]
                 handoffs = []
                 while not control.stopped.is_set() and not launcher_reload.pending():
-                    with queue_lock:
-                        unit = next((item for item in family['items']
-                                     if family['claims'].get(work_key(item)) == vm.name), None)
-                        unit = unit or claim(family['items'], completed(family), family['claims'], vm.name)
-                        if unit is None:
+                    # Claim only after this reserved worker has passed source
+                    # admission and obtained execution capacity. Waiting for a
+                    # VM or source owner never claims a normal case.
+                    with worker.operation():
+                        with queue_lock:
+                            unit = next((item for item in family['items']
+                                         if family['claims'].get(work_key(item)) == vm.name), None)
+                            unit = unit or claim(family['items'], completed(family), family['claims'], vm.name)
+                            if unit is None:
+                                return dict(status=0, handoffs=handoffs)
+                            key = work_key(unit)
+                            work = family['views'].get(key, unit)
+                            checkpoint = family['checkpoint']
+                            inherited = {category: sorted(checkpoint.passed(category))
+                                         for category in checkpoint.selected}
+                            checkpoint.state['queue_claims'] = dict(family['claims'])
+                            checkpoint.state.setdefault('queue_items', {})[key] = unit
+                            checkpoint.save()
+                        result = execute_case(vm, work, inherited, receipt)
+                        handoffs.extend(result['handoffs'])
+                        # The supervised child returned through owned cleanup;
+                        # the executor still retains this worker's reservation.
+                        with queue_lock:
+                            saved = (Checkpoint(root, guest_selection, resume=True, binding=vm.name)
+                                     if result.get('ready') else None)
+                            current = saved is not None and saved.state.get('queue_attempt') == result.get('attempt')
+                            credited = set(work.get('credit', work['cases']))
+                            for case in (credited & saved.passed(work['category']) if current else set()):
+                                checkpoint.event(work['category'], dict(kind='finished', nodeid=case), set())
+                            if not result['status']:
+                                if not current or work['cases'] and not set(work['cases']) <= checkpoint.passed(work['category']):
+                                    raise ValueError('case runner returned success without teardown-complete case evidence')
+                                checkpoint.state['queue_completed'] = sorted(
+                                    set(checkpoint.state.get('queue_completed', [])) | {work_key(work)} | {
+                                        work_key(item) for item in family['all_items']
+                                        if item['category'] == work['category']
+                                        and set(item['cases']) & credited
+                                        and set(item['cases']) <= checkpoint.passed(item['category'])})
+                                # Failed histories retain their original owner.
+                                if set(unit['cases']) <= checkpoint.passed(unit['category']):
+                                    del family['claims'][key]
+                            elif work['case'] is not None:
+                                # A report or cleanup audit can fail after case
+                                # events; require the terminal target again.
+                                checkpoint.event(work['category'],
+                                    dict(kind='failure', nodeid=work['case']), set())
+                            checkpoint.state['queue_claims'] = dict(family['claims'])
+                            checkpoint.save()
+                        if result['status']:
+                            if '--stop-on-error' in guest_args and result['status'] != launcher_reload.STATUS:
+                                control.stop()
+                            return dict(status=result['status'], handoffs=handoffs)
+                        if family['scoped']:
                             return dict(status=0, handoffs=handoffs)
-                        key = work_key(unit)
-                        work = family['views'].get(key, unit)
-                        checkpoint = family['checkpoint']
-                        inherited = {category: sorted(checkpoint.passed(category))
-                                     for category in checkpoint.selected}
-                        checkpoint.state['queue_claims'] = dict(family['claims'])
-                        checkpoint.state.setdefault('queue_items', {})[key] = unit
-                        checkpoint.save()
-                    result = execute_case(vm, work, inherited, receipt)
-                    handoffs.extend(result['handoffs'])
-                    # The child has returned after its reservation and owned
-                    # cleanup. No other worker can write this VM checkpoint.
-                    with queue_lock:
-                        saved = (Checkpoint(root, guest_selection, resume=True, binding=vm.name)
-                                 if result.get('ready') else None)
-                        current = saved is not None and saved.state.get('queue_attempt') == result.get('attempt')
-                        credited = set(work.get('credit', work['cases']))
-                        for case in (credited & saved.passed(work['category']) if current else set()):
-                            checkpoint.event(work['category'], dict(kind='finished', nodeid=case), set())
-                        if not result['status']:
-                            if not current or work['cases'] and not set(work['cases']) <= checkpoint.passed(work['category']):
-                                raise ValueError('case runner returned success without teardown-complete case evidence')
-                            checkpoint.state['queue_completed'] = sorted(
-                                set(checkpoint.state.get('queue_completed', [])) | {work_key(work)} | {
-                                    work_key(item) for item in family['all_items']
-                                    if item['category'] == work['category']
-                                    and set(item['cases']) & credited
-                                    and set(item['cases']) <= checkpoint.passed(item['category'])})
-                            # Release only successful claims. Failed histories
-                            # remain owned for the remainder of this run.
-                            if set(unit['cases']) <= checkpoint.passed(unit['category']):
-                                del family['claims'][key]
-                        elif work['case'] is not None:
-                            # A final report, recording or cleanup audit can
-                            # fail after case events were saved. Its terminal
-                            # target must run again before the unit gets credit.
-                            checkpoint.event(work['category'],
-                                dict(kind='failure', nodeid=work['case']), set())
-                        checkpoint.state['queue_claims'] = dict(family['claims'])
-                        checkpoint.save()
-                    if result['status']:
-                        if '--stop-on-error' in guest_args and result['status'] != launcher_reload.STATUS:
-                            control.stop()
-                        return dict(status=result['status'], handoffs=handoffs)
-                    if family['scoped']:
-                        return dict(status=0, handoffs=handoffs)
                 return dict(status=130 if control.stopped.is_set() else launcher_reload.STATUS,
                             handoffs=handoffs)
 
-            def execute(vm):
+            def needed(vm):
                 family = families[vm.family]
-                def needed():
-                    with queue_lock:
-                        done = completed(family)
-                        return (any(family['claims'].get(work_key(item)) == vm.name for item in family['items']) or any(
-                            work_key(item) not in done and work_key(item) not in family['claims']
-                            for item in family['items']))
-                from detached_launcher import Stopped
-                try:
-                    with available_worker(vm, slots, control.stopped, needed=needed) as receipt:
-                        return (dict(status=0, handoffs=[]) if receipt is None else
-                                execute_claims(vm, receipt))
-                except Stopped:
-                    return dict(status=130, handoffs=[])
-                except launcher_reload.ReloadRequested:
-                    return dict(status=launcher_reload.STATUS, handoffs=[])
+                with queue_lock:
+                    done = completed(family)
+                    return (any(family['claims'].get(work_key(item)) == vm.name for item in family['items']) or any(
+                        work_key(item) not in done and work_key(item) not in family['claims']
+                        for item in family['items']))
 
             publish_frames()
-            results = dispatch(vms, len(vms), execute, control.stopped)
+            with Executor(root, vms, snapshot['concurrency'], control.stopped) as executor:
+                results = executor.run_each(execute_claims, needed=needed)
             for family in families.values():
                 checkpoint = family['checkpoint']
                 done = completed(family)

@@ -22,6 +22,72 @@ import test_commands as commands
 VM_ARGS = ['--vm', vm_name()]
 
 
+def test_baseline_queue_cancels_pending_work_and_refreshes_after_checkin(tmp_path, monkeypatch):
+    """A cancelled baseline replacement finishes before helper refresh."""
+    from contextlib import contextmanager
+    import threading
+    import regression_process
+    import test_source
+    import vm_pool
+    from vm_selection import vm_config
+
+    vms = tuple(vm_config.VMConfig(name, tmp_path / name, enabled=True)
+                for name in ('one', 'two', 'three'))
+    configured = {vm.name: vm for vm in vms}
+    monkeypatch.setattr(vm_config, 'load', configured.__getitem__)
+    monkeypatch.setattr(vm_config, 'execution', lambda _: (3, vms))
+    monkeypatch.setattr(test_source, 'startup', lambda *a, **k: nullcontext())
+    monkeypatch.setattr(test_source, 'reader', lambda *a, **k: nullcontext())
+    monkeypatch.setattr(test_source, 'finish_admission', lambda: None)
+    launcher = runpy.run_path(str(ROOT / 'tools/prepare-vm'))
+    main = launcher['main']
+    monkeypatch.setitem(main.__globals__, 'read_password', lambda: None)
+    monkeypatch.setitem(main.__globals__, 'check', lambda _: None)
+    monkeypatch.setattr(os, 'geteuid', lambda: 1000)
+    held, calls, refreshes = set(), [], []
+    stopped = threading.Event()
+
+    @contextmanager
+    def reservation(name, *, stopped, bind):
+        assert not bind
+        held.add(name)
+        try:
+            yield name + '-receipt'
+        finally:
+            held.remove(name)
+
+    @contextmanager
+    def installed(control, **kwargs):
+        control.stopped = stopped
+        yield control
+
+    def execute(control, command, *, env, **kwargs):
+        name = env[vm_config.VARIABLE]
+        assert name in held
+        assert env[vm_pool.VARIABLE] == name + '-receipt'
+        assert control.stopped is not stopped  # Baseline has no stop protocol.
+        calls.append(name)
+        if len(calls) == 1:
+            return 1  # Failure must not prevent the next preparation.
+        stopped.set()
+        assert not control.stopped.is_set()
+        return 0  # Active replacement finishes despite outer cancellation.
+
+    def refresh(command, **kwargs):
+        assert not held, 'helper refresh ran before VM checkin'
+        assert command == [str(ROOT / 'setup.sh'), '--test-tools-only']
+        refreshes.append(command)
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(vm_pool, 'reservation', reservation)
+    monkeypatch.setattr(regression_process.Control, 'installed', installed)
+    monkeypatch.setattr(regression_process.Control, 'run', execute)
+    monkeypatch.setattr(subprocess, 'run', refresh)
+    assert main(['--mode', 'auto', '--vm', 'one,two,three', '--y']) == 130
+    assert len(calls) == 2 and len(refreshes) == 1
+    assert not held
+
+
 @pytest.fixture
 def shared_closeout(tmp_path, monkeypatch):
     import detached_launcher as launcher

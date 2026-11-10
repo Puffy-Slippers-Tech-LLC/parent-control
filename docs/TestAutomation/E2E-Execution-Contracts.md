@@ -633,7 +633,7 @@ implementation belongs to the current task's affected checks.
    [reallocated UI cases 161 and 190](UI-and-E2E-Coverage.md#duplicate-review-and-allocation)
    retain their stable IDs and historical evidence without runnable E2E bindings.
    The [feedback allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation)
-   also retains former IDs 156/157/213/216/218/219/220/221 without runnable E2E
+   also retains former IDs 156/157/216/218/219/220/221 without runnable E2E
    bindings or installed acceptance; their metadata names the UI owners and
    remaining assertions.
    Removed tasks 143–149 and 171 belong only to the open questions in

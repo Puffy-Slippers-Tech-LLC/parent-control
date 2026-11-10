@@ -122,10 +122,8 @@ Mock responses must not contact the real service. They establish anonymous
 confirmation, success/clearing, retry/background completion, app-exit reset,
 direct Stop and explicit Send without logs under declared responses. Recorded
 request close/logout callbacks establish callback ordering, not an installed
-desktop or GDM destination. Genuine installed error entry, collection failure
-and recovery, confinement and public request-exit results remain with their
-existing owners. Do not gate these local sending checks on an installed
-request-error entry, Internet isolation or a missing public collection-failure trigger.
+desktop or GDM destination. Installed error entry, confinement and public
+request-exit results remain with their existing owners.
 
 Real sending is a separate optional integration check under the
 [live-delivery contract](../../tests/README.md#coverage-maintenance-workflow),
@@ -183,12 +181,6 @@ feature cases retain each tested policy transition's independent effects.
 Removing a precursor history does not qualify a new provider or safety binding;
 keep genuinely missing qualification explicit in its consumer.
 
-Task 188r combines the missing Parent collection-failure projection and Retry
-binding in one qualification. Former task 188p's separate failure setup/close
-attempt is redundant; retain the failed result, usable controls, draft,
-restoration and successful Retry together. No public failure/recovery trigger
-is established, so the combined capability and complete case 208 remain pending.
-
 Tasks 150o/150k's duplicate Send/dismiss/exit qualifiers remain absorbed into
 former cases 220/221, now allocated to the
 [mock-sending UI owner](#feedback-sending-allocation). Task 150 owns shared
@@ -200,7 +192,7 @@ panel-request history and broker tests, without another E2E task. Delayed-approv
 modules retain their supporting history; E2E-048 stays excluded under its separate
 save-failure decision and gains no acceptance here. Genuine installed request-error review/decline, Privacy and exit
 bindings remain uncovered under FEED15 until a real public error route is
-qualified; collection task 188k retains that entry gate. Mock close/logout callbacks do not qualify
+qualified. Mock close/logout callbacks do not qualify
 their installed destinations. Pending-prompt transition
 qualifiers 183a–e retain cancellation and safe return; cases 171–175 own the
 fresh successful approval, balance and access recovery. No lower-layer pass
@@ -358,8 +350,7 @@ public failure triggers remain gates. Qualification cannot supply missing result
 Feedback Send follows the [mock-sending allocation](#feedback-sending-allocation):
 routine UI checks retain draft lifetime, dismissal and callback ordering under
 declared responses, with no recipient or authorization gate. Background
-completion opens no unsolicited window and needs no second Send. Internet loss
-alone does not prove genuine installed diagnostic collection failure.
+completion opens no unsolicited window and needs no second Send.
 
 [Unsupported native gestures](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures)
 remain excluded. Retained uncovered assertions must not disappear or become new

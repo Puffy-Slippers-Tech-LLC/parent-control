@@ -91,13 +91,23 @@ automatic retries retain its frozen content and identity, and uncertain input
 must not be replayed. Request callbacks are recorded through the existing
 [request helpers](../../tests/support/request_form.py).
 
-Hold a fake retry response with the existing release file until the parent has
-observed the retry or closed feedback, then release it in `finally`. Release and
-transport receipts alone do not prove that the app handled success. For completion
-after feedback closes, await its public submitted status and check that no feedback
-or thanks window appeared before reopening; then independently check the cleared
-draft, reply and customer files. Refreshed diagnostics are a new attachment, not
-a retained customer file.
+Hold a fake retry response with the existing release file until the caller has
+observed the required retry or Stop result, then release it in `finally`.
+Release and transport receipts alone do not prove that the app handled the late
+response. Parent retains its closed feedback surface: await its public submitted
+status and check that no feedback or thanks window appeared before reopening;
+then independently check the cleared draft, reply and customer files. Refreshed
+diagnostics are a new attachment, not a retained customer file.
+
+A child error report is destroyed on close, so its old status cannot witness
+completion. Follow `test_child_stops_sending_report_before_late_response` in the
+[error-report checks](../../tests/ui/test_error_feedback.py): establish report
+closure and exactly one exit callback before releasing the pending reply, await
+the real completion handler's existing nonsecret outcome diagnostic in the owned
+preview log, then independently check that neither report nor thanks reopened
+and the callback count stayed one. Keep late retry/success responses and expected
+outcomes in the case; the diagnostic synchronizes the check and supplies no
+installed exit or delivery credit.
 
 Retain former cases **156, 157, 213, 216, 218, 219, 220 and 221** as allocation
 references, pending with no E2E executable or installed acceptance. The launcher

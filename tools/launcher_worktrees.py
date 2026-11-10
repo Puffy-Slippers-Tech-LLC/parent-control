@@ -537,6 +537,17 @@ def _verify_restored(git, root, target, *, reviewed=False):
         target['preserve_stash'] = True
     changed = set(filter(None, git(root, 'diff', '--no-renames', '--name-only', '-z',
                                   target['head'], head).stdout.split('\0')))
+    if reviewed:
+        # Older checkpoints can capture an already conflicted index. Resolution
+        # cannot reproduce its stages 1/2/3 and also leave a clean index. Treat
+        # these paths like overlapping incoming changes only after resolver review;
+        # the verified result is pinned below in restored_active for later checks.
+        conflicts = {path for path, value in target.get('active', {}).items()
+                     if any(entry.rsplit(' ', 1)[-1] in ('1', '2', '3')
+                            for entry in value['index'])}
+        if conflicts:
+            changed.update(conflicts)
+            target['preserve_stash'] = True
     expected = {path: value for path, value in target.get('active', {}).items() if path not in changed}
     if not reviewed and head == target.get('restored_head'):
         # Include conflict resolutions too: after their verified checkpoint,
@@ -868,6 +879,9 @@ For restore: inspect whether stash apply --index partially ran or completed;
 finish restoration exactly once, applying without --index if necessary, resolve
 conflicts, and restore the stash's original staged/unstaged distinction, including
 partially staged files and untracked files, for work that remains uncommitted.
+If the saved checkpoint itself contains unmerged index stages, review and resolve
+those paths rather than recreating conflicts. The controller retains the original
+stash and pins the reviewed conflict-free contents and staging for later checks.
 Never include destination active work in a merge commit or undo another owner's
 later commit. Do not drop the recorded stash.
 Preserve unrelated files and all other stashes. Check affected combined behavior

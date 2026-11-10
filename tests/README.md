@@ -1442,6 +1442,17 @@ never bypassed. The launcher preserves session/model history, staging ownership
 and retained evidence, and requires cleanup verification in recovery. Exclusion
 earns no acceptance credit; current briefs supersede excluded-task handoffs.
 
+After explicitly reviewed rebalancing between plans, use
+`tools/write-e2e --planc --reconcile RUN --check` in the selected checkout,
+then omit `--check` to adopt the queue (use the appropriate plan selector).
+The launcher must be inactive with owned cleanup and pending Git recovery finished.
+For an unfinished optimization, committed master, queue and brief inputs are
+required. Reconciliation preserves all previously completed rows and the exact
+three-task batch, validation, session history and owned edits. It archives the
+original checkpoint and rejected handoff before adopting the new queue baseline.
+It grants no acceptance or completion: the same optimization resumes before any
+new task. Ordinary optimization handoffs still cannot change queue status/order.
+
 Each session is a new Codex `app-server` process with a fresh persistent thread,
 history-list recording and memories disabled. The shared
 [goal setup](../docs/Execution-Plans.md#execution-and-delegation) activates the

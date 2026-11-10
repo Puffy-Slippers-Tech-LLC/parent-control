@@ -705,6 +705,12 @@ paths changed by those commits require the resolver's preservation review rather
 than an obsolete snapshot comparison.
 Existing stashes remain untouched.
 
+An older checkpoint may have captured unmerged index stages before stashing.
+Those paths require the restoration resolver's preservation review, rather than
+recreating an unresolved index. The controller retains the original stash and
+pins the reviewed conflict-free content, staging and modes for subsequent checks;
+unaffected paths still require exact restoration.
+
 Before a transaction has written its active-work stash, a resumed destination
 may adopt a descendant HEAD and refresh its active-work snapshot. Branch and
 upstream identity checks still apply. A matching transaction stash retains its

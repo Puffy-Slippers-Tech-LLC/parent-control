@@ -1,5 +1,4 @@
 {
-  "version": 3,
-  "kiosk_uid": 991,
-  "minimum_request_interval_seconds": 5
+  "version": 4,
+  "kiosk_uid": 991
 }

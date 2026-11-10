@@ -151,11 +151,19 @@ def _compiled_retirement_record(g, identities):
     base = set(movable) | {TRUST_RECORD, TRUST_FILE}
     generated = {NATIVE_RULES_COMPILED, NATIVE_RULES_BACKUP}
     # Completed clean captures retain historical retirement receipts. These
-    # predate Riley's game launcher, the game, version variants, C, the Alias
-    # launcher and H's move into Whitespace. Reconstruct those inventories in
-    # reverse order; new movable fixtures cannot invalidate clean witnesses.
+    # predate the expanded GUI runtime, Riley's game launcher, the game,
+    # version variants, C, the Alias launcher and H's move into Whitespace.
+    # Reconstruct those inventories in reverse order; new movable fixtures
+    # cannot invalidate clean witnesses.
     comma = assets.PREFIX + '/Comma/'
-    before_child_game = base - {
+    before_gui_runtime = base - {
+        *(assets.PREFIX + '/' + directory + name
+          for directory in native_assets.GUI_DIRECTORIES
+          for name in ('work_document.py', 'guest_files.py')),
+        *(native_assets.ACTIVITY_PREFIX + '/' + name
+          for name in ('work_document.py', 'guest_files.py')),
+    }
+    before_child_game = before_gui_runtime - {
         identities['child'].pw_dir + '/.local/share/applications/' + native_assets.GAME_DESKTOP_ID,
     }
     before_game = before_child_game - {
@@ -180,7 +188,9 @@ def _compiled_retirement_record(g, identities):
     before_whitespace = (before_alias - {
         whitespace + 'Path With Spaces.AppImage',
         *(whitespace + name for name in assets.GUI_FILES)}) | {old_h}
-    historical = (before_child_game, before_game, before_versions, before_comma, before_alias, before_whitespace,
+    historical = (before_gui_runtime, before_child_game, before_game, before_versions,
+                  before_comma, before_alias, before_whitespace,
+                  before_gui_runtime - set(native_assets.NATIVE_POLICY_PATHS),
                   before_child_game - set(native_assets.NATIVE_POLICY_PATHS),
                   before_game - set(native_assets.NATIVE_POLICY_PATHS),
                   before_versions - set(native_assets.NATIVE_POLICY_PATHS),

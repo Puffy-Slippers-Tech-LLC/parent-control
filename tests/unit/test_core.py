@@ -9,7 +9,7 @@ from unittest import mock
 from zoneinfo import ZoneInfo
 
 from oh_no_parent_control.core import (
-    AccessDenied, BackendFailure, Broker, Busy, InvalidRequest, RateLimited, RollbackFailure,
+    AccessDenied, BackendFailure, Broker, Busy, InvalidRequest, RollbackFailure,
     UserAccount, calculate_active_extension_seconds, format_requested_duration,
     seconds_until_local_midnight,
 )
@@ -1544,7 +1544,6 @@ class CoreTests(unittest.TestCase):
                 with self.assertRaises(BackendFailure if invalidation == "unavailable" else AccessDenied):
                     broker.request_own_access(1001, ":1.child", 1003, 30, True)
                 self.assertFalse(any(event[0].startswith("set_") for event in accounts.events))
-                self.assertEqual(broker._last_request, {})
 
     def test_managed_child_no_soft_request_terminates_only_its_blocked_apps(self):
         accounts, preferences = Accounts(), Preferences()
@@ -1876,31 +1875,6 @@ class CoreTests(unittest.TestCase):
                 991, ":1.2", 1001, 1003, 900, False,
             )
 
-    def test_rate_limit(self):
-        auth = Authorizer()
-        broker = make_broker(auth, clock=lambda: 100)
-        broker.request_access(991, ":1.2", 1001, 1003, 900, False)
-        self.assertEqual(len(auth.calls), 1)
-        with self.assertRaises(RateLimited):
-            broker.request_access(991, ":1.3", 1001, 1003, 900, False)
-        self.assertEqual(len(auth.calls), 1)
-
-    def test_denied_or_cancelled_request_does_not_consume_rate_limit(self):
-        for outcome in ("denied", "cancelled"):
-            with self.subTest(outcome=outcome):
-                auth = Authorizer(outcome)
-                broker = make_broker(auth, clock=lambda: 100)
-                self.assertEqual(
-                    broker.request_access(991, ":1.2", 1001, 1003, 900, False)[1],
-                    outcome,
-                )
-                auth.outcome = "approved"
-                self.assertEqual(
-                    broker.request_access(991, ":1.3", 1001, 1003, 900, False)[1],
-                    "approved",
-                )
-                self.assertEqual(len(auth.calls), 2)
-
     def test_concurrent_request_is_busy(self):
         entered, release = threading.Event(), threading.Event()
         auth = Authorizer(callback=lambda: (entered.set(), release.wait(2)))
@@ -1932,6 +1906,37 @@ def submit_request(broker, surface, duration=300, allow_soft=False):
     if surface == "child":
         return broker.request_own_access(1001, ":1.20", 1003, duration, allow_soft)
     return broker.request_access(991, ":1.20", 1001, 1003, duration, allow_soft)
+
+
+@pytest.mark.parametrize("surface", ("child", "kiosk"))
+def test_immediate_requests_require_fresh_approval_and_accumulate_only_approved_time(surface):
+    accounts, preferences, auth = Accounts(), Preferences(), Authorizer()
+    preferences.values[1001]["parent_control_enabled"] = True
+    broker = make_broker(auth, accounts, preferences, clock=lambda: 100)
+    request_ids = []
+    for expected_duration in (300, 600):
+        result = submit_request(broker, surface)
+        request_ids.append(result[0])
+        assert result[1] == "approved"
+        assert accounts.extension == (int(broker._now().timestamp()), expected_duration)
+        if surface == "child":
+            assert result[2] == expected_duration
+    assert len(auth.calls) == 2
+    for outcome in ("denied", "cancelled"):
+        auth.outcome = outcome
+        before = list(accounts.events)
+        assert submit_request(broker, surface)[1] == outcome
+        assert accounts.events == before
+        assert accounts.extension[1] == 600
+    auth.outcome = "approved"
+    result = submit_request(broker, surface)
+    request_ids.append(result[0])
+    assert result[1] == "approved"
+    assert accounts.extension[1] == 900
+    assert len(auth.calls) == 5
+    assert len(set(request_ids)) == 3
+    assert len({call[2] for call in auth.calls}) == 5
+    assert sum(event[0] == "set_extension" for event in accounts.events) == 3
 
 
 @pytest.mark.parametrize("change", ("renew", "revoke", "allowance", "disable"))
@@ -2360,7 +2365,6 @@ def test_departure_before_admission_has_no_effect_and_requires_fresh_authenticat
     assert not any(event[0].startswith("set_") for event in accounts.events)
     assert not any(call[0] == "terminate" for call in apps.calls)
     assert extensions.calls == []
-    assert broker._last_request == {}
     second = submit_request(broker, surface, duration)
     assert second[1] == "approved"
     assert first[0] != second[0]
@@ -2402,7 +2406,6 @@ def test_slow_preflight_and_snapshots_revalidate_before_admission(
     assert auth.pending.closed
     assert not any(event[0].startswith("set_") for event in accounts.events)
     assert not any(call[0] == "terminate" for call in apps.calls)
-    assert broker._last_request == {}
 
 
 @pytest.mark.parametrize("surface", ("child", "kiosk"))
@@ -2432,14 +2435,11 @@ def test_departure_after_admission_finishes_original_transaction_or_rollback(
         assert accounts.extension == original_extension
         expected_filter = (False, ("/usr/bin/game", "org.example.Game")) if terminated else original_filter
         assert accounts.filter == expected_filter
-        assert broker._last_request == {}
     else:
         assert submit_request(broker, surface)[1] == "approved"
         assert accounts.extension[1] == 300
         assert accounts.filter == (False, ("/usr/bin/game", "org.example.Game"))
         assert sum(event[0] == "set_extension" for event in accounts.events) == 1
-        with pytest.raises(RateLimited):
-            submit_request(broker, surface)
     assert auth.pending.outcome == "approved"
     assert auth.pending.closed
 

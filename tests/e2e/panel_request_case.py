@@ -11,7 +11,6 @@ from journey_blocks import (desktop_entry, fresh_desktop, grant_only_time_profil
 from named_app_set import APPS, named_app_set
 from native_fixtures import fixture_actions
 from private_artifacts import require
-from real_interval import interval_action
 from request_composition import KioskRequestJourney
 from request_flow import approval_and_return, overlay_authentication, prepared_request
 
@@ -35,7 +34,7 @@ SCREENS = {
     'soft-closed': 'ui:overlay-native-policy-soft-closed',
     'hard-denied': 'ui:overlay-native-hard-command-blocked',
     'soft-denied': 'ui:overlay-native-soft-command-blocked',
-    'cooldown': 'ui:fresh-child-desktop',
+    'repeat-ready': 'ui:fresh-child-desktop',
     **prefixed_stages('later', {
         **prepared_request(prefix='new', entry='new', initial='observed', surface='overlay', **CHOICES),
         **overlay_authentication(result='cancel', prefix='shell'),
@@ -61,7 +60,7 @@ PLAN = JourneyPlan(
                 for prefix, (role, identity) in LOGINS.items()},
     child_bindings={stage: 'child' for stage, tag in SCREENS.items()
                     if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
-    stage_actions={'desktop': 'native-verify', 'cooldown': 'cooldown'},
+    stage_actions={'desktop': 'native-verify'},
     balance_checks={'profile-daily': 1800},
     match_checks={'rules-saved-' + role.lower() + '-match': (MATCH_APPS[role], rule)
                   for role, rule in (('A', MATCH_RULES[0]), ('H', MATCH_RULES[3]), ('S', MATCH_RULES[4]))},
@@ -128,8 +127,7 @@ def execute(recorder, context, plan=PLAN):
                               else 'E2E-012/excluded-first')
     record_installed_journey(recorder, context, plan, timeout=2400,
         journey_type=PanelRequestJourney,
-        actions={**fixture_actions(include_refusal=False),
-                 'cooldown': interval_action(5)})
+        actions=fixture_actions(include_refusal=False))
 
 
 def execute_included(recorder, context):

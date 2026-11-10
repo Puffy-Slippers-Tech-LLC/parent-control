@@ -199,9 +199,9 @@
     }
   },
   "E2E-039": {
-    "expected": "Interrupted or too-soon requests add no access; a later valid request needs fresh authentication and can succeed.",
-    "summary": "Handle interrupted approvals and requests made too soon.",
-    "steps": ["Interrupt a pending approval through a normal session action, or request again during the cooldown.", "Read the cancellation or too-soon explanation and check no extra access was granted.", "Return to the request and check choices and restrictions remain.", "Retry when allowed and require fresh parent authentication."]
+    "expected": "Interrupted requests add no access; a new request needs fresh parent authentication and can succeed.",
+    "summary": "Handle interrupted approvals and make a fresh request.",
+    "steps": ["Interrupt a pending approval through a normal session action.", "Return normally, require the old prompt to be absent and check no extra access was granted.", "Read the request choices, balances and unchanged app restrictions before retrying.", "Make a fresh request with new parent authentication and check its time, app access and usable destination."]
   },
   "E2E-040": {
     "expected": "Removed or ineligible selections fall back safely without carrying another account's settings or choices.",
@@ -266,7 +266,7 @@
   "E2E-048": {
     "expected": "Approval adds time using current balances without restoring time spent waiting at the prompt.",
     "summary": "Use current remaining time when a parent takes time to approve.",
-    "steps": ["Open a short additional-time request and read its estimate.", "Leave the approval prompt open before authenticating.", "Check the resulting balance accounts for time elapsed during approval.", "Make another request after the cooldown and check its added time too."]
+    "steps": ["Open a short additional-time request and read its estimate.", "Leave the approval prompt open before authenticating.", "Check the resulting balance accounts for time elapsed during approval.", "Make another request immediately with fresh parent authentication and check its added time too."]
   },
   "E2E-049": {
     "expected": "Soft-app access follows each latest approval; hard blocks and allowed work persist, and saved rules do not change.",

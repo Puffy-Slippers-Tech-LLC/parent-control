@@ -391,9 +391,9 @@ time, extend a deadline, or modify app permission. Redeem cannot edit amount or
 app choice. Only the ordinary selected-parent approval flow can add/change those
 authorizations. Bind deferred mode to
 the trusted Polkit prompt; preserve prompt cancellation, caller-liveness,
-preference revalidation, and successful-new-request cooldown. Pause/redeem need
-serialization and replay protection, not a new parent prompt or the approval
-cooldown. All balances are broker-derived, never supplied by the form.
+preference revalidation and transaction serialization. Pause/redeem need
+serialization and replay protection, not a new parent prompt. All balances are
+broker-derived, never supplied by the form.
 
 Keep both the wire shape and meaning of GetTimeStatus backward compatible: its
 one-time operand remains A and its calculation remains `max(D, A) + additional`.

@@ -284,8 +284,8 @@ fixed cancellation reason, and remote cleanup result, without account names,
 session IDs, bus names, or authentication details. The broker releases its
 transaction lock after the local wait finishes and remote cancellation completes
 or reaches its five-second cleanup deadline, allowing a new kiosk request.
-Account writes and the successful-request cooldown are not reached by a cancelled
-authorization. The implementation loads on broker process restart.
+Account writes are not reached by a cancelled authorization. The implementation
+loads on broker process restart.
 
 The root PAM helper calls `RecoverChildExtension` after its GDM time check
 accepts a restricted child login or unlock, including daily-allowance entry
@@ -323,13 +323,11 @@ can only reduce the recorded-use operand and never replaces the root-owned
 grant or the authenticated additional interval. The final identity, preference
 and lifecycle checks cover this read too. A
 nonblocking broker lock permits only one app-policy save, approval, revocation,
-or session-entry reconciliation transaction at a time. The per-caller repeat
-interval is recorded only after a successful grant, so denial or cancellation
-does not consume it.
-The shipped interval is five seconds and is keyed by the requesting UID in
-broker memory. All children selected by the same kiosk therefore share its
-cooldown; different child callers have separate entries. Broker restart clears
-this transient history. The check runs before the authentication prompt.
+or session-entry reconciliation transaction at a time. Once that transaction and
+its cleanup finish, a new request may begin immediately on either request
+surface, including for another child at the kiosk. There is no repeat-request
+timer or successful-request history. Every new request requires fresh parent
+authentication and the full current-state validation.
 
 The [effect-admission boundary](#request-lifetime-and-effect-admission) keeps
 lifecycle monitoring active through preflight and snapshots, then admits one
@@ -410,8 +408,8 @@ Observed departure followed by return cancels the old request. This is worker
 ordering, not an atomic transaction with logind: a transition first observed
 after admission cannot retract the accepted original transaction.
 
-Before admission, cancellation makes no policy or rollback writes, terminates
-no apps and records no successful-request cooldown. Pending Polkit is cancelled
+Before admission, cancellation makes no policy or rollback writes and terminates
+no apps. Pending Polkit is cancelled
 on its original connection/cancellation ID and the local wait is cancelled;
 after authentication, the approval is invalidated locally and late read results
 cannot authorize effects. Owned cleanup and subscription disposal finish before

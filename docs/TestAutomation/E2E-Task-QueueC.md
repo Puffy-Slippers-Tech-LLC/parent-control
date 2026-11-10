@@ -18,7 +18,7 @@ qualifications and preserve historical completion.
 All remaining feedback UI obligations stay together in the existing component-test owner;
 reuse its fake sender and shared assertions under the
 [feedback allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation).
-Installed cooldown/report and collection-failure bindings remain in Plan B and
+Installed request-error/report and collection-failure gaps remain in Plan B and
 are not prerequisites for these UI rows. Reminder work consumes the completed
 task-129 fullscreen binding rather than waiting for Plan A's future task 129a.
 

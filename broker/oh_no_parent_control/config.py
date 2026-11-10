@@ -11,14 +11,11 @@ from pathlib import Path
 
 
 UINT32_MAX = (1 << 32) - 1
-MAX_REQUEST_INTERVAL = 3600
 FLATPAK_ID_RE = re.compile(
     r"^[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)+$"
 )
 FLATPAK_COMPONENT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
-TOP_KEYS = {
-    "version", "kiosk_uid", "minimum_request_interval_seconds",
-}
+TOP_KEYS = {"version", "kiosk_uid"}
 
 
 class ConfigurationError(ValueError):
@@ -28,7 +25,6 @@ class ConfigurationError(ValueError):
 @dataclass(frozen=True)
 class Configuration:
     kiosk_uid: int
-    minimum_request_interval_seconds: int
 
 
 def _object_no_duplicates(pairs):
@@ -70,19 +66,13 @@ def validate_target(target: object) -> str:
 
 def validate(raw: object) -> Configuration:
     _exact_keys(raw, TOP_KEYS, "top-level")
-    if type(raw["version"]) is not int or raw["version"] != 3:
-        raise ConfigurationError("version must be 3")
+    if type(raw["version"]) is not int or raw["version"] != 4:
+        raise ConfigurationError("version must be 4")
     kiosk_uid = raw["kiosk_uid"]
     if type(kiosk_uid) is not int or kiosk_uid <= 0 or kiosk_uid > UINT32_MAX:
         raise ConfigurationError("kiosk_uid must be a nonzero numeric UID")
 
-    interval = raw["minimum_request_interval_seconds"]
-    if type(interval) is not int or not 1 <= interval <= MAX_REQUEST_INTERVAL:
-        raise ConfigurationError("minimum request interval is out of range")
-    return Configuration(
-        kiosk_uid=kiosk_uid,
-        minimum_request_interval_seconds=interval,
-    )
+    return Configuration(kiosk_uid=kiosk_uid)
 
 
 def load(path: str | os.PathLike, *, require_secure_file: bool = True) -> Configuration:

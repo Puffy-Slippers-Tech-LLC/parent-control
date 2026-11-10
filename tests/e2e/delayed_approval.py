@@ -1,7 +1,6 @@
 """Cases 223/225: time keeps running while the parent decides, then adds twice."""
 from copy import deepcopy
 from dataclasses import replace
-import time
 
 from countdown import CountdownObservation
 from grant_only_profile import GrantOnlyProfileJourney
@@ -39,7 +38,7 @@ for request in ('first', 'second'):
         SCREENS.update({
             **prefixed_stages('return-child', desktop_entry('child', source='desktop',
                 entry='retained', source_account='parent')),
-            'cooldown': 'ui:fresh-child-desktop',
+            'repeat-ready': 'ui:fresh-child-desktop',
         })
 
 FIRST_WAIT = tuple(SCREENS).index('first-approval-open')
@@ -65,7 +64,7 @@ PLAN = JourneyPlan(
                      'profile-settings': SettingsObservation('fixture-child', True, ('10 minutes',))},
     balance_checks={'profile-configured': 600},
     overlay_request=('child', 'parent', 30, False),
-    stage_actions={'first-approval-open': 'real-interval', 'cooldown': 'cooldown'},
+    stage_actions={'first-approval-open': 'real-interval'},
     assertions_after={'first-countdown': 'delayed-current-balance-increment',
                       'second-balances': 'visible-result'},
 )
@@ -98,15 +97,9 @@ class DelayedApprovalChecks:
     def __init__(self, context, progress, plan, *, actions=None, **kwargs):
         super().__init__(context, progress, plan, **kwargs,
             actions=actions if actions is not None else {
-                'real-interval': interval_action(PROMPT_WAIT_SECONDS), 'cooldown': self.cooldown})
+                'real-interval': interval_action(PROMPT_WAIT_SECONDS)})
         self.samples = {}
         self.estimates = {}
-        self.success_at = None
-
-    def cooldown(self, journey, guard):
-        require(self.success_at is not None, 'delayed-approval:missing-success')
-        remaining = 5 - (time.monotonic() - self.success_at)
-        return interval_action(remaining)(journey, guard) if remaining > 0 else 0
 
     def elapsed(self, before, after):
         low = (after[0] - before[1]) / 1e9
@@ -185,8 +178,6 @@ class DelayedApprovalChecks:
                     'delayed-approval:prompt-usable-margin')
         if stage == 'first-approval-submit-ready':
             self.submit_bounds = tuple(self.ui.read_bounds)
-        if stage == 'first-approval-success':
-            self.success_at = time.monotonic()
         if stage.endswith('-balances'):
             request = stage.split('-')[0]
             balances = value['revoke_cancel']['balances']

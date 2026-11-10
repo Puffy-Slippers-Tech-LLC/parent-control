@@ -1327,7 +1327,6 @@ class ExtensionManagerTests(unittest.TestCase):
         self.assertTrue(state.values[DISABLE_ALL_KEY])
         self.assertEqual(accounts.extension, (1, 2))
         self.assertEqual(accounts.filter, (False, ("/usr/bin/game", "org.example.Game")))
-        self.assertEqual(broker._last_request, {})
 
     def test_parent_failure_restores_global_switch_and_exact_extension_lists(self):
         from tests.support.broker import make_broker, Accounts, Preferences

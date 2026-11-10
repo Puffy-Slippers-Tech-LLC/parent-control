@@ -538,8 +538,37 @@ def test_reminder_load_and_save_failures_keep_draft_and_allow_retry(
 def test_preset_times_draft_bounds_persistence_and_empty_choices(
         launch_ui, automation, wait_for_accessible_state, tmp_path, surface):
     ui, wait = automation, wait_for_accessible_state
-    path = launch_language(launch_ui, tmp_path, surface, language='en')
+    path = launch_language(launch_ui, tmp_path, surface, language='en',
+                           scenario='installed-language' if surface == 'kiosk' else 'normal')
     wait(lambda: ui.showing('kiosk-language-ready'), 'startup ready')
+    if surface == 'kiosk':
+        from tests.e2e.accessible_ui import CHILD, PARENT
+        reader = ui.reader
+        reader.fixture_uids = {CHILD: 1002, PARENT: 1000}
+        ui.setValue('kiosk-child-selector', '1002')
+        wait(lambda: ui.showing('kiosk-language-ready'), 'selected child ready')
+        reader.kiosk_custom_duration(text='1.25', units='minutes', allow_soft=True)
+        shipped = reader.kiosk_preset_operation('kiosk-presets-shipped-read')
+        assert shipped['values'] == [300, 900, 1800, 3600, 7200, 14400]
+        reader.kiosk_preset_operation('kiosk-presets-add-ten')
+        added = reader.kiosk_preset_operation('kiosk-presets-added-read')
+        assert added['values'] == [300, 600, 900, 1800, 3600, 7200, 14400]
+        assert '600' in added['choices']
+        reader.kiosk_valid_choice('kiosk-saved-preset-select')
+        reader.kiosk_preset_operation('kiosk-presets-delete-ten')
+        deleted = reader.kiosk_valid_choice('kiosk-deleted-preset-read')
+        assert deleted['request']['duration_seconds'] == 600
+        assert ui.getValue('kiosk-duration-choices') == 'custom'
+        assert reader.kiosk_preset_operation('kiosk-presets-restored-read') == shipped
+        reader.kiosk_custom_duration(text='0.1', units='hours', allow_soft=True)
+        hours = reader.kiosk_request_form(enabled=True, duration_seconds=360,
+            custom_text='0.1', custom_units='hours')
+        assert hours['duration_seconds'] == 360 and hours['allow_soft'] is True
+        reader.kiosk_custom_duration(text='1.25', units='minutes', allow_soft=True)
+        minutes = reader.kiosk_request_form(enabled=True, duration_seconds=75,
+            custom_text='1.25', custom_units='minutes')
+        assert minutes['duration_seconds'] == 75 and minutes['allow_soft'] is True
+    previous_commits = [e['presets'] for e in read_events(path) if e['event'] == 'presets-committed']
     ui.setValue('kiosk-duration-choices', 'custom')
     ui.setText('kiosk-custom-duration', '2.5')
     ui.setValue('kiosk-soft-apps-toggle', True)
@@ -592,7 +621,7 @@ def test_preset_times_draft_bounds_persistence_and_empty_choices(
     assert ui.getValue('kiosk-duration-choices') == 'custom'
     assert ui.getText('kiosk-custom-duration') == '2.5'
     assert ui.getValue('kiosk-soft-apps-toggle') is True
-    assert [e['presets'] for e in read_events(path) if e['event'] == 'presets-committed'] == [
+    assert [e['presets'] for e in read_events(path) if e['event'] == 'presets-committed'] == [*previous_commits,
         [6, 900, 1800, 3600, 7200, 14400, 86400]]
     ui.setValue('kiosk-duration-choices', '6')
     open_preset_preferences(ui, wait)
@@ -615,9 +644,9 @@ def test_preset_times_draft_bounds_persistence_and_empty_choices(
     assert ui.getChoices('preset-list') == ['0', 'custom']
     ui.activate('language-cancel')
     if surface == 'kiosk':
-        ui.setValue('kiosk-child-selector', '1002')
-        wait(lambda: ui.getChoices('kiosk-duration-choices')[0] == '300', 'other child retains defaults')
         ui.setValue('kiosk-child-selector', '1001')
+        wait(lambda: ui.getChoices('kiosk-duration-choices')[0] == '300', 'other child retains defaults')
+        ui.setValue('kiosk-child-selector', '1002')
         wait(lambda: ui.getChoices('kiosk-duration-choices') == ['0', 'custom'], 'saved child retains empty list')
 
 

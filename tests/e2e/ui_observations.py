@@ -197,6 +197,8 @@ OPERATION_LABELS = {
     'kiosk-about-open': 'Opening About from the request station',
     'kiosk-about-read': 'Reading station product and legal information without external actions',
     'kiosk-preferences-confinement': 'Checking confined station Preferences pages and nested editors',
+    **{operation: 'Saving or independently reading Riley request presets'
+       for operation in accessible_ui.KIOSK_PRESET_OPERATIONS},
     'kiosk-about-close-ready': 'Rechecking the active station About dialog before closing',
     'kiosk-about-closed': 'Observing About closed and the request station returned',
     'parent-overlay-about-refused': 'Refusing overlay About entry from Parent management',
@@ -707,6 +709,9 @@ class RequestObservation:
                 and (type(observation.duration_seconds) is int or (
                     invalid is not None and observation.duration_seconds is None))
                 and (observation.custom_text is None or observation.custom_text == '1.25'
+                     or operation in ('kiosk-custom-hours-select', 'kiosk-custom-hours-read')
+                     and observation.custom_text == '0.1'
+                     or operation == 'kiosk-deleted-preset-read' and observation.custom_text == '10.0'
                      or operation in ('kiosk-long-included-duration-select',
                          'overlay-long-approver-select', 'overlay-long-request-read', 'overlay-grant-form')
                      and observation.custom_text == '10'
@@ -2331,6 +2336,16 @@ class UiObservations:
                 and value['actions_confined'] is True and value['drafts_discarded'] is True,
                 'ui:preferences-confinement-response')
             expected['preferences_confinement'] = value
+        if operation in accessible_ui.KIOSK_PRESET_OPERATIONS and operation.endswith('-read'):
+            value = result.get('presets')
+            require(type(value) is dict and set(value) == {'values', 'choices'}
+                    and type(value['values']) is list and len(value['values']) <= 64
+                    and all(type(seconds) is int and 6 <= seconds <= 86400
+                            for seconds in value['values'])
+                    and value['values'] == sorted(set(value['values']))
+                    and value['choices'] == [*(str(seconds) for seconds in value['values']),
+                                              '0', 'custom'], 'ui:preset-response')
+            expected['presets'] = value
         if operation in accessible_ui.KIOSK_REMINDER_OPERATIONS:
             fields = ({'banner_surface': True, 'literal': True, 'critical': True, 'countdown': True}
                       if operation == 'kiosk-reminder-preview' else

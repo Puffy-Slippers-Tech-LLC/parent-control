@@ -15,6 +15,30 @@ a complete scenario result; the inventory owns readiness.
 
 <a id="c04b-baseline-public-use-slice"></a>
 
+## Saved request presets and units
+
+Case **264**, `E2E-063/saved-presets`, composes `request_presets.PLAN` /
+`RequestPresetsJourney` and `onpc_request_presets::run`. Jamie enables Riley
+with zero daily time through Parent and independently records the saved time/app
+policy and zero grant. At the station prepare Jamie/Riley, Custom `1.25` Minutes
+and soft inclusion; record shipped presets `[300, 900, 1800, 3600, 7200, 14400]`.
+
+Add ten minutes through editor Save and main Save. Reopen Preferences and read
+the sorted list including 600 seconds and the offered request choice. Select
+that preset, delete it through Preferences and save; independently read Custom
+`10.0` Minutes/600 seconds. Select Custom `0.1` Hours and read 360 seconds.
+Read the restored shipped list and offered choices, then restore Custom `1.25`
+Minutes/75 seconds with soft apps included. Cancel normally to GDM and reenter
+without editing; compare the entire saved request with its pre-Cancel observation
+and independently reread shipped presets. Cancel again, enter Parent, compare
+the original saved policy and zero daily/grant/total, and log out to usable GDM.
+
+Use the qualified saved-preset, request-choice, Hours and Minutes shared API
+operations. No request submission, approval, private product probe, time grant
+or in-journey reset is part of this history. The 1800-second functional budget
+includes sign-in, public reads and worker shutdown; no short measured interval
+or local validation matrix is introduced.
+
 ## Saved child reminders after reboot
 
 Case **263**, `E2E-062/saved-empty-reboot`, composes

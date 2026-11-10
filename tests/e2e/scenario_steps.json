@@ -1,4 +1,9 @@
 {
+  "E2E-063": {
+    "expected": "The saved preset works, deleting it keeps the same request as Custom, and restored choices survive returning without granting time or changing rules.",
+    "summary": "Save and remove a child's time choices, change units, then return to the request.",
+    "steps": ["Record Riley's shipped presets and zero time in Parent.", "Save and select ten minutes, delete that preset and keep its duration, then check hours and restore minutes and presets.", "Cancel and return to read the saved choices, then confirm Parent's rules and time stayed unchanged."]
+  },
   "E2E-001": {
     "expected": "Graphical sign-in and console access work, and returning to sign-in leaves no user session open.",
     "summary": "Use sign-in and console screens after a fresh boot.",

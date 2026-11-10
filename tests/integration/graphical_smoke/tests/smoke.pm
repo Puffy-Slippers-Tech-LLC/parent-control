@@ -29,6 +29,7 @@ use onpc_account_changes ();
 use onpc_restricted_station_about ();
 use onpc_kiosk_about ();
 use onpc_kiosk_preferences_confinement ();
+use onpc_request_presets ();
 use onpc_kiosk_valid_duration ();
 use onpc_request_flow ();
 use onpc_kiosk_reminders ();
@@ -1486,6 +1487,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_kiosk_about::run(\&exchange);
+        return;
+    }
+    if ($ready->{request_presets}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_presets::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{kiosk_preferences_confinement}) {

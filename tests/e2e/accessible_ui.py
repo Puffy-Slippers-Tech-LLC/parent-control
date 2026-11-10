@@ -89,6 +89,12 @@ OPERATIONS |= frozenset({
 OPERATIONS |= frozenset({'parent-search-ready', 'parent-search-focused', 'parent-search-entered'})
 OPERATIONS |= frozenset({'parent-search-close-ready', 'parent-search-closed'})
 OPERATIONS |= {'kiosk-preferences-confinement'}
+KIOSK_PRESET_OPERATIONS = frozenset({
+    'kiosk-presets-shipped-read', 'kiosk-presets-add-ten',
+    'kiosk-presets-added-read', 'kiosk-presets-delete-ten',
+    'kiosk-presets-restored-read',
+})
+OPERATIONS |= KIOSK_PRESET_OPERATIONS
 PARENT_LANGUAGE_CHOICES = ('en', 'de', 'zh-Hans', 'he')
 PARENT_LANGUAGE_STATES = {
     f'parent-language-{name}-enabled-{language.lower()}': (child, language)
@@ -1152,6 +1158,14 @@ KIOSK_VALID_REQUESTS.update({f'kiosk-flow-{field}-select': (75, '1.25', True)
                              for field in ('child', 'approver')})
 KIOSK_VALID_REQUESTS['kiosk-restored-accounts-select'] = (75, '1.25', True)
 KIOSK_VALID_REQUESTS['kiosk-diagnostic-retry-estimate'] = (75, '1.25', True)
+KIOSK_VALID_REQUESTS.update({
+    'kiosk-custom-hours-select': (360, '0.1', True),
+    'kiosk-custom-hours-read': (360, '0.1', True),
+    'kiosk-custom-minutes-restore': (75, '1.25', True),
+    'kiosk-custom-minutes-read': (75, '1.25', True),
+    'kiosk-saved-preset-select': (600, None, True),
+    'kiosk-deleted-preset-read': (600, '10.0', True),
+})
 KIOSK_VALID_REQUESTS.update({f'kiosk-long-request-{choice}-{action}': (600, '10', soft)
     for choice, soft in (('duration', False), ('soft', True))
     for action in ('select', 'read')})
@@ -1482,6 +1496,7 @@ KIOSK_ABOUT_OPERATIONS = frozenset({'kiosk-about-open', 'kiosk-about-read',
 OPERATIONS |= KIOSK_ABOUT_OPERATIONS | {'parent-kiosk-about-refused'}
 KIOSK_SESSION_OPERATIONS |= KIOSK_ABOUT_OPERATIONS
 KIOSK_SESSION_OPERATIONS |= {'kiosk-preferences-confinement'}
+KIOSK_SESSION_OPERATIONS |= KIOSK_PRESET_OPERATIONS
 KIOSK_SESSION_OPERATIONS |= {operation for operation, (surface, _child, _action)
                             in BINDING_REMINDER_OPERATIONS.items() if surface == 'kiosk'}
 KIOSK_SESSION_OPERATIONS |= set(BINDING_REMINDER_SELECTIONS)
@@ -1881,8 +1896,8 @@ KIOSK_DIAGNOSTIC_IDS = (
     KIOSK_APPLICATION, CHILD_APPLICATION, 'kiosk-request-window', 'kiosk-request-form',
     'kiosk-child-selector', 'kiosk-approver-selector', 'kiosk-request-submit',
     'kiosk-request-cancel', 'kiosk-soft-apps-toggle', 'kiosk-screen-limit-notice',
-    'kiosk-mute-button', 'kiosk-custom-duration',
-    *(f'kiosk-duration-{value}' for value in (300, 900, 1800, 3600, 7200, 14400, 0, 'custom')),
+    'kiosk-mute-button', 'kiosk-custom-duration', 'kiosk-custom-duration-units',
+    *(f'kiosk-duration-{value}' for value in (300, 600, 900, 1800, 3600, 7200, 14400, 0, 'custom')),
 )
 KIOSK_DIAGNOSTIC_PHASES = frozenset({
     'start', 'dispatch', 'prompt-check', 'public-tree', 'public-ids',
@@ -5299,7 +5314,8 @@ class AccessibleUI:
                 and self.has_state(node, self.api.StateType.SENSITIVE)
                 and not self.has_state(node, self.api.StateType.DEFUNCT),
                 'ui:text-disabled')
-        require(identity in {item[0] for item in TEXT_VALUES.values()}, 'ui:text-binding')
+        require(identity in {item[0] for item in TEXT_VALUES.values()} | {'preset-value'},
+                'ui:text-binding')
         require(node.get_role_name() != 'password text'
                 and self.has_state(node, self.api.StateType.EDITABLE), 'ui:text-editor')
         if identity == 'parent-custom-daily-limit':
@@ -10067,9 +10083,11 @@ class AccessibleUI:
 
     def kiosk_request_form(self, *, enabled=False, expected_selection=None, no_child=False,
                            no_approver=False, duration_seconds=1800, custom_text=None,
-                           overlay=False, language='en', overlay_child=CHILD):
+                           overlay=False, language='en', overlay_child=CHILD, custom_units=None):
         """Read REQUEST03's default-duration station state after accounts load."""
         require(type(enabled) is bool, 'ui:kiosk-enabled-binding')
+        require(custom_units in (None, 'minutes', 'hours') and
+                (custom_units is None or custom_text is not None), 'ui:kiosk-unit-binding')
         require(language in PARENT_LANGUAGE_CHOICES and (language == 'en' or
                 enabled and not no_child and not no_approver),
                 'ui:kiosk-language-binding')
@@ -10244,6 +10262,8 @@ class AccessibleUI:
                 return canonical
 
             duration_ids = (300, 900, 1800, 3600, 7200, 14400, 0, 'custom')
+            if duration_seconds == 600 and custom_text is None:
+                duration_ids = (300, 600, *duration_ids[1:])
             durations = [
                 lookup(f'kiosk-duration-{identity}', form_nodes, identity_by_node)
                 for identity in duration_ids
@@ -10295,6 +10315,12 @@ class AccessibleUI:
                 require(text is not None and self.api.Text.get_character_count(text) == len(custom_text)
                         and self.api.Text.get_text(text, 0, len(custom_text)) == custom_text,
                         'ui:kiosk-custom-value')
+                if custom_units is not None:
+                    units = lookup('kiosk-custom-duration-units', form_nodes, identity_by_node)
+                    require(units is not None and units.getValue() == custom_units,
+                            'ui:kiosk-custom-unit')
+                    require(float(custom_text) * (3600 if custom_units == 'hours' else 60)
+                            == duration_seconds, 'ui:kiosk-custom-seconds')
             require(lookup('kiosk-mute-button', window_nodes, identity_by_node) is None,
                     'ui:kiosk-mute-present')
             diagnostic.emit('projection')
@@ -10660,6 +10686,101 @@ class AccessibleUI:
             return {'pages': ['language', 'reminders', 'presets'],
                     'editors': ['reminder-add', 'reminder-edit', 'preset-add', 'preset-edit'],
                     'actions_confined': True, 'drafts_discarded': True}
+
+    def kiosk_presets_read(self, *, instance=None):
+        """Read a loaded Riley draft bound to its current Preferences lifetime."""
+        lifetime = self._kiosk_preferences_state('presets', instance=instance, inspect=False)
+        require(self.snapshot_owned_target('preset-status') is None, 'ui:preset-not-loaded')
+        values = self.get_value('preset-list')
+        require(type(values) is list and len(values) <= 64
+                and all(type(value) is int and 6 <= value <= 86400 for value in values)
+                and values == sorted(set(values)), 'ui:preset-values')
+        return {'instance': lifetime, 'values': values}
+
+    def kiosk_presets_open(self):
+        """Open the selected child's presets without altering startup preferences."""
+        with self.language_scope('kiosk'), self._reminder_input_scope():
+            observation = self.read_snapshot()
+            window = self.request_surface(observation)
+            self.initial_kiosk_child(observation, window, child=CHILD)
+            require(self.snapshot_owned_target('kiosk-language-ready', root=window,
+                    observation=observation) is not None, 'ui:preset-language-unready')
+            require(self.snapshot_owned_target('language-dialog', observation=observation,
+                    showing=False, allow_unmapped_surface=True) is None, 'ui:preset-already-open')
+            self.open_language_preferences('kiosk')
+            instance = self._kiosk_preferences_state('language', inspect=False)
+            self.set_value('preferences-tabs', 'presets')
+            def loaded():
+                self._kiosk_preferences_state('presets', instance=instance, inspect=False)
+                return (None if self.snapshot_owned_target('preset-status') is not None
+                        else self.kiosk_presets_read(instance=instance))
+            return self.wait(loaded, 'presets-loaded')
+
+    def kiosk_preset_change(self, *, instance, seconds, delete=False):
+        """Save one editor to the draft, or delete one existing draft row."""
+        require(type(instance) is str and re.fullmatch(r'[0-9a-f]{32}', instance)
+                and type(seconds) is int and 6 <= seconds <= 86400
+                and type(delete) is bool and (delete or seconds % 6 == 0),
+                'ui:preset-binding')
+        with self.language_scope('kiosk'), self._reminder_input_scope():
+            before = self.kiosk_presets_read(instance=instance)['values']
+            require((seconds in before) is delete, 'ui:preset-change-entry')
+            if delete:
+                self.activate_id(f'preset-{seconds}-delete')
+            else:
+                self.activate_id('preset-add')
+                self.wait(lambda: self.snapshot_owned_target('preset-editor-dialog'),
+                          'preset-editor-open')
+                self._kiosk_preferences_state('presets', instance=instance, editor='preset', inspect=False)
+                self.set_value('preset-unit', 'minute')
+                self._kiosk_preferences_state('presets', instance=instance, editor='preset', inspect=False)
+                self.set_text('preset-value', format(seconds / 60, 'g'))
+                self._kiosk_preferences_state('presets', instance=instance, editor='preset', inspect=False)
+                self.activate_id('preset-editor-save')
+                self.wait(lambda: self.absent_id('preset-editor-dialog', within='language-dialog',
+                          incomplete_raises=True), 'preset-editor-closed')
+            result = self.kiosk_presets_read(instance=instance)
+            require(result['values'] == (sorted(value for value in before if value != seconds)
+                    if delete else sorted([*before, seconds])), 'ui:preset-draft-change')
+            return result
+
+    def kiosk_presets_close(self, *, instance, save):
+        require(type(instance) is str and re.fullmatch(r'[0-9a-f]{32}', instance)
+                and type(save) is bool, 'ui:preset-binding')
+        with self.language_scope('kiosk'), self._reminder_input_scope():
+            self.kiosk_presets_read(instance=instance)
+            self.activate_id('language-continue' if save else 'language-cancel')
+            self.wait(lambda: self.absent_id('language-dialog', within='kiosk-request-window',
+                      incomplete_raises=True), 'presets-closed')
+
+    def kiosk_preset_operation(self, operation):
+        require(operation in KIOSK_PRESET_OPERATIONS, 'ui:preset-operation')
+        state = self.kiosk_presets_open()
+        if operation in ('kiosk-presets-add-ten', 'kiosk-presets-delete-ten'):
+            state = self.kiosk_preset_change(instance=state['instance'], seconds=600,
+                                            delete=operation == 'kiosk-presets-delete-ten')
+            self.kiosk_presets_close(instance=state['instance'], save=True)
+            return None
+        self.kiosk_presets_close(instance=state['instance'], save=False)
+        return {'values': state['values'],
+                'choices': self.id_target('kiosk-duration-choices').getChoices()}
+
+    def kiosk_custom_duration(self, *, text, units, allow_soft):
+        """Choose one custom duration on the explicitly bound station form."""
+        require(type(allow_soft) is bool and (text, units, allow_soft) in (
+                ('0.1', 'hours', True), ('1.25', 'minutes', True)),
+                'ui:kiosk-custom-binding')
+        with self.language_scope('kiosk'), self._reminder_input_scope():
+            self.kiosk_valid_target('kiosk-duration-custom')
+            self.set_value('kiosk-duration-choices', 'custom')
+            self.wait(lambda: self.kiosk_valid_target('kiosk-custom-duration', awaiting_custom=True),
+                      'kiosk-custom-open')
+            self.kiosk_valid_target('kiosk-custom-duration-units')
+            self.set_value('kiosk-custom-duration-units', units)
+            self.kiosk_valid_target('kiosk-custom-duration')
+            self.set_text('kiosk-custom-duration', text)
+            self.kiosk_valid_target('kiosk-soft-apps-toggle')
+            self.set_value('kiosk-soft-apps-toggle', allow_soft)
 
     def kiosk_reminder_source(self):
         import hashlib
@@ -11346,6 +11467,9 @@ class AccessibleUI:
         action = (JORDAN_VALID_BINDINGS[operation] if jordan else
                   CHINESE_VALID_BINDINGS[operation] if chinese else
                   operation.replace('overlay-', 'kiosk-', 1) if overlay else operation)
+        custom_units = ('hours' if operation.startswith('kiosk-custom-hours-') else
+                        'minutes' if operation in ('kiosk-custom-minutes-restore',
+                            'kiosk-custom-minutes-read', 'kiosk-deleted-preset-read') else None)
         if action == 'kiosk-valid-custom-open':
             def ready():
                 request = self.snapshot_owned_target('kiosk-request-submit', check_prompt=True)
@@ -11424,7 +11548,9 @@ class AccessibleUI:
                     'ui:overlay-refresh-bounds')
             return {**value, 'observed_monotonic_ns': end,
                     'estimate_read_bounds': [start, end]}
-        if operation in ('overlay-valid-approver-select', 'overlay-flow-approver-select',
+        if operation in ('kiosk-custom-hours-select', 'kiosk-custom-minutes-restore'):
+            self.kiosk_custom_duration(text=custom, units=custom_units, allow_soft=soft)
+        elif operation in ('overlay-valid-approver-select', 'overlay-flow-approver-select',
                          'overlay-long-approver-select'):
             self.select_kiosk_account('approver', PARENT, expected=(PARENT, OTHER_PARENT),
                 duration_seconds=seconds, custom_text=custom, overlay=True)
@@ -11472,7 +11598,7 @@ class AccessibleUI:
         request = self.kiosk_request_form(enabled=True,
             expected_selection=('approver', APPROVER_IDENTITIES[approver]) if overlay else ('child', CHILD_IDENTITIES[child]),
             duration_seconds=seconds, custom_text=custom, overlay=overlay, language=language,
-            overlay_child=child)
+            overlay_child=child, custom_units=custom_units)
         require(request['child'] == CHILD_IDENTITIES[child]
                 and request['approver'] == APPROVER_IDENTITIES[approver] and request['allow_soft'] is soft,
                 'ui:kiosk-valid-choice')
@@ -15541,6 +15667,10 @@ class AccessibleUI:
                 raise UiError('ui:kiosk-about-refusal-missing')
         elif operation == 'kiosk-preferences-confinement':
             result['preferences_confinement'] = self.kiosk_preferences_confinement()
+        elif operation in KIOSK_PRESET_OPERATIONS:
+            value = self.kiosk_preset_operation(operation)
+            if value is not None:
+                result['presets'] = value
         elif operation == 'kiosk-about-open':
             self.open_kiosk_about()
         elif operation == 'parent-overlay-about-refused':

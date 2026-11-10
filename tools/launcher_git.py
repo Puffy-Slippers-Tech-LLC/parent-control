@@ -157,8 +157,8 @@ def pull_before_commit(root, run, state, *, git=None):
         raise ValueError('completion pull failed: ' + diagnostic)
 
 
-def stage_task(root, paths, *, required_paths=(), stage=True):
-    """Validate explicit task files, optionally staging them for legacy callers."""
+def stage_task(root, paths, *, required_paths=()):
+    """Validate explicit task files; the commit skill owns staging."""
     paths = list(dict.fromkeys(paths))
     if not set(required_paths).issubset(paths):
         raise ValueError('completed task must include plan and queue in stage_paths')
@@ -176,14 +176,7 @@ def stage_task(root, paths, *, required_paths=(), stage=True):
     tracked = {os.fsdecode(path) for path in indexed.stdout.split(b'\0') if path}
     # A temporary brief can be created and removed before ever entering the
     # index. It has no deletion to stage. Keep indexed deletions and symlinks.
-    paths = [path for path in paths if path in tracked or os.path.lexists(root / path)]
-    if not paths or not stage:
-        return paths
-    result = subprocess.run(['git', '--literal-pathspecs', 'add', '--', *paths], cwd=root,
-                            env=launcher.environment(), capture_output=True, text=True)
-    if result.returncode:
-        raise ValueError('task staging failed: ' + result.stderr.strip())
-    return paths
+    return [path for path in paths if path in tracked or os.path.lexists(root / path)]
 
 
 def worktree_fingerprint(path):
@@ -440,16 +433,8 @@ def closeout_lock(root, run, state):
     return transaction_lock(root, run)
 
 
-def _propagate_worktrees(root, run, state, commit, *, git=None, selection=None):
-    """Shared post-push boundary for ordinary plans, E2E and verified repairs."""
-    if not (root / 'config/environment.json').exists() and not state.get('worktree_propagation'):
-        return
-    from launcher_worktrees import propagate
-    propagate(root, run, state, commit, git=git or git_output, selection=selection)
-
-
 def commit_push_propagate(root, run, state, paths, message, *, git=None, selection=None):
-    """Use $commit for new close-outs; resume existing mechanical transactions."""
+    """Use $commit for launcher close-outs and their journaled recovery."""
     git = git or git_output
     selection = _operation_selection(root, selection)
     try:
@@ -457,13 +442,13 @@ def commit_push_propagate(root, run, state, paths, message, *, git=None, selecti
             intent = state.get('commit_intent')
             if intent is None and state.get('worktree_propagation'):
                 raise ValueError('pending propagation has no commit intent; retain it for Git reconciliation')
-            if intent is None or intent.get('engine') == 'skill':
-                return retry_git_transport(lambda deadline: _commit_with_skill(
-                    root, run, state, paths, message, git=git, retry_deadline=deadline,
-                    selection=selection),
-                    cancelled=lambda: (run / 'cancel').exists())
-            return _legacy_commit_push_propagate(root, run, state, paths, message,
-                                                 git=git_for_run(git, run), selection=selection)
+            if intent is not None and intent.get('engine') != 'skill':
+                raise ValueError('unsupported commit checkpoint; preserve the checkpoint and saved work '
+                                 'for explicit Git reconciliation before resuming')
+            return retry_git_transport(lambda deadline: _commit_with_skill(
+                root, run, state, paths, message, git=git, retry_deadline=deadline,
+                selection=selection),
+                cancelled=lambda: (run / 'cancel').exists())
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         if state.get('task_id'):
             from launcher_chat import update_task_info
@@ -650,109 +635,6 @@ def _verify_skill_completion(root, run, state, intent, targets, progress, previo
     intent.update(commit=commit, pushed_head=commit)
     launcher.atomic(run / 'checkpoint.json', state)
     return commit
-
-
-def _legacy_commit_push_propagate(root, run, state, paths, message, *, git=None, selection=None):
-    """Finish launcher Git close-out; return only after every destination is pushed.
-
-    Callers stage accepted task paths. Shared close-out includes the existing
-    index without staging unrelated working-tree edits. Commit intent and
-    propagation checkpoints remain intact on failure for the same retry route.
-    """
-    git = git or git_output
-    with closeout_lock(root, run, state):
-        if state.get('pull_intent') is not None:
-            validate_pull_identity(root, state, git=git)
-        worktree_paths = paths
-        if state.get('commit_intent') is None:
-            staged = git(root, 'diff', '--cached', '--no-renames', '--name-only', '-z').stdout
-            paths = list(dict.fromkeys([*paths, *filter(None, staged.split('\0'))]))
-        commit = _finish_commit(root, run, state, paths, message, git=git,
-                                worktree_paths=worktree_paths)
-        if state.get('pull_intent') is not None:
-            _, head = validate_pull_identity(root, state, git=git)
-            if head != commit and git(root, 'merge-base', '--is-ancestor', commit,
-                                      head, check=False).returncode:
-                raise ValueError('HEAD changed after completion commit; inspect retained checkpoint before push')
-        intent = state['commit_intent']
-        pushed_head = intent.get('pushed_head') or state.get('worktree_propagation', {}).get('commit')
-        if pushed_head is None:
-            from launcher_worktrees import push_source
-            pushed_head = push_source(root, run, state, commit, git=git, selection=selection)
-            intent['pushed_head'] = pushed_head
-            launcher.atomic(run / 'checkpoint.json', state)
-        _propagate_worktrees(root, run, state, pushed_head, git=git, selection=selection)
-        return commit
-
-
-def _finish_commit(root, run, state, paths, message, *, git=None, worktree_paths=None):
-    """Checkpoint commit intent before writing Git, and recognize a completed write."""
-    git = git or git_output
-    head = git(root, 'rev-parse', '--verify', 'HEAD', check=False)
-    parent = head.stdout.strip() if head.returncode == 0 else None
-    intent = state.get('commit_intent')
-    if intent is not None:
-        if intent['message'] != message or intent['paths'] != paths:
-            raise ValueError('completion commit scope changed; inspect retained checkpoint')
-        recorded = intent.get('commit') or state.get('worktree_propagation', {}).get('commit')
-        if parent != intent['parent'] or recorded:
-            # A worker may die after Git commits but before the checkpoint is saved.
-            # Once recorded, verify that immutable commit rather than later task
-            # edits. Older propagation checkpoints already pin the same identity.
-            commit = recorded or parent
-            if git(root, 'merge-base', '--is-ancestor', commit, 'HEAD', check=False).returncode:
-                raise ValueError('HEAD changed outside pending completion commit; inspect checkpoint')
-            subject = git(root, 'log', '-1', '--format=%s', commit).stdout.strip()
-            parents = git(root, 'log', '-1', '--format=%P', commit).stdout.strip()
-            changed = git(root, 'diff-tree', '--root', '--no-commit-id',
-                                 '--name-only', '-r', '-z', commit).stdout.split('\0')
-            tree = (git(root, '--literal-pathspecs', 'ls-tree', '-r', '-z', commit,
-                        '--', *paths).stdout if paths else '')
-            entries = ''
-            for entry in filter(None, tree.split('\0')):
-                metadata, path = entry.split('\t', 1)
-                mode, _kind, identity = metadata.split()
-                entries += f'{mode} {identity} 0\t{path}\0'
-            matches = entries == intent['entries']
-            # The immutable commit proves this write. Later index/worktree
-            # edits belong to their owner and cannot invalidate that commit.
-            if (subject != message or parents != (intent['parent'] or '')
-                    or not set(filter(None, changed)).issubset(paths) or not matches):
-                raise ValueError('HEAD changed outside pending completion commit; inspect checkpoint')
-            if intent.get('commit') != commit:
-                intent['commit'] = commit
-                launcher.atomic(run / 'checkpoint.json', state)
-            return commit
-    else:
-        entries = (git(root, '--literal-pathspecs', 'ls-files', '--stage', '-z',
-                             '--', *paths).stdout if paths else '')
-        state['commit_intent'] = {'parent': parent, 'message': message, 'paths': paths,
-                                  'entries': entries,
-                                  'worktree_paths': paths if worktree_paths is None else worktree_paths}
-        launcher.atomic(run / 'checkpoint.json', state)
-    worktree_paths = state['commit_intent'].get('worktree_paths', paths)
-    entries = (git(root, '--literal-pathspecs', 'ls-files', '--stage', '-z',
-                   '--', *paths).stdout if paths else '')
-    staged = set(filter(None, git(root, 'diff', '--cached', '--no-renames',
-                                   '--name-only', '-z').stdout.split('\0')))
-    if (entries != state['commit_intent']['entries']
-            or not staged.issubset(paths)
-            or worktree_paths and git(root, '--literal-pathspecs', 'diff', '--quiet', '--',
-                                       *worktree_paths, check=False).returncode != 0):
-        # No commit was written. Reuse the ordinary reconciliation loop to
-        # inspect current edits and renew acceptance before staging again.
-        state.pop('commit_intent')
-        launcher.atomic(run / 'checkpoint.json', state)
-        raise GitReconciliationRequired('Commit inputs changed after staging; reconcile and revalidate the task.')
-    # Commit the pinned index, preserving unstaged edits on staged-only paths.
-    # An audit with no edits still records its completed checkpoint as an empty commit.
-    arguments = ['commit', '--allow-empty', '-m', message]
-    result = git(root, *arguments, check=False)
-    if result.returncode:
-        raise ValueError('completion commit failed: ' + result.stderr.strip())
-    # Verify the same committed write on the normal path as on recovery; hooks
-    # must not silently change the validated content or include unrelated files.
-    return _finish_commit(root, run, state, paths, message, git=git)
 
 
 if __name__ == '__main__':

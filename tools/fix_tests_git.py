@@ -162,7 +162,7 @@ class RepairCommits:
                 if not entry.get('include_all_changes'):
                     self.validate_ownership(entry)
                 self.save()
-                paths = stage_task(self.root, paths, stage=False)
+                paths = stage_task(self.root, paths)
             else:
                 paths = self.state['commit_intent']['paths']
             category, case, vm = entry['failure']

@@ -169,7 +169,7 @@ sub enter_kiosk_mate_password {
             $calendar ||= ($journey->{prefix} // '') eq 'ordinary-fixed-grant-request'
                 && ($journey->{stage_prefix} // '') eq 'request-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,1200,0';
-            $calendar ||= ($journey->{prefix} // '') =~ /\Aspring-forward-paired-grants-(jordan|riley)-request\z/
+            $calendar ||= ($journey->{prefix} // '') =~ /\A(?:spring-forward|fall-back)-paired-grants-(jordan|riley)-request\z/
                 && ($journey->{stage_prefix} // '') eq $1 . '-request-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq
                     ($1 eq 'jordan' ? 'other-child,parent,0,0' : 'child,parent,600,0');

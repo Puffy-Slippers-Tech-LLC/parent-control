@@ -2099,7 +2099,9 @@ needed just to run the shared system operation.
 Implementation status: Cases 196/197/198 use `ordinary_daily_reset.PLAN`,
 `ordinary_rest_of_day.PLAN` and `ordinary_fixed_grant.PLAN`, respectively, and
 passed their complete Ubuntu 26.04 journeys. Case 200 uses
-`spring_forward_paired_grants.PLAN`; the fall-back binding remains pending.
+`spring_forward_paired_grants.PLAN`; case 203 is registered through
+`fall_back_paired_grants.PLAN`. Both use the shared `seasonal_paired_grants`
+history; registration alone supplies no fall-back acceptance.
 
 **Use time across local day and daylight-saving boundaries.** Cases 196, 197, 198, 200, 203.
 
@@ -2822,7 +2824,8 @@ to 23:35 on the next future ordinary day in the unchanged timezone for implement
 cases 196/197/198. Case 200 uses the same module's `preset_spring_forward` to
 prepare thirty elapsed minutes before the next real one-hour spring transition
 in the unchanged timezone, with independent transition/day-length readback.
-Case 203 still owns its fall transition extension and qualification.
+Case 203 uses `preset_fall_back` for the next real one-hour fall transition,
+with independent transition and 25-hour-day readback.
 Declare and independently read back that date/window. Make no further clock adjustments:
 each case must cross its real calendar boundary at normal speed and retain
 its own elapsed-use, deadline, access and denial assertions. Case 196 must
@@ -2860,9 +2863,9 @@ their fast technical coverage.
 The [production clock binding](../SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities)
 now resolves the system timezone's transition rules. Both cases retain the
 actual-local-midnight expectation and independent fixed-grant comparison;
-an injected test timezone supplies no installed acceptance. Case 200 samples
-Jordan first before the transition, then Riley, crosses with Riley active,
-reads Riley then Jordan afterward, and returns to Riley for natural expiry.
+an injected test timezone supplies no installed acceptance. Cases 200/203 sample
+Jordan first before the transition, then Riley, cross with Riley active,
+read Riley then Jordan afterward, and return to Riley for natural expiry.
 One-second numeric countdown values are bracketed by guest monotonic clock
 reads with a two-second tick margin; request estimates allow their declared
 precision of at most sixty seconds. Both pre-transition approvals retain their

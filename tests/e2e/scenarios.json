@@ -2561,7 +2561,7 @@
         {"coverage_id": 197, "id": "ordinary-rest-of-day", "owner": "continuous-journeys", "parameters": {"calendar": "ordinary", "time": "rest-of-day"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/ordinary_rest_of_day.py", "test_id": "ordinary-rest-of-day"}},
         {"coverage_id": 198, "id": "ordinary-fixed-grant", "owner": "continuous-journeys", "parameters": {"calendar": "ordinary", "time": "fixed-grant"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/ordinary_fixed_grant.py", "test_id": "ordinary-fixed-grant"}},
         {"coverage_id": 200, "id": "spring-forward-paired-grants", "owner": "continuous-journeys", "parameters": {"calendar": "spring-forward", "time": "paired-grants"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/spring_forward_paired_grants.py", "test_id": "spring-forward-paired-grants"}},
-        {"coverage_id": 203, "id": "fall-back-paired-grants", "owner": "continuous-journeys", "parameters": {"calendar": "fall-back", "time": "paired-grants"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 203, "id": "fall-back-paired-grants", "owner": "continuous-journeys", "parameters": {"calendar": "fall-back", "time": "paired-grants"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/fall_back_paired_grants.py", "test_id": "fall-back-paired-grants"}}
       ]
     },
     {

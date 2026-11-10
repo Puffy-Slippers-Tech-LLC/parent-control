@@ -218,19 +218,21 @@ def test_parent_discovery_error_opens_prefilled_feedback(
                               "feedback confirmation opens")
 
 
-@pytest.mark.parametrize("overlay,send_without_logs", (
-    pytest.param(False, False, id="kiosk"),
-    pytest.param(True, False, id="child-overlay"),
-    pytest.param(False, True, id="kiosk-send-without-logs"),
+@pytest.mark.parametrize("overlay,send_without_logs,feedback_status", (
+    pytest.param(False, False, 202, id="kiosk"),
+    pytest.param(True, False, 202, id="child-overlay"),
+    pytest.param(False, True, 202, id="kiosk-send-without-logs"),
+    pytest.param(False, True, 400, id="kiosk-send-without-logs-rejected"),
 ))
 def test_removing_logs_after_preparation_failure_preserves_edited_report(
         launch_ui, automation, wait_for_accessible_state, tmp_path, overlay,
-        send_without_logs):
+        send_without_logs, feedback_status):
     from tests.support.application_ui import utf16_length
     ui = automation
     _process, path = launch_request(
         launch_ui, tmp_path, overlay=overlay,
         scenario="service-failure-logs-unavailable", wait_for_application=False,
+        feedback_status=feedback_status,
     )
     submit_request(ui, wait_for_accessible_state)
     wait_for_accessible_state(lambda: ui.find("kiosk-result-action") is not None,
@@ -259,7 +261,9 @@ def test_removing_logs_after_preparation_failure_preserves_edited_report(
         ui.activate("feedback-privacy-link")
         wait_for_accessible_state(lambda: ui.showing("feedback-privacy-dialog"),
                                   "privacy explanation opens")
-        assert ui.text("feedback-privacy-text").strip()
+        privacy = ui.text("feedback-privacy-text")
+        assert "diagnostic logs are emailed to support" in privacy
+        assert "Diagnostic logs do not collect account names" in privacy
         assert ui.absent("feedback-full-privacy-link", within="feedback-privacy-dialog")
         dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-privacy-dialog",
                                 within="feedback-dialog")
@@ -274,12 +278,25 @@ def test_removing_logs_after_preparation_failure_preserves_edited_report(
         assert ui.content(editor) == draft
         assert not events(path, "feedback")
         ui.activate("feedback-send")
-    wait_for_accessible_state(lambda: ui.showing("feedback-success-dialog"),
-                              "feedback confirmation opens")
+    if feedback_status == 400:
+        wait_for_accessible_state(lambda: ui.text("feedback-status") == (
+            "Feedback was not accepted. Your draft is preserved. Check your feedback "
+            "and reply address before sending again."), "report rejection is public")
+    else:
+        wait_for_accessible_state(lambda: ui.showing("feedback-success-dialog"),
+                                  "feedback confirmation opens")
     submissions = events(path, "feedback")
     assert len(submissions) == 1
     assert draft.strip() in submissions[0]["message"]
     assert submissions[0]["attachments"] == []
+    if feedback_status == 400:
+        assert ui.showing("feedback-dialog")
+        assert ui.content(editor) == draft
+        assert ui.state("feedback-close", ui.api.StateType.SENSITIVE)
+        assert ui.state("feedback-send", ui.api.StateType.SENSITIVE)
+        assert ui.absent("feedback-success-dialog", within="kiosk-request-window")
+        assert not events(path, "logout") and not events(path, "close_overlay")
+        return
     if send_without_logs:
         assert submissions[0]["subject"] == "[Oh No! Parent Control] [Kiosk App] Error Report"
         assert ui.text("feedback-success-text") == (

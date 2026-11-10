@@ -1664,32 +1664,49 @@ def reconcile_queue(root, identity, *, check=False):
                 raise ValueError('retained checkpoint must be a regular file')
             raw = checkpoint.read_bytes()
             state = json.loads(raw)
+            optimizing = bool(state.get('optimization_session'))
             saved = dict(state.get('suspended_tasks', {}))
             saved[state['task_id']] = state
             tasks = Plan(root, PLAN, QUEUE).tasks()
             current, after = queue_state(root)
             transactions = ('pending_completion', 'commit_intent', 'worktree_propagation', 'upstream_pull',
-                            'source_changed_result', 'optimization_session',
+                            'source_changed_result',
                             'completion_recovery', 'closeout_recovery_run')
             if any(value.get(key) is not None and value.get(key) is not False
-                   for value in saved.values() for key in transactions):
+                   for value in saved.values() for key in transactions) or any(
+                       value.get('optimization_session') for task, value in saved.items()
+                       if task != state['task_id']):
                 raise ValueError('finish retained acceptance, Git or result recovery before reconciliation')
             # A rejected response for a deleted task has no remaining consumer.
             # Preserve it in the original checkpoint instead of requiring another
             # agent session for work removed by this reviewed queue revision.
             if any(value.get('in_flight') or (
-                    value.get('result_recovery') and task in after)
+                    value.get('result_recovery') and task in after and not (
+                        optimizing and task == state['task_id']))
                    for task, value in saved.items()):
                 raise ValueError('finish retained acceptance, Git or result recovery before reconciliation')
             if any(value.get('phase') == 'blocked' for value in saved.values()):
                 raise ValueError('resolve the retained developer question before reconciliation')
-            if optimization_due(state):
+            if optimization_due(state) and not optimizing:
                 raise ValueError('finish the due optimization batch before reconciliation')
             before = state.get('queue_before')
             if not isinstance(before, dict) or not before:
                 raise ValueError('retained checkpoint has no queue baseline')
             if any(done and after.get(task) is not True for task, done in before.items()):
                 raise ValueError('reconciliation cannot remove or reopen a completed task')
+            if optimizing:
+                batch = state.get('optimization', {}).get('pending', [])
+                if (len(batch) != OPTIMIZATION_INTERVAL or len(set(batch)) != len(batch)
+                        or state['task_id'] != batch[-1]
+                        or any(before.get(task) is not True or after.get(task) is not True
+                               for task in batch)):
+                    raise ValueError('reconciliation must preserve the completed optimization batch')
+                paths = [PLAN, QUEUE, *(str(task.brief.relative_to(root))
+                                       for task in tasks if task.brief is not None)]
+                # Adopt only reviewed, committed planning inputs, never a partial
+                # queue edit left by a rejected response. Other active work stays put.
+                if git_output(root, 'status', '--porcelain', '--', *paths).stdout:
+                    raise ValueError('commit reviewed planning inputs before reconciliation')
             pending = {}
             for task, value in saved.items():
                 if task not in after or after[task]:
@@ -1706,13 +1723,25 @@ def reconcile_queue(root, identity, *, check=False):
                     'without recovering expired reports or repeating unchanged completed tasks. '
                     'No acceptance is supplied by queue reconciliation.\n\n'
                     + value.get('handoff', ''))
-            updated = select_task_state(current, dict(state, suspended_tasks=pending))
+            if optimizing:
+                updated = dict(state)
+                rejected = updated.pop('result_recovery', {})
+                updated.update(phase='optimize', handoff=(
+                    'The developer-reviewed rebalancing is adopted as the queue baseline. '
+                    'Finish this same optimization batch before selecting another task. '
+                    'Preserve validation, owned edits and session history; do not repeat '
+                    'unchanged passing checks. Reconciliation grants no acceptance.\n\n'
+                    + rejected.get('handoff', state.get('handoff', ''))))
+            else:
+                updated = select_task_state(current, dict(state, suspended_tasks=pending))
             updated.update(queue_before=after, in_flight=False,
                            summary=f'Reviewed queue adopted; next task is {current or "none"}.',
                            reconciliation={'source_run': identity,
                                            'checkpoint_sha256': hashlib.sha256(raw).hexdigest(),
                                            'queue': after})
-            if current is None:
+            if optimizing:
+                updated['summary'] = 'Reviewed queue adopted; retained optimization must finish first.'
+            elif current is None:
                 updated.update(phase='complete', handoff='No active E2E task remains.')
             elif current not in pending:
                 updated['handoff'] = (

@@ -121,6 +121,14 @@ class CodexAdapter:
         return 'Codex login verified for this account; model access is checked before each workflow'
 
     def resolve_profile(self, role: ProfileRole, *, model=None, effort=None) -> ModelProfile:
+        if role == 'impact_triage':
+            # Failure impact always starts at this tier, independently of the
+            # caller's unit-repair defaults. Capacity recovery preserves effort.
+            profile = ModelProfile('gpt-6.1-sol', 'high')
+            if ((model is not None and model != profile.model)
+                    or (effort is not None and effort != profile.effort)):
+                raise ValueError('impact triage requires gpt-6.1-sol with high effort')
+            return profile
         if role in ('implementation', 'repair', 'translator', 'commit_helper', 'conflict_resolver'):
             default = ModelProfile('gpt-6.1-sol', 'medium' if role == 'repair' else 'high')
         elif role in ROLES:

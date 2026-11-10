@@ -249,8 +249,12 @@ class TaskBudget:
             raise ValueError('active launcher predates adjustable limits; attach without --tasks')
         return self.update(change)
 
-    def admit(self, *, exempt=False, concurrent=False):
+    def admit(self, *, exempt=False, concurrent=False, key=None):
+        if key is not None and (not isinstance(key, str) or not key):
+            raise ValueError('logical task admission requires a nonempty identity')
         def begin(value):
+            if key is not None and key in value.get('admissions', {}):
+                return True  # Resume and family partitions share this admission.
             if value.get('closed'):
                 return False
             used = value['started'] if concurrent else value['completed']
@@ -258,11 +262,23 @@ class TaskBudget:
                 value['closed'] = True
                 return False
             value['started'] += 1
+            if key is not None:
+                value.setdefault('admissions', {})[key] = False
             return True
         return self.update(begin)
 
-    def complete(self):
-        self.update(lambda value: value.update(completed=value['completed'] + 1))
+    def complete(self, *, key=None):
+        def finish(value):
+            if key is not None:
+                admissions = value.get('admissions', {})
+                if key not in admissions:
+                    raise ValueError('logical task completion has no admission')
+                if admissions[key]:
+                    return False
+                admissions[key] = True
+            value['completed'] += 1
+            return True
+        return self.update(finish)
 
     def close(self):
         self.update(lambda value: value.update(closed=True))

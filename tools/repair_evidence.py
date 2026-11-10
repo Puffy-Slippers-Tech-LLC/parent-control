@@ -26,8 +26,8 @@ def controller_sources(extra=(), *, root=None):
     from plan_launcher import RESPONSE_VALIDATOR_SOURCES
     root = Path(root) if root is not None else Path(__file__).resolve().parents[1]
     names = (*RESPONSE_VALIDATOR_SOURCES, 'repair_evidence.py', 'fix_tests.py', 'test_reset.py',
-             'fix_tests_git.py', 'fix_tests_queue.py', 'test_source.py', 'vm_case_queue.py', 'write_e2e.py', 'e2e_progress.py',
-             'e2e_startup_cache.py', 'fix_tests_response.schema.json',
+             'fix_tests_git.py', 'test_source.py', 'vm_case_queue.py', 'write_e2e.py', 'e2e_progress.py',
+             'e2e_startup_cache.py', 'fix_tests_response.schema.json', 'fix_tests_impact.schema.json',
              'write_e2e_response.schema.json', *extra)
     return {name: hashlib.sha256((root / 'tools' / name).read_bytes()).hexdigest()
             for name in dict.fromkeys(names)}

@@ -7,7 +7,7 @@ for a very long time. Use non-VM validation only; do not attempt or wait for VM
 validation. Required live qualification remains pending until VMs are available.
 
 Task queue: [Ordered task queue](VM-Scheduling-Task-Queue.md).
-Next task: **004 — [Move repairs and rounds onto shared scheduling](VM-Scheduling-Tasks/004.md)**.
+Next task: **005 — [Check the shared workflow on live VMs](VM-Scheduling-Tasks/005.md)**.
 
 ## Goal and launcher
 

@@ -20,6 +20,7 @@ WRITER = 'ONPC_TEST_SOURCE_WRITER'
 IMPORTS = 'ONPC_TEST_SOURCE_IMPORT_FD'
 STARTUP_READER = 'ONPC_REPAIR_STARTUP_FD'
 STARTUP_WRITER = 'ONPC_REPAIR_WRITER_FD'
+IMPACT_MAX_BYTES = 4 * 1024 * 1024
 _local = threading.local()
 _generations = {}
 
@@ -69,7 +70,7 @@ def _lock(path, *, uid=None):
         os.close(fd)
 
 
-def _read(path, default=None, *, uid=None):
+def _read(path, default=None, *, uid=None, max_bytes=65536):
     uid = os.geteuid() if uid is None else uid
     try:
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
@@ -78,7 +79,7 @@ def _read(path, default=None, *, uid=None):
     with os.fdopen(fd, encoding='utf-8') as stream:
         info = os.fstat(stream.fileno())
         if (not stat.S_ISREG(info.st_mode) or info.st_uid != uid
-                or info.st_nlink != 1 or info.st_size > 65536):
+                or info.st_nlink != 1 or info.st_size > max_bytes):
             raise ValueError('unsafe checkout source metadata')
         return json.load(stream)
 
@@ -91,10 +92,13 @@ def _sync(directory):
         os.close(fd)
 
 
-def _write(path, value):
+def _write(path, value, *, max_bytes=65536):
     """Commit the fence before permitting any source modification."""
+    encoded = json.dumps(value)
+    if len(encoded.encode('utf-8')) > max_bytes:
+        raise ValueError('oversized checkout source metadata')
     temporary = path.with_suffix('.tmp')
-    _read(path)
+    _read(path, max_bytes=max_bytes)
     fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
     with os.fdopen(fd, 'w', encoding='utf-8') as stream:
         info = os.fstat(stream.fileno())
@@ -102,7 +106,7 @@ def _write(path, value):
                 or info.st_nlink != 1):
             raise ValueError('unsafe checkout source metadata')
         stream.truncate(0)
-        json.dump(value, stream)
+        stream.write(encoded)
         stream.flush()
         os.fsync(stream.fileno())
     temporary.replace(path)
@@ -128,6 +132,44 @@ class SourceProtection:
                 or not isinstance(value['run'], str) or not Path(value['run']).is_absolute()):
             raise ValueError('invalid checkout source owner')
         return value['run']
+
+    def _impact_records(self):
+        value = _read(self.directory / 'repair-impact-holds.json', {}, uid=self.uid,
+                      max_bytes=IMPACT_MAX_BYTES)
+        if (not isinstance(value, dict)
+                or any(not isinstance(ticket, str) or not Path(ticket).is_absolute()
+                       or not isinstance(record, dict)
+                       or set(record) != {'hold', 'generation'}
+                       or record['hold'] not in ('untriaged', 'yes', 'unsure', None)
+                       or type(record['generation']) is not int or record['generation'] < 0
+                       for ticket, record in value.items())):
+            raise ValueError('invalid checkout impact holds')
+        return value
+
+    def impact_holds(self):
+        """Return effective holds; another writer invalidates an inactive hold."""
+        generation = self.generation()
+        return {ticket: record['hold'] or 'unsure'
+                for ticket, record in self._impact_records().items()
+                if record['hold'] is not None or record['generation'] != generation}
+
+    def set_impact(self, ticket, decision):
+        """Change only this ticket's normal admission hold under state()."""
+        if (not isinstance(ticket, str) or not Path(ticket).is_absolute()
+                or decision not in ('untriaged', 'yes', 'unsure', 'no')):
+            raise ValueError('invalid checkout impact decision')
+        records = self._impact_records()
+        records[ticket] = {'hold': None if decision == 'no' else decision,
+                           'generation': self.generation()}
+        _write(self.directory / 'repair-impact-holds.json', records, max_bytes=IMPACT_MAX_BYTES)
+
+    def release_impact(self, ticket):
+        """Release a settled ticket without changing any other hold under state()."""
+        if not isinstance(ticket, str) or not Path(ticket).is_absolute():
+            raise ValueError('invalid checkout impact ticket')
+        records = self._impact_records()
+        records.pop(ticket, None)
+        _write(self.directory / 'repair-impact-holds.json', records, max_bytes=IMPACT_MAX_BYTES)
 
     def generation(self):
         value = _read(self.directory / 'repair-generation.json', 0, uid=self.uid)
@@ -169,9 +211,24 @@ class SourceProtection:
                 raise ValueError('inherited source descriptor has no held lease')
             return 'writer' if 'WRITE' in modes else 'reader'
 
-    def admit(self, descriptor, *, owner=None, resumed=None, prepare=None):
-        """Try a lease under state(); a writer's caller publishes recovery first."""
+    def admit(self, descriptor, *, owner=None, resumed=None, prepare=None,
+              impact_ticket=None, ready=None):
+        """Try a lease under state(); publish writer recovery only after admission.
+
+        ``ready`` checks the caller's finite-work boundary while its coordinator
+        lock and this gate are held. Failure publishes no writer intent. Only a
+        named pending ticket's read-only triage may bypass impact holds; source
+        writers and retained unverified edits still fence that reader.
+        """
         self.validate(descriptor)
+        if impact_ticket is not None and (owner is not None
+                or not isinstance(impact_ticket, str)
+                or impact_ticket not in self._impact_records()):
+            raise ValueError('impact triage requires a held ticket and a reader lease')
+        if ready is not None and not ready():
+            return False
+        if owner is None and impact_ticket is None and self.impact_holds():
+            return False
         try:
             fcntl.flock(descriptor, (fcntl.LOCK_EX if owner else fcntl.LOCK_SH) | fcntl.LOCK_NB)
         except BlockingIOError:
@@ -208,7 +265,162 @@ class SourceProtection:
         # Keep generations monotonic across independent runs and explicit reset.
         _write(self.directory / 'repair-generation.json', self.generation() + 1)
         remove(self.directory / 'repair-source-pending.json')
+        remove(self.directory / 'repair-impact-holds.json')
         _sync(self.directory)
+
+
+class RepairGate:
+    """Own a worker's source lease; callers own repair order and admission policy."""
+    def __init__(self, run, *, root=None, stopped=lambda: False):
+        self.run = run
+        self.root = root
+        self.owner = str(run.resolve())
+        self.protection = SourceProtection(source_directory(root))
+        self.fd = None
+        self.stopped = stopped
+        inherited = os.environ.pop(STARTUP_WRITER, None)
+        saved = ({'pid': os.getpid(), 'fds': [int(inherited)]} if inherited is not None
+                 else _read(run / 'repair-lease.json'))
+        if saved is not None:
+            if (not isinstance(saved, dict) or set(saved) != {'pid', 'fds'}
+                    or type(saved['pid']) is not int or saved['pid'] <= 0
+                    or not isinstance(saved['fds'], list) or len(saved['fds']) != 1
+                    or type(saved['fds'][0]) is not int or saved['fds'][0] < 0):
+                raise ValueError('invalid retained repair lease')
+            if saved['pid'] == os.getpid():
+                fd, = saved['fds']
+                with self.protection.state():
+                    self.protection.validate(fd, held=True, writer=True)
+                    if self.protection.owner() is None:
+                        raise ValueError('inherited repair writer has no retained source owner')
+                    if not self.protection.admit(fd, owner=self.owner, resumed=self._resumed()):
+                        raise ValueError('inherited repair writer lost its source lease')
+                os.set_inheritable(fd, False)
+                self.fd = fd
+                retain(fd, self.owner)
+
+    def _resumed(self):
+        return _read(self.run / 'repair-source-resume.json')
+
+    def _check_stop(self):
+        if self.stopped() or (self.run / 'cancel').exists():
+            from detached_launcher import Stopped
+            raise Stopped()
+        import launcher_reload
+        if launcher_reload.pending():
+            getattr(self, 'on_reload', launcher_reload.check)()
+
+    def _check_source(self, *, reloading=False):
+        import launcher_reload
+        try:
+            self.protection.check_generation(fresh=reloading)
+        except launcher_reload.ReloadRequested:
+            # Let the controller save its continuation before replacing code.
+            self._check_stop()
+            raise
+
+    def generation(self):
+        return self.protection.generation()
+
+    def try_acquire(self, *, reloading=False, ready=None):
+        """Claim a drained source boundary without publishing waiting intent.
+
+        A coordinator may hold its own lock while calling this method. ``ready``
+        runs under the source gate, so it must not invert that lock order.
+        """
+        if self.fd is not None:
+            return False
+        with _lock(self.protection.directory / 'repair-owner') as opened:
+            fd = os.dup(opened)
+        try:
+            with self.protection.state():
+                if not self.protection.admit(fd, owner=self.owner,
+                        resumed=self._resumed(), ready=ready):
+                    return False
+            self.fd = fd
+            retain(fd, self.owner)
+            self._check_source(reloading=reloading)
+            return True
+        finally:
+            # An admitted writer survives exceptions until its owner detaches
+            # or explicitly records the repair outcome.
+            if self.fd is None:
+                os.close(fd)
+
+    def acquire(self, *, reloading=False, ready=None):
+        """Wait for admission without fencing readers before the writer exists."""
+        if self.fd is not None:
+            return False
+        while True:
+            self._check_stop()
+            if self.try_acquire(reloading=reloading, ready=ready):
+                return True
+            time.sleep(.1)
+
+    @contextmanager
+    def source(self, *, reloading=False):
+        """Protect finite work, borrowing this worker's writer when present."""
+        if self.fd is None:
+            import launcher_reload
+            try:
+                with reader(self.root, stopped=self._check_stop, fresh=reloading) as source:
+                    yield source
+            except launcher_reload.ReloadRequested:
+                self._check_stop()
+                raise
+            return
+        with self.protection.state():
+            self.protection.validate(self.fd, held=True, writer=True)
+            if self.protection.owner() != self.owner:
+                raise ValueError('inherited source writer ownership changed')
+        self._check_source(reloading=reloading)
+        lease = retain(self.fd, self.owner)
+        try:
+            yield None
+        finally:
+            _local.leases = [item for item in _local.leases if item is not lease]
+
+    @contextmanager
+    def reload_source(self, *, root=None):
+        """Retain the same source identity while replacing the interpreter."""
+        with self.source(reloading=True) as source:
+            yield self.fd if self.fd is not None else source
+
+    def release(self, *, changed=False, unfinished=False):
+        if self.fd is not None:
+            with self.protection.state():
+                self.protection.validate(self.fd, held=True, writer=True)
+                self.protection.finish(self.owner, changed=changed, unfinished=unfinished)
+            (self.run / 'repair-lease.json').unlink(missing_ok=True)
+            self.detach()
+
+    def detach(self):
+        """Drop this process's descriptor while preserving any durable fence."""
+        if self.fd is not None:
+            forget(self.fd)
+            os.close(self.fd)
+            self.fd = None
+
+
+@contextmanager
+def borrowed(root, environment):
+    """Borrow a validated writer on this thread without changing process aliases."""
+    protection = SourceProtection(source_directory(root))
+    try:
+        descriptor = int(environment[VARIABLE])
+        owner = environment[WRITER]
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError('bounded repair requires its owning source writer') from error
+    with protection.state():
+        protection.validate(descriptor, held=True, writer=True)
+        if not isinstance(owner, str) or protection.owner() != owner:
+            raise ValueError('borrowed source writer ownership changed')
+    previous = getattr(_local, 'leases', [])
+    _local.leases = [*previous, (descriptor, owner)]
+    try:
+        yield
+    finally:
+        _local.leases = previous
 
 
 def descriptors():
@@ -276,8 +488,8 @@ def finish_imports(root=None, *, keep=(), directories=()):
 
 
 @contextmanager
-def reader(root, *, stopped=lambda: False, fresh=False, wait=True):
-    """Protect imports, preparation and execution; nested readers borrow leases."""
+def reader(root, *, stopped=lambda: False, fresh=False, wait=True, impact_ticket=None):
+    """Protect finite work; only a held ticket grants read-only impact triage."""
     inherited = environment()
     uid = os.geteuid()
     if uid == 0 and VARIABLE in inherited:
@@ -286,9 +498,16 @@ def reader(root, *, stopped=lambda: False, fresh=False, wait=True):
             raise ValueError('source lease does not belong to the authenticated caller')
     protection = SourceProtection(source_directory(root, **({'uid': uid} if uid != os.geteuid() else {})), uid=uid)
     if VARIABLE in inherited:
+        if impact_ticket is not None:
+            with protection.state():
+                if (not isinstance(impact_ticket, str)
+                        or impact_ticket not in protection._impact_records()):
+                    raise ValueError('impact triage requires a held ticket and a reader lease')
         fd = int(inherited[VARIABLE])
         owner = inherited.get(WRITER)
-        protection.validate(fd, held=True, writer=owner is not None)
+        mode = protection.validate(fd, held=True, writer=owner is not None)
+        if impact_ticket is not None and mode == 'writer':
+            raise SourceBusy('checkout source is busy; impact triage cannot borrow a writer')
         if owner is not None and protection.owner() != owner:
             raise ValueError('inherited source writer ownership changed')
         protection.check_generation(fresh=fresh)
@@ -305,7 +524,7 @@ def reader(root, *, stopped=lambda: False, fresh=False, wait=True):
                 from detached_launcher import Stopped
                 raise Stopped()
             with protection.state():
-                if protection.admit(fd):
+                if protection.admit(fd, impact_ticket=impact_ticket):
                     protection.check_generation(fresh=fresh)
                     break
             if not wait:

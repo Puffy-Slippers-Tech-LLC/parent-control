@@ -10,7 +10,7 @@ from typing import Iterator, Literal, NamedTuple, Protocol
 
 
 Role = Literal['backend_reviewer', 'monitor', 'worker', 'adviser', 'translator']
-ProfileRole = Literal['implementation', 'repair', 'backend_reviewer', 'monitor',
+ProfileRole = Literal['implementation', 'repair', 'impact_triage', 'backend_reviewer', 'monitor',
                       'worker', 'adviser', 'translator', 'commit_helper', 'conflict_resolver']
 
 

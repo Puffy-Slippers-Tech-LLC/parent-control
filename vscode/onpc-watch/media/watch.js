@@ -99,7 +99,7 @@
         title.textContent = defaultText;
         if (entry.status) {
             const statusClass = {
-                failed: 'failed', finished: 'finished', 'Closing Task': 'closing-task',
+                failed: 'failed', stopped: 'failed', finished: 'finished', 'Closing Task': 'closing-task',
                 'Stop Requested': 'stop-requested', Stopping: 'stop-requested',
                 'Reload Requested': 'stop-requested', Repairing: 'stop-requested',
                 Verifying: 'stop-requested',

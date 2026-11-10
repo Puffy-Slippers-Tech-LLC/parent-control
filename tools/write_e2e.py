@@ -1526,6 +1526,17 @@ def worker(root, run, owner, tasks, state_json):
 
 
 def initial_state(root, directory, *, destination=None, defer_closeout=False):
+    state = recover_initial_state(root, directory, destination=destination,
+                                  defer_closeout=defer_closeout)
+    # Only a new owner calls this entry point. Attachments and controller
+    # reloads retain their existing allowance and intervention instead.
+    for saved in [state, *state.get('suspended_tasks', {}).values()]:
+        saved['task_session_limit'] = saved.get('task_sessions', 0) + MAX_TASK_SESSIONS
+        saved.pop('allowance_intervention', None)
+    return state
+
+
+def recover_initial_state(root, directory, *, destination=None, defer_closeout=False):
     previous = launcher.current_run(directory)
     if previous and (previous / 'checkpoint.json').exists():
         state = json.loads((previous / 'checkpoint.json').read_text())
@@ -1540,24 +1551,20 @@ def initial_state(root, directory, *, destination=None, defer_closeout=False):
                 saved.pop(key, None)
         if state.get('result_recovery') and not state.get('pending_completion'):
             used = state.get('task_sessions', 0)
-            return dict(state, recovery_run=str(previous), total_sessions=used,
-                        task_session_limit=used + MAX_TASK_SESSIONS)
+            return dict(state, recovery_run=str(previous), total_sessions=used)
         if state.get('source_changed_result') is not None:
             used = state.get('task_sessions', 0)
-            return dict(state, recovery_run=str(previous), total_sessions=used,
-                        task_session_limit=used + MAX_TASK_SESSIONS)
+            return dict(state, recovery_run=str(previous), total_sessions=used)
         task, _ = queue_state(root)
         resumed = resume_after_exclusion(root, state, previous)
         if resumed is not None:
             used = resumed.get('task_sessions', 0)
-            return dict(resumed, total_sessions=used,
-                        task_session_limit=used + MAX_TASK_SESSIONS)
+            return dict(resumed, total_sessions=used)
         if defer_closeout and (state.get('closeout_recovery_run') or state.get('pending_completion')
                 or (state.get('in_flight') and queue_state(root)[1].get(state['task_id']))):
             state.setdefault('closeout_recovery_run', str(previous))
             used = state.get('task_sessions', 0)
-            return dict(state, total_sessions=used,
-                        task_session_limit=used + MAX_TASK_SESSIONS)
+            return dict(state, total_sessions=used)
         state = recover_completion(root, previous, state, destination=destination)
         if state.get('optimization_session'):
             if state.get('in_flight') and state.get('worktree_before') is not None:
@@ -1575,8 +1582,7 @@ def initial_state(root, directory, *, destination=None, defer_closeout=False):
             if state.get('in_flight'):
                 state.update(phase='optimize', in_flight=False, recovery_run=str(previous))
             used = state.get('task_sessions', 0)
-            return dict(state, total_sessions=used,
-                        task_session_limit=used + MAX_TASK_SESSIONS)
+            return dict(state, total_sessions=used)
         if state['phase'] == 'complete' and optimization_due(state):
             return start_optimization(state)
         # Completion reconciliation uses recorded candidates and the recovering
@@ -1602,19 +1608,14 @@ def initial_state(root, directory, *, destination=None, defer_closeout=False):
                     # Preserve an answer submitted just before stop/worker death,
                     # even if the owner had not checkpointed its recovery yet.
                     state.update(phase='recover', recovery_run=str(previous),
-                                 user_answer={'question': question['question'], 'answer': question['answer']},
-                                 task_session_limit=max(state.get('task_session_limit', MAX_TASK_SESSIONS),
-                                                        state.get('task_sessions', 0) + 1))
+                                 user_answer={'question': question['question'], 'answer': question['answer']})
                     state.pop('blocker_id', None)
                     state.pop('blocker', None)
             if state.get('in_flight'):
                 state = dict(state, phase='recover', in_flight=False,
                              recovery_run=str(previous))
-            # Keep the task's cumulative numbering, but give this new owner
-            # five sessions of its own before the per-task stop applies again.
             used = state.get('task_sessions', 0)
-            return dict(state, total_sessions=used,
-                        task_session_limit=used + MAX_TASK_SESSIONS)
+            return dict(state, total_sessions=used)
         if state.get('in_flight'):
             raise ValueError(f'interrupted task changed the queue; inspect the handoff in {previous}')
         return select_task_state(task, state)

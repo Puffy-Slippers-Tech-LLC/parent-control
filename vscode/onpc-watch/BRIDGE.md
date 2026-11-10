@@ -89,7 +89,7 @@ pixels or transcript bodies are omitted. Viewers outside `scope` may be omitted.
 Adapters may advertise `capabilities.updates: true`. Only after that advertisement,
 the bridge sends optional `updates: true`. Such responses set `updates: true` and
 may omit unchanged run body fields (`rows`, `error_rows`, `launcher_output`,
-`launcher_rows`, `session_preview`, and `session_view.rows`). Omission reuses the preceding snapshot's
+`launcher_rows`, and `session_view.rows`). Omission reuses the preceding snapshot's
 field for the same run ID, run identity and session identity. Run membership and
 all other metadata remain complete; a null session view clears its body. A new
 identity, newly opened session body or reset requires full bodies. State is scoped
@@ -141,14 +141,10 @@ Links are adapter-owned artifact references; the renderer interprets no URI path
 Optional `launcher_rows` uses the same span format for terminal output with
 recording links, preserving its line breaks. Older adapters omit it and the
 Launcher tab displays `launcher_output` as plain text.
-Optional `session_preview` uses the same span format for the active session's
-last text output from the shared simplified renderer, independent of the Session
-tab's Simplified switch. It is published even when no transcript body is
-requested, and is empty when no session is active. The Status tab reuses the
-transcript renderer to display it in its pinned four-line scrollable box.
 `session_view` is null or `{rows, input_enabled, working, model, simplified}`.
 `input_enabled` and `simplified` are booleans; `working` and `model` are strings.
-Only the requested run needs a transcript body. An idle run must keep its retained
+Status requests the same transcript body as Session when embedding an active session.
+Only requested runs need transcript bodies. An idle run must keep its retained
 contents and disable input when its owner exits. Final status updates remain
 authoritative after exit; the UI does not freeze the first idle response.
 

@@ -24,7 +24,7 @@ wait for this plan's installed cooldown or collection-failure triggers.
 
 ## Next task
 
-Next task: **183d — [Close the overlay during pending approval](E2E-Tasks/183d-close-the-overlay-during-pending-approval.md)**.
+Next task: **216 — [E2E-039: overlay-close](E2E-Tasks/216-case-174.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

@@ -216,13 +216,17 @@ sub pending_overlay_signout {
     return pending_overlay_interruption('signout', @_);
 }
 
+sub pending_overlay_close {
+    return pending_overlay_interruption('close', @_);
+}
+
 sub pending_overlay_interruption {
     my $action = shift;
     onpc_progress::operation('Leaving and returning to the child during a pending parent approval');
     my ($exchange, $declared, $challenges) = @_;
     die 'pending-lock:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
-        && ($action eq 'lock' || $action eq 'switch' || $action eq 'signout');
+        && ($action eq 'lock' || $action eq 'switch' || $action eq 'signout' || $action eq 'close');
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'pending-overlay-' . $action, review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
@@ -236,10 +240,12 @@ sub pending_overlay_interruption {
     prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1, 'overlay');
     if ($action eq 'lock') {
         overlay_lock($journey, 'interruption');
+    } elsif ($action eq 'close') {
+        overlay_close($journey, 'interruption');
     } else {
         overlay_switch($journey, 'interruption', $action eq 'signout' ? 'fresh' : 'retained');
     }
-    if ($action eq 'signout') {
+    if ($action eq 'signout' || $action eq 'close') {
         $journey->seen('child-session-after');
         overlay_entry($journey, 'reopen', 'command');
     } else {
@@ -249,6 +255,27 @@ sub pending_overlay_interruption {
     onpc_parent::open_for_child($journey, 'desktop', 'retained', 'retained', 'child', 'return');
     $journey->seen('balance-returned');
     $journey->finish();
+}
+
+# FLOW17 app-close uses only the normal product surface close operation.
+# Consume the pending prompt proof before dispatch; failures prohibit replay.
+sub overlay_close {
+    onpc_progress::operation('Closing the child request while parent approval is pending');
+    my ($journey, $prefix) = @_;
+    die 'pending-close:binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && defined($prefix) && $prefix =~ /\A[a-z][a-z0-9-]*\z/;
+    die 'pending-close:replay' if $journey->{overlay_close_started} || $journey->{invocation_failed};
+    $journey->{overlay_close_started} = 1;
+    my $ok = eval {
+        my $section = $journey->scope($prefix);
+        $section->consume_observation('pending-approval', $section->seen('pending-approval'));
+        $section->seen($_) for qw(close dismissed closed);
+        1;
+    };
+    unless ($ok) {
+        $journey->{invocation_failed} = 1;
+        die $@;
+    }
 }
 
 # FLOW17 Switch User keeps the approval pending until the shared session command.

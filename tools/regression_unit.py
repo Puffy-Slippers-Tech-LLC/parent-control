@@ -39,6 +39,8 @@ Reminder input refusals use only process-local account, draft and transport
 doubles in that same safety module; they add no resources or cleanup lifetime.
 Pending-approval Switch User guards use those same bounded Perl children and
 process-local observation doubles, without a new resource or cleanup owner.
+Pending-overlay close guards reuse those private doubles and waited Perl
+children; no bus, display, VM, shared path or additional cleanup owner is opened.
 
 Native copy safety uses real descriptor operations only in private pytest paths,
 with process-local account/root bindings. It owns no children, bus, display,

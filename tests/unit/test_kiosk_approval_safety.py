@@ -344,7 +344,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
                                                else '-overlay-shell-approval')])]
 
 
-@pytest.mark.parametrize('action', ['cancel', 'lock', 'switch-user'])
+@pytest.mark.parametrize('action', ['cancel', 'lock', 'switch-user', 'close'])
 def test_shell_interruption_proof_requires_the_bound_request_and_a_new_challenge(action):
     operation = 'overlay-shell-' + action + '-ready'
     proof = {'child': 'fixture-child', 'approver': 'fixture-parent',
@@ -379,7 +379,7 @@ def test_shell_interruption_proof_requires_the_bound_request_and_a_new_challenge
     assert wrong.call.call_count == calls
 
 
-@pytest.mark.parametrize('action', ['lock', 'switch', 'signout'])
+@pytest.mark.parametrize('action', ['lock', 'switch', 'signout', 'close'])
 def test_pending_approval_refusal_prevents_session_input_and_replay(action):
     result = run_perl(r'''
 use strict;
@@ -393,7 +393,8 @@ sub send_key { die 'unexpected keyboard input'; }
 package main;
 require onpc_request_flow;
 my $action = shift @ARGV;
-my $interrupt = $action eq 'lock' ? \&onpc_request_flow::overlay_lock
+my $interrupt = $action eq 'close' ? \&onpc_request_flow::overlay_close
+               : $action eq 'lock' ? \&onpc_request_flow::overlay_lock
                                  : \&onpc_request_flow::overlay_switch;
 my $journey = onpc_journey->new(prefix => 'pending-overlay-lock', review => 0,
     exchange => sub { push @events, $_[0]; die 'fixture:prompt-refused'; });
@@ -409,6 +410,47 @@ print encode_json({first => $first ? 1 : 0, second => $second ? 1 : 0,
     assert 'fixture:prompt-refused' in value['first_error']
     assert 'pending-' + ('switch' if action == 'signout' else action) + ':replay' in value['second_error']
     assert value['events'] == ['interruption-pending-approval']
+
+
+@pytest.mark.parametrize('identity', ['a' * 64, 'b' * 64])
+def test_pending_close_rechecks_the_same_prompt_before_the_owned_surface(identity):
+    module = ui_observations.accessible_ui
+    ui = module.AccessibleUI.__new__(module.AccessibleUI)
+    ui.input_uncertain = False
+    ui.overlay_bound_values = Mock(return_value=(module.CHILD, module.PARENT, 75, True))
+    ui.require_child_overlay_session = Mock()
+    ui.invalidate_observation = Mock()
+    ui.read_snapshot = Mock(return_value=object())
+    ui.shell_prompt_owner = Mock(return_value=SimpleNamespace(get_process_id=lambda: 123))
+    ui.shell_prompt = Mock(return_value=object())
+    ui.mate_challenge_identity = Mock(return_value=identity)
+    target = Mock()
+    ui.snapshot_owned_target = Mock(return_value=target)
+    ui.surface_available = Mock(return_value=True)
+    if identity == 'a' * 64:
+        ui.close_id('kiosk-request-window', pending_shell_challenge='a' * 64)
+        target.close.assert_called_once_with()
+        ui.require_child_overlay_session.assert_called_once_with(module.CHILD)
+    else:
+        with pytest.raises(module.UiError, match='pending-close-challenge'):
+            ui.close_id('kiosk-request-window', pending_shell_challenge='a' * 64)
+        ui.snapshot_owned_target.assert_not_called()
+        target.close.assert_not_called()
+
+
+def test_pending_close_proof_is_consumed_before_an_uncertain_dispatch():
+    ui = ui_observations.UiObservations(None)
+    ui.last_operation = 'overlay-shell-close-ready'
+    ui.pending_close_challenge = 'a' * 64
+    ui.boot_guard = 'b' * 64
+    ui.call = Mock(side_effect=RuntimeError('fixture:lost-reply'))
+    with pytest.raises(RuntimeError, match='lost-reply'):
+        ui.observe('overlay-pending-close')
+    argv = ui.call.call_args.args[0]
+    assert argv[-2:] == ['b' * 64, 'a' * 64]
+    with pytest.raises(EvidenceError, match='pending-close-order'):
+        ui.observe('overlay-pending-close')
+    assert ui.call.call_count == 1
 
 
 def test_pending_overlay_entry_refuses_another_account_before_observation():

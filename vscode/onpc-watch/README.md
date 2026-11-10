@@ -52,12 +52,14 @@ When a launcher exits for any reason, its
 section and all four tabs retain their contents, including while other worktrees
 remain active. Reconnecting restores the latest retained run in each idle
 worktree from its existing run files. Session input is disabled once its owner
-exits. Retention uses existing run files and reader memory; it adds no disk persistence.
+exits. Retention uses existing run files and reader memory; explicitly closing a
+finished tile saves only its dismissal marker.
 Launcher and viewer titles use the same bold text and single-line content:
 local/remote icon, host (`local` or the SSH host), `[branch]`, and launcher or VM name.
 Launcher titles occupy the first row with one three-line menu button at its right.
 The menu opens a dropdown with **Copy tab content** first, then **Copy Command**
-(terminal icon), followed by the launcher action, **Reload** and **Kill**.
+(terminal icon), followed by the launcher action, **Reload**, **Add 5 Sessions**,
+**Kill** and **Close Finished Launcher**.
 **Copy Command** copies the full saved command with all parameters and argument
 quoting. It is disabled for older runs without saved parameters. Double-clicking
 the title does not copy the command.
@@ -144,6 +146,15 @@ restoration for VM-backed workflows under their existing ownership guards.
 Kill is disabled for inactive or disconnected runs, while stopping, or when
 the source adapter does not advertise support. The run identity is checked
 again after confirmation and on the originating host before cancellation.
+At the bottom of the menu, **Close Finished Launcher** uses a plain, theme-colored
+close X below a separator, distinct from Kill's red octagon. It is enabled only
+for a connected, inactive launcher with saved output. Confirmation offers
+**Close Finished Launcher** and **Cancel**. Confirming clears the saved Watch tile;
+a run-specific dismissal on the originating host keeps it closed across reconnects
+and VS Code restarts. Launcher checkpoints and test artifacts remain available.
+The host rechecks the exact run and holds its idle owner lock while saving the
+dismissal; a running or replaced launcher cannot be closed. A new run appears normally.
+
 The **Status**, **Launcher**, **Error** and **Session** views are selected from
 a dropdown in the single title row, with a vertical divider on each side.
 The dropdown and action buttons fit their contents, leaving the remaining width for the title.

@@ -117,7 +117,7 @@
         if (section.editingTitle && section.editingTitle.run === entry.run) return;
         section.editingTitle = undefined;
         const signature = JSON.stringify([entry.run, entry.custom_title, entry.server, entry.transport, entry.label, entry.status, entry.session, entry.session_active,
-            entry.session_number, entry.session_allowance, entry.session_inactive, entry.launcher_controls, entry.launcher_command, entry.launcher_action_command, entry.launcher_reload_command, entry.launcher_add_session_command, entry.launcher_kill, entry.active, section.view, section.collapsed, maximizedRun === entry.id]);
+            entry.session_number, entry.session_allowance, entry.session_inactive, entry.launcher_controls, entry.launcher_command, entry.launcher_action_command, entry.launcher_reload_command, entry.launcher_add_session_command, entry.launcher_kill, entry.launcher_close, entry.active, section.view, section.collapsed, maximizedRun === entry.id]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
         section.heading.replaceChildren();
@@ -292,6 +292,24 @@
             menu.hidePopover();
             overflow.focus();
             vscode.postMessage({ type: 'launcherAction', root: entry.id, run: entry.run, kind: 'kill' });
+        });
+        const close = element('button', 'run-copy run-launcher-action', menu);
+        close.type = 'button';
+        close.dataset.kind = 'close';
+        close.title = 'Close Finished Launcher';
+        close.setAttribute('aria-label', close.title);
+        close.disabled = !entry.launcher_close || entry.active;
+        const closeIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        closeIcon.setAttribute('viewBox', '0 0 20 20');
+        closeIcon.setAttribute('aria-hidden', 'true');
+        const closeShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        closeShape.setAttribute('d', 'M5 5l10 10 M15 5L5 15');
+        closeIcon.append(closeShape);
+        close.append(closeIcon, 'Close Finished Launcher');
+        close.addEventListener('click', () => {
+            menu.hidePopover();
+            overflow.focus();
+            vscode.postMessage({ type: 'launcherAction', root: entry.id, run: entry.run, kind: 'close' });
         });
         if (entry.launcher_command) labels.title = entry.launcher_command;
         title.tabIndex = 0;

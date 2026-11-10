@@ -144,6 +144,45 @@ def cancel_run(root, run):
         raise ValueError('Launcher changed or cancellation could not be requested.')
 
 
+def watch_closed(run):
+    """A durable, run-specific dismissal, independent of execution checkpoints."""
+    try:
+        with open_private(run / 'watch-closed'):
+            return True
+    except FileNotFoundError:
+        return False
+
+
+def close_finished_run(root, run):
+    """Dismiss only an unchanged idle publication while holding its owner lock."""
+    if not any(candidate == run for candidate, _name in
+               active_launchers(root, JsonReader(), include_idle=True)):
+        raise ValueError('Launcher changed; refresh before trying again.')
+    workflow = run.parent.name not in ('sessions', 'sessions-host') and not run.parent.name.startswith('vm-')
+    with open_private((run.parent if workflow else run) / 'owner') as owner:
+        try:
+            fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ValueError('Launcher is running; it cannot be closed.') from error
+        if read_json(run.parent / 'current.json', 4096)['run'] != run.name:
+            raise ValueError('Launcher changed; refresh before trying again.')
+        # Pin the private run directory and never follow a replacement marker.
+        fd = os.open(run, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            info = os.fstat(fd)
+            if info.st_uid != os.getuid() or info.st_mode & 0o077:
+                raise ValueError('watch-output: unsafe run')
+            if watch_closed(run):
+                return
+            marker = os.open('watch-closed', os.O_WRONLY | os.O_CREAT | os.O_EXCL |
+                             os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=fd)
+            with os.fdopen(marker, 'wb') as stream:
+                os.fsync(stream.fileno())
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+
 class Output:
     def __init__(self, root=None, *, launcher_base=None):
         self.root = root or Path(__file__).resolve().parents[1]

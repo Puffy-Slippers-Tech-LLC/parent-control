@@ -515,6 +515,7 @@ class Bridge {
                         input_enabled: false, unavailable: true, simplified: false, model: '' } : run.session_view;
                 runs.push({ ...run, id: route,
                     launcher_controls: connected && run.launcher_controls === true,
+                    launcher_close: connected && run.launcher_close === true,
                     transport: source.config.transport,
                     server: source.config.transport === 'ssh' ? source.config.host : 'local',
                     // Retain presentation through retries; input still requires a live reader.
@@ -611,7 +612,8 @@ class Bridge {
     async launcherCommand(root, run, kind) {
         const route = this.roots.get(root);
         const current = route?.source.snapshot?.runs.find(item => item.id === route.id);
-        if (!['stop', 'cancel-stop', 'resume', 'reload', 'kill', 'add-session'].includes(kind) || !current?.launcher_controls || current.run !== run ||
+        if (!['stop', 'cancel-stop', 'resume', 'reload', 'kill', 'add-session', 'close'].includes(kind) ||
+                !(kind === 'close' ? current?.launcher_close && !current.active : current?.launcher_controls) || current.run !== run ||
                 (kind === 'add-session' && !current.launcher_add_session_command) ||
                 (kind === 'reload' && !current.launcher_reload_command) ||
                 (kind === 'kill' && !current.launcher_kill)) {
